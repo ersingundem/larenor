@@ -11,6 +11,7 @@ class HaPlaybackIntent {
     this._generation,
     this.source,
     this.target,
+    this.transport,
     this._parentId,
     this.expiresAt,
   );
@@ -20,6 +21,7 @@ class HaPlaybackIntent {
   bool _used = false;
   final HaMediaNode source;
   final HaMediaTarget target;
+  final HaPlaybackTransport transport;
   final DateTime expiresAt;
 }
 
@@ -209,7 +211,8 @@ class HaPlaybackController {
     if (!source.playable) {
       throw const HaPlaybackException(HaPlaybackFailure.unsupportedSource);
     }
-    if (!target.canPlay(source, inventory)) {
+    final transport = target.transportFor(source, inventory);
+    if (transport == null) {
       throw const HaPlaybackException(HaPlaybackFailure.unsupportedTarget);
     }
     _busy = true;
@@ -227,6 +230,7 @@ class HaPlaybackController {
         generation,
         source,
         fresh.target,
+        fresh.transport,
         page.parent.id,
         _now().toUtc().add(const Duration(seconds: 30)),
       );
@@ -237,7 +241,14 @@ class HaPlaybackController {
     }
   }
 
-  Future<({HaMediaTarget target, HaMediaInventory inventory})> _preflight(
+  Future<
+    ({
+      HaMediaTarget target,
+      HaMediaInventory inventory,
+      HaPlaybackTransport transport,
+    })
+  >
+  _preflight(
     int generation,
     String parentId,
     HaMediaNode source,
@@ -255,10 +266,11 @@ class HaPlaybackController {
     final fresh = inventory.targets
         .where((value) => value.sameIdentity(target))
         .firstOrNull;
-    if (fresh == null || !fresh.canPlay(source, inventory)) {
+    final transport = fresh?.transportFor(source, inventory);
+    if (fresh == null || transport == null) {
       throw const HaPlaybackException(HaPlaybackFailure.unsupportedTarget);
     }
-    return (target: fresh, inventory: inventory);
+    return (target: fresh, inventory: inventory, transport: transport);
   }
 
   Future<HaPlaybackReceipt> play(HaPlaybackIntent intent) async {
@@ -293,6 +305,9 @@ class HaPlaybackController {
         intent.target,
       );
       current();
+      if (fresh.transport != intent.transport) {
+        throw const HaPlaybackException(HaPlaybackFailure.unsupportedTarget);
+      }
       bool canSend() {
         try {
           current();
@@ -308,6 +323,7 @@ class HaPlaybackController {
           .play(
             entityId: fresh.target.entityId,
             source: intent.source,
+            transport: intent.transport,
             isCurrent: canSend,
           )
           .timeout(const Duration(seconds: 30));
@@ -316,6 +332,7 @@ class HaPlaybackController {
         status: HaPlaybackReceiptStatus.accepted,
         target: fresh.target,
         source: intent.source,
+        transport: intent.transport,
         acceptedAt: _now().toUtc(),
       );
       _publish(
@@ -396,6 +413,7 @@ class HaPlaybackController {
                   : HaPlaybackReceiptStatus.unconfirmed,
               target: receipt.target,
               source: receipt.source,
+              transport: receipt.transport,
               acceptedAt: receipt.acceptedAt,
               observedAt: observed ? _now().toUtc() : null,
             ),
@@ -414,6 +432,7 @@ class HaPlaybackController {
               status: HaPlaybackReceiptStatus.unconfirmed,
               target: receipt.target,
               source: receipt.source,
+              transport: receipt.transport,
               acceptedAt: receipt.acceptedAt,
             ),
           ),

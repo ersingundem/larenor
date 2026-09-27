@@ -17,6 +17,9 @@ enum HaPlaybackFailure {
 
 enum HaPlaybackReceiptStatus { accepted, observed, unconfirmed }
 
+/// The receiver route selected from fresh source and registry evidence.
+enum HaPlaybackTransport { audio, displayVideo, appleTvVideo }
+
 class HaPlaybackException implements Exception {
   const HaPlaybackException(this.failure, {this.outcomeUnknown = false});
   final HaPlaybackFailure failure;
@@ -40,6 +43,9 @@ class HaMediaNode {
   final bool canPlay, canExpand;
   bool get isAudio => mediaType.startsWith('audio/');
   bool get isVideo => mediaType.startsWith('video/');
+  bool get isExplicitAppleTvVideo =>
+      mediaType == 'video/mp4' &&
+      {'video', 'movie', 'episode'}.contains(mediaClass);
   bool get playable => canPlay && !canExpand && (isAudio || isVideo);
   bool sameSource(HaMediaNode other) =>
       id == other.id &&
@@ -68,12 +74,14 @@ class HaPlaybackReceipt {
     required this.status,
     required this.target,
     required this.source,
+    required this.transport,
     required this.acceptedAt,
     this.observedAt,
   });
   final HaPlaybackReceiptStatus status;
   final HaMediaTarget target;
   final HaMediaNode source;
+  final HaPlaybackTransport transport;
   final DateTime acceptedAt;
   final DateTime? observedAt;
 }

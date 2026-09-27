@@ -74,16 +74,31 @@ class HaMediaTarget {
       platform == other.platform &&
       deviceId == other.deviceId &&
       configEntryId == other.configEntryId;
+  HaPlaybackTransport? transportFor(
+    HaMediaNode source,
+    HaMediaInventory inventory,
+  ) {
+    if (!inventory.hasPlayMedia ||
+        !inventory.registryAvailable ||
+        !hasRegistryIdentity ||
+        !enabled ||
+        !available ||
+        !supportsPlayMedia ||
+        !source.playable) {
+      return null;
+    }
+    if (source.isAudio) return HaPlaybackTransport.audio;
+    if (!source.isVideo || !isDisplay) return null;
+    if (platform == 'apple_tv') {
+      return source.isExplicitAppleTvVideo
+          ? HaPlaybackTransport.appleTvVideo
+          : null;
+    }
+    return HaPlaybackTransport.displayVideo;
+  }
+
   bool canPlay(HaMediaNode source, HaMediaInventory inventory) =>
-      inventory.hasPlayMedia &&
-      inventory.registryAvailable &&
-      hasRegistryIdentity &&
-      enabled &&
-      available &&
-      supportsPlayMedia &&
-      source.playable &&
-      (source.isAudio ||
-          (source.isVideo && isDisplay && platform != 'apple_tv'));
+      transportFor(source, inventory) != null;
 }
 
 class HaMediaInventory {

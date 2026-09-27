@@ -90,7 +90,10 @@ class FakeHaPlaybackApi extends HaPlaybackApi {
   Map<String, HaMediaBrowsePage> pages = {
     'media-source://': parseHaMediaBrowse(browseRaw(), playbackNow),
   };
-  final commands = <({String entityId, HaMediaNode source})>[];
+  final commands =
+      <
+        ({String entityId, HaMediaNode source, HaPlaybackTransport transport})
+      >[];
   final browseIds = <String?>[];
   int inventoryReads = 0;
   Future<void> Function()? inventoryGate, browseGate, playGate;
@@ -122,13 +125,14 @@ class FakeHaPlaybackApi extends HaPlaybackApi {
   Future<void> play({
     required String entityId,
     required HaMediaNode source,
+    required HaPlaybackTransport transport,
     required bool Function() isCurrent,
   }) async {
     await playGate?.call();
     if (!isCurrent()) {
       throw const HaPlaybackException(HaPlaybackFailure.invalidIntent);
     }
-    commands.add((entityId: entityId, source: source));
+    commands.add((entityId: entityId, source: source, transport: transport));
     if (playError != null) throw playError!;
   }
 

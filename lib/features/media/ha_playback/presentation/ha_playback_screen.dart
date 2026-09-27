@@ -48,12 +48,21 @@ String haMediaReceiverLabel(AppLocalizations l10n, HaMediaReceiverKind kind) =>
     switch (kind) {
       HaMediaReceiverKind.castAudio => l10n.haMediaCastAudio,
       HaMediaReceiverKind.castDisplay => l10n.haMediaCastDisplay,
-      HaMediaReceiverKind.appleAudio ||
-      HaMediaReceiverKind.appleTv => l10n.haMediaAppleAudio,
+      HaMediaReceiverKind.appleAudio => l10n.haMediaAppleAudio,
+      HaMediaReceiverKind.appleTv => l10n.haMediaAppleTv,
       HaMediaReceiverKind.audio => l10n.haMediaAudio,
       HaMediaReceiverKind.display => l10n.haMediaDisplay,
       HaMediaReceiverKind.unknown => l10n.haMediaUnknownTarget,
     };
+
+String haPlaybackTransportLabel(
+  AppLocalizations l10n,
+  HaPlaybackTransport transport,
+) => switch (transport) {
+  HaPlaybackTransport.audio => l10n.haMediaTransportAudio,
+  HaPlaybackTransport.displayVideo => l10n.haMediaTransportDisplayVideo,
+  HaPlaybackTransport.appleTvVideo => l10n.haMediaTransportAppleTvVideo,
+};
 
 class HaPlaybackScreen extends ConsumerStatefulWidget {
   const HaPlaybackScreen({super.key});
@@ -172,6 +181,10 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
               const SizedBox(height: 12),
               Text('${l10n.mediaRemoteItem}: ${intent.source.title}'),
               Text('${l10n.mediaRemoteDevice}: ${intent.target.name}'),
+              Text(
+                '${l10n.haMediaTransport}: '
+                '${haPlaybackTransportLabel(l10n, intent.transport)}',
+              ),
               const SizedBox(height: 12),
               Text(l10n.haMediaReplace),
             ],
@@ -338,6 +351,11 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
                 children: [
                   Text(receipt.target.name, style: AppText.headline),
                   Text(receipt.source.title, style: AppText.body),
+                  Text(
+                    '${l10n.haMediaTransport}: '
+                    '${haPlaybackTransportLabel(l10n, receipt.transport)}',
+                    style: AppText.footnote,
+                  ),
                   const SizedBox(height: 8),
                   Text(switch (receipt.status) {
                     HaPlaybackReceiptStatus.accepted => l10n.haMediaAccepted,

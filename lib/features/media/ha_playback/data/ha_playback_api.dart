@@ -12,6 +12,7 @@ abstract class HaPlaybackApi {
   Future<void> play({
     required String entityId,
     required HaMediaNode source,
+    required HaPlaybackTransport transport,
     required bool Function() isCurrent,
   });
 }
@@ -101,12 +102,19 @@ class WsHaPlaybackApi extends HaPlaybackApi {
   Future<void> play({
     required String entityId,
     required HaMediaNode source,
+    required HaPlaybackTransport transport,
     required bool Function() isCurrent,
   }) async {
     final generation = _generation();
     _check(generation);
+    final transportValid = switch (transport) {
+      HaPlaybackTransport.audio => source.isAudio,
+      HaPlaybackTransport.displayVideo => source.isVideo,
+      HaPlaybackTransport.appleTvVideo => source.isExplicitAppleTvVideo,
+    };
     if (!RegExp(r'^media_player\.[a-z0-9_]+$').hasMatch(entityId) ||
         !source.playable ||
+        !transportValid ||
         !RegExp(r'^(audio|video)/[a-zA-Z0-9!#&^_.+-]+$')
             .hasMatch(source.mediaType)) {
       throw const HaPlaybackException(HaPlaybackFailure.unsupportedSource);
