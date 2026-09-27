@@ -13,6 +13,11 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+from ..plugins.component_updates import (
+    ComponentUpdateError,
+    InstalledComponentUpdateSource,
+    verify_installed_update_source,
+)
 from .service import (
     MAX_COMPONENT_BYTES,
     MAX_COMPONENT_VOLUME_BYTES,
@@ -22,6 +27,7 @@ from .service import (
 PROTOCOL = 1
 MAX_HEADER_BYTES = 64 * 1024
 MAX_SNAPSHOTS = 128
+MAX_UPDATE_SOURCES = 6
 _SERVICE_ID = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
 _VOLUME_ID = re.compile(r"[a-z][a-z0-9-]{0,127}\Z")
 _SAFE_VALUE = re.compile(r"[\x21-\x7e]{1,128}\Z")
@@ -234,6 +240,90 @@ class ComponentSnapshotWorkerClient:
             seen.add(identity)
             descriptors.append(descriptor)
         return descriptors
+
+    @staticmethod
+    def _update_sources(response, request_id):
+        if (
+            set(response) != {"protocol", "requestId", "status", "sources"}
+            or type(response.get("protocol")) is not int
+            or response["protocol"] != PROTOCOL
+            or response.get("requestId") != request_id
+            or response.get("status") != "ready"
+            or type(response.get("sources")) is not list
+            or len(response["sources"]) > MAX_UPDATE_SOURCES
+        ):
+            raise ComponentSnapshotWorkerError("invalid_worker_result")
+        try:
+            values = tuple(
+                verify_installed_update_source(
+                    InstalledComponentUpdateSource.model_validate_json(
+                        json.dumps(
+                            item,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                            allow_nan=False,
+                        )
+                    )
+                )
+                for item in response["sources"]
+            )
+            ordered = tuple(
+                sorted(values, key=lambda item: (item.current.serviceId, item.installationId))
+            )
+            if (
+                values != ordered
+                or len({item.current.serviceId for item in values}) != len(values)
+                or len({item.installationId for item in values}) != len(values)
+                or len({item.sourceDigest for item in values}) != len(values)
+            ):
+                raise ValueError()
+            return values
+        except (
+            ComponentUpdateError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            RecursionError,
+        ):
+            raise ComponentSnapshotWorkerError("invalid_worker_result") from None
+
+    def update_sources(self, deadline):
+        """Read exact installed release identities without quiescing volumes."""
+        now = time.monotonic()
+        if (
+            type(deadline) not in (int, float)
+            or type(deadline) is bool
+            or not now < deadline <= now + 5
+        ):
+            raise ComponentSnapshotWorkerError()
+        if not self._lock.acquire(timeout=_remaining(deadline)):
+            raise ComponentSnapshotWorkerError()
+        connection = None
+        request_id = uuid.uuid4().hex
+        try:
+            connection = self._connect(deadline)
+            _write_frame(
+                connection,
+                {
+                    "protocol": PROTOCOL,
+                    "requestId": request_id,
+                    "operation": "component_update_sources",
+                    "timeoutMilliseconds": max(
+                        1, min(5000, int(_remaining(deadline) * 1000))
+                    ),
+                },
+                deadline,
+            )
+            return self._update_sources(_read_frame(connection, deadline), request_id)
+        except ComponentSnapshotWorkerError:
+            raise
+        except (OSError, TypeError, ValueError):
+            raise ComponentSnapshotWorkerError() from None
+        finally:
+            if connection is not None:
+                connection.close()
+            self._lock.release()
 
     @contextmanager
     def quiesce(self, deadline):

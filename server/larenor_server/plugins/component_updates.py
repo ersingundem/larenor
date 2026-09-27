@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import secrets
 from typing import Annotated, Literal
 
 from pydantic import Field, StrictBool, model_validator
@@ -380,6 +381,22 @@ def installed_update_source(
         )
     except ComponentUpdateError:
         raise
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        raise ComponentUpdateError("installed_component_untrusted") from None
+
+
+def verify_installed_update_source(
+    value: InstalledComponentUpdateSource,
+) -> InstalledComponentUpdateSource:
+    """Recompute the source digest after strict wire round-trip validation."""
+    try:
+        validated = _validated(value, InstalledComponentUpdateSource)
+        payload = validated.model_dump(mode="json")
+        payload["sourceDigest"] = None
+        expected = hashlib.sha256(_canonical(payload)).hexdigest()
+        if not secrets.compare_digest(validated.sourceDigest, expected):
+            raise ValueError("source_digest")
+        return validated
     except (ValueError, TypeError, AttributeError, RecursionError):
         raise ComponentUpdateError("installed_component_untrusted") from None
 

@@ -9,7 +9,13 @@ import time
 from pathlib import Path
 
 from ..files import checked_path
+from ..plugins.component_updates import (
+    ComponentUpdateError,
+    InstalledComponentUpdateSource,
+    verify_installed_update_source,
+)
 from .component_worker import (
+    MAX_UPDATE_SOURCES,
     PROTOCOL,
     ComponentSnapshotWorkerError,
     _peer_uid,
@@ -106,12 +112,17 @@ class ComponentSnapshotWorkerServer:
             or type(value.get("requestId")) is not str
             or len(value["requestId"]) != 32
             or any(char not in "0123456789abcdef" for char in value["requestId"])
-            or value.get("operation") != "quiesce"
+            or value.get("operation")
+            not in {"quiesce", "component_update_sources"}
             or type(value.get("timeoutMilliseconds")) is not int
             or not 1 <= value["timeoutMilliseconds"] <= 5000
         ):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
-        return value["requestId"], now + value["timeoutMilliseconds"] / 1000.0
+        return (
+            value["requestId"],
+            now + value["timeoutMilliseconds"] / 1000.0,
+            value["operation"],
+        )
 
     @staticmethod
     def _validated_snapshots(values):
@@ -147,13 +158,70 @@ class ComponentSnapshotWorkerServer:
             "sha256": hashlib.sha256(snapshot.payload).hexdigest(),
         }
 
+    @staticmethod
+    def _validated_update_sources(values):
+        if type(values) not in (tuple, list) or len(values) > MAX_UPDATE_SOURCES:
+            raise ComponentSnapshotWorkerError("invalid_worker_result")
+        ordered = tuple(
+            sorted(
+                values,
+                key=lambda item: (
+                    getattr(getattr(item, "current", None), "serviceId", ""),
+                    getattr(item, "installationId", ""),
+                ),
+            )
+        )
+        if (
+            any(type(item) is not InstalledComponentUpdateSource for item in ordered)
+            or tuple(values) != ordered
+            or len({item.current.serviceId for item in ordered}) != len(ordered)
+            or len({item.installationId for item in ordered}) != len(ordered)
+            or len({item.sourceDigest for item in ordered}) != len(ordered)
+        ):
+            raise ComponentSnapshotWorkerError("invalid_worker_result")
+        try:
+            return tuple(
+                verify_installed_update_source(
+                    InstalledComponentUpdateSource.model_validate_json(
+                        item.model_dump_json()
+                    )
+                )
+                for item in ordered
+            )
+        except (
+            ComponentUpdateError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            RecursionError,
+        ):
+            raise ComponentSnapshotWorkerError("invalid_worker_result") from None
+
     def _handle(self, connection):
         actual_uid = self.peer_uid(connection)
         if type(actual_uid) is not int or actual_uid != self.client_uid:
             return
         read_deadline = self.monotonic() + 5
         request = _read_frame(connection, read_deadline)
-        request_id, deadline = self._request(request, self.monotonic())
+        request_id, deadline, operation = self._request(request, self.monotonic())
+        if operation == "component_update_sources":
+            try:
+                values = self.provider.update_sources(deadline)
+            except AttributeError:
+                raise ComponentSnapshotWorkerError("invalid_worker_result") from None
+            sources = self._validated_update_sources(values)
+            _write_frame(
+                connection,
+                {
+                    "protocol": PROTOCOL,
+                    "requestId": request_id,
+                    "status": "ready",
+                    "sources": [item.model_dump(mode="json") for item in sources],
+                },
+                deadline,
+            )
+            self.completed += 1
+            return
         with self.provider.quiesce(deadline) as values:
             snapshots = self._validated_snapshots(values)
             _write_frame(

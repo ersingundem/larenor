@@ -108,6 +108,20 @@ class PackagedComponentSnapshotBoundary:
         self._capture = capture
         self._peer_uid = peer_uid
 
+    def update_sources(self, deadline):
+        try:
+            if (
+                type(deadline) not in (int, float)
+                or type(deadline) is bool
+                or not time.monotonic() < deadline <= time.monotonic() + 5
+            ):
+                raise ValueError()
+            return self._authority.update_sources()
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise ComponentWorkerRuntimeError("worker_unavailable") from None
+
     @contextmanager
     def quiesce(self, deadline):
         try:
