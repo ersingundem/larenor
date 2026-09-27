@@ -3417,7 +3417,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Google servislerinden bağımsız bildirim",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3442,7 +3442,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Google servislerinden bağımsız yerel bildirim kutusu, kullanıcı onaylı Android arka plan teslim kirası, Keystore korumalı credential, görünür foreground service, boot/recovery, kayıp/tekrar dedupe ve fail-closed lease yenileme/iptal akışları Server/Client/native katmanlarında tamamlandı; testler, bağımsız son kabul, exact-head CI ve gerçek Huawei/OEM pil davranışı son doğrulama kapısında bekliyor."
     },
     {
       "id": "F53",
