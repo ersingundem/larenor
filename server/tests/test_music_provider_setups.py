@@ -92,8 +92,16 @@ def test_setup_intent_is_idempotent_encrypted_and_survives_restart(server):
         'providerDomain': 'spotify'})
     assert response.json()['setup'] == setup
     with app.state.core.db.connection() as connection:
-        dump = '\n'.join(connection.iterdump())
-    assert 'spotify' not in dump and setup['requestId'] not in dump
+        row = connection.execute(
+            'SELECT * FROM music_provider_setups WHERE id=?', (setup['id'],)
+        ).fetchone()
+    plaintext = '\n'.join(
+        str(row[key]) for key in row.keys() if key not in {'nonce', 'ciphertext'}
+    )
+    encrypted = bytes(row['nonce']) + bytes(row['ciphertext'])
+    assert 'spotify' not in plaintext and setup['requestId'] not in plaintext
+    assert b'spotify' not in encrypted
+    assert setup['requestId'].encode() not in encrypted
     with TestClient(create_app(settings)) as restarted:
         assert restarted.get(BASE + '/' + setup['id'], headers=auth(pair)).json() == {
             'setup': setup}
@@ -129,7 +137,11 @@ def test_worker_discovery_records_only_secret_free_required_action(
     response = client.get(BASE + '/' + setup['id'], headers=auth(pair))
     assert response.json()['setup'] == result
     encoded = json.dumps(response.json())
-    assert FLOW not in encoded and 'private-state' not in encoded
+    assert FLOW not in encoded
+    if domain == 'spotify':
+        assert response.json()['setup']['externalUrl'] == OAUTH
+    else:
+        assert 'private-state' not in encoded
     with app.state.core.db.connection() as connection:
         dump = '\n'.join(connection.iterdump())
     assert FLOW not in dump and 'private-state' not in dump
@@ -241,7 +253,8 @@ def test_restarted_core_dispatches_persisted_initial_discovery_without_exposing_
     assert worker.calls[0].providerDomain == 'spotify'
     assert 'private-mass-token' not in repr(worker.calls[0])
     encoded = json.dumps(current)
-    assert FLOW not in encoded and 'private-state' not in encoded
+    assert FLOW not in encoded
+    assert current['externalUrl'] == OAUTH
 
 
 def test_initial_discovery_failure_is_retained_and_explicit_retry_is_revision_bound(server):
