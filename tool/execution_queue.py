@@ -319,8 +319,7 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
                       c['needs_user']))
     if not summary_only:
         tasks = model.tasks(group)
-        current = [node for node in tasks
-                   if node['status'] in ('in_progress', 'implemented', 'awaiting_ci')]
+        current = [node for node in tasks if node['status'] == 'in_progress']
         pending = [node for node in tasks if node['status'] == 'pending']
         ready = [node for node in pending if not model.blockers(node['id'])]
         blocked = [node for node in pending if model.blockers(node['id'])]
@@ -356,10 +355,11 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
                           'Başlanabilir' if not blockers else 'Bağımlılık bekliyor',
                           ', '.join(blockers) or '—'))
         closed_tasks = sorted(
-            (node for node in tasks if node['status'] in ('done', 'implemented')),
+            (node for node in tasks
+             if node['status'] in ('done', 'implemented', 'awaiting_ci')),
             key=lambda node: DISPLAY_ORDER[node['status']],
         )
-        lines.extend(['', 'Tamamlanan ve test bekleyen işler', '',
+        lines.extend(['', 'Tamamlanan ve test/CI bekleyen işler', '',
                       '| ID | İş | Durum | Beklenen bağımlılık |', '| --- | --- | --- | --- |'])
         for node in closed_tasks:
             blocked = ', '.join(model.blockers(node['id'])) or '—'

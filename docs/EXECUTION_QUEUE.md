@@ -31,13 +31,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | Çalışılıyor | — |
 | PRODUCT.CAMERA | İsteğe bağlı yaklaşma ve kişisel kamera görünümü | Çalışılıyor | — |
-| K10 | Hareket, karanlık ve cihaz sensörleri | Uygulama tamamlandı · test bekliyor | — |
-| K12 | Watchdog ve yerel kullanım ölçümü | Uygulama tamamlandı · test bekliyor | — |
-| F13 | Bileşen bazında internet izinleri | Uygulama tamamlandı · test bekliyor | — |
 | F20 | Değiştirilmesi fark edilen işlem günlüğü | Çalışılıyor | — |
-| F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Çalışılıyor | — |
-| F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 
 Bekleyen tüm işler
 
@@ -110,7 +105,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 63 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
 | 64 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
-Tamamlanan ve test bekleyen işler
+Tamamlanan ve test/CI bekleyen işler
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
