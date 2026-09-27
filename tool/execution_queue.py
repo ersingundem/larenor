@@ -314,6 +314,42 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
                       c['in_progress'], c['awaiting_ci'], c['needs_user']))
     if not summary_only:
         tasks = model.tasks(group)
+        current = [node for node in tasks
+                   if node['status'] in ('in_progress', 'awaiting_ci')]
+        pending = [node for node in tasks if node['status'] == 'pending']
+        ready = [node for node in pending if not model.blockers(node['id'])]
+        blocked = [node for node in pending if model.blockers(node['id'])]
+        upcoming = (ready + blocked)[:20]
+        lines.extend([
+            '',
+            'Şu anda çalışılanlar',
+            '',
+            '| ID | İş | Durum | Beklenen bağımlılık |',
+            '| --- | --- | --- | --- |',
+        ])
+        if current:
+            for node in current:
+                blockers = ', '.join(model.blockers(node['id'])) or '—'
+                lines.append('| %s | %s | %s | %s |' %
+                             (node['id'], escape(node['title']),
+                              LABELS[node['status']], blockers))
+        else:
+            lines.append('| — | Aktif iş yok | — | — |')
+        lines.extend([
+            '',
+            'Sıradaki 20 iş',
+            '',
+            'Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla gösterilir.',
+            '',
+            '| Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |',
+            '| ---: | --- | --- | --- | --- |',
+        ])
+        for index, node in enumerate(upcoming, 1):
+            blockers = model.blockers(node['id'])
+            lines.append('| %d | %s | %s | %s | %s |' %
+                         (index, node['id'], escape(node['title']),
+                          'Başlanabilir' if not blockers else 'Bağımlılık bekliyor',
+                          ', '.join(blockers) or '—'))
         pages = max(1, (len(tasks) + page_size - 1) // page_size)
         require(page <= pages, 'invalid_options')
         lines.extend(['', 'İşler · sayfa %d/%d · en çok %d satır' % (page, pages, page_size), '',

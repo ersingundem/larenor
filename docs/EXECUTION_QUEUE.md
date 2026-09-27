@@ -25,6 +25,43 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 9 |
 
+Şu anda çalışılanlar
+
+| ID | İş | Durum | Beklenen bağımlılık |
+| --- | --- | --- | --- |
+| PRODUCT.CAMERA | İsteğe bağlı yaklaşma ve kişisel kamera görünümü | Çalışılıyor | — |
+| K10 | Hareket, karanlık ve cihaz sensörleri | CI bekliyor | — |
+| K12 | Watchdog ve yerel kullanım ölçümü | CI bekliyor | — |
+| F13 | Bileşen bazında internet izinleri | Çalışılıyor | — |
+| F05 | Uzun süren ev iş akışları | Çalışılıyor | — |
+
+Sıradaki 20 iş
+
+Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla gösterilir.
+
+| Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
+| ---: | --- | --- | --- | --- |
+| 1 | PRODUCT.APPLETV | Apple TV video ve medya hedefleri | Başlanabilir | — |
+| 2 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | Başlanabilir | — |
+| 3 | K09 | Cihaz bilgisi ve kontrollü uzaktan görünüm | Başlanabilir | — |
+| 4 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | Başlanabilir | — |
+| 5 | F15 | Doğrulanabilir bileşen güncellemeleri | Başlanabilir | — |
+| 6 | F20 | Değiştirilmesi fark edilen işlem günlüğü | Başlanabilir | — |
+| 7 | F51 | Etkileşimli ev kat planı | Başlanabilir | — |
+| 8 | F52 | DeX'te iki ekrana farklı görev | Başlanabilir | — |
+| 9 | F24 | Akıllı altyazı ve dil tercihleri | Başlanabilir | — |
+| 10 | F26 | Oynatma kalitesi danışmanı | Başlanabilir | — |
+| 11 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
+| 12 | F21 | Birlikte senkron film izleme | Başlanabilir | — |
+| 13 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
+| 14 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
+| 15 | F32 | Dolap stoğu ve son kullanma takibi | Başlanabilir | — |
+| 16 | F56 | Eski cihazlar için akıllı kumanda | Başlanabilir | — |
+| 17 | F63 | SSH terminal, SFTP ve güvenli tüneller | Başlanabilir | — |
+| 18 | F62 | Bağımsız RDP uzak masaüstü | Başlanabilir | — |
+| 19 | K13 | Yönetilen profil dağıtımı ve filo bağı | Bağımlılık bekliyor | K12, F53 |
+| 20 | F16 | Otomatik kurtarma tatbikatı | Bağımlılık bekliyor | F05 |
+
 İşler · sayfa 1/7 · en çok 20 satır
 
 | ID | İş | Durum | Beklenen bağımlılık |
