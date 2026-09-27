@@ -29,6 +29,7 @@ import '../../../../server/media_segments/data/server_media_segment_controller.d
 import '../../../../server/media_segments/domain/server_media_segment_models.dart';
 import '../../../../server/watch_parties/data/server_watch_party_controller.dart';
 import '../../../../server/watch_parties/domain/server_watch_party_models.dart';
+import '../../../../server/offline_media/data/server_offline_media_controller.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
@@ -97,6 +98,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   late final CorePlaybackQualityController _coreQuality;
   late final ServerMediaSegmentController _mediaSegments;
   late final ServerWatchPartyController _watchParty;
+  late final ServerOfflineMediaController _offlineMedia;
 
   JellyfinClient? _client;
   LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
@@ -216,6 +218,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _reporter = null;
       _mediaSegments.retire();
       _watchParty.retire();
+      _offlineMedia.retire();
       _ignoreFailure(_player.stop);
       _error = AppLocalizations.of(context).jellyfinPlayerNotConnected;
       _loading = false;
@@ -270,6 +273,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _watchParty = ServerWatchPartyController(
       ref.read(serverAccountControllerProvider),
     )..addListener(_watchPartyChanged);
+    _offlineMedia = ServerOfflineMediaController(
+      ref.read(serverAccountControllerProvider),
+    )..addListener(_offlineMediaChanged);
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
@@ -288,6 +294,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _reporter = null;
       _mediaSegments.retire();
       _watchParty.retire();
+      _offlineMedia.retire();
       _ignoreFailure(_player.stop);
       if (mounted) {
         setState(() {
@@ -320,6 +327,10 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         (_) => unawaited(_watchPartyTick()),
       );
     }
+    if (mounted) setState(() {});
+  }
+
+  void _offlineMediaChanged() {
     if (mounted) setState(() {});
   }
 
@@ -422,6 +433,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         identical(ref.read(jellyfinClientProvider), client) &&
         (interaction == null || _interactionCurrent(interaction));
     try {
+      if (!current()) return false;
+      await _offlineMedia.closePlayback();
       if (!current()) return false;
       final source = await client.getPlaybackInfo(
         widget.item.id,
@@ -582,6 +595,114 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _error == null &&
       _client != null &&
       _reporter != null;
+
+  bool get _offlineMediaRouteCurrent =>
+      mounted && _foreground && !_loading && _error == null && _client != null;
+
+  Future<void> _playOfflineMedia() async {
+    if (_opening) return;
+    _opening = true;
+    final generation = _generation;
+    bool current() => _offlineMediaRouteCurrent && generation == _generation;
+    try {
+      final uri = await _offlineMedia.openPlayback(current: current);
+      if (uri == null || !current()) return;
+      _progressPoller.stop();
+      await _reporter?.stop(_position);
+      _reporter = null;
+      if (!current()) return;
+      _coreQuality.retire();
+      _mediaSegments.retire();
+      _watchParty.retire();
+      setState(() {
+        _sourceEpoch++;
+        _position = Duration.zero;
+        _duration = Duration.zero;
+        _seekDraft = null;
+        _qualityEvidence = null;
+        _coreQualityRequest = null;
+      });
+      await _player.open(Media(uri.toString()), play: _foreground);
+      if (!current()) await _ignoreFailure(_player.stop);
+    } catch (_) {
+      await _offlineMedia.closePlayback();
+      if (mounted && generation == _generation) {
+        setState(
+          () => _error = AppLocalizations.of(context).mediaReadFailedTitle,
+        );
+      }
+    } finally {
+      _opening = false;
+    }
+  }
+
+  Future<void> _showOfflineMediaSheet() async {
+    final l10n = AppLocalizations.of(context);
+    final manifest = _offlineMedia.manifest;
+    final progress = manifest == null
+        ? 0
+        : ((manifest.downloadedBytes * 100) ~/ manifest.contentLength).clamp(
+            0,
+            100,
+          );
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.jellyfinOfflineMediaTitle),
+        message: Text(
+          manifest == null
+              ? l10n.jellyfinOfflineMediaHint
+              : manifest.complete
+              ? l10n.jellyfinOfflineMediaReady
+              : l10n.jellyfinOfflineMediaProgress(progress),
+        ),
+        actions: [
+          if (manifest?.complete == true && !_offlineMedia.busy)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(sheetContext).pop();
+                unawaited(_playOfflineMedia());
+              },
+              child: Text(l10n.jellyfinOfflineMediaPlay),
+            ),
+          if ((manifest == null || !manifest.complete) && !_offlineMedia.busy)
+            CupertinoActionSheetAction(
+              onPressed: () {
+                Navigator.of(sheetContext).pop();
+                unawaited(
+                  _offlineMedia.downloadCurrentItem(
+                    widget.item.id,
+                    current: () => _offlineMediaRouteCurrent,
+                  ),
+                );
+              },
+              child: Text(
+                manifest == null
+                    ? l10n.jellyfinOfflineMediaDownload
+                    : l10n.jellyfinOfflineMediaResume,
+              ),
+            ),
+          if (manifest != null)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.of(sheetContext).pop();
+                unawaited(
+                  _offlineMedia.cancel(
+                    current: () => _offlineMediaRouteCurrent,
+                  ),
+                );
+              },
+              child: Text(l10n.jellyfinOfflineMediaRemove),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
+  }
 
   bool get _watchPartyLeader {
     final snapshot = _watchParty.snapshot;
@@ -1433,6 +1554,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _watchPartyTimer?.cancel();
     _watchParty.removeListener(_watchPartyChanged);
     _watchParty.dispose();
+    _offlineMedia.removeListener(_offlineMediaChanged);
+    _offlineMedia.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();
@@ -1701,6 +1824,21 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
                       : CupertinoIcons.person_2_fill,
                   color: CupertinoColors.white,
                   semanticLabel: l10n.jellyfinWatchPartyTitle,
+                ),
+              ),
+              CupertinoButton(
+                key: const ValueKey('jellyfin-player-offline-media'),
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+                onPressed: _interactionAction(
+                  () => unawaited(_showOfflineMediaSheet()),
+                ),
+                child: Icon(
+                  _offlineMedia.manifest?.complete == true
+                      ? CupertinoIcons.check_mark_circled_solid
+                      : CupertinoIcons.arrow_down_circle,
+                  color: CupertinoColors.white,
+                  semanticLabel: l10n.jellyfinOfflineMediaTitle,
                 ),
               ),
               if (_tracks.subtitle.isNotEmpty)

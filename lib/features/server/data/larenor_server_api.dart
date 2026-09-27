@@ -794,6 +794,81 @@ class LarenorServerApi {
     }
   }
 
+  /// Reads one bounded offline-media chunk. The endpoint is deliberately
+  /// closed to every other binary surface so feature code cannot turn this
+  /// client into an arbitrary authenticated downloader.
+  Future<Uint8List> requestOfflineMediaChunk({
+    required String token,
+    required String grantId,
+    required Map<String, dynamic> body,
+  }) async {
+    if (_closed ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(grantId) ||
+        token.isEmpty ||
+        body.keys.toSet().difference({
+          'schemaVersion',
+          'requestId',
+          'expectedRevision',
+          'offset',
+        }).isNotEmpty ||
+        body.length != 4) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final abort = Completer<void>();
+    _pending.add(abort);
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    try {
+      final request =
+          http.AbortableRequest(
+              'POST',
+              endpoint.api('/media/offline/grants/$grantId/chunk'),
+              abortTrigger: abort.future,
+            )
+            ..headers['accept'] = 'application/octet-stream'
+            ..headers['authorization'] = 'Bearer $token'
+            ..headers['content-type'] = 'application/json'
+            ..bodyBytes = utf8.encode(jsonEncode(body));
+      final response = await _client.send(request).timeout(timeout);
+      final maximum = response.statusCode >= 200 && response.statusCode < 300
+          ? 32 * 1024
+          : 8192;
+      if ((response.contentLength ?? 0) > maximum) {
+        throw const LarenorServerException('invalid_response');
+      }
+      final bytes = <int>[];
+      await for (final chunk in response.stream) {
+        if (bytes.length + chunk.length > maximum) {
+          throw const LarenorServerException('invalid_response');
+        }
+        bytes.addAll(chunk);
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw LarenorServerException(_errorCode(response.statusCode, bytes));
+      }
+      if (bytes.isEmpty ||
+          response.headers['x-larenor-chunk-offset'] != '${body['offset']}' ||
+          !RegExp(r'^[0-9a-f]{64}$')
+              .hasMatch(response.headers['x-larenor-content-sha256'] ?? '')) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return Uint8List.fromList(bytes);
+    } on LarenorServerException {
+      rethrow;
+    } on TimeoutException {
+      throw const LarenorServerException('timeout');
+    } on http.RequestAbortedException {
+      throw const LarenorServerException('timeout');
+    } catch (_) {
+      throw const LarenorServerException('connection_failed');
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      _pending.remove(abort);
+    }
+  }
+
   Future<Map<String, dynamic>?> _read(
     http.BaseRequest request,
     bool allowEmpty,

@@ -4419,6 +4419,17 @@
   "serverComponentUpdatesJobNeedsAttention": "Needs attention",
   "serverComponentUpdatesCancel": "Cancel update",
   "serverComponentUpdatesCancelRequested": "Cancellation requested",
+  "jellyfinOfflineMediaTitle": "Offline copy",
+  "jellyfinOfflineMediaHint": "Save this permitted Jellyfin file in the encrypted device vault for travel. Provider restrictions remain in effect.",
+  "jellyfinOfflineMediaDownload": "Download for offline use",
+  "jellyfinOfflineMediaResume": "Resume download",
+  "jellyfinOfflineMediaPlay": "Play offline copy",
+  "jellyfinOfflineMediaRemove": "Remove offline copy",
+  "jellyfinOfflineMediaReady": "Encrypted offline copy is ready on this device.",
+  "jellyfinOfflineMediaProgress": "Downloaded {progress}%",
+  "@jellyfinOfflineMediaProgress": {
+    "placeholders": {"progress": {"type": "int"}}
+  },
   "jellyfinWatchPartyTitle": "Watch together",
   "jellyfinWatchPartyHint": "Create a private room or join with a shared code. Playback changes stay bound to the current room and media revisions.",
   "jellyfinWatchPartyCreate": "Create room",

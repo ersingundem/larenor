@@ -4066,6 +4066,17 @@
   "serverComponentUpdatesJobNeedsAttention": "İnceleme gerekiyor",
   "serverComponentUpdatesCancel": "Güncellemeyi iptal et",
   "serverComponentUpdatesCancelRequested": "İptal istendi",
+  "jellyfinOfflineMediaTitle": "Çevrimdışı kopya",
+  "jellyfinOfflineMediaHint": "İzinli Jellyfin dosyasını seyahat için cihazın şifreli kasasına kaydedin. Sağlayıcı kısıtları geçerliliğini korur.",
+  "jellyfinOfflineMediaDownload": "Çevrimdışı kullanım için indir",
+  "jellyfinOfflineMediaResume": "İndirmeye devam et",
+  "jellyfinOfflineMediaPlay": "Çevrimdışı kopyayı oynat",
+  "jellyfinOfflineMediaRemove": "Çevrimdışı kopyayı kaldır",
+  "jellyfinOfflineMediaReady": "Şifreli çevrimdışı kopya bu cihazda hazır.",
+  "jellyfinOfflineMediaProgress": "%{progress} indirildi",
+  "@jellyfinOfflineMediaProgress": {
+    "placeholders": {"progress": {"type": "int"}}
+  },
   "jellyfinWatchPartyTitle": "Birlikte izle",
   "jellyfinWatchPartyHint": "Özel bir oda oluşturun veya paylaşılan kodla katılın. Oynatma değişiklikleri güncel oda ve medya revizyonlarına bağlı kalır.",
   "jellyfinWatchPartyCreate": "Oda oluştur",
