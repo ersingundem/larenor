@@ -703,7 +703,13 @@ class CoreServices:
             self.proxmox_power.store.validate_storage()
             self.proxmox_power.store.recover_incomplete()
             self.home_assistant = HomeAssistantAdapter(
-                self.db, self.auth, settings, key, self.home_resources, self.services
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.home_resources,
+                self.services,
+                self.rule_arbitration,
             )
             self.home_assistant.validate_storage()
             self.home_workflows = HomeWorkflowService(

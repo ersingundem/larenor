@@ -144,6 +144,7 @@ MESSAGES = {
     'rule_arbiter_result_stale': 'The authorized device write was superseded or expired.',
     'rule_arbiter_observation_stale': 'The external Home Assistant observation is stale.',
     'rule_arbiter_storage_invalid': 'The rule arbitration journal could not be verified.',
+    'rule_action_suppressed': 'A higher-priority rule or active manual override owns this device.',
     'tablet_rollout_replay_changed': 'The kiosk rollout preview no longer matches this request.',
     'tablet_release_unavailable': 'No verified Larenor Client release is available for this rollout.',
     'outbound_denied': 'This component has no current permission for that destination.',

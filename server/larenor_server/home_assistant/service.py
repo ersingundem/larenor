@@ -28,6 +28,12 @@ from .command_storage import command_aad, decode_command
 from .models import (Binding, CommandAttribution, CommandReceipt, CommandRequest, PreviewRequest,
                      Projection, Snapshot, StoredCommand)
 from .transport import command_switch, read_entity
+from ..rule_arbitration.models import (
+    CompleteArbitratedIntent,
+    ObserveExternalWrite,
+    SubmitManualIntent,
+    SubmitRuleIntent,
+)
 
 
 PREVIEW_TTL = 60.0
@@ -50,7 +56,7 @@ class _Pending:
 
 
 class HomeAssistantAdapter:
-    def __init__(self, db, auth, settings, key, resources, services):
+    def __init__(self, db, auth, settings, key, resources, services, arbitration=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.resources, self.services = resources, services
         self._key, self._cipher = key, AESGCM(key)
@@ -65,6 +71,9 @@ class HomeAssistantAdapter:
         self._commander = command_switch
         self._active_commands = set()
         self._command_generation = 0
+        self._arbitration = arbitration
+        self._observed_states = {}
+        self._observation_revisions = {}
 
     def _now(self):
         now = self._clock()
@@ -85,6 +94,8 @@ class HomeAssistantAdapter:
         with self._lock:
             self._previews.clear(); self._cache.clear()
             self._active_commands.clear()
+            self._observed_states.clear()
+            self._observation_revisions.clear()
             self._closed = True
 
     @staticmethod
@@ -487,8 +498,8 @@ class HomeAssistantAdapter:
                     self._active_commands.discard(body.requestId)
             raise
 
-    def command(self, actor, core, home, resource, body, *, cancelled=lambda: False,
-                attribution=None, authority_guard=None):
+    def _command_unarbitrated(self, actor, core, home, resource, body, *, cancelled=lambda: False,
+                              attribution=None, authority_guard=None):
         body = CommandRequest.model_validate(body)
         if attribution is not None:
             attribution = CommandAttribution.model_validate(attribution)
@@ -534,12 +545,146 @@ class HomeAssistantAdapter:
                 self._command_generation += 1
                 self._cache.clear()
             self._current_read(actor, core, home, resource, cancelled)
+            if observed is not None:
+                with self._lock:
+                    self._observed_states[resource] = observed.state
             return {'receipt': completed.model_dump()}
         finally:
             with self._lock:
                 self._active_commands.discard(body.requestId)
             if slot:
                 self._slots.release()
+
+    def _arbitration_decision(self, actor, core, home, resource, body, attribution):
+        if self._arbitration is None:
+            return None
+        if attribution is not None and attribution.source == 'core_rule':
+            request = SubmitRuleIntent(
+                schemaVersion=1,
+                requestKey=f'ha-rule:{body.requestId}',
+                deviceId=resource,
+                expectedDeviceRevision=body.expectedResourceRevision,
+                action=body.action,
+                ruleId=attribution.ruleId,
+                expectedRuleRevision=attribution.ruleRevision,
+                priority=50,
+                leaseSeconds=30,
+            )
+            result = self._arbitration.submit_rule(actor, core, home, request)
+        else:
+            request = SubmitManualIntent(
+                schemaVersion=1,
+                requestKey=f'ha-manual:{body.requestId}',
+                deviceId=resource,
+                expectedDeviceRevision=body.expectedResourceRevision,
+                action=body.action,
+                holdSeconds=30,
+            )
+            result = self._arbitration.submit_manual(actor, core, home, request)
+        decision = result['decision']
+        if decision['state'] in {'applied', 'rejected', 'unknown'}:
+            return decision
+        if not decision['shouldWrite']:
+            raise ApiError('rule_action_suppressed', 409)
+        return decision
+
+    def _complete_arbitration(self, actor, core, home, decision, outcome):
+        if decision is None:
+            return
+        readback = (
+            decision['expectedDeviceRevision'] + 1
+            if outcome == 'applied'
+            else None
+        )
+        self._arbitration.complete(
+            actor,
+            core,
+            home,
+            decision['id'],
+            CompleteArbitratedIntent(
+                schemaVersion=1,
+                effectToken=decision['effectToken'],
+                outcome=outcome,
+                readbackDeviceRevision=readback,
+            ),
+        )
+
+    def command(self, actor, core, home, resource, body, *, cancelled=lambda: False,
+                attribution=None, authority_guard=None):
+        body = CommandRequest.model_validate(body)
+        if attribution is not None:
+            attribution = CommandAttribution.model_validate(attribution)
+        decision = self._arbitration_decision(
+            actor, core, home, resource, body, attribution
+        )
+        try:
+            result = self._command_unarbitrated(
+                actor,
+                core,
+                home,
+                resource,
+                body,
+                cancelled=cancelled,
+                attribution=attribution,
+                authority_guard=authority_guard,
+            )
+            receipt = result['receipt']
+            if decision is not None and decision['state'] != 'authorized':
+                return result
+            outcome = (
+                'applied'
+                if receipt['dispatchState'] == 'accepted'
+                and receipt['observationMatchesTarget'] is True
+                else 'rejected'
+                if receipt['dispatchState'] == 'rejected'
+                else 'unknown'
+            )
+            self._complete_arbitration(actor, core, home, decision, outcome)
+            return result
+        except BaseException:
+            if decision is not None and decision['state'] == 'authorized':
+                try:
+                    self._complete_arbitration(
+                        actor, core, home, decision, 'unknown'
+                    )
+                except ApiError:
+                    pass
+            raise
+
+    def _observe_external_change(self, actor, core, home, resource, projection):
+        if self._arbitration is None or projection.state not in {'on', 'off'}:
+            return
+        with self._lock:
+            previous = self._observed_states.get(resource)
+            self._observed_states[resource] = projection.state
+            if previous is None or previous == projection.state:
+                return
+            revision = self._observation_revisions.get(resource, 0) + 1
+            self._observation_revisions[resource] = revision
+        observed_at = float(self.settings.clock())
+        observation_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f'larenor:ha:{resource}:{revision}:{projection.state}:{observed_at}',
+        ).hex
+        try:
+            self._arbitration.observe_external(
+                actor,
+                core,
+                home,
+                ObserveExternalWrite(
+                    schemaVersion=1,
+                    observationId=observation_id,
+                    deviceId=resource,
+                    providerRevision=revision,
+                    action='turn_on' if projection.state == 'on' else 'turn_off',
+                    observedAt=observed_at,
+                    origin='home_assistant',
+                ),
+            )
+        except ApiError:
+            # Observation logging never upgrades an external state to Core
+            # authority and must not make a read-only HA snapshot unavailable.
+            return
 
     def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False,
                  authority_guard=None, consume_rate_limit=True):
@@ -581,4 +726,5 @@ class HomeAssistantAdapter:
             while len(self._cache) >= MAX_CACHE:
                 self._cache.popitem(last=False)
             self._cache[key] = (self._now(), fingerprint, result)
-            return {'snapshot': result}
+        self._observe_external_change(actor, core, home, resource, projection)
+        return {'snapshot': result}
