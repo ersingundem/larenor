@@ -3117,7 +3117,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Bileşen bazında internet izinleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3141,7 +3141,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Gerçek bağlantı yolları ve exact egress kapsamı üretimde tamamlandı; birleşik Client-Core-izole servis E2E, bağımsız inceleme ve exact-head CI son doğrulama kapısına bırakıldı."
     },
     {
       "id": "F15",
