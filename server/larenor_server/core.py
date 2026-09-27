@@ -148,6 +148,8 @@ from .plugins.music_assistant_core import MusicAssistantCoreManagement
 from .plugins.music_assistant_core_schema import migrate_music_assistant_core
 from .plugins.music_playback import MusicPlaybackManagement
 from .plugins.music_playback_schema import migrate_music_playback
+from .party_dj.schema import migrate_party_dj
+from .party_dj.service import PartyDjService
 from .plugins.music_provider_command_schema import migrate_music_provider_commands
 from .plugins.music_provider_commands import MusicProviderCommandManagement
 from .plugins.music_provider_setup_schema import migrate_music_provider_setups
@@ -472,6 +474,7 @@ class CoreServices:
                 migrate_music_provider_setups(connection)
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
+                migrate_party_dj(connection)
                 migrate_media_archive_weekly_trends(connection)
                 migrate_media_flow(connection)
                 migrate_media_playback(connection)
@@ -966,6 +969,11 @@ class CoreServices:
                 installation_backend,
             )
             self.music_playback.validate_storage()
+            self.party_dj = PartyDjService(
+                self.db, self.auth, settings, key, self.context,
+                self.music_playback,
+            )
+            self.party_dj.validate_storage()
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db,
                 self.auth,

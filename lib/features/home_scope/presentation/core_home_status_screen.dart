@@ -191,6 +191,22 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             if (current()) context.push('/media/live-tv');
                           },
                   ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-party-dj-entry'),
+                    buttonKey: const ValueKey('core-home-party-dj-action'),
+                    title: Text(isTurkish ? 'Parti DJ' : 'Party DJ'),
+                    additionalInfo: Text(
+                      isTurkish
+                          ? 'Davetle katıl, şarkı öner ve ortak geçme oylamasına katıl'
+                          : 'Join by invitation, suggest tracks, and vote to skip together',
+                    ),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/media/party-dj');
+                          },
+                  ),
                 if (controller.account.context != null &&
                     controller.account.session?.user.canAdminister == true)
                   SettingsActionTile(

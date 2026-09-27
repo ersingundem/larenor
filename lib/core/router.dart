@@ -45,6 +45,7 @@ import '../features/camera_search/presentation/camera_search_route.dart';
 import '../features/cooking_assistant/presentation/cooking_assistant_route.dart';
 import '../features/server/personal_channels/presentation/server_personal_channels_route.dart';
 import '../features/server/live_tv/presentation/server_live_tv_route.dart';
+import '../features/server/party_dj/presentation/server_party_dj_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -124,6 +125,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/media/live-tv',
           builder: (_, _) => const ServerLiveTvRoute(),
+        ),
+        GoRoute(
+          path: '/media/party-dj',
+          builder: (_, state) => ServerPartyDjRoute(
+            installationId: state.uri.queryParameters['installationId'],
+          ),
         ),
         GoRoute(path: '/media/catalog', redirect: (_, _) => '/media'),
         GoRoute(

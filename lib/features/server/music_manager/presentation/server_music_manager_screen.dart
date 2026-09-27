@@ -19,6 +19,7 @@ import '../data/server_music_manager_controller.dart';
 import '../domain/server_music_manager_models.dart';
 import 'server_music_longform_card.dart';
 import 'server_longform_session_screen.dart';
+import '../../party_dj/presentation/server_party_dj_route.dart';
 
 class ServerMusicManagerScreen extends ConsumerStatefulWidget {
   const ServerMusicManagerScreen({
@@ -195,6 +196,28 @@ class _ServerMusicManagerScreenState
     } else {
       _verify();
     }
+  }
+
+  Future<void> _openPartyDj(ServerMusicManager manager) async {
+    final current = _capture();
+    final receiver = _controller.selectedReceiver;
+    if (!current() ||
+        !_controller.verified ||
+        _controller.busy ||
+        receiver == null ||
+        !receiver.available ||
+        !receiver.enabled ||
+        !receiver.capabilities.contains('queue') ||
+        !receiver.capabilities.contains('next_previous')) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      CupertinoPageRoute(
+        builder: (_) =>
+            ServerPartyDjRoute(installationId: manager.installationId),
+      ),
+    );
+    if (current()) _verify();
   }
 
   void _submitSearch(String value) {
@@ -686,6 +709,31 @@ class _ServerMusicManagerScreenState
             header: Text(l.serverMusicManagerPlayback),
             footer: Text(l.serverMusicManagerReadbackHint),
             children: [
+              SettingsActionTile(
+                key: const ValueKey('music-manager-party-dj-entry'),
+                buttonKey: const ValueKey('music-manager-party-dj-action'),
+                leading: const Icon(CupertinoIcons.music_mic),
+                title: Text(
+                  Localizations.localeOf(context).languageCode == 'tr'
+                      ? 'Parti DJ ve ortak oylama'
+                      : 'Party DJ and shared voting',
+                ),
+                additionalInfo: Text(
+                  Localizations.localeOf(context).languageCode == 'tr'
+                      ? 'Seçili hoparlörde güvenli öneri, oy ve şarkı atlama odası aç'
+                      : 'Open a safe request, voting, and skip room on the selected speaker',
+                ),
+                onTap:
+                    _active &&
+                        _controller.verified &&
+                        !_controller.busy &&
+                        receiver?.available == true &&
+                        receiver?.enabled == true &&
+                        receiver?.capabilities.contains('queue') == true &&
+                        receiver?.capabilities.contains('next_previous') == true
+                    ? () => unawaited(_openPartyDj(_controller.manager!))
+                    : null,
+              ),
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

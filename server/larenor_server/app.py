@@ -62,6 +62,7 @@ from .plugins.music_assistant_bootstrap_job_api import (
 from .plugins.music_provider_setup_api import router as music_provider_setup_router
 from .plugins.music_provider_command_api import router as music_provider_command_router
 from .plugins.music_playback_api import router as music_playback_router
+from .party_dj.api import router as party_dj_router
 from .plugins.music_manager_api import router as music_manager_router
 from .plugins.music_retained_status_api import router as music_retained_status_router
 from .plugins.media_recovery_status_api import router as media_recovery_status_router
@@ -470,6 +471,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(music_provider_setup_router, prefix="/api/v1")
     app.include_router(music_provider_command_router, prefix="/api/v1")
     app.include_router(music_playback_router, prefix="/api/v1")
+    app.include_router(party_dj_router, prefix="/api/v1")
     app.include_router(music_manager_router, prefix="/api/v1")
     app.include_router(media_archive_health_router, prefix="/api/v1")
     app.include_router(media_catalog_router, prefix="/api/v1")
