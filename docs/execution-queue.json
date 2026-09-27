@@ -2503,7 +2503,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Spotify/Apple Music/YouTube Music kullanıcı akışı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "S07.3",
         "S08.8"
@@ -2524,7 +2524,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Sağlayıcı destek matrisi, güvenli kurulum/yenileme/iptal durumları, sıkı HTTPS dış akışı, dinamik gizli alan formu ve belirsiz create sonucunda POST tekrarlamadan exact request readback/aktif kurulum uzlaştırması Server ve Client tarafında tamamlandı; testler, bağımsız inceleme, exact-head CI ve gerçek hesap/HomePod kabulü son doğrulama kapısında bekliyor."
     },
     {
       "id": "PRODUCT.HEALTH",
