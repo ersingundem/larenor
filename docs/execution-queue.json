@@ -4161,7 +4161,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4185,7 +4185,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut provider-bound uzun biçim katalog ve ilerleme dilimini bölüm seçimi, kalıcı yer imi, uyku zamanlayıcısı, revision-safe oturum ilerlemesi ve Android MediaSession arka plan oynatmayla tamamlayan üretim dilimi geliştiriliyor."
     },
     {
       "id": "F29",
