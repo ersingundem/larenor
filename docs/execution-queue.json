@@ -5326,10 +5326,10 @@
       "title": "Bütün yazılım sonrası son frontend ve yayın"
     },
     {
-      "id": "FINAL.UI",
+      "id": "FINAL.FUNCTION",
       "kind": "task",
       "parent": "FINAL",
-      "title": "Son ortak Apple Home esintili tablet tasarım geçişi",
+      "title": "Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi",
       "status": "pending",
       "dependsOn": [
         "B1",
@@ -5349,6 +5349,37 @@
         "G09",
         "G10",
         "G11"
+      ],
+      "finishDependsOn": [],
+      "sources": [
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/feature-expansion-plan-2026-09-05.md",
+        "docs/PROGRESS.md"
+      ],
+      "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır.",
+      "acceptance": [
+        "F01–F63 ve ürün işlerinin her biri giriş noktası, yetki, mutlu yol, boş/yükleniyor/hata durumu, iptal, zaman aşımı, yeniden deneme, yeniden başlatma ve geri kazanma davranışlarıyla işlevsel envanterde tek tek doğrulanır; eksikler küçük izlenebilir düzeltmelere dönüştürülür.",
+        "Client, Core, Home Assistant ve desteklenen medya/ağ/altyapı adaptörlerinin sürüm, şema, kimlik, yaşam döngüsü ve capability uyumu doğrulanır; eski veri geçişi, çoklu ev/hesap değişimi, çevrimdışı durum ve geç yanıtlar güvenli ve anlaşılır sonuç verir.",
+        "Her özellik gerçek navigasyondan erişilebilir, amacı ve mevcut durumu anlaşılır, gerekli ayarlar ve geri bildirimler tamamlanmış, EN/TR metinleri tutarlı ve gereksiz adım tekrarı kaldırılmış halde kullanılabilir olur; yanıltıcı başarı, ölü düğme ve erişilemeyen işlev kalmaz.",
+        "İşlev envanteri ile kaynak, API sözleşmeleri ve kuyruk bire bir eşleştirilir; hedefli testler, gerçekçi entegrasyon senaryoları ve bağımsız inceleme tam head üzerinde geçmeden bu kapı tamamlanmış sayılmaz."
+      ],
+      "requiredEvidence": [
+        "test",
+        "review",
+        "ci"
+      ],
+      "evidence": [],
+      "completionCommit": null,
+      "reason": null
+    },
+    {
+      "id": "FINAL.UI",
+      "kind": "task",
+      "parent": "FINAL",
+      "title": "Son ortak Apple Home esintili tablet tasarım geçişi",
+      "status": "pending",
+      "dependsOn": [
+        "FINAL.FUNCTION"
       ],
       "finishDependsOn": [],
       "sources": [

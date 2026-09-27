@@ -1,4 +1,4 @@
-F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **37/125 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **37/126 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
@@ -22,7 +22,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 0 | 0 |
-| FINAL — Bütün yazılım sonrası son frontend ve yayın | 5 | 0 | 0 | 0 | 0 | 0 |
+| FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
 Şu anda çalışılanlar
@@ -64,11 +64,12 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 25 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43 |
 | 26 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
 | 27 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48 |
-| 28 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G05, G06, G07, G08, G09, G10, G11 |
-| 29 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 30 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 31 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 32 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 28 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G05, G06, G07, G08, G09, G10, G11 |
+| 29 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 30 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 31 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 32 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 33 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
