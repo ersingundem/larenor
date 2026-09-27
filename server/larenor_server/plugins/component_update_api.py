@@ -6,12 +6,15 @@ from fastapi import APIRouter, Depends
 from starlette.concurrency import run_in_threadpool
 
 from ..auth import Principal
+from ..context import Identity
 from ..dependencies import require_admin
 from ..models import ErrorResponse
 from .component_update_service import ComponentUpdateService
 from .component_updates import (
     ComponentReleasePreference,
+    ComponentUpdateCommand,
     ComponentUpdateInventory,
+    ConfirmComponentUpdateRequest,
     PutComponentReleasePreference,
 )
 from .models import ServiceId
@@ -47,6 +50,23 @@ def build_component_update_router(service: ComponentUpdateService) -> APIRouter:
             service.put_preference,
             principal,
             service_id,
+            body,
+        )
+
+    @router.post(
+        "/installations/{installation_id}/confirm",
+        response_model=ComponentUpdateCommand,
+        status_code=201,
+    )
+    async def confirm(
+        installation_id: Identity,
+        body: ConfirmComponentUpdateRequest,
+        principal: Admin,
+    ):
+        return await run_in_threadpool(
+            service.confirm,
+            principal,
+            installation_id,
             body,
         )
 

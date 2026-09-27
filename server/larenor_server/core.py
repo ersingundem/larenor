@@ -67,6 +67,10 @@ from .personal_profiles.repository import PersonalProfileRepository
 from .personal_profiles.schema import migrate_personal_profiles
 from .plugins.arr_config_job_schema import migrate_arr_configurations
 from .plugins.arr_config_jobs import ArrConfigurationManagement
+from .plugins.component_update_confirmations import (
+    ComponentUpdateConfirmationStore,
+    migrate_component_update_confirmations,
+)
 from .plugins.component_update_preferences import (
     ComponentUpdatePreferenceStore,
     migrate_component_update_preferences,
@@ -386,6 +390,7 @@ class CoreServices:
                 migrate_proxmox_resources(connection, self.context, key)
                 migrate_plugins(connection)
                 migrate_component_update_preferences(connection)
+                migrate_component_update_confirmations(connection)
                 migrate_plugin_jobs(connection)
                 migrate_media_preparations(connection)
                 migrate_media_inspections(connection)
@@ -665,6 +670,14 @@ class CoreServices:
                 self.context,
             )
             self.component_update_preferences.validate_storage()
+            self.component_update_confirmations = ComponentUpdateConfirmationStore(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+            )
+            self.component_update_confirmations.validate_storage()
             backend = (
                 None
                 if settings.plugin_worker_socket is None

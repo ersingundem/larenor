@@ -8,6 +8,7 @@ from .catalog import load_catalog
 from .component_updates import (
     ComponentUpdateInventory,
     ComponentUpdatePolicy,
+    ConfirmComponentUpdateRequest,
     build_update_review,
     verify_installed_update_source,
 )
@@ -16,12 +17,13 @@ from .component_updates import (
 class ComponentUpdateService:
     """Join private worker receipts with the packaged target catalog."""
 
-    def __init__(self, boundary, context, preferences):
+    def __init__(self, boundary, context, preferences, confirmations):
         if type(context) is not ContextResponse:
             raise ValueError("invalid_component_update_configuration")
         self._boundary = boundary
         self._context = context
         self._preferences = preferences
+        self._confirmations = confirmations
 
     def inventory(self, actor):
         try:
@@ -89,3 +91,20 @@ class ComponentUpdateService:
 
     def put_preference(self, actor, service_id, body):
         return self._preferences.put(actor, service_id, body)
+
+    def confirm(self, actor, installation_id, value):
+        body = ConfirmComponentUpdateRequest.model_validate(value)
+        inventory = self.inventory(actor)
+        matches = tuple(
+            (source, review, preference)
+            for source, review, preference in zip(
+                inventory.installed,
+                inventory.reviews,
+                inventory.preferences,
+                strict=True,
+            )
+            if source.installationId == installation_id
+        )
+        if len(matches) != 1:
+            raise ApiError("not_found", 404)
+        return self._confirmations.confirm(actor, *matches[0], body)
