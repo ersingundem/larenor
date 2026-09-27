@@ -21,6 +21,7 @@ import '../ai_resources/presentation/server_ai_resource_screen.dart';
 import '../ai_memory/presentation/server_ai_memory_screen.dart';
 import '../component_updates/presentation/server_component_updates_screen.dart';
 import '../core_backups/presentation/server_core_backups_screen.dart';
+import '../evidence_diagnostics/presentation/server_evidence_diagnostic_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
 import '../media_recovery/presentation/server_media_recovery_screen.dart';
@@ -827,6 +828,40 @@ class _ServerConnectionScreenState
                                             CupertinoPageRoute(
                                               builder: (_) =>
                                                   ServerAiResourceScreen(
+                                                    gateCurrent:
+                                                        widget
+                                                            .adminGateCurrent ??
+                                                        () => true,
+                                                  ),
+                                            ),
+                                          );
+                                        })
+                                      : null,
+                                ),
+                              if (session.user.canAdminister)
+                                SettingsActionTile(
+                                  buttonKey: const ValueKey(
+                                    'server-evidence-diagnostics',
+                                  ),
+                                  leading: const Icon(
+                                    CupertinoIcons.waveform_path_ecg,
+                                  ),
+                                  title: Text(
+                                    l10n.serverEvidenceDiagnosticTitle,
+                                  ),
+                                  onTap: _enabled
+                                      ? _callback(() {
+                                          if (_account
+                                                  .session
+                                                  ?.user
+                                                  .canAdminister !=
+                                              true) {
+                                            return;
+                                          }
+                                          Navigator.of(context).push<void>(
+                                            CupertinoPageRoute(
+                                              builder: (_) =>
+                                                  ServerEvidenceDiagnosticScreen(
                                                     gateCurrent:
                                                         widget
                                                             .adminGateCurrent ??
