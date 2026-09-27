@@ -4355,7 +4355,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Büyük ekran pişirme asistanı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4379,7 +4379,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Uygulama tamamlandı: gerçek Client→Core oturum yaşam döngüsü, tablet çalışma alanı, kalıcı çoklu zamanlayıcı bildirimi ve atomik/idempotent kiler düşümü 55b347c69fccf57df65b6dded9f92ed96e08534d ile gönderildi. Flutter 17/17, sunucu F33+kiler 6/6 ve hedefli analiz geçti; tam commit CI ve final fonksiyonellik geçişi bekleniyor."
     },
     {
       "id": "F34",
@@ -4898,7 +4898,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "in_progress",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
