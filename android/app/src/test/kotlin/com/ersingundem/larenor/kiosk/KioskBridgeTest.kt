@@ -20,6 +20,26 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[35], application=Application::class)
 class KioskBridgeTest {
+    private class SensorHost : KioskSensorHost {
+        var listener: ((KioskSensorSample) -> Unit)? = null
+        val startedIntervals = mutableListOf<Long>()
+        var stopped = 0
+        override fun availability() = KioskSensorAvailability(
+            light = false,
+            motion = false,
+            camera = "unavailable",
+        )
+        override fun start(intervalMillis: Long, listener: (KioskSensorSample) -> Unit) {
+            startedIntervals += intervalMillis
+            this.listener = listener
+        }
+        override fun stop() {
+            stopped++
+            listener = null
+        }
+        override fun nowMillis() = 1000L
+        override fun token() = "123e4567-e89b-12d3-a456-426614174000"
+    }
     private class Messenger: BinaryMessenger {
         val handlers=mutableMapOf<String,BinaryMessenger.BinaryMessageHandler?>()
         override fun send(channel: String,message: ByteBuffer?) {}
@@ -31,6 +51,40 @@ class KioskBridgeTest {
         override fun success(result: Any?) {value=result}
         override fun error(code: String,message: String?,details: Any?) {this.code=code;this.message=message;assertNull(details)}
         override fun notImplemented() {missing=true}
+    }
+    @Test fun injectedSensorHostIsRetiredWhenNativeFocusOrResumeAuthorityIsLost() {
+        val activity=Robolectric.buildActivity(Activity::class.java).setup()
+        val host=SensorHost();var focused=true
+        val bridge=KioskBridge(
+            activity.get(),
+            Messenger(),
+            sensorHost=host,
+            focused={focused},
+        )
+        try {
+            bridge.setResumed(true)
+            val started=Result()
+            bridge.onMethodCall(MethodCall("sensorStart",mapOf("intervalMillis" to 1000)),started)
+            assertNull(started.code)
+            assertEquals(listOf(1000L),host.startedIntervals)
+            val sessionId=(started.value as Map<*,*>)["sessionId"]
+
+            focused=false
+            bridge.windowChanged()
+            assertEquals(1,host.stopped)
+            val retired=Result()
+            bridge.onMethodCall(MethodCall("sensorRead",mapOf("sessionId" to sessionId)),retired)
+            assertEquals("expired",retired.code)
+
+            focused=true
+            bridge.windowChanged()
+            val restarted=Result()
+            bridge.onMethodCall(MethodCall("sensorStart",mapOf("intervalMillis" to 10000)),restarted)
+            assertNull(restarted.code)
+            assertEquals(listOf(1000L,10000L),host.startedIntervals)
+            bridge.setResumed(false)
+            assertEquals(2,host.stopped)
+        } finally {bridge.dispose();activity.pause().stop().destroy()}
     }
     @Test fun openingAndLifecycleAreReadOnlyAndUnmanagedEntryIsDenied() {
         val activity=Robolectric.buildActivity(Activity::class.java).setup()

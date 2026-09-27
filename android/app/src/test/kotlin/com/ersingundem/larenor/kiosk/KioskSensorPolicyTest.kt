@@ -7,6 +7,7 @@ class KioskSensorPolicyTest {
     private class Host : KioskSensorHost {
         var listener: ((KioskSensorSample) -> Unit)? = null
         var started = 0
+        val startedIntervals = mutableListOf<Long>()
         var stopped = 0
         var now = 1000L
         var camera = "available"
@@ -21,7 +22,11 @@ class KioskSensorPolicyTest {
             batteryPercent = batteryPercent,
             thermalStatus = thermalStatus,
         )
-        override fun start(listener: (KioskSensorSample) -> Unit) { started++; this.listener = listener }
+        override fun start(intervalMillis: Long, listener: (KioskSensorSample) -> Unit) {
+            started++
+            startedIntervals += intervalMillis
+            this.listener = listener
+        }
         override fun stop() { stopped++; listener = null }
         override fun nowMillis() = now
         override fun token() = "123e4567-e89b-12d3-a456-426614174000"
@@ -45,10 +50,20 @@ class KioskSensorPolicyTest {
         }
         val started = policy.start(mapOf("intervalMillis" to 1000))
         assertEquals(true, started["sampling"]); assertEquals(1, host.started)
+        assertEquals(listOf(1000L), host.startedIntervals)
         fails("busy") { policy.start(mapOf("intervalMillis" to 1000)) }
         policy.setInteractive(false)
         assertEquals(1, host.stopped)
         fails("expired") { policy.read(mapOf("sessionId" to started["sessionId"])) }
+    }
+
+    @Test fun maximumValidatedIntervalReachesTheNativeHostUnchanged() {
+        val host = Host(); val policy = KioskSensorPolicy(host)
+        policy.setInteractive(true)
+
+        policy.start(mapOf("intervalMillis" to 10000))
+
+        assertEquals(listOf(10000L), host.startedIntervals)
     }
 
     @Test fun malformedNativeSessionTokenNeverStartsAnOwnedSession() {
