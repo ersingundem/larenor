@@ -12,6 +12,7 @@ import '../../../../shared/widgets/settings_section.dart';
 import '../../../media/music/domain/music_models.dart';
 import '../../../media/music/providers/music_providers.dart';
 import '../../data/server_account_controller.dart';
+import '../../music_provider_setup/presentation/server_music_provider_setup_screen.dart';
 import '../../providers/server_providers.dart';
 import '../data/legacy_music_player_mapping.dart';
 import '../data/server_music_manager_controller.dart';
@@ -49,6 +50,8 @@ class _ServerMusicManagerScreenState
   ValueListenable<TickerModeData>? _ticker;
   int _lifecycle = 0;
   bool _visible = true, _loaded = false, _expired = false;
+  bool _openingProviderSetup = false;
+  bool _providerSetupBackgrounded = false;
   bool _migrationBusy = false, _migrationSucceeded = false;
   String? _migrationFailure;
 
@@ -93,7 +96,7 @@ class _ServerMusicManagerScreenState
 
   void _visibilityChanged() {
     _visible = _ticker?.value.enabled ?? true;
-    if (!_visible) _expire();
+    if (!_visible && !_openingProviderSetup) _expire();
   }
 
   void _accountChanged() {
@@ -105,7 +108,14 @@ class _ServerMusicManagerScreenState
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _expire();
+    if (state == AppLifecycleState.resumed) return;
+    if (_openingProviderSetup) {
+      _providerSetupBackgrounded = true;
+      _controller.invalidate();
+      _search.clear();
+      return;
+    }
+    _expire();
   }
 
   void _expire() {
@@ -142,6 +152,31 @@ class _ServerMusicManagerScreenState
   void _loadLongform() {
     final current = _capture();
     if (current()) unawaited(_controller.loadInProgress(current: current));
+  }
+
+  Future<void> _manageProviders(ServerMusicManager manager) async {
+    final current = _capture();
+    if (!current() || !_controller.verified || _controller.busy) return;
+    _openingProviderSetup = true;
+    try {
+      await Navigator.of(context).push<void>(
+        CupertinoPageRoute(
+          builder: (_) => ServerMusicProviderSetupScreen(
+            installationId: manager.installationId,
+            installationRevision: manager.installationRevision,
+          ),
+        ),
+      );
+    } finally {
+      _openingProviderSetup = false;
+    }
+    if (!current()) return;
+    if (_providerSetupBackgrounded) {
+      _providerSetupBackgrounded = false;
+      _load();
+    } else {
+      _verify();
+    }
   }
 
   void _submitSearch(String value) {
@@ -397,6 +432,15 @@ class _ServerMusicManagerScreenState
         SettingsSection(
           header: Text(l.serverMusicManagerProviders),
           children: [
+            SettingsActionTile(
+              buttonKey: const ValueKey('music-manager-provider-setup'),
+              leading: const Icon(CupertinoIcons.add_circled),
+              title: Text(l.serverMusicProviderSetupManage),
+              additionalInfo: Text(l.serverMusicProviderSetupManageHint),
+              onTap: _active && _controller.verified && !_controller.busy
+                  ? () => unawaited(_manageProviders(manager))
+                  : null,
+            ),
             for (final provider in manager.providers)
               SettingsActionTile(
                 buttonKey: ValueKey(
