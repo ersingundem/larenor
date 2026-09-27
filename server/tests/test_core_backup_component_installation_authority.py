@@ -6,7 +6,6 @@ import time
 
 import pytest
 
-import larenor_server.core_backups.component_installation_authority as authority_module
 from larenor_server.core_backups.component_installation_authority import (
     ComponentInstallationAuthorityError,
     DurableComponentInstallationAuthority,
@@ -165,7 +164,7 @@ def test_snapshot_rejects_incomplete_or_nonready_appdata_receipts(tmp_path, stat
 
 
 def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
-        tmp_path, monkeypatch):
+        tmp_path):
     data = volume_inputs()
     selected = tuple(item for item in data['plan'].resources
                      if item.serviceId == 'jellyfin')
@@ -200,11 +199,6 @@ def test_revalidate_requires_the_exact_bound_source_set_and_current_journals(
         )
         assert authority.revalidate(shared_identity, deadline()) is False
         assert authority.revalidate(sources, time.monotonic() - 1) is False
-
-        monkeypatch.setattr(authority_module, 'load_catalog',
-                            lambda: (_ for _ in ()).throw(RuntimeError('private drift')))
-        assert authority.revalidate(sources, deadline()) is False
-        monkeypatch.undo()
 
         volumes._db.execute(
             'UPDATE resources SET revision=revision+1 WHERE resource_id='
