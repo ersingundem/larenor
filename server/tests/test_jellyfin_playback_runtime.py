@@ -92,6 +92,7 @@ def test_reads_only_controllable_sessions_over_exact_authenticated_route():
             'targetId': 'c' * 32, 'targetRevision': 100,
             'name': 'Living Room TV', 'available': True,
             'currentItemId': None, 'positionSeconds': 0,
+            'qualityObservation': None,
         }],
     }
     wire = bytes(connection.sent)

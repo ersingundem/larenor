@@ -87,6 +87,7 @@ def test_member_and_admin_prepare_revision_pinned_secret_free_intents(server):
             'targetId': 'living-room', 'targetRevision': 3,
             'name': 'Living room', 'available': True,
             'currentItemId': None, 'positionSeconds': 0,
+            'qualityObservation': None,
         }],
     }
     assert worker.reads == 1
