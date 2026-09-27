@@ -207,6 +207,8 @@ def test_authorized_export_is_bounded_secret_free_and_history_detects_tamper(tmp
         "homeId",
         "ledgerRevision",
         "expenses",
+        "balances",
+        "settlements",
     }
     assert not any(
         "bank" in key.lower() or "payment" in key.lower()
