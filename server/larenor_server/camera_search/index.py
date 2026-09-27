@@ -93,10 +93,47 @@ class CameraSearchIndex:
         self._planner = queryPlanner
         self._cursors: OrderedDict[str, _CursorState] = OrderedDict()
         self._cursor_lock = threading.Lock()
+        self._state_lock = threading.RLock()
 
     @property
     def revision(self) -> int:
-        return self._revision
+        with self._state_lock:
+            return self._revision
+
+    def reconcile(
+        self,
+        records: Iterable[CameraMetadataRecord],
+        *,
+        expectedRevision: int,
+        nextRevision: int,
+    ) -> int:
+        """Atomically replace the trusted source snapshot.
+
+        Source adapters must present the exact current revision and advance by
+        one. Replacing the complete snapshot is what removes deleted clips;
+        this index never guesses that a missing incremental event is a delete.
+        """
+        source = tuple(CameraMetadataRecord.model_validate(item) for item in records)
+        if len(source) > MAX_RECORDS:
+            raise ApiError("request_too_large", 413)
+        if len(
+            {(item.homeId, item.clipId, item.captureRevision) for item in source}
+        ) != len(source):
+            raise ApiError("invalid_request")
+        with self._state_lock:
+            if (
+                type(expectedRevision) is not int
+                or type(nextRevision) is not int
+                or expectedRevision != self._revision
+                or nextRevision != expectedRevision + 1
+                or nextRevision > 2**63 - 1
+            ):
+                raise ApiError("revision_conflict", 409)
+            self._records = source
+            self._revision = nextRevision
+            with self._cursor_lock:
+                self._cursors.clear()
+            return self._revision
 
     @staticmethod
     def _request_digest(request: CameraSearchRequest) -> str:
@@ -212,7 +249,10 @@ class CameraSearchIndex:
             request = CameraSearchRequest.model_validate(rawRequest)
         except ValueError:
             raise ApiError("invalid_request") from None
-        if request.expectedIndexRevision != self._revision:
+        with self._state_lock:
+            index_revision = self._revision
+            records = self._records
+        if request.expectedIndexRevision != index_revision:
             raise ApiError("revision_conflict", 409)
         accessible = set(authority.accessibleCameraIds)
         if not set(request.cameraIds).issubset(accessible):
@@ -226,7 +266,7 @@ class CameraSearchIndex:
             offset = 0
         else:
             state = self._open_cursor(request.cursor)
-            if state.index_revision != self._revision:
+            if state.index_revision != index_revision:
                 raise ApiError("revision_conflict", 409)
             if (
                 state.request_digest != request_digest
@@ -242,7 +282,7 @@ class CameraSearchIndex:
 
         candidates: list[tuple[int, CameraMetadataRecord, tuple[str, ...]]] = []
         requested_cameras = set(request.cameraIds)
-        for item in self._records:
+        for item in records:
             if item.coreId != authority.coreId or item.homeId != authority.homeId:
                 continue
             if item.cameraId not in requested_cameras:
@@ -283,7 +323,7 @@ class CameraSearchIndex:
                     clipId=item.clipId,
                     eventId=item.eventId,
                     captureRevision=item.captureRevision,
-                    indexRevision=self._revision,
+                    indexRevision=index_revision,
                     capturedAtMs=item.startMs + item.evidenceOffsetMs,
                 ),
             )
@@ -296,7 +336,7 @@ class CameraSearchIndex:
                 _CursorState(
                     request_digest=request_digest,
                     authority_digest=authority_digest,
-                    index_revision=self._revision,
+                    index_revision=index_revision,
                     offset=next_offset,
                     terms=terms,
                     mode=mode,
@@ -305,7 +345,7 @@ class CameraSearchIndex:
             )
         return CameraSearchPage(
             schemaVersion=1,
-            indexRevision=self._revision,
+            indexRevision=index_revision,
             mode=mode,
             status=status,
             degradedReason="semantic_provider_unavailable"

@@ -24,6 +24,11 @@ final class CameraSearchStrings {
     required this.capturedAt,
     required this.camera,
     required this.cameraName,
+    required this.loadMore,
+    required this.reportIncorrect,
+    required this.reportTitle,
+    required this.reportCancel,
+    required this.reportReasons,
     this.entrySubtitle = '',
     this.requiredMessage = '',
   });
@@ -31,27 +36,49 @@ final class CameraSearchStrings {
   final String title, hint, search, prompt, loading, empty, unavailable;
   final String invalidQuery, stale, localOnly, semantic, capturedAt, camera;
   final String cameraName;
+  final String loadMore;
+  final String reportIncorrect, reportTitle, reportCancel;
+  final Map<CameraSearchFeedbackReason, String> reportReasons;
   final String entrySubtitle, requiredMessage;
 
-  factory CameraSearchStrings.fromLocalizations(AppLocalizations l) =>
-      CameraSearchStrings(
-        title: l.cameraSearchTitle,
-        entrySubtitle: l.cameraSearchEntrySubtitle,
-        hint: l.cameraSearchHint,
-        search: l.cameraSearchAction,
-        prompt: l.cameraSearchPrompt,
-        loading: l.cameraSearchLoading,
-        empty: l.cameraSearchEmpty,
-        unavailable: l.cameraSearchUnavailable,
-        invalidQuery: l.cameraSearchInvalidQuery,
-        stale: l.cameraSearchStale,
-        localOnly: l.cameraSearchLocalOnly,
-        semantic: l.cameraSearchSemantic,
-        capturedAt: l.cameraSearchCapturedAt,
-        camera: l.cameraSearchCamera,
-        cameraName: l.cameraSearchCamera,
-        requiredMessage: l.cameraSearchRequired,
-      );
+  factory CameraSearchStrings.fromLocalizations(AppLocalizations l) {
+    final tr = l.localeName.startsWith('tr');
+    return CameraSearchStrings(
+      title: l.cameraSearchTitle,
+      entrySubtitle: l.cameraSearchEntrySubtitle,
+      hint: l.cameraSearchHint,
+      search: l.cameraSearchAction,
+      prompt: l.cameraSearchPrompt,
+      loading: l.cameraSearchLoading,
+      empty: l.cameraSearchEmpty,
+      unavailable: l.cameraSearchUnavailable,
+      invalidQuery: l.cameraSearchInvalidQuery,
+      stale: l.cameraSearchStale,
+      localOnly: l.cameraSearchLocalOnly,
+      semantic: l.cameraSearchSemantic,
+      capturedAt: l.cameraSearchCapturedAt,
+      camera: l.cameraSearchCamera,
+      cameraName: l.cameraSearchCamera,
+      loadMore: l.homeResourcesLoadMore,
+      reportIncorrect: tr ? 'Yanlış sonucu bildir' : 'Report incorrect result',
+      reportTitle: tr ? 'Bu sonuç neden yanlış?' : 'Why is this result wrong?',
+      reportCancel: tr ? 'Vazgeç' : 'Cancel',
+      reportReasons: tr
+          ? const {
+              CameraSearchFeedbackReason.irrelevant: 'İlgisiz sonuç',
+              CameraSearchFeedbackReason.wrongTime: 'Yanlış zaman',
+              CameraSearchFeedbackReason.wrongCamera: 'Yanlış kamera',
+              CameraSearchFeedbackReason.wrongSummary: 'Yanlış özet',
+            }
+          : const {
+              CameraSearchFeedbackReason.irrelevant: 'Irrelevant result',
+              CameraSearchFeedbackReason.wrongTime: 'Wrong time',
+              CameraSearchFeedbackReason.wrongCamera: 'Wrong camera',
+              CameraSearchFeedbackReason.wrongSummary: 'Wrong summary',
+            },
+      requiredMessage: l.cameraSearchRequired,
+    );
+  }
 
   static const en = CameraSearchStrings(
     title: 'Camera recording search',
@@ -68,6 +95,16 @@ final class CameraSearchStrings {
     capturedAt: 'Captured',
     camera: 'Camera',
     cameraName: 'Front door',
+    loadMore: 'Load more',
+    reportIncorrect: 'Report incorrect result',
+    reportTitle: 'Why is this result wrong?',
+    reportCancel: 'Cancel',
+    reportReasons: {
+      CameraSearchFeedbackReason.irrelevant: 'Irrelevant result',
+      CameraSearchFeedbackReason.wrongTime: 'Wrong time',
+      CameraSearchFeedbackReason.wrongCamera: 'Wrong camera',
+      CameraSearchFeedbackReason.wrongSummary: 'Wrong summary',
+    },
   );
 
   static const tr = CameraSearchStrings(
@@ -85,6 +122,16 @@ final class CameraSearchStrings {
     capturedAt: 'Kayıt zamanı',
     camera: 'Kamera',
     cameraName: 'Ön kapı',
+    loadMore: 'Daha fazla yükle',
+    reportIncorrect: 'Yanlış sonucu bildir',
+    reportTitle: 'Bu sonuç neden yanlış?',
+    reportCancel: 'Vazgeç',
+    reportReasons: {
+      CameraSearchFeedbackReason.irrelevant: 'İlgisiz sonuç',
+      CameraSearchFeedbackReason.wrongTime: 'Yanlış zaman',
+      CameraSearchFeedbackReason.wrongCamera: 'Yanlış kamera',
+      CameraSearchFeedbackReason.wrongSummary: 'Yanlış özet',
+    },
   );
 }
 
@@ -110,6 +157,8 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
     with WidgetsBindingObserver {
   final _query = TextEditingController();
   bool _foreground = true;
+  late Set<String> _selectedCameras;
+  int _days = 1;
 
   bool get _current =>
       mounted &&
@@ -122,6 +171,7 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_changed);
+    _selectedCameras = widget.filter.cameraIds.toSet();
   }
 
   void _changed() {
@@ -130,7 +180,50 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
 
   void _search([String? value]) {
     if (!_current || widget.controller.busy) return;
-    widget.controller.search(value ?? _query.text, widget.filter);
+    widget.controller.search(
+      value ?? _query.text,
+      CameraSearchFilter(
+        expectedIndexRevision: widget.filter.expectedIndexRevision,
+        start: widget.filter.end.subtract(Duration(days: _days)),
+        end: widget.filter.end,
+        cameraIds: _selectedCameras.toList(growable: false)..sort(),
+      ),
+    );
+  }
+
+  void _toggleCamera(String cameraId) {
+    if (widget.controller.busy) return;
+    setState(() {
+      if (_selectedCameras.contains(cameraId)) {
+        if (_selectedCameras.length > 1) _selectedCameras.remove(cameraId);
+      } else if (_selectedCameras.length < 16) {
+        _selectedCameras.add(cameraId);
+      }
+    });
+  }
+
+  Future<void> _report(CameraSearchMatch result) async {
+    if (!_current || widget.controller.busy) return;
+    final reason = await showCupertinoModalPopup<CameraSearchFeedbackReason>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(widget.strings.reportTitle),
+        actions: [
+          for (final entry in widget.strings.reportReasons.entries)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, entry.key),
+              child: Text(entry.value),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.strings.reportCancel),
+        ),
+      ),
+    );
+    if (reason != null && _current) {
+      await widget.controller.reportIncorrect(result, reason);
+    }
   }
 
   @override
@@ -162,38 +255,85 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.enter): _search,
-              },
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: CupertinoSearchTextField(
-                      key: const ValueKey('camera-search-field'),
-                      controller: _query,
-                      autofocus: true,
-                      placeholder: widget.strings.hint,
-                      onSubmitted: _search,
-                    ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final days in const [1, 7, 31])
+                      CupertinoButton(
+                        key: ValueKey('camera-search-days-$days'),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        color: _days == days
+                            ? CupertinoColors.activeBlue
+                            : CupertinoColors.systemGrey5,
+                        onPressed: widget.controller.busy
+                            ? null
+                            : () => setState(() => _days = days),
+                        child: Text('$days d'),
+                      ),
+                    for (final cameraId in widget.filter.cameraIds)
+                      CupertinoButton(
+                        key: ValueKey('camera-search-camera-$cameraId'),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        onPressed: widget.controller.busy
+                            ? null
+                            : () => _toggleCamera(cameraId),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _selectedCameras.contains(cameraId)
+                                  ? CupertinoIcons.check_mark_circled_solid
+                                  : CupertinoIcons.circle,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              widget.cameraNames[cameraId] ??
+                                  widget.strings.camera,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.enter): _search,
+                  },
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: CupertinoSearchTextField(
+                          key: const ValueKey('camera-search-field'),
+                          controller: _query,
+                          autofocus: true,
+                          placeholder: widget.strings.hint,
+                          onSubmitted: _search,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Semantics(
+                        button: true,
+                        label: widget.strings.search,
+                        child: CupertinoButton.filled(
+                          key: const ValueKey('camera-search-submit'),
+                          minimumSize: const Size(48, 48),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          onPressed: widget.controller.busy || !_current
+                              ? null
+                              : _search,
+                          child: const Icon(CupertinoIcons.search),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Semantics(
-                    button: true,
-                    label: widget.strings.search,
-                    child: CupertinoButton.filled(
-                      key: const ValueKey('camera-search-submit'),
-                      minimumSize: const Size(48, 48),
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      onPressed: widget.controller.busy || !_current
-                          ? null
-                          : _search,
-                      child: const Icon(CupertinoIcons.search),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           Expanded(child: _body()),
@@ -204,7 +344,7 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
 
   Widget _body() {
     final controller = widget.controller;
-    if (controller.busy) {
+    if (controller.busy && controller.results.isEmpty) {
       return _Status(text: widget.strings.loading, loading: true);
     }
     if (controller.failure case final failure?) {
@@ -245,10 +385,26 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
                           widget.cameraNames[result.evidence.cameraId] ??
                           widget.strings.camera,
                       strings: widget.strings,
+                      onReport: controller.busy ? null : () => _report(result),
                     ),
                   ),
               ],
             ),
+            if (controller.page?.nextCursor != null) ...[
+              const SizedBox(height: 20),
+              Center(
+                child: CupertinoButton(
+                  key: const ValueKey('camera-search-load-more'),
+                  minimumSize: const Size(48, 48),
+                  onPressed: controller.canLoadMore
+                      ? controller.loadMore
+                      : null,
+                  child: controller.busy
+                      ? const CupertinoActivityIndicator()
+                      : Text(widget.strings.loadMore),
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -291,10 +447,12 @@ class _ResultCard extends StatelessWidget {
     required this.result,
     required this.cameraName,
     required this.strings,
+    required this.onReport,
   });
   final CameraSearchMatch result;
   final String cameraName;
   final CameraSearchStrings strings;
+  final VoidCallback? onReport;
 
   String _time(DateTime value) {
     final local = value.toLocal();
@@ -345,6 +503,13 @@ class _ResultCard extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+          const SizedBox(height: 12),
+          CupertinoButton(
+            key: ValueKey('camera-report-${result.evidence.clipId}'),
+            padding: EdgeInsets.zero,
+            onPressed: onReport,
+            child: Text(strings.reportIncorrect),
           ),
         ],
       ),

@@ -46,6 +46,16 @@ enum CameraSearchStatus { ready, degraded }
 
 enum CameraSearchDegradedReason { semanticProviderUnavailable }
 
+enum CameraSearchFeedbackReason {
+  irrelevant('irrelevant'),
+  wrongTime('wrong_time'),
+  wrongCamera('wrong_camera'),
+  wrongSummary('wrong_summary');
+
+  const CameraSearchFeedbackReason(this.wireValue);
+  final String wireValue;
+}
+
 @immutable
 final class CameraSearchContext {
   CameraSearchContext({
@@ -289,4 +299,13 @@ abstract interface class CameraSearchGateway {
   });
 
   void retire();
+}
+
+abstract interface class CameraSearchFeedbackGateway {
+  Future<void> reportIncorrect({
+    required String query,
+    required int expectedIndexRevision,
+    required CameraSearchEvidence evidence,
+    required CameraSearchFeedbackReason reason,
+  });
 }

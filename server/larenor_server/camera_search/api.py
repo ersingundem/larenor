@@ -14,6 +14,8 @@ from .index import CameraSearchIndex
 from .models import (
     CameraSearchAuthority,
     CameraSearchContextResponse,
+    CameraSearchFeedbackRequest,
+    CameraSearchFeedbackResponse,
     CameraSearchPage,
     CameraSearchRequest,
     Identity,
@@ -81,6 +83,7 @@ class CameraSearchRuntime:
             raise ApiError("not_found", 404)
         with core.db.connection() as connection:
             core.auth.assert_current(connection, actor)
+        core.auth.rate_limit([("camera_search_read", actor.id, 120)])
         authority = self._authority(actor, core_id, home_id)
         result = self._index.search(authority, request)
 
@@ -92,6 +95,8 @@ class CameraSearchRuntime:
             raise ApiError("revision_conflict", 409)
         if result.indexRevision != request.expectedIndexRevision:
             raise ApiError("revision_conflict", 409)
+        if self._index.revision != request.expectedIndexRevision:
+            raise ApiError("revision_conflict", 409)
         allowed = set(authority.accessibleCameraIds)
         if any(
             match.evidence.coreId != core_id
@@ -100,6 +105,43 @@ class CameraSearchRuntime:
             or match.evidence.indexRevision != request.expectedIndexRevision
             for match in result.results
         ):
+            raise ApiError("revision_conflict", 409)
+        feedback = getattr(core, "camera_search_feedback", None)
+        if feedback is None:
+            raise ApiError("service_unavailable", 503)
+        filtered = feedback.filter_reported(actor, request.query, result.results)
+        return result.model_copy(update={"results": filtered})
+
+    def feedback(
+        self,
+        core: CoreServices,
+        actor: Principal,
+        core_id: str,
+        home_id: str,
+        body: CameraSearchFeedbackRequest,
+    ) -> CameraSearchFeedbackResponse:
+        if core.context.coreId != core_id or core.context.homeId != home_id:
+            raise ApiError("not_found", 404)
+        with core.db.connection() as connection:
+            core.auth.assert_current(connection, actor)
+        core.auth.rate_limit([("camera_search_feedback", actor.id, 120)])
+        authority = self._authority(actor, core_id, home_id)
+        evidence = body.evidence
+        if (
+            body.expectedIndexRevision != self._index.revision
+            or evidence.coreId != core_id
+            or evidence.homeId != home_id
+            or evidence.cameraId not in set(authority.accessibleCameraIds)
+            or evidence.indexRevision != body.expectedIndexRevision
+        ):
+            raise ApiError("revision_conflict", 409)
+        feedback = getattr(core, "camera_search_feedback", None)
+        if feedback is None:
+            raise ApiError("service_unavailable", 503)
+        result = feedback.record(actor, body)
+        with core.db.connection() as connection:
+            core.auth.assert_current(connection, actor)
+        if self._authority(actor, core_id, home_id) != authority:
             raise ApiError("revision_conflict", 409)
         return result
 
@@ -172,3 +214,18 @@ def search_camera_metadata(
     runtime: Runtime,
 ):
     return runtime.search(core, actor, core_id, home_id, body)
+
+
+@router.post(
+    "/camera-search/{core_id}/{home_id}/feedback",
+    response_model=CameraSearchFeedbackResponse,
+)
+def report_camera_search_result(
+    core_id: Identity,
+    home_id: Identity,
+    body: CameraSearchFeedbackRequest,
+    actor: Ready,
+    core: Core,
+    runtime: Runtime,
+):
+    return runtime.feedback(core, actor, core_id, home_id, body)

@@ -209,6 +209,10 @@ from .resource_reservations.schema import migrate_resource_reservations
 from .resource_reservations.integration import ResourceReservationService
 from .family_board.service import FamilyBoardService
 from .family_memories import FamilyMemoriesService, MemoryAlbumAuthority, MemoryAlbumStore
+from .camera_search import (
+    CameraSearchFeedbackService,
+    migrate_camera_search_feedback,
+)
 from .camera_profiles.runtime import build_camera_profile_gateway
 from .power_budget.schema import migrate_power_budget
 from .power_budget.runtime import build_power_budget_gateway
@@ -501,6 +505,7 @@ class CoreServices:
                 migrate_floor_plan(connection)
                 migrate_shared_expenses(connection)
                 migrate_fair_chores(connection)
+                migrate_camera_search_feedback(connection)
                 migrate_kiosk_remote(connection)
                 migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
@@ -749,6 +754,16 @@ class CoreServices:
             self.fair_chores = FairChoreService(
                 self.db, self.auth, settings, self.context, key
             )
+            self.camera_search_feedback = CameraSearchFeedbackService(
+                self.db,
+                hmac.new(
+                    key,
+                    b"larenor-camera-search-feedback-v1",
+                    hashlib.sha256,
+                ).digest(),
+                settings.clock,
+            )
+            self.camera_search_feedback.validate_storage()
             self.game_streaming = GameStreamAuthorityService(
                 self.db, self.auth, settings, key, self.context)
             self.game_streaming.validate_storage()

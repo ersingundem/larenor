@@ -180,3 +180,26 @@ class CameraSearchContextResponse(FrozenModel):
         if len(value) != len(set(value)):
             raise ValueError("duplicate_camera")
         return value
+
+
+class CameraSearchFeedbackRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    query: str = Field(min_length=2, max_length=200)
+    expectedIndexRevision: Revision
+    evidence: CameraEvidenceLink
+    reason: Literal["irrelevant", "wrong_time", "wrong_camera", "wrong_summary"]
+
+    _query = field_validator("query")(safe_text)
+
+    @model_validator(mode="after")
+    def exact_index(self):
+        if self.evidence.indexRevision != self.expectedIndexRevision:
+            raise ValueError("index_revision_mismatch")
+        return self
+
+
+class CameraSearchFeedbackResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    recorded: Literal[True]

@@ -1,8 +1,11 @@
+import 'dart:math';
+
 import '../../server/data/larenor_server_api.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/camera_search_models.dart';
 
-final class CameraSearchApi implements CameraSearchGateway {
+final class CameraSearchApi
+    implements CameraSearchGateway, CameraSearchFeedbackGateway {
   CameraSearchApi(
     LarenorServerApi api,
     ServerSession session, {
@@ -14,6 +17,7 @@ final class CameraSearchApi implements CameraSearchGateway {
   final LarenorServerApi _api;
   final ServerSession _session;
   final bool Function() _isCurrent;
+  final Map<String, String> _pendingFeedbackIds = {};
   bool _retired = false;
 
   ServerContext get _context => _session.context!;
@@ -72,5 +76,71 @@ final class CameraSearchApi implements CameraSearchGateway {
   }
 
   @override
-  void retire() => _retired = true;
+  Future<void> reportIncorrect({
+    required String query,
+    required int expectedIndexRevision,
+    required CameraSearchEvidence evidence,
+    required CameraSearchFeedbackReason reason,
+  }) async {
+    _check();
+    final context = _context;
+    if (evidence.coreId != context.coreId ||
+        evidence.homeId != context.homeId ||
+        evidence.indexRevision != expectedIndexRevision) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final feedbackKey = [
+      query,
+      evidence.clipId,
+      evidence.captureRevision,
+      reason.wireValue,
+    ].join(':');
+    final requestId = _pendingFeedbackIds.putIfAbsent(feedbackKey, () {
+      final random = Random.secure();
+      return List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
+    });
+    final response = serverObject(
+      await _api.request(
+        'POST',
+        '/camera-search/${context.coreId}/${context.homeId}/feedback',
+        token: _session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': requestId,
+          'query': query,
+          'expectedIndexRevision': expectedIndexRevision,
+          'evidence': {
+            'schemaVersion': 1,
+            'kind': 'camera_evidence',
+            'coreId': evidence.coreId,
+            'homeId': evidence.homeId,
+            'cameraId': evidence.cameraId,
+            'clipId': evidence.clipId,
+            'eventId': evidence.eventId,
+            'captureRevision': evidence.captureRevision,
+            'indexRevision': evidence.indexRevision,
+            'capturedAtMs': evidence.capturedAt.toUtc().millisecondsSinceEpoch,
+          },
+          'reason': reason.wireValue,
+        },
+      ),
+    );
+    _check();
+    if (response.length != 3 ||
+        response['schemaVersion'] != 1 ||
+        response['requestId'] != requestId ||
+        response['recorded'] != true) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _pendingFeedbackIds.remove(feedbackKey);
+  }
+
+  @override
+  void retire() {
+    _retired = true;
+    _pendingFeedbackIds.clear();
+  }
 }
