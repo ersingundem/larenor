@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `1555bb99` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F21, F25, F26, F27, F28, F32, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `cabd9324` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F18, F20, F21, F25, F26, F27, F28, F32, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -17,15 +17,45 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
-### 27 Eylül F18 elektrik kesintisinde düzenli kapanış — uygulama başladı
+### 27 Eylül F18 elektrik kesintisinde düzenli kapanış — uygulama tamamlandı, test bekliyor
 
-F18 için aktif dilim; UPS kaynağını, kritik eşikleri ve sıralı kapanış/
-enerji dönüşü politikasını sürümlü ve kalıcı bir Core sözleşmesine
-bağlayacak. Ağır işleri durdurma, veritabanını checkpoint etme, sunucuları
-bağımlılık sırasında kapatma ve enerji kararlı döndüğünde ters sırada
-açma adımları kalıcı makbuzlarla izlenecek. Sahte, eski ve yinelenen olaylar
-aynı state machine tarafından reddedilecek. F18 kabul edilmedi; sayaçlar
-**37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+F18 tek çalışma dalında tamamlandı. Core; sürümlü UPS politikası, revision'a
+bağlı şifreli kaynak anahtarı ve sıra/zaman doğrulamalı olay sözleşmesiyle
+sahte, eski ve yinelenen olayları reddediyor. Kritik olay yeni ağır işleri
+tutuyor, etkin işleri sınırlı sürede boşaltıyor, SQLite WAL checkpoint alıyor,
+hedefleri bağımlılık sırasında kapatıyor ve enerji kararlı kaldıktan sonra
+yalnız gerçekten kapanmış hedefleri ters sırada açıyor. Adımlar ve sonuçlar
+kalıcı; yeniden başlatmada çalışan adım güvenli yeniden kuyruğa alınıyor,
+başarısız işlem kullanıcı retry'ı için korunuyor.
+
+Flutter yönetici ekranı UPS kaynağı/eşik/hedef sırası politikasını, kapı ve
+etkin işlem durumunu, retry akışını ve kalıcı makbuz geçmişini güncel hesap,
+PIN, rota ve foreground sınırında yönetiyor. `ec0cfc3b`, `7b971db4` ve
+`cabd9324` dilimleri sözleşme smoke'u, failed-run restart smoke'u, Python
+compile, l10n üretimi ve odaklı Flutter analyze kapılarından geçti. Kullanıcının
+kararı gereği özellik testleri final toplu doğrulamaya bırakıldı. F18
+**uygulama tamamlandı · test bekliyor**; sayaçlar **37/125 (%29,6)** ve
+**3/63 (%4,8)** olarak değişmedi. Exact-head CI, bağımsız son inceleme ve
+gerçek UPS/host kapanış kabulü açık kalıyor.
+
+### 27 Eylül F20 değişikliği fark edilen işlem günlüğü — uygulama tamamlandı, test bekliyor
+
+F20'nin Core çapındaki HMAC zincirli audit journal'ı ve yönetici doğrulama
+endpointi `2fe7f701` ile, Core/ev kapsamındaki güvenli Client checkpoint
+pinleme, karşılaştırma ve döndürme akışı `86dcbf89` ile tek çalışma dalına
+alındı. Testler, dış kontrol noktası kabulü, bağımsız inceleme ve exact-head CI
+final doğrulama evresinde açık olduğu için F20 **uygulama tamamlandı · test
+bekliyor**; kanıtla tamamlandı sayılmadı.
+
+### 27 Eylül F54 Google servislerinden bağımsız bildirim — uygulama tamamlandı, test bekliyor
+
+F54'ün yerel bildirim kutusu, kullanıcı onaylı Android arka plan teslim kirası,
+Keystore korumalı kimlik bilgisi, görünür foreground service, boot/recovery,
+kayıp/tekrar dedupe ve fail-closed yenileme/iptal zinciri Server, Flutter ve
+native Android katmanlarında mevcut. Güncel sertleştirme `c08020dd` ile tek
+çalışma dalına alındı. Özellik testleri, bağımsız inceleme, exact-head CI ve
+gerçek Huawei/OEM pil davranışı final doğrulama evresinde açık olduğundan F54
+**uygulama tamamlandı · test bekliyor**; kanıtla tamamlandı sayılmadı.
 
 ### 27 Eylül F17 silinemez kurtarma hedefi — uygulama tamamlandı, test bekliyor
 

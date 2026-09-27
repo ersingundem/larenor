@@ -335,6 +335,7 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
         pending = [node for node in tasks if node['status'] == 'pending']
         ready = [node for node in pending if not model.blockers(node['id'])]
         blocked = [node for node in pending if model.blockers(node['id'])]
+        needs_user = [node for node in tasks if node['status'] == 'needs_user']
         upcoming = ready + blocked
         lines.extend([
             '',
@@ -366,6 +367,16 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
                          (index, node['id'], escape(node['title']),
                           'Başlanabilir' if not blockers else 'Bağımlılık bekliyor',
                           ', '.join(blockers) or '—'))
+        lines.extend([
+            '',
+            'Kullanıcı veya fiziksel kabul bekleyen tüm işler',
+            '',
+            '| ID | İş | Bekleme nedeni |',
+            '| --- | --- | --- |',
+        ])
+        for node in needs_user:
+            lines.append('| %s | %s | %s |' %
+                         (node['id'], escape(node['title']), escape(node['reason'])))
         closed_tasks = sorted(
             (node for node in tasks
              if node['status'] in ('done', 'implemented', 'awaiting_ci')),

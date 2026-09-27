@@ -3380,7 +3380,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3404,7 +3404,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "UPS kaynağı, kritik eşikler ve sıralı kapanış/enerji dönüşü politikası tek çalışma dalında uygulanıyor; ağır işleri durdurma, veritabanı checkpoint, bağımlılık sıralı host eylemleri ve idempotent olay makbuzları bağlanacak."
+      "reason": "Sürümlü UPS politikası, şifreli kaynak anahtarı, sahte/eski/yinelenen olay reddi, ağır iş kapısı, drain ve SQLite checkpoint, bağımlılık sıralı kapanış, kararlı güçten sonra ters açılış, kalıcı adım makbuzları, restart/retry kurtarması ve Flutter yönetim ekranı ec0cfc3b, 7b971db4 ve cabd9324 ile uygulandı. Sözleşme smoke'u, failed-run restart smoke'u, Python compile ve odaklı Flutter analyze temiz; özellik testleri, bağımsız son inceleme, exact-head CI ve gerçek UPS/host kabulü final doğrulama evresinde açık."
     },
     {
       "id": "G03",

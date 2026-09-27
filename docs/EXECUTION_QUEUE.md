@@ -12,7 +12,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 7 | 0 | 0 | 1 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 1 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F18 | Elektrik kesintisinde düzenli kapanış | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -78,11 +78,31 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 39 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
 | 40 | F49 | Bahçe sulama ve su bütçesi | Bağımlılık bekliyor | F04 |
 | 41 | F58 | E-paper mini ev ekranları | Bağımlılık bekliyor | F53 |
-| 42 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G02, G03, G04, G05, G06, G07, G08, G09, G10, G11 |
+| 42 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G03, G04, G05, G06, G07, G08, G09, G10, G11 |
 | 43 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 44 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
 | 45 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
 | 46 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+
+Kullanıcı veya fiziksel kabul bekleyen tüm işler
+
+| ID | İş | Bekleme nedeni |
+| --- | --- | --- |
+| PRODUCT.HEALTH | Huawei sağlık/tartı kalan sağlayıcı uyumu | Huawei geliştirici/sağlayıcı onayı ve uygun test cihazı gerekecek. |
+| POC.GMS | GMS’siz bildirim/OEM güç deneyi | İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli. |
+| POC.DPC | Ayrı test cihazında Device Owner kurtarma deneyi | İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli. |
+| POC.DEX | DeX ikinci ekran ve giriş deneyi | İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli. |
+| POC.VISION | Kamera model/CPU/mimari fizibilitesi | İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli. |
+| POC.STREAM | Oyun/uzak erişim native motor fizibilitesi | İzole uygun test cihazı/hostu ve açık fiziksel deney erişimi gerekli. |
+| MANUAL.INSTALL | CasaOS/Proxmox üzerinde tek Larenor kurulumu | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.SERVICES | Gerçek HA/ağ/altyapı ve 17 servis kabulü | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli; S08.9 gerçek LAN ve servis kanıtı burada tutulur. |
+| MANUAL.MEDIA | Sağlayıcı ve gerçek HomePod/Cast/Apple TV | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.TABLET | Huawei MatePad/Android tablet ve Samsung DeX | Yazılım/yayın kapılarından sonra uygun fiziksel tablet ve kullanıcı katılımı gerekli; S08.9 cihaz/DeX kanıtı burada tutulur. |
+| MANUAL.HEALTH | Sağlık/tartı sağlayıcı izin kabulü | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.KIOSK | Yönetilen kiosk/DPC ve çevre birimleri | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.INTERCOM | Netelsan Algan 7 elektronik köprü ve davranış | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.UPDATE | Aynı imzalı Client güncelleme ve yeniden kurulum | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
+| MANUAL.FEATURES | Seçili donanım/host özellikleri fiziksel matrisi | Yazılım/yayın kapılarından sonra uygun gerçek cihaz/hesap ve manuel kullanıcı katılımı gerekli. |
 
 Tamamlanan ve test/CI bekleyen işler
 
@@ -138,6 +158,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | Uygulama tamamlandı · test bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Uygulama tamamlandı · test bekliyor | — |
+| F18 | Elektrik kesintisinde düzenli kapanış | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
