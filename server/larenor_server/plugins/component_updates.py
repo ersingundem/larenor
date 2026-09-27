@@ -280,6 +280,56 @@ class ComponentUpdateCommand(FrozenModel):
         return self
 
 
+ComponentUpdateJobState = Literal[
+    "queued",
+    "validating",
+    "ready",
+    "running",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "needs_attention",
+]
+
+
+class CancelComponentUpdateJobRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Annotated[int, Field(ge=1, le=2**63 - 2)]
+
+
+class ComponentUpdateJob(FrozenModel):
+    schemaVersion: Literal[1]
+    updateId: Identity
+    installationId: Identity
+    serviceId: ServiceId
+    revision: Annotated[int, Field(ge=1, le=2**63 - 1)]
+    state: ComponentUpdateJobState
+    cancelRequested: StrictBool
+    errorCode: Annotated[
+        str, Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")
+    ] | None
+    sourceDigest: Digest
+    reviewDigest: Digest
+    targetManifestDigest: Digest
+    commandDigest: Digest
+    createdAtMs: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    updatedAtMs: Annotated[int, Field(ge=0, le=2**63 - 1)]
+
+    @model_validator(mode="after")
+    def coherent_job(self):
+        terminal = self.state in {"succeeded", "failed", "cancelled"}
+        if (
+            self.updatedAtMs < self.createdAtMs
+            or self.cancelRequested and self.state == "succeeded"
+            or self.errorCode is not None
+            and self.state not in {"failed", "needs_attention"}
+            or self.state == "failed" and self.errorCode is None
+            or terminal and self.state == "cancelled" and not self.cancelRequested
+        ):
+            raise ValueError("invalid_component_update_job")
+        return self
+
+
 class ComponentUpdateInventory(FrozenModel):
     schemaVersion: Literal[1]
     coreId: Identity
