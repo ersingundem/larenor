@@ -26,6 +26,7 @@ import com.ersingundem.larenor.kioskremote.ManagedTabletSourceBridge
 import com.ersingundem.larenor.backup.CoreBackupDestinationBridge
 import com.ersingundem.larenor.backup.CoreBackupSourceBridge
 import com.ersingundem.larenor.camera.PersonalCameraBridge
+import com.ersingundem.larenor.playbackquality.AndroidPlaybackCapabilityBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
@@ -49,6 +50,7 @@ class MainActivity : FlutterActivity() {
     private var coreBackupDestination: CoreBackupDestinationBridge? = null
     private var coreBackupSource: CoreBackupSourceBridge? = null
     private var personalCamera: PersonalCameraBridge? = null
+    private var playbackCapabilities: AndroidPlaybackCapabilityBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -79,6 +81,10 @@ class MainActivity : FlutterActivity() {
             this,
             flutterEngine.dartExecutor.binaryMessenger,
             flutterEngine.renderer,
+        )
+        playbackCapabilities = AndroidPlaybackCapabilityBridge(
+            this,
+            flutterEngine.dartExecutor.binaryMessenger,
         )
     }
     override fun onResume() {
@@ -176,6 +182,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        playbackCapabilities?.dispose()
+        playbackCapabilities = null
         personalCamera?.dispose()
         personalCamera = null
         coreBackupSource?.dispose()
