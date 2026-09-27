@@ -3281,7 +3281,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Uzun süren ev iş akışları",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3306,7 +3306,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Server ve Client üretim akışı tek dalda tamamlandı; birleşik E2E, bağımsız inceleme ve exact-head CI son doğrulama kapısına bırakıldı."
     },
     {
       "id": "G02",
