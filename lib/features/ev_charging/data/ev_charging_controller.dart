@@ -34,7 +34,9 @@ final class EvChargingController extends ChangeNotifier {
     final operation = ++epoch;
     busy = true;
     failure = null;
+    capabilityValue = null;
     plan = null;
+    receipt = null;
     notifyListeners();
     try {
       final value = await gateway.capability();
@@ -106,6 +108,7 @@ final class EvChargingController extends ChangeNotifier {
     if (busy ||
         !current ||
         value == null ||
+        receipt != null ||
         value.status != 'ready' ||
         capabilityValue?.canControl != true) {
       return;
@@ -126,7 +129,12 @@ final class EvChargingController extends ChangeNotifier {
       receipt = result;
     } catch (_) {
       if (operation == epoch && current) {
-        failure = EvChargingFailure.unavailable;
+        receipt = EvChargeReceipt(
+          commandId: id(),
+          previewId: value.previewId,
+          planHash: value.planHash,
+          status: 'uncertain',
+        );
       }
     } finally {
       if (operation == epoch && !retired) {

@@ -19,6 +19,10 @@ final class EvChargingStrings {
     required this.hours,
     required this.preview,
     required this.confirm,
+    required this.confirmTitle,
+    required this.confirmBody,
+    required this.cancel,
+    required this.manualOverride,
     required this.uncertain,
     required this.ready,
     required this.current,
@@ -34,6 +38,10 @@ final class EvChargingStrings {
       hours;
   final String preview,
       confirm,
+      confirmTitle,
+      confirmBody,
+      cancel,
+      manualOverride,
       uncertain,
       ready,
       current,
@@ -49,6 +57,11 @@ final class EvChargingStrings {
     hours: 'hours',
     preview: 'Preview safe plan',
     confirm: 'Confirm charge plan',
+    confirmTitle: 'Apply this charging schedule?',
+    confirmBody: 'The selected charger will receive this schedule once. A lost response is not retried; refresh to reconcile it.',
+    cancel: 'Discard preview',
+    manualOverride:
+        'A manual charger override is active. Larenor will not replace it.',
     uncertain: 'Command recorded; charger result is not verified yet.',
     ready: 'Verified provider',
     current: 'Current battery',
@@ -65,6 +78,11 @@ final class EvChargingStrings {
     hours: 'saat',
     preview: 'Güvenli planı önizle',
     confirm: 'Şarj planını onayla',
+    confirmTitle: 'Bu şarj programı uygulansın mı?',
+    confirmBody: 'Seçilen şarj cihazına bu program bir kez gönderilir. Kayıp yanıt yeniden denenmez; uzlaştırmak için yenileyin.',
+    cancel: 'Önizlemeyi iptal et',
+    manualOverride:
+        'Manuel şarj üstüne alması etkin. Larenor bu ayarı değiştirmez.',
     uncertain: 'Komut kaydedildi; şarj cihazı sonucu henüz doğrulanmadı.',
     ready: 'Doğrulanmış sağlayıcı',
     current: 'Mevcut batarya',
@@ -87,6 +105,7 @@ class EvChargingScreen extends StatefulWidget {
 
 class _EvChargingScreenState extends State<EvChargingScreen> {
   int _target = 80, _hours = 8;
+  String? _chargerId;
   @override
   void initState() {
     super.initState();
@@ -96,6 +115,28 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
 
   void _changed() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _confirm() async {
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(widget.strings.confirmTitle),
+        content: Text(widget.strings.confirmBody),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(widget.strings.cancel),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(widget.strings.confirm),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && mounted) await widget.controller.confirm();
   }
 
   @override
@@ -144,8 +185,37 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
           _message(strings.providerMissing)
         else if (capability.chargers.isEmpty)
           _message(strings.noChargers)
-        else
-          _charger(capability.chargers.first, width),
+        else ...[
+          if (capability.chargers.length > 1)
+            CupertinoSlidingSegmentedControl<String>(
+              groupValue:
+                  capability.chargers.any((value) => value.id == _chargerId)
+                  ? _chargerId
+                  : capability.chargers.first.id,
+              children: {
+                for (final charger in capability.chargers)
+                  charger.id: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Text(charger.label),
+                  ),
+              },
+              onValueChanged: (value) {
+                if (controller.busy || value == null || value == _chargerId) {
+                  return;
+                }
+                controller.discardPlan();
+                setState(() => _chargerId = value);
+              },
+            ),
+          if (capability.chargers.length > 1) const SizedBox(height: 20),
+          _charger(
+            capability.chargers.firstWhere(
+              (value) => value.id == _chargerId,
+              orElse: () => capability.chargers.first,
+            ),
+            width,
+          ),
+        ],
       ],
     );
   }
@@ -232,17 +302,29 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
               Text(
                 '${widget.strings.departure}: $_hours ${widget.strings.hours}',
               ),
+              if (plan.status == 'manual_override_active') ...[
+                const SizedBox(height: 12),
+                Text(widget.strings.manualOverride),
+              ],
               const SizedBox(height: 16),
-              if (plan.status == 'ready')
+              if (plan.status == 'ready' && widget.controller.receipt == null)
                 CupertinoButton.filled(
                   key: const ValueKey('ev-charge-confirm'),
                   minimumSize: const Size(48, 48),
                   autofocus: true,
-                  onPressed: widget.controller.busy
-                      ? null
-                      : widget.controller.confirm,
+                  onPressed: widget.controller.busy ? null : _confirm,
                   child: Text(widget.strings.confirm),
                 ),
+              if (widget.controller.receipt == null) ...[
+                const SizedBox(height: 8),
+                CupertinoButton(
+                  minimumSize: const Size(48, 48),
+                  onPressed: widget.controller.busy
+                      ? null
+                      : widget.controller.discardPlan,
+                  child: Text(widget.strings.cancel),
+                ),
+              ],
             ],
           ),
         ),
