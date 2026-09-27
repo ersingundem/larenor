@@ -4705,7 +4705,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4729,7 +4729,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kamera kayıtlarında doğal dil aramasında gerçek kaynak bağlama, mahremiyet, bounded sonuç, exact authority ve Client akışı geliştiriliyor."
+      "reason": "Uygulama 9cfffc59 ile tamamlandı: exact authority/revision bağlı doğal dil araması, atomik kaynak reconcile ile silinen klip temizliği, bounded sayfalama/filtreler ve HMAC doğrulamalı yanlış sonuç düzeltme günlüğü hazır; 11 server ve 12 Flutter testi geçti, tam CI/son kabul bekliyor."
     },
     {
       "id": "F44",
@@ -4898,7 +4898,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4922,7 +4922,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Güneş ve ev bataryası önceliklerinde gerçek enerji kaynağı, inverter capability, tahmin güveni ve güvenli plan uygulaması geliştiriliyor."
     },
     {
       "id": "F49",
