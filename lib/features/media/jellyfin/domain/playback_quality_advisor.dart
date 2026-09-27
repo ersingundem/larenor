@@ -10,7 +10,10 @@ final class PlaybackQualityEvidence {
     required this.targetContainer,
     required this.videoCodec,
     required this.audioCodec,
+    required this.subtitleCodec,
     required this.videoRange,
+    required this.width,
+    required this.height,
     required this.sourceBitrate,
     required this.requestedMaxBitrate,
     required this.reasons,
@@ -40,12 +43,14 @@ final class PlaybackQualityEvidence {
     }
     Map<String, dynamic>? video;
     Map<String, dynamic>? audio;
+    Map<String, dynamic>? subtitle;
     for (final value in streams as List? ?? const []) {
       if (value is! Map<String, dynamic>) {
         throw const FormatException('Invalid Jellyfin media stream');
       }
       if (value['Type'] == 'Video' && video == null) video = value;
       if (value['Type'] == 'Audio' && audio == null) audio = value;
+      if (value['Type'] == 'Subtitle' && subtitle == null) subtitle = value;
     }
     final rawReasons = source['TranscodingReasons'];
     if (rawReasons != null && (rawReasons is! List || rawReasons.length > 16)) {
@@ -72,7 +77,10 @@ final class PlaybackQualityEvidence {
       targetContainer: _token(source['TranscodingContainer'], maximum: 32),
       videoCodec: _token(video?['Codec'], maximum: 32),
       audioCodec: _token(audio?['Codec'], maximum: 32),
+      subtitleCodec: _token(subtitle?['Codec'], maximum: 32),
       videoRange: _token(video?['VideoRange'], maximum: 32),
+      width: _positiveInt(video?['Width'], maximum: 32768),
+      height: _positiveInt(video?['Height'], maximum: 32768),
       sourceBitrate: sourceBitrate,
       requestedMaxBitrate: requestedMaxBitrate,
       reasons: List.unmodifiable(reasons),
@@ -84,7 +92,10 @@ final class PlaybackQualityEvidence {
   final String? targetContainer;
   final String? videoCodec;
   final String? audioCodec;
+  final String? subtitleCodec;
   final String? videoRange;
+  final int? width;
+  final int? height;
   final int? sourceBitrate;
   final int? requestedMaxBitrate;
   final List<String> reasons;
@@ -100,7 +111,10 @@ final class PlaybackQualityEvidence {
     'targetContainer': ?targetContainer,
     'videoCodec': ?videoCodec,
     'audioCodec': ?audioCodec,
+    'subtitleCodec': ?subtitleCodec,
     'videoRange': ?videoRange,
+    'width': ?width,
+    'height': ?height,
     'sourceBitrate': ?sourceBitrate,
     'requestedMaxBitrate': ?requestedMaxBitrate,
     'reasons': reasons,

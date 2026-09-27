@@ -20,6 +20,10 @@ import '../../domain/jellyfin_track_preferences.dart';
 import '../../domain/playback_quality_advisor.dart';
 import '../legacy_jellyfin_track_preferences_migration_card.dart';
 import '../../providers/jellyfin_providers.dart';
+import '../../../playback_quality/data/core_playback_quality_controller.dart';
+import '../../../playback_quality/data/core_playback_quality_request_adapter.dart';
+import '../../../playback_quality/domain/core_playback_quality_advice.dart';
+import '../../../playback_quality/providers/playback_quality_providers.dart';
 import '../../../../server/providers/server_providers.dart';
 import '../../../../../shared/theme/typography.dart';
 import '../../../../../shared/utils/foreground_poller.dart';
@@ -85,6 +89,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     with WidgetsBindingObserver {
   late final Player _player;
   late final VideoController _controller = VideoController(_player);
+  late final CorePlaybackQualityController _coreQuality;
 
   JellyfinClient? _client;
   LegacyJellyfinTrackPreferencesMigrationController? _legacyMigration;
@@ -223,6 +228,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   int _preferredSubtitleEpoch = -1;
   bool _preferenceSaveFailed = false;
   PlaybackQualityEvidence? _qualityEvidence;
+  CorePlaybackQualityRequest? _coreQualityRequest;
 
   bool _loading = true;
   String? _error;
@@ -243,6 +249,9 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   void initState() {
     super.initState();
     _player = ref.read(jellyfinPlayerFactoryProvider)();
+    _coreQuality = CorePlaybackQualityController(
+      ref.read(serverAccountControllerProvider),
+    )..addListener(_qualityAdviceChanged);
     WidgetsBinding.instance.addObserver(this);
     final state = WidgetsBinding.instance.lifecycleState;
     _foreground = state == null || state == AppLifecycleState.resumed;
@@ -271,6 +280,10 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       if (mounted) _start();
     });
     _scheduleHideControls();
+  }
+
+  void _qualityAdviceChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -389,13 +402,25 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _tracksSub = null;
       _trackSub?.cancel();
       _trackSub = null;
+      _coreQuality.retire();
       setState(() {
         _sourceEpoch++;
         _preferredTracks = null;
         _qualityEvidence = source.qualityEvidence;
+        _coreQualityRequest = null;
         _tracks = const Tracks();
         _currentTrack = const Track();
       });
+      final sourceEpoch = _sourceEpoch;
+      final qualityInteraction = _interactionGeneration;
+      unawaited(
+        _loadCoreQualityAdvice(
+          source,
+          sourceEpoch: sourceEpoch,
+          interaction: qualityInteraction,
+          client: client,
+        ),
+      );
       await _player.open(Media(source.streamUrl), play: _foreground);
       if (!mounted) return false;
       if (generation != _generation) {
@@ -439,7 +464,6 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       _playingSub = _player.stream.playing.listen((playing) {
         if (mounted) setState(() => _playing = playing);
       });
-      final sourceEpoch = _sourceEpoch;
       _tracksSub = _player.stream.tracks.listen((tracks) {
         if (!mounted) return;
         setState(() => _tracks = tracks);
@@ -453,6 +477,39 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
       return true;
     } finally {
       _opening = false;
+    }
+  }
+
+  Future<void> _loadCoreQualityAdvice(
+    JellyfinPlaybackSource source, {
+    required int sourceEpoch,
+    required int interaction,
+    required JellyfinClient client,
+  }) async {
+    bool current() =>
+        sourceEpoch == _sourceEpoch &&
+        identical(_client, client) &&
+        identical(ref.read(jellyfinClientProvider), client) &&
+        _interactionCurrent(interaction);
+    try {
+      final snapshot = await ref
+          .read(androidPlaybackCapabilityPortProvider)
+          .snapshot();
+      if (!current()) return;
+      final request = CorePlaybackQualityRequestAdapter.localAndroid(
+        source,
+        snapshot,
+      );
+      setState(() => _coreQualityRequest = request);
+      await _coreQuality.advise(request, current: current);
+    } catch (_) {
+      if (!current()) return;
+      final request = CorePlaybackQualityRequestAdapter.localAndroid(
+        source,
+        null,
+      );
+      setState(() => _coreQualityRequest = request);
+      await _coreQuality.advise(request, current: current);
     }
   }
 
@@ -875,11 +932,19 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
   String _qualityAdvisorMessage(AppLocalizations l10n) {
     final evidence = _qualityEvidence;
     if (evidence == null) return l10n.jellyfinQualityAdvisorUnavailable;
-    final method = switch (evidence.method) {
-      PlaybackDeliveryMethod.directPlay =>
-        l10n.jellyfinQualityAdvisorDirectPlay,
-      PlaybackDeliveryMethod.remux => l10n.jellyfinQualityAdvisorRemux,
-      PlaybackDeliveryMethod.transcode => l10n.jellyfinQualityAdvisorTranscode,
+    final advice = _coreQuality.advice;
+    final method = switch (advice?.method) {
+      CorePlaybackMethod.directPlay => l10n.jellyfinQualityAdvisorDirectPlay,
+      CorePlaybackMethod.remux => l10n.jellyfinQualityAdvisorRemux,
+      CorePlaybackMethod.transcode => l10n.jellyfinQualityAdvisorTranscode,
+      CorePlaybackMethod.unknown => l10n.jellyfinQualityAdvisorUnavailable,
+      null => switch (evidence.method) {
+        PlaybackDeliveryMethod.directPlay =>
+          l10n.jellyfinQualityAdvisorDirectPlay,
+        PlaybackDeliveryMethod.remux => l10n.jellyfinQualityAdvisorRemux,
+        PlaybackDeliveryMethod.transcode =>
+          l10n.jellyfinQualityAdvisorTranscode,
+      },
     };
     String value(String? input) =>
         input == null ? l10n.commonUnknown : input.toUpperCase();
@@ -889,7 +954,7 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     final reason = evidence.reasons.isEmpty
         ? l10n.jellyfinQualityAdvisorReasonUnknown
         : evidence.reasons.join(', ');
-    return [
+    final lines = <String>[
       l10n.jellyfinQualityAdvisorPath(method),
       l10n.jellyfinQualityAdvisorEvidence(
         value(evidence.sourceContainer),
@@ -898,10 +963,107 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
         bitrate(evidence.sourceBitrate),
       ),
       l10n.jellyfinQualityAdvisorReason(reason),
-      l10n.jellyfinQualityAdvisorNetworkUnknown,
-      l10n.jellyfinQualityAdvisorReceiver,
-    ].join('\n');
+    ];
+    final request = _coreQualityRequest;
+    final network = request?.network;
+    if (network == null || network.state == CorePlaybackEvidenceState.unknown) {
+      lines.add(l10n.jellyfinQualityAdvisorNetworkUnknown);
+    } else {
+      lines.add(
+        l10n.jellyfinQualityAdvisorNetworkReported(
+          network.transport?.name ?? l10n.commonUnknown,
+          network.downstreamKbps?.toString() ?? l10n.commonUnknown,
+        ),
+      );
+    }
+    final receiver = request?.receiver;
+    if (receiver == null ||
+        receiver.state == CorePlaybackEvidenceState.unknown) {
+      lines.add(l10n.jellyfinQualityAdvisorReceiver);
+    } else {
+      final resolution = receiver.maxWidth == null
+          ? l10n.commonUnknown
+          : '${receiver.maxWidth}×${receiver.maxHeight}';
+      lines.add(
+        l10n.jellyfinQualityAdvisorReceiverReported(
+          receiver.videoCodecs.length,
+          receiver.audioCodecs.length,
+          resolution,
+        ),
+      );
+    }
+    if (advice != null) {
+      lines.add(
+        l10n.jellyfinQualityAdvisorCoreEvidence(
+          _qualityEvidenceState(l10n, advice.codecEvidence),
+          _qualityEvidenceState(l10n, advice.bitrateEvidence),
+          _qualityEvidenceState(l10n, advice.networkEvidence),
+          _qualityEvidenceState(l10n, advice.receiverEvidence),
+          _qualityEvidenceState(l10n, advice.hdrEvidence),
+        ),
+      );
+      if (advice.gaps.isNotEmpty) {
+        lines.add(
+          l10n.jellyfinQualityAdvisorGaps(
+            advice.gaps.map((gap) => _qualityGap(l10n, gap)).join(', '),
+          ),
+        );
+      }
+      if (advice.recommendations.isNotEmpty) {
+        lines.add(
+          l10n.jellyfinQualityAdvisorRecommendations(
+            advice.recommendations
+                .map((item) => _qualityRecommendation(l10n, item.code))
+                .join(', '),
+          ),
+        );
+      }
+      lines.add(l10n.jellyfinQualityAdvisorManualAcceptance);
+    }
+    return lines.join('\n');
   }
+
+  String _qualityEvidenceState(
+    AppLocalizations l10n,
+    CorePlaybackEvidenceState state,
+  ) => switch (state) {
+    CorePlaybackEvidenceState.reported =>
+      l10n.jellyfinQualityAdvisorStateReported,
+    CorePlaybackEvidenceState.verified =>
+      l10n.jellyfinQualityAdvisorStateVerified,
+    CorePlaybackEvidenceState.unknown =>
+      l10n.jellyfinQualityAdvisorStateUnknown,
+  };
+
+  String _qualityGap(AppLocalizations l10n, String code) => switch (code) {
+    'source_telemetry_missing' => l10n.jellyfinQualityAdvisorGapSource,
+    'codec_telemetry_missing' => l10n.jellyfinQualityAdvisorGapCodec,
+    'bitrate_telemetry_missing' => l10n.jellyfinQualityAdvisorGapBitrate,
+    'network_telemetry_missing' => l10n.jellyfinQualityAdvisorGapNetwork,
+    'receiver_telemetry_missing' => l10n.jellyfinQualityAdvisorGapReceiver,
+    'hdr_telemetry_missing' => l10n.jellyfinQualityAdvisorGapHdr,
+    _ => l10n.commonUnknown,
+  };
+
+  String _qualityRecommendation(
+    AppLocalizations l10n,
+    CorePlaybackRecommendationCode code,
+  ) => switch (code) {
+    CorePlaybackRecommendationCode.keepOriginal =>
+      l10n.jellyfinQualityAdvisorKeepOriginal,
+    CorePlaybackRecommendationCode.lowerBitrate =>
+      l10n.jellyfinQualityAdvisorLowerBitrate,
+    CorePlaybackRecommendationCode.preferCompatibleAudio =>
+      l10n.jellyfinQualityAdvisorCompatibleAudio,
+    CorePlaybackRecommendationCode.preferExternalSubtitle =>
+      l10n.jellyfinQualityAdvisorExternalSubtitle,
+    CorePlaybackRecommendationCode.inspectReceiver =>
+      l10n.jellyfinQualityAdvisorInspectReceiver,
+    CorePlaybackRecommendationCode.measureNetwork =>
+      l10n.jellyfinQualityAdvisorMeasureNetwork,
+    CorePlaybackRecommendationCode.verifyHdrOnDevice =>
+      l10n.jellyfinQualityAdvisorVerifyHdr,
+  };
 
   String _trackLabel(
     dynamic track,
@@ -926,6 +1088,8 @@ class _JellyfinPlayerScreenState extends ConsumerState<JellyfinPlayerScreen>
     _hudTimer?.cancel();
     _generation++;
     _legacyMigration?.dispose();
+    _coreQuality.removeListener(_qualityAdviceChanged);
+    _coreQuality.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _progressPoller.dispose();
     _positionSub?.cancel();

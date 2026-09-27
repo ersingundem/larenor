@@ -59,9 +59,9 @@ bool _validRequest(CorePlaybackQualityRequest request) {
   bool token(String value, {int maximum = 64}) =>
       value.isNotEmpty &&
       value.length <= maximum &&
-      RegExp(r'^[A-Za-z0-9_.:+-]+$').hasMatch(value);
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._,+-]*$').hasMatch(value);
   bool optionalToken(String? value) => value == null || token(value);
-  bool dimension(int? value) => value == null || value >= 1 && value <= 16384;
+  bool dimension(int? value) => value == null || value >= 1 && value <= 32768;
   bool bounded(int? value, int maximum) =>
       value == null || value >= 1 && value <= maximum;
   bool tokens(List<String> values, {int maximum = 32}) =>
@@ -76,14 +76,66 @@ bool _validRequest(CorePlaybackQualityRequest request) {
       bounded(media.bitrateBps, 1000000000) &&
       dimension(media.width) &&
       dimension(media.height) &&
-      media.transcodeReasons.length <= 16 &&
+      (media.width == null) == (media.height == null) &&
+      media.transcodeReasons.length <= 10 &&
       media.transcodeReasons.toSet().length == media.transcodeReasons.length &&
       tokens(receiver.videoCodecs) &&
       tokens(receiver.audioCodecs) &&
       tokens(receiver.subtitleFormats) &&
-      receiver.hdrTypes.length <= 8 &&
+      receiver.hdrTypes.length <= 6 &&
       receiver.hdrTypes.toSet().length == receiver.hdrTypes.length &&
       dimension(receiver.maxWidth) &&
       dimension(receiver.maxHeight) &&
-      bounded(network.downstreamKbps, 1000000000);
+      (receiver.maxWidth == null) == (receiver.maxHeight == null) &&
+      bounded(network.downstreamKbps, 10000000) &&
+      _coherentRequest(request);
+}
+
+bool _coherentRequest(CorePlaybackQualityRequest request) {
+  final media = request.media;
+  final receiver = request.receiver;
+  final network = request.network;
+  final mediaDetails = <Object?>[
+    media.container,
+    media.videoCodec,
+    media.audioCodec,
+    media.subtitleCodec,
+    media.bitrateBps,
+    media.width,
+    media.height,
+    media.hdr,
+  ];
+  if (media.state == CorePlaybackEvidenceState.unknown) {
+    if (mediaDetails.any((value) => value != null) ||
+        media.serverDecision != CorePlaybackMethod.unknown ||
+        media.transcodeReasons.isNotEmpty) {
+      return false;
+    }
+  } else if (mediaDetails.every((value) => value == null) &&
+      media.serverDecision == CorePlaybackMethod.unknown) {
+    return false;
+  }
+  if ((media.serverDecision == CorePlaybackMethod.directPlay ||
+          media.serverDecision == CorePlaybackMethod.unknown) &&
+      media.transcodeReasons.isNotEmpty) {
+    return false;
+  }
+  final receiverHasEvidence =
+      receiver.videoCodecs.isNotEmpty ||
+      receiver.audioCodecs.isNotEmpty ||
+      receiver.subtitleFormats.isNotEmpty ||
+      receiver.hdrTypes.isNotEmpty ||
+      receiver.maxWidth != null;
+  if (receiver.state == CorePlaybackEvidenceState.unknown
+      ? receiverHasEvidence
+      : !receiverHasEvidence) {
+    return false;
+  }
+  final networkHasEvidence =
+      network.transport != null ||
+      network.downstreamKbps != null ||
+      network.metered != null;
+  return network.state == CorePlaybackEvidenceState.unknown
+      ? !networkHasEvidence
+      : networkHasEvidence;
 }
