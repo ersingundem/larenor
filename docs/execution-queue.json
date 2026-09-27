@@ -4605,7 +4605,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ortak kaynak rezervasyonu",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4629,7 +4629,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Ortak kaynak rezervasyonunda çakışma, tekrar, saat dilimi-DST, iptal, yetki ve exact revision/idempotency akışı geliştiriliyor."
+      "reason": "Uygulama 27f6f307 ile tamamlandı: deterministik bounded takvim görünümü, exact revision/idempotent makbuzlar, authority yeniden bağlama, conflict/offline kurtarma, güvenli iptal ve tekrar görünümü hazır; focused 10 server ve 15 Flutter testi geçti, tam CI/son kabul bekliyor."
     },
     {
       "id": "G08",
@@ -4736,7 +4736,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kameradan görsel sensörler",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4760,7 +4760,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Kameradan görsel sensörlerde sürümlü model, güven/veri tazeliği, yanlış/eksik kare sınırları ve gerçek kaynak entegrasyonu geliştiriliyor."
     },
     {
       "id": "F45",

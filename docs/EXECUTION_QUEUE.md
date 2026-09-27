@@ -17,8 +17,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 2 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 1 | 2 | 0 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 7 | 1 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 1 | 3 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 0 | 0 |
@@ -30,9 +30,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | F38 | Aile anıları ve fotoğraf araması | Çalışılıyor | — |
-| F40 | Ortak kaynak rezervasyonu | Çalışılıyor | — |
 | F42 | Mahremiyet korumalı olay paylaşımı | Çalışılıyor | — |
 | F41 | Kamera kayıtlarında doğal dille arama | Çalışılıyor | — |
+| F44 | Kameradan görsel sensörler | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -40,23 +40,22 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
-| 2 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 3 | F50 | Oda konforu ve havalandırma planı | Başlanabilir | — |
-| 4 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
-| 5 | F49 | Bahçe sulama ve su bütçesi | Başlanabilir | — |
-| 6 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
-| 7 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 8 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
-| 9 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 10 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
-| 11 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 12 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G07, G08, G09, G10, G11 |
-| 13 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 14 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 15 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 16 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 17 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 2 | F50 | Oda konforu ve havalandırma planı | Başlanabilir | — |
+| 3 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
+| 4 | F49 | Bahçe sulama ve su bütçesi | Başlanabilir | — |
+| 5 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
+| 6 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
+| 7 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
+| 8 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 9 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 10 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
+| 11 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G07, G08, G09, G10, G11 |
+| 12 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 13 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 14 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 15 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 16 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -166,6 +165,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
+| F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
