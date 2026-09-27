@@ -7,6 +7,7 @@ import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/local_notification_models.dart';
+import 'local_notification_api.dart';
 import 'local_notification_controller.dart';
 import 'local_notification_platform.dart';
 
@@ -49,6 +50,8 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
       _permissionPending = false;
   int _epoch = 0;
   String? _lastReconcile;
+  String? backgroundFailure;
+  bool backgroundOutcomeUnknown = false;
   AndroidNotificationStatus platformStatus = const AndroidNotificationStatus(
     permission: AndroidNotificationPermission.unsupported,
     channelEnabled: false,
@@ -60,6 +63,20 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
   bool get enabled => _enabled;
   bool get platformBusy => _platformBusy;
   bool get permissionPending => _permissionPending;
+  bool get canEnableBackground =>
+      _capture() != null &&
+      !_platformBusy &&
+      controller.loaded &&
+      !controller.busy &&
+      controller.subscription != null &&
+      platformStatus.canPresent;
+  bool get canDisableBackground =>
+      _capture() != null &&
+      !_platformBusy &&
+      controller.loaded &&
+      !controller.busy &&
+      controller.subscription != null &&
+      platformStatus.backgroundDelivery != null;
 
   bool _routeActive() {
     try {
@@ -130,6 +147,8 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
     _timer = null;
     _platformBusy = false;
     _lastReconcile = null;
+    backgroundFailure = null;
+    backgroundOutcomeUnknown = false;
     controller.setVisible(next);
     if (next) {
       _timer = Timer.periodic(pollInterval, (_) {
@@ -151,6 +170,8 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
     _timer = null;
     _platformBusy = false;
     _lastReconcile = null;
+    backgroundFailure = null;
+    backgroundOutcomeUnknown = false;
     controller.setVisible(false);
     notifyListeners();
   }
@@ -285,6 +306,259 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
         _platformBusy = false;
         notifyListeners();
         if (shouldReconcile && _same(authority)) unawaited(_reconcile());
+      }
+    }
+  }
+
+  DateTime _deliveryExpiry(LocalNotificationSubscription subscription) {
+    final now = clock().toUtc();
+    final requested = now.add(const Duration(days: 30));
+    final expiry = subscription.expiresAt.isBefore(requested)
+        ? subscription.expiresAt
+        : requested;
+    if (!expiry.isAfter(now.add(const Duration(minutes: 1)))) {
+      throw const LarenorServerException(
+        'notification_delivery_authority_inactive',
+      );
+    }
+    return expiry;
+  }
+
+  String _failureCode(Object error) => switch (error) {
+    LarenorServerException value => value.code,
+    _ => 'connection_failed',
+  };
+
+  bool _unknownOutcome(String code) => {
+    'connection_failed',
+    'request_timeout',
+    'timeout',
+    'server_error',
+    'notification_storage_unavailable',
+  }.contains(code);
+
+  Future<AndroidNotificationStatus> _probeCurrent(
+    _RuntimeAuthority authority,
+    bool Function() interactionCurrent,
+  ) => platform.probe(current: () => _same(authority) && interactionCurrent());
+
+  Future<bool> enableOrRecoverBackgroundDelivery({
+    required bool Function() interactionCurrent,
+  }) async {
+    final authority = _capture(), subscription = controller.subscription;
+    if (authority == null ||
+        subscription == null ||
+        !canEnableBackground ||
+        !interactionCurrent()) {
+      return false;
+    }
+    bool current() {
+      try {
+        return _same(authority) && interactionCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _platformBusy = true;
+    backgroundFailure = null;
+    backgroundOutcomeUnknown = false;
+    notifyListeners();
+    final transport = controller.apiFactory(authority.session.endpoint);
+    final api = LocalNotificationApi(
+      transport,
+      authority.session,
+      isCurrent: current,
+    );
+    var serverMutationStarted = false;
+    try {
+      final local = platformStatus.backgroundDelivery;
+      LocalNotificationDeliveryLease lease;
+      if (local?.active == true) {
+        lease = await api.getDeliveryLease(
+          leaseId: local!.leaseId,
+          subscriptionId: subscription.id,
+          credentialFingerprint: local.credentialFingerprint,
+        );
+        if (lease.state != LocalNotificationDeliveryLeaseState.active ||
+            lease.revision < local.leaseRevision ||
+            lease.subscriptionRevision < local.subscriptionRevision ||
+            lease.subscriptionRevision > subscription.revision) {
+          throw const LarenorServerException(
+            'notification_delivery_authority_inactive',
+          );
+        }
+        final now = clock().toUtc();
+        final renew =
+            lease.subscriptionRevision != subscription.revision ||
+            lease.expiresAt.isBefore(now.add(const Duration(days: 7)));
+        if (renew) {
+          serverMutationStarted = true;
+          lease = await api.renewDeliveryLease(
+            lease,
+            subscription,
+            expiresAt: _deliveryExpiry(subscription),
+          );
+          serverMutationStarted = false;
+        }
+      } else {
+        final registration = await platform.prepareBackgroundDelivery(
+          session: authority.session,
+          subscription: subscription,
+          expiresAt: _deliveryExpiry(subscription),
+          current: current,
+        );
+        if (local != null &&
+            (local.leaseId != registration.leaseId ||
+                local.credentialFingerprint !=
+                    registration.credentialFingerprint ||
+                local.subscriptionRevision !=
+                    registration.expectedSubscriptionRevision)) {
+          throw const LarenorServerException('invalid_response');
+        }
+        try {
+          lease = await api.getDeliveryLease(
+            leaseId: registration.leaseId,
+            subscriptionId: subscription.id,
+            credentialFingerprint: registration.credentialFingerprint,
+          );
+        } on LarenorServerException catch (error) {
+          if (error.code != 'not_found') rethrow;
+          serverMutationStarted = true;
+          lease = await api.registerDeliveryLease(subscription, registration);
+          serverMutationStarted = false;
+        }
+        if (lease.state != LocalNotificationDeliveryLeaseState.active) {
+          throw const LarenorServerException(
+            'notification_delivery_authority_inactive',
+          );
+        }
+      }
+      if (local?.active == true &&
+          local!.subscriptionRevision != lease.subscriptionRevision) {
+        if (lease.subscriptionRevision != subscription.revision) {
+          throw const LarenorServerException('invalid_response');
+        }
+        platformStatus = await platform.reconcile(
+          session: authority.session,
+          subscription: subscription,
+          events: controller.events,
+          current: current,
+        );
+      }
+      if (!current()) return false;
+      await platform.activateBackgroundDelivery(lease: lease, current: current);
+      if (!current()) return false;
+      platformStatus = await _probeCurrent(authority, interactionCurrent);
+      if (!platformStatus.backgroundActive ||
+          platformStatus.backgroundDelivery?.leaseId != lease.id ||
+          platformStatus.backgroundDelivery?.leaseRevision != lease.revision) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return true;
+    } catch (error) {
+      if (current()) {
+        final code = _failureCode(error);
+        backgroundFailure = code;
+        backgroundOutcomeUnknown =
+            serverMutationStarted && _unknownOutcome(code);
+      }
+      return false;
+    } finally {
+      api.retire();
+      transport.close();
+      if (!_disposed && authority.runtimeEpoch == _epoch) {
+        _platformBusy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> disableBackgroundDelivery({
+    required bool Function() interactionCurrent,
+  }) async {
+    final authority = _capture(),
+        subscription = controller.subscription,
+        initial = platformStatus.backgroundDelivery;
+    if (authority == null ||
+        subscription == null ||
+        initial == null ||
+        !canDisableBackground ||
+        !interactionCurrent()) {
+      return false;
+    }
+    bool current() {
+      try {
+        return _same(authority) && interactionCurrent();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    _platformBusy = true;
+    backgroundFailure = null;
+    backgroundOutcomeUnknown = false;
+    notifyListeners();
+    final transport = controller.apiFactory(authority.session.endpoint);
+    final api = LocalNotificationApi(
+      transport,
+      authority.session,
+      isCurrent: current,
+    );
+    var revokeStarted = false;
+    try {
+      LocalNotificationDeliveryLease? lease;
+      try {
+        lease = await api.getDeliveryLease(
+          leaseId: initial.leaseId,
+          subscriptionId: subscription.id,
+          credentialFingerprint: initial.credentialFingerprint,
+        );
+      } on LarenorServerException catch (error) {
+        if (error.code != 'not_found') rethrow;
+      }
+      var local = initial;
+      if (lease?.state == LocalNotificationDeliveryLeaseState.active) {
+        if (lease!.revision < initial.leaseRevision ||
+            lease.subscriptionRevision < initial.subscriptionRevision) {
+          throw const LarenorServerException('invalid_response');
+        }
+        revokeStarted = true;
+        await api.revokeDeliveryLease(lease);
+        revokeStarted = false;
+      }
+      if (!current()) return false;
+      if (local.active) {
+        await platform.disableBackgroundDelivery(
+          delivery: local,
+          current: current,
+        );
+      } else {
+        await platform.cancelPreparedBackgroundDelivery(
+          delivery: local,
+          current: current,
+        );
+      }
+      if (!current()) return false;
+      platformStatus = await _probeCurrent(authority, interactionCurrent);
+      if (platformStatus.backgroundDelivery != null ||
+          platformStatus.deliveryMode != 'foregroundPull') {
+        throw const LarenorServerException('invalid_response');
+      }
+      return true;
+    } catch (error) {
+      if (current()) {
+        final code = _failureCode(error);
+        backgroundFailure = code;
+        backgroundOutcomeUnknown = revokeStarted && _unknownOutcome(code);
+      }
+      return false;
+    } finally {
+      api.retire();
+      transport.close();
+      if (!_disposed && authority.runtimeEpoch == _epoch) {
+        _platformBusy = false;
+        notifyListeners();
       }
     }
   }

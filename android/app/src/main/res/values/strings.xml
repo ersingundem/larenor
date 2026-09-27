@@ -3,6 +3,10 @@
     <string name="local_notification_channel_name">Larenor alerts</string>
     <string name="local_notification_channel_description">Private alerts delivered by your Larenor Core</string>
     <string name="local_notification_private_preview">Private notification. Unlock Larenor to view.</string>
+    <string name="local_notification_delivery_channel_name">Background notification delivery</string>
+    <string name="local_notification_delivery_channel_description">Keeps opted-in Larenor alerts available while the app is closed</string>
+    <string name="local_notification_delivery_title">Larenor notification delivery</string>
+    <string name="local_notification_delivery_text">Listening for alerts from your Larenor Core</string>
     <string name="shortcut_home">Home</string>
     <string name="shortcut_home_long">Open Larenor Home</string>
     <string name="shortcut_kiosk">Kiosk controls</string>

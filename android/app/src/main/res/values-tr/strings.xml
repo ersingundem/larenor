@@ -3,6 +3,10 @@
     <string name="local_notification_channel_name">Larenor uyarıları</string>
     <string name="local_notification_channel_description">Larenor Core tarafından iletilen özel uyarılar</string>
     <string name="local_notification_private_preview">Özel bildirim. Görmek için Larenor’un kilidini açın.</string>
+    <string name="local_notification_delivery_channel_name">Arka plan bildirim iletimi</string>
+    <string name="local_notification_delivery_channel_description">Uygulama kapalıyken izin verdiğiniz Larenor uyarılarını iletir</string>
+    <string name="local_notification_delivery_title">Larenor bildirim iletimi</string>
+    <string name="local_notification_delivery_text">Larenor Core uyarıları dinleniyor</string>
     <string name="shortcut_home">Ev</string>
     <string name="shortcut_home_long">Larenor Ev’i aç</string>
     <string name="shortcut_kiosk">Kiosk kontrolleri</string>

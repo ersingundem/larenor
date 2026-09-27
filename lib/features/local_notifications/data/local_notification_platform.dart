@@ -15,6 +15,41 @@ enum AndroidNotificationPermission {
   granted,
 }
 
+enum AndroidBackgroundDeliveryState { pending, active }
+
+enum AndroidNotificationRecoveryReason {
+  serviceStartDenied,
+  bootStartDenied,
+  bootRecoveryRequired,
+  invalidStart,
+  deliveryUnavailable,
+  notificationPermissionRevoked,
+  deliveryStateUnavailable,
+  deliveryAuthorityRejected,
+  deliveryProtocolRejected,
+}
+
+final class AndroidBackgroundDelivery {
+  const AndroidBackgroundDelivery({
+    required this.state,
+    required this.leaseId,
+    required this.leaseRevision,
+    required this.subscriptionRevision,
+    required this.credentialFingerprint,
+    required this.expiresAt,
+  });
+
+  final AndroidBackgroundDeliveryState state;
+  final String leaseId, credentialFingerprint;
+  final int leaseRevision, subscriptionRevision;
+  final DateTime expiresAt;
+
+  bool get active => state == AndroidBackgroundDeliveryState.active;
+
+  @override
+  String toString() => 'AndroidBackgroundDelivery';
+}
+
 final class AndroidNotificationStatus {
   const AndroidNotificationStatus({
     required this.permission,
@@ -22,12 +57,17 @@ final class AndroidNotificationStatus {
     required this.recoveryRequired,
     required this.batteryOptimizationExempt,
     required this.deliveryMode,
+    this.backgroundDelivery,
+    this.recoveryReason,
   });
   final AndroidNotificationPermission permission;
   final bool channelEnabled, recoveryRequired, batteryOptimizationExempt;
   final String deliveryMode;
+  final AndroidBackgroundDelivery? backgroundDelivery;
+  final AndroidNotificationRecoveryReason? recoveryReason;
   bool get canPresent =>
       permission == AndroidNotificationPermission.granted && channelEnabled;
+  bool get backgroundActive => backgroundDelivery?.active == true;
 }
 
 final class LocalNotificationTap {
@@ -81,6 +121,24 @@ abstract interface class LocalNotificationPlatform {
     required ServerSession session,
     required LocalNotificationSubscription subscription,
     required List<LocalNotificationEvent> events,
+    required bool Function() current,
+  });
+  Future<LocalNotificationDeliveryRegistration> prepareBackgroundDelivery({
+    required ServerSession session,
+    required LocalNotificationSubscription subscription,
+    required DateTime expiresAt,
+    required bool Function() current,
+  });
+  Future<void> activateBackgroundDelivery({
+    required LocalNotificationDeliveryLease lease,
+    required bool Function() current,
+  });
+  Future<void> disableBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
+    required bool Function() current,
+  });
+  Future<void> cancelPreparedBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
     required bool Function() current,
   });
   Future<void> openNotificationSettings({required bool Function() current});
@@ -137,9 +195,91 @@ final class AndroidLocalNotificationPlatform
     );
   }
 
+  AndroidNotificationPermission _permission(Object? raw) => switch (raw) {
+    'notRequested' => AndroidNotificationPermission.notRequested,
+    'denied' => AndroidNotificationPermission.denied,
+    'granted' => AndroidNotificationPermission.granted,
+    _ => _failure('invalid_response'),
+  };
+
+  DateTime _time(Object? raw) {
+    if (raw is! num || !raw.isFinite || raw <= 0) {
+      _failure('invalid_response');
+    }
+    return DateTime.fromMillisecondsSinceEpoch(
+      (raw * 1000).round(),
+      isUtc: true,
+    );
+  }
+
+  AndroidBackgroundDelivery _background(Object? raw) {
+    const keys = {
+      'state',
+      'leaseId',
+      'leaseRevision',
+      'subscriptionRevision',
+      'credentialFingerprint',
+      'expiresAt',
+    };
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        raw.keys.any((key) => !keys.contains(key))) {
+      _failure('invalid_response');
+    }
+    final state = switch (raw['state']) {
+      'pending' => AndroidBackgroundDeliveryState.pending,
+      'active' => AndroidBackgroundDeliveryState.active,
+      _ => _failure('invalid_response'),
+    };
+    final leaseRevision = raw['leaseRevision'];
+    final subscriptionRevision = raw['subscriptionRevision'];
+    if (raw['leaseId'] is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(raw['leaseId']) ||
+        raw['credentialFingerprint'] is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(raw['credentialFingerprint']) ||
+        leaseRevision is! int ||
+        leaseRevision < 0 ||
+        subscriptionRevision is! int ||
+        subscriptionRevision < 1 ||
+        state == AndroidBackgroundDeliveryState.pending && leaseRevision != 0 ||
+        state == AndroidBackgroundDeliveryState.active && leaseRevision < 1) {
+      _failure('invalid_response');
+    }
+    return AndroidBackgroundDelivery(
+      state: state,
+      leaseId: raw['leaseId'],
+      leaseRevision: leaseRevision,
+      subscriptionRevision: subscriptionRevision,
+      credentialFingerprint: raw['credentialFingerprint'],
+      expiresAt: _time(raw['expiresAt']),
+    );
+  }
+
+  AndroidNotificationRecoveryReason? _recoveryReason(Object? raw) =>
+      switch (raw) {
+        null => null,
+        'serviceStartDenied' =>
+          AndroidNotificationRecoveryReason.serviceStartDenied,
+        'bootStartDenied' => AndroidNotificationRecoveryReason.bootStartDenied,
+        'bootRecoveryRequired' =>
+          AndroidNotificationRecoveryReason.bootRecoveryRequired,
+        'invalidStart' => AndroidNotificationRecoveryReason.invalidStart,
+        'deliveryUnavailable' =>
+          AndroidNotificationRecoveryReason.deliveryUnavailable,
+        'notificationPermissionRevoked' =>
+          AndroidNotificationRecoveryReason.notificationPermissionRevoked,
+        'deliveryStateUnavailable' =>
+          AndroidNotificationRecoveryReason.deliveryStateUnavailable,
+        'deliveryAuthorityRejected' =>
+          AndroidNotificationRecoveryReason.deliveryAuthorityRejected,
+        'deliveryProtocolRejected' =>
+          AndroidNotificationRecoveryReason.deliveryProtocolRejected,
+        _ => _failure('invalid_response'),
+      };
+
   AndroidNotificationStatus _status(Object? raw) {
     if (raw is! Map) _failure('invalid_response');
-    const keys = {
+    const legacyKeys = {
       'schemaVersion',
       'supported',
       'permission',
@@ -152,24 +292,32 @@ final class AndroidLocalNotificationPlatform
       'batteryOptimizationExempt',
       'deliveryMode',
     };
-    // The native map has eleven fields; count and exact keys both fail closed.
+    const currentKeys = {
+      'schemaVersion',
+      'supported',
+      'permission',
+      'channelVersion',
+      'channelEnabled',
+      'bindingId',
+      'subscriptionRevision',
+      'lastSequence',
+      'batteryOptimizationExempt',
+      'deliveryMode',
+      'backgroundDelivery',
+      'recovery',
+    };
+    final legacy = raw['schemaVersion'] == 1;
+    final keys = legacy ? legacyKeys : currentKeys;
     if (raw.length != keys.length ||
         raw.keys.any((key) => !keys.contains(key))) {
       _failure('invalid_response');
     }
-    final permission = switch (raw['permission']) {
-      'notRequested' => AndroidNotificationPermission.notRequested,
-      'denied' => AndroidNotificationPermission.denied,
-      'granted' => AndroidNotificationPermission.granted,
-      _ => _failure('invalid_response'),
-    };
-    if (raw['schemaVersion'] != 1 ||
+    final permission = _permission(raw['permission']);
+    if ((!legacy && raw['schemaVersion'] != 2) ||
         raw['supported'] != true ||
         raw['channelVersion'] != 1 ||
         raw['channelEnabled'] is! bool ||
-        raw['recoveryRequired'] is! bool ||
         raw['batteryOptimizationExempt'] is! bool ||
-        raw['deliveryMode'] != 'foregroundPull' ||
         raw['subscriptionRevision'] is! int ||
         raw['subscriptionRevision'] < 0 ||
         raw['lastSequence'] is! int ||
@@ -179,12 +327,45 @@ final class AndroidLocalNotificationPlatform
                 !RegExp(r'^[0-9a-f]{64}$').hasMatch(raw['bindingId']))) {
       _failure('invalid_response');
     }
+    if (legacy) {
+      if (raw['recoveryRequired'] is! bool ||
+          raw['deliveryMode'] != 'foregroundPull') {
+        _failure('invalid_response');
+      }
+      return AndroidNotificationStatus(
+        permission: permission,
+        channelEnabled: raw['channelEnabled'],
+        recoveryRequired: raw['recoveryRequired'],
+        batteryOptimizationExempt: raw['batteryOptimizationExempt'],
+        deliveryMode: 'foregroundPull',
+      );
+    }
+    final background = raw['backgroundDelivery'] == null
+        ? null
+        : _background(raw['backgroundDelivery']);
+    final recovery = raw['recovery'];
+    if (recovery is! Map ||
+        recovery.length != 2 ||
+        !recovery.containsKey('required') ||
+        !recovery.containsKey('reason') ||
+        recovery['required'] is! bool ||
+        (background == null) != (raw['deliveryMode'] == 'foregroundPull') ||
+        (background != null) != (raw['deliveryMode'] == 'backgroundLease') ||
+        background != null && raw['bindingId'] == null) {
+      _failure('invalid_response');
+    }
+    final reason = _recoveryReason(recovery['reason']);
+    if ((recovery['required'] as bool) != (reason != null)) {
+      _failure('invalid_response');
+    }
     return AndroidNotificationStatus(
       permission: permission,
       channelEnabled: raw['channelEnabled'],
-      recoveryRequired: raw['recoveryRequired'],
+      recoveryRequired: recovery['required'],
       batteryOptimizationExempt: raw['batteryOptimizationExempt'],
       deliveryMode: raw['deliveryMode'],
+      backgroundDelivery: background,
+      recoveryReason: reason,
     );
   }
 
@@ -285,8 +466,111 @@ final class AndroidLocalNotificationPlatform
     );
   }
 
+  @override
+  Future<LocalNotificationDeliveryRegistration> prepareBackgroundDelivery({
+    required ServerSession session,
+    required LocalNotificationSubscription subscription,
+    required DateTime expiresAt,
+    required bool Function() current,
+  }) {
+    if (!_supported) _failure('platform_unavailable');
+    final context = session.context!;
+    return _invoke(
+      'prepareBackgroundDelivery',
+      {
+        'schemaVersion': 1,
+        'baseUrl': session.endpoint.baseUrl,
+        'coreId': context.coreId,
+        'homeId': context.homeId,
+        'bindingId': bindingId(session),
+        'subscriptionId': subscription.id,
+        'subscriptionRevision': subscription.revision,
+        'expiresAt': expiresAt.toUtc().millisecondsSinceEpoch / 1000,
+      },
+      current,
+      LocalNotificationDeliveryRegistration.fromJson,
+    );
+  }
+
+  void _activation(Object? raw, LocalNotificationDeliveryLease expected) {
+    if (raw is! Map ||
+        raw.length != 5 ||
+        raw['schemaVersion'] != 1 ||
+        raw['state'] != 'active' ||
+        raw['leaseId'] != expected.id ||
+        raw['leaseRevision'] != expected.revision ||
+        _time(raw['expiresAt']) != expected.expiresAt) {
+      _failure('invalid_response');
+    }
+  }
+
+  @override
+  Future<void> activateBackgroundDelivery({
+    required LocalNotificationDeliveryLease lease,
+    required bool Function() current,
+  }) {
+    if (!_supported ||
+        lease.state != LocalNotificationDeliveryLeaseState.active) {
+      _failure('invalid_request');
+    }
+    return _invoke(
+      'activateBackgroundDelivery',
+      {
+        'schemaVersion': 1,
+        'leaseId': lease.id,
+        'leaseRevision': lease.revision,
+        'subscriptionRevision': lease.subscriptionRevision,
+        'credentialFingerprint': lease.credentialFingerprint,
+        'expiresAt': lease.expiresAt.toUtc().millisecondsSinceEpoch / 1000,
+      },
+      current,
+      (raw) => _activation(raw, lease),
+    );
+  }
+
+  void _empty(Object? raw) {
+    if (raw != null) _failure('invalid_response');
+  }
+
+  @override
+  Future<void> disableBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
+    required bool Function() current,
+  }) {
+    if (!_supported || !delivery.active) _failure('invalid_request');
+    return _invoke(
+      'disableBackgroundDelivery',
+      {
+        'schemaVersion': 1,
+        'leaseId': delivery.leaseId,
+        'expectedLeaseRevision': delivery.leaseRevision,
+      },
+      current,
+      _empty,
+    );
+  }
+
+  @override
+  Future<void> cancelPreparedBackgroundDelivery({
+    required AndroidBackgroundDelivery delivery,
+    required bool Function() current,
+  }) {
+    if (!_supported || delivery.active) _failure('invalid_request');
+    return _invoke(
+      'cancelPreparedBackgroundDelivery',
+      {
+        'schemaVersion': 1,
+        'leaseId': delivery.leaseId,
+        'credentialFingerprint': delivery.credentialFingerprint,
+        'expectedSubscriptionRevision': delivery.subscriptionRevision,
+      },
+      current,
+      _empty,
+    );
+  }
+
   Future<void> _open(String method, bool Function() current) =>
-      _invoke<void>(method, null, current, (_) {});
+      _invoke<void>(method, null, current, _empty);
   @override
   Future<void> openNotificationSettings({required bool Function() current}) =>
       _open('openNotificationSettings', current);

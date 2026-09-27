@@ -2,10 +2,7 @@ package com.ersingundem.larenor.notifications
 
 import android.Manifest
 import android.app.Activity
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,15 +10,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import com.ersingundem.larenor.MainActivity
-import com.ersingundem.larenor.R
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import android.util.Base64
+import java.security.MessageDigest
 import java.security.SecureRandom
 
-/** Native notification rendering only. Core authentication and polling stay in Flutter. */
+/** Flutter notification bridge plus explicit native background-delivery provisioning. */
 class LocalNotificationBridge(
     private val activity: Activity,
     messenger: BinaryMessenger,
@@ -30,21 +27,19 @@ class LocalNotificationBridge(
         const val METHODS = "com.ersingundem.larenor/local_notifications"
         const val EVENTS = "com.ersingundem.larenor/local_notification_taps"
         const val REQUEST_NOTIFICATIONS = 41054
-        const val CHANNEL_VERSION = 1
-        const val CHANNEL_ID = "larenor_local_notifications_v1"
-        const val TAP_ACTION = "com.ersingundem.larenor.LOCAL_NOTIFICATION_TAP"
-        private const val STORE = "larenor_local_notification_platform_v1"
-        private const val MAX_BATCH = 50
-        private const val EVENT_NOTIFICATION_PREFIX = "notification_event_"
-        private const val NEXT_NOTIFICATION_ID = "next_notification_id"
-        private val HEX_32 = Regex("^[0-9a-f]{32}$")
-        private val HEX_64 = Regex("^[0-9a-f]{64}$")
+        const val CHANNEL_VERSION = LocalNotificationRenderer.CHANNEL_VERSION
+        const val CHANNEL_ID = LocalNotificationRenderer.CHANNEL_ID
+        const val TAP_ACTION = LocalNotificationRenderer.TAP_ACTION
+        private val HEX_32 = LocalNotificationRenderer.HEX_32
+        private val HEX_64 = LocalNotificationRenderer.HEX_64
     }
 
     private val methods = MethodChannel(messenger, METHODS)
     private val events = EventChannel(messenger, EVENTS)
     private val manager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    private val store = activity.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+    private val store = activity.getSharedPreferences(LocalNotificationRenderer.PLATFORM_STORE, Context.MODE_PRIVATE)
+    private val renderer = LocalNotificationRenderer(activity)
+    private val deliveryStore = LocalNotificationDeliveryStore(activity)
     private val random = SecureRandom()
     private var sink: EventChannel.EventSink? = null
     private var pendingTap: Map<String, Any>? = null
@@ -53,7 +48,7 @@ class LocalNotificationBridge(
     private var permissionResult: MethodChannel.Result? = null
 
     init {
-        createChannel()
+        renderer.createChannel()
         methods.setMethodCallHandler(this)
         events.setStreamHandler(this)
         handleIntent(activity.intent)
@@ -64,6 +59,7 @@ class LocalNotificationBridge(
 
     fun setResumed(value: Boolean) {
         resumed = value
+        LocalNotificationDeliveryRuntime.setActivityForeground(value)
         if (!value) cancelPermission("cancelled")
     }
 
@@ -71,23 +67,6 @@ class LocalNotificationBridge(
         // Android's permission dialog temporarily owns window focus. Losing
         // focus alone must not retire the exact pending system callback.
         if (disposed || activity.isFinishing) cancelPermission("cancelled")
-    }
-
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT < 26) return
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                activity.getString(R.string.local_notification_channel_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                description = activity.getString(R.string.local_notification_channel_description)
-                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
-            },
-        )
-        manager.notificationChannels
-            .filter { it.id.startsWith("larenor_local_notifications_v") && it.id != CHANNEL_ID }
-            .forEach { manager.deleteNotificationChannel(it.id) }
     }
 
     private fun permission(): String = when {
@@ -99,8 +78,18 @@ class LocalNotificationBridge(
 
     private fun status(): Map<String, Any?> {
         val power = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val hadSealedRecord = deliveryStore.hasSealedRecord()
+        val delivery = deliveryStore.load()
+        if (hadSealedRecord && delivery == null) {
+            LocalNotificationDeliveryRuntime.markRecovery(activity, "deliveryStateUnavailable")
+        }
+        val recoveryRequired = store.getBoolean("recovery_required", false)
+        val storedReason = store.getString("recovery_reason", null)
+        val recoveryReason = if (!recoveryRequired) null else storedReason
+            ?.takeIf(LocalNotificationDeliveryRuntime.RECOVERY_REASONS::contains)
+            ?: "deliveryStateUnavailable"
         return mapOf(
-            "schemaVersion" to 1,
+            "schemaVersion" to 2,
             "supported" to true,
             "permission" to permission(),
             "channelVersion" to CHANNEL_VERSION,
@@ -110,9 +99,19 @@ class LocalNotificationBridge(
             "bindingId" to store.getString("binding_id", null),
             "subscriptionRevision" to store.getLong("subscription_revision", 0L),
             "lastSequence" to store.getLong("last_sequence", 0L),
-            "recoveryRequired" to store.getBoolean("recovery_required", false),
             "batteryOptimizationExempt" to power.isIgnoringBatteryOptimizations(activity.packageName),
-            "deliveryMode" to "foregroundPull",
+            "deliveryMode" to if (delivery == null) "foregroundPull" else "backgroundLease",
+            "backgroundDelivery" to delivery?.let {
+                mapOf(
+                    "state" to it.phase,
+                    "leaseId" to it.leaseId,
+                    "leaseRevision" to it.leaseRevision,
+                    "subscriptionRevision" to it.subscriptionRevision,
+                    "credentialFingerprint" to it.credentialFingerprint,
+                    "expiresAt" to it.expiresAt,
+                )
+            },
+            "recovery" to mapOf("required" to recoveryRequired, "reason" to recoveryReason),
         )
     }
 
@@ -134,6 +133,34 @@ class LocalNotificationBridge(
                     require(foreground && permission() == "granted")
                     reconcile(exactMap(call.arguments, setOf("schemaVersion", "bindingId", "subscriptionId", "subscriptionRevision", "events")))
                     result.success(status())
+                }
+                "prepareBackgroundDelivery" -> {
+                    require(foreground && permission() == "granted" && renderer.canNotify())
+                    result.success(prepareBackgroundDelivery(exactMap(call.arguments, setOf(
+                        "schemaVersion", "baseUrl", "coreId", "homeId", "bindingId", "subscriptionId",
+                        "subscriptionRevision", "expiresAt",
+                    ))))
+                }
+                "activateBackgroundDelivery" -> {
+                    require(foreground && permission() == "granted" && renderer.canNotify())
+                    result.success(activateBackgroundDelivery(exactMap(call.arguments, setOf(
+                        "schemaVersion", "leaseId", "leaseRevision", "subscriptionRevision",
+                        "credentialFingerprint", "expiresAt",
+                    ))))
+                }
+                "disableBackgroundDelivery" -> {
+                    require(foreground)
+                    disableBackgroundDelivery(exactMap(call.arguments, setOf(
+                        "schemaVersion", "leaseId", "expectedLeaseRevision",
+                    )))
+                    result.success(null)
+                }
+                "cancelPreparedBackgroundDelivery" -> {
+                    require(foreground)
+                    cancelPreparedBackgroundDelivery(exactMap(call.arguments, setOf(
+                        "schemaVersion", "leaseId", "credentialFingerprint", "expectedSubscriptionRevision",
+                    )))
+                    result.success(null)
                 }
                 "openNotificationSettings" -> {
                     require(call.arguments == null && foreground)
@@ -182,22 +209,28 @@ class LocalNotificationBridge(
         val binding = text(value["bindingId"], HEX_64)
         val subscription = text(value["subscriptionId"], HEX_32)
         val revision = positive(value["subscriptionRevision"])
-        val oldBinding = store.getString("binding_id", null)
-        val oldSubscription = store.getString("subscription_id", null)
-        val oldRevision = store.getLong("subscription_revision", 0L)
-        if (oldBinding == binding && oldSubscription == subscription && revision < oldRevision) {
-            throw NotificationRejected("stale")
+        var stopDelivery = false
+        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            val oldBinding = store.getString("binding_id", null)
+            val oldSubscription = store.getString("subscription_id", null)
+            val oldRevision = store.getLong("subscription_revision", 0L)
+            if (oldBinding == binding && oldSubscription == subscription && revision < oldRevision) {
+                throw NotificationRejected("stale")
+            }
+            if (oldBinding != binding || oldSubscription != subscription) {
+                deliveryStore.clear()
+                renderer.clearPostedNotifications(resetWatermark = true)
+                store.edit().clear().putBoolean("permission_requested", permission() != "notRequested").apply()
+                stopDelivery = true
+            }
+            store.edit()
+                .putString("binding_id", binding)
+                .putString("subscription_id", subscription)
+                .putLong("subscription_revision", revision)
+                .putBoolean("recovery_required", false)
+                .apply()
         }
-        if (oldBinding != binding || oldSubscription != subscription) {
-            storedNotificationIds().forEach(manager::cancel)
-            store.edit().clear().putBoolean("permission_requested", permission() != "notRequested").apply()
-        }
-        store.edit()
-            .putString("binding_id", binding)
-            .putString("subscription_id", subscription)
-            .putLong("subscription_revision", revision)
-            .putBoolean("recovery_required", false)
-            .apply()
+        if (stopDelivery) LocalNotificationDeliveryRuntime.stop(activity)
     }
 
     private fun reconcile(value: Map<*, *>) {
@@ -209,119 +242,201 @@ class LocalNotificationBridge(
             subscription != store.getString("subscription_id", null) ||
             revision != store.getLong("subscription_revision", 0L)) throw NotificationRejected("stale")
         val raw = value["events"]
-        require(raw is List<*> && raw.size <= MAX_BATCH)
+        require(raw is List<*> && raw.size <= LocalNotificationRenderer.MAX_BATCH)
         var previous = 0L
-        val parsed = raw.map { parseEvent(exactMap(it, setOf("schemaVersion", "id", "sequence", "sensitivity", "title", "body", "redacted"))) }
+        val parsed = raw.map {
+            renderer.parseFlutterEvent(
+                exactMap(it, setOf("schemaVersion", "id", "sequence", "sensitivity", "title", "body", "redacted")),
+            )
+        }
         for (event in parsed) {
             if (event.sequence <= previous) throw NotificationRejected("outOfOrder")
             previous = event.sequence
         }
-        var high = store.getLong("last_sequence", 0L)
-        for (event in parsed) {
-            if (event.sequence <= high) continue
-            post(binding, revision, event)
-            high = event.sequence
-            store.edit().putLong("last_sequence", high).apply()
+        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            renderer.reconcile(binding, revision, parsed)
         }
-        val desiredEvents = parsed.map(Event::id).toSet()
-        val desired = desiredEvents.associateWith(::notificationIdFor)
-        val staleMappings = storedEventNotificationIds().filterKeys { it !in desiredEvents }
-        val staleIds = (storedNotificationIds() - desired.values.toSet()) + staleMappings.values
-        staleIds.forEach(manager::cancel)
-        val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty()
-        val retained = tapKeys.filter { tapKeyEventId(it) in desiredEvents }.toSet()
-        val editor = store.edit()
-        staleMappings.keys.forEach { editor.remove(EVENT_NOTIFICATION_PREFIX + it) }
-        (tapKeys - retained).forEach(editor::remove)
-        editor.putStringSet("tap_keys", retained).apply()
-        store.edit().putStringSet("notification_ids", desired.values.map(Int::toString).toSet()).apply()
     }
 
-    private data class Event(val id: String, val sequence: Long, val title: String, val body: String, val private: Boolean)
-    private fun parseEvent(value: Map<*, *>): Event {
+    private fun prepareBackgroundDelivery(value: Map<*, *>): Map<String, Any> {
         require(value["schemaVersion"] == 1)
-        val id = text(value["id"], HEX_32)
-        val sequence = positive(value["sequence"])
-        val sensitivity = value["sensitivity"]
-        require(sensitivity == "public" || sensitivity == "private")
-        val title = bounded(value["title"], 120, false)
-        val body = bounded(value["body"], 1024, true)
-        val redacted = value["redacted"] as? Boolean ?: throw IllegalArgumentException()
-        val private = sensitivity == "private"
-        if (private != redacted || private && (title != "Larenor" || body.isNotEmpty())) {
-            throw NotificationRejected("privacy")
+        val baseUrl = LocalNotificationDeliveryTransport.validateBaseUrl(value["baseUrl"] as? String
+            ?: throw IllegalArgumentException())
+        val coreId = text(value["coreId"], HEX_32)
+        val homeId = text(value["homeId"], HEX_32)
+        val bindingId = text(value["bindingId"], HEX_64)
+        val subscriptionId = text(value["subscriptionId"], HEX_32)
+        val subscriptionRevision = positive(value["subscriptionRevision"])
+        val expiresAt = finitePositive(value["expiresAt"])
+        val now = System.currentTimeMillis() / 1000.0
+        require(expiresAt >= now + 60 && expiresAt <= now + 30 * 24 * 60 * 60)
+        return synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            if (bindingId != store.getString("binding_id", null) ||
+                subscriptionId != store.getString("subscription_id", null) ||
+                subscriptionRevision != store.getLong("subscription_revision", 0L)
+            ) throw NotificationRejected("stale")
+
+            deliveryStore.load()?.let { existing ->
+                if (existing.phase == "pending" && existing.expiresAt <= now) {
+                    if (!deliveryStore.clearPending(
+                            existing.leaseId, existing.credentialFingerprint, existing.subscriptionRevision,
+                        )
+                    ) throw NotificationRejected("busy")
+                } else if (existing.phase != "pending" || existing.baseUrl != baseUrl ||
+                    existing.coreId != coreId || existing.homeId != homeId ||
+                    existing.bindingId != bindingId || existing.subscriptionId != subscriptionId ||
+                    existing.subscriptionRevision != subscriptionRevision
+                ) {
+                    throw NotificationRejected("busy")
+                } else {
+                    return@synchronized deliveryRegistration(existing)
+                }
+            }
+
+            val credentialBytes = ByteArray(32).also(random::nextBytes)
+            val credential = Base64.encodeToString(
+                credentialBytes,
+                Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP,
+            )
+            val fingerprint = MessageDigest.getInstance("SHA-256").digest(credentialBytes)
+                .joinToString("") { "%02x".format(it) }
+            val leaseId = ByteArray(16).also(random::nextBytes).joinToString("") { "%02x".format(it) }
+            val pending = LocalNotificationDeliveryRecord(
+                phase = "pending",
+                baseUrl = baseUrl,
+                coreId = coreId,
+                homeId = homeId,
+                bindingId = bindingId,
+                subscriptionId = subscriptionId,
+                subscriptionRevision = subscriptionRevision,
+                leaseId = leaseId,
+                leaseRevision = 0,
+                credential = credential,
+                credentialFingerprint = fingerprint,
+                expiresAt = expiresAt,
+                cursor = store.getLong("last_sequence", 0L),
+            )
+            deliveryStore.save(pending)
+            deliveryRegistration(pending)
         }
-        return Event(id, sequence, title, body, private)
     }
 
-    private fun post(binding: String, revision: Long, event: Event) {
-        val nonce = ByteArray(16).also(random::nextBytes).joinToString("") { "%02x".format(it) }
-        val tapKey = "tap_${event.id}_${event.sequence}"
-        val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty().toMutableSet()
-        while (tapKeys.size >= 64) tapKeys.firstOrNull()?.let { store.edit().remove(it).apply(); tapKeys.remove(it) }
-        tapKeys.add(tapKey)
-        val notificationId = notificationIdFor(event.id)
-        val notificationIds = storedNotificationIds().toMutableSet()
-        notificationIds.add(notificationId)
-        store.edit().putString(tapKey, nonce).putStringSet("tap_keys", tapKeys)
-            .putStringSet("notification_ids", notificationIds.map(Int::toString).toSet()).apply()
-        val intent = Intent(activity, MainActivity::class.java)
-            .setAction(TAP_ACTION)
-            .putExtra("bindingId", binding)
-            .putExtra("subscriptionRevision", revision)
-            .putExtra("eventId", event.id)
-            .putExtra("sequence", event.sequence)
-            .putExtra("nonce", nonce)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        val pending = PendingIntent.getActivity(
-            activity,
-            notificationId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    private fun deliveryRegistration(record: LocalNotificationDeliveryRecord): Map<String, Any> = mapOf(
+            "schemaVersion" to 1,
+            "leaseId" to record.leaseId,
+            "credential" to record.credential,
+            "credentialFingerprint" to record.credentialFingerprint,
+            "expectedSubscriptionRevision" to record.subscriptionRevision,
+            "expiresAt" to record.expiresAt,
         )
-        val privateText = activity.getString(R.string.local_notification_private_preview)
-        val notification = Notification.Builder(activity, CHANNEL_ID)
-            .setSmallIcon(R.drawable.larenor_monochrome)
-            .setContentTitle(event.title)
-            .setContentText(if (event.private) privateText else event.body)
-            .setContentIntent(pending)
-            .setAutoCancel(true)
-            .setCategory(Notification.CATEGORY_STATUS)
-            .setVisibility(if (event.private) Notification.VISIBILITY_PRIVATE else Notification.VISIBILITY_PUBLIC)
-            .setPublicVersion(
-                Notification.Builder(activity, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.larenor_monochrome)
-                    .setContentTitle("Larenor")
-                    .setContentText(privateText)
-                    .setVisibility(Notification.VISIBILITY_PUBLIC)
-                    .build(),
-            )
-            .build()
-        manager.notify(notificationId, notification)
+
+    private fun activateBackgroundDelivery(value: Map<*, *>): Map<String, Any> {
+        require(value["schemaVersion"] == 1)
+        val leaseId = text(value["leaseId"], HEX_32)
+        val leaseRevision = positive(value["leaseRevision"])
+        val subscriptionRevision = positive(value["subscriptionRevision"])
+        val fingerprint = text(value["credentialFingerprint"], HEX_64)
+        val expiresAt = finitePositive(value["expiresAt"])
+        val now = System.currentTimeMillis() / 1000.0
+        val active = synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            val pending = deliveryStore.load() ?: throw NotificationRejected("stale")
+            if (pending.active && pending.leaseId == leaseId &&
+                pending.credentialFingerprint == fingerprint
+            ) {
+                if (subscriptionRevision < pending.subscriptionRevision ||
+                    subscriptionRevision != store.getLong("subscription_revision", 0L) ||
+                    leaseRevision < pending.leaseRevision ||
+                    leaseRevision == pending.leaseRevision &&
+                        (pending.expiresAt != expiresAt || pending.subscriptionRevision != subscriptionRevision) ||
+                    expiresAt < now + 60 || expiresAt > now + 30 * 24 * 60 * 60
+                ) throw NotificationRejected("stale")
+                pending.copy(
+                    leaseRevision = leaseRevision,
+                    subscriptionRevision = subscriptionRevision,
+                    expiresAt = expiresAt,
+                ).also { if (it != pending) deliveryStore.save(it) }
+            } else {
+                if (pending.phase != "pending" || pending.leaseId != leaseId ||
+                    pending.credentialFingerprint != fingerprint ||
+                    pending.subscriptionRevision != subscriptionRevision || expiresAt <= now ||
+                    expiresAt > pending.expiresAt
+                ) throw NotificationRejected("stale")
+                pending.copy(
+                    phase = "active",
+                    leaseRevision = leaseRevision,
+                    expiresAt = expiresAt,
+                ).also(deliveryStore::save)
+            }
+        }
+        LocalNotificationDeliveryRuntime.clearRecovery(activity)
+        if (!LocalNotificationDeliveryRuntime.start(activity)) throw NotificationRejected("unavailable")
+        return deliveryActivation(active)
+    }
+
+    private fun deliveryActivation(record: LocalNotificationDeliveryRecord): Map<String, Any> = mapOf(
+            "schemaVersion" to 1,
+            "state" to "active",
+            "leaseId" to record.leaseId,
+            "leaseRevision" to record.leaseRevision,
+            "expiresAt" to record.expiresAt,
+        )
+
+    private fun disableBackgroundDelivery(value: Map<*, *>) {
+        require(value["schemaVersion"] == 1)
+        val leaseId = text(value["leaseId"], HEX_32)
+        val expectedRevision = positive(value["expectedLeaseRevision"])
+        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            val record = deliveryStore.load()
+            if (record == null && leaseId == store.getString("revoked_delivery_lease_id", null) &&
+                expectedRevision == store.getLong("revoked_delivery_lease_revision", 0L)
+            ) return@synchronized
+            record ?: throw NotificationRejected("stale")
+            if (!record.active || record.leaseId != leaseId || record.leaseRevision != expectedRevision) {
+                throw NotificationRejected("stale")
+            }
+            if (!store.edit().putString("revoked_delivery_lease_id", leaseId)
+                    .putLong("revoked_delivery_lease_revision", expectedRevision).commit()
+            ) throw NotificationRejected("unavailable")
+            if (!deliveryStore.clearIf(leaseId, expectedRevision)) throw NotificationRejected("stale")
+            renderer.clearPostedNotifications()
+        }
+        LocalNotificationDeliveryRuntime.stop(activity)
+        LocalNotificationDeliveryRuntime.clearRecovery(activity)
+    }
+
+    private fun cancelPreparedBackgroundDelivery(value: Map<*, *>) {
+        require(value["schemaVersion"] == 1)
+        val leaseId = text(value["leaseId"], HEX_32)
+        val fingerprint = text(value["credentialFingerprint"], HEX_64)
+        val subscriptionRevision = positive(value["expectedSubscriptionRevision"])
+        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+            val pending = deliveryStore.load()
+            if (pending?.phase == "pending" && pending.leaseId == leaseId &&
+                pending.credentialFingerprint == fingerprint &&
+                pending.subscriptionRevision == subscriptionRevision
+            ) {
+                if (!store.edit().putString("cancelled_delivery_lease_id", leaseId)
+                        .putString("cancelled_delivery_credential_fingerprint", fingerprint)
+                        .putLong("cancelled_delivery_subscription_revision", subscriptionRevision)
+                        .commit()
+                ) throw NotificationRejected("unavailable")
+                if (!deliveryStore.clearPending(leaseId, fingerprint, subscriptionRevision)) {
+                    throw NotificationRejected("stale")
+                }
+                LocalNotificationDeliveryRuntime.clearRecovery(activity)
+                return
+            }
+            if (pending == null &&
+                leaseId == store.getString("cancelled_delivery_lease_id", null) &&
+                fingerprint == store.getString("cancelled_delivery_credential_fingerprint", null) &&
+                subscriptionRevision == store.getLong("cancelled_delivery_subscription_revision", 0L)
+            ) return
+            throw NotificationRejected("stale")
+        }
     }
 
     fun handleIntent(intent: Intent?): Boolean {
-        if (intent?.action != TAP_ACTION) return false
-        val binding = intent.getStringExtra("bindingId") ?: return false
-        val event = intent.getStringExtra("eventId") ?: return false
-        val sequence = intent.getLongExtra("sequence", 0L)
-        val revision = intent.getLongExtra("subscriptionRevision", 0L)
-        val nonce = intent.getStringExtra("nonce") ?: return false
-        val key = "tap_${event}_${sequence}"
-        val valid = HEX_64.matches(binding) && HEX_32.matches(event) && sequence > 0 && revision > 0 &&
-            binding == store.getString("binding_id", null) && revision == store.getLong("subscription_revision", 0L) &&
-            nonce == store.getString(key, null)
-        intent.replaceExtras(null)
-        intent.action = null
-        if (!valid) return false
-        val tapKeys = store.getStringSet("tap_keys", emptySet()).orEmpty().toMutableSet().apply { remove(key) }
-        val notificationId = storedEventNotificationIds()[event] ?: return false
-        val notificationIds = storedNotificationIds().toMutableSet().apply { remove(notificationId) }
-        store.edit().remove(key).putStringSet("tap_keys", tapKeys)
-            .putStringSet("notification_ids", notificationIds.map(Int::toString).toSet()).apply()
-        manager.cancel(notificationId)
-        val tap = mapOf("schemaVersion" to 1, "bindingId" to binding, "subscriptionRevision" to revision,
-            "eventId" to event, "sequence" to sequence)
+        val tap = renderer.consumeTap(intent) ?: return false
         if (sink == null) pendingTap = tap else sink?.success(tap)
         return true
     }
@@ -365,42 +480,6 @@ class LocalNotificationBridge(
         permissionResult = null
     }
     private fun fail(result: MethodChannel.Result, code: String) = result.error(code, "Notification operation unavailable", null)
-    private fun storedEventNotificationIds(): Map<String, Int> = store.all.entries.mapNotNull { (key, value) ->
-        if (!key.startsWith(EVENT_NOTIFICATION_PREFIX)) return@mapNotNull null
-        val eventId = key.removePrefix(EVENT_NOTIFICATION_PREFIX)
-        val notificationId = value as? Int
-        if (!HEX_32.matches(eventId) || notificationId == null || notificationId <= 0) null
-        else eventId to notificationId
-    }.toMap()
-
-    @Synchronized
-    private fun notificationIdFor(eventId: String): Int {
-        require(HEX_32.matches(eventId))
-        storedEventNotificationIds()[eventId]?.let { return it }
-        val used = storedEventNotificationIds().values.toSet()
-        val storedNext = store.all[NEXT_NOTIFICATION_ID] as? Int
-        var candidate = storedNext?.takeIf { it > 0 } ?: 1
-        repeat(MAX_BATCH + 1) {
-            if (candidate !in used) {
-                val next = if (candidate == Int.MAX_VALUE) 1 else candidate + 1
-                store.edit()
-                    .putInt(EVENT_NOTIFICATION_PREFIX + eventId, candidate)
-                    .putInt(NEXT_NOTIFICATION_ID, next)
-                    .apply()
-                return candidate
-            }
-            candidate = if (candidate == Int.MAX_VALUE) 1 else candidate + 1
-        }
-        throw NotificationRejected("unavailable")
-    }
-
-    private fun tapKeyEventId(key: String): String? {
-        if (!key.startsWith("tap_")) return null
-        return key.removePrefix("tap_").substringBefore('_').takeIf(HEX_32::matches)
-    }
-
-    private fun storedNotificationIds(): Set<Int> = store.getStringSet("notification_ids", emptySet())
-        .orEmpty().mapNotNull(String::toIntOrNull).toSet()
     private fun exactMap(value: Any?, keys: Set<String>): Map<*, *> {
         require(value is Map<*, *> && value.keys == keys)
         return value
@@ -412,11 +491,6 @@ class LocalNotificationBridge(
         is Long -> value
         else -> throw IllegalArgumentException()
     }.takeIf { it in 1..Long.MAX_VALUE } ?: throw IllegalArgumentException()
-    private fun bounded(value: Any?, maximum: Int, empty: Boolean): String {
-        val text = value as? String ?: throw IllegalArgumentException()
-        require(text.length <= maximum && (empty || text.isNotEmpty()) && text.none { it.code < 32 || it.code == 127 })
-        return text
-    }
+    private fun finitePositive(value: Any?): Double = (value as? Number)?.toDouble()
+        ?.takeIf { it.isFinite() && it > 0 } ?: throw IllegalArgumentException()
 }
-
-private class NotificationRejected(val code: String) : RuntimeException()

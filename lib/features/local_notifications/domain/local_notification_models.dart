@@ -47,6 +47,8 @@ enum LocalNotificationReadState { unread, read }
 
 enum LocalNotificationPermission { denied, inAppOnly, systemAllowed }
 
+enum LocalNotificationDeliveryLeaseState { active, revoked, expired }
+
 final class LocalNotificationProjection {
   const LocalNotificationProjection({
     required this.title,
@@ -263,6 +265,142 @@ final class LocalNotificationSubscription {
   final int revision;
   final LocalNotificationPermission permission;
   final DateTime expiresAt;
+}
+
+/// One opaque native-generated delivery authority. The credential crosses
+/// Dart only long enough to register the lease and is deliberately redacted
+/// from diagnostics.
+final class LocalNotificationDeliveryRegistration {
+  const LocalNotificationDeliveryRegistration._({
+    required this.leaseId,
+    required this.credential,
+    required this.credentialFingerprint,
+    required this.expectedSubscriptionRevision,
+    required this.expiresAt,
+  });
+
+  factory LocalNotificationDeliveryRegistration.fromJson(Object? json) {
+    final value = _closed(json, {
+      'schemaVersion',
+      'leaseId',
+      'credential',
+      'credentialFingerprint',
+      'expectedSubscriptionRevision',
+      'expiresAt',
+    });
+    final credential = value['credential'];
+    final fingerprint = value['credentialFingerprint'];
+    final rawExpiry = value['expiresAt'];
+    if (value['schemaVersion'] != 1 ||
+        credential is! String ||
+        credential.length != 43 ||
+        !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(credential) ||
+        fingerprint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint) ||
+        rawExpiry is! num ||
+        !rawExpiry.isFinite ||
+        rawExpiry <= 0) {
+      _invalid();
+    }
+    return LocalNotificationDeliveryRegistration._(
+      leaseId: _identity(value['leaseId']),
+      credential: credential,
+      credentialFingerprint: fingerprint,
+      expectedSubscriptionRevision: _positive(
+        value['expectedSubscriptionRevision'],
+      ),
+      expiresAt: _time(rawExpiry),
+    );
+  }
+
+  final String leaseId, credential, credentialFingerprint;
+  final int expectedSubscriptionRevision;
+  final DateTime expiresAt;
+
+  @override
+  String toString() => 'LocalNotificationDeliveryRegistration(<redacted>)';
+}
+
+final class LocalNotificationDeliveryLease {
+  const LocalNotificationDeliveryLease._({
+    required this.context,
+    required this.id,
+    required this.subscriptionId,
+    required this.subscriptionRevision,
+    required this.revision,
+    required this.credentialFingerprint,
+    required this.state,
+    required this.expiresAt,
+  });
+
+  factory LocalNotificationDeliveryLease.fromJson(
+    Object? json, {
+    required ServerContext context,
+    required String expectedId,
+    required String expectedSubscriptionId,
+    required String expectedCredentialFingerprint,
+  }) {
+    final wrapper = _closed(json, {'lease'});
+    final value = _closed(wrapper['lease'], {
+      'schemaVersion',
+      'ref',
+      'subscriptionId',
+      'subscriptionRevision',
+      'revision',
+      'credentialFingerprint',
+      'state',
+      'expiresAt',
+    });
+    final ref = _closed(value['ref'], {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'kind',
+      'id',
+    });
+    final state = switch (value['state']) {
+      'active' => LocalNotificationDeliveryLeaseState.active,
+      'revoked' => LocalNotificationDeliveryLeaseState.revoked,
+      'expired' => LocalNotificationDeliveryLeaseState.expired,
+      _ => _invalid(),
+    };
+    final fingerprint = value['credentialFingerprint'];
+    final rawExpiry = value['expiresAt'];
+    if (value['schemaVersion'] != 1 ||
+        ref['schemaVersion'] != 1 ||
+        ref['coreId'] != context.coreId ||
+        ref['homeId'] != context.homeId ||
+        ref['kind'] != 'local_notification_delivery_lease' ||
+        ref['id'] != expectedId ||
+        value['subscriptionId'] != expectedSubscriptionId ||
+        fingerprint != expectedCredentialFingerprint ||
+        fingerprint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint) ||
+        rawExpiry is! num ||
+        !rawExpiry.isFinite ||
+        rawExpiry <= 0) {
+      _invalid();
+    }
+    return LocalNotificationDeliveryLease._(
+      context: context,
+      id: _identity(ref['id']),
+      subscriptionId: _identity(value['subscriptionId']),
+      subscriptionRevision: _positive(value['subscriptionRevision']),
+      revision: _positive(value['revision']),
+      credentialFingerprint: fingerprint,
+      state: state,
+      expiresAt: _time(rawExpiry),
+    );
+  }
+
+  final ServerContext context;
+  final String id, subscriptionId, credentialFingerprint;
+  final int subscriptionRevision, revision;
+  final LocalNotificationDeliveryLeaseState state;
+  final DateTime expiresAt;
+
+  @override
+  String toString() => 'LocalNotificationDeliveryLease';
 }
 
 final class LocalNotificationPage {

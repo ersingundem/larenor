@@ -676,6 +676,17 @@ class LarenorServerApi {
               _ => false,
             };
           });
+      final localNotificationDeliveryLeaseQuery =
+          RegExp(
+            r'^/local-notifications/[0-9a-f]{32}/[0-9a-f]{32}/delivery-leases/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          (method == 'GET' &&
+                  RegExp(
+                    r'^[0-9a-f]{64}$',
+                  ).hasMatch(queryParameters['credentialFingerprint'] ?? '') ||
+              method == 'DELETE' &&
+                  canonicalRevision(queryParameters['expectedRevision']));
       final forgetQuery =
           method == 'DELETE' &&
           RegExp(r'^/admin/services/[0-9a-f]{32}$').hasMatch(path) &&
@@ -711,6 +722,7 @@ class LarenorServerApi {
           !homeAssistantVerification &&
           !capabilityEvidenceQuery &&
           !localNotificationsQuery &&
+          !localNotificationDeliveryLeaseQuery &&
           !homeResourceDeleteQuery) {
         throw const LarenorServerException('invalid_request');
       }
@@ -891,6 +903,13 @@ class LarenorServerApi {
       if (code == 'password_change_required' && status == 403) {
         return 'password_change_required';
       }
+      if (status == 401 &&
+          {
+            'notification_delivery_authority_inactive',
+            'invalid_notification_delivery_credential',
+          }.contains(code)) {
+        return code as String;
+      }
       if (code == 'self_password_reset_forbidden' && status == 403) {
         return 'self_password_reset_forbidden';
       }
@@ -939,6 +958,11 @@ class LarenorServerApi {
             'notification_subscription_changed',
             'notification_subscription_inactive',
             'notification_registration_replay',
+            'notification_delivery_authority_inactive',
+            'notification_delivery_lease_changed',
+            'notification_delivery_lease_inactive',
+            'notification_delivery_lease_replay',
+            'notification_delivery_lease_exists',
             'notification_not_delivered',
             'notification_event_conflict',
             'notification_limit_reached',

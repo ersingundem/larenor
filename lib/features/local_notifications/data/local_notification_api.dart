@@ -88,6 +88,110 @@ final class LocalNotificationApi {
     return next;
   });
 
+  Future<LocalNotificationDeliveryLease> registerDeliveryLease(
+    LocalNotificationSubscription subscription,
+    LocalNotificationDeliveryRegistration registration,
+  ) => _operation(() async {
+    if (registration.expectedSubscriptionRevision != subscription.revision) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final body = await _api.request(
+      'POST',
+      '$_root/subscriptions/${subscription.id}/delivery-leases',
+      token: _session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'leaseId': registration.leaseId,
+        'credential': registration.credential,
+        'credentialFingerprint': registration.credentialFingerprint,
+        'expectedSubscriptionRevision': subscription.revision,
+        'expiresAt':
+            registration.expiresAt.toUtc().millisecondsSinceEpoch / 1000,
+      },
+    );
+    _check();
+    return LocalNotificationDeliveryLease.fromJson(
+      body,
+      context: _context,
+      expectedId: registration.leaseId,
+      expectedSubscriptionId: subscription.id,
+      expectedCredentialFingerprint: registration.credentialFingerprint,
+    );
+  });
+
+  Future<LocalNotificationDeliveryLease> getDeliveryLease({
+    required String leaseId,
+    required String subscriptionId,
+    required String credentialFingerprint,
+  }) => _operation(() async {
+    final body = await _api.request(
+      'GET',
+      '$_root/delivery-leases/$leaseId',
+      token: _session.accessToken,
+      queryParameters: {'credentialFingerprint': credentialFingerprint},
+    );
+    _check();
+    return LocalNotificationDeliveryLease.fromJson(
+      body,
+      context: _context,
+      expectedId: leaseId,
+      expectedSubscriptionId: subscriptionId,
+      expectedCredentialFingerprint: credentialFingerprint,
+    );
+  });
+
+  Future<LocalNotificationDeliveryLease> renewDeliveryLease(
+    LocalNotificationDeliveryLease before,
+    LocalNotificationSubscription subscription, {
+    required DateTime expiresAt,
+  }) => _operation(() async {
+    if (before.context != _context ||
+        before.subscriptionId != subscription.id ||
+        before.state != LocalNotificationDeliveryLeaseState.active) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final body = await _api.request(
+      'PUT',
+      '$_root/delivery-leases/${before.id}',
+      token: _session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'expectedRevision': before.revision,
+        'expectedSubscriptionRevision': subscription.revision,
+        'expiresAt': expiresAt.toUtc().millisecondsSinceEpoch / 1000,
+      },
+    );
+    _check();
+    final next = LocalNotificationDeliveryLease.fromJson(
+      body,
+      context: _context,
+      expectedId: before.id,
+      expectedSubscriptionId: subscription.id,
+      expectedCredentialFingerprint: before.credentialFingerprint,
+    );
+    if (next.state != LocalNotificationDeliveryLeaseState.active ||
+        next.revision != before.revision + 1 ||
+        next.subscriptionRevision != subscription.revision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return next;
+  });
+
+  Future<void> revokeDeliveryLease(LocalNotificationDeliveryLease before) =>
+      _operation(() async {
+        if (before.context != _context ||
+            before.state != LocalNotificationDeliveryLeaseState.active) {
+          throw const LarenorServerException('invalid_request');
+        }
+        await _api.request(
+          'DELETE',
+          '$_root/delivery-leases/${before.id}',
+          token: _session.accessToken,
+          queryParameters: {'expectedRevision': '${before.revision}'},
+          allowEmpty: true,
+        );
+      });
+
   Future<LocalNotificationPage> pull(
     LocalNotificationSubscription subscription, {
     int after = 0,

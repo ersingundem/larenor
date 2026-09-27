@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -136,6 +138,66 @@ class _LocalNotificationScreenState
     );
   }
 
+  Future<bool> _confirmBackgroundChange({
+    required String title,
+    required String body,
+    required String action,
+    bool destructive = false,
+  }) async {
+    if (!_routeCurrent()) return false;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(AppLocalizations.of(dialogContext).commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: destructive,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return accepted == true && _routeCurrent();
+  }
+
+  Future<void> _enableBackground() async {
+    final runtime = _runtime;
+    if (runtime == null || !runtime.canEnableBackground) return;
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirmBackgroundChange(
+      title: l10n.localNotificationsBackgroundEnableTitle,
+      body: l10n.localNotificationsBackgroundEnableBody,
+      action: l10n.commonEnable,
+    )) {
+      return;
+    }
+    await runtime.enableOrRecoverBackgroundDelivery(
+      interactionCurrent: _routeCurrent,
+    );
+  }
+
+  Future<void> _disableBackground() async {
+    final runtime = _runtime;
+    if (runtime == null || !runtime.canDisableBackground) return;
+    final l10n = AppLocalizations.of(context);
+    if (!await _confirmBackgroundChange(
+      title: l10n.localNotificationsBackgroundDisableTitle,
+      body: l10n.localNotificationsBackgroundDisableBody,
+      action: l10n.commonDisable,
+      destructive: true,
+    )) {
+      return;
+    }
+    await runtime.disableBackgroundDelivery(interactionCurrent: _routeCurrent);
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(windowPolicySnapshotProvider);
@@ -176,6 +238,9 @@ class _LocalNotificationScreenState
                   if (runtime != null) ...[
                     LocalNotificationPlatformCard(
                       status: runtime.platformStatus,
+                      backgroundFailure: runtime.backgroundFailure,
+                      backgroundOutcomeUnknown:
+                          runtime.backgroundOutcomeUnknown,
                       onRequestPermission:
                           runtime.platformBusy || !_routeCurrent()
                           ? null
@@ -194,6 +259,28 @@ class _LocalNotificationScreenState
                           : () => runtime.openPowerSettings(
                               current: _routeCurrent,
                             ),
+                      onEnableBackground:
+                          runtime.platformBusy ||
+                              !_routeCurrent() ||
+                              !runtime.canEnableBackground
+                          ? null
+                          : () => unawaited(_enableBackground()),
+                      onMaintainBackground:
+                          runtime.platformBusy ||
+                              !_routeCurrent() ||
+                              !runtime.canEnableBackground
+                          ? null
+                          : () => unawaited(
+                              runtime.enableOrRecoverBackgroundDelivery(
+                                interactionCurrent: _routeCurrent,
+                              ),
+                            ),
+                      onDisableBackground:
+                          runtime.platformBusy ||
+                              !_routeCurrent() ||
+                              !runtime.canDisableBackground
+                          ? null
+                          : () => unawaited(_disableBackground()),
                     ),
                     const SizedBox(height: 16),
                   ],
