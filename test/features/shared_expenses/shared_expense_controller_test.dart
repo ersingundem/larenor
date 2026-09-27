@@ -254,7 +254,17 @@ void main() {
         ledgerRevision: 5,
         record: SharedExpenseRecord.fromDraft('expense-new', draft),
       );
-      await controller.reconcile(lease);
+      final reconcile = controller.reconcile(lease);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.snapshots, hasLength(2));
+      api.snapshots.last.complete(
+        snapshot(
+          expenseAuthorityA,
+          ledgerRevision: 5,
+          records: [SharedExpenseRecord.fromDraft('expense-new', draft)],
+        ),
+      );
+      await reconcile;
       expect(api.receiptReads, 1);
       expect(controller.records.single.title, 'Market');
 
