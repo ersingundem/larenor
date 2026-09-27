@@ -15,8 +15,9 @@ abstract interface class ServerHomeRegistryPersistence {
   Future<void> writeRegistry(ServerHomeRegistry registry);
 }
 
-/// One atomic v2 record binds credentials, pending-auth intent and Core context.
-/// The existing key also reads legacy v1 records without trusting their scope.
+/// One atomic v4 registry binds profiles, credentials, pending-auth intent and
+/// Core context. The existing key also reads legacy session records without
+/// trusting their scope.
 /// Excluded from
 /// BackupSnapshot's allowlist; a restored configuration never restores sessions.
 class SecureServerSessionStore
@@ -96,7 +97,20 @@ class SecureServerSessionStore
 
   @override
   Future<void> write(ServerSession? session) async {
-    final registry = await _decode(await _readRaw(), migrate: false);
+    final ServerHomeRegistry registry;
+    try {
+      registry = await _decode(await _readRaw(), migrate: false);
+    } on LarenorServerException catch (error) {
+      if (session == null && error.code == 'storage_failed') {
+        // A sign-out must still attempt the physical key deletion when the
+        // current registry cannot be read. No profile can be selected safely
+        // from an unreadable record, so retaining the whole credential blob
+        // would be the less safe outcome.
+        await _writeRaw(null);
+        return;
+      }
+      rethrow;
+    }
     final active = registry.activeProfile;
     if (session == null) {
       if (active == null) return;

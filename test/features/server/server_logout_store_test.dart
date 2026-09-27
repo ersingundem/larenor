@@ -12,6 +12,7 @@ import 'package:http/testing.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_home_registry.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'server_account_test.dart' show pair, contextJson, jsonResponse, now;
@@ -338,7 +339,10 @@ void main() {
     expect(account.failure, isNull);
     expect(server.logoutFamilies, [originalFamily]);
     expect(
-      ServerSession.decodeStorage(platform.values[_key]!).refreshToken,
+      ServerHomeRegistry.decode(platform.values[_key]!)
+          .activeProfile!
+          .session
+          .refreshToken,
       replacement.refreshToken,
     );
     expect(platform.calls.where((x) => x == 'delete:$_key'), isEmpty);
@@ -374,7 +378,12 @@ void main() {
     platform.readFault = _Fault.before;
     await account.signOut();
     expect(account.failure, 'storage_failed');
-    expect(platform.calls, ['read:$_key', 'delete:$_key']);
+    expect(platform.calls.first, 'read:$_key');
+    expect(
+      platform.calls.where((call) => call == 'delete:$_key'),
+      hasLength(1),
+    );
+    expect(platform.calls, everyElement(anyOf('read:$_key', 'delete:$_key')));
     expect(server.calls, isEmpty);
   });
 }

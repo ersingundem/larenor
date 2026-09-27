@@ -41,8 +41,16 @@ void main() {
     final saved = await storage.readAll();
     expect(saved.keys, [SecureServerSessionStore.key]);
     final record = jsonDecode(saved.values.single) as Map<String, dynamic>;
-    expect(record['version'], 2);
-    expect(record['context'], context.toJson());
+    expect(record['version'], 4);
+    expect(record['activeProfileId'], isNotNull);
+    final profiles = record['profiles'] as List<dynamic>;
+    expect(profiles, hasLength(1));
+    final profile = profiles.single as Map<String, dynamic>;
+    expect(profile['profileId'], record['activeProfileId']);
+    expect(
+      (profile['session'] as Map<String, dynamic>)['context'],
+      context.toJson(),
+    );
     expect((await store.read())?.context, context);
     await store.write(null);
     expect(await store.read(), isNull);
