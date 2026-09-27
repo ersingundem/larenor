@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 5 | 1 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 6 | 1 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 6 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 1 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F02 | Otomasyonun deneme haftası | Çalışılıyor | — |
+| F03 | Geçmişte otomasyon sınaması | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -61,19 +61,18 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 22 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
 | 23 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
 | 24 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 25 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
-| 26 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F02, F03 |
-| 27 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43 |
-| 28 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43 |
-| 29 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43 |
-| 30 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43 |
-| 31 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
-| 32 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
-| 33 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G04, G05, G06, G07, G08, G09, G10, G11 |
-| 34 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 35 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 36 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 37 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 25 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F03 |
+| 26 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43 |
+| 27 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43 |
+| 28 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43 |
+| 29 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43 |
+| 30 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
+| 31 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48, F03 |
+| 32 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | PRODUCT, G04, G05, G06, G07, G08, G09, G10, G11 |
+| 33 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 34 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 35 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 36 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -157,6 +156,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
 | F08 | Yapay zekâ kaynak yöneticisi | Uygulama tamamlandı · test bekliyor | — |
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
+| F02 | Otomasyonun deneme haftası | Uygulama tamamlandı · test bekliyor | — |
 | F09 | Görülebilir, süreli AI hafızası | Uygulama tamamlandı · test bekliyor | — |
 | F07 | Evin alışılmış düzeninden sapmalar | Uygulama tamamlandı · test bekliyor | — |
 | F10 | Kanıta dayalı arıza yardımcısı | Uygulama tamamlandı · test bekliyor | — |

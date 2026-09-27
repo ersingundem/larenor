@@ -2875,6 +2875,14 @@ Test adetleri farklı zaman ve kapsamları temsil eder; toplanarak başarı oran
 
 ## Güncelleme kaydı
 
+- **27 Eylül — F02 uygulandı, F03 başladı:** IANA saat diliminde yedi yerel
+  takvim günü, DST UTC süre/fold görünürlüğü, gerçek ve sentetik olaylar,
+  öncelik/zaman penceresine göre tetiklenen-bastırılan kararlar ve her katmanda
+  sabit sıfır adaptör yazması Core ile Client akışına bağlandı (`5be635bf`,
+  `50f349cc`). F02 son test/inceleme/exact-head CI tablosuna taşındı; açılan
+  F03 geçmiş tekrar sınaması aktif geliştirmeye alındı. Kabul sayaçları bu
+  kanıtlar gelene kadar **37/125** ve **3/63** olarak korunuyor.
+
 - **27 Eylül — F07 uygulandı:** Hesap/ev yalıtımlı alışkanlık gözlemleri,
   sınırlı zaman serisi, tazelik ve asgari örnek/zaman aralığı kapıları, robust
   MAD tabanı, açık `unknown` sonucu, model sürümü ve normal/yanlış alarm geri

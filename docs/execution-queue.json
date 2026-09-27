@@ -3610,7 +3610,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3634,14 +3634,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek dal tesliminde gerçek veya sentetik olayları hiçbir adaptör yazması yapmadan değerlendiren, saat dilimi/DST bağlamını ve tetiklenen/bastırılan kararları görünür kılan Core ve Client deneme haftası uygulanıyor."
+      "reason": "IANA saat diliminde yedi yerel takvim günü, DST fark/fold görünürlüğü, gerçek ve sentetik olay değerlendirmesi, öncelik/zaman penceresine göre tetiklenen-bastırılan karar raporu ve tüm katmanlarda sabit sıfır adaptör yazması Core ile görünür Client akışına bağlandı (5be635bf, 50f349cc). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
     },
     {
       "id": "F03",
       "kind": "task",
       "parent": "G04",
       "title": "Geçmişte otomasyon sınaması",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3665,7 +3665,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "F02 yazmasız karar motorunun üstünde sürümlü geçmiş olaylarını deterministik tekrar eden, karar farkını gösteren ve eksik geçmişi unknown bırakan Core ve Client akışı uygulanıyor."
     },
     {
       "id": "F01",
