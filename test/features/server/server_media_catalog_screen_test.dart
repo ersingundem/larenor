@@ -157,6 +157,7 @@ final class _CatalogFixture extends AdminFixture {
                 'available': true,
                 'currentItemId': null,
                 'positionSeconds': 0,
+                'qualityObservation': null,
               },
             ],
           },

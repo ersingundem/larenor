@@ -101,6 +101,7 @@ final class _PlaybackCore {
                 'available': true,
                 'currentItemId': null,
                 'positionSeconds': 0,
+                'qualityObservation': null,
               },
             ],
           },
