@@ -46,6 +46,7 @@ import '../features/cooking_assistant/presentation/cooking_assistant_route.dart'
 import '../features/server/personal_channels/presentation/server_personal_channels_route.dart';
 import '../features/server/live_tv/presentation/server_live_tv_route.dart';
 import '../features/server/party_dj/presentation/server_party_dj_route.dart';
+import '../features/server/media_archive_actions/presentation/server_media_archive_actions_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -116,6 +117,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/media/archive-health',
           builder: (_, _) => const CoreMediaArchiveHealthRoute(),
+        ),
+        GoRoute(
+          path: ServerMediaArchiveActionsRoute.path,
+          builder: (_, state) {
+            final query = state.uri.queryParameters;
+            final installationId = query['installationId'];
+            final installationRevision = int.tryParse(
+              query['installationRevision'] ?? '',
+            );
+            final snapshotRevision = int.tryParse(
+              query['snapshotRevision'] ?? '',
+            );
+            if (installationId == null ||
+                !RegExp(r'^[0-9a-f]{32}$').hasMatch(installationId) ||
+                installationRevision == null ||
+                installationRevision < 1 ||
+                snapshotRevision == null ||
+                snapshotRevision < 1) {
+              return const CoreMediaArchiveHealthRoute();
+            }
+            return ServerMediaArchiveActionsRoute(
+              installationId: installationId,
+              installationRevision: installationRevision,
+              snapshotRevision: snapshotRevision,
+            );
+          },
         ),
         GoRoute(path: '/media', builder: (_, _) => const MediaHubScreen()),
         GoRoute(

@@ -155,6 +155,7 @@ final class MediaArchiveSavingsDataGap {
 
 final class MediaArchiveSavingsCandidate {
   const MediaArchiveSavingsCandidate._({
+    required this.candidateId,
     required this.kind,
     required this.source,
     required this.title,
@@ -164,6 +165,7 @@ final class MediaArchiveSavingsCandidate {
     required this.comparison,
     required this.evidence,
   });
+  final String candidateId;
   final MediaArchiveSavingKind kind;
   final String source, title;
   final int potentialBytes;
@@ -274,6 +276,7 @@ final class MediaArchiveSavingsPlan {
 
   static MediaArchiveSavingsCandidate _candidate(Object? value) {
     final map = _object(value, {
+      'candidateId',
       'kind',
       'source',
       'title',
@@ -287,6 +290,7 @@ final class MediaArchiveSavingsPlan {
     final kind = MediaArchiveSavingKind.values
         .where((candidate) => candidate.name == map['kind'])
         .firstOrNull;
+    final candidateId = _id(map['candidateId'], length: 64);
     final evidence = map['evidence'];
     if (kind == null ||
         evidence is! List ||
@@ -378,6 +382,7 @@ final class MediaArchiveSavingsPlan {
       _invalid();
     }
     return MediaArchiveSavingsCandidate._(
+      candidateId: candidateId,
       kind: kind,
       source: expected.$1,
       title: map['title'] as String,

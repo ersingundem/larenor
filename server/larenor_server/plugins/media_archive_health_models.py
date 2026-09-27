@@ -283,6 +283,7 @@ class MediaArchiveSavingsDataGap(StrictModel):
 
 
 class MediaArchiveSavingsCandidate(StrictModel):
+    candidateId: str = Field(pattern=r'^[0-9a-f]{64}$')
     kind: SavingKind
     source: Literal['jellyfin', 'qbittorrent']
     title: str = Field(min_length=1, max_length=240)

@@ -9,8 +9,13 @@ import '../domain/media_archive_health.dart';
 import 'media_archive_health_detail_screen.dart';
 
 final class MediaArchiveHealthCard extends StatelessWidget {
-  const MediaArchiveHealthCard({super.key, required this.controller});
+  const MediaArchiveHealthCard({
+    super.key,
+    required this.controller,
+    this.onOpenActions,
+  });
   final MediaArchiveHealthController controller;
+  final ValueChanged<MediaArchiveHealthSnapshot>? onOpenActions;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -170,24 +175,47 @@ final class MediaArchiveHealthCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
-                  child: CupertinoButton(
-                    key: const ValueKey('media-archive-details'),
-                    minimumSize: const Size(48, 48),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    onPressed: () {
-                      if (!identical(controller.snapshot, snapshot)) return;
-                      Navigator.of(context).push(
-                        CupertinoPageRoute<void>(
-                          builder: (_) => MediaArchiveHealthDetailScreen(
-                            snapshot: snapshot,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      if (onOpenActions case final openActions?)
+                        CupertinoButton.filled(
+                          key: const ValueKey('media-archive-actions'),
+                          minimumSize: const Size(48, 48),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
+                          onPressed: () {
+                            if (!identical(controller.snapshot, snapshot)) {
+                              return;
+                            }
+                            openActions(snapshot);
+                          },
+                          child: Text(l.mediaArchiveOpenActions),
                         ),
-                      );
-                    },
-                    child: Text(l.mediaArchiveOpenDetails),
+                      CupertinoButton(
+                        key: const ValueKey('media-archive-details'),
+                        minimumSize: const Size(48, 48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        onPressed: () {
+                          if (!identical(controller.snapshot, snapshot)) return;
+                          Navigator.of(context).push(
+                            CupertinoPageRoute<void>(
+                              builder: (_) => MediaArchiveHealthDetailScreen(
+                                snapshot: snapshot,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(l.mediaArchiveOpenDetails),
+                      ),
+                    ],
                   ),
                 ),
               ],

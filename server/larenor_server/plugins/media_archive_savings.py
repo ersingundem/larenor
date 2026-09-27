@@ -1,6 +1,8 @@
 """Bounded explainable review plan derived only from verified archive facts."""
 
 from collections import defaultdict
+import hashlib
+import json
 
 from .media_archive_health_models import (
     MediaArchiveSavingsCandidate,
@@ -9,6 +11,27 @@ from .media_archive_health_models import (
 
 
 _LIMIT_PER_LANE = 256
+
+
+def _candidate_id(observation, kind, source, source_item_ids):
+    binding = getattr(observation, source)
+    authority = {
+        'schemaVersion': 1,
+        'kind': kind,
+        'source': source,
+        'sourceItemIds': sorted(source_item_ids),
+        'installationId': binding.installationId,
+        'installationRevision': binding.installationRevision,
+        'snapshotRevision': binding.snapshotRevision,
+        'serviceRevision': binding.serviceRevision,
+    }
+    canonical = json.dumps(
+        authority, sort_keys=True, separators=(',', ':'),
+        ensure_ascii=True, allow_nan=False,
+    ).encode('ascii')
+    return hashlib.sha256(
+        b'larenor-media-archive-savings-candidate-v1\0' + canonical,
+    ).hexdigest()
 
 
 def _source_lane(state):
@@ -47,6 +70,9 @@ def build_media_archive_savings_plan(observation, source_states):
             retained = values[0].sizeBytes
             potential = observed - retained
             by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                candidateId=_candidate_id(
+                    observation, 'duplicate', 'jellyfin',
+                    [item.itemId for item in values]),
                 kind='duplicate', source='jellyfin', title=values[0].title,
                 potentialBytes=potential, groupReason='exact_content_hash',
                 confidence='high', comparison={
@@ -70,6 +96,9 @@ def build_media_archive_savings_plan(observation, source_states):
             retained = values[0].sizeBytes
             potential = observed - retained
             by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                candidateId=_candidate_id(
+                    observation, 'duplicate', 'jellyfin',
+                    [item.itemId for item in values]),
                 kind='duplicate', source='jellyfin', title=values[0].title,
                 potentialBytes=potential,
                 groupReason='probable_name_size_runtime',
@@ -101,6 +130,9 @@ def build_media_archive_savings_plan(observation, source_states):
             potential = sum(item.sizeBytes for item in lower)
             observed = sum(item.sizeBytes for item in values)
             by_kind['duplicate'].append(MediaArchiveSavingsCandidate(
+                candidateId=_candidate_id(
+                    observation, 'duplicate', 'jellyfin',
+                    [item.itemId for item in values]),
                 kind='duplicate', source='jellyfin',
                 title=max(zip(values, ranks), key=lambda pair: pair[1])[0].title,
                 potentialBytes=potential,
@@ -124,6 +156,8 @@ def build_media_archive_savings_plan(observation, source_states):
             potential = min(item.sizeBytes, estimate)
             if potential > 0:
                 by_kind['transcode'].append(MediaArchiveSavingsCandidate(
+                    candidateId=_candidate_id(
+                        observation, 'transcode', 'jellyfin', [item.itemId]),
                     kind='transcode', source='jellyfin', title=item.title,
                     potentialBytes=potential,
                     groupReason='not_applicable',
@@ -144,6 +178,9 @@ def build_media_archive_savings_plan(observation, source_states):
                     and item.retentionPolicySatisfied
                     and item.mediaKey is not None and item.contentBytes > 0):
                 by_kind['retention'].append(MediaArchiveSavingsCandidate(
+                    candidateId=_candidate_id(
+                        observation, 'retention', 'qbittorrent',
+                        [item.torrentId]),
                     kind='retention', source='qbittorrent', title=item.title,
                     potentialBytes=item.contentBytes,
                     groupReason='not_applicable',

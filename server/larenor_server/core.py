@@ -119,6 +119,10 @@ from .plugins.media_archive_core import MediaArchiveHealthManagement
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
 )
+from .media_archive_actions import (
+    MediaArchiveActionService,
+    migrate_media_archive_actions,
+)
 from .plugins.media_account_binding_schema import migrate_media_account_bindings
 from .plugins.media_account_bindings import MediaAccountBindingManagement
 from .plugins.media_flow import MediaFlowManagement, MediaFlowWorkerProvider
@@ -231,6 +235,7 @@ class CoreServices:
         proxmox_power_executor=None,
         media_archive_binding_reader=None,
         media_archive_worker=None,
+        media_archive_action_worker=None,
         mesh_center_provider=None,
         irrigation_provider=None,
         energy_priority_provider=None,
@@ -252,6 +257,7 @@ class CoreServices:
         self._proxmox_power_executor = proxmox_power_executor
         self._media_archive_binding_reader = media_archive_binding_reader
         self._media_archive_worker = media_archive_worker
+        self._media_archive_action_worker = media_archive_action_worker
         self._mesh_center_provider = mesh_center_provider
         self._irrigation_provider = irrigation_provider
         self._energy_priority_provider = energy_priority_provider
@@ -476,6 +482,7 @@ class CoreServices:
                 migrate_music_playback(connection)
                 migrate_party_dj(connection)
                 migrate_media_archive_weekly_trends(connection)
+                migrate_media_archive_actions(connection)
                 migrate_media_flow(connection)
                 migrate_media_playback(connection)
                 migrate_watch_parties(connection)
@@ -982,6 +989,19 @@ class CoreServices:
                 self._media_archive_binding_reader,
                 self._media_archive_worker,
             )
+            self.media_archive_actions = MediaArchiveActionService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                self.media_archive_health,
+            )
+            if self._media_archive_action_worker is not None:
+                self.media_archive_actions.bind_worker(
+                    self._media_archive_action_worker
+                )
+            self.media_archive_actions.validate_storage()
             self.media_playback = MediaPlaybackManagement(
                 self.db,
                 self.auth,

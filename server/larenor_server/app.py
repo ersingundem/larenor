@@ -70,6 +70,7 @@ from .plugins.media_archive_core_api import (
     catalog_router as media_catalog_router,
     router as media_archive_health_router,
 )
+from .media_archive_actions import router as media_archive_action_router
 from .plugins.media_flow_api import router as media_flow_router
 from .plugins.media_playback_api import router as media_playback_router
 from .plugins.media_rows_api import router as media_rows_router
@@ -135,6 +136,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                proxmox_power_executor=None,
                media_archive_binding_reader=None,
                media_archive_worker=None,
+               media_archive_action_worker=None,
                mesh_center_provider=None,
                irrigation_provider=None,
                energy_priority_provider=None,
@@ -200,6 +202,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         component_update_task = asyncio.create_task(dispatch(
             component_updates, "component_update_dispatch_unavailable"
         )) if component_updates.backend is not None else None
+        media_archive_actions = application.state.core.media_archive_actions
+        media_archive_action_task = asyncio.create_task(dispatch(
+            media_archive_actions, "media_archive_action_dispatch_unavailable"
+        )) if media_archive_actions.backend is not None else None
         recovery_drills = application.state.core.core_backups.drills
         recovery_drill_task = asyncio.create_task(dispatch(
             recovery_drills, "recovery_drill_dispatch_unavailable"
@@ -221,6 +227,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.music_assistant_bootstrap_dispatcher = music_assistant_task
         application.state.music_provider_setup_dispatcher = music_provider_task
         application.state.component_update_dispatcher = component_update_task
+        application.state.media_archive_action_dispatcher = media_archive_action_task
         application.state.recovery_drill_dispatcher = recovery_drill_task
         application.state.immutable_backup_dispatcher = immutable_backup_task
         application.state.power_recovery_dispatcher = power_recovery_task
@@ -256,6 +263,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await music_provider_task
             if component_update_task is not None:
                 await component_update_task
+            if media_archive_action_task is not None:
+                await media_archive_action_task
             if recovery_drill_task is not None:
                 await recovery_drill_task
             await immutable_backup_task
@@ -272,6 +281,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         proxmox_power_executor=proxmox_power_executor,
         media_archive_binding_reader=media_archive_binding_reader,
         media_archive_worker=media_archive_worker,
+        media_archive_action_worker=media_archive_action_worker,
         mesh_center_provider=mesh_center_provider,
         irrigation_provider=irrigation_provider,
         energy_priority_provider=energy_priority_provider,
@@ -474,6 +484,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(party_dj_router, prefix="/api/v1")
     app.include_router(music_manager_router, prefix="/api/v1")
     app.include_router(media_archive_health_router, prefix="/api/v1")
+    app.include_router(media_archive_action_router, prefix="/api/v1")
     app.include_router(media_catalog_router, prefix="/api/v1")
     app.include_router(media_flow_router, prefix="/api/v1")
     app.include_router(media_playback_router, prefix="/api/v1")
