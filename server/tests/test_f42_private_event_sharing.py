@@ -58,7 +58,16 @@ def consent(
         revision=2,
         granted_by="ada",
         recipient_id="recipient-a",
+        core_id="core-a",
+        home_id="home-a",
+        camera_id="camera-door",
         event_id="event-99",
+        core_revision=3,
+        home_revision=5,
+        account_revision=9,
+        members_revision=11,
+        camera_revision=13,
+        event_revision=17,
         purpose="door-event-review",
         accepted_at=NOW - 10,
         expires_at=expires_at,
@@ -68,7 +77,12 @@ def consent(
     )
 
 
-def evidence(*, masks=("face", "license_plate"), output_digest="b" * 64) -> dict:
+def evidence(
+    *,
+    masks=("face", "license_plate"),
+    output_digest="b" * 64,
+    share_revision=7,
+) -> dict:
     value = {
         "sourceDigest": "a" * 64,
         "outputDigest": output_digest,
@@ -78,7 +92,11 @@ def evidence(*, masks=("face", "license_plate"), output_digest="b" * 64) -> dict
         "masks": list(masks),
         "removedMetadata": ["device_serial", "gps"],
     }
-    value["proof"] = transformation_proof(TRANSFORM_KEY, value)
+    value["proof"] = transformation_proof(
+        TRANSFORM_KEY,
+        value,
+        authority=authority(share_revision=share_revision),
+    )
     return value
 
 
@@ -113,7 +131,7 @@ def create_bytes(
         "purpose": "door-event-review",
         "expiresAt": expires_at,
         "accessMode": mode,
-        "transformation": evidence_value or evidence(),
+        "transformation": evidence_value or evidence(share_revision=share_revision),
     }
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
@@ -174,7 +192,7 @@ def test_explicit_consent_and_redaction_proof_are_closed_scopes(tmp_path):
     assert receipt.share.removed_metadata == ("device_serial", "gps")
     assert not hasattr(receipt.share, "source_artifact_id")
 
-    missing_face = evidence(masks=("license_plate",))
+    missing_face = evidence(masks=("license_plate",), share_revision=8)
     with pytest.raises(ApiError, match="transformation_unverified"):
         shares.create(
             actor("ada"),
