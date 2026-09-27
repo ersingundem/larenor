@@ -133,6 +133,15 @@ class ComponentSchemaIdentity(FrozenModel):
     ]
 
 
+class InstalledComponentUpdateSource(FrozenModel):
+    schemaVersion: Literal[1]
+    installationId: Identity
+    sourceDigest: Digest
+    current: ComponentReleaseIdentity
+    permissions: ComponentPermissionSet
+    componentSchema: ComponentSchemaIdentity
+
+
 class ComponentMigrationPlan(FrozenModel):
     current: ComponentSchemaIdentity
     target: ComponentSchemaIdentity
@@ -312,6 +321,67 @@ def release_identity(entry: CatalogEntry, platform: str) -> tuple[ComponentRelea
         return identity, _permissions(manifest), schema
     except (CatalogError, ValueError, TypeError, AttributeError, StopIteration):
         raise ComponentUpdateError("component_release_untrusted") from None
+
+
+def installed_update_source(
+    *,
+    installation_id: str,
+    service_id: str,
+    service_version: str,
+    config_schema_version: int,
+    data_schema_version: str,
+    platform: str,
+    observed_image_config_digest: str,
+    catalog_entry: CatalogEntry,
+) -> InstalledComponentUpdateSource:
+    """Bind one revalidated installation receipt to its packaged release.
+
+    The caller must already have re-derived the live managed-container binding.
+    This function additionally requires its observed image configuration digest
+    to equal the packaged release and rejects stale version/schema metadata.
+    """
+    try:
+        if (
+            type(installation_id) is not str
+            or not _INSTALLATION_ID.fullmatch(installation_id)
+            or type(service_id) is not str
+            or type(service_version) is not str
+            or type(config_schema_version) is not int
+            or type(data_schema_version) is not str
+            or type(platform) is not str
+            or type(observed_image_config_digest) is not str
+        ):
+            raise ValueError("installed_source_type")
+        identity, permissions, component_schema = release_identity(
+            catalog_entry, platform
+        )
+        if (
+            identity.serviceId != service_id
+            or identity.version != service_version
+            or component_schema.configSchemaVersion != config_schema_version
+            or component_schema.dataSchemaVersion != data_schema_version
+            or identity.build.imageConfigDigest != observed_image_config_digest
+        ):
+            raise ValueError("installed_source_mismatch")
+        base = dict(
+            schemaVersion=1,
+            installationId=installation_id,
+            sourceDigest="0" * 64,
+            current=identity,
+            permissions=permissions,
+            componentSchema=component_schema,
+        )
+        provisional = InstalledComponentUpdateSource(**base)
+        payload = provisional.model_dump(mode="json")
+        payload["sourceDigest"] = None
+        source_digest = hashlib.sha256(_canonical(payload)).hexdigest()
+        return InstalledComponentUpdateSource(
+            **(base | {"sourceDigest": source_digest})
+        )
+    except ComponentUpdateError:
+        raise
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        raise ComponentUpdateError("installed_component_untrusted") from None
 
 
 def build_update_review(

@@ -8,6 +8,10 @@ import threading
 import time
 
 from ..plugins.catalog import load_catalog
+from ..plugins.component_updates import (
+    ComponentUpdateError,
+    installed_update_source,
+)
 from ..plugins.managed_container import (
     JellyfinBindingBuilder,
     ManagedImageProof,
@@ -340,6 +344,29 @@ class DurableComponentInstallationAuthority:
             ):
                 raise ComponentInstallationAuthorityError()
         return result
+
+    def update_sources(self):
+        """Return display-safe F15 identities only for current live receipts."""
+        try:
+            receipts = self._read()
+            _catalog, entries = self._catalog()
+            return tuple(
+                installed_update_source(
+                    installation_id=receipt.installation_id,
+                    service_id=receipt.service_id,
+                    service_version=receipt.service_version,
+                    config_schema_version=receipt.config_schema_version,
+                    data_schema_version=receipt.data_schema_version,
+                    platform=receipt.installed.binding.platform,
+                    observed_image_config_digest=receipt.installed.binding.image_id,
+                    catalog_entry=entries[receipt.service_id][0],
+                )
+                for receipt in receipts
+            )
+        except ComponentInstallationAuthorityError:
+            raise
+        except (ComponentUpdateError, KeyError, TypeError, ValueError):
+            raise ComponentInstallationAuthorityError() from None
 
     @staticmethod
     def _source_set(sources, receipts):
