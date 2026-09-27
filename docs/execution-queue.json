@@ -4867,7 +4867,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4891,14 +4891,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Önceki commitlerde sürümlü yetki, tarife/güneş/güç bütçesi sağlayıcıları, tazelik-revizyon doğrulaması, manuel üstüne alma koruması, HMAC önizleme/komut/denetim zinciri, tek gönderim ve readback hazırdı. 9080e59d çoklu şarj cihazı seçimi, açık kullanıcı onayı, önizleme iptali, manuel üstüne alma açıklaması ve kayıp yanıtı yeniden göndermek yerine uncertain makbuzla uzlaştırma akışını tamamladı. Dar Flutter analizi temiz; gerçek araç/şarj cihazı E2E, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
     },
     {
       "id": "F47",
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
