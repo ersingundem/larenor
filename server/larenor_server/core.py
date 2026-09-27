@@ -148,6 +148,8 @@ from .workshop.schema import migrate_workshop
 from .workshop.service import WorkshopService
 from .watch_parties.schema import migrate_watch_parties
 from .watch_parties.service import WatchPartyService
+from .offline_media.schema import migrate_offline_media
+from .offline_media.service import OfflineMediaService
 from .core_backups.service import CoreBackupContract
 from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
@@ -417,6 +419,7 @@ class CoreServices:
                 migrate_media_flow(connection)
                 migrate_media_playback(connection)
                 migrate_watch_parties(connection)
+                migrate_offline_media(connection)
                 migrate_proxmox_power(connection, key)
                 migrate_keenetic_commands(
                     connection,
@@ -869,6 +872,11 @@ class CoreServices:
                 self.media_playback,
             )
             self.watch_parties.validate_storage()
+            self.offline_media = OfflineMediaService(
+                self.db, self.auth, settings, key, self.context,
+                self.media_playback,
+            )
+            self.offline_media.validate_storage()
             self.media_rows = MediaRowsManagement(
                 self.auth,
                 settings,
