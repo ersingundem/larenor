@@ -45,8 +45,10 @@ void main() {
     expect(item.episodeId, 6);
   });
 
-  test('defaults title to Unknown when missing', () {
-    final item = BazarrWantedItem.fromJson({});
-    expect(item.title, 'Unknown');
+  test('rejects a wanted item without a stable media identity', () {
+    expect(
+      () => BazarrWantedItem.fromJson({}),
+      throwsA(isA<FormatException>()),
+    );
   });
 }
