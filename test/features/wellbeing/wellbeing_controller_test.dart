@@ -154,6 +154,41 @@ void main() {
     expect((native.probes, native.permissions, native.reads), (0, 0, 0));
   });
   test(
+    'provider probe keeps Huawei registration and unsupported routes explicit',
+    () async {
+      controller.setVisible(true);
+      await controller.probe();
+      expect(native.probes, 1);
+      expect(
+        controller
+            .snapshot
+            .statuses[WellbeingSource.healthConnect]
+            ?.availability,
+        WellbeingAvailability.available,
+      );
+      expect(
+        controller
+            .snapshot
+            .statuses[WellbeingSource.homeAssistant]
+            ?.availability,
+        WellbeingAvailability.notConfigured,
+      );
+      expect(
+        controller
+            .snapshot
+            .statuses[WellbeingSource.huaweiHealth]
+            ?.availability,
+        WellbeingAvailability.providerRegistrationRequired,
+      );
+      expect(
+        controller.snapshot.statuses[WellbeingSource.healthKit]?.availability,
+        WellbeingAvailability.unsupportedPlatform,
+      );
+      expect(native.permissions, 0);
+      expect(native.reads, 0);
+    },
+  );
+  test(
     'permission request only selected configured types and no automatic read',
     () async {
       controller.setVisible(true);

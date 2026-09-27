@@ -2530,8 +2530,8 @@
       "id": "PRODUCT.HEALTH",
       "kind": "task",
       "parent": "PRODUCT",
-      "title": "Huawei sağlık/tartı kalan sağlayıcı uyumu",
-      "status": "needs_user",
+      "title": "Kişisel sağlık ve tartı sağlayıcı yazılım sınırı",
+      "status": "implemented",
       "dependsOn": [
         "B5"
       ],
@@ -2539,9 +2539,10 @@
       "sources": [
         "docs/product-implementation-plan-2026-09-05.md"
       ],
-      "scope": "Native iOS platformu kaldırıldı; Apple Health Server/HA aktarım köprüsü ve gerçek sağlayıcı/cihaz kabulü olmadan tamamlandı denmez.",
+      "scope": "Health Connect ve açık Home Assistant sensör eşlemesi yazılım yoludur; Huawei ve Apple doğrudan sağlayıcı kaydı/onayı, gerçek hesap izinleri ve cihaz kabulü MANUAL.HEALTH altında kalır ve uygulanmış gibi gösterilmez.",
       "acceptance": [
-        "Huawei onay ve desteklenen veri/izin sözleşmesi doğrulanır; reddet/iptal/özel ekran/account sınırları ve eski Health Connect yolu korunur."
+        "Health Connect kullanılabilirlik, kısmi izin, iptal, özel ekran, account ve geç yanıt sınırlarıyla salt okunur çalışır; HA tartı sensörü kişi tarafından açıkça eşlenir.",
+        "Huawei için sağlayıcı uygulama onayı gerektiği ve Apple Health için bu platformda doğrudan erişim olmadığı açıkça gösterilir; uygulama sağlayıcı hesabı veya verisi varmış gibi davranmaz, eski Health Connect ve HA yolları korunur."
       ],
       "requiredEvidence": [
         "test",
@@ -2550,7 +2551,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Huawei geliştirici/sağlayıcı onayı ve uygun test cihazı gerekecek."
+      "reason": "Health Connect salt okunur yolu, açık HA tartı eşlemesi, PIN/özel pencere, izin iptali, account/foreground/geç yanıt sınırları ve Huawei için provider-registration-required görünürlüğü tamamlandı. Flutter wellbeing 99/99 ve Android wellbeing 21/21 odaklı testleri geçti; bağımsız inceleme, exact-head CI ve gerçek Huawei/Apple sağlayıcı onayı MANUAL.HEALTH kapısında bekliyor."
     },
     {
       "id": "PRODUCT.CAMERA",
@@ -5330,7 +5331,7 @@
       "kind": "task",
       "parent": "FINAL",
       "title": "Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B1",
         "B2",
@@ -5370,7 +5371,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tüm uygulanan özelliklerin test ve entegrasyon kabulü tamamlanınca tek aktif final maddesi olarak açılacak; ön kabul envanteri aynı kapı için hazırlanıyor."
+      "reason": "Tek aktif final maddesi olarak Flutter ürün yüzeyi, Android/platform ve Server/Core ön kabul denetimleri yürütülüyor; bulunan kopuk rota, yanıltıcı hata ve eski sözleşme fixture düzeltmeleri ayrı commitlerle doğrulanıyor."
     },
     {
       "id": "FINAL.UI",
