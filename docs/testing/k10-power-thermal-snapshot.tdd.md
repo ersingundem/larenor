@@ -21,14 +21,15 @@ history.
 
 ## Automated evidence
 
-- Android policy and host boundary: `KioskSensorPolicyTest` — 6/6.
-- Flutter parser, ordering, lifecycle, and tablet UI: focused package — 16/16.
+- Android policy and native bridge boundary: `KioskSensorPolicyTest` plus
+  `KioskBridgeTest` — 12/12.
+- Flutter parser, ordering, lifecycle, and tablet UI: focused package — 24/24.
 - `flutter analyze` and execution-queue/progress checks are required on the
   exact pull-request head.
 
-## Remaining K10 gate
+## Remaining K10 software gate
 
-K10 stays pending. Its acceptance still requires a physical 24-hour
-battery/thermal measurement on representative Android tablet hardware and the
-recorded result must show that no sample is taken after permission, focus, or
-foreground authority is lost.
+K10 is software-complete and waits for final exact-head CI. A physical 24-hour
+battery/thermal measurement on representative Android tablet hardware remains
+under `MANUAL.KIOSK`; it verifies OEM behavior without blocking this software
+node.

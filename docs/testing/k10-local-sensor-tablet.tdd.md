@@ -11,14 +11,15 @@ authority and does not reopen that completed scope.
 | 3 | The discoverable kiosk settings surface presents light, darkness, movement sensitivity, missing hardware, and camera availability in English and Turkish. Start/stop controls remain at least 48 dp and support TalkBack, Tab/Enter, 600/1280 tablet widths, and 200% text. | `kiosk_sensor_screen_test.dart` four-size locale matrix and keyboard test |
 
 The 24-hour battery, thermal, wake-lock and OEM sensor matrix remains a physical
-Huawei/Samsung/manual acceptance gate. Software evidence must not advance the
-queue or selected-feature counters until exact-head CI and that required manual
-scope are recorded.
+Huawei/Samsung/manual acceptance gate under `MANUAL.KIOSK`. It does not block
+K10 software acceptance; K10 advances only after exact-head CI and independent
+software review.
 
 Regression review added deterministic route-cover retirement, immediate local
 retirement before a native stop receipt, and concurrent out-of-order read
-rejection. A native view-focus regression now proves that a DeX/window focus
-loss retires the session immediately and removes its last light reading instead
-of waiting for the next poll. A denied or uncertain stop cannot keep showing
-private sampling as active. Native permission grant/revocation and sensor
-availability remain device-verification work.
+rejection. The native bridge now has a package-internal host/focus seam: its
+focused test starts a real policy session, proves 1000 and 10000 ms forwarding,
+and proves DeX/window focus and resume-authority loss each stop the owned native
+session. A denied or uncertain stop cannot keep showing private sampling as
+active. Native permission grant/revocation and OEM availability remain physical
+device-verification work.

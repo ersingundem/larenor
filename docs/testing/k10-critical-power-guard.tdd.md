@@ -42,9 +42,11 @@ flutter test test/features/kiosk/kiosk_sensor_models_test.dart test/features/kio
 # 24 passed
 flutter analyze lib/features/kiosk/domain/kiosk_sensor_models.dart lib/features/kiosk/data/kiosk_sensor_api.dart lib/features/kiosk/data/kiosk_sensor_controller.dart lib/features/kiosk/presentation/kiosk_sensor_screen.dart test/features/kiosk/kiosk_sensor_models_test.dart test/features/kiosk/kiosk_sensor_screen_test.dart
 # No issues found
-./gradlew -p android :app:testDebugUnitTest --tests com.ersingundem.larenor.kiosk.KioskSensorPolicyTest
-# BUILD SUCCESSFUL; 7 focused tests passed
+android/gradlew -p android :app:testDebugUnitTest --tests com.ersingundem.larenor.kiosk.KioskSensorPolicyTest --tests com.ersingundem.larenor.kiosk.KioskBridgeTest
+# BUILD SUCCESSFUL; 12 focused tests passed
 ```
 
-K10 stays pending until its physical 24-hour battery, thermal and OEM sensor
-matrix is recorded. Progress remains 26/125 and 0/63.
+The final native sampling patch passes the validated 1000..10000 ms interval to
+all Android sensor registrations as 1,000,000..10,000,000 microseconds and makes
+focus/pause retirement directly testable. K10 is `awaiting_ci`; the physical
+24-hour battery, thermal and OEM sensor matrix remains `MANUAL.KIOSK`.

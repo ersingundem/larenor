@@ -2864,7 +2864,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Hareket, karanlık ve cihaz sensörleri",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B5"
       ],

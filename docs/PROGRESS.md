@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K12 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10 ve K12 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -52,6 +52,22 @@ için dar analiz temizdi. Bağımsız final P1/P2 incelemesi blocker bulmadı. K
 **35/125 (%28,0)** ve **1/63 (%1,6)** kalır. Fiziksel process-death/DeX/uzun
 bekleme `MANUAL.KIOSK` altında ayrıdır.
 [TDD ve kabul kanıtı](testing/k12-watchdog-local-usage-foundation.tdd.md).
+
+### 27 Eylül K10 sınırlı yerel sensör yazılımı — exact CI bekliyor
+
+K10 artık doğrulanmış 1000..10000 ms örnekleme aralığını yalnız politika
+katmanında seyrekleştirmekle kalmıyor; Android light, accelerometer ve proximity
+kayıtlarına doğrudan 1.000.000..10.000.000 mikrosaniye olarak iletiyor.
+`KioskBridge` üretim varsayılanlarını koruyan package-internal host/focus seam'i
+ile başlatma, pencere/DeX odağı kaybı ve resume yetkisi kaybındaki exact native
+`stop` davranışını test edilebilir hale getirdi.
+
+Odaklı Android politika/bridge paketi **12/12**, Flutter model/lifecycle/tablet
+paketi **24/24** geçti; dar Flutter analizi temizdi. K10 `awaiting_ci`; final
+tek-dal exact CI ve kapanış incelemesi olmadan sayaçlar **37/125 (%29,6)** ve
+**3/63 (%4,8)** kalır. Gerçek OEM sensör/izin davranışı ile 24 saat pil/termal
+ölçümü `MANUAL.KIOSK` altında ayrıdır.
+[Kabul kanıtı](testing/k10-local-sensor-tablet.tdd.md).
 
 ### 27 Eylül F06 atfedilebilir işlem açıklaması yazılım kabulü
 

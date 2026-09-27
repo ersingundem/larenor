@@ -9,7 +9,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 11 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 3 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 |
-| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 0 | 1 | 1 |
+| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 0 | 2 | 1 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 0 |
