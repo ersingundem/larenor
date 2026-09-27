@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-24",
+  "updatedAt": "2026-09-27",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -4220,7 +4220,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Haftalık menü ve tarif merkezi",
-      "status": "pending",
+      "status": "done",
       "dependsOn": [
         "B0",
         "B5",
@@ -4241,8 +4241,41 @@
         "review",
         "ci"
       ],
-      "evidence": [],
-      "completionCommit": null,
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f31-meal-edit-handoff.tdd.md",
+          "commit": "4f9e03516248a64c630f58abadb9b9e8efe589dd",
+          "state": "completed",
+          "result": "passed",
+          "label": "46 focused Client, Core and Home Assistant handoff tests passed, including Turkish menu, portion, CAS, replay and late-authority boundaries."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f31-meal-edit-handoff.tdd.md",
+          "commit": "4f9e03516248a64c630f58abadb9b9e8efe589dd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent RED/GREEN review confirmed exact action-owner retirement, idempotent shopping handoff and no remaining P1/P2 blocker."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35879827342",
+          "commit": "4f9e03516248a64c630f58abadb9b9e8efe589dd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Android Build passed static analysis, deterministic Flutter and Server shards, debug APK and API 35 journey."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/35879826820",
+          "commit": "4f9e03516248a64c630f58abadb9b9e8efe589dd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact Security dependency, platform-policy and secret scans passed."
+        }
+      ],
+      "completionCommit": "4f9e03516248a64c630f58abadb9b9e8efe589dd",
       "reason": null
     },
     {

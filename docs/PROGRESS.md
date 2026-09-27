@@ -1,13 +1,13 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 24 Eylül 2026, birleşmiş yazılım tabanı `b7a82258` — 34/125 kuyruk işi ve 0/63 seçili özellik kabul edildi. S08.8, K07, K08, S09.1, S09.2, S09.3 ve S08.11 exact review/CI kanıtıyla yazılım kabulünü tamamladı. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364` — 35/125 kuyruk işi ve 1/63 seçili özellik kabul edildi. F31'in daha önce tamamlanan exact ürün/test/review/CI kanıtı, son bağımlılığı B3 de kapandığı için kuyrukta kabul edildi. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       █████░░░░░░░░░░░░░░░  34/125 iş (%27,2; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██████░░░░░░░░░░░░░░  35/125 iş (%28,0; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
-Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  0/63 kabul edildi
+Yeni 63 özellik     ░░░░░░░░░░░░░░░░░░░░  1/63 kabul edildi (%1,6)
 ```
 
 Bu sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak toplam sürenin
@@ -16,6 +16,24 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F31 haftalık menü yazılım kabulü
+
+F31'in exact `4f9e03516248a64c630f58abadb9b9e8efe589dd` kaynağı porsiyon ve
+birim modeli, Türkçe menü, kişi/ev otoritesi, revision-safe düzenleme ve
+Home Assistant alışveriş listesine açık hedef seçimi ile ikinci onaylı,
+idempotent aktarımı tamamladı. Loopback Client→Core ve gerçek HA action
+fixture'ları geç cevap, route/account/lifecycle kaybı, stale CAS, yinelenen
+istek ve action-owner değişiminde fail-closed davranışı doğruladı. Odaklı paket
+46 testi geçti; bağımsız RED/GREEN incelemesi açık P1/P2 bulmadı.
+
+Android Build [`35879827342`](https://github.com/ersingundem/larenor/actions/runs/35879827342)
+ve Security [`35879826820`](https://github.com/ersingundem/larenor/actions/runs/35879826820)
+aynı exact kaynakta başarılı oldu. F31'in o tarihteki tek kuyruk engeli B3,
+S08.8 ve S08.11'in kabulüyle artık tamamlandı. F31 `done`; sayaç
+**35/125 (%28,0)** ve seçili özellik kabulü **1/63 (%1,6)** oldu. Gerçek
+Home Assistant ve tablet yolculuğu `MANUAL.SERVICES`/`MANUAL.TABLET` altında
+ayrı kalır. [Kapanış kanıtı](testing/f31-meal-edit-handoff.tdd.md).
 
 ### 24 Eylül S09.3 yazılım kabulü
 
@@ -296,7 +314,8 @@ S08.8'in o tarihte açık direct UI/runtime ve browse/recent/resume eşliği PR
 sağlayıcı consent/kota ile gerçek renderer/subtitle-engine kanıtını bekliyor.
 F31'in kendi ürün, test, inceleme ve CI kanıtı tamamlandı; o teslim anında `B3`
 bağımlılığındaki S08.11 `pending` olduğu için validator kapanışı reddediyordu.
-S08.11 daha sonra #488 ile üstteki exact kanıtta kapandı. #460 S09.1 izolasyon
+S08.11 daha sonra #488 ile üstteki exact kanıtta kapandı; F31 de 27 Eylül
+kapanış kaydıyla kabul edildi. #460 S09.1 izolasyon
 lease'ini ekledi; privileged Linux engine,
 iki mimarili native kabul ve birleşik generation arşivi daha sonra #482 ile
 üstteki exact kanıtta kapandı. Geri yükleme/kurtarma S09.2 de PR #483 ile
