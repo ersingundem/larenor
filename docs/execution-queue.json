@@ -2891,7 +2891,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "QR/NFC/BLE/USB/TTS/print seçili çevre birimleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "K03.remaining",
         "K08"
@@ -2912,7 +2912,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Android çevre birimi köprüsü mevcut katı inceleme sözleşmesine bağlanıyor; NFC/USB giriş durumu ile mevcut TTS/print yetenekleri ayrı ve GMS’siz ilan edilecek, hazır olmayan QR/BLE sağlayıcıları fail-closed kalacak."
     },
     {
       "id": "K12",
