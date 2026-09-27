@@ -7,7 +7,14 @@ abstract interface class FloorPlanGateway {
   Future<FloorPlanSnapshot> read();
 }
 
-final class FloorPlanApi implements FloorPlanGateway {
+abstract interface class FloorPlanActionGateway implements FloorPlanGateway {
+  Future<FloorPlanActionReceipt> action(
+    FloorPlanActionRequest request, {
+    required FloorPlanSnapshot expectedSnapshot,
+  });
+}
+
+final class FloorPlanApi implements FloorPlanActionGateway {
   const FloorPlanApi(this._api, this._token, this._context);
   final LarenorServerApi _api;
   final String _token;
@@ -22,9 +29,24 @@ final class FloorPlanApi implements FloorPlanGateway {
     ),
     expected: _context,
   );
+
+  @override
+  Future<FloorPlanActionReceipt> action(
+    FloorPlanActionRequest request, {
+    required FloorPlanSnapshot expectedSnapshot,
+  }) async => FloorPlanActionReceipt.fromResponse(
+    await _api.request(
+      'POST',
+      '/floor-plan/${_context.coreId}/${_context.homeId}/actions',
+      token: _token,
+      body: request.toJson(),
+    ),
+    expectedSnapshot: expectedSnapshot,
+    expectedRequest: request,
+  );
 }
 
-final class FloorPlanAccountGateway implements FloorPlanGateway {
+final class FloorPlanAccountGateway implements FloorPlanActionGateway {
   FloorPlanAccountGateway({
     required this.account,
     required this.context,
@@ -63,6 +85,34 @@ final class FloorPlanAccountGateway implements FloorPlanGateway {
       session.accessToken,
       context,
     ).read();
+    if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
+      throw const LarenorServerException('cancelled');
+    }
+    return result;
+  }
+
+  @override
+  Future<FloorPlanActionReceipt> action(
+    FloorPlanActionRequest request, {
+    required FloorPlanSnapshot expectedSnapshot,
+  }) async {
+    if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
+      throw const LarenorServerException('cancelled');
+    }
+    final session = await account.ensureSession();
+    if (_closed ||
+        !isCurrent() ||
+        !account.isCurrent(_generation) ||
+        session.context != context ||
+        expectedSnapshot.context != context ||
+        session.endpoint.baseUrl != _endpoint.baseUrl) {
+      throw const LarenorServerException('cancelled');
+    }
+    final result = await FloorPlanApi(
+      _api,
+      session.accessToken,
+      context,
+    ).action(request, expectedSnapshot: expectedSnapshot);
     if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
       throw const LarenorServerException('cancelled');
     }

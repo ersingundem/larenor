@@ -21,6 +21,18 @@ final class FloorPlanStrings {
     required this.zoomOut,
     required this.accessibleRooms,
     this.floors = 'Floors',
+    this.live = 'Live',
+    this.projectionStale = 'Stale',
+    this.unavailable = 'Unavailable',
+    this.turnOn = 'Turn on',
+    this.turnOff = 'Turn off',
+    this.actionWorking = 'Sending command',
+    this.actionUncertain = 'The command result is uncertain. Refresh checks the live state without sending it again.',
+    this.actionSucceeded = 'Command applied',
+    this.actionRejected = 'Command rejected',
+    this.actionFailed = 'The command could not be sent',
+    this.projectionTruncated =
+        'Some device states are unavailable until the next refresh.',
   });
   factory FloorPlanStrings.fromLocalizations(AppLocalizations value) =>
       FloorPlanStrings(
@@ -35,9 +47,23 @@ final class FloorPlanStrings {
         zoomOut: value.floorPlanZoomOut,
         accessibleRooms: value.floorPlanAccessibleRooms,
         floors: value.floorPlanFloors,
+        live: value.floorPlanLive,
+        projectionStale: value.floorPlanProjectionStale,
+        unavailable: value.floorPlanUnavailable,
+        turnOn: value.floorPlanTurnOn,
+        turnOff: value.floorPlanTurnOff,
+        actionWorking: value.floorPlanActionWorking,
+        actionUncertain: value.floorPlanActionUncertain,
+        actionSucceeded: value.floorPlanActionSucceeded,
+        actionRejected: value.floorPlanActionRejected,
+        actionFailed: value.floorPlanActionFailed,
+        projectionTruncated: value.floorPlanProjectionTruncated,
       );
   final String title, loading, empty, offline, stale, invalid;
   final String refresh, zoomIn, zoomOut, accessibleRooms, floors;
+  final String live, projectionStale, unavailable, turnOn, turnOff;
+  final String actionWorking, actionUncertain, actionSucceeded;
+  final String actionRejected, actionFailed, projectionTruncated;
 }
 
 final class FloorPlanScreen extends StatefulWidget {
@@ -96,6 +122,57 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
     setState(() => _selectedAnchorId = anchorId);
   }
 
+  String _projectionStatus(FloorPlanAnchorProjection projection) =>
+      switch (projection.status) {
+        FloorPlanProjectionStatus.live => widget.strings.live,
+        FloorPlanProjectionStatus.stale => widget.strings.projectionStale,
+        FloorPlanProjectionStatus.unavailable => widget.strings.unavailable,
+      };
+
+  String _actionLabel(FloorPlanAction action) => switch (action) {
+    FloorPlanAction.turnOn => widget.strings.turnOn,
+    FloorPlanAction.turnOff => widget.strings.turnOff,
+  };
+
+  Future<void> _showAnchorActions(
+    FloorPlanAnchor anchor,
+    FloorPlanAnchorProjection projection,
+  ) async {
+    _selectAnchor(anchor.id);
+    if (!projection.capability.available ||
+        widget.controller.actionBusy ||
+        widget.controller.actionState == FloorPlanActionState.uncertain) {
+      return;
+    }
+    final action = await showCupertinoModalPopup<FloorPlanAction>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(anchor.targetId),
+        message: Text('${projection.state} · ${_projectionStatus(projection)}'),
+        actions: [
+          for (final action in const [
+            FloorPlanAction.turnOn,
+            FloorPlanAction.turnOff,
+          ])
+            CupertinoActionSheetAction(
+              key: ValueKey('floor-plan-canvas-${anchor.id}-${action.name}'),
+              onPressed: () => Navigator.of(context).pop(action),
+              child: Text(_actionLabel(action)),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            CupertinoLocalizations.of(context).modalBarrierDismissLabel,
+          ),
+        ),
+      ),
+    );
+    if (action != null && mounted) {
+      unawaited(widget.controller.dispatch(anchor.id, action));
+    }
+  }
+
   String _failure(FloorPlanFailure value) => switch (value) {
     FloorPlanFailure.offline => widget.strings.offline,
     FloorPlanFailure.stale => widget.strings.stale,
@@ -119,7 +196,15 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [controls, const SizedBox(height: 16), content],
+                children: [
+                  controls,
+                  if (_actionStatus() case final actionStatus?) ...[
+                    const SizedBox(height: 12),
+                    actionStatus,
+                  ],
+                  const SizedBox(height: 16),
+                  content,
+                ],
               ),
             );
           },
@@ -205,6 +290,49 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
           child: widget.controller.busy
               ? const CupertinoActivityIndicator()
               : Text(text, textAlign: TextAlign.center),
+        ),
+      ),
+    );
+  }
+
+  Widget? _actionStatus() {
+    final text = switch (widget.controller.actionState) {
+      FloorPlanActionState.idle => null,
+      FloorPlanActionState.busy => widget.strings.actionWorking,
+      FloorPlanActionState.uncertain => widget.strings.actionUncertain,
+      FloorPlanActionState.succeeded => widget.strings.actionSucceeded,
+      FloorPlanActionState.rejected => widget.strings.actionRejected,
+      FloorPlanActionState.failed => widget.strings.actionFailed,
+    };
+    if (text == null) return null;
+    return Semantics(
+      liveRegion: true,
+      label: text,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: CupertinoColors.secondarySystemGroupedBackground,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              if (widget.controller.actionBusy) ...[
+                const CupertinoActivityIndicator(),
+                const SizedBox(width: 10),
+              ],
+              Expanded(child: Text(text)),
+              if (!widget.controller.actionBusy &&
+                  widget.controller.actionState !=
+                      FloorPlanActionState.uncertain)
+                CupertinoButton(
+                  minimumSize: const Size(48, 48),
+                  padding: EdgeInsets.zero,
+                  onPressed: widget.controller.clearActionStatus,
+                  child: const Icon(CupertinoIcons.xmark_circle_fill),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -306,6 +434,7 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
                 for (final anchor in anchors)
                   _anchorTarget(
                     anchor,
+                    snapshot.projections[anchor.id]!,
                     constraints.biggest,
                     selected: anchor.id == _selectedAnchorId,
                   ),
@@ -341,21 +470,14 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
               ),
             ),
           for (final anchor in anchors)
-            Semantics(
-              selected: anchor.id == _selectedAnchorId,
-              label: '${anchor.targetKind}: ${anchor.targetId}',
-              child: SizedBox(
-                height: 48,
-                child: CupertinoButton(
-                  key: ValueKey('floor-plan-anchor-list-${anchor.id}'),
-                  minimumSize: const Size(48, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  alignment: AlignmentDirectional.centerStart,
-                  onPressed: () => _selectAnchor(anchor.id),
-                  child: ExcludeSemantics(
-                    child: Text('${anchor.targetKind}: ${anchor.targetId}'),
-                  ),
-                ),
+            _accessibleAnchor(anchor, snapshot.projections[anchor.id]!),
+          if (snapshot.projectionTruncated)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Semantics(
+                liveRegion: true,
+                label: widget.strings.projectionTruncated,
+                child: Text(widget.strings.projectionTruncated),
               ),
             ),
         ],
@@ -392,6 +514,7 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
 
   Widget _anchorTarget(
     FloorPlanAnchor anchor,
+    FloorPlanAnchorProjection projection,
     Size canvasSize, {
     required bool selected,
   }) {
@@ -421,12 +544,16 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
       height: targetSize,
       child: Semantics(
         selected: selected,
-        label: '${anchor.targetKind}: ${anchor.targetId}',
+        button: true,
+        label:
+            '${anchor.targetKind}: ${anchor.targetId}, ${projection.state}, ${_projectionStatus(projection)}',
         child: CupertinoButton(
           key: ValueKey('floor-plan-anchor-${anchor.id}'),
           minimumSize: const Size(targetSize, targetSize),
           padding: EdgeInsets.zero,
-          onPressed: () => _selectAnchor(anchor.id),
+          onPressed: widget.controller.actionBusy
+              ? null
+              : () => unawaited(_showAnchorActions(anchor, projection)),
           child: ExcludeSemantics(
             child: SizedBox(
               width: targetSize,
@@ -438,7 +565,14 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
                     top: dotTop,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: selected
+                        color:
+                            projection.status ==
+                                FloorPlanProjectionStatus.unavailable
+                            ? CupertinoColors.systemGrey
+                            : projection.status ==
+                                  FloorPlanProjectionStatus.stale
+                            ? CupertinoColors.systemYellow
+                            : selected
                             ? CupertinoColors.systemOrange
                             : const Color(0xFF0A84FF),
                         shape: BoxShape.circle,
@@ -455,6 +589,90 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _accessibleAnchor(
+    FloorPlanAnchor anchor,
+    FloorPlanAnchorProjection projection,
+  ) {
+    final busy =
+        widget.controller.actionBusy &&
+        widget.controller.actionAnchorId == anchor.id;
+    final description =
+        '${anchor.targetKind}: ${anchor.targetId} · ${projection.state} · ${_projectionStatus(projection)}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: anchor.id == _selectedAnchorId
+              ? CupertinoColors.tertiarySystemFill
+              : CupertinoColors.secondarySystemGroupedBackground,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                selected: anchor.id == _selectedAnchorId,
+                label: description,
+                child: CupertinoButton(
+                  key: ValueKey('floor-plan-anchor-list-${anchor.id}'),
+                  minimumSize: const Size(48, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  alignment: AlignmentDirectional.centerStart,
+                  onPressed: () => _selectAnchor(anchor.id),
+                  child: ExcludeSemantics(child: Text(description)),
+                ),
+              ),
+              if (projection.capability.available)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final action in const [
+                      FloorPlanAction.turnOn,
+                      FloorPlanAction.turnOff,
+                    ])
+                      Semantics(
+                        button: true,
+                        label: '${_actionLabel(action)} ${anchor.targetId}',
+                        child: SizedBox(
+                          height: 48,
+                          child: CupertinoButton(
+                            key: ValueKey(
+                              'floor-plan-anchor-list-${anchor.id}-${action.name}',
+                            ),
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            color: CupertinoColors.tertiarySystemFill,
+                            onPressed:
+                                widget.controller.actionBusy ||
+                                    widget.controller.actionState ==
+                                        FloorPlanActionState.uncertain
+                                ? null
+                                : () => unawaited(
+                                    widget.controller.dispatch(
+                                      anchor.id,
+                                      action,
+                                    ),
+                                  ),
+                            child: ExcludeSemantics(
+                              child: busy
+                                  ? const CupertinoActivityIndicator()
+                                  : Text(_actionLabel(action)),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
           ),
         ),
       ),
