@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `1a8d1707` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32, F56 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `5128e30a` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,28 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F62 bağımsız RDP — uygulama tamamlandı, test bekliyor
+
+F62'nin doğrudan cihaz profili, receipted FreeRDP Android motoru ve tablet
+oturumu güncel tek çalışma dalında ürün ekranına bağlı. Hedef, port, kullanıcı,
+Windows domain ve RD Gateway ayarları kişisel profil sınırında tutuluyor; parola
+ve gateway parolası şifreli kasada saklanabiliyor. TLS/NLA zorunluluğu ile
+hedefe özgü SPKI sertifika pini sessiz düşürmeye izin vermiyor. BGRA ekran
+kareleri sahipli ve sınırlı aktarılıyor; touchpad, fiziksel klavye, Türkçe/IME,
+dinamik çözünürlük, DPI ve DeX dış ekran akışları aynı oturum yetkisine bağlı.
+
+Native motor yalnız exact FreeRDP kaynak/ABI makbuzu APK içinde doğrulandığında
+açılıyor; desteklenmeyen RD Gateway, ses veya dosya kanalı bağlanmış gibi
+gösterilmiyor. Pano izni kapalı, cihazdan uzağa veya çift yönlü seçilebiliyor;
+`5128e30a` ekran kanıtını gerçek seçili politikayla eşleştirdi. Temel Client
+teslimi `14e429a7`, Android motoru `8b73f24b` ve bounded Türkçe/IME girdisi
+`0ad4b431` güncel branch HEAD'inin atalarıdır. Güncel RDP ve profil kaynakları
+odaklı Flutter analyze kapısından hatasız geçti. Kullanıcının kararı gereği
+özellik testleri yeniden çalıştırılmadı. F62 **uygulama tamamlandı · test
+bekliyor**; sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+İzole gerçek Windows/NLA/gateway E2E, kanal yetenek matrisi, bağımsız inceleme,
+fiziksel Huawei/DeX kabulü ve exact-head CI açık kalıyor.
 
 ### 27 Eylül F63 SSH, SFTP ve güvenli tüneller — uygulama tamamlandı, test bekliyor
 

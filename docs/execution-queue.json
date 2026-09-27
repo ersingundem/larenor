@@ -5257,7 +5257,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız RDP uzak masaüstü",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5283,14 +5283,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut güvenli RDP motoru ve tablet oturumu tek çalışma dalında kabul ölçütlerine göre incelenip eksik ürün akışları tamamlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Receipted FreeRDP Android motoru; TLS/NLA/SPKI güveni, hedef/domain/gateway ayarları, şifreli kimlik bilgisi, BGRA ekran, touchpad/klavye/IME, dinamik çözünürlük/DPI/DeX ve açık pano politikası ürün ekranına bağlı. Güncel kaynak statik analizden geçti; özellik testleri, izole gerçek Windows hostu, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
     },
     {
       "id": "F61",
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız VNC uzak ekran",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5317,7 +5317,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut VNC/RFB güvenli oturum ve tablet görüntü/girdi akışı tek çalışma dalında kabul ölçütlerine göre incelenip eksik ürün davranışları tamamlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "FINAL",

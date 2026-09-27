@@ -239,6 +239,7 @@ class Queue:
             if node['parent'] is not None:
                 self.children[node['parent']].append(identifier)
         self._done = {}
+        self._implemented = {}
 
     def is_done(self, identifier):
         if identifier not in self._done:
@@ -247,12 +248,23 @@ class Queue:
                                       if node['kind'] == 'group' else node['status'] == 'done')
         return self._done[identifier]
 
+    def is_implemented(self, identifier):
+        if identifier not in self._implemented:
+            node = self.nodes[identifier]
+            self._implemented[identifier] = (
+                all(self.is_implemented(i) for i in self.children[identifier])
+                if node['kind'] == 'group'
+                else node['status'] in ('implemented', 'awaiting_ci', 'done')
+            )
+        return self._implemented[identifier]
+
     def blockers(self, identifier, finishing=False):
         node = self.nodes[identifier]
         deps = list(node['dependsOn'])
         if finishing:
             deps.extend(node['finishDependsOn'])
-        return [dep for dep in deps if not self.is_done(dep)]
+            return [dep for dep in deps if not self.is_done(dep)]
+        return [dep for dep in deps if not self.is_implemented(dep)]
 
     def tasks(self, group=None):
         if group is not None:
