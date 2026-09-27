@@ -544,3 +544,265 @@ final class CoreBackupPlan {
   @override
   String toString() => 'CoreBackupPlan(${ready ? 'ready' : 'blocked'})';
 }
+
+enum RecoveryDrillState { queued, running, succeeded, failed, cancelled }
+
+enum RecoveryDrillTrigger { manual, monthly }
+
+final class RecoveryDrillReceipt {
+  const RecoveryDrillReceipt._({
+    required this.outcome,
+    required this.startedAt,
+    required this.completedAt,
+    required this.durationMilliseconds,
+    required this.verifiedResources,
+    this.failureCode,
+  });
+
+  factory RecoveryDrillReceipt.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {
+      'contractVersion',
+      'outcome',
+      'effectPolicy',
+      'startedAt',
+      'completedAt',
+      'durationMilliseconds',
+      'verifiedResources',
+      'failureCode',
+    };
+    final outcome = _drillState(json['outcome']);
+    final started = _drillTime(json['startedAt']);
+    final completed = _drillTime(json['completedAt']);
+    final duration = json['durationMilliseconds'];
+    final resources = _drillResources(
+      json['verifiedResources'],
+      allowPartial: true,
+    );
+    final failure = json['failureCode'];
+    const failures = {
+      'deadline_exceeded',
+      'authority_changed',
+      'backup_failed',
+      'restore_failed',
+      'health_check_failed',
+      'cancelled',
+      'worker_unavailable',
+    };
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        json['contractVersion'] != 1 ||
+        json['effectPolicy'] != 'deny_all_production_effects' ||
+        !const {
+          RecoveryDrillState.succeeded,
+          RecoveryDrillState.failed,
+          RecoveryDrillState.cancelled,
+        }.contains(outcome) ||
+        completed.isBefore(started) ||
+        duration is! int ||
+        duration < 0 ||
+        duration > 3600000 ||
+        (failure != null &&
+            (failure is! String || !failures.contains(failure))) ||
+        (outcome == RecoveryDrillState.succeeded) !=
+            (failure == null &&
+                resources.length == _recoveryResources.length)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return RecoveryDrillReceipt._(
+      outcome: outcome,
+      startedAt: started,
+      completedAt: completed,
+      durationMilliseconds: duration,
+      verifiedResources: resources,
+      failureCode: failure as String?,
+    );
+  }
+
+  final RecoveryDrillState outcome;
+  final DateTime startedAt, completedAt;
+  final int durationMilliseconds;
+  final List<String> verifiedResources;
+  final String? failureCode;
+}
+
+const _recoveryResources = [
+  'coreDatabase',
+  'vaultKey',
+  'configuration',
+  'familyBoard',
+  'componentData',
+];
+
+RecoveryDrillState _drillState(Object? raw) => switch (raw) {
+  'queued' => RecoveryDrillState.queued,
+  'running' => RecoveryDrillState.running,
+  'succeeded' => RecoveryDrillState.succeeded,
+  'failed' => RecoveryDrillState.failed,
+  'cancelled' => RecoveryDrillState.cancelled,
+  _ => throw const LarenorServerException('invalid_response'),
+};
+
+DateTime _drillTime(Object? raw) {
+  if (raw is! int || raw < 0 || raw > 253402300799) {
+    throw const LarenorServerException('invalid_response');
+  }
+  try {
+    return DateTime.fromMillisecondsSinceEpoch(raw * 1000, isUtc: true);
+  } on RangeError {
+    throw const LarenorServerException('invalid_response');
+  }
+}
+
+List<String> _drillResources(Object? raw, {required bool allowPartial}) {
+  if (raw is! List ||
+      raw.length > _recoveryResources.length ||
+      (!allowPartial && raw.length != _recoveryResources.length) ||
+      raw.any((item) => item is! String)) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final values = raw.cast<String>();
+  if (values.join('\u0000') !=
+      _recoveryResources.take(values.length).join('\u0000')) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return List.unmodifiable(values);
+}
+
+final class RecoveryDrill {
+  const RecoveryDrill._({
+    required this.id,
+    required this.requestId,
+    required this.trigger,
+    required this.deadlineSeconds,
+    required this.revision,
+    required this.state,
+    required this.cancelRequested,
+    required this.createdAt,
+    required this.updatedAt,
+    this.receipt,
+  });
+
+  factory RecoveryDrill.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {
+      'id',
+      'requestId',
+      'contractVersion',
+      'mode',
+      'trigger',
+      'scope',
+      'deadlineSeconds',
+      'revision',
+      'state',
+      'cancelRequested',
+      'createdAt',
+      'updatedAt',
+      'receipt',
+    };
+    final id = json['id'], requestId = json['requestId'];
+    final deadline = json['deadlineSeconds'], revision = json['revision'];
+    final state = _drillState(json['state']);
+    final created = _drillTime(json['createdAt']);
+    final updated = _drillTime(json['updatedAt']);
+    _drillResources(json['scope'], allowPartial: false);
+    final receipt = json['receipt'] == null
+        ? null
+        : RecoveryDrillReceipt.fromJson(json['receipt']);
+    final terminal = const {
+      RecoveryDrillState.succeeded,
+      RecoveryDrillState.failed,
+      RecoveryDrillState.cancelled,
+    }.contains(state);
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        id is! String ||
+        requestId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(id) ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) ||
+        json['contractVersion'] != 1 ||
+        json['mode'] != 'isolated_full_restore' ||
+        deadline is! int ||
+        deadline < 60 ||
+        deadline > 3600 ||
+        revision is! int ||
+        revision < 1 ||
+        revision > 0x7ffffffffffffffe ||
+        json['cancelRequested'] is! bool ||
+        updated.isBefore(created) ||
+        terminal != (receipt != null) ||
+        (receipt != null && receipt.outcome != state)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final trigger = switch (json['trigger']) {
+      'manual' => RecoveryDrillTrigger.manual,
+      'monthly' => RecoveryDrillTrigger.monthly,
+      _ => throw const LarenorServerException('invalid_response'),
+    };
+    return RecoveryDrill._(
+      id: id,
+      requestId: requestId,
+      trigger: trigger,
+      deadlineSeconds: deadline,
+      revision: revision,
+      state: state,
+      cancelRequested: json['cancelRequested'] as bool,
+      createdAt: created,
+      updatedAt: updated,
+      receipt: receipt,
+    );
+  }
+
+  final String id, requestId;
+  final RecoveryDrillTrigger trigger;
+  final int deadlineSeconds, revision;
+  final RecoveryDrillState state;
+  final bool cancelRequested;
+  final DateTime createdAt, updatedAt;
+  final RecoveryDrillReceipt? receipt;
+  bool get active =>
+      state == RecoveryDrillState.queued || state == RecoveryDrillState.running;
+}
+
+final class RecoveryDrillSchedule {
+  const RecoveryDrillSchedule._({
+    required this.revision,
+    required this.enabled,
+    this.nextRunAt,
+  });
+
+  factory RecoveryDrillSchedule.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {
+      'contractVersion',
+      'revision',
+      'enabled',
+      'intervalDays',
+      'nextRunAt',
+    };
+    final revision = json['revision'], enabled = json['enabled'];
+    final next = json['nextRunAt'] == null
+        ? null
+        : _drillTime(json['nextRunAt']);
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        json['contractVersion'] != 1 ||
+        revision is! int ||
+        revision < 0 ||
+        revision > 0x7ffffffffffffffe ||
+        enabled is! bool ||
+        json['intervalDays'] != 30 ||
+        enabled != (next != null)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return RecoveryDrillSchedule._(
+      revision: revision,
+      enabled: enabled,
+      nextRunAt: next,
+    );
+  }
+
+  final int revision;
+  final bool enabled;
+  final DateTime? nextRunAt;
+}

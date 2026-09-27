@@ -30,6 +30,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   String? failure;
   String? actionFailure;
   CoreBackupPlan? plan;
+  RecoveryDrillSchedule? drillSchedule;
+  List<RecoveryDrill> drills = const [];
   CoreBackupCompatibility? compatibility;
   ServerCoreBackupSourceInspection? sourceInspection;
   bool sourceBusy = false;
@@ -66,6 +68,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     actionFailure = null;
     sourceFailure = null;
     plan = null;
+    drillSchedule = null;
+    drills = const [];
     compatibility = null;
     sourceInspection = null;
     _emit();
@@ -97,15 +101,19 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     compatibility = null;
     _emit();
     try {
-      await account.withSession((api, session) async {
+      await account.withSession((server, session) async {
         if (!_current(epoch, accountEpoch, current)) {
           throw const LarenorServerException('cancelled');
         }
-        final value = await ServerCoreBackupsApi(
-          api,
-          session.accessToken,
-        ).plan(cancellation);
-        if (_current(epoch, accountEpoch, current)) plan = value;
+        final backupsApi = ServerCoreBackupsApi(server, session.accessToken);
+        final value = await backupsApi.plan(cancellation);
+        final schedule = await backupsApi.drillSchedule(cancellation);
+        final history = await backupsApi.drills(cancellation);
+        if (_current(epoch, accountEpoch, current)) {
+          plan = value;
+          drillSchedule = schedule;
+          drills = history;
+        }
       });
     } catch (error) {
       if (_current(epoch, accountEpoch, current)) {
@@ -119,6 +127,94 @@ final class ServerCoreBackupsController extends ChangeNotifier {
       }
       if (!_disposed && epoch == _generation) {
         busy = false;
+        _emit();
+      }
+    }
+  }
+
+  Future<void> runDrill({required bool Function() current}) async {
+    await _drillAction(current, (api, cancellation, stillCurrent) async {
+      final drill = await api.runDrill(cancellation);
+      if (!stillCurrent()) return;
+      drills = [drill, ...drills.where((item) => item.id != drill.id)];
+    });
+  }
+
+  Future<void> updateDrillSchedule(
+    bool enabled, {
+    required bool Function() current,
+  }) async {
+    final schedule = drillSchedule;
+    if (schedule == null) return;
+    await _drillAction(current, (api, cancellation, stillCurrent) async {
+      final changed = await api.updateDrillSchedule(
+        schedule,
+        enabled,
+        cancellation,
+      );
+      if (stillCurrent()) drillSchedule = changed;
+    });
+  }
+
+  Future<void> cancelDrill(
+    RecoveryDrill drill, {
+    required bool Function() current,
+  }) async {
+    await _drillAction(current, (api, cancellation, stillCurrent) async {
+      final changed = await api.cancelDrill(drill, cancellation);
+      if (!stillCurrent()) return;
+      drills = [
+        for (final item in drills) item.id == changed.id ? changed : item,
+      ];
+    });
+  }
+
+  Future<void> _drillAction(
+    bool Function() current,
+    Future<void> Function(
+      ServerCoreBackupsApi api,
+      LarenorTransferCancellation cancellation,
+      bool Function() stillCurrent,
+    )
+    action,
+  ) async {
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current()) {
+      return;
+    }
+    final epoch = _generation, accountEpoch = account.generation;
+    final cancellation = LarenorTransferCancellation();
+    _requestCancellation = cancellation;
+    actionBusy = true;
+    actionFailure = null;
+    _emit();
+    try {
+      await account.withSession((server, session) async {
+        if (!_current(epoch, accountEpoch, current)) {
+          throw const LarenorServerException('cancelled');
+        }
+        await action(
+          ServerCoreBackupsApi(server, session.accessToken),
+          cancellation,
+          () => _current(epoch, accountEpoch, current),
+        );
+      });
+    } catch (error) {
+      if (_current(epoch, accountEpoch, current)) {
+        actionFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (identical(_requestCancellation, cancellation)) {
+        _requestCancellation = null;
+      }
+      if (!_disposed && epoch == _generation) {
+        actionBusy = false;
         _emit();
       }
     }

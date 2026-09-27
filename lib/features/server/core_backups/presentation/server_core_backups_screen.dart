@@ -235,6 +235,26 @@ class _ServerCoreBackupsScreenState
     );
   }
 
+  Future<void> _runDrill() async {
+    if (!_active || _backups.busy || _backups.actionBusy) return;
+    setState(() => _notice = null);
+    await _backups.runDrill(current: _capture());
+  }
+
+  Future<void> _setDrillSchedule(bool enabled) async {
+    if (!_active || _backups.busy || _backups.actionBusy) return;
+    setState(() => _notice = null);
+    await _backups.updateDrillSchedule(enabled, current: _capture());
+  }
+
+  Future<void> _cancelDrill(RecoveryDrill drill) async {
+    if (!_active || _backups.busy || _backups.actionBusy || !drill.active) {
+      return;
+    }
+    setState(() => _notice = null);
+    await _backups.cancelDrill(drill, current: _capture());
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -318,6 +338,7 @@ class _ServerCoreBackupsScreenState
                         ),
                       ),
                     if (_backups.plan case final plan?) _plan(l10n, plan),
+                    if (_backups.drillSchedule != null) _drillSection(l10n),
                     _sourceInspectionSection(l10n),
                     SettingsSection(
                       margin: const EdgeInsets.symmetric(
@@ -345,6 +366,125 @@ class _ServerCoreBackupsScreenState
       ),
     );
   }
+
+  Widget _drillSection(AppLocalizations l10n) {
+    final schedule = _backups.drillSchedule!;
+    final active = _backups.drills.where((item) => item.active).firstOrNull;
+    return SettingsSection(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      header: Text(l10n.serverRecoveryDrillTitle),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.serverRecoveryDrillHint),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(child: Text(l10n.serverRecoveryDrillMonthly)),
+              CupertinoSwitch(
+                key: const ValueKey('server-recovery-drill-schedule'),
+                value: schedule.enabled,
+                onChanged: !_backups.busy && !_backups.actionBusy
+                    ? _setDrillSchedule
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        if (schedule.nextRunAt case final next?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              l10n.serverRecoveryDrillNext(
+                DateFormat.yMd(l10n.localeName).add_Hm().format(next.toLocal()),
+              ),
+              style: AppText.footnote,
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: CupertinoButton(
+              key: const ValueKey('server-recovery-drill-run'),
+              onPressed:
+                  active == null && !_backups.busy && !_backups.actionBusy
+                  ? _runDrill
+                  : null,
+              child: Text(l10n.serverRecoveryDrillRunNow),
+            ),
+          ),
+        ),
+        if (_backups.actionBusy)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: CupertinoActivityIndicator(),
+          ),
+        if (_backups.actionFailure != null)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(l10n.serverRecoveryDrillActionFailed),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(l10n.serverRecoveryDrillHistory, style: AppText.headline),
+        ),
+        if (_backups.drills.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Text(l10n.serverRecoveryDrillNoHistory),
+          )
+        else
+          for (final drill in _backups.drills) _drillRow(l10n, drill),
+      ],
+    );
+  }
+
+  Widget _drillRow(AppLocalizations l10n, RecoveryDrill drill) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _drillStateLabel(l10n, drill.state),
+                style: AppText.headline,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${drill.trigger == RecoveryDrillTrigger.manual ? l10n.serverRecoveryDrillManual : l10n.serverRecoveryDrillScheduled} · ${DateFormat.yMd(l10n.localeName).add_Hm().format(drill.updatedAt.toLocal())}',
+                style: AppText.footnote,
+              ),
+            ],
+          ),
+        ),
+        if (drill.active)
+          CupertinoButton(
+            key: ValueKey('server-recovery-drill-cancel-${drill.id}'),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            onPressed: !_backups.actionBusy ? () => _cancelDrill(drill) : null,
+            child: Text(l10n.serverRecoveryDrillCancel),
+          ),
+      ],
+    ),
+  );
+
+  String _drillStateLabel(AppLocalizations l10n, RecoveryDrillState state) =>
+      switch (state) {
+        RecoveryDrillState.queued => l10n.serverRecoveryDrillQueued,
+        RecoveryDrillState.running => l10n.serverRecoveryDrillRunning,
+        RecoveryDrillState.succeeded => l10n.serverRecoveryDrillSucceeded,
+        RecoveryDrillState.failed => l10n.serverRecoveryDrillFailed,
+        RecoveryDrillState.cancelled => l10n.serverRecoveryDrillCancelled,
+      };
 
   Widget _exportSection(AppLocalizations l10n) => SettingsSection(
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
