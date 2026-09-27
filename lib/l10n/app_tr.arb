@@ -3963,6 +3963,7 @@
   "serverComponentUpdatesIntro": "Kurulu bileşenler izole Core worker üzerinden paketli katalogla eşleştirilir. Exact güncelleme worker'ı ve geri dönüş anlık görüntüsü hazır olana kadar inceleme salt okunurdur.",
   "serverComponentUpdatesCurrent": "Güncel paketli sürüm",
   "serverComponentUpdatesBlocked": "Güncelleme hazır değil",
+  "serverComponentUpdatesReady": "Güncelleme hazır",
   "serverComponentUpdatesPublisher": "Yayıncı",
   "serverComponentUpdatesSource": "Kaynak",
   "serverComponentUpdatesPlatform": "Platform",

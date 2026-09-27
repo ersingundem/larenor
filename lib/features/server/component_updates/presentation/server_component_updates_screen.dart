@@ -237,6 +237,8 @@ final class _ServerComponentUpdatesScreenState
     final release = installed.release;
     final status = review.isCurrent
         ? l10n.serverComponentUpdatesCurrent
+        : review.applyAvailable
+        ? l10n.serverComponentUpdatesReady
         : l10n.serverComponentUpdatesBlocked;
     final confirmed =
         _updates.confirmation?.installationId == installed.installationId &&

@@ -354,8 +354,7 @@ final class ServerComponentUpdateReview {
     });
     if (json['schemaVersion'] != 1 ||
         json['approvalRequired'] is! bool ||
-        json['applyAvailable'] is! bool ||
-        json['applyAvailable'] != false) {
+        json['applyAvailable'] is! bool) {
       _invalid();
     }
     _identity(json['coreId']);
@@ -382,7 +381,15 @@ final class ServerComponentUpdateReview {
         }.contains(migration['state'])) {
       _invalid();
     }
-    final blockerPattern = RegExp(r'^[a-z][a-z0-9_]{2,63}$');
+    final applyAvailable = json['applyAvailable'] as bool;
+    final blockers = _strings(
+      json['blockers'],
+      RegExp(r'^[a-z][a-z0-9_]{2,63}$'),
+      max: 10,
+    );
+    if (applyAvailable == blockers.contains('execution_worker_unavailable')) {
+      _invalid();
+    }
     return ServerComponentUpdateReview(
       installationId: _identity(json['installationId']),
       reviewDigest: _digest(json['reviewDigest']),
@@ -393,9 +400,9 @@ final class ServerComponentUpdateReview {
       retainedPermissions: _strings(permissions['retained'], _permission),
       migrationRequired: migration['migrationRequired'] as bool,
       rollbackSnapshotRequired: migration['rollbackSnapshotRequired'] as bool,
-      blockers: _strings(json['blockers'], blockerPattern, max: 10),
+      blockers: blockers,
       approvalRequired: json['approvalRequired'] as bool,
-      applyAvailable: json['applyAvailable'] as bool,
+      applyAvailable: applyAvailable,
     );
   }
 
@@ -420,7 +427,8 @@ final class ServerComponentUpdateReview {
       'migration_snapshot_required',
       'manual_approval_required',
     };
-    return current.manifestDigest != target.manifestDigest &&
+    return applyAvailable &&
+        current.manifestDigest != target.manifestDigest &&
         blockers.every(permitted.contains);
   }
 }

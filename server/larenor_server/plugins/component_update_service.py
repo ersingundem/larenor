@@ -51,6 +51,9 @@ class ComponentUpdateService:
                 (source.current.serviceId for source in sources),
             )
             reviews = []
+            execution_available = callable(
+                getattr(self._boundary, "execute_update", None)
+            )
             for source, preference in zip(sources, preferences, strict=True):
                 entry = entries.get(source.current.serviceId)
                 if entry is None:
@@ -75,6 +78,7 @@ class ComponentUpdateService:
                         target_entry=entry,
                         target_platform=source.current.platform,
                         policy=policy,
+                        execution_available=execution_available,
                     )
                 )
             return ComponentUpdateInventory(

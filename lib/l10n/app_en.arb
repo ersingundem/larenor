@@ -4316,6 +4316,7 @@
   "serverComponentUpdatesIntro": "Installed components are matched to the packaged catalog through the isolated Core worker. Review evidence is read-only until an exact update worker and rollback snapshot are available.",
   "serverComponentUpdatesCurrent": "Current packaged release",
   "serverComponentUpdatesBlocked": "Update is not ready",
+  "serverComponentUpdatesReady": "Update ready",
   "serverComponentUpdatesPublisher": "Publisher",
   "serverComponentUpdatesSource": "Source",
   "serverComponentUpdatesPlatform": "Platform",

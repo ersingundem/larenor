@@ -238,9 +238,9 @@ class ComponentUpdateReview(FrozenModel):
     target: ComponentReleaseIdentity
     permissions: ComponentPermissionChanges
     migration: ComponentMigrationPlan
-    blockers: tuple[UpdateBlocker, ...] = Field(min_length=1, max_length=10)
+    blockers: tuple[UpdateBlocker, ...] = Field(max_length=10)
     approvalRequired: StrictBool
-    applyAvailable: Literal[False]
+    applyAvailable: StrictBool
 
     @model_validator(mode="after")
     def coherent_review(self):
@@ -248,7 +248,9 @@ class ComponentUpdateReview(FrozenModel):
             raise ValueError("invalid_update_review")
         if self.permissions.added and not self.approvalRequired:
             raise ValueError("invalid_update_review")
-        if "execution_worker_unavailable" not in self.blockers:
+        if self.applyAvailable is (
+            "execution_worker_unavailable" in self.blockers
+        ):
             raise ValueError("invalid_update_review")
         return self
 
@@ -707,7 +709,8 @@ def build_update_command(
         if not set(review.blockers).issubset(permitted):
             raise ValueError("component_update_command_blocked")
         if (
-            review.permissions.added
+            not review.applyAvailable
+            or review.permissions.added
             and not request.approvePermissionAdditions
             or "manual_approval_required" in review.blockers
             and not request.approveManualReview
@@ -770,12 +773,12 @@ def build_update_review(
     target_entry: CatalogEntry,
     target_platform: str,
     policy: ComponentUpdatePolicy,
+    execution_available: bool = False,
 ) -> ComponentUpdateReview:
     """Compare a durable current identity with one packaged target release.
 
-    The result remains non-executable.  A later effect worker must capture and
-    bind a rollback snapshot, revalidate the exact review digest and only then
-    expose a separate confirmation operation.
+    Execution is exposed only when a worker exists and no rollback snapshot is
+    required. Confirmation still revalidates the exact digest in the worker.
     """
     try:
         context = _validated(context, ContextResponse)
@@ -783,6 +786,8 @@ def build_update_review(
         current_permissions = _validated(current_permissions, ComponentPermissionSet)
         current_schema = _validated(current_schema, ComponentSchemaIdentity)
         policy = _validated(policy, ComponentUpdatePolicy)
+        if type(execution_available) is not bool:
+            raise ValueError("execution_availability")
         if type(installation_id) is not str or not _INSTALLATION_ID.fullmatch(installation_id):
             raise ValueError("installation_identity")
         target, target_permissions, target_schema = release_identity(
@@ -805,7 +810,10 @@ def build_update_review(
             state="snapshot_required" if current_schema != target_schema else "not_required",
         )
 
-        blockers: set[UpdateBlocker] = {"execution_worker_unavailable"}
+        apply_available = execution_available and not migration.rollbackSnapshotRequired
+        blockers: set[UpdateBlocker] = set()
+        if not apply_available:
+            blockers.add("execution_worker_unavailable")
         if current.build.manifestDigest == target.build.manifestDigest:
             blockers.add("same_release")
         if (
@@ -855,7 +863,7 @@ def build_update_review(
             migration=migration,
             blockers=tuple(sorted(blockers)),
             approvalRequired=bool(added) or manual_approval,
-            applyAvailable=False,
+            applyAvailable=apply_available,
         )
         provisional = ComponentUpdateReview(**base)
         payload = provisional.model_dump(mode="json")
