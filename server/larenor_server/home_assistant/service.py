@@ -119,9 +119,12 @@ class HomeAssistantAdapter:
             raise StartupError('home_assistant_storage_invalid') from None
 
     @contextmanager
-    def _tx(self, actor, core, home, *, admin=False):
+    def _tx(self, actor, core, home, *, admin=False, consume_rate_limit=True):
         try:
-            with self._lock, self.resources._transaction(actor, core, home, admin=admin) as (c, facts):
+            with self._lock, self.resources._transaction(
+                actor, core, home, admin=admin,
+                consume_rate_limit=consume_rate_limit,
+            ) as (c, facts):
                 if self._closed:
                     raise ApiError("server_unavailable", 503)
                 self._now()
@@ -167,14 +170,18 @@ class HomeAssistantAdapter:
         return fingerprint, row, ref, binding, service
 
     def _fresh(self, actor, core, home, resource, fingerprint, body, cancelled, *,
-               admin=False, command_generation=None):
+               admin=False, command_generation=None, authority_guard=None,
+               consume_rate_limit=True):
         if cancelled():
             raise ApiError('request_timeout', 408)
-        with self._tx(actor, core, home, admin=admin) as (c, facts):
+        with self._tx(actor, core, home, admin=admin,
+                      consume_rate_limit=consume_rate_limit) as (c, facts):
             current = self._facts(c, facts, resource, body)[0]
             if (current != fingerprint or command_generation is not None and
                     command_generation != self._command_generation):
                 raise ApiError('ha_binding_changed', 409)
+            if authority_guard is not None:
+                authority_guard(c)
         if cancelled():
             raise ApiError('request_timeout', 408)
 
@@ -187,13 +194,16 @@ class HomeAssistantAdapter:
             raise ApiError('request_timeout', 408)
 
     def _observe(self, actor, core, home, resource, fingerprint, service, entity,
-                 body, cancelled, *, admin=False, command_generation=None):
+                 body, cancelled, *, admin=False, command_generation=None,
+                 authority_guard=None, consume_rate_limit=True):
         if not self._slots.acquire(blocking=False):
             raise ApiError('ha_limit_reached', 429)
         try:
             def guard():
                 self._fresh(actor, core, home, resource, fingerprint, body,
-                    cancelled, admin=admin, command_generation=command_generation)
+                    cancelled, admin=admin, command_generation=command_generation,
+                    authority_guard=authority_guard,
+                    consume_rate_limit=consume_rate_limit)
             projection = self._reader(service, entity, guard=guard)
             guard()
             # Even trusted replacement readers cannot smuggle arbitrary attributes.
@@ -425,10 +435,13 @@ class HomeAssistantAdapter:
         with self._tx(actor, core, home, admin=True) as (c, _):
             return {'verification': command_chain.checkpoint(c, self._key, self.resources.scope, checkpoint)}
 
-    def _prepare_command(self, actor, core, home, resource, body, attribution=None):
+    def _prepare_command(self, actor, core, home, resource, body, attribution=None,
+                         authority_guard=None):
         reserved = False
         try:
             with self._tx(actor, core, home) as (c, facts):
+                if authority_guard is not None:
+                    authority_guard(c)
                 row, ref, data, binding = self._target(c, facts, resource)
                 existing = self._existing_command(
                     c, actor, resource, body, attribution=attribution)
@@ -475,23 +488,26 @@ class HomeAssistantAdapter:
             raise
 
     def command(self, actor, core, home, resource, body, *, cancelled=lambda: False,
-                attribution=None):
+                attribution=None, authority_guard=None):
         body = CommandRequest.model_validate(body)
         if attribution is not None:
             attribution = CommandAttribution.model_validate(attribution)
         existing, prepared = self._prepare_command(
-            actor, core, home, resource, body, attribution=attribution)
+            actor, core, home, resource, body, attribution=attribution,
+            authority_guard=authority_guard)
         if existing is not None:
             return {'receipt': existing.receipt.model_dump()}
         receipt, attribution, binding, service, fingerprint = prepared
         slot = self._slots.acquire(blocking=False)
         try:
+            def guard():
+                self._fresh(actor, core, home, resource, fingerprint, None,
+                    cancelled, authority_guard=authority_guard)
             if not slot or cancelled():
                 outcome = False
             else:
-                def guard():
-                    self._fresh(actor, core, home, resource, fingerprint, None, cancelled)
                 outcome = self._commander(service, binding.entityId, body.action, guard=guard)
+                guard()
             observed = None
             if outcome is True:
                 try:
@@ -507,6 +523,8 @@ class HomeAssistantAdapter:
                 'completedAt': utc(self.settings.clock())})
             value = StoredCommand(request=body, receipt=completed, attribution=attribution)
             with self._lock, self.db.transaction() as c:
+                if authority_guard is not None:
+                    authority_guard(c)
                 schema.validate(c, self._key, self.resources.scope)
                 current = c.execute('SELECT * FROM home_assistant_commands WHERE request_id=?',
                                     (body.requestId,)).fetchone()
@@ -523,8 +541,12 @@ class HomeAssistantAdapter:
             if slot:
                 self._slots.release()
 
-    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False):
-        with self._tx(actor, core, home) as (c, facts):
+    def snapshot(self, actor, core, home, resource, *, cancelled=lambda: False,
+                 authority_guard=None, consume_rate_limit=True):
+        with self._tx(actor, core, home,
+                      consume_rate_limit=consume_rate_limit) as (c, facts):
+            if authority_guard is not None:
+                authority_guard(c)
             fingerprint, row, ref, binding, service = self._facts(c, facts, resource)
             command_generation = self._command_generation
             key = (core, home, actor.id, actor.token_id, resource, binding.id, actor.family_id)
@@ -534,8 +556,12 @@ class HomeAssistantAdapter:
                 return {'snapshot': {**cached[2], 'remainingTtlMs': remaining}}
         projection = self._observe(actor, core, home, resource, fingerprint,
             service, binding.entityId, None, cancelled,
-            command_generation=command_generation)
-        with self._tx(actor, core, home) as (c, facts):
+            command_generation=command_generation, authority_guard=authority_guard,
+            consume_rate_limit=consume_rate_limit)
+        with self._tx(actor, core, home,
+                      consume_rate_limit=consume_rate_limit) as (c, facts):
+            if authority_guard is not None:
+                authority_guard(c)
             current, row, ref, binding, _ = self._facts(c, facts, resource)
             if (current != fingerprint or
                     command_generation != self._command_generation or cancelled()):

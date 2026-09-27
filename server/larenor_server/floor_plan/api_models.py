@@ -1,8 +1,9 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, Identity, Revision
+from ..home_assistant.models import CommandReceipt
 from .service import Anchor, Floor, FloorPlanLayout, Point, Room, VectorShape
 
 LayoutRevision = Annotated[int, Field(ge=0, le=2**63 - 1)]
@@ -158,9 +159,95 @@ class ReceiptResponse(FrozenModel):
     receipt: ReceiptModel
 
 
+class ActionCapabilityModel(FrozenModel):
+    kind: Literal["none", "home_assistant.switch"]
+    actions: list[Literal["turn_on", "turn_off"]] = Field(max_length=2)
+    resourceId: Identity | None = None
+    resourceRevision: Revision | None = None
+    aclRevision: Revision | None = None
+    bindingId: Identity | None = None
+    bindingRevision: Revision | None = None
+    serviceRevision: Revision | None = None
+
+    @model_validator(mode="after")
+    def closed_capability(self):
+        exact = (
+            self.resourceId,
+            self.resourceRevision,
+            self.aclRevision,
+            self.bindingId,
+            self.bindingRevision,
+            self.serviceRevision,
+        )
+        if self.kind == "none":
+            if self.actions or any(item is not None for item in exact):
+                raise ValueError("invalid_capability")
+        elif set(self.actions) != {"turn_on", "turn_off"} or any(
+            item is None for item in exact
+        ):
+            raise ValueError("invalid_capability")
+        return self
+
+
+class AnchorProjectionModel(FrozenModel):
+    anchorId: LayoutId
+    targetKind: Literal["entity", "resource"]
+    targetId: LayoutId
+    targetRevision: Revision
+    state: str = Field(min_length=1, max_length=255)
+    status: Literal["live", "stale", "unavailable"]
+    capability: ActionCapabilityModel
+
+    @field_validator("state")
+    @classmethod
+    def safe_state(cls, value: str) -> str:
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("invalid_state")
+        return value
+
+
 class LayoutResponse(FrozenModel):
+    schemaVersion: Literal[1]
     layoutRevision: Revision
+    entityRegistryRevision: Revision
+    resourceRevision: Revision
+    grantRevision: Revision
     layout: LayoutModel
+    projections: list[AnchorProjectionModel] = Field(max_length=512)
+    projectionLimit: int = Field(ge=1, le=512)
+    projectionTruncated: bool
+
+
+class ActionRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    anchorId: LayoutId
+    action: Literal["turn_on", "turn_off"]
+    expectedLayoutRevision: Revision
+    expectedEntityRegistryRevision: Revision
+    expectedResourceRegistryRevision: Revision
+    expectedGrantRevision: Revision
+    expectedTargetRevision: Revision
+    expectedResourceId: Identity
+    expectedResourceRevision: Revision
+    expectedAclRevision: Revision
+    expectedBindingId: Identity
+    expectedBindingRevision: Revision
+    expectedServiceRevision: Revision
+
+
+class ActionReceiptModel(FrozenModel):
+    schemaVersion: Literal[1]
+    anchorId: LayoutId
+    layoutRevision: Revision
+    entityRegistryRevision: Revision
+    resourceRevision: Revision
+    grantRevision: Revision
+    command: CommandReceipt
+
+
+class ActionResponse(FrozenModel):
+    receipt: ActionReceiptModel
 
 
 class ExportResponse(FrozenModel):

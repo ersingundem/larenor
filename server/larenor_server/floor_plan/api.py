@@ -1,6 +1,8 @@
+import asyncio
+from threading import Event
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -8,6 +10,8 @@ from ..dependencies import get_core, require_admin, require_ready_user
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .api_models import (
+    ActionRequest,
+    ActionResponse,
     ExportResponse,
     HistoryResponse,
     LayoutModel,
@@ -23,9 +27,31 @@ Admin = Annotated[Principal, Depends(require_admin)]
 Limit = Annotated[int, Query(ge=1, le=1024)]
 router = APIRouter(tags=["Interactive floor plan"], responses={
     status: {"model": ErrorResponse}
-    for status in (400, 401, 403, 404, 409, 413, 429, 503)
+    for status in (400, 401, 403, 404, 408, 409, 413, 429, 502, 503)
 })
 ROOT = "/floor-plan/{core_id}/{home_id}"
+
+
+async def observe(request: Request, operation):
+    cancelled = Event()
+
+    async def monitor():
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await asyncio.sleep(0.05)
+
+    watcher = asyncio.create_task(monitor())
+    try:
+        return await asyncio.to_thread(operation, cancelled.is_set)
+    finally:
+        cancelled.set()
+        watcher.cancel()
+        try:
+            await watcher
+        except asyncio.CancelledError:
+            pass
 
 
 @router.put(ROOT, response_model=ReceiptResponse)
@@ -40,12 +66,29 @@ def replace(core_id: Identity, home_id: Identity, body: ReplaceLayoutRequest,
 
 
 @router.get(ROOT, response_model=LayoutResponse)
-def read(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
-    stored = core.floor_plan.read(actor, core_id, home_id)
+async def read(core_id: Identity, home_id: Identity, request: Request,
+               actor: Ready, core: Core):
+    result = await observe(request, lambda cancelled: core.floor_plan.read(
+        actor, core_id, home_id, cancelled=cancelled))
+    stored, authority = result["stored"], result["authority"]
     return {
+        "schemaVersion": 1,
         "layoutRevision": stored.revision,
+        "entityRegistryRevision": authority.entity_registry_revision,
+        "resourceRevision": authority.resource_revision,
+        "grantRevision": authority.grant_revision,
         "layout": LayoutModel.from_domain(stored.layout),
+        "projections": result["projections"],
+        "projectionLimit": result["projectionLimit"],
+        "projectionTruncated": result["projectionTruncated"],
     }
+
+
+@router.post(ROOT + "/actions", response_model=ActionResponse, status_code=202)
+async def action(core_id: Identity, home_id: Identity, body: ActionRequest,
+                 request: Request, actor: Ready, core: Core):
+    return await observe(request, lambda cancelled: core.floor_plan.action(
+        actor, core_id, home_id, body, cancelled=cancelled))
 
 
 @router.get(ROOT + "/export", response_model=ExportResponse)
