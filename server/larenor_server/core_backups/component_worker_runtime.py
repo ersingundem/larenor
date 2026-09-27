@@ -12,6 +12,13 @@ import sys
 import time
 
 from ..plugins.docker_probe import DockerEndpoint
+from ..plugins.catalog import load_catalog
+from ..plugins.component_updates import (
+    ComponentUpdateCommand,
+    release_identity,
+    verify_installed_update_source,
+    verify_update_command,
+)
 from ..plugins.managed_container import ManagedWorkerJournal
 from ..plugins.volume_create_journal import VolumeCreateJournal
 from .component_docker_adapter import UnixDockerComponentSnapshotAdapter
@@ -117,6 +124,59 @@ class PackagedComponentSnapshotBoundary:
             ):
                 raise ValueError()
             return self._authority.update_sources()
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise ComponentWorkerRuntimeError("worker_unavailable") from None
+
+    def validate_update(self, command, deadline):
+        """Revalidate an exact confirmation against live receipts and pins."""
+        try:
+            now = time.monotonic()
+            if (
+                type(deadline) not in (int, float)
+                or type(deadline) is bool
+                or not now < deadline <= now + 5
+                or type(command) is not ComponentUpdateCommand
+            ):
+                raise ValueError()
+            command = verify_update_command(
+                ComponentUpdateCommand.model_validate_json(command.model_dump_json())
+            )
+            wall_ms = int(time.time() * 1000)
+            if not command.issuedAtMs <= wall_ms < command.expiresAtMs:
+                raise ValueError()
+            sources = tuple(
+                verify_installed_update_source(item)
+                for item in self._authority.update_sources()
+            )
+            matches = tuple(
+                item
+                for item in sources
+                if item.installationId == command.installationId
+                and item.current.serviceId == command.serviceId
+            )
+            if (
+                len(matches) != 1
+                or matches[0].sourceDigest != command.sourceDigest
+                or matches[0].current.build.manifestDigest
+                == command.targetManifestDigest
+            ):
+                raise ValueError()
+            targets = tuple(
+                entry
+                for entry in load_catalog().entries
+                if entry.manifest.serviceId == command.serviceId
+                and entry.manifestDigest == command.targetManifestDigest
+            )
+            if len(targets) != 1:
+                raise ValueError()
+            target, _permissions, _schema = release_identity(
+                targets[0], matches[0].current.platform
+            )
+            if target.build.manifestDigest != command.targetManifestDigest:
+                raise ValueError()
+            return command
         except BaseException as error:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise

@@ -10,9 +10,11 @@ from pathlib import Path
 
 from ..files import checked_path
 from ..plugins.component_updates import (
+    ComponentUpdateCommand,
     ComponentUpdateError,
     InstalledComponentUpdateSource,
     verify_installed_update_source,
+    verify_update_command,
 )
 from .component_worker import (
     MAX_UPDATE_SOURCES,
@@ -99,29 +101,53 @@ class ComponentSnapshotWorkerServer:
 
     @staticmethod
     def _request(value, now):
+        operation = value.get("operation")
+        expected = {
+            "protocol",
+            "requestId",
+            "operation",
+            "timeoutMilliseconds",
+        }
+        if operation == "component_update_validate":
+            expected.add("command")
         if (
-            set(value)
-            != {
-                "protocol",
-                "requestId",
-                "operation",
-                "timeoutMilliseconds",
-            }
+            set(value) != expected
             or type(value.get("protocol")) is not int
             or value.get("protocol") != PROTOCOL
             or type(value.get("requestId")) is not str
             or len(value["requestId"]) != 32
             or any(char not in "0123456789abcdef" for char in value["requestId"])
-            or value.get("operation")
-            not in {"quiesce", "component_update_sources"}
+            or operation
+            not in {
+                "quiesce",
+                "component_update_sources",
+                "component_update_validate",
+            }
             or type(value.get("timeoutMilliseconds")) is not int
             or not 1 <= value["timeoutMilliseconds"] <= 5000
         ):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
+        command = None
+        if operation == "component_update_validate":
+            try:
+                command = verify_update_command(
+                    ComponentUpdateCommand.model_validate(value["command"])
+                )
+            except (
+                ComponentUpdateError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                RecursionError,
+            ):
+                raise ComponentSnapshotWorkerError(
+                    "invalid_worker_result"
+                ) from None
         return (
             value["requestId"],
             now + value["timeoutMilliseconds"] / 1000.0,
-            value["operation"],
+            operation,
+            command,
         )
 
     @staticmethod
@@ -203,7 +229,9 @@ class ComponentSnapshotWorkerServer:
             return
         read_deadline = self.monotonic() + 5
         request = _read_frame(connection, read_deadline)
-        request_id, deadline, operation = self._request(request, self.monotonic())
+        request_id, deadline, operation, command = self._request(
+            request, self.monotonic()
+        )
         if operation == "component_update_sources":
             try:
                 values = self.provider.update_sources(deadline)
@@ -217,6 +245,29 @@ class ComponentSnapshotWorkerServer:
                     "requestId": request_id,
                     "status": "ready",
                     "sources": [item.model_dump(mode="json") for item in sources],
+                },
+                deadline,
+            )
+            self.completed += 1
+            return
+        if operation == "component_update_validate":
+            try:
+                validated = self.provider.validate_update(command, deadline)
+            except AttributeError:
+                raise ComponentSnapshotWorkerError(
+                    "invalid_worker_result"
+                ) from None
+            if validated != command:
+                raise ComponentSnapshotWorkerError("invalid_worker_result")
+            _write_frame(
+                connection,
+                {
+                    "protocol": PROTOCOL,
+                    "requestId": request_id,
+                    "status": "validated",
+                    "commandDigest": validated.commandDigest,
+                    "sourceDigest": validated.sourceDigest,
+                    "targetManifestDigest": validated.targetManifestDigest,
                 },
                 deadline,
             )

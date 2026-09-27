@@ -14,9 +14,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from ..plugins.component_updates import (
+    ComponentUpdateCommand,
     ComponentUpdateError,
     InstalledComponentUpdateSource,
     verify_installed_update_source,
+    verify_update_command,
 )
 from .service import (
     MAX_COMPONENT_BYTES,
@@ -316,6 +318,60 @@ class ComponentSnapshotWorkerClient:
                 deadline,
             )
             return self._update_sources(_read_frame(connection, deadline), request_id)
+        except ComponentSnapshotWorkerError:
+            raise
+        except (OSError, TypeError, ValueError):
+            raise ComponentSnapshotWorkerError() from None
+        finally:
+            if connection is not None:
+                connection.close()
+            self._lock.release()
+
+    def validate_update(self, command, deadline):
+        """Bind one confirmed command to the worker's current authority view."""
+        now = time.monotonic()
+        if (
+            type(deadline) not in (int, float)
+            or type(deadline) is bool
+            or not now < deadline <= now + 5
+        ):
+            raise ComponentSnapshotWorkerError()
+        try:
+            command = verify_update_command(
+                ComponentUpdateCommand.model_validate_json(command.model_dump_json())
+            )
+        except (ComponentUpdateError, ValueError, TypeError, AttributeError):
+            raise ComponentSnapshotWorkerError("invalid_worker_result") from None
+        if not self._lock.acquire(timeout=_remaining(deadline)):
+            raise ComponentSnapshotWorkerError()
+        connection = None
+        request_id = uuid.uuid4().hex
+        try:
+            connection = self._connect(deadline)
+            _write_frame(
+                connection,
+                {
+                    "protocol": PROTOCOL,
+                    "requestId": request_id,
+                    "operation": "component_update_validate",
+                    "timeoutMilliseconds": max(
+                        1, min(5000, int(_remaining(deadline) * 1000))
+                    ),
+                    "command": command.model_dump(mode="json"),
+                },
+                deadline,
+            )
+            response = _read_frame(connection, deadline)
+            if response != {
+                "protocol": PROTOCOL,
+                "requestId": request_id,
+                "status": "validated",
+                "commandDigest": command.commandDigest,
+                "sourceDigest": command.sourceDigest,
+                "targetManifestDigest": command.targetManifestDigest,
+            }:
+                raise ComponentSnapshotWorkerError("invalid_worker_result")
+            return command
         except ComponentSnapshotWorkerError:
             raise
         except (OSError, TypeError, ValueError):
