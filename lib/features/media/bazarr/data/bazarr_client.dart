@@ -91,7 +91,10 @@ class BazarrClient {
 
   void _checkOk(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw MediaApiException('Request failed (${response.statusCode}).');
+      throw MediaApiException(
+        'Request failed (${response.statusCode}).',
+        statusCode: response.statusCode,
+      );
     }
   }
 
