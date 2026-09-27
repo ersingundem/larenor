@@ -351,6 +351,12 @@ class _RuntimeBackend:
         return self.media_playback.read_segments(
             authority, deadline=deadline, gate=gate)
 
+    def read_offline_media_chunk(self, authority, *, deadline, gate):
+        if self.media_playback is None:
+            raise ValueError('jellyfin_playback_worker_unavailable')
+        return self.media_playback.read_offline_chunk(
+            authority, deadline=deadline, gate=gate)
+
     def execute_media_playback(self, action, *, deadline, gate):
         if self.media_playback is None:
             raise ValueError('jellyfin_playback_worker_unavailable')

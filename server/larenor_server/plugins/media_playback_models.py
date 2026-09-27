@@ -304,3 +304,31 @@ class PrivateJellyfinMediaSegmentsAuthority(StrictModel):
 
     _version = field_validator('schemaVersion', mode='before')(
         _exact_schema_version)
+
+
+class OfflineMediaChunkReadback(StrictModel):
+    schemaVersion: Literal[1] = 1
+    itemId: ObjectId
+    offset: int = Field(ge=0, le=2**63 - 1)
+    contentLength: int = Field(ge=1, le=2**63 - 1)
+    contentType: str = Field(
+        min_length=1, max_length=128,
+        pattern=r'^[A-Za-z0-9!#$&^_.+\-/;= ]+$')
+    dataBase64: str = Field(min_length=4, max_length=44000,
+                            pattern=r'^[A-Za-z0-9+/]*={0,2}$')
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+
+class PrivateJellyfinOfflineMediaChunkAuthority(StrictModel):
+    schemaVersion: Literal[1] = 1
+    requestId: ObjectId
+    authority: PrivateMediaPlaybackAuthority
+    offset: int = Field(ge=0, le=2**63 - 1)
+    length: int = Field(ge=1, le=32 * 1024)
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)

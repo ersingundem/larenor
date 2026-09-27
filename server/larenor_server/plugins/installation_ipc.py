@@ -35,6 +35,8 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackWorkerResult,
     MediaSegmentsReadback,
+    OfflineMediaChunkReadback,
+    PrivateJellyfinOfflineMediaChunkAuthority,
     PrivateJellyfinMediaSegmentsAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
@@ -109,7 +111,7 @@ def _wire_jellyfin_playback(value=None, error=None):
         }
     if type(value) not in (
             MediaPlaybackReadback, MediaPlaybackWorkerResult,
-            MediaSegmentsReadback):
+            MediaSegmentsReadback, OfflineMediaChunkReadback):
         raise InstallationIPCError('invalid_worker_result')
     return {
         'state': 'succeeded',
@@ -997,6 +999,11 @@ class InstallationWorkerClient:
             'jellyfin_media_segments_read', authority,
             MediaSegmentsReadback, deadline, gate)
 
+    def read_offline_media_chunk(self, authority, *, deadline, gate):
+        return self._jellyfin_playback_exchange(
+            'jellyfin_offline_media_chunk_read', authority,
+            OfflineMediaChunkReadback, deadline, gate)
+
     def execute_media_playback(self, action, *, deadline, gate):
         return self._jellyfin_playback_exchange(
             'jellyfin_playback_execute', action, MediaPlaybackWorkerResult,
@@ -1042,6 +1049,7 @@ class InstallationWorkerClient:
         now = time.monotonic()
         if (type(private) not in (PrivateJellyfinPlaybackAuthority,
                                  PrivateJellyfinMediaSegmentsAuthority,
+                                 PrivateJellyfinOfflineMediaChunkAuthority,
                                  PrivateJellyfinPlaybackAction)
                 or type(deadline) not in (int, float)
                 or type(deadline) is bool or not math.isfinite(deadline)
@@ -1556,6 +1564,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 raise PreflightIPCError('invalid_request') from None
         if operation in {'jellyfin_playback_read',
                          'jellyfin_media_segments_read',
+                         'jellyfin_offline_media_chunk_read',
                          'jellyfin_playback_execute'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'private'}
@@ -1567,12 +1576,17 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     allow_nan=False)
                 reading = operation != 'jellyfin_playback_execute'
                 private_model = (
+                    PrivateJellyfinOfflineMediaChunkAuthority
+                    if operation == 'jellyfin_offline_media_chunk_read'
+                    else
                     PrivateJellyfinMediaSegmentsAuthority
                     if operation == 'jellyfin_media_segments_read'
                     else PrivateJellyfinPlaybackAuthority
                     if reading else PrivateJellyfinPlaybackAction)
                 private = private_model.model_validate_json(raw)
-                method = ('read_media_segments'
+                method = ('read_offline_media_chunk'
+                          if operation == 'jellyfin_offline_media_chunk_read'
+                          else 'read_media_segments'
                           if operation == 'jellyfin_media_segments_read'
                           else 'read_media_playback' if reading
                           else 'execute_media_playback')
@@ -1584,7 +1598,9 @@ class InstallationWorkerServer(PreflightWorkerServer):
                                   gate=lambda: time.monotonic() < deadline))
                 except JellyfinPlaybackExecutionError as error:
                     return _wire_jellyfin_playback(error=error)
-                expected = (MediaSegmentsReadback
+                expected = (OfflineMediaChunkReadback
+                            if operation == 'jellyfin_offline_media_chunk_read'
+                            else MediaSegmentsReadback
                             if operation == 'jellyfin_media_segments_read'
                             else MediaPlaybackReadback if reading
                             else MediaPlaybackWorkerResult)

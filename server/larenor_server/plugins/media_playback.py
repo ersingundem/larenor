@@ -14,12 +14,14 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackReceipt,
     MediaPlaybackWorkerResult,
+    OfflineMediaChunkReadback,
     MediaSegmentsAuthority,
     MediaSegmentsReadback,
     MediaSegmentsRequest,
     MediaSegmentsResponse,
     PrepareMediaPlaybackIntentRequest,
     PrivateJellyfinMediaSegmentsAuthority,
+    PrivateJellyfinOfflineMediaChunkAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
     PrivateMediaPlaybackAction,
@@ -124,6 +126,27 @@ class MediaPlaybackWorkerProvider:
                 apiKey=private.api_key),
             deadline=deadline, gate=retained)
         if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        return result
+
+    def read_offline_media_chunk(self, authority, *, request_id, offset,
+                                 length, deadline, gate):
+        reader = getattr(self.backend, 'read_offline_media_chunk', None)
+        if not callable(reader):
+            raise ValueError('media_playback_worker_unavailable')
+        private = self.bootstraps.playback_private(
+            authority.installationId, authority.installationRevision)
+        retained = lambda: self._retained(
+            authority.installationId, authority.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = reader(
+            PrivateJellyfinOfflineMediaChunkAuthority(
+                requestId=request_id, authority=authority, offset=offset,
+                length=length, plan=private.plan, apiKey=private.api_key),
+            deadline=deadline, gate=retained)
+        if retained() is not True or type(result) is not OfflineMediaChunkReadback:
             raise ValueError('media_playback_authority_changed')
         return result
 

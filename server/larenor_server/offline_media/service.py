@@ -1,20 +1,24 @@
 """Durable offline manifests bound to current account and media authority."""
 
+import base64
+import binascii
 import hashlib
 import hmac
 import json
+import time
 
 from pydantic import ValidationError
 
 from ..errors import ApiError, StartupError
 from ..plugins.media_playback_models import PrivateMediaPlaybackAuthority
 from .models import (CreateOfflineMediaRequest, OfflineMediaAuthority,
-                     OfflineMediaManifest, RevokeOfflineMediaRequest,
+                     OfflineMediaManifest, ReadOfflineMediaChunkRequest,
+                     RevokeOfflineMediaRequest,
                      UpdateOfflineMediaProgressRequest)
 
 MAX_GRANTS_PER_ACTOR = 32
 MAX_TTL = 7 * 24 * 60 * 60
-CHUNK_BYTES = 256 * 1024
+CHUNK_BYTES = 32 * 1024
 _FIELDS = (
     "id", "actor_id", "family_id", "actor_revision", "revision",
     "authority_json", "title", "content_length", "content_sha256",
@@ -176,6 +180,46 @@ class OfflineMediaService:
         with self.db.connection() as connection:
             return {"manifest": self._manifest(
                 self._owned(connection, actor, grant_id))}
+
+    def chunk(self, actor, grant_id, body):
+        if type(body) is not ReadOfflineMediaChunkRequest:
+            raise ApiError("invalid_request")
+        with self.db.connection() as connection:
+            row = self._owned(
+                connection, actor, grant_id, body.expectedRevision)
+            if (row["state"] == "complete"
+                    or body.offset != row["downloaded_bytes"]
+                    or body.offset >= row["content_length"]):
+                raise ApiError("offline_media_authority_changed", 409)
+            actor_revision = row["actor_revision"]
+            private = PrivateMediaPlaybackAuthority.model_validate_json(
+                row["authority_json"])
+            length = min(
+                row["chunk_bytes"], row["content_length"] - body.offset)
+        backend = self.media_playback.backend
+        reader = getattr(backend, "read_offline_media_chunk", None)
+        if not callable(reader):
+            raise ApiError("media_playback_worker_unavailable", 503)
+        deadline = time.monotonic() + 5
+        gate = lambda: (
+            time.monotonic() < deadline
+            and self.media_playback._gate(actor, private, actor_revision))
+        try:
+            result = reader(
+                private, request_id=body.requestId, offset=body.offset,
+                length=length, deadline=deadline, gate=gate)
+            if (gate() is not True or result.itemId != private.itemId
+                    or result.offset != body.offset
+                    or result.contentLength != row["content_length"]):
+                raise ValueError()
+            content = base64.b64decode(result.dataBase64, validate=True)
+            if not 1 <= len(content) <= length:
+                raise ValueError()
+        except ApiError:
+            raise
+        except (ValueError, TypeError, binascii.Error):
+            raise ApiError("media_playback_worker_unavailable", 503) from None
+        return content, result.contentType, row["content_sha256"]
 
     def progress(self, actor, grant_id, body):
         if type(body) is not UpdateOfflineMediaProgressRequest:

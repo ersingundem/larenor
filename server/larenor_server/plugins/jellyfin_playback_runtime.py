@@ -1,5 +1,6 @@
 """Strict Jellyfin remote-play protocol over preverified private streams."""
 
+import base64
 import hashlib
 import json
 import math
@@ -14,6 +15,7 @@ from ..services.transport import ProbeTransportError, _request_bytes
 from .jellyfin_startup import (
     JellyfinStartupError,
     _StartupReader,
+    _headers,
     _json,
     _response,
 )
@@ -21,6 +23,7 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
+    OfflineMediaChunkReadback,
     MediaSegment,
     MediaSegmentsReadback,
     PrivateMediaPlaybackAction,
@@ -441,6 +444,84 @@ class JellyfinPlaybackProtocol:
                 JellyfinPlaybackRuntimeError):
             return MediaSegmentsReadback(
                 supported=False, reason='contract_unsupported', segments=[])
+
+    @staticmethod
+    def _offline_range_request(connection, path, authorization, deadline,
+                               offset, length):
+        reader = _StartupReader(connection, deadline)
+        try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError()
+            connection.settimeout(remaining)
+            end = offset + length - 1
+            connection.sendall(_request_bytes(
+                'GET', path, 'jellyfin', {
+                    'Accept': 'application/octet-stream',
+                    'Authorization': authorization,
+                    'Range': f'bytes={offset}-{end}',
+                }, None,
+            ))
+            status, pairs = _headers(reader)
+            if status != 206:
+                raise ValueError()
+            headers = {}
+            for name, value in pairs:
+                if name in headers:
+                    raise ValueError()
+                headers[name] = value
+            if (set(headers) & {'transfer-encoding', 'content-encoding'}
+                    or 'content-length' not in headers
+                    or 'content-range' not in headers
+                    or 'content-type' not in headers):
+                raise ValueError()
+            content_length = headers['content-length']
+            if (re.fullmatch(r'[0-9]{1,20}', content_length) is None
+                    or not 1 <= int(content_length) <= length):
+                raise ValueError()
+            match = re.fullmatch(
+                r'bytes ([0-9]{1,20})-([0-9]{1,20})/([0-9]{1,20})',
+                headers['content-range'])
+            if match is None:
+                raise ValueError()
+            start, observed_end, total = map(int, match.groups())
+            size = int(content_length)
+            if (start != offset or observed_end != offset + size - 1
+                    or total < observed_end + 1 or total > 2**63 - 1):
+                raise ValueError()
+            content_type = headers['content-type']
+            if (not 1 <= len(content_type) <= 128
+                    or re.fullmatch(r'[A-Za-z0-9!#$&^_.+\-/;= ]+',
+                                    content_type) is None):
+                raise ValueError()
+            return reader.exact(size), total, content_type
+        except (OSError, ValueError, TypeError, ProbeTransportError,
+                socket.timeout):
+            raise JellyfinPlaybackRuntimeError() from None
+        finally:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    def read_offline_chunk(self, connection, *, api_key, installation_id,
+                           item_id, offset, length, deadline):
+        self._inputs(api_key, installation_id, deadline)
+        if (type(item_id) is not str or _ID.fullmatch(item_id) is None
+                or type(offset) is not int or type(offset) is bool or offset < 0
+                or type(length) is not int or type(length) is bool
+                or not 1 <= length <= 32 * 1024):
+            raise JellyfinPlaybackRuntimeError(
+                'invalid_jellyfin_playback_request')
+        authorization = _BASE_AUTH.format(
+            device=installation_id, token=api_key)
+        content, total, content_type = self._offline_range_request(
+            connection, f'/Items/{item_id}/Download', authorization,
+            deadline, offset, length)
+        return OfflineMediaChunkReadback(
+            itemId=item_id, offset=offset, contentLength=total,
+            contentType=content_type,
+            dataBase64=base64.b64encode(content).decode('ascii'))
 
     def execute(self, connections, action, *, api_key, deadline, gate):
         if (type(action) is not PrivateMediaPlaybackAction

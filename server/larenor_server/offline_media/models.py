@@ -80,3 +80,9 @@ class UpdateOfflineMediaProgressRequest(Versioned):
 class RevokeOfflineMediaRequest(Versioned):
     requestId: ObjectId
     expectedRevision: Revision
+
+
+class ReadOfflineMediaChunkRequest(Versioned):
+    requestId: ObjectId
+    expectedRevision: Revision
+    offset: int = Field(ge=0, le=2**63 - 1)

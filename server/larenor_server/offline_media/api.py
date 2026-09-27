@@ -1,13 +1,14 @@
 """Offline media manifest API."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from ..admin.models import ObjectId
 from ..auth import Principal
 from ..dependencies import get_core, require_ready_user
 from ..models import ErrorResponse
 from .models import (CreateOfflineMediaRequest, OfflineMediaManifestResponse,
+                     ReadOfflineMediaChunkRequest,
                      RevokeOfflineMediaRequest,
                      UpdateOfflineMediaProgressRequest)
 
@@ -29,6 +30,20 @@ def create(body: CreateOfflineMediaRequest, core: Core, actor: Ready):
 @router.get("/grants/{grant_id}", response_model=OfflineMediaManifestResponse)
 def get(grant_id: ObjectId, core: Core, actor: Ready):
     return core.offline_media.get(actor, grant_id)
+
+
+@router.post("/grants/{grant_id}/chunk")
+def chunk(grant_id: ObjectId, body: ReadOfflineMediaChunkRequest,
+          core: Core, actor: Ready):
+    content, content_type, digest = core.offline_media.chunk(
+        actor, grant_id, body)
+    return Response(content=content, media_type=content_type, headers={
+        "Content-Length": str(len(content)),
+        "X-Larenor-Content-Sha256": digest,
+        "X-Larenor-Chunk-Offset": str(body.offset),
+        "Cache-Control": "no-store",
+        "Accept-Ranges": "none",
+    })
 
 
 @router.post("/grants/{grant_id}/progress",
