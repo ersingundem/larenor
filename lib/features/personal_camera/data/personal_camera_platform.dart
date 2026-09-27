@@ -6,6 +6,9 @@ enum PersonalCameraFailure {
   cameraBusy,
   batteryCritical,
   thermalCritical,
+  profileExists,
+  profileStale,
+  enrollmentTimeout,
   unavailable,
 }
 
@@ -64,9 +67,26 @@ final class PersonalCameraCapabilities {
   final String performanceEvaluation;
 }
 
+final class PersonalFaceProfile {
+  const PersonalFaceProfile({
+    required this.id,
+    required this.createdAt,
+    required this.sampleCount,
+    required this.detectorVersion,
+  });
+
+  final String id;
+  final DateTime createdAt;
+  final int sampleCount;
+  final String detectorVersion;
+}
+
 abstract interface class PersonalCameraPlatform {
   Stream<PersonalCameraEvent> get events;
   Future<PersonalCameraCapabilities> capabilities();
+  Future<PersonalFaceProfile?> profile();
+  Future<PersonalFaceProfile> enroll(String sessionId);
+  Future<void> deleteProfile(String profileId);
   Future<PersonalCameraSession> open();
   Future<void> close(String sessionId);
 }
@@ -155,6 +175,74 @@ final class MethodChannelPersonalCameraPlatform
   }
 
   @override
+  Future<PersonalFaceProfile?> profile() async {
+    try {
+      final value = _map(
+        await _methods.invokeMethod<Object>('profile', const {
+          'schemaVersion': 1,
+        }),
+      );
+      if (value['exists'] == false) {
+        _exact(value, const {'schemaVersion', 'exists'});
+        if (_integer(value['schemaVersion']) != 1) {
+          throw const FormatException('Invalid personal face profile status');
+        }
+        return null;
+      }
+      return _profile(value);
+    } on PlatformException catch (error) {
+      throw PersonalCameraException(_failure(error.code));
+    } on MissingPluginException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    } on FormatException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    }
+  }
+
+  @override
+  Future<PersonalFaceProfile> enroll(String sessionId) async {
+    try {
+      final value = _map(
+        await _methods.invokeMethod<Object>('enroll', {
+          'schemaVersion': 1,
+          'sessionId': sessionId,
+        }),
+      );
+      return _profile(value);
+    } on PlatformException catch (error) {
+      throw PersonalCameraException(_failure(error.code));
+    } on MissingPluginException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    } on FormatException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    }
+  }
+
+  @override
+  Future<void> deleteProfile(String profileId) async {
+    try {
+      final value = _map(
+        await _methods.invokeMethod<Object>('deleteProfile', {
+          'schemaVersion': 1,
+          'profileId': profileId,
+        }),
+      );
+      _exact(value, const {'schemaVersion', 'profileId', 'deleted'});
+      if (_integer(value['schemaVersion']) != 1 ||
+          _identity(value['profileId']) != profileId ||
+          value['deleted'] != true) {
+        throw const FormatException('Invalid personal face profile deletion');
+      }
+    } on PlatformException catch (error) {
+      throw PersonalCameraException(_failure(error.code));
+    } on MissingPluginException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    } on FormatException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    }
+  }
+
+  @override
   Future<PersonalCameraSession> open() async {
     try {
       final value = _map(
@@ -221,8 +309,37 @@ final class MethodChannelPersonalCameraPlatform
     'cameraBusy' => PersonalCameraFailure.cameraBusy,
     'batteryCritical' => PersonalCameraFailure.batteryCritical,
     'thermalCritical' => PersonalCameraFailure.thermalCritical,
+    'profileExists' => PersonalCameraFailure.profileExists,
+    'profileStale' => PersonalCameraFailure.profileStale,
+    'enrollmentTimeout' => PersonalCameraFailure.enrollmentTimeout,
     _ => PersonalCameraFailure.unavailable,
   };
+
+  static PersonalFaceProfile _profile(Map<String, Object?> value) {
+    _exact(value, const {
+      'schemaVersion',
+      'exists',
+      'profileId',
+      'createdAtMs',
+      'sampleCount',
+      'detectorVersion',
+    });
+    final createdAtMs = _integer(value['createdAtMs']);
+    final sampleCount = _integer(value['sampleCount']);
+    if (_integer(value['schemaVersion']) != 1 ||
+        value['exists'] != true ||
+        createdAtMs <= 0 ||
+        sampleCount < 5 ||
+        sampleCount > 32) {
+      throw const FormatException('Invalid personal face profile');
+    }
+    return PersonalFaceProfile(
+      id: _identity(value['profileId']),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMs, isUtc: true),
+      sampleCount: sampleCount,
+      detectorVersion: _version(value['detectorVersion']),
+    );
+  }
 
   static Map<String, Object?> _map(Object? raw) {
     if (raw is! Map) throw const FormatException('Expected object');

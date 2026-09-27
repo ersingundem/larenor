@@ -3791,7 +3791,7 @@
   "personalCameraTitle": "Personal camera view",
   "personalCameraEntryHint": "Open the front camera only after an explicit action.",
   "personalCameraIntro": "Use the front camera as a local mirror while this page stays visible and active.",
-  "personalCameraPrivacy": "The preview stays on this device. Larenor does not capture, analyze, identify, save, log, or send frames. Leaving the page, backgrounding the app, or losing focus closes the camera.",
+  "personalCameraPrivacy": "The preview stays on this device. Larenor does not save, log, or send frames. During explicit profile enrollment only, temporary frames are analyzed on device and immediately discarded. Leaving the page, backgrounding the app, or losing focus closes the camera.",
   "personalCameraStart": "Open front camera",
   "personalCameraStop": "Close camera",
   "personalCameraLive": "Live local front camera preview",
@@ -3815,6 +3815,23 @@
   "personalCameraCapabilityDisabled": "Disabled",
   "personalCameraCapabilityEvaluation": "Performance evaluation",
   "personalCameraCapabilityPending": "Pending device evaluation",
+  "personalCameraProfileTitle": "Local face profile",
+  "personalCameraProfilePrivacy": "Enrollment requires an open foreground camera and exactly one well-lit, forward-facing face. Raw frames are discarded. Only an encrypted geometric template is retained under Android Keystore. It is for personalization, never authentication, administration, or health access.",
+  "personalCameraProfileEmpty": "No local face profile is registered.",
+  "personalCameraProfileReady": "Encrypted profile ready from {sampleCount} samples · {createdAt}",
+  "@personalCameraProfileReady": {
+    "placeholders": {
+      "sampleCount": {"type": "int"},
+      "createdAt": {"type": "String"}
+    }
+  },
+  "personalCameraProfileEnroll": "Enroll this face",
+  "personalCameraProfileDelete": "Delete face profile",
+  "personalCameraProfileDeleteTitle": "Delete local face profile?",
+  "personalCameraProfileDeletePrompt": "The encrypted template and its device key will be permanently removed.",
+  "personalCameraProfileExists": "A profile already exists. Delete it before enrolling another.",
+  "personalCameraProfileStale": "The profile changed before deletion. Reload and try again.",
+  "personalCameraEnrollmentTimeout": "Enrollment timed out. Keep one face centered, still, and well lit, then try again.",
   "kioskSensorsHint": "Observe ambient light, tablet movement, anonymous proximity, battery and thermal load only while this page is active. Local readings never execute automations or device commands.",
   "kioskSensorsPrivacy": "Only the latest bounded light, movement, proximity, battery and thermal values remain in memory. No image, face identity, audio, temperature, raw sensor history or command is created.",
   "kioskSensorsSensitivity": "Movement sensitivity",

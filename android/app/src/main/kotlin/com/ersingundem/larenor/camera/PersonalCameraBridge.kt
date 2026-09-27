@@ -12,6 +12,8 @@ import android.os.PowerManager
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -22,8 +24,16 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.util.UUID
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
+import kotlin.math.hypot
 
 /**
  * Owns one foreground-only front-camera preview.
@@ -46,6 +56,8 @@ class PersonalCameraBridge(
         private const val DETECTOR_ARTIFACT = "com.google.mlkit:face-detection"
         private const val DETECTOR_VERSION = "16.1.7"
         private const val TERMS_URL = "https://developers.google.com/ml-kit/terms"
+        private const val ENROLLMENT_SAMPLES = 8
+        private const val ENROLLMENT_TIMEOUT_MS = 20_000L
     }
 
     private data class Session(
@@ -55,14 +67,33 @@ class PersonalCameraBridge(
         val camera: Camera,
     )
 
+    private data class Enrollment(
+        val sessionId: String,
+        val result: MethodChannel.Result,
+        val samples: MutableList<List<Double>> = mutableListOf(),
+        var analysis: ImageAnalysis? = null,
+        var timeout: Runnable? = null,
+    )
+
     private val methods = MethodChannel(messenger, METHODS)
     private val events = EventChannel(messenger, EVENTS)
     private val main: Executor = ContextCompat.getMainExecutor(activity)
     private val power = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+    private val profiles = PersonalFaceProfileStore(activity)
+    private val analysisExecutor = Executors.newSingleThreadExecutor()
+    private val analysisBusy = AtomicBoolean(false)
+    private val detector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
+            .setMinFaceSize(0.25f)
+            .build(),
+    )
     private var sink: EventChannel.EventSink? = null
     private var provider: ProcessCameraProvider? = null
     private var session: Session? = null
     private var pendingPermission: MethodChannel.Result? = null
+    private var enrollment: Enrollment? = null
     private var resumed = false
     private var focused = false
     private var disposed = false
@@ -100,6 +131,12 @@ class PersonalCameraBridge(
         try {
             when (call.method) {
                 "capabilities" -> capabilities(exact(call.arguments, setOf("schemaVersion")), result)
+                "profile" -> profile(exact(call.arguments, setOf("schemaVersion")), result)
+                "enroll" -> enroll(exact(call.arguments, setOf("schemaVersion", "sessionId")), result)
+                "deleteProfile" -> deleteProfile(
+                    exact(call.arguments, setOf("schemaVersion", "profileId")),
+                    result,
+                )
                 "open" -> open(exact(call.arguments, setOf("schemaVersion")), result)
                 "close" -> close(exact(call.arguments, setOf("schemaVersion", "sessionId")), result)
                 else -> result.notImplemented()
@@ -109,6 +146,164 @@ class PersonalCameraBridge(
         } catch (_: RuntimeException) {
             fail(result, "unavailable")
         }
+    }
+
+    private fun profile(arguments: Map<String, Any?>, result: MethodChannel.Result) {
+        require(arguments["schemaVersion"] == SCHEMA_VERSION)
+        val value = profiles.load()
+        result.success(value?.let(::profileMap) ?: mapOf("schemaVersion" to SCHEMA_VERSION, "exists" to false))
+    }
+
+    private fun enroll(arguments: Map<String, Any?>, result: MethodChannel.Result) {
+        require(arguments["schemaVersion"] == SCHEMA_VERSION)
+        val sessionId = arguments["sessionId"] as? String ?: throw IllegalArgumentException()
+        val current = session
+        if (current == null || current.id != sessionId || !interactive()) return fail(result, "expired")
+        if (profiles.load() != null) return fail(result, "profileExists")
+        if (enrollment != null) return fail(result, "cameraBusy")
+        powerFailure()?.let { return fail(result, it) }
+        try {
+            val value = Enrollment(sessionId, result)
+            val analysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+            value.analysis = analysis
+            enrollment = value
+            analysis.setAnalyzer(analysisExecutor, ::analyzeEnrollmentFrame)
+            provider?.bindToLifecycle(
+                activity as LifecycleOwner,
+                CameraSelector.DEFAULT_FRONT_CAMERA,
+                analysis,
+            ) ?: throw IllegalStateException("camera_provider_missing")
+            val timeout = Runnable {
+                if (enrollment === value) stopEnrollment("enrollmentTimeout")
+            }
+            value.timeout = timeout
+            activity.window.decorView.postDelayed(timeout, ENROLLMENT_TIMEOUT_MS)
+        } catch (_: RuntimeException) {
+            if (enrollment == null) fail(result, "unavailable") else stopEnrollment("unavailable")
+        }
+    }
+
+    private fun deleteProfile(arguments: Map<String, Any?>, result: MethodChannel.Result) {
+        require(arguments["schemaVersion"] == SCHEMA_VERSION)
+        val profileId = arguments["profileId"] as? String ?: throw IllegalArgumentException()
+        if (enrollment != null) return fail(result, "cameraBusy")
+        if (!profiles.deleteVerified(profileId)) return fail(result, "profileStale")
+        result.success(
+            mapOf(
+                "schemaVersion" to SCHEMA_VERSION,
+                "profileId" to profileId,
+                "deleted" to true,
+            ),
+        )
+    }
+
+    private fun analyzeEnrollmentFrame(image: ImageProxy) {
+        val operation = enrollment
+        val mediaImage = image.image
+        if (operation == null || mediaImage == null || session?.id != operation.sessionId ||
+            !analysisBusy.compareAndSet(false, true)
+        ) {
+            image.close()
+            return
+        }
+        val input = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+        detector.process(input)
+            .addOnSuccessListener(main) { faces ->
+                if (enrollment !== operation || session?.id != operation.sessionId) return@addOnSuccessListener
+                faceVector(faces)?.let { vector ->
+                    operation.samples.add(vector)
+                    if (operation.samples.size >= ENROLLMENT_SAMPLES) completeEnrollment(operation)
+                }
+            }
+            .addOnFailureListener(main) {
+                if (enrollment === operation) stopEnrollment("unavailable")
+            }
+            .addOnCompleteListener {
+                analysisBusy.set(false)
+                image.close()
+            }
+    }
+
+    private fun faceVector(faces: List<Face>): List<Double>? {
+        val face = faces.singleOrNull() ?: return null
+        if (face.boundingBox.width() < 160 || face.boundingBox.height() < 160 ||
+            abs(face.headEulerAngleX) > 12f || abs(face.headEulerAngleY) > 12f ||
+            abs(face.headEulerAngleZ) > 12f
+        ) return null
+        val leftEye = face.getLandmark(com.google.mlkit.vision.face.FaceLandmark.LEFT_EYE)?.position
+            ?: return null
+        val rightEye = face.getLandmark(com.google.mlkit.vision.face.FaceLandmark.RIGHT_EYE)?.position
+            ?: return null
+        val points = listOf(
+            com.google.mlkit.vision.face.FaceLandmark.NOSE_BASE,
+            com.google.mlkit.vision.face.FaceLandmark.MOUTH_LEFT,
+            com.google.mlkit.vision.face.FaceLandmark.MOUTH_RIGHT,
+            com.google.mlkit.vision.face.FaceLandmark.LEFT_CHEEK,
+            com.google.mlkit.vision.face.FaceLandmark.RIGHT_CHEEK,
+        ).map { face.getLandmark(it)?.position ?: return null }
+        val dx = rightEye.x - leftEye.x
+        val dy = rightEye.y - leftEye.y
+        val eyeDistance = hypot(dx.toDouble(), dy.toDouble())
+        if (eyeDistance < 24.0) return null
+        val ux = dx / eyeDistance
+        val uy = dy / eyeDistance
+        val midX = (leftEye.x + rightEye.x) / 2.0
+        val midY = (leftEye.y + rightEye.y) / 2.0
+        val vector = mutableListOf<Double>()
+        points.forEach { point ->
+            val px = point.x - midX
+            val py = point.y - midY
+            vector += (px * ux + py * uy) / eyeDistance
+            vector += (-px * uy + py * ux) / eyeDistance
+        }
+        vector += face.boundingBox.width().toDouble() / face.boundingBox.height().toDouble()
+        return vector.takeIf { it.all(Double::isFinite) }
+    }
+
+    private fun completeEnrollment(operation: Enrollment) {
+        if (enrollment !== operation) return
+        val dimensions = operation.samples.first().size
+        val vector = List(dimensions) { index -> operation.samples.sumOf { it[index] } / operation.samples.size }
+        val profile = PersonalFaceProfile(
+            id = UUID.randomUUID().toString(),
+            createdAtMs = System.currentTimeMillis(),
+            sampleCount = operation.samples.size,
+            detectorVersion = DETECTOR_VERSION,
+            vector = vector,
+        )
+        try {
+            profiles.save(profile)
+            finishEnrollment(operation)
+            operation.result.success(profileMap(profile))
+        } catch (_: Exception) {
+            stopEnrollment("unavailable")
+        }
+    }
+
+    private fun profileMap(value: PersonalFaceProfile): Map<String, Any?> = mapOf(
+        "schemaVersion" to SCHEMA_VERSION,
+        "exists" to true,
+        "profileId" to value.id,
+        "createdAtMs" to value.createdAtMs,
+        "sampleCount" to value.sampleCount,
+        "detectorVersion" to value.detectorVersion,
+    )
+
+    private fun stopEnrollment(code: String) {
+        val operation = enrollment ?: return
+        finishEnrollment(operation)
+        fail(operation.result, code)
+    }
+
+    private fun finishEnrollment(operation: Enrollment) {
+        if (enrollment !== operation) return
+        enrollment = null
+        operation.timeout?.let { activity.window.decorView.removeCallbacks(it) }
+        operation.analysis?.clearAnalyzer()
+        operation.analysis?.let { analysis -> runCatching { provider?.unbind(analysis) } }
+        operation.analysis = null
     }
 
     private fun capabilities(arguments: Map<String, Any?>, result: MethodChannel.Result) {
@@ -247,6 +442,7 @@ class PersonalCameraBridge(
 
     private fun release(current: Session) {
         if (session?.id != current.id) return
+        stopEnrollment("expired")
         session = null
         current.camera.cameraInfo.cameraState.removeObservers(activity as LifecycleOwner)
         try {
@@ -353,6 +549,8 @@ class PersonalCameraBridge(
         disposed = true
         cancelPermission("unavailable")
         session?.let(::release)
+        detector.close()
+        analysisExecutor.shutdownNow()
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
         sink = null

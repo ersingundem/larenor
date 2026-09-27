@@ -35,6 +35,10 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
   bool _focused = true;
   bool _routeVisible = true;
   late final Future<PersonalCameraCapabilities> _capabilities;
+  PersonalFaceProfile? _profile;
+  PersonalCameraFailure? _profileFailure;
+  bool _profileLoaded = false;
+  bool _profileBusy = false;
 
   @override
   void initState() {
@@ -47,6 +51,97 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
       isCurrent: _current,
     )..addListener(_changed);
     _capabilities = widget.platform.capabilities();
+    unawaited(_loadProfile());
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final value = await widget.platform.profile();
+      if (!mounted) return;
+      setState(() {
+        _profile = value;
+        _profileLoaded = true;
+        _profileFailure = null;
+      });
+    } on PersonalCameraException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _profileLoaded = true;
+        _profileFailure = error.failure;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _profileLoaded = true;
+        _profileFailure = PersonalCameraFailure.unavailable;
+      });
+    }
+  }
+
+  Future<void> _enroll() async {
+    final session = _controller.session;
+    if (session == null || _profile != null || _profileBusy || !_current()) {
+      return;
+    }
+    setState(() {
+      _profileBusy = true;
+      _profileFailure = null;
+    });
+    try {
+      final value = await widget.platform.enroll(session.id);
+      if (!mounted || _controller.session?.id != session.id) return;
+      setState(() => _profile = value);
+    } on PersonalCameraException catch (error) {
+      if (mounted) setState(() => _profileFailure = error.failure);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _profileFailure = PersonalCameraFailure.unavailable);
+      }
+    } finally {
+      if (mounted) setState(() => _profileBusy = false);
+    }
+  }
+
+  Future<void> _confirmDeleteProfile() async {
+    final profile = _profile;
+    if (profile == null || _profileBusy) return;
+    final l = AppLocalizations.of(context);
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(l.personalCameraProfileDeleteTitle),
+        content: Text(l.personalCameraProfileDeletePrompt),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l.commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l.personalCameraProfileDelete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _profile?.id != profile.id) return;
+    setState(() {
+      _profileBusy = true;
+      _profileFailure = null;
+    });
+    try {
+      await widget.platform.deleteProfile(profile.id);
+      if (!mounted) return;
+      setState(() => _profile = null);
+    } on PersonalCameraException catch (error) {
+      if (mounted) setState(() => _profileFailure = error.failure);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _profileFailure = PersonalCameraFailure.unavailable);
+      }
+    } finally {
+      if (mounted) setState(() => _profileBusy = false);
+    }
   }
 
   bool _current() {
@@ -123,6 +218,10 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
     PersonalCameraFailure.cameraBusy => l.personalCameraBusy,
     PersonalCameraFailure.batteryCritical => l.personalCameraBatteryCritical,
     PersonalCameraFailure.thermalCritical => l.personalCameraThermalCritical,
+    PersonalCameraFailure.profileExists => l.personalCameraProfileExists,
+    PersonalCameraFailure.profileStale => l.personalCameraProfileStale,
+    PersonalCameraFailure.enrollmentTimeout =>
+      l.personalCameraEnrollmentTimeout,
     PersonalCameraFailure.unavailable => l.personalCameraUnavailable,
   };
 
@@ -243,6 +342,73 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
                         ],
                       );
                     },
+                  ),
+                  const SizedBox(height: 16),
+                  SettingsSection(
+                    header: Text(l.personalCameraProfileTitle),
+                    footer: Text(l.personalCameraProfilePrivacy),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                        child: !_profileLoaded
+                            ? const Center(child: CupertinoActivityIndicator())
+                            : Text(
+                                _profile == null
+                                    ? l.personalCameraProfileEmpty
+                                    : l.personalCameraProfileReady(
+                                        _profile!.sampleCount,
+                                        _profile!.createdAt
+                                            .toLocal()
+                                            .toIso8601String()
+                                            .substring(0, 16)
+                                            .replaceFirst('T', ' '),
+                                      ),
+                                style: AppText.body,
+                              ),
+                      ),
+                      if (_profileFailure case final profileFailure?)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                          child: Text(
+                            _failure(l, profileFailure) ??
+                                l.personalCameraUnavailable,
+                            style: TextStyle(
+                              color: CupertinoColors.systemRed.resolveFrom(
+                                context,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _profileBusy
+                            ? const Center(child: CupertinoActivityIndicator())
+                            : _profile == null
+                            ? CupertinoButton(
+                                key: const ValueKey(
+                                  'personal-camera-profile-enroll',
+                                ),
+                                onPressed:
+                                    session != null && active && _profileLoaded
+                                    ? _enroll
+                                    : null,
+                                child: Text(l.personalCameraProfileEnroll),
+                              )
+                            : CupertinoButton(
+                                key: const ValueKey(
+                                  'personal-camera-profile-delete',
+                                ),
+                                onPressed: _confirmDeleteProfile,
+                                child: Text(
+                                  l.personalCameraProfileDelete,
+                                  style: TextStyle(
+                                    color: CupertinoColors.systemRed
+                                        .resolveFrom(context),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
                   ),
                   if (!_foreground || !_focused || !_routeVisible)
                     Padding(
