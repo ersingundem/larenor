@@ -4,6 +4,7 @@ from .fusion import PresenceAutomationHandoff, RoomPresenceFusion
 from .repository import RoomPresenceRepository
 from .models import (
     PresenceAuthority,
+    PresenceCapability,
     PresenceAutomationCommand,
     PresenceDevice,
     PresenceEstimate,
@@ -16,6 +17,7 @@ from .models import (
 
 __all__ = [
     "PresenceAuthority",
+    "PresenceCapability",
     "PresenceAutomationCommand",
     "PresenceAutomationHandoff",
     "PresenceDevice",

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../domain/room_presence_management_models.dart';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
@@ -43,6 +45,7 @@ final class CoreRoomPresenceHttpApi implements RoomPresenceManagementApi {
     required int sessionRevision,
     required int routeRevision,
     required bool Function() isCurrent,
+    Random? random,
   }) => CoreRoomPresenceHttpApi._(
     api,
     token,
@@ -52,9 +55,10 @@ final class CoreRoomPresenceHttpApi implements RoomPresenceManagementApi {
     sessionRevision,
     routeRevision,
     isCurrent,
+    random ?? Random.secure(),
   );
 
-  const CoreRoomPresenceHttpApi._(
+  CoreRoomPresenceHttpApi._(
     this._api,
     this._token,
     this._context,
@@ -63,6 +67,7 @@ final class CoreRoomPresenceHttpApi implements RoomPresenceManagementApi {
     this._sessionRevision,
     this._routeRevision,
     this._isCurrent,
+    this._random,
   );
 
   final LarenorServerApi _api;
@@ -73,7 +78,10 @@ final class CoreRoomPresenceHttpApi implements RoomPresenceManagementApi {
   final int _sessionRevision;
   final int _routeRevision;
   final bool Function() _isCurrent;
+  final Random _random;
   String get _root => '/room-presence/${_context.coreId}/${_context.homeId}';
+  String _requestId() =>
+      List.generate(32, (_) => _random.nextInt(16).toRadixString(16)).join();
 
   void _active() {
     if (!_isCurrent()) throw const LarenorServerException('cancelled');
@@ -175,6 +183,7 @@ final class CoreRoomPresenceHttpApi implements RoomPresenceManagementApi {
           'expectedPolicyRevision': int.parse(expectedPolicyRevision),
           'expectedConsentRevision': int.parse(expectedConsentRevision),
           'expectedCalibrationRevision': int.parse(expectedCalibrationRevision),
+          'requestId': _requestId(),
         },
       ),
       authority,

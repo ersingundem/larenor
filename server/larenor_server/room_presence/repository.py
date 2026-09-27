@@ -20,7 +20,13 @@ from .management_models import (
     PresenceDeviceView,
     PresenceRouteBinding,
 )
-from .models import PresenceAuthority, PresenceEstimate, PresencePolicy
+from .models import (
+    PresenceAuthority,
+    PresenceCapability,
+    PresenceEstimate,
+    PresencePolicy,
+    PrivatePresenceSignal,
+)
 
 
 MAX_STATE_BYTES = 8 * 1024 * 1024
@@ -123,7 +129,7 @@ class RoomPresenceRepository:
             raise ValueError("invalid_room_presence_state")
         home_revisions = set()
         for device_id, record in devices.items():
-            if not isinstance(record, dict) or set(record) != {
+            if not isinstance(record, dict) or set(record) not in ({
                 "policy",
                 "deviceName",
                 "roomNames",
@@ -131,7 +137,16 @@ class RoomPresenceRepository:
                 "calibrationRevision",
                 "estimate",
                 "fusion",
-            }:
+            }, {
+                "policy",
+                "deviceName",
+                "roomNames",
+                "providerReachable",
+                "capability",
+                "calibrationRevision",
+                "estimate",
+                "fusion",
+            }):
                 raise ValueError("invalid_room_presence_state")
             policy = PresencePolicy.model_validate(record["policy"])
             if device_id != policy.device.deviceId or (
@@ -150,12 +165,84 @@ class RoomPresenceRepository:
                 self._safe_label(label)
             if type(record["providerReachable"]) is not bool:
                 raise ValueError("invalid_room_presence_state")
+            if "capability" in record:
+                capability = PresenceCapability.model_validate(record["capability"])
+                expected_kinds = {source.sourceKind for source in policy.sources}
+                if (
+                    set(capability.sourceKinds) != expected_kinds
+                    or capability.capabilityRevision != policy.policyRevision
+                    or capability.providerRevision
+                    != max(source.sourceRevision for source in policy.sources)
+                    or record["providerReachable"]
+                    != (capability.state != "unavailable")
+                ):
+                    raise ValueError("invalid_room_presence_state")
             calibration = record["calibrationRevision"]
             if type(calibration) is not int or not 1 <= calibration <= 2**63 - 1:
                 raise ValueError("invalid_room_presence_state")
-            PresenceEstimate.model_validate(record["estimate"])
+            estimate = PresenceEstimate.model_validate(record["estimate"])
+            exact_estimate = (
+                estimate.coreId,
+                estimate.homeId,
+                estimate.homeRevision,
+                estimate.deviceId,
+                estimate.deviceRevision,
+                estimate.modelId,
+                estimate.modelRevision,
+                estimate.policyId,
+                estimate.policyRevision,
+                estimate.consentId,
+                estimate.consentRevision,
+            ) == (
+                policy.coreId,
+                policy.homeId,
+                policy.homeRevision,
+                policy.device.deviceId,
+                policy.device.deviceRevision,
+                policy.device.modelId,
+                policy.device.modelRevision,
+                policy.policyId,
+                policy.policyRevision,
+                policy.device.consentId,
+                policy.device.consentRevision,
+            )
+            rooms = {room.roomId: room for room in policy.rooms}
+            if not exact_estimate or (
+                estimate.roomId is not None
+                and (
+                    estimate.roomId not in rooms
+                    or rooms[estimate.roomId].roomRevision != estimate.roomRevision
+                )
+            ):
+                raise ValueError("invalid_room_presence_state")
             engine = self._engine(policy)
             engine.restore_state(record["fusion"])
+            fusion = engine.snapshot_state()
+            expected_scope = [
+                policy.coreId,
+                policy.homeId,
+                policy.homeRevision,
+                policy.policyId,
+                policy.policyRevision,
+                policy.device.deviceId,
+                policy.device.deviceRevision,
+                policy.device.modelId,
+                policy.device.modelRevision,
+                policy.device.consentId,
+                policy.device.consentRevision,
+            ]
+            if fusion["boundScope"] not in (None, expected_scope):
+                raise ValueError("invalid_room_presence_state")
+            if (
+                fusion["currentRoom"] is not None
+                and fusion["currentRoom"] not in rooms
+            ) or (
+                fusion["candidateRoom"] is not None
+                and fusion["candidateRoom"] not in rooms
+            ):
+                raise ValueError("invalid_room_presence_state")
+            if fusion["transitionRevision"] != estimate.transitionRevision:
+                raise ValueError("invalid_room_presence_state")
         if len(home_revisions) > 1:
             raise ValueError("invalid_room_presence_state")
         for request_id, raw in previews.items():
@@ -233,6 +320,39 @@ class RoomPresenceRepository:
             policyResolver=lambda policy_id: (
                 policy if policy_id == policy.policyId else None
             ),
+        )
+
+    @staticmethod
+    def _initial_capability(policy, reachable):
+        kinds = sorted({source.sourceKind for source in policy.sources})
+        return PresenceCapability(
+            schemaVersion=1,
+            capabilityRevision=policy.policyRevision,
+            providerRevision=max(source.sourceRevision for source in policy.sources),
+            sourceKinds=kinds,
+            state="stale" if reachable else "unavailable",
+            lastObservationAtMs=None,
+            freshnessDeadlineMs=None,
+            absenceProven=False,
+        )
+
+    def _capability(self, record, policy):
+        raw = record.get("capability")
+        if raw is not None:
+            return PresenceCapability.model_validate(raw)
+        estimate = PresenceEstimate.model_validate(record["estimate"])
+        reachable = record["providerReachable"]
+        initial = self._initial_capability(policy, reachable)
+        if not reachable or estimate.observedAtMs <= 0:
+            return initial
+        return initial.model_copy(
+            update={
+                "state": "ready",
+                "lastObservationAtMs": estimate.observedAtMs,
+                "freshnessDeadlineMs": (
+                    estimate.observedAtMs + policy.maxSignalAgeMs
+                ),
+            }
         )
 
     def _authority_for_fusion(self, principal, row, policy):
@@ -398,6 +518,9 @@ class RoomPresenceRepository:
                 "deviceName": name,
                 "roomNames": names,
                 "providerReachable": provider_reachable,
+                "capability": self._initial_capability(
+                    policy, provider_reachable
+                ).model_dump(mode="json"),
                 "calibrationRevision": 1,
                 "estimate": estimate.model_dump(mode="json"),
                 "fusion": engine.snapshot_state(),
@@ -424,6 +547,8 @@ class RoomPresenceRepository:
             if record is None:
                 raise ApiError("not_found", 404)
             policy = PresencePolicy.model_validate(record["policy"])
+            if not record["providerReachable"]:
+                raise ApiError("presence_provider_unavailable", 503)
             engine = self._engine(policy)
             engine.restore_state(record["fusion"])
             authority = self._authority_for_fusion(principal, row, policy)
@@ -432,6 +557,30 @@ class RoomPresenceRepository:
             )
             before = self._state["revision"]
             estimate = engine.fuse(authority, policy, raw_signals, nowMs=now_ms)
+            signals = [PrivatePresenceSignal.model_validate(item) for item in raw_signals]
+            fresh = [
+                signal
+                for signal in signals
+                if signal.observedAtMs <= now_ms
+                and now_ms - signal.observedAtMs <= policy.maxSignalAgeMs
+            ]
+            previous_capability = self._capability(record, policy)
+            last_observation = (
+                max(signal.observedAtMs for signal in fresh)
+                if fresh
+                else previous_capability.lastObservationAtMs
+            )
+            record["capability"] = previous_capability.model_copy(
+                update={
+                    "state": "ready" if fresh else "stale",
+                    "lastObservationAtMs": last_observation,
+                    "freshnessDeadlineMs": (
+                        None
+                        if last_observation is None
+                        else last_observation + policy.maxSignalAgeMs
+                    ),
+                }
+            ).model_dump(mode="json")
             record["estimate"] = estimate.model_dump(mode="json")
             record["fusion"] = engine.snapshot_state()
             self._state["revision"] = before + 1
@@ -452,6 +601,7 @@ class RoomPresenceRepository:
     def _view(self, authority, record):
         policy = PresencePolicy.model_validate(record["policy"])
         estimate = PresenceEstimate.model_validate(record["estimate"])
+        capability = self._capability(record, policy)
         configured = next(
             (
                 room
@@ -461,7 +611,7 @@ class RoomPresenceRepository:
             policy.rooms[0],
         )
         return PresenceDeviceView(
-            schemaVersion=1,
+            schemaVersion=2,
             authority=authority,
             deviceId=policy.device.deviceId,
             deviceName=record["deviceName"],
@@ -484,6 +634,13 @@ class RoomPresenceRepository:
             observedAtMs=estimate.observedAtMs,
             stored=True,
             providerReachable=record["providerReachable"],
+            providerState=capability.state,
+            capabilityRevision=capability.capabilityRevision,
+            providerRevision=capability.providerRevision,
+            sourceKinds=capability.sourceKinds,
+            lastObservationAtMs=capability.lastObservationAtMs,
+            freshnessDeadlineMs=capability.freshnessDeadlineMs,
+            absenceProven=False,
             advisoryOnly=True,
             grantsAccess=False,
         )
@@ -549,9 +706,31 @@ class RoomPresenceRepository:
                 actual != expected
                 or not policy.active
                 or not policy.device.consentActive
+                or self._capability(record, policy).state != "ready"
             ):
                 raise ApiError("revision_conflict", 409)
             now_ms = int(self.settings.clock() * 1000)
+            if command.requestId is not None:
+                replay = self._state["previews"].get(command.requestId)
+                if replay is not None:
+                    value = CalibrationPreview.model_validate(replay)
+                    exact_replay = (
+                        value.authority == authority
+                        and value.deviceId == command.deviceId
+                        and value.deviceRevision == command.expectedDeviceRevision
+                        and value.modelRevision == command.expectedModelRevision
+                        and value.roomId == command.roomId
+                        and value.roomRevision == command.expectedRoomRevision
+                        and value.policyRevision == command.expectedPolicyRevision
+                        and value.consentRevision == command.expectedConsentRevision
+                        and value.previousCalibrationRevision
+                        == command.expectedCalibrationRevision
+                    )
+                    if not exact_replay:
+                        raise ApiError("idempotency_conflict", 409)
+                    return value
+                if command.requestId in self._state["receipts"]:
+                    raise ApiError("idempotency_conflict", 409)
             self._state["previews"] = {
                 key: value
                 for key, value in self._state["previews"].items()
@@ -559,7 +738,7 @@ class RoomPresenceRepository:
             }
             if len(self._state["previews"]) >= MAX_RECEIPTS:
                 raise ApiError("revision_conflict", 409)
-            request_id = secrets.token_hex(16)
+            request_id = command.requestId or secrets.token_hex(16)
             preview = CalibrationPreview(
                 schemaVersion=1,
                 authority=authority,
@@ -593,7 +772,11 @@ class RoomPresenceRepository:
         self.auth.rate_limit([("room_presence_write", principal.id, 30)])
         with self._lock:
             self._sync()
-            self._verify_authority(principal, preview.authority)
+            _authority, actor_row = self._verify_authority(
+                principal, preview.authority
+            )
+            if actor_row["role"] != "admin":
+                raise ApiError("forbidden", 403)
             stored = self._state["previews"].get(request_id)
             if stored is None or CalibrationPreview.model_validate(stored) != preview:
                 raise ApiError("idempotency_conflict", 409)
@@ -627,7 +810,12 @@ class RoomPresenceRepository:
                 preview.consentRevision,
                 preview.previousCalibrationRevision,
             )
-            if not exact or not policy.active or not policy.device.consentActive:
+            if (
+                not exact
+                or not policy.active
+                or not policy.device.consentActive
+                or self._capability(record, policy).state != "ready"
+            ):
                 raise ApiError("revision_conflict", 409)
             receipt = CalibrationReceipt(
                 schemaVersion=1,

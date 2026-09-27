@@ -53,6 +53,36 @@ class PresenceSource(FrozenModel):
     sourceRevision: Revision
 
 
+class PresenceCapability(FrozenModel):
+    """Secret-free proof that a local provider can produce current signals."""
+
+    schemaVersion: Literal[1]
+    capabilityRevision: Revision
+    providerRevision: Revision
+    sourceKinds: list[Literal["ha_person", "ha_device_tracker", "ble", "uwb"]] = (
+        Field(min_length=1, max_length=4)
+    )
+    state: Literal["ready", "degraded", "stale", "unavailable"]
+    lastObservationAtMs: TimestampMs | None
+    freshnessDeadlineMs: TimestampMs | None
+    absenceProven: Literal[False] = False
+
+    @model_validator(mode="after")
+    def coherent_capability(self):
+        if len(self.sourceKinds) != len(set(self.sourceKinds)):
+            raise ValueError("duplicate_source_kind")
+        paired = self.lastObservationAtMs is not None and self.freshnessDeadlineMs is not None
+        if (self.lastObservationAtMs is None) != (self.freshnessDeadlineMs is None):
+            raise ValueError("invalid_freshness")
+        if paired and self.freshnessDeadlineMs < self.lastObservationAtMs:
+            raise ValueError("invalid_freshness")
+        if self.state == "ready" and not paired:
+            raise ValueError("freshness_required")
+        if self.state == "unavailable" and paired:
+            raise ValueError("unavailable_has_observation")
+        return self
+
+
 class PresencePolicy(FrozenModel):
     schemaVersion: Literal[1]
     coreId: Identity

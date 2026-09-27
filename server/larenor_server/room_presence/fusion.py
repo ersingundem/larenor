@@ -170,7 +170,7 @@ class RoomPresenceFusion:
             raise ApiError("not_found", 404)
         if type(nowMs) is not int or nowMs < 0 or not isinstance(rawSignals, list):
             raise ApiError("invalid_request")
-        if not 1 <= len(rawSignals) <= 64:
+        if not 0 <= len(rawSignals) <= 64:
             raise ApiError("invalid_request")
         try:
             signals = [
@@ -198,6 +198,8 @@ class RoomPresenceFusion:
         if self._bound_scope is not None and self._bound_scope != exact_scope:
             raise ApiError("scope_mismatch", 409)
         for signal in signals:
+            if signal.observedAtMs > nowMs:
+                raise ApiError("invalid_request")
             room = rooms.get(signal.roomId)
             source = sources.get(signal.sourceId)
             if room is None or source is None:

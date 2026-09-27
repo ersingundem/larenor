@@ -32,7 +32,7 @@ class PresenceAuthorityRequest(FrozenModel):
 
 
 class PresenceDeviceView(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     authority: PresenceClientAuthority
     deviceId: Identity
     deviceName: str = Field(min_length=1, max_length=80)
@@ -55,6 +55,15 @@ class PresenceDeviceView(FrozenModel):
     observedAtMs: int = Field(ge=0, le=2**63 - 1)
     stored: Literal[True] = True
     providerReachable: bool
+    providerState: Literal["ready", "degraded", "stale", "unavailable"]
+    capabilityRevision: Revision
+    providerRevision: Revision
+    sourceKinds: list[Literal["ha_person", "ha_device_tracker", "ble", "uwb"]] = Field(
+        min_length=1, max_length=4
+    )
+    lastObservationAtMs: int | None = Field(default=None, ge=0, le=2**63 - 1)
+    freshnessDeadlineMs: int | None = Field(default=None, ge=0, le=2**63 - 1)
+    absenceProven: Literal[False]
     advisoryOnly: Literal[True] = True
     grantsAccess: Literal[False] = False
 
@@ -81,6 +90,18 @@ class PresenceDeviceView(FrozenModel):
             self.confidencePermille != 0 or self.sampleCount != 0
         ):
             raise ValueError("invalid_unknown_state")
+        if len(self.sourceKinds) != len(set(self.sourceKinds)):
+            raise ValueError("duplicate_source_kind")
+        if (self.lastObservationAtMs is None) != (self.freshnessDeadlineMs is None):
+            raise ValueError("invalid_freshness")
+        if self.providerReachable != (self.providerState != "unavailable"):
+            raise ValueError("invalid_provider_state")
+        if self.providerState == "ready" and self.freshnessDeadlineMs is None:
+            raise ValueError("freshness_required")
+        if self.providerState == "unavailable" and (
+            self.providerReachable or self.lastObservationAtMs is not None
+        ):
+            raise ValueError("invalid_provider_state")
         return self
 
 
@@ -101,6 +122,7 @@ class CalibrationPreviewCommand(FrozenModel):
     expectedPolicyRevision: Revision
     expectedConsentRevision: Revision
     expectedCalibrationRevision: Revision
+    requestId: Identity | None = None
 
 
 class CalibrationPreview(FrozenModel):

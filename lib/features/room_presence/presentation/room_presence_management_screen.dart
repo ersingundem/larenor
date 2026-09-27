@@ -41,8 +41,30 @@ final class _PresenceStrings {
   String get reachable => tr ? 'Kaynak erişilebilir' : 'Provider reachable';
   String get unreachable =>
       tr ? 'Kaynağa erişilemiyor' : 'Provider unreachable';
+  String get staleSource =>
+      tr ? 'Kaynak verisi güncel değil' : 'Provider evidence is not current';
+  String get degradedSource =>
+      tr ? 'Kaynak sınırlı çalışıyor' : 'Provider is degraded';
   String get consent => tr ? 'İzin etkin' : 'Consent active';
   String get noConsent => tr ? 'İzin kapalı' : 'Consent inactive';
+  String get noAbsenceProof => tr
+      ? 'Sinyal olmaması odanın boş olduğunu kanıtlamaz.'
+      : 'Missing signals do not prove that the room is empty.';
+  String sourceKinds(List<String> values) {
+    final labels = values.map(
+      (value) => switch (value) {
+        'ble' => 'BLE',
+        'uwb' => 'UWB',
+        'ha_person' => 'Home Assistant person',
+        'ha_device_tracker' => 'Home Assistant device tracker',
+        _ => value,
+      },
+    );
+    return tr
+        ? 'Yerel kaynak: ${labels.join(', ')}'
+        : 'Local source: ${labels.join(', ')}';
+  }
+
   String state(PresenceEvidenceState value) => switch (value) {
     PresenceEvidenceState.unknown => tr ? 'Bilinmiyor' : 'Unknown',
     PresenceEvidenceState.candidate => tr ? 'Aday sinyal' : 'Candidate signal',
@@ -60,12 +82,14 @@ final class _PresenceStrings {
       : 'Core revalidates the room, device, policy, consent, and session revisions. Success requires a fresh readback.';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Onayla' : 'Confirm';
-  String semantics(RoomPresenceEvidence value) =>
+  String semantics(RoomPresenceEvidence value, DateTime now) =>
       '${value.deviceName}. ${value.configuredRoomName}. '
       '${value.stored ? stored : notStored}. '
-      '${value.providerReachable ? reachable : unreachable}. '
-      '${value.consentActive ? consent : noConsent}. ${state(value.state)}. '
-      '${confidence(value.confidencePermille)}. $advisory. $noHistory';
+      '${value.sourceFreshAt(now) ? reachable : staleSource}. '
+      '${value.consentActive ? consent : noConsent}. '
+      '${state(value.effectiveStateAt(now))}. '
+      '${confidence(value.confidencePermille)}. $advisory. $noHistory. '
+      '$noAbsenceProof';
 }
 
 class RoomPresenceManagementScreen extends StatefulWidget {
@@ -214,11 +238,7 @@ class _RoomPresenceManagementScreenState
                         child: _EvidenceSection(
                           value: value,
                           strings: strings,
-                          enabled:
-                              controller.canAct &&
-                              value.stored &&
-                              value.providerReachable &&
-                              value.consentActive,
+                          enabled: controller.canCalibrate(value),
                           onCalibrate: _calibrate,
                         ),
                       ),
@@ -301,77 +321,100 @@ class _EvidenceSection extends StatelessWidget {
   final ValueChanged<RoomPresenceEvidence> onCalibrate;
 
   @override
-  Widget build(BuildContext context) => SettingsSection(
-    header: Text(value.configuredRoomName),
-    children: [
-      Semantics(
-        key: ValueKey('presence-state-${value.deviceId}'),
-        container: true,
-        readOnly: true,
-        label: strings.semantics(value),
-        child: ExcludeSemantics(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value.deviceName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    _EvidenceLabel(
-                      icon: value.providerReachable
-                          ? CupertinoIcons.antenna_radiowaves_left_right
-                          : CupertinoIcons.exclamationmark_circle,
-                      label: value.providerReachable
-                          ? strings.reachable
-                          : strings.unreachable,
-                    ),
-                    _EvidenceLabel(
-                      icon: value.consentActive
-                          ? CupertinoIcons.hand_raised_fill
-                          : CupertinoIcons.hand_raised,
-                      label: value.consentActive
-                          ? strings.consent
-                          : strings.noConsent,
-                    ),
-                    _EvidenceLabel(
-                      icon: value.state == PresenceEvidenceState.present
-                          ? CupertinoIcons.location_fill
-                          : CupertinoIcons.location,
-                      label: strings.state(value.state),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(strings.confidence(value.confidencePermille)),
-                const SizedBox(height: 6),
-                Text(strings.advisory),
-                const SizedBox(height: 6),
-                Text(
-                  strings.noHistory,
-                  style: TextStyle(
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+  Widget build(BuildContext context) {
+    final now = DateTime.now().toUtc();
+    final effectiveState = value.effectiveStateAt(now);
+    final sourceFresh = value.sourceFreshAt(now);
+    final sourceLabel = switch (value.providerState) {
+      PresenceProviderState.degraded => strings.degradedSource,
+      PresenceProviderState.unavailable => strings.unreachable,
+      _ => sourceFresh ? strings.reachable : strings.staleSource,
+    };
+    return SettingsSection(
+      header: Text(value.configuredRoomName),
+      children: [
+        Semantics(
+          key: ValueKey('presence-state-${value.deviceId}'),
+          container: true,
+          readOnly: true,
+          label: strings.semantics(value, now),
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value.deviceName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _EvidenceLabel(
+                        icon: sourceFresh
+                            ? CupertinoIcons.antenna_radiowaves_left_right
+                            : CupertinoIcons.exclamationmark_circle,
+                        label: sourceLabel,
+                      ),
+                      _EvidenceLabel(
+                        icon: value.consentActive
+                            ? CupertinoIcons.hand_raised_fill
+                            : CupertinoIcons.hand_raised,
+                        label: value.consentActive
+                            ? strings.consent
+                            : strings.noConsent,
+                      ),
+                      _EvidenceLabel(
+                        icon: effectiveState == PresenceEvidenceState.present
+                            ? CupertinoIcons.location_fill
+                            : CupertinoIcons.location,
+                        label: strings.state(effectiveState),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(strings.confidence(value.confidencePermille)),
+                  const SizedBox(height: 6),
+                  Text(strings.advisory),
+                  if (value.sourceKinds.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(strings.sourceKinds(value.sourceKinds)),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.noHistory,
+                    style: TextStyle(
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.noAbsenceProof,
+                    style: TextStyle(
+                      color: CupertinoColors.secondaryLabel.resolveFrom(
+                        context,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-      SettingsActionTile(
-        buttonKey: ValueKey('presence-calibrate-${value.deviceId}'),
-        title: Text(strings.calibrate),
-        leading: const Icon(CupertinoIcons.scope),
-        onTap: enabled ? () => onCalibrate(value) : null,
-      ),
-    ],
-  );
+        SettingsActionTile(
+          buttonKey: ValueKey('presence-calibrate-${value.deviceId}'),
+          title: Text(strings.calibrate),
+          leading: const Icon(CupertinoIcons.scope),
+          onTap: enabled ? () => onCalibrate(value) : null,
+        ),
+      ],
+    );
+  }
 }
 
 class _EvidenceLabel extends StatelessWidget {

@@ -183,6 +183,8 @@ enum PresenceEvidenceState { unknown, candidate, uncertain, present }
 
 enum PresenceCalibrationStatus { applied, rejected, uncertain }
 
+enum PresenceProviderState { legacy, ready, degraded, stale, unavailable }
+
 /// Secret-free projection of Core evidence. Raw BLE/UWB identifiers and
 /// per-observation history have no place in this public Client model.
 @immutable
@@ -210,13 +212,24 @@ final class RoomPresenceEvidence {
     required this.observedAt,
     required this.stored,
     required this.providerReachable,
+    this.providerState = PresenceProviderState.legacy,
+    this.capabilityRevision,
+    this.providerRevision,
+    this.sourceKinds = const [],
+    this.lastObservationAt,
+    this.freshnessDeadline,
+    this.absenceProven = false,
   });
 
   factory RoomPresenceEvidence.fromJson(
     Object? raw,
     RoomPresenceClientAuthority authority,
   ) {
-    final value = _object(raw, const {
+    if (raw is! Map) {
+      throw const FormatException('invalid room presence evidence');
+    }
+    final schemaVersion = raw['schemaVersion'];
+    const legacyKeys = {
       'schemaVersion',
       'authority',
       'deviceId',
@@ -242,8 +255,20 @@ final class RoomPresenceEvidence {
       'providerReachable',
       'advisoryOnly',
       'grantsAccess',
-    });
-    if (value['schemaVersion'] != 1 ||
+    };
+    const currentKeys = {
+      ...legacyKeys,
+      'providerState',
+      'capabilityRevision',
+      'providerRevision',
+      'sourceKinds',
+      'lastObservationAtMs',
+      'freshnessDeadlineMs',
+      'absenceProven',
+    };
+    final modern = schemaVersion == 2;
+    final value = _object(raw, modern ? currentKeys : legacyKeys);
+    if ((!modern && value['schemaVersion'] != 1) ||
         value['authority'] is! Map ||
         !mapEquals(
           (value['authority'] as Map).cast<String, dynamic>(),
@@ -253,8 +278,33 @@ final class RoomPresenceEvidence {
         value['stored'] != true ||
         value['providerReachable'] is! bool ||
         value['advisoryOnly'] != true ||
-        value['grantsAccess'] != false) {
+        value['grantsAccess'] != false ||
+        (modern && value['absenceProven'] != false)) {
       throw const FormatException('invalid room presence evidence');
+    }
+    final providerState = modern
+        ? switch (value['providerState']) {
+            'ready' => PresenceProviderState.ready,
+            'degraded' => PresenceProviderState.degraded,
+            'stale' => PresenceProviderState.stale,
+            'unavailable' => PresenceProviderState.unavailable,
+            _ => throw const FormatException('invalid provider state'),
+          }
+        : PresenceProviderState.legacy;
+    final sourceKinds = modern ? value['sourceKinds'] : const <Object?>[];
+    if (sourceKinds is! List ||
+        sourceKinds.length > 4 ||
+        (modern && sourceKinds.isEmpty) ||
+        sourceKinds.any(
+          (item) => !const {
+            'ha_person',
+            'ha_device_tracker',
+            'ble',
+            'uwb',
+          }.contains(item),
+        ) ||
+        sourceKinds.toSet().length != sourceKinds.length) {
+      throw const FormatException('invalid provider sources');
     }
     final state = switch (value['state']) {
       'unknown' => PresenceEvidenceState.unknown,
@@ -281,6 +331,15 @@ final class RoomPresenceEvidence {
     }
     final detectedId = value['detectedRoomId'];
     final detectedRevision = value['detectedRoomRevision'];
+    DateTime? optionalTime(String key) {
+      final raw = value[key];
+      if (raw == null) return null;
+      if (raw is! int || raw < 0 || raw > 9223372036854775807) {
+        throw const FormatException('invalid provider freshness');
+      }
+      return DateTime.fromMillisecondsSinceEpoch(raw, isUtc: true);
+    }
+
     final result = RoomPresenceEvidence(
       authority: authority,
       deviceId: _identity(value['deviceId']),
@@ -306,6 +365,15 @@ final class RoomPresenceEvidence {
       observedAt: DateTime.fromMillisecondsSinceEpoch(observed, isUtc: true),
       stored: true,
       providerReachable: value['providerReachable'] as bool,
+      providerState: providerState,
+      capabilityRevision: modern
+          ? _revision(value['capabilityRevision'])
+          : null,
+      providerRevision: modern ? _revision(value['providerRevision']) : null,
+      sourceKinds: List<String>.unmodifiable(sourceKinds.cast<String>()),
+      lastObservationAt: modern ? optionalTime('lastObservationAtMs') : null,
+      freshnessDeadline: modern ? optionalTime('freshnessDeadlineMs') : null,
+      absenceProven: false,
     );
     return result;
   }
@@ -332,6 +400,11 @@ final class RoomPresenceEvidence {
   final DateTime observedAt;
   final bool stored;
   final bool providerReachable;
+  final PresenceProviderState providerState;
+  final String? capabilityRevision, providerRevision;
+  final List<String> sourceKinds;
+  final DateTime? lastObservationAt, freshnessDeadline;
+  final bool absenceProven;
 
   bool get advisoryOnly => true;
   bool get grantsAccess => false;
@@ -360,7 +433,24 @@ final class RoomPresenceEvidence {
         observedAt: observedAt,
         stored: stored,
         providerReachable: providerReachable,
+        providerState: providerState,
+        capabilityRevision: capabilityRevision,
+        providerRevision: providerRevision,
+        sourceKinds: sourceKinds,
+        lastObservationAt: lastObservationAt,
+        freshnessDeadline: freshnessDeadline,
+        absenceProven: absenceProven,
       );
+
+  bool sourceFreshAt(DateTime now) {
+    if (!providerReachable || !consentActive) return false;
+    if (providerState == PresenceProviderState.legacy) return true;
+    return providerState == PresenceProviderState.ready &&
+        (freshnessDeadline?.isAfter(now.toUtc()) ?? false);
+  }
+
+  PresenceEvidenceState effectiveStateAt(DateTime now) =>
+      sourceFreshAt(now) ? state : PresenceEvidenceState.unknown;
 
   bool isCoherentAt(DateTime now) {
     if (!authority.isBounded ||
@@ -382,6 +472,19 @@ final class RoomPresenceEvidence {
         sampleCount > 64 ||
         observedAt.isAfter(now.add(const Duration(minutes: 5)))) {
       return false;
+    }
+    if (absenceProven) return false;
+    if (providerState != PresenceProviderState.legacy) {
+      if (capabilityRevision == null ||
+          providerRevision == null ||
+          sourceKinds.isEmpty ||
+          (lastObservationAt == null) != (freshnessDeadline == null) ||
+          (providerState == PresenceProviderState.ready &&
+              freshnessDeadline == null) ||
+          (providerState == PresenceProviderState.unavailable &&
+              (providerReachable || lastObservationAt != null))) {
+        return false;
+      }
     }
     final detected = detectedRoomId != null && detectedRoomRevision != null;
     if ((detectedRoomId == null) != (detectedRoomRevision == null)) {

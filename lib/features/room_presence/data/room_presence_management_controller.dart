@@ -36,6 +36,12 @@ final class RoomPresenceManagementController extends ChangeNotifier {
   PresenceCalibrationPreview? pendingPreview;
   List<RoomPresenceEvidence> get evidence => List.unmodifiable(_evidence);
   bool get canAct => _current() && state != RoomPresenceManagementState.busy;
+  bool canCalibrate(RoomPresenceEvidence value) =>
+      canAct &&
+      _evidence.contains(value) &&
+      value.stored &&
+      value.consentActive &&
+      value.sourceFreshAt(_clock());
 
   bool _current() {
     if (_disposed || !_interactive || !authority.isBounded) return false;
@@ -110,10 +116,7 @@ final class RoomPresenceManagementController extends ChangeNotifier {
     if (!canAct ||
         (state != RoomPresenceManagementState.ready &&
             state != RoomPresenceManagementState.verified) ||
-        !_evidence.contains(evidence) ||
-        !evidence.stored ||
-        !evidence.providerReachable ||
-        !evidence.consentActive) {
+        !canCalibrate(evidence)) {
       return;
     }
     final operation = ++_epoch;
