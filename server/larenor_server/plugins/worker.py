@@ -1,12 +1,14 @@
 """Isolated worker primitives; never instantiate these in the API process.
 
 The worker owns its Unix Docker connection and private journal. There is no
-shell, TCP listener, Compose input, deletion, image pulling, storage provisioning
-or resource adoption here. Phase receipts do not claim installation/health
-success. Packaged catalog plans remain disabled; their independent verifier is
-the only public plan entry point. ContainerBinding is an internal, already-bound
-worker value, not an IPC/request schema. A future dispatcher/worker protocol must
-not deserialize it from a Client or API-supplied Docker specification.
+shell, TCP listener, Compose input, image pulling, storage provisioning or
+resource adoption here. Container removal and rename accept only full
+worker-observed identities and fixed managed names so a later update state
+machine can preserve or retire its own containers. Phase receipts do not claim
+installation/health success. Packaged catalog plans remain disabled; their
+independent verifier is the only public plan entry point. ContainerBinding is an
+internal, already-bound worker value, not an IPC/request schema. A dispatcher
+must not deserialize it from a Client or API-supplied Docker specification.
 
 Docker HTTP schema: https://docs.docker.com/reference/api/engine/version/v1.47/
 Reuses the tested bounded HTTP framing/watchdog from the private-service
@@ -38,6 +40,7 @@ _ID = re.compile(r"[0-9a-f]{32}\Z")
 _CONTAINER_ID = re.compile(r"[0-9a-f]{64}\Z")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _NAME = re.compile(r"larenor-[0-9a-f]{32}\Z")
+_RETIRED_NAME = re.compile(r"larenor-retired-[0-9a-f]{32}\Z")
 _REFERENCE = re.compile(r"ghcr\.io/[a-z0-9-]+/[a-z0-9-]+(?::[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-f]{64}\Z")
 _LABELS = {"org.larenor.server": 32, "org.larenor.installation": 32,
            "org.larenor.worker-journal": 32, "org.larenor.plan": 64,
@@ -298,6 +301,50 @@ class UnixDockerEngine:
         _require(type(identity) is str and _CONTAINER_ID.fullmatch(identity) is not None)
         response = self._exchange("POST", "/containers/" + identity + "/start")
         _require(response.status in {204, 304}, "engine_unavailable")
+
+    def stop_container(self, identity):
+        """Stop one exact observed container; never resolve a caller name."""
+        _require(
+            type(identity) is str
+            and _CONTAINER_ID.fullmatch(identity) is not None,
+            "invalid_command",
+        )
+        response = self._exchange(
+            "POST",
+            "/containers/" + identity + "/stop?" + urlencode({"t": 30}),
+        )
+        _require(response.status in {204, 304}, "engine_unavailable")
+
+    def rename_managed_container(self, identity, retired_name):
+        """Move one exact observed container to its fixed rollback namespace."""
+        _require(
+            type(identity) is str
+            and _CONTAINER_ID.fullmatch(identity) is not None
+            and type(retired_name) is str
+            and _RETIRED_NAME.fullmatch(retired_name) is not None,
+            "invalid_command",
+        )
+        response = self._exchange(
+            "POST",
+            "/containers/" + identity + "/rename?"
+            + urlencode({"name": retired_name}),
+        )
+        _require(response.status != 409, "engine_conflict")
+        _require(response.status == 204, "engine_unavailable")
+
+    def remove_container(self, identity):
+        """Remove one exact stopped container without volume deletion."""
+        _require(
+            type(identity) is str
+            and _CONTAINER_ID.fullmatch(identity) is not None,
+            "invalid_command",
+        )
+        response = self._exchange(
+            "DELETE",
+            "/containers/" + identity + "?"
+            + urlencode({"v": 0, "force": 0}),
+        )
+        _require(response.status == 204, "engine_unavailable")
 
 
 @dataclass(frozen=True)
