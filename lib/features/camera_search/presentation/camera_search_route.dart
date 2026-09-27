@@ -206,6 +206,12 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
     }
   }
 
+  void _retry() {
+    if (_loading) return;
+    setState(() => _failure = null);
+    unawaited(_load());
+  }
+
   CameraSearchFilter? _filter;
 
   @override
@@ -297,11 +303,24 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
               liveRegion: true,
               child: _loading
                   ? const CupertinoActivityIndicator()
-                  : Text(
-                      _failure == null
-                          ? strings.requiredMessage
-                          : strings.unavailable,
-                      textAlign: TextAlign.center,
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _failure == null
+                              ? strings.requiredMessage
+                              : strings.unavailable,
+                          textAlign: TextAlign.center,
+                        ),
+                        if (_failure != null)
+                          CupertinoButton(
+                            key: const ValueKey('camera-search-retry'),
+                            onPressed: _retry,
+                            child: Text(
+                              AppLocalizations.of(context).commonRetry,
+                            ),
+                          ),
+                      ],
                     ),
             ),
           ),

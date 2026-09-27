@@ -76,8 +76,9 @@ Map<String, Object?> _page() => {
 };
 
 final class _Harness {
-  _Harness({this.pendingSearch});
+  _Harness({this.pendingSearch, this.contextFailuresRemaining = 0});
   final Completer<http.Response>? pendingSearch;
+  int contextFailuresRemaining;
   final source = _Source();
   final requests = <http.Request>[];
   late final client = MockClient((request) async {
@@ -101,6 +102,12 @@ final class _Harness {
     }
     if (request.method == 'GET' &&
         request.url.path.endsWith('/camera-search/$coreId/$homeId/context')) {
+      if (contextFailuresRemaining > 0) {
+        contextFailuresRemaining--;
+        return _json({
+          'error': {'code': 'temporarily_unavailable'},
+        }, 503);
+      }
       return _json({
         'schemaVersion': 1,
         'coreId': coreId,
@@ -213,6 +220,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A parcel was left by the door'), findsNothing);
     expect(find.byType(CameraSearchScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('route explicitly retries a transient context failure', (
+    tester,
+  ) async {
+    final harness = _Harness(contextFailuresRemaining: 1);
+    await harness.initialize();
+    addTearDown(harness.dispose);
+    await harness.mount(tester, language: 'tr');
+    expect(find.byType(CameraSearchScreen), findsNothing);
+    expect(find.byKey(const ValueKey('camera-search-retry')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('camera-search-retry')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CameraSearchScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

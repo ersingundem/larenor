@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/home_session_controller.dart';
 import '../../../core/home_source_store.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../server/domain/server_models.dart';
 import '../data/private_event_share_account_api.dart';
 import '../data/private_event_share_controller.dart';
@@ -109,7 +110,7 @@ class _PrivateEventShareRouteState
       _failure = null;
     } catch (_) {
       _retire();
-      _failure = 'Private event sharing is unavailable';
+      _failure = 'unavailable';
     } finally {
       _loading = false;
       if (mounted) setState(() {});
@@ -128,7 +129,7 @@ class _PrivateEventShareRouteState
       unawaited(_load());
     } else if (!identical(_home, home)) {
       _retire();
-      _failure = 'Private event sharing is unavailable';
+      _failure = 'unavailable';
     }
   }
 
@@ -139,19 +140,40 @@ class _PrivateEventShareRouteState
     super.dispose();
   }
 
+  void _retry() {
+    if (_loading) return;
+    setState(() => _failure = null);
+    unawaited(_load());
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final controller = _controller;
     if (controller != null) {
       return PrivateEventShareScreen(controller: controller);
     }
     return CupertinoPageScaffold(
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Private event sharing'),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(l10n.privateEventShareTitle),
       ),
       child: SafeArea(
         child: Center(
-          child: Text(_failure ?? (_loading ? 'Loading' : 'Unavailable')),
+          child: _loading
+              ? const CupertinoActivityIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(l10n.privateEventShareUnavailable),
+                    const SizedBox(height: 8),
+                    if (_failure != null)
+                      CupertinoButton(
+                        key: const ValueKey('private-event-route-retry'),
+                        onPressed: _retry,
+                        child: Text(l10n.commonRetry),
+                      ),
+                  ],
+                ),
         ),
       ),
     );

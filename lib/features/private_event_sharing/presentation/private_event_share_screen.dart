@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/private_event_share_controller.dart';
 import '../domain/private_event_share_models.dart';
 
@@ -89,22 +90,44 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
 
   bool get _ready => widget.controller.state == EventShareState.ready;
 
+  AppLocalizations get _l10n => AppLocalizations.of(context);
+
+  String _maskLabel(EventShareMask value) => switch (value) {
+    EventShareMask.face => _l10n.privateEventShareMaskFaces,
+    EventShareMask.licensePlate => _l10n.privateEventShareMaskLicensePlates,
+  };
+
+  String _metadataLabel(EventShareMetadata value) => switch (value) {
+    EventShareMetadata.deviceSerial =>
+      _l10n.privateEventShareMetadataDeviceSerial,
+    EventShareMetadata.gps => _l10n.privateEventShareMetadataGps,
+    EventShareMetadata.cameraName => _l10n.privateEventShareMetadataCameraName,
+    EventShareMetadata.networkAddress =>
+      _l10n.privateEventShareMetadataNetworkAddress,
+  };
+
   @override
   Widget build(BuildContext context) => CupertinoPageScaffold(
-    navigationBar: const CupertinoNavigationBar(
-      middle: Text('Private event sharing'),
+    navigationBar: CupertinoNavigationBar(
+      middle: Text(_l10n.privateEventShareTitle),
     ),
     child: SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Panel(title: 'Recipient and purpose', child: _editor()),
+          _Panel(
+            title: _l10n.privateEventShareRecipientPurpose,
+            child: _editor(),
+          ),
           const SizedBox(height: 16),
-          _Panel(title: 'Redaction preview', child: _preview()),
+          _Panel(
+            title: _l10n.privateEventShareRedactionPreview,
+            child: _preview(),
+          ),
           const SizedBox(height: 16),
-          _Panel(title: 'Active and previous shares', child: _shares()),
+          _Panel(title: _l10n.privateEventShareShares, child: _shares()),
           const SizedBox(height: 16),
-          _Panel(title: 'Access audit', child: _audit()),
+          _Panel(title: _l10n.privateEventShareAudit, child: _audit()),
         ],
       ),
     ),
@@ -116,79 +139,75 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
       CupertinoTextField(
         controller: _consent,
         maxLength: 128,
-        placeholder: 'Exact consent ID',
+        placeholder: _l10n.privateEventShareConsentId,
       ),
       const SizedBox(height: 10),
       CupertinoTextField(
         controller: _consentRevision,
         keyboardType: TextInputType.number,
-        placeholder: 'Consent revision',
+        placeholder: _l10n.privateEventShareConsentRevision,
       ),
       const SizedBox(height: 10),
       CupertinoTextField(
         controller: _recipient,
         maxLength: 128,
-        placeholder: 'Exact recipient ID',
+        placeholder: _l10n.privateEventShareRecipientId,
       ),
       const SizedBox(height: 10),
       CupertinoTextField(
         controller: _purpose,
         maxLength: 200,
-        placeholder: 'Purpose shown to the recipient',
+        placeholder: _l10n.privateEventSharePurpose,
       ),
       const SizedBox(height: 12),
       CupertinoSlidingSegmentedControl<EventShareAccessMode>(
         groupValue: _mode,
-        children: const {
-          EventShareAccessMode.oneTime: Text('One time'),
-          EventShareAccessMode.timeBound: Text('Until expiry'),
+        children: {
+          EventShareAccessMode.oneTime: Text(
+            _l10n.privateEventShareModeOneTime,
+          ),
+          EventShareAccessMode.timeBound: Text(
+            _l10n.privateEventShareModeUntilExpiry,
+          ),
         },
         onValueChanged: (value) => setState(() => _mode = value ?? _mode),
       ),
       const SizedBox(height: 12),
       CupertinoSlidingSegmentedControl<int>(
         groupValue: _ttl,
-        children: const {
-          3600: Text('1 hour'),
-          86400: Text('1 day'),
-          604800: Text('7 days'),
+        children: {
+          3600: Text(_l10n.privateEventShareTtlHour),
+          86400: Text(_l10n.privateEventShareTtlDay),
+          604800: Text(_l10n.privateEventShareTtlWeek),
         },
         onValueChanged: (value) => setState(() => _ttl = value ?? _ttl),
       ),
       const SizedBox(height: 14),
-      const Text(
-        'Required masks',
-        style: TextStyle(fontWeight: FontWeight.w600),
+      Text(
+        _l10n.privateEventShareRequiredMasks,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       _choices<EventShareMask>(
         values: EventShareMask.values,
         selected: _masks,
-        label: (value) => switch (value) {
-          EventShareMask.face => 'Faces',
-          EventShareMask.licensePlate => 'License plates',
-        },
+        label: _maskLabel,
       ),
       const SizedBox(height: 14),
-      const Text(
-        'Remove metadata',
-        style: TextStyle(fontWeight: FontWeight.w600),
+      Text(
+        _l10n.privateEventShareRemoveMetadata,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       _choices<EventShareMetadata>(
         values: EventShareMetadata.values,
         selected: _metadata,
-        label: (value) => switch (value) {
-          EventShareMetadata.deviceSerial => 'Device serial',
-          EventShareMetadata.gps => 'GPS',
-          EventShareMetadata.cameraName => 'Camera name',
-          EventShareMetadata.networkAddress => 'Network address',
-        },
+        label: _metadataLabel,
       ),
       const SizedBox(height: 14),
       CupertinoButton.filled(
         onPressed: _draft == null || !_ready
             ? null
             : () => widget.controller.preview(_draft!),
-        child: const Text('Create protected preview'),
+        child: Text(_l10n.privateEventShareCreatePreview),
       ),
     ],
   );
@@ -222,21 +241,30 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'The original stays private. Only the transformed artifact is shared.',
-        ),
+        Text(_l10n.privateEventShareOriginalStaysPrivate),
         const SizedBox(height: 8),
-        Text('Pipeline: ${preview.pipelineId} r${preview.pipelineRevision}'),
-        Text('Masks: ${preview.masks.map((value) => value.name).join(', ')}'),
         Text(
-          'Removed metadata: ${preview.removedMetadata.map((value) => value.name).join(', ')}',
+          _l10n.privateEventSharePipeline(
+            preview.pipelineId,
+            preview.pipelineRevision,
+          ),
+        ),
+        Text(
+          _l10n.privateEventShareMasks(
+            preview.masks.map(_maskLabel).join(', '),
+          ),
+        ),
+        Text(
+          _l10n.privateEventShareRemovedMetadata(
+            preview.removedMetadata.map(_metadataLabel).join(', '),
+          ),
         ),
         const SizedBox(height: 12),
         CupertinoButton.filled(
           onPressed: draft == null || !preview.covers(draft) || !_ready
               ? null
               : () => widget.controller.create(draft),
-          child: const Text('Share this protected output'),
+          child: Text(_l10n.privateEventShareProtectedOutput),
         ),
       ],
     );
@@ -247,17 +275,19 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
     return Column(
       children: [
         if (widget.controller.createdShare case final created?) ...[
-          const Text(
-            'Share access token',
-            style: TextStyle(fontWeight: FontWeight.w600),
+          Text(
+            _l10n.privateEventShareAccessToken,
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          const Text(
-            'Save and send this token through a trusted channel. It is not returned by later refreshes.',
-          ),
+          Text(_l10n.privateEventShareAccessTokenHint),
           CupertinoButton(
             onPressed: () =>
                 setState(() => _revealCreatedToken = !_revealCreatedToken),
-            child: Text(_revealCreatedToken ? 'Hide token' : 'Reveal token'),
+            child: Text(
+              _revealCreatedToken
+                  ? _l10n.privateEventShareHideToken
+                  : _l10n.privateEventShareRevealToken,
+            ),
           ),
           if (_revealCreatedToken)
             Text(
@@ -268,7 +298,7 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
             CupertinoButton(
               onPressed: () =>
                   Clipboard.setData(ClipboardData(text: created.accessToken)),
-              child: const Text('Copy token'),
+              child: Text(_l10n.privateEventShareCopyToken),
             ),
           const SizedBox(height: 14),
         ],
@@ -283,14 +313,18 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
                   share.purpose,
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-                Text('Recipient: ${share.recipientId}'),
-                Text('Expires: ${share.expiresAt.toLocal()}'),
+                Text(_l10n.privateEventShareRecipient(share.recipientId)),
+                Text(
+                  _l10n.privateEventShareExpires(
+                    share.expiresAt.toLocal().toString(),
+                  ),
+                ),
                 Text(
                   share.revoked
-                      ? 'Revoked'
+                      ? _l10n.privateEventShareRevoked
                       : share.consumed
-                      ? 'Consumed'
-                      : 'Available',
+                      ? _l10n.privateEventShareConsumed
+                      : _l10n.privateEventShareAvailable,
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -300,7 +334,7 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
                         onPressed: share.active && _ready
                             ? () => widget.controller.revoke(share.id)
                             : null,
-                        child: const Text('Revoke'),
+                        child: Text(_l10n.privateEventShareRevoke),
                       ),
                     ),
                   ],
@@ -312,13 +346,13 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
         CupertinoTextField(
           controller: _accessToken,
           obscureText: true,
-          placeholder: 'Recipient access token',
+          placeholder: _l10n.privateEventShareRecipientAccessToken,
         ),
         CupertinoButton(
           onPressed: _ready && _accessToken.text.length >= 32
               ? () => widget.controller.download(_accessToken.text)
               : null,
-          child: const Text('Download protected share'),
+          child: Text(_l10n.privateEventShareDownload),
         ),
       ],
     );
@@ -330,19 +364,26 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.controller.snapshot?.auditTruncated ?? false)
-          const Text(
-            'Only the latest access records are shown.',
-            style: TextStyle(color: CupertinoColors.systemOrange),
+          Text(
+            _l10n.privateEventShareAuditTruncated,
+            style: const TextStyle(color: CupertinoColors.systemOrange),
           ),
-        if (entries.isEmpty) const Text('No access recorded'),
+        if (entries.isEmpty) Text(_l10n.privateEventShareNoAccess),
         for (final entry in entries)
           Text(
-            '${entry.action} · ${entry.recipientId} · ${entry.occurredAt.toLocal()}',
+            _l10n.privateEventShareAuditEntry(
+              entry.action,
+              entry.recipientId,
+              entry.occurredAt.toLocal().toString(),
+            ),
           ),
         if (widget.controller.downloadResult case final download?) ...[
           const SizedBox(height: 12),
           Text(
-            'Verified download ready: ${download.fileName} (${download.bytes.length} bytes)',
+            _l10n.privateEventShareDownloadReady(
+              download.fileName,
+              download.bytes.length,
+            ),
           ),
         ],
       ],
@@ -353,19 +394,25 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text(switch (widget.controller.state) {
-        EventShareState.idle => 'Not connected',
-        EventShareState.loading => 'Loading',
-        EventShareState.ready => 'No items yet',
-        EventShareState.busy => 'Working',
-        EventShareState.uncertain =>
-          'Result uncertain; refresh before retrying',
-        EventShareState.offline => 'Core unavailable',
-        EventShareState.error => 'State could not be verified',
+        EventShareState.idle => _l10n.privateEventShareNotConnected,
+        EventShareState.loading => _l10n.commonLoading,
+        EventShareState.ready => _l10n.privateEventShareNoItems,
+        EventShareState.busy => _l10n.privateEventShareWorking,
+        EventShareState.uncertain => _l10n.privateEventShareUncertain,
+        EventShareState.offline => _l10n.privateEventShareCoreUnavailable,
+        EventShareState.error => _l10n.privateEventShareStateUnverified,
       }),
       if (widget.controller.state == EventShareState.uncertain)
         CupertinoButton(
           onPressed: widget.controller.reconcile,
-          child: const Text('Read current state'),
+          child: Text(_l10n.privateEventShareReadCurrentState),
+        ),
+      if (widget.controller.state == EventShareState.offline ||
+          widget.controller.state == EventShareState.error)
+        CupertinoButton(
+          key: const ValueKey('private-event-share-retry'),
+          onPressed: widget.controller.load,
+          child: Text(_l10n.commonRetry),
         ),
     ],
   );
