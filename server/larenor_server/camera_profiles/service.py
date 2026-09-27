@@ -16,6 +16,8 @@ from .models import (
     CameraProfilePolicy,
     CameraProviderSupport,
     CameraReadback,
+    CameraRollbackReceipt,
+    CameraRollbackResult,
     CameraWorkerCommand,
     ManualCameraOverride,
     PresenceSignal,
@@ -23,10 +25,24 @@ from .models import (
 )
 
 
+MAX_APPLY_AGE_MS = 60_000
+MAX_ROLLBACK_AGE_MS = 15 * 60_000
+MAX_PROVIDER_FACT_AGE_MS = 5 * 60_000
+MAX_CLOCK_SKEW_MS = 5_000
+
+
 @dataclass(frozen=True)
 class _ObservedPresence:
     signal: PresenceSignal
     stable_since_ms: int
+
+
+@dataclass(frozen=True)
+class _AppliedBatch:
+    authority: CameraProfileAuthority
+    decision: CameraProfileDecision
+    readbacks: tuple[CameraReadback, ...]
+    receipt: CameraCommandReceipt
 
 
 class CameraProfileEngine:
@@ -212,6 +228,10 @@ class CameraProfileCoordinator:
         self._resolve_policy = policyResolver
         self._max_batches = maxBatches
         self._receipts: dict[str, tuple[str, CameraCommandReceipt]] = {}
+        self._batches: dict[str, _AppliedBatch] = {}
+        self._rollback_receipts: dict[
+            str, tuple[str, CameraRollbackReceipt]
+        ] = {}
         self._lock = threading.Lock()
 
     @staticmethod
@@ -244,6 +264,7 @@ class CameraProfileCoordinator:
                 or any(char not in "0123456789abcdef" for char in requestId)
                 or type(nowMs) is not int
                 or nowMs < decision.evaluatedAtMs
+                or nowMs - decision.evaluatedAtMs > MAX_APPLY_AGE_MS
             ):
                 raise ValueError
         except ValueError:
@@ -319,11 +340,20 @@ class CameraProfileCoordinator:
                 decision.coreId,
                 decision.homeId,
                 target.camera,
-            ) or observed.observedAtMs > nowMs:
+            ) or (
+                observed.observedAtMs > decision.evaluatedAtMs
+                or decision.evaluatedAtMs - observed.observedAtMs
+                > MAX_PROVIDER_FACT_AGE_MS
+            ):
                 raise ApiError("revision_conflict", 409)
             if support_by_camera is not None:
                 support = support_by_camera[camera_id]
-                if support.camera != target.camera or support.verifiedAtMs > nowMs:
+                if (
+                    support.camera != target.camera
+                    or support.verifiedAtMs > decision.evaluatedAtMs
+                    or decision.evaluatedAtMs - support.verifiedAtMs
+                    > MAX_PROVIDER_FACT_AGE_MS
+                ):
                     raise ApiError("revision_conflict", 409)
 
         digest = self._digest(decision, readbacks, supports)
@@ -428,6 +458,7 @@ class CameraProfileCoordinator:
                 and returned.stateRevision > command.expectedStateRevision
                 and returned.mode == command.desiredMode
                 and returned.observedAtMs >= observed.observedAtMs
+                and returned.observedAtMs <= nowMs + MAX_CLOCK_SKEW_MS
             )
             results.append(
                 CameraCommandResult(
@@ -475,4 +506,290 @@ class CameraProfileCoordinator:
             atMs=nowMs,
         )
         self._receipts[requestId] = (digest, receipt)
+        self._batches[requestId] = _AppliedBatch(
+            authority=authority,
+            decision=decision,
+            readbacks=tuple(readbacks),
+            receipt=receipt,
+        )
+        return receipt
+
+    def rollback(
+        self,
+        presentedAuthority,
+        *,
+        originalRequestId,
+        requestId,
+        nowMs,
+        worker,
+        rawCurrentReadbacks,
+    ):
+        try:
+            authority = CameraProfileAuthority.model_validate(presentedAuthority)
+            current_readbacks = [
+                CameraReadback.model_validate(item) for item in rawCurrentReadbacks
+            ]
+            if (
+                not isinstance(originalRequestId, str)
+                or len(originalRequestId) != 32
+                or any(char not in "0123456789abcdef" for char in originalRequestId)
+                or not isinstance(requestId, str)
+                or len(requestId) != 32
+                or any(char not in "0123456789abcdef" for char in requestId)
+                or originalRequestId == requestId
+                or type(nowMs) is not int
+                or nowMs < 0
+            ):
+                raise ValueError
+        except ValueError:
+            raise ApiError("invalid_request") from None
+        if (
+            not authority.active
+            or authority.role != "admin"
+            or not authority.canManageCameraProfiles
+        ):
+            raise ApiError("forbidden", 403)
+        try:
+            current_authority = CameraProfileAuthority.model_validate(
+                self._resolve_authority(authority.accountId)
+            )
+        except Exception:
+            raise ApiError("forbidden", 403) from None
+        if current_authority != authority:
+            raise ApiError("revision_conflict", 409)
+        with self._lock:
+            return self._rollback_once(
+                authority,
+                originalRequestId=originalRequestId,
+                requestId=requestId,
+                nowMs=nowMs,
+                worker=worker,
+                currentReadbacks=current_readbacks,
+            )
+
+    def _rollback_once(
+        self,
+        authority,
+        *,
+        originalRequestId,
+        requestId,
+        nowMs,
+        worker,
+        currentReadbacks,
+    ):
+        batch = self._batches.get(originalRequestId)
+        if batch is None:
+            raise ApiError("not_found", 404)
+        if batch.authority != authority:
+            raise ApiError("revision_conflict", 409)
+        if (
+            nowMs < batch.receipt.createdAtMs
+            or nowMs - batch.receipt.createdAtMs > MAX_ROLLBACK_AGE_MS
+        ):
+            raise ApiError("revision_conflict", 409)
+        try:
+            current_policy = CameraProfilePolicy.model_validate(
+                self._resolve_policy(batch.decision.profileId)
+            )
+        except Exception:
+            raise ApiError("forbidden", 403) from None
+        current_policy_hash = hashlib.sha256(
+            json.dumps(
+                current_policy.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        if current_policy_hash != batch.decision.policyHash:
+            raise ApiError("revision_conflict", 409)
+
+        digest = hashlib.sha256(
+            json.dumps(
+                {
+                    "authority": authority.model_dump(mode="json"),
+                    "originalRequestId": originalRequestId,
+                    "originalReceipt": batch.receipt.model_dump(mode="json"),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        old = self._rollback_receipts.get(requestId)
+        if old is not None:
+            if old[0] != digest:
+                raise ApiError("idempotency_conflict", 409)
+            return old[1]
+        if len(self._rollback_receipts) >= self._max_batches:
+            raise ApiError("invalid_request", 429)
+
+        original_by_camera = {
+            item.camera.cameraId: item for item in batch.readbacks
+        }
+        current_by_camera = {
+            item.camera.cameraId: item for item in currentReadbacks
+        }
+        if (
+            len(current_by_camera) != len(currentReadbacks)
+            or set(current_by_camera) != set(original_by_camera)
+        ):
+            raise ApiError("revision_conflict", 409)
+        applied_by_camera = {
+            item.cameraId: item
+            for item in batch.receipt.results
+            if item.status == "applied" and item.readback is not None
+        }
+        if set(applied_by_camera).difference(original_by_camera):
+            raise ApiError("revision_conflict", 409)
+
+        self._audit.ensure_capacity(2)
+        self._audit.append(
+            kind="rollback_batch",
+            profileId=batch.decision.profileId,
+            profileRevision=batch.decision.profileRevision,
+            actorAccountId=authority.accountId,
+            requestId=requestId,
+            status="accepted",
+            payloadHash=digest,
+            atMs=nowMs,
+        )
+        results = []
+        for original_result in batch.receipt.results:
+            camera_id = original_result.cameraId
+            command_id = hashlib.sha256(
+                (requestId + originalRequestId + camera_id + "rollback").encode(
+                    "ascii"
+                )
+            ).hexdigest()[:32]
+            changed = applied_by_camera.get(camera_id)
+            if changed is None:
+                results.append(
+                    CameraRollbackResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="skipped",
+                        code="not_changed",
+                        readback=None,
+                    )
+                )
+                continue
+            original = original_by_camera[camera_id]
+            current = current_by_camera[camera_id]
+            if (
+                current.camera != changed.readback.camera
+                or current.stateRevision != changed.readback.stateRevision
+                or current.mode != changed.readback.mode
+                or current.observedAtMs < changed.readback.observedAtMs
+            ):
+                results.append(
+                    CameraRollbackResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="failed",
+                        code="rollback_state_conflict",
+                        readback=None,
+                    )
+                )
+                continue
+            command = CameraWorkerCommand(
+                schemaVersion=1,
+                commandId=command_id,
+                requestId=requestId,
+                coreId=batch.decision.coreId,
+                homeId=batch.decision.homeId,
+                profileId=batch.decision.profileId,
+                profileRevision=batch.decision.profileRevision,
+                actorAccountId=authority.accountId,
+                camera=original.camera,
+                expectedStateRevision=current.stateRevision,
+                desiredMode=original.mode,
+            )
+            try:
+                raw_returned = worker(command)
+            except Exception:
+                results.append(
+                    CameraRollbackResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="unknown",
+                        code="rollback_ack_unknown",
+                        readback=None,
+                    )
+                )
+                continue
+            try:
+                returned = WorkerReadback.model_validate(raw_returned)
+            except ValueError:
+                results.append(
+                    CameraRollbackResult(
+                        schemaVersion=1,
+                        commandId=command_id,
+                        cameraId=camera_id,
+                        status="failed",
+                        code="rollback_response_invalid",
+                        readback=None,
+                    )
+                )
+                continue
+            exact = (
+                returned.commandId == command.commandId
+                and returned.camera == command.camera
+                and returned.stateRevision > command.expectedStateRevision
+                and returned.mode == command.desiredMode
+                and returned.observedAtMs >= current.observedAtMs
+                and returned.observedAtMs <= nowMs + MAX_CLOCK_SKEW_MS
+            )
+            results.append(
+                CameraRollbackResult(
+                    schemaVersion=1,
+                    commandId=command_id,
+                    cameraId=camera_id,
+                    status="restored" if exact else "failed",
+                    code=(
+                        "restored" if exact else "rollback_readback_mismatch"
+                    ),
+                    readback=returned,
+                )
+            )
+        statuses = {item.status for item in results}
+        if statuses == {"skipped"}:
+            status = "already_original"
+        elif statuses <= {"restored", "skipped"}:
+            status = "restored"
+        elif len(statuses) > 1:
+            status = "partial"
+        elif statuses == {"failed"}:
+            status = "failed"
+        else:
+            status = "unknown"
+        receipt = CameraRollbackReceipt(
+            schemaVersion=1,
+            requestId=requestId,
+            originalRequestId=originalRequestId,
+            profileId=batch.decision.profileId,
+            profileRevision=batch.decision.profileRevision,
+            status=status,
+            results=results,
+            createdAtMs=nowMs,
+        )
+        receipt_hash = hashlib.sha256(
+            json.dumps(
+                receipt.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        self._audit.append(
+            kind="rollback_result",
+            profileId=batch.decision.profileId,
+            profileRevision=batch.decision.profileRevision,
+            actorAccountId=authority.accountId,
+            requestId=requestId,
+            status=status,
+            payloadHash=receipt_hash,
+            atMs=nowMs,
+        )
+        self._rollback_receipts[requestId] = (digest, receipt)
         return receipt

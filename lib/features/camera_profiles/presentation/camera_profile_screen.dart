@@ -80,6 +80,13 @@ class _CameraProfileScreenState extends State<CameraProfileScreen> {
                 title: Text(l10n.cameraProfileApply),
                 onTap: controller.canApply ? controller.apply : null,
               ),
+              if (controller.receipt?.canRollback == true)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('camera-profile-rollback'),
+                  leading: const Icon(CupertinoIcons.arrow_counterclockwise),
+                  title: Text(l10n.cameraProfileRollback),
+                  onTap: controller.canRollback ? controller.rollback : null,
+                ),
             ],
           ),
         ),
@@ -114,6 +121,9 @@ class _CameraProfileScreenState extends State<CameraProfileScreen> {
                             result: controller.receipt?.results
                                 .where((item) => item.cameraId == camera.id)
                                 .firstOrNull,
+                            rollbackResult: controller.rollbackReceipt?.results
+                                .where((item) => item.cameraId == camera.id)
+                                .firstOrNull,
                             setting: (value) => _setting(l10n, value),
                           ),
                         ),
@@ -138,8 +148,10 @@ class _Status extends StatelessWidget {
       CameraProfileViewState.idle ||
       CameraProfileViewState.loading ||
       CameraProfileViewState.applying => l10n.cameraProfileLoading,
+      CameraProfileViewState.rollingBack => l10n.cameraProfileRollingBack,
       CameraProfileViewState.ready => l10n.cameraProfileStatus,
       CameraProfileViewState.verified => l10n.cameraProfileVerified,
+      CameraProfileViewState.restored => l10n.cameraProfileRestored,
       CameraProfileViewState.partial => l10n.cameraProfilePartial,
       CameraProfileViewState.failed => l10n.cameraProfileFailed,
       CameraProfileViewState.stale => l10n.cameraProfileStale,
@@ -154,7 +166,8 @@ class _Status extends StatelessWidget {
           child: Row(
             children: [
               if (controller.state == CameraProfileViewState.loading ||
-                  controller.state == CameraProfileViewState.applying) ...[
+                  controller.state == CameraProfileViewState.applying ||
+                  controller.state == CameraProfileViewState.rollingBack) ...[
                 const CupertinoActivityIndicator(),
                 const SizedBox(width: 12),
               ],
@@ -171,10 +184,12 @@ class _CameraCard extends StatelessWidget {
   const _CameraCard({
     required this.camera,
     required this.result,
+    required this.rollbackResult,
     required this.setting,
   });
   final CameraProfileCamera camera;
   final CameraApplyResult? result;
+  final CameraRollbackResult? rollbackResult;
   final String Function(CameraSettingValue) setting;
 
   @override
@@ -185,6 +200,16 @@ class _CameraCard extends StatelessWidget {
       CameraApplyState.skipped => l10n.cameraProfileCurrent,
       CameraApplyState.failed ||
       CameraApplyState.unknown => l10n.cameraProfilePartial,
+      null => null,
+    };
+    final rollbackText = switch (rollbackResult?.state) {
+      CameraRollbackState.restored => l10n.cameraProfileRestored,
+      CameraRollbackState.skipped => l10n.cameraProfileCurrent,
+      CameraRollbackState.failed =>
+        rollbackResult?.code == 'rollback_state_conflict'
+            ? l10n.cameraProfileRollbackConflict
+            : l10n.cameraProfilePartial,
+      CameraRollbackState.unknown => l10n.cameraProfileRollbackUnknown,
       null => null,
     };
     return Semantics(
@@ -228,6 +253,10 @@ class _CameraCard extends StatelessWidget {
               if (resultText != null) ...[
                 const SizedBox(height: 12),
                 Text(resultText),
+              ],
+              if (rollbackText != null) ...[
+                const SizedBox(height: 8),
+                Text(rollbackText),
               ],
             ],
           ),

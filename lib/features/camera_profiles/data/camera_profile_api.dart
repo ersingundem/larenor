@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import '../../server/data/server_account_controller.dart';
@@ -10,7 +11,15 @@ abstract interface class CameraProfileApi {
   void retire();
 }
 
-final class CoreCameraProfileApi implements CameraProfileApi {
+abstract interface class CameraProfileRollbackApi {
+  Future<CameraRollbackReceipt> rollback(
+    CameraProfileSnapshot snapshot,
+    CameraApplyReceipt receipt,
+  );
+}
+
+final class CoreCameraProfileApi
+    implements CameraProfileApi, CameraProfileRollbackApi {
   CoreCameraProfileApi({
     required this.account,
     required this.routeId,
@@ -70,11 +79,9 @@ final class CoreCameraProfileApi implements CameraProfileApi {
         throw const LarenorServerException('forbidden');
       }
       _session = session;
-      final response = await api.request(
-        'GET',
-        _base(context),
-        token: session.accessToken,
-      );
+      final response = await api
+          .request('GET', _base(context), token: session.accessToken)
+          .timeout(const Duration(seconds: 20));
       _checkSession(session);
       final envelope = _object(response);
       _keys(envelope, const {'snapshot'});
@@ -116,12 +123,14 @@ final class CoreCameraProfileApi implements CameraProfileApi {
           key: raw[key],
       };
       final response = _object(
-        await api.request(
-          'POST',
-          '${_base(context)}/apply',
-          token: current.accessToken,
-          body: body,
-        ),
+        await api
+            .request(
+              'POST',
+              '${_base(context)}/apply',
+              token: current.accessToken,
+              body: body,
+            )
+            .timeout(const Duration(seconds: 20)),
       );
       _checkSession(current, expected: session);
       _keys(response, const {'receipt'});
@@ -129,6 +138,49 @@ final class CoreCameraProfileApi implements CameraProfileApi {
         _object(response['receipt']),
         expectedRequestId: requestId,
         expectedSnapshot: snapshot,
+      );
+    });
+  }
+
+  @override
+  Future<CameraRollbackReceipt> rollback(
+    CameraProfileSnapshot snapshot,
+    CameraApplyReceipt receipt,
+  ) async {
+    _check();
+    if (!identical(snapshot, _snapshot) ||
+        snapshot.authority != _snapshot?.authority ||
+        !receipt.canRollback) {
+      throw const LarenorServerException('cancelled');
+    }
+    final session = _session;
+    if (session == null) throw const LarenorServerException('cancelled');
+    return account.withSession((api, current) async {
+      _checkSession(current, expected: session);
+      final context = current.context!;
+      final requestId = _requestId();
+      final response = _object(
+        await api
+            .request(
+              'POST',
+              '${_base(context)}/rollback',
+              token: current.accessToken,
+              body: {
+                'schemaVersion': 1,
+                'requestId': requestId,
+                'originalRequestId': receipt.requestId,
+              },
+            )
+            .timeout(const Duration(seconds: 20)),
+      );
+      _checkSession(current, expected: session);
+      _keys(response, const {'rollbackReceipt'});
+      return _decodeRollbackReceipt(
+        _object(response['rollbackReceipt']),
+        expectedRequestId: requestId,
+        expectedOriginalRequestId: receipt.requestId,
+        expectedSnapshot: snapshot,
+        expectedReceipt: receipt,
       );
     });
   }
@@ -476,12 +528,18 @@ final class CoreCameraProfileApi implements CameraProfileApi {
           if (code == 'provider_unsupported' && !unsupportedChange) {
             throw const LarenorServerException('invalid_response');
           }
+          if (camera == null) {
+            throw const LarenorServerException('invalid_response');
+          }
           final readback = value['readback'];
           final needsReadback =
               code == 'applied' || code == 'readback_mismatch';
           if (needsReadback != (readback != null)) {
             throw const LarenorServerException('invalid_response');
           }
+          int? readbackStateRevision;
+          CameraSettingValue? readbackRecording;
+          CameraSettingValue? readbackDetection;
           if (readback != null) {
             final returned = _object(readback);
             _keys(returned, const {
@@ -492,14 +550,23 @@ final class CoreCameraProfileApi implements CameraProfileApi {
               'mode',
               'observedAtMs',
             });
+            final returnedScope = _scope(returned['camera']);
+            final returnedMode = _mode(returned['mode']);
+            readbackStateRevision = _integer(returned['stateRevision']);
+            readbackRecording = _setting(returnedMode['recording']);
+            readbackDetection = _setting(returnedMode['detection']);
             if (_integer(returned['schemaVersion']) != 1 ||
                 returned['commandId'] != value['commandId'] ||
-                _scope(returned['camera'])['cameraId'] != cameraId) {
+                returnedScope['cameraId'] != cameraId ||
+                returnedScope['cameraRevision'] != camera.cameraRevision ||
+                returnedScope['bindingRevision'] != camera.bindingRevision ||
+                (code == 'applied' &&
+                    (readbackStateRevision <= camera.stateRevision ||
+                        readbackRecording != camera.desiredRecording ||
+                        readbackDetection != camera.desiredDetection))) {
               throw const LarenorServerException('invalid_response');
             }
-            _integer(returned['stateRevision']);
             _integer(returned['observedAtMs']);
-            _mode(returned['mode']);
           }
           final statusMatchesCode = switch (code) {
             'applied' => state == CameraApplyState.applied,
@@ -514,6 +581,9 @@ final class CoreCameraProfileApi implements CameraProfileApi {
             cameraId: cameraId,
             state: state,
             code: code,
+            readbackStateRevision: readbackStateRevision,
+            readbackRecording: readbackRecording,
+            readbackDetection: readbackDetection,
           );
         })
         .toList(growable: false);
@@ -540,6 +610,167 @@ final class CoreCameraProfileApi implements CameraProfileApi {
     _integer(raw['createdAtMs']);
     return CameraApplyReceipt(
       requestId: _identity(raw['requestId']),
+      status: status,
+      results: results,
+    );
+  }
+
+  CameraRollbackReceipt _decodeRollbackReceipt(
+    Map<String, dynamic> raw, {
+    required String expectedRequestId,
+    required String expectedOriginalRequestId,
+    required CameraProfileSnapshot expectedSnapshot,
+    required CameraApplyReceipt expectedReceipt,
+  }) {
+    _keys(raw, const {
+      'schemaVersion',
+      'requestId',
+      'originalRequestId',
+      'profileId',
+      'profileRevision',
+      'status',
+      'results',
+      'createdAtMs',
+    });
+    final status = _text(raw['status'], 40);
+    if (_integer(raw['schemaVersion']) != 1 ||
+        raw['requestId'] != expectedRequestId ||
+        raw['originalRequestId'] != expectedOriginalRequestId ||
+        raw['profileId'] != expectedSnapshot.authority.profileId ||
+        raw['profileRevision'] != expectedSnapshot.authority.profileRevision ||
+        !const {
+          'restored',
+          'already_original',
+          'partial',
+          'failed',
+          'unknown',
+        }.contains(status)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final results = _objects(raw['results'])
+        .map((item) {
+          final value = _object(item);
+          _keys(value, const {
+            'schemaVersion',
+            'commandId',
+            'cameraId',
+            'status',
+            'code',
+            'readback',
+          });
+          if (_integer(value['schemaVersion']) != 1) {
+            throw const LarenorServerException('invalid_response');
+          }
+          _identity(value['commandId']);
+          final cameraId = _identity(value['cameraId']);
+          final state = switch (value['status']) {
+            'restored' => CameraRollbackState.restored,
+            'skipped' => CameraRollbackState.skipped,
+            'failed' => CameraRollbackState.failed,
+            'unknown' => CameraRollbackState.unknown,
+            _ => throw const LarenorServerException('invalid_response'),
+          };
+          final code = _text(value['code'], 40);
+          if (!const {
+            'restored',
+            'not_changed',
+            'rollback_readback_mismatch',
+            'rollback_state_conflict',
+            'rollback_ack_unknown',
+            'rollback_response_invalid',
+          }.contains(code)) {
+            throw const LarenorServerException('invalid_response');
+          }
+          final readback = value['readback'];
+          final needsReadback =
+              code == 'restored' || code == 'rollback_readback_mismatch';
+          if (needsReadback != (readback != null)) {
+            throw const LarenorServerException('invalid_response');
+          }
+          final camera = expectedSnapshot.cameras
+              .where((item) => item.id == cameraId)
+              .firstOrNull;
+          final applied = expectedReceipt.results
+              .where((item) => item.cameraId == cameraId)
+              .firstOrNull;
+          if (camera == null || applied == null) {
+            throw const LarenorServerException('invalid_response');
+          }
+          if (readback != null) {
+            final returned = _object(readback);
+            _keys(returned, const {
+              'schemaVersion',
+              'commandId',
+              'camera',
+              'stateRevision',
+              'mode',
+              'observedAtMs',
+            });
+            final returnedScope = _scope(returned['camera']);
+            final returnedMode = _mode(returned['mode']);
+            final returnedRevision = _integer(returned['stateRevision']);
+            if (_integer(returned['schemaVersion']) != 1 ||
+                returned['commandId'] != value['commandId'] ||
+                returnedScope['cameraId'] != cameraId ||
+                returnedScope['cameraRevision'] != camera.cameraRevision ||
+                returnedScope['bindingRevision'] != camera.bindingRevision ||
+                (code == 'restored' &&
+                    (applied.readbackStateRevision == null ||
+                        returnedRevision <= applied.readbackStateRevision! ||
+                        _setting(returnedMode['recording']) !=
+                            camera.currentRecording ||
+                        _setting(returnedMode['detection']) !=
+                            camera.currentDetection))) {
+              throw const LarenorServerException('invalid_response');
+            }
+            _integer(returned['observedAtMs']);
+          }
+          final statusMatchesCode = switch (code) {
+            'restored' => state == CameraRollbackState.restored,
+            'not_changed' => state == CameraRollbackState.skipped,
+            'rollback_ack_unknown' => state == CameraRollbackState.unknown,
+            _ => state == CameraRollbackState.failed,
+          };
+          if (!statusMatchesCode) {
+            throw const LarenorServerException('invalid_response');
+          }
+          return CameraRollbackResult(
+            cameraId: cameraId,
+            state: state,
+            code: code,
+          );
+        })
+        .toList(growable: false);
+    final ids = results.map((item) => item.cameraId).toSet();
+    final expectedIds = expectedSnapshot.cameras.map((item) => item.id).toSet();
+    final states = results.map((item) => item.state).toSet();
+    final aggregate =
+        states.length == 1 && states.contains(CameraRollbackState.skipped)
+        ? 'already_original'
+        : states.difference({
+            CameraRollbackState.restored,
+            CameraRollbackState.skipped,
+          }).isEmpty
+        ? 'restored'
+        : states.length > 1
+        ? 'partial'
+        : switch (states.singleOrNull) {
+            CameraRollbackState.failed => 'failed',
+            CameraRollbackState.unknown => 'unknown',
+            _ => '',
+          };
+    if (results.isEmpty ||
+        results.length > 64 ||
+        ids.length != results.length ||
+        ids.difference(expectedIds).isNotEmpty ||
+        expectedIds.difference(ids).isNotEmpty ||
+        aggregate != status) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _integer(raw['createdAtMs']);
+    return CameraRollbackReceipt(
+      requestId: _identity(raw['requestId']),
+      originalRequestId: _identity(raw['originalRequestId']),
       status: status,
       results: results,
     );

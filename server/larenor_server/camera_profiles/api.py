@@ -9,7 +9,7 @@ from ..dependencies import require_admin
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .http_models import CameraProfileApplyRequest
+from .http_models import CameraProfileApplyRequest, CameraProfileRollbackRequest
 
 Admin = Annotated[Principal, Depends(require_admin)]
 ROOT = "/admin/camera-profiles/{core_id}/{home_id}"
@@ -51,3 +51,18 @@ def apply_profile(
     request: Request,
 ):
     return {"receipt": _gateway(request).apply(actor, core_id, home_id, body)}
+
+
+@router.post(ROOT + "/rollback")
+def rollback_profile(
+    core_id: Identity,
+    home_id: Identity,
+    body: CameraProfileRollbackRequest,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "rollbackReceipt": _gateway(request).rollback(
+            actor, core_id, home_id, body
+        )
+    }

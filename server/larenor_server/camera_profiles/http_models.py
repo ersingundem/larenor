@@ -36,3 +36,9 @@ class CameraProfileApplyRequest(FrozenModel):
     decision: CameraProfileDecision
     readbacks: list[CameraReadback] = Field(min_length=1, max_length=64)
     support: list[CameraProviderSupport] = Field(min_length=1, max_length=64)
+
+
+class CameraProfileRollbackRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    originalRequestId: Identity

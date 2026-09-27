@@ -1,5 +1,7 @@
 """Closed contracts for presence-informed camera recording profiles."""
 
+from __future__ import annotations
+
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -187,6 +189,22 @@ class CameraWorkerCommand(FrozenModel):
     desiredMode: CameraMode
 
 
+class CameraRollbackResult(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    cameraId: Identity
+    status: Literal["restored", "skipped", "failed", "unknown"]
+    code: Literal[
+        "restored",
+        "not_changed",
+        "rollback_readback_mismatch",
+        "rollback_state_conflict",
+        "rollback_ack_unknown",
+        "rollback_response_invalid",
+    ]
+    readback: WorkerReadback | None
+
+
 class WorkerReadback(FrozenModel):
     schemaVersion: Literal[1]
     commandId: Identity
@@ -222,10 +240,25 @@ class CameraCommandReceipt(FrozenModel):
     createdAtMs: TimestampMs
 
 
+class CameraRollbackReceipt(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    originalRequestId: Identity
+    profileId: Identity
+    profileRevision: Revision
+    status: Literal[
+        "restored", "already_original", "partial", "failed", "unknown"
+    ]
+    results: list[CameraRollbackResult] = Field(min_length=1, max_length=64)
+    createdAtMs: TimestampMs
+
+
 class CameraAuditEvent(FrozenModel):
     schemaVersion: Literal[1]
     sequence: int = Field(ge=1, le=16_384)
-    kind: Literal["decision", "command_batch", "result"]
+    kind: Literal[
+        "decision", "command_batch", "result", "rollback_batch", "rollback_result"
+    ]
     coreId: Identity
     homeId: Identity
     profileId: Identity

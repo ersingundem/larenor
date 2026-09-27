@@ -4,6 +4,8 @@ enum CameraSettingValue { enabled, paused, disabled }
 
 enum CameraApplyState { applied, skipped, failed, unknown }
 
+enum CameraRollbackState { restored, skipped, failed, unknown }
+
 @immutable
 final class CameraProfileAuthority {
   const CameraProfileAuthority({
@@ -134,9 +136,14 @@ final class CameraApplyResult {
     required this.cameraId,
     required this.state,
     required this.code,
+    this.readbackStateRevision,
+    this.readbackRecording,
+    this.readbackDetection,
   });
   final String cameraId, code;
   final CameraApplyState state;
+  final int? readbackStateRevision;
+  final CameraSettingValue? readbackRecording, readbackDetection;
 }
 
 @immutable
@@ -149,4 +156,31 @@ final class CameraApplyReceipt {
   final String requestId, status;
   final List<CameraApplyResult> results;
   bool get fullyVerified => status == 'applied' || status == 'already_applied';
+  bool get canRollback =>
+      results.any((result) => result.state == CameraApplyState.applied);
+}
+
+@immutable
+final class CameraRollbackResult {
+  const CameraRollbackResult({
+    required this.cameraId,
+    required this.state,
+    required this.code,
+  });
+  final String cameraId, code;
+  final CameraRollbackState state;
+}
+
+@immutable
+final class CameraRollbackReceipt {
+  const CameraRollbackReceipt({
+    required this.requestId,
+    required this.originalRequestId,
+    required this.status,
+    required this.results,
+  });
+  final String requestId, originalRequestId, status;
+  final List<CameraRollbackResult> results;
+  bool get fullyRestored =>
+      status == 'restored' || status == 'already_original';
 }

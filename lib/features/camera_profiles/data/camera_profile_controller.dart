@@ -8,7 +8,9 @@ enum CameraProfileViewState {
   loading,
   ready,
   applying,
+  rollingBack,
   verified,
+  restored,
   partial,
   failed,
   stale,
@@ -24,6 +26,7 @@ final class CameraProfileController extends ChangeNotifier {
   CameraProfileViewState state = CameraProfileViewState.idle;
   CameraProfileSnapshot? snapshot;
   CameraApplyReceipt? receipt;
+  CameraRollbackReceipt? rollbackReceipt;
 
   bool _current() {
     try {
@@ -36,11 +39,22 @@ final class CameraProfileController extends ChangeNotifier {
   bool get canApply =>
       _current() &&
       snapshot?.authority.canManage == true &&
-      state != CameraProfileViewState.applying;
+      state != CameraProfileViewState.applying &&
+      state != CameraProfileViewState.rollingBack;
+
+  bool get canRollback =>
+      _current() &&
+      api is CameraProfileRollbackApi &&
+      snapshot?.authority.canManage == true &&
+      receipt?.canRollback == true &&
+      rollbackReceipt == null &&
+      state != CameraProfileViewState.applying &&
+      state != CameraProfileViewState.rollingBack;
 
   void _stale() {
     snapshot = null;
     receipt = null;
+    rollbackReceipt = null;
     state = CameraProfileViewState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -64,6 +78,7 @@ final class CameraProfileController extends ChangeNotifier {
     state = CameraProfileViewState.loading;
     snapshot = null;
     receipt = null;
+    rollbackReceipt = null;
     notifyListeners();
     try {
       final value = await api.bootstrap();
@@ -87,12 +102,50 @@ final class CameraProfileController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<void> rollback() async {
+    final value = snapshot;
+    final applied = receipt;
+    final rollbackApi = api is CameraProfileRollbackApi
+        ? api as CameraProfileRollbackApi
+        : null;
+    if (!canRollback ||
+        value == null ||
+        applied == null ||
+        rollbackApi == null) {
+      return;
+    }
+    final operation = ++_epoch;
+    state = CameraProfileViewState.rollingBack;
+    notifyListeners();
+    try {
+      final result = await rollbackApi.rollback(value, applied);
+      if (operation != _epoch || !_current()) {
+        _stale();
+        return;
+      }
+      rollbackReceipt = result;
+      state = switch (result.status) {
+        'restored' || 'already_original' => CameraProfileViewState.restored,
+        'partial' => CameraProfileViewState.partial,
+        _ => CameraProfileViewState.failed,
+      };
+    } catch (_) {
+      if (operation != _epoch || !_current()) {
+        _stale();
+        return;
+      }
+      state = CameraProfileViewState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> apply() async {
     final value = snapshot;
     if (!canApply || value == null) return;
     final operation = ++_epoch;
     state = CameraProfileViewState.applying;
     receipt = null;
+    rollbackReceipt = null;
     notifyListeners();
     try {
       final result = await api.apply(value);

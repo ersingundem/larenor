@@ -1,7 +1,11 @@
 """Fail-closed authenticated adapter for presence-informed camera profiles."""
 
 from ..errors import ApiError
-from .http_models import CameraProfileApplyRequest, CameraProfileSnapshot
+from .http_models import (
+    CameraProfileApplyRequest,
+    CameraProfileRollbackRequest,
+    CameraProfileSnapshot,
+)
 from .models import (
     CameraPrivacyBoundary,
     CameraProfileAuthority,
@@ -121,4 +125,19 @@ class CameraProfileHttpGateway:
             nowMs=self._clock_ms(),
             worker=self._provider.apply,
             rawSupports=request.support,
+        )
+
+    def rollback(self, actor, core_id, home_id, raw):
+        try:
+            request = CameraProfileRollbackRequest.model_validate(raw)
+        except ValueError:
+            raise ApiError("invalid_request") from None
+        current = self._snapshot(actor, core_id, home_id)
+        return self._coordinator.rollback(
+            current.authority,
+            originalRequestId=request.originalRequestId,
+            requestId=request.requestId,
+            nowMs=self._clock_ms(),
+            worker=self._provider.apply,
+            rawCurrentReadbacks=current.readbacks,
         )
