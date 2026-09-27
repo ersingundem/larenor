@@ -4325,7 +4325,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Dolap stoğu ve son kullanma takibi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4348,7 +4348,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut saf reducer temeli kalıcı, sürümlü Core stoğu ve tablet tüketim akışına bağlanıyor; testler kullanıcı terciğiyle son toplu doğrulama evresine bırakılacak."
+      "reason": "Sürümlü ve AES-GCM korumalı Core stoğu; revision CAS ve idempotent makbuzlarla lot ekleme, en erken son kullanma tarihinden tüketme, yinelenen barkod/lot reddi ve tüketimi geri alma; tablet Client üzerinde lot/tarih/birim girişi, barkoddan kararlı kimlik, stok görünümü ve undo akışı tamamlandı. Özellik testleri kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Client→Core E2E, eşzamanlılık/bozuk-geç cevap paketi, bağımsız inceleme ve exact-head CI açık."
     },
     {
       "id": "F33",
@@ -5000,7 +5000,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Eski cihazlar için akıllı kumanda",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5024,7 +5024,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut legacy remote Core temeli, öğrenme ve komut makbuzu olan tablet akıllı kumanda akışına bağlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "F57",

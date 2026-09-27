@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `bf3fa24a` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27 ve F28 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `5360be61` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28 ve F32 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,29 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F32 dolap stoğu ve son kullanma — uygulama tamamlandı, test bekliyor
+
+F32 tek çalışma dalında tamamlandı. Core; gram, kilogram, mililitre, litre ve
+adet birimlerini kesin tamsayı ölçülere normalize eden sürümlü bir stok defteri
+tutuyor. Lot ekleme, en erken son kullanma tarihinden deterministik tüketme ve
+tüketimi geri alma revision CAS ile korunuyor. İstek kimlikleri aynı içerikte
+idempotent makbuz döndürüyor, farklı içerikte yeniden kullanım ve yinelenen
+barkod/lot reddediliyor. Bounded defter durumu Core/ev/revision AAD'sine bağlı
+AES-GCM kayıt olarak saklanıyor ve açılışta tablo, şifreli içerik, receipt ve
+movement bağları yeniden doğrulanıyor.
+
+Tablet Client, doğrulanmış Core oturumunda ürün/birim/miktar/son kullanma
+tarihi girişi, barkoddan kararlı lot kimliği, yaklaşan tarihe göre lot görünümü,
+stoktan tüketme ve son tüketimi geri alma akışlarını sunuyor. Rota; hesap,
+Core/ev, pencere odağı, foreground ve etkileşim epoch'u değişince geç cevapları
+iptal edip tuttuğu stok kanıtını bırakıyor. `08c3b98b` ve `5360be61` dilimleri
+Python py_compile/import/schema smoke, odaklı Flutter analyze ve diff
+kapılarından geçti. Kullanıcının kararı gereği özellik testleri son toplu
+doğrulama evresine bırakıldı. F32 **uygulama tamamlandı · test bekliyor**;
+sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek
+Client→Core E2E, eşzamanlı tüketim/yinelenen okuma/undo paketi, bozuk ve geç
+cevaplar, bağımsız inceleme ve exact-head CI açık kalıyor.
 
 ### 27 Eylül F28 sesli kitap ve podcast merkezi — uygulama tamamlandı, test bekliyor
 
