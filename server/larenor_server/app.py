@@ -14,6 +14,7 @@ from .automation_trials.api import router as automation_trials_router
 from .automation_drafts.api import router as automation_drafts_router
 from .mini_plugins.api import router as mini_plugins_router
 from .mcp_gateway.api import router as mcp_gateway_router
+from .support_sessions.api import router as support_sessions_router
 from .ai_resources.api import router as ai_resources_router
 from .ai_memory.api import router as ai_memory_router
 from .evidence_diagnostics.api import router as evidence_diagnostics_router
@@ -409,6 +410,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(automation_drafts_router, prefix="/api/v1")
     app.include_router(mini_plugins_router, prefix="/api/v1")
     app.include_router(mcp_gateway_router, prefix="/api/v1")
+    app.include_router(support_sessions_router, prefix="/api/v1")
     app.include_router(rule_arbitration_router, prefix="/api/v1")
     app.include_router(capability_evidence_router, prefix="/api/v1")
     app.include_router(kiosk_remote_router, prefix="/api/v1")

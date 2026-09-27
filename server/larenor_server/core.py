@@ -80,6 +80,8 @@ from .mini_plugins.schema import migrate_mini_plugins
 from .mini_plugins.service import MiniPluginService
 from .mcp_gateway.schema import migrate_mcp_gateway
 from .mcp_gateway.service import McpGatewayService
+from .support_sessions.schema import migrate_support_sessions
+from .support_sessions.service import SupportSessionService
 from .media_preferences.schema import migrate_jellyfin_track_preferences
 from .media_preferences.service import JellyfinTrackPreferenceService
 from .media_language_preferences.schema import migrate_media_language_preferences
@@ -412,6 +414,7 @@ class CoreServices:
                 migrate_automation_drafts(connection)
                 migrate_mini_plugins(connection)
                 migrate_mcp_gateway(connection)
+                migrate_support_sessions(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -764,6 +767,10 @@ class CoreServices:
                 self.home_resources, settings, key
             )
             self.mcp_gateway.validate_storage()
+            self.support_sessions = SupportSessionService(
+                self.home_resources, self.component_egress, settings, key
+            )
+            self.support_sessions.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services
             )
