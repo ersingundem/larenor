@@ -222,6 +222,42 @@ class ComponentUpdateReview(FrozenModel):
         return self
 
 
+class ComponentUpdateInventory(FrozenModel):
+    schemaVersion: Literal[1]
+    coreId: Identity
+    homeId: Identity
+    installed: tuple[InstalledComponentUpdateSource, ...] = Field(max_length=6)
+    reviews: tuple[ComponentUpdateReview, ...] = Field(max_length=6)
+
+    @model_validator(mode="after")
+    def coherent_inventory(self):
+        installed_ids = tuple(item.installationId for item in self.installed)
+        review_ids = tuple(item.installationId for item in self.reviews)
+        if (
+            tuple(
+                sorted(
+                    self.installed,
+                    key=lambda item: (item.current.serviceId, item.installationId),
+                )
+            )
+            != self.installed
+            or tuple(
+                sorted(
+                    self.reviews,
+                    key=lambda item: (item.current.serviceId, item.installationId),
+                )
+            )
+            != self.reviews
+            or installed_ids != review_ids
+            or any(
+                item.coreId != self.coreId or item.homeId != self.homeId
+                for item in self.reviews
+            )
+        ):
+            raise ValueError("invalid_update_inventory")
+        return self
+
+
 def _canonical(value: object) -> bytes:
     raw = json.dumps(
         value,

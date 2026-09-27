@@ -10,6 +10,8 @@ from .core_backups.component_worker import ComponentSnapshotWorkerClient
 from .core_backups.service import CoreBackupContract
 from .errors import ApiError, StartupError
 from .files import checked_path, private_create, private_directory, private_read
+from .plugins.component_update_api import build_component_update_router
+from .plugins.component_update_service import ComponentUpdateService
 from .releases import (
     BetaReleaseSynchronizer,
     GitHubBetaSource,
@@ -115,8 +117,17 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
             poll_seconds=beta_poll,
         )
         app.include_router(build_release_router(releases, beta=beta_releases), prefix="/api/v1")
+        component_updates = ComponentUpdateService(
+            component_backup_boundary,
+            app.state.core.context,
+        )
+        app.include_router(
+            build_component_update_router(component_updates),
+            prefix="/api/v1",
+        )
         app.state.releases = releases
         app.state.beta_releases = beta_releases
+        app.state.component_updates = component_updates
         app.state.publisher_credential_created = created
         app.state.publisher_credential_file = publisher_file
         return app
