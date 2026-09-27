@@ -5290,7 +5290,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız VNC uzak ekran",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5317,7 +5317,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Bağımsız VNC uzak ekranda gerçek Android TLS/RFB backend, güvenli ilk sertifika keşfi, VNC auth, IME/touchpad/zoom/resize ve kopuş kapanışı tamamlanıyor."
+      "reason": "Gerçek Android RFB 3.8 + VeNCrypt/X509Vnc TLS 1.3, explicit TOFU SPKI pin, VNC auth, bounded RAW framebuffer ACK, IME/HID/touchpad/zoom/resize ve disconnect kapanışı uygulandı; Kotlin compile, focused analyze ve diff-check geçti. Gerçek host/DeX kabulü ve tam CI bekliyor."
     },
     {
       "id": "FINAL",
@@ -5370,7 +5370,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tüm uygulanan özelliklerin test ve entegrasyon kabulü tamamlanınca tek aktif final maddesi olarak açılacak; ön kabul envanteri aynı kapı için hazırlanıyor."
     },
     {
       "id": "FINAL.UI",

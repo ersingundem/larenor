@@ -21,7 +21,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G08 — Kamera ve olaylar | 5 | 0 | 5 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 5 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 1 | 0 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F61 | Bağımsız VNC uzak ekran | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -37,7 +37,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G11 |
+| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT |
 | 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -172,3 +172,4 @@ Tamamlanan ve test/CI bekleyen işler
 | F60 | Tablette ev bilgisayarından oyun yayını | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
+| F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
