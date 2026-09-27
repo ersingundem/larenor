@@ -1,5 +1,7 @@
 package com.ersingundem.larenor.vnc
 
+import android.os.Handler
+import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -8,6 +10,10 @@ import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 interface VncNativeInputSession : VncNativeSession {
     fun input(sequence: Long, event: Map<String, Any>): Boolean
@@ -97,8 +103,16 @@ private fun VncNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
 
 class VncNativeBridge(
     messenger: BinaryMessenger,
-    private val adapter: VncNativeAdapter = VncNativeAdapter(),
+    adapter: VncNativeAdapter? = null,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+    private val main = Handler(Looper.getMainLooper())
+    private val worker = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "larenor-vnc-connect").apply { isDaemon = true }
+    }
+    private val production = adapter == null
+    private val adapter = adapter ?: VncNativeAdapter(
+        VncAndroidRfbBackend(::publishFromWorker, ::nativeDisconnected),
+    )
     private val methods = MethodChannel(messenger, METHODS)
     private val events = EventChannel(messenger, EVENTS)
     private var sink: EventChannel.EventSink? = null
@@ -148,6 +162,7 @@ class VncNativeBridge(
                     binding = next
                     result.success(null)
                 }
+                "inspect" -> inspect(call.arguments, result)
                 "open" -> open(call.arguments, result)
                 "cancel" -> {
                     val requested = VncBridgeBinding.parse(call.arguments)
@@ -158,6 +173,7 @@ class VncNativeBridge(
                 }
                 "input" -> input(call.arguments, result)
                 "ackFrame" -> acknowledge(call.arguments, result)
+                "resize" -> resize(call.arguments, result)
                 else -> result.notImplemented()
             }
         } catch (failure: VncNativeFailure) {
@@ -193,25 +209,81 @@ class VncNativeBridge(
             }
             val parsedRequest = VncNativeRequest.parse(value["request"])
             val secrets = VncNativeSecrets.take(decodePassword(password))
-            val opened = adapter.open(parsedRequest, secrets, expectedRevision)
-            try {
-                requireForeground()
-                requireBinding(requestedBinding)
-                session = opened
-                request = parsedRequest
-                lastInputSequence = 0
-                nextFrameSequence = 1
-                pendingFrameSequence = null
-                result.success(mapOf(
-                    "sessionId" to parsedRequest.requestId,
-                    "requestId" to parsedRequest.requestId,
-                ))
-            } catch (failure: Exception) {
-                opened.close()
-                throw failure
+            if (!production) {
+                finishOpen(adapter.open(parsedRequest, secrets, expectedRevision), parsedRequest, requestedBinding, result)
+            } else {
+                worker.execute {
+                    try {
+                        val opened = adapter.open(parsedRequest, secrets, expectedRevision)
+                        main.post {
+                            try { finishOpen(opened, parsedRequest, requestedBinding, result) }
+                            catch (failure: VncNativeFailure) { opened.close(); error(result, failure.code) }
+                            catch (_: Exception) { opened.close(); error(result, "connectionFailed") }
+                        }
+                    } catch (failure: VncNativeFailure) {
+                        main.post { error(result, failure.code) }
+                    } catch (_: Exception) {
+                        main.post { error(result, "connectionFailed") }
+                    }
+                }
             }
         } finally {
             password.fill(0)
+        }
+    }
+
+    private fun finishOpen(
+        opened: VncNativeSession,
+        parsedRequest: VncNativeRequest,
+        requestedBinding: VncBridgeBinding,
+        result: MethodChannel.Result,
+    ) {
+        requireForeground()
+        requireBinding(requestedBinding)
+        if (session != null) failBridge("busy")
+        session = opened
+        request = parsedRequest
+        lastInputSequence = 0
+        nextFrameSequence = 1
+        pendingFrameSequence = null
+        (opened as? VncNativeDeferredStartSession)?.start()
+        result.success(mapOf("sessionId" to parsedRequest.requestId, "requestId" to parsedRequest.requestId))
+    }
+
+    private fun inspect(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        val value = bridgeMap(raw, setOf("targetHost", "targetPort"))
+        val request = VncNativeRequest.parse(mapOf(
+            "schemaVersion" to 1,
+            "requestId" to "00000000-0000-4000-8000-000000000000",
+            "targetHost" to value["targetHost"],
+            "targetPort" to value["targetPort"],
+            "security" to mapOf(
+                "type" to "vencryptTlsVncAuth",
+                "spkiFingerprint" to "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                "requiresPassword" to true,
+            ),
+            "display" to mapOf(
+                "width" to 640, "height" to 480, "dpi" to 160,
+                "externalDisplay" to false, "dynamicResolution" to false,
+            ),
+            "framebuffer" to mapOf("encoding" to "raw", "pixelFormat" to "trueColor32"),
+            "input" to mapOf("pointer" to true, "keyboard" to true, "clipboard" to false),
+        ))
+        if (!production) failBridge("engineUnavailable")
+        worker.execute {
+            try {
+                val pin = adapter.inspect(request.directTargetHost, request.directTargetPort)
+                main.post {
+                    if (!disposed && resumed && windowFocused) {
+                        result.success(mapOf("tls" to true, "spkiFingerprint" to pin))
+                    } else error(result, "staleSession")
+                }
+            } catch (failure: VncNativeFailure) {
+                main.post { error(result, failure.code) }
+            } catch (_: Exception) {
+                main.post { error(result, "connectionFailed") }
+            }
         }
     }
 
@@ -285,6 +357,14 @@ class VncNativeBridge(
                 }
                 mapOf("kind" to "clipboard", "text" to text)
             }
+            "text" -> {
+                if (value.keys != setOf("kind", "text")) failBridge("invalidRequest")
+                val text = value["text"] as? String ?: failBridge("invalidRequest")
+                if (text.isEmpty() || text.codePointCount(0, text.length) > 1024 || text.indexOf('\u0000') >= 0) {
+                    failBridge("invalidRequest")
+                }
+                mapOf("kind" to "text", "text" to text)
+            }
             else -> failBridge("invalidRequest")
         }
     }
@@ -298,9 +378,44 @@ class VncNativeBridge(
             retire()
             failBridge("staleSession")
         }
+        val native = session as? VncNativeFrameSession ?: failBridge("framebufferUnavailable")
+        if (!native.acknowledgeFrame(sequence)) failBridge("staleSession")
         pendingFrameSequence = null
         nextFrameSequence++
         result.success(null)
+    }
+
+    private fun resize(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        val value = bridgeMap(raw, setOf("binding", "width", "height"))
+        requireBinding(VncBridgeBinding.parse(value["binding"]))
+        val width = (value["width"] as? Number)?.toInt() ?: failBridge("invalidRequest")
+        val height = (value["height"] as? Number)?.toInt() ?: failBridge("invalidRequest")
+        if (width !in 640..8192 || height !in 480..8192 || width.toLong() * height * 4 > MAX_FRAME_BYTES) {
+            failBridge("invalidRequest")
+        }
+        val native = session as? VncNativeFrameSession ?: failBridge("framebufferUnavailable")
+        if (!native.resize(width, height)) failBridge("busy")
+        result.success(null)
+    }
+
+    private fun publishFromWorker(sequence: Long, width: Int, height: Int, pixels: ByteArray): Boolean {
+        val accepted = AtomicBoolean(false)
+        val latch = CountDownLatch(1)
+        main.post {
+            try { accepted.set(publishFrame(binding?.toChannel(), sequence, width, height, pixels)) }
+            finally { latch.countDown() }
+        }
+        return try { latch.await(5, TimeUnit.SECONDS) && accepted.get() }
+        catch (_: InterruptedException) { Thread.currentThread().interrupt(); false }
+    }
+
+    private fun nativeDisconnected() {
+        main.post {
+            if (disposed || session == null) return@post
+            sink?.error("connectionFailed", "Native VNC connection closed", null)
+            retire()
+        }
     }
 
     fun publishFrame(
@@ -316,8 +431,8 @@ class VncNativeBridge(
         val activeRequest = request ?: return false
         if (pendingFrameSequence != null) return false
         val stride = width * 4
-        if (sequence != nextFrameSequence || width != activeRequest.display.width ||
-            height != activeRequest.display.height || pixels.isEmpty() || pixels.size > MAX_FRAME_BYTES ||
+        if (sequence != nextFrameSequence || width !in 1..8192 || height !in 1..8192 ||
+            pixels.isEmpty() || pixels.size > MAX_FRAME_BYTES ||
             pixels.size.toLong() != stride.toLong() * height) {
             pixels.fill(0)
             retire()
@@ -388,6 +503,7 @@ class VncNativeBridge(
         sink = null
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
+        worker.shutdownNow()
     }
 
     companion object {

@@ -19,7 +19,7 @@ import 'vnc_security_store.dart';
 import 'vnc_session_controller.dart';
 
 final vncEngineFactoryProvider = Provider<VncEngine Function()>(
-  (_) => UnsupportedVncEngine.new,
+  (_) => VncMethodChannelEngine.new,
 );
 final vncTrustStoreProvider = Provider<VncTrustStore>(
   (_) => VncSecurityStore(),
@@ -42,6 +42,7 @@ class VncSessionPanel extends ConsumerStatefulWidget {
 class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
     with WidgetsBindingObserver {
   final _password = TextEditingController();
+  final _remoteText = TextEditingController();
   ProviderContainer? _container;
   AppInteractionController? _interaction;
   VncSessionController? _controller;
@@ -133,6 +134,7 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
   void _changed() {
     if (!mounted) return;
     if (_controller?.hasSensitiveInput != true) _password.clear();
+    if (_controller?.phase != VncSessionPhase.connected) _remoteText.clear();
     _synchronizeFramebuffer();
     setState(() {});
   }
@@ -183,6 +185,7 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
     if (_retired) return;
     _retired = true;
     _password.clear();
+    _remoteText.clear();
     _disposeFramebuffer();
     _controller?.retire();
     if (mounted) setState(() {});
@@ -209,6 +212,7 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
     _disposeFramebuffer();
     _controller?.dispose();
     _password.dispose();
+    _remoteText.dispose();
     super.dispose();
   }
 
@@ -365,13 +369,33 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
                         ],
                         if (c.phase == VncSessionPhase.connected &&
                             _framebuffer != null)
-                          SizedBox(
-                            height: 560,
-                            child: VncFramebufferSurface(
-                              controller: _framebuffer!,
-                              semanticsLabel: l.vncInputReady,
-                              clipboardLabel: l.vncClipboardOff,
-                            ),
+                          Column(
+                            children: [
+                              SizedBox(
+                                height: 560,
+                                child: VncFramebufferSurface(
+                                  controller: _framebuffer!,
+                                  semanticsLabel: l.vncInputReady,
+                                  clipboardLabel: l.vncClipboardOff,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: CupertinoTextField(
+                                  key: const ValueKey('vnc-ime-text'),
+                                  controller: _remoteText,
+                                  maxLength: 1024,
+                                  placeholder: l.vncInputReady,
+                                  textInputAction: TextInputAction.send,
+                                  onSubmitted: (value) {
+                                    if (value.isNotEmpty) {
+                                      unawaited(_framebuffer!.text(value));
+                                      _remoteText.clear();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ],
                           )
                         else if (c.phase == VncSessionPhase.connected)
                           Padding(

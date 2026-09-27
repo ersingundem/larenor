@@ -363,6 +363,17 @@ class VncNativeSecrets private constructor(private var password: CharArray?) : A
 
 interface VncNativeSession { fun close() }
 
+interface VncNativeDeferredStartSession : VncNativeSession { fun start() }
+
+interface VncNativeFrameSession : VncNativeSession {
+    fun acknowledgeFrame(sequence: Long): Boolean
+    fun resize(width: Int, height: Int): Boolean
+}
+
+interface VncNativeCertificateInspector {
+    fun inspect(host: String, port: Int): String
+}
+
 interface VncNativeBackend {
     fun capabilities(): VncNativeCapabilities
     fun open(request: VncNativeRequest, plan: VncNativePlan, secrets: VncNativeSecrets): VncNativeSession
@@ -404,6 +415,10 @@ class UnavailableVncNativeBackend : VncNativeBackend {
 
 class VncNativeAdapter(private val backend: VncNativeBackend = UnavailableVncNativeBackend()) {
     fun capabilities() = backend.capabilities()
+
+    fun inspect(host: String, port: Int): String =
+        (backend as? VncNativeCertificateInspector)?.inspect(host, port)
+            ?: fail("engineUnavailable")
 
     fun open(
         request: VncNativeRequest,

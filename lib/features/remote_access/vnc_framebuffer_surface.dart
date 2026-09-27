@@ -207,6 +207,10 @@ abstract interface class VncSurfaceSink {
   Future<void> cancel();
 }
 
+abstract interface class VncResizableSurfaceSink implements VncSurfaceSink {
+  Future<void> resize(int width, int height);
+}
+
 class VncBridgeSurfaceSink implements VncSurfaceSink {
   VncBridgeSurfaceSink(this.session);
   final VncBridgeSession session;
@@ -289,6 +293,9 @@ class VncFramebufferController extends ChangeNotifier {
   bool _decoding = false, _awaitingAck = false, _inputBusy = false;
   bool _cancelled = false, _disposed = false;
   int _generation = 0, _expectedSequence = 1;
+  int? _resizeWidth, _resizeHeight;
+  Offset _touchpadCursor = const Offset(.5, .5);
+  bool touchpadMode = false;
 
   bool get needsPresentationAck => _awaitingAck;
 
@@ -381,6 +388,63 @@ class VncFramebufferController extends ChangeNotifier {
     return _send({'kind': 'key', 'code': code, 'down': down});
   }
 
+  Future<void> text(String value) {
+    if (value.isEmpty ||
+        value.runes.length > 1024 ||
+        value.contains('\u0000')) {
+      _reject('invalidInput');
+    }
+    return _send({'kind': 'text', 'text': value});
+  }
+
+  void setTouchpadMode(bool value) {
+    if (!_owned) _reject('retired');
+    touchpadMode = value;
+    _publish();
+  }
+
+  Future<void> touchpad(Offset delta, Size viewport, int buttons) async {
+    if (!delta.dx.isFinite || !delta.dy.isFinite || viewport.isEmpty) {
+      _reject('invalidInput');
+    }
+    _touchpadCursor = Offset(
+      (_touchpadCursor.dx + delta.dx / viewport.width).clamp(0, 1),
+      (_touchpadCursor.dy + delta.dy / viewport.height).clamp(0, 1),
+    );
+    await _send({
+      'kind': 'pointer',
+      'x': _touchpadCursor.dx,
+      'y': _touchpadCursor.dy,
+      'buttons': buttons,
+    });
+  }
+
+  Future<void> resizeRemote(int width, int height) async {
+    final target = sink is VncResizableSurfaceSink
+        ? sink as VncResizableSurfaceSink
+        : null;
+    if (target == null ||
+        !_owned ||
+        width == _resizeWidth && height == _resizeHeight) {
+      return;
+    }
+    if (width < 640 ||
+        width > 2048 ||
+        height < 480 ||
+        height > 2048 ||
+        width * height * 4 > VncRawFrame.maxBytes) {
+      return;
+    }
+    _resizeWidth = width;
+    _resizeHeight = height;
+    try {
+      await target.resize(width, height);
+    } catch (_) {
+      _resizeWidth = null;
+      _resizeHeight = null;
+    }
+  }
+
   Future<bool> pointer(Offset local, Size viewport, int buttons) async {
     if (buttons < 0 || buttons > 31) _reject('invalidInput');
     final frame = renderedFrame;
@@ -445,6 +509,7 @@ class VncFramebufferController extends ChangeNotifier {
     _generation++;
     _awaitingAck = false;
     clipboardEnabled = false;
+    touchpadMode = false;
     renderedFrame?.dispose();
     renderedFrame = null;
     _publish();
@@ -487,6 +552,7 @@ class VncFramebufferSurface extends StatefulWidget {
 class _VncFramebufferSurfaceState extends State<VncFramebufferSurface>
     with WidgetsBindingObserver {
   bool _ackScheduled = false;
+  final TransformationController _transform = TransformationController();
 
   @override
   void initState() {
@@ -575,6 +641,21 @@ class _VncFramebufferSurfaceState extends State<VncFramebufferSurface>
                       semanticLabel: widget.clipboardLabel,
                     ),
                   ),
+                  CupertinoButton(
+                    key: const ValueKey('vnc-touchpad-toggle'),
+                    minimumSize: const Size(48, 48),
+                    onPressed: controller.phase == VncSurfacePhase.active
+                        ? () => controller.setTouchpadMode(
+                            !controller.touchpadMode,
+                          )
+                        : null,
+                    child: Icon(
+                      controller.touchpadMode
+                          ? CupertinoIcons.hand_draw_fill
+                          : CupertinoIcons.hand_draw,
+                      semanticLabel: widget.semanticsLabel,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -582,6 +663,17 @@ class _VncFramebufferSurfaceState extends State<VncFramebufferSurface>
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final viewport = constraints.biggest;
+                  final ratio = MediaQuery.devicePixelRatioOf(context);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      unawaited(
+                        widget.controller.resizeRemote(
+                          (viewport.width * ratio).round().clamp(640, 2048),
+                          (viewport.height * ratio).round().clamp(480, 2048),
+                        ),
+                      );
+                    }
+                  });
                   return Focus(
                     autofocus: true,
                     onKeyEvent: (_, event) {
@@ -602,19 +694,32 @@ class _VncFramebufferSurfaceState extends State<VncFramebufferSurface>
                         ),
                       ),
                       onPointerMove: (event) => unawaited(
-                        controller.pointer(
-                          event.localPosition,
-                          viewport,
-                          event.buttons,
-                        ),
+                        controller.touchpadMode
+                            ? controller.touchpad(
+                                event.delta,
+                                viewport,
+                                event.buttons,
+                              )
+                            : controller.pointer(
+                                event.localPosition,
+                                viewport,
+                                event.buttons,
+                              ),
                       ),
                       onPointerUp: (event) => unawaited(
                         controller.pointer(event.localPosition, viewport, 0),
                       ),
-                      child: CustomPaint(
-                        key: const ValueKey('vnc-framebuffer'),
-                        painter: _VncFramePainter(controller.renderedFrame),
-                        size: Size.infinite,
+                      child: InteractiveViewer(
+                        transformationController: _transform,
+                        minScale: 1,
+                        maxScale: 4,
+                        panEnabled: !controller.touchpadMode,
+                        scaleEnabled: true,
+                        child: CustomPaint(
+                          key: const ValueKey('vnc-framebuffer'),
+                          painter: _VncFramePainter(controller.renderedFrame),
+                          size: Size.infinite,
+                        ),
                       ),
                     ),
                   );
@@ -631,6 +736,7 @@ class _VncFramebufferSurfaceState extends State<VncFramebufferSurface>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_changed);
+    _transform.dispose();
     unawaited(widget.controller.retire());
     super.dispose();
   }

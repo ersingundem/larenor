@@ -400,7 +400,13 @@ abstract interface class VncNativeTransport {
   Future<void> ackFrame(VncSessionBinding binding, int sequence);
 }
 
-class VncMethodChannelTransport implements VncNativeTransport {
+abstract interface class VncExtendedNativeTransport
+    implements VncNativeTransport {
+  Future<String> inspectCertificate(String host, int port);
+  Future<void> resize(VncSessionBinding binding, int width, int height);
+}
+
+class VncMethodChannelTransport implements VncExtendedNativeTransport {
   VncMethodChannelTransport({
     MethodChannel? methods,
     EventChannel? events,
@@ -439,6 +445,25 @@ class VncMethodChannelTransport implements VncNativeTransport {
   @override
   Future<VncBridgeCapabilities> capabilities() async =>
       VncBridgeCapabilities.fromChannel(await _call<Object?>('capabilities'));
+
+  @override
+  Future<String> inspectCertificate(String host, int port) async {
+    final value = _map(
+      await _call<Object?>(
+        'inspect',
+        arguments: {'targetHost': host, 'targetPort': port},
+        timeout: const Duration(seconds: 30),
+      ),
+      {'tls', 'spkiFingerprint'},
+    );
+    if (value['tls'] != true ||
+        value['spkiFingerprint'] is! String ||
+        !RegExp(r'^SHA256:[A-Za-z0-9+/]{43}$')
+            .hasMatch(value['spkiFingerprint'] as String)) {
+      _invalid();
+    }
+    return value['spkiFingerprint'] as String;
+  }
 
   @override
   Future<VncOpenedSession> open(
@@ -488,6 +513,17 @@ class VncMethodChannelTransport implements VncNativeTransport {
     'ackFrame',
     arguments: {'binding': binding.toChannel(), 'sequence': sequence},
   );
+
+  @override
+  Future<void> resize(VncSessionBinding binding, int width, int height) =>
+      _call<void>(
+        'resize',
+        arguments: {
+          'binding': binding.toChannel(),
+          'width': width,
+          'height': height,
+        },
+      );
 
   Future<T?> _call<T>(
     String method, {
@@ -691,6 +727,30 @@ class VncBridgeSession {
       rethrow;
     } finally {
       _inputBusy = false;
+    }
+  }
+
+  Future<void> resize(int width, int height) async {
+    if (phase != VncBridgePhase.connected || !_ownsSession) {
+      await _retire();
+      throw const VncBridgeException('retired');
+    }
+    if (width < 640 ||
+        width > 8192 ||
+        height < 480 ||
+        height > 8192 ||
+        width * height * 4 > 16 * 1024 * 1024) {
+      throw const VncBridgeException('invalidRequest');
+    }
+    try {
+      final extended = transport is VncExtendedNativeTransport
+          ? transport as VncExtendedNativeTransport
+          : throw const VncBridgeException('inputUnavailable');
+      await extended.resize(binding, width, height);
+      if (!await _guard()) return;
+    } catch (_) {
+      await _retire();
+      rethrow;
     }
   }
 
