@@ -28,11 +28,22 @@ final class CameraVisualSensorStrings {
     required this.supported,
     required this.unsupported,
     required this.notApplicable,
+    required this.ready,
+    required this.degraded,
+    required this.on,
+    required this.off,
+    required this.confidence,
+    required this.count,
+    required this.observed,
+    required this.model,
+    required this.pipeline,
   });
   final String title, refresh, loading, unavailable, stale, invalidScope;
   final String noSensors, engine, detectorUnavailable, unknown, noTrustedFrame;
   final String notAuthority, architecture, avx, avx2;
   final String supported, unsupported, notApplicable;
+  final String ready, degraded, on, off, confidence, count, observed;
+  final String model, pipeline;
 
   static const en = CameraVisualSensorStrings(
     title: 'Camera visual sensors',
@@ -53,6 +64,15 @@ final class CameraVisualSensorStrings {
     supported: 'Supported',
     unsupported: 'Unsupported or unknown',
     notApplicable: 'Not applicable',
+    ready: 'Ready',
+    degraded: 'Degraded',
+    on: 'Detected',
+    off: 'Not detected',
+    confidence: 'Confidence',
+    count: 'Count',
+    observed: 'Observed',
+    model: 'Model',
+    pipeline: 'Pipeline',
   );
 
   static const tr = CameraVisualSensorStrings(
@@ -74,6 +94,15 @@ final class CameraVisualSensorStrings {
     supported: 'Destekleniyor',
     unsupported: 'Desteklenmiyor veya bilinmiyor',
     notApplicable: 'Uygulanamaz',
+    ready: 'Hazır',
+    degraded: 'Bozulmuş',
+    on: 'Algılandı',
+    off: 'Algılanmadı',
+    confidence: 'Güven',
+    count: 'Sayı',
+    observed: 'Gözlem',
+    model: 'Model',
+    pipeline: 'İşlem hattı',
   );
 }
 
@@ -224,10 +253,16 @@ class _CapabilityCard extends StatelessWidget {
     VisualCpuSupport.unknown => strings.unsupported,
   };
 
+  String _detector() => switch (capability.detectorState) {
+    VisualDetectorState.ready => strings.ready,
+    VisualDetectorState.degraded => strings.degraded,
+    VisualDetectorState.unavailable => strings.detectorUnavailable,
+  };
+
   @override
   Widget build(BuildContext context) => Semantics(
     container: true,
-    label: '${strings.engine}. ${strings.detectorUnavailable}',
+    label: '${strings.engine}. ${_detector()}',
     child: DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surface.resolveFrom(context),
@@ -240,7 +275,7 @@ class _CapabilityCard extends StatelessWidget {
           children: [
             Text(strings.engine, style: AppText.title2),
             const SizedBox(height: 8),
-            Text(strings.detectorUnavailable, style: AppText.body),
+            Text(_detector(), style: AppText.body),
             const SizedBox(height: 12),
             Text(
               '${strings.architecture}: ${capability.architecture.name}',
@@ -260,11 +295,24 @@ class _SensorCard extends StatelessWidget {
   final CameraVisualSensor sensor;
   final CameraVisualSensorStrings strings;
 
+  String get _state => switch (sensor.state) {
+    VisualSensorState.on => strings.on,
+    VisualSensorState.off => strings.off,
+    VisualSensorState.unknown => strings.unknown,
+  };
+
+  String get _detail => switch (sensor.status) {
+    VisualSensorStatus.ready =>
+      '${strings.confidence}: ${(sensor.confidenceBps / 100).toStringAsFixed(1)}% · '
+          '${strings.count}: ${sensor.count}',
+    VisualSensorStatus.degraded => strings.degraded,
+    VisualSensorStatus.unavailable => strings.noTrustedFrame,
+  };
+
   @override
   Widget build(BuildContext context) => Semantics(
     container: true,
-    label:
-        '${sensor.label}. ${strings.unknown}. ${strings.noTrustedFrame}. ${strings.notAuthority}',
+    label: '${sensor.label}. $_state. $_detail. ${strings.notAuthority}',
     child: DecoratedBox(
       key: ValueKey('visual-sensor-${sensor.ruleId}'),
       decoration: BoxDecoration(
@@ -281,8 +329,22 @@ class _SensorCard extends StatelessWidget {
           children: [
             Text(sensor.label, style: AppText.title2),
             const SizedBox(height: 8),
-            Text(strings.unknown, style: AppText.headline),
-            Text(strings.noTrustedFrame, style: AppText.body),
+            Text(_state, style: AppText.headline),
+            Text(_detail, style: AppText.body),
+            if (sensor.observedAtMs case final observed?)
+              Text(
+                '${strings.observed}: '
+                '${DateTime.fromMillisecondsSinceEpoch(observed, isUtc: true).toIso8601String()}',
+                style: AppText.caption1,
+              ),
+            Text(
+              '${strings.model}: ${sensor.modelId} · r${sensor.modelRevision}',
+              style: AppText.caption1,
+            ),
+            Text(
+              '${strings.pipeline}: ${sensor.pipelineId} · r${sensor.pipelineRevision}',
+              style: AppText.caption1,
+            ),
             const SizedBox(height: 8),
             Text(strings.notAuthority, style: AppText.caption1),
           ],

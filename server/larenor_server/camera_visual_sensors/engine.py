@@ -263,6 +263,7 @@ class VisualSensorEngine:
                 evidenceDigest=batch.evidence.digest,
                 confidenceBps=confidence,
                 count=count,
+                frameStatus=batch.frameStatus,
             )
             self._append_event(
                 authority=authority,
@@ -275,6 +276,135 @@ class VisualSensorEngine:
             state.last_reading = reading
             self._receipts[batch.requestId] = (fingerprint, reading)
             return reading
+
+    def checkpoint(self) -> dict:
+        """Return a bounded metadata-only snapshot suitable for authenticated storage."""
+        with self._lock:
+            return {
+                "schemaVersion": 1,
+                "states": [
+                    {
+                        "ruleId": rule_id,
+                        "state": state.state,
+                        "sequence": state.sequence,
+                        "lastCapturedAt": state.last_captured_at,
+                        "lastCaptureRevision": state.last_capture_revision,
+                        "onSince": state.on_since,
+                        "offSince": state.off_since,
+                        "lastReading": (
+                            None
+                            if state.last_reading is None
+                            else state.last_reading.model_dump(mode="json")
+                        ),
+                    }
+                    for rule_id, state in sorted(self._states.items())
+                ],
+                "receipts": [
+                    {
+                        "requestId": request_id,
+                        "fingerprint": value[0],
+                        "reading": value[1].model_dump(mode="json"),
+                    }
+                    for request_id, value in sorted(self._receipts.items())
+                ],
+                "events": [dict(value) for value in self._events],
+            }
+
+    def resetRule(self, rule_id: str) -> None:
+        """Retire reducer state when the exact rule revision changes."""
+        with self._lock:
+            self._states.pop(rule_id, None)
+
+    def restore(self, raw: dict) -> None:
+        """Replace runtime state only after a strict, complete audit validation."""
+        try:
+            if not isinstance(raw, dict) or set(raw) != {
+                "schemaVersion", "states", "receipts", "events"
+            } or raw["schemaVersion"] != 1:
+                raise ValueError
+            states, receipts, events = raw["states"], raw["receipts"], raw["events"]
+            if (
+                not isinstance(states, list)
+                or len(states) > 64
+                or not isinstance(receipts, list)
+                or len(receipts) > MAX_RECEIPTS
+                or not isinstance(events, list)
+                or len(events) > MAX_EVENTS
+            ):
+                raise ValueError
+            restored_states = {}
+            for item in states:
+                if not isinstance(item, dict) or set(item) != {
+                    "ruleId", "state", "sequence", "lastCapturedAt",
+                    "lastCaptureRevision", "onSince", "offSince", "lastReading",
+                }:
+                    raise ValueError
+                rule_id = item["ruleId"]
+                if (
+                    not isinstance(rule_id, str)
+                    or not 1 <= len(rule_id) <= 128
+                    or rule_id in restored_states
+                    or item["state"] not in {"on", "off"}
+                    or type(item["sequence"]) is not int
+                    or item["sequence"] < 0
+                    or type(item["lastCapturedAt"]) is not int
+                    or item["lastCapturedAt"] < -1
+                    or type(item["lastCaptureRevision"]) is not int
+                    or item["lastCaptureRevision"] < 0
+                    or any(
+                        value is not None and (type(value) is not int or value < 0)
+                        for value in (item["onSince"], item["offSince"])
+                    )
+                ):
+                    raise ValueError
+                reading = (
+                    None
+                    if item["lastReading"] is None
+                    else VisualSensorReading.model_validate(item["lastReading"])
+                )
+                if reading is not None and (
+                    reading.ruleId != rule_id
+                    or reading.sequence != item["sequence"]
+                    or reading.observedAtMs != item["lastCapturedAt"]
+                    or reading.captureRevision != item["lastCaptureRevision"]
+                ):
+                    raise ValueError
+                restored_states[rule_id] = _RuleState(
+                    state=item["state"],
+                    sequence=item["sequence"],
+                    last_captured_at=item["lastCapturedAt"],
+                    last_capture_revision=item["lastCaptureRevision"],
+                    on_since=item["onSince"],
+                    off_since=item["offSince"],
+                    last_reading=reading,
+                )
+            restored_receipts = {}
+            for item in receipts:
+                if not isinstance(item, dict) or set(item) != {
+                    "requestId", "fingerprint", "reading"
+                }:
+                    raise ValueError
+                request_id, fingerprint = item["requestId"], item["fingerprint"]
+                if (
+                    not isinstance(request_id, str)
+                    or not 1 <= len(request_id) <= 128
+                    or request_id in restored_receipts
+                    or not isinstance(fingerprint, str)
+                    or len(fingerprint) != 64
+                    or any(char not in "0123456789abcdef" for char in fingerprint)
+                ):
+                    raise ValueError
+                restored_receipts[request_id] = (
+                    fingerprint,
+                    VisualSensorReading.model_validate(item["reading"]),
+                )
+            self._states = restored_states
+            self._receipts = restored_receipts
+            self._events = [dict(value) for value in events]
+            if not self.verifyAudit():
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("invalid_visual_sensor_checkpoint") from None
 
     def export(self, presentedAuthority: CameraVisualAuthority, ruleId: str) -> dict:
         authority = self._authority(presentedAuthority)
@@ -300,6 +430,7 @@ class VisualSensorEngine:
                 "evidenceDigest": reading.evidenceDigest,
                 "confidenceBps": reading.confidenceBps,
                 "count": reading.count,
+                "frameStatus": reading.frameStatus,
             }
 
     def verifyAudit(self) -> bool:

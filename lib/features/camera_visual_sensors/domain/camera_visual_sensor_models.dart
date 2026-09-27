@@ -2,6 +2,12 @@ enum VisualCpuSupport { supported, unsupported, unknown, notApplicable }
 
 enum VisualArchitecture { amd64, arm64, other }
 
+enum VisualDetectorState { unavailable, degraded, ready }
+
+enum VisualSensorState { on, off, unknown }
+
+enum VisualSensorStatus { ready, degraded, unavailable }
+
 final class VisualEngineCapability {
   const VisualEngineCapability({
     required this.architecture,
@@ -9,11 +15,16 @@ final class VisualEngineCapability {
     required this.avx2,
     required this.arm64,
     required this.reason,
+    this.detectorState = VisualDetectorState.unavailable,
+    this.trainingSupported = false,
+    this.inferenceSupported = false,
   });
   final VisualArchitecture architecture;
   final VisualCpuSupport avx, avx2;
   final bool arm64;
   final String reason;
+  final VisualDetectorState detectorState;
+  final bool trainingSupported, inferenceSupported;
 }
 
 final class CameraVisualSensor {
@@ -26,9 +37,25 @@ final class CameraVisualSensor {
     required this.modelId,
     required this.modelRevision,
     required this.label,
+    this.state = VisualSensorState.unknown,
+    this.status = VisualSensorStatus.unavailable,
+    this.reason = 'no_trusted_frame',
+    this.observedAtMs,
+    this.staleAtMs,
+    this.evidenceDigest,
+    this.confidenceBps = 0,
+    this.count = 0,
+    this.automationEligible = false,
   });
   final String ruleId, cameraId, pipelineId, modelId, label;
   final int ruleRevision, pipelineRevision, modelRevision;
+  final VisualSensorState state;
+  final VisualSensorStatus status;
+  final String reason;
+  final int? observedAtMs, staleAtMs;
+  final String? evidenceDigest;
+  final int confidenceBps, count;
+  final bool automationEligible;
 }
 
 final class CameraVisualSensorSummary {

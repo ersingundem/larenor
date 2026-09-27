@@ -36,7 +36,8 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
     );
     _check();
     final body = serverObject(raw);
-    if (body.length != 4 || body['schemaVersion'] != 1) {
+    final version = body['schemaVersion'];
+    if (body.length != 4 || (version != 1 && version != 2)) {
       throw const LarenorServerException('invalid_response');
     }
     final scope = ServerContext.fromJson(serverObject(body['scope']));
@@ -48,7 +49,9 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
     if (rawRules is! List || rawRules.length > 64) {
       throw const LarenorServerException('invalid_response');
     }
-    final sensors = rawRules.map(_sensor).toList(growable: false);
+    final sensors = rawRules
+        .map((value) => _sensor(value, version: version! as int))
+        .toList(growable: false);
     if (sensors.map((value) => value.ruleId).toSet().length != sensors.length) {
       throw const LarenorServerException('invalid_response');
     }
@@ -64,9 +67,8 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
     final value = serverObject(raw);
     if (value.length != 9 ||
         value['schemaVersion'] != 1 ||
-        value['detectorState'] != 'unavailable' ||
-        value['trainingSupported'] != false ||
-        value['inferenceSupported'] != false) {
+        value['trainingSupported'] is! bool ||
+        value['inferenceSupported'] is! bool) {
       throw const LarenorServerException('invalid_response');
     }
     final architecture = switch (value['architecture']) {
@@ -84,6 +86,14 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
     };
     final arm64 = value['arm64'];
     final reason = value['reason'];
+    final detectorState = switch (value['detectorState']) {
+      'unavailable' => VisualDetectorState.unavailable,
+      'degraded' => VisualDetectorState.degraded,
+      'ready' => VisualDetectorState.ready,
+      _ => throw const LarenorServerException('invalid_response'),
+    };
+    final training = value['trainingSupported']! as bool;
+    final inference = value['inferenceSupported']! as bool;
     if (arm64 is! bool ||
         arm64 != (architecture == VisualArchitecture.arm64) ||
         reason is! String ||
@@ -92,6 +102,8 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
           'cpu_requirements_unmet',
           'arm64_unverified',
           'capability_unverified',
+          'worker_stale',
+          'ready',
         }.contains(reason)) {
       throw const LarenorServerException('invalid_response');
     }
@@ -101,7 +113,11 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
       VisualArchitecture.arm64 =>
         avx == VisualCpuSupport.notApplicable &&
             avx2 == VisualCpuSupport.notApplicable &&
-            reason == 'arm64_unverified',
+            const {
+              'arm64_unverified',
+              'ready',
+              'worker_stale',
+            }.contains(reason),
       VisualArchitecture.amd64 =>
         avx != VisualCpuSupport.notApplicable &&
             avx2 != VisualCpuSupport.notApplicable &&
@@ -114,25 +130,31 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
     if (!capabilityConsistent) {
       throw const LarenorServerException('invalid_response');
     }
+    final detectorConsistent = switch (detectorState) {
+      VisualDetectorState.ready => inference && reason == 'ready',
+      VisualDetectorState.degraded => inference && reason == 'worker_stale',
+      VisualDetectorState.unavailable =>
+        !inference && reason != 'ready' && reason != 'worker_stale',
+    };
+    if (!detectorConsistent) {
+      throw const LarenorServerException('invalid_response');
+    }
     return VisualEngineCapability(
       architecture: architecture,
       avx: avx,
       avx2: avx2,
       arm64: arm64,
       reason: reason,
+      detectorState: detectorState,
+      trainingSupported: training,
+      inferenceSupported: inference,
     );
   }
 
-  CameraVisualSensor _sensor(Object? raw) {
+  CameraVisualSensor _sensor(Object? raw, {required int version}) {
     final value = serverObject(raw);
-    if (value.length != 16 ||
-        value['schemaVersion'] != 1 ||
-        value['state'] != 'unknown' ||
-        value['status'] != 'unavailable' ||
-        value['reason'] != 'no_trusted_frame' ||
-        value['confidenceBps'] != 0 ||
-        value['count'] != 0 ||
-        value['automationEligible'] != false ||
+    if (value.length != (version == 1 ? 16 : 19) ||
+        value['schemaVersion'] != version ||
         value['accessControlEligible'] != false) {
       throw const LarenorServerException('invalid_response');
     }
@@ -171,6 +193,95 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
         unsafeLabel) {
       throw const LarenorServerException('invalid_response');
     }
+    final state = switch (value['state']) {
+      'on' when version == 2 => VisualSensorState.on,
+      'off' when version == 2 => VisualSensorState.off,
+      'unknown' => VisualSensorState.unknown,
+      _ => throw const LarenorServerException('invalid_response'),
+    };
+    final status = switch (value['status']) {
+      'ready' when version == 2 => VisualSensorStatus.ready,
+      'degraded' when version == 2 => VisualSensorStatus.degraded,
+      'unavailable' => VisualSensorStatus.unavailable,
+      _ => throw const LarenorServerException('invalid_response'),
+    };
+    final reason = value['reason'];
+    final confidence = value['confidenceBps'];
+    final count = value['count'];
+    final automation = value['automationEligible'];
+    if (reason is! String ||
+        !const {
+          'trusted_frame',
+          'provider_degraded',
+          'missing_frame',
+          'corrupt_frame',
+          'wrong_camera_frame',
+          'stale_frame',
+          'no_trusted_frame',
+        }.contains(reason) ||
+        confidence is! int ||
+        confidence < 0 ||
+        confidence > 10000 ||
+        count is! int ||
+        count < 0 ||
+        count > 1000 ||
+        automation is! bool ||
+        (reason != 'trusted_frame' && automation)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    int? timestamp(String key) {
+      final item = value[key];
+      if (item == null) return null;
+      if (item is! int || item < 0) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return item;
+    }
+
+    final observedAt = version == 2 ? timestamp('observedAtMs') : null;
+    final staleAt = version == 2 ? timestamp('staleAtMs') : null;
+    final digest = version == 2 ? value['evidenceDigest'] : null;
+    final empty = observedAt == null;
+    final projectionConsistent =
+        empty == (staleAt == null) &&
+        empty == (digest == null) &&
+        (empty || staleAt! > observedAt) &&
+        switch (status) {
+          VisualSensorStatus.ready =>
+            !empty &&
+                state != VisualSensorState.unknown &&
+                reason == 'trusted_frame',
+          VisualSensorStatus.degraded =>
+            !empty &&
+                state == VisualSensorState.unknown &&
+                const {
+                  'provider_degraded',
+                  'missing_frame',
+                  'corrupt_frame',
+                  'wrong_camera_frame',
+                  'stale_frame',
+                }.contains(reason),
+          VisualSensorStatus.unavailable =>
+            empty &&
+                state == VisualSensorState.unknown &&
+                reason == 'no_trusted_frame' &&
+                confidence == 0 &&
+                count == 0 &&
+                !automation,
+        };
+    if (!projectionConsistent ||
+        (digest != null &&
+            (digest is! String ||
+                !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest))) ||
+        (version == 1 &&
+            (state != VisualSensorState.unknown ||
+                status != VisualSensorStatus.unavailable ||
+                reason != 'no_trusted_frame' ||
+                confidence != 0 ||
+                count != 0 ||
+                automation))) {
+      throw const LarenorServerException('invalid_response');
+    }
     return CameraVisualSensor(
       ruleId: identity('ruleId'),
       ruleRevision: revision('ruleRevision'),
@@ -180,6 +291,15 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
       modelId: identity('modelId'),
       modelRevision: revision('modelRevision'),
       label: label,
+      state: state,
+      status: status,
+      reason: reason,
+      observedAtMs: observedAt,
+      staleAtMs: staleAt,
+      evidenceDigest: digest as String?,
+      confidenceBps: confidence,
+      count: count,
+      automationEligible: automation,
     );
   }
 
