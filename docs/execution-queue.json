@@ -4325,7 +4325,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Dolap stoğu ve son kullanma takibi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4348,7 +4348,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut saf reducer temeli kalıcı, sürümlü Core stoğu ve tablet tüketim akışına bağlanıyor; testler kullanıcı terciğiyle son toplu doğrulama evresine bırakılacak."
     },
     {
       "id": "F33",
