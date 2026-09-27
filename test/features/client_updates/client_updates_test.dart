@@ -32,6 +32,7 @@ Map<String, Object> installedJson({bool permission = true}) => {
   'certificateSha256': ['a' * 64],
   'sdkInt': 35,
   'canRequestPackageInstalls': permission,
+  'deviceOwner': false,
   'resumed': true,
   'focused': true,
   'interactionEpoch': 7,
