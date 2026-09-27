@@ -64,6 +64,7 @@ def _install_boundary(server, monkeypatch, *, monotonic=lambda: 100.0):
         app.state.core.db,
         app.state.core.auth,
         settings,
+        context=app.state.core.context,
         component_boundary=boundary,
         monotonic=monotonic,
     )

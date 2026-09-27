@@ -699,8 +699,17 @@ class CoreBackupContract:
             ),
             key=lambda item: item.id,
         )
+        identity = (
+            {}
+            if self.context is None
+            else {
+                "sourceCoreId": self.context.coreId,
+                "sourceHomeId": self.context.homeId,
+                "restoreMode": "replacement",
+            }
+        )
         manifest = BackupManifest(
-            contractVersion=3 if self.context is not None else 2,
+            contractVersion=3 if identity else 2,
             snapshotId=capture_generation or secrets.token_hex(16),
             createdAt=int(self.settings.clock()),
             coreVersion=server_version(),
@@ -711,10 +720,8 @@ class CoreBackupContract:
                 mode="core_write_lock_and_component_quiescence",
                 maxDurationSeconds=COMPONENT_QUIESCENCE_SECONDS,
             ),
-            sourceCoreId=None if self.context is None else self.context.coreId,
-            sourceHomeId=None if self.context is None else self.context.homeId,
-            restoreMode=None if self.context is None else "replacement",
             resources=resources,
+            **identity,
         )
         return BackupCapture(manifest=manifest, payloads=payloads)
 
