@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "root": "/home-workflows/{coreId}/{homeId}",
+  "limits": {
+    "workflows": 256,
+    "page": 50,
+    "titleCharacters": 80,
+    "deadlineSecondsMinimum": 1,
+    "deadlineSecondsMaximum": 86400,
+    "attempts": 3
+  },
+  "states": [
+    "waiting_decision",
+    "running",
+    "reconciliation_required",
+    "completed",
+    "failed",
+    "cancelled",
+    "timed_out"
+  ],
+  "decisions": [
+    "approve",
+    "cancel",
+    "effect_applied",
+    "effect_not_applied"
+  ],
+  "createRequest": {
+    "schemaVersion": 1,
+    "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "title": "Turn on the synthetic switch",
+    "deadlineSeconds": 300,
+    "target": {
+      "kind": "home_assistant_switch",
+      "resourceId": "11111111111111111111111111111111",
+      "action": "turn_on",
+      "expectedBindingRevision": 1,
+      "expectedResourceRevision": 1,
+      "expectedAclRevision": 1
+    }
+  },
+  "decisionRequest": {
+    "schemaVersion": 1,
+    "decisionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "expectedRevision": 1,
+    "decision": "approve"
+  },
+  "resumeRequest": {
+    "schemaVersion": 1,
+    "resumeId": "cccccccccccccccccccccccccccccccc",
+    "expectedRevision": 2
+  },
+  "initialResponseShape": {
+    "schemaVersion": 1,
+    "workflow": {
+      "schemaVersion": 1,
+      "id": "dddddddddddddddddddddddddddddddd",
+      "revision": 1,
+      "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "scope": {
+        "schemaVersion": 1,
+        "coreId": "00000000000000000000000000000000",
+        "homeId": "ffffffffffffffffffffffffffffffff"
+      },
+      "creatorId": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "title": "Turn on the synthetic switch",
+      "target": {
+        "kind": "home_assistant_switch",
+        "resource": {
+          "schemaVersion": 1,
+          "coreId": "00000000000000000000000000000000",
+          "homeId": "ffffffffffffffffffffffffffffffff",
+          "kind": "resource",
+          "id": "11111111111111111111111111111111"
+        },
+        "action": "turn_on",
+        "bindingRevision": 1,
+        "resourceRevision": 1,
+        "aclRevision": 1
+      },
+      "state": "waiting_decision",
+      "decisionRequired": "approve_effect",
+      "attempt": 1,
+      "stepRequestId": null,
+      "effectState": "not_started",
+      "reconciliationResult": "none",
+      "cancelRequested": false,
+      "deadlineAt": "2026-09-05T12:05:00Z",
+      "createdAt": "2026-09-05T12:00:00Z",
+      "updatedAt": "2026-09-05T12:00:00Z"
+    }
+  }
+}
