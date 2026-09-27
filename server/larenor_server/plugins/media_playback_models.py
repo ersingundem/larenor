@@ -14,6 +14,54 @@ _MEDIA_KEY = re.compile(
     r'(?:movie:tmdb:[1-9][0-9]{0,11}|episode:tvdb:[1-9][0-9]{0,11}:'
     r'[0-9]{1,4}:[0-9]{1,5})\Z'
 )
+_QUALITY_TOKEN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}\Z')
+
+
+class MediaPlaybackSourceStreamEvidence(StrictModel):
+    container: str | None
+    bitrate: int | None = Field(default=None, ge=1, le=1_000_000_000)
+    videoCodecs: list[str] = Field(max_length=8)
+    audioCodecs: list[str] = Field(max_length=8)
+    videoRanges: list[str] = Field(max_length=8)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        values = [self.container, *self.videoCodecs, *self.audioCodecs,
+                  *self.videoRanges]
+        if (any(value is not None
+                and _QUALITY_TOKEN.fullmatch(value) is None for value in values)
+                or any(len(items) != len(set(items)) for items in (
+                    self.videoCodecs, self.audioCodecs, self.videoRanges))):
+            raise ValueError('invalid_media_playback_stream_evidence')
+        return self
+
+
+class MediaPlaybackTranscodingEvidence(StrictModel):
+    container: str | None
+    videoCodec: str | None
+    audioCodec: str | None
+    bitrate: int | None = Field(default=None, ge=1, le=1_000_000_000)
+    reasons: list[str] = Field(max_length=16)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        values = [self.container, self.videoCodec, self.audioCodec,
+                  *self.reasons]
+        if (any(value is not None
+                and _QUALITY_TOKEN.fullmatch(value) is None for value in values)
+                or len(self.reasons) != len(set(self.reasons))):
+            raise ValueError('invalid_media_playback_transcoding_evidence')
+        return self
+
+
+class MediaPlaybackQualityObservation(StrictModel):
+    schemaVersion: Literal[1] = 1
+    itemId: ObjectId
+    playMethod: Literal[
+        'unknown', 'direct_play', 'direct_stream', 'transcode'
+    ]
+    source: MediaPlaybackSourceStreamEvidence
+    transcoding: MediaPlaybackTranscodingEvidence | None
 
 
 class MediaPlaybackTarget(StrictModel):
@@ -23,13 +71,16 @@ class MediaPlaybackTarget(StrictModel):
     available: bool
     currentItemId: ObjectId | None
     positionSeconds: int = Field(ge=0, le=8640000)
+    qualityObservation: MediaPlaybackQualityObservation | None = None
 
     @model_validator(mode='after')
     def coherent(self):
         if (_TARGET.fullmatch(self.targetId) is None
                 or self.name != self.name.strip()
                 or any(ord(char) < 32 or ord(char) == 127
-                       for char in self.name)):
+                       for char in self.name)
+                or (self.qualityObservation is not None
+                    and self.qualityObservation.itemId != self.currentItemId)):
             raise ValueError('invalid_media_playback_target')
         return self
 

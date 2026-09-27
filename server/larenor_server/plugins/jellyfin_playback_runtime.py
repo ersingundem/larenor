@@ -27,6 +27,7 @@ from .media_playback_models import (
 
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 _API_KEY = re.compile(r'[A-Za-z0-9_-]{32,128}\Z')
+_QUALITY_TOKEN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}\Z')
 _BASE_AUTH = ('MediaBrowser Client="Larenor%20Core", Device="Larenor%20Core", '
               'DeviceId="{device}", Version="0.1.0", Token={token}')
 
@@ -121,6 +122,103 @@ class JellyfinPlaybackProtocol:
                 'jellyfin_playback_authority_changed') from None
 
     @staticmethod
+    def _quality_token(value):
+        if value is None:
+            return None
+        if type(value) is not str or _QUALITY_TOKEN.fullmatch(value) is None:
+            raise ValueError()
+        return value
+
+    @staticmethod
+    def _quality_bitrate(value):
+        if value is None:
+            return None
+        if (type(value) is not int
+                or not 1 <= value <= 1_000_000_000):
+            raise ValueError()
+        return value
+
+    @classmethod
+    def _quality_observation(cls, state, now, raw_transcoding):
+        play_method = state.get('PlayMethod')
+        if play_method is None:
+            method = 'unknown'
+        else:
+            methods = {
+                'DirectPlay': 'direct_play',
+                'DirectStream': 'direct_stream',
+                'Transcode': 'transcode',
+            }
+            if type(play_method) is not str or play_method not in methods:
+                raise ValueError()
+            method = methods[play_method]
+
+        streams = now.get('MediaStreams')
+        if streams is None:
+            streams = []
+        if type(streams) is not list or len(streams) > 128:
+            raise ValueError()
+        video_codecs, audio_codecs, video_ranges = set(), set(), set()
+        for stream in streams:
+            if type(stream) is not dict:
+                raise ValueError()
+            stream_type = stream.get('Type')
+            if (type(stream_type) is not str or not 1 <= len(stream_type) <= 32
+                    or any(ord(char) < 32 or ord(char) == 127
+                           for char in stream_type)):
+                raise ValueError()
+            if stream_type not in {'Video', 'Audio'}:
+                continue
+            codec = cls._quality_token(stream.get('Codec'))
+            if codec is not None:
+                (video_codecs if stream_type == 'Video'
+                 else audio_codecs).add(codec)
+            if stream_type == 'Video':
+                video_range = cls._quality_token(stream.get('VideoRange'))
+                if video_range is not None:
+                    video_ranges.add(video_range)
+        if any(len(values) > 8 for values in (
+                video_codecs, audio_codecs, video_ranges)):
+            raise ValueError()
+
+        transcoding = None
+        if raw_transcoding is not None:
+            if type(raw_transcoding) is not dict:
+                raise ValueError()
+            reasons = raw_transcoding.get('TranscodeReasons')
+            if reasons is None:
+                reasons = []
+            if (type(reasons) is not list or len(reasons) > 16
+                    or any(cls._quality_token(reason) is None
+                           for reason in reasons)
+                    or len(reasons) != len(set(reasons))):
+                raise ValueError()
+            transcoding = {
+                'container': cls._quality_token(
+                    raw_transcoding.get('Container')),
+                'videoCodec': cls._quality_token(
+                    raw_transcoding.get('VideoCodec')),
+                'audioCodec': cls._quality_token(
+                    raw_transcoding.get('AudioCodec')),
+                'bitrate': cls._quality_bitrate(
+                    raw_transcoding.get('Bitrate')),
+                'reasons': reasons,
+            }
+        return {
+            'schemaVersion': 1,
+            'itemId': now['Id'],
+            'playMethod': method,
+            'source': {
+                'container': cls._quality_token(now.get('Container')),
+                'bitrate': cls._quality_bitrate(now.get('Bitrate')),
+                'videoCodecs': sorted(video_codecs),
+                'audioCodecs': sorted(audio_codecs),
+                'videoRanges': sorted(video_ranges),
+            },
+            'transcoding': transcoding,
+        }
+
+    @staticmethod
     def _target(raw):
         if type(raw) is not dict:
             raise ValueError()
@@ -146,17 +244,21 @@ class JellyfinPlaybackProtocol:
                 or not 0 <= ticks <= 86_400_000_000_000):
             raise ValueError()
         current = None
+        quality = None
         if now is not None:
             if (type(now) is not dict or type(now.get('Id')) is not str
                     or _ID.fullmatch(now['Id']) is None):
                 raise ValueError()
             current = now['Id']
+            quality = JellyfinPlaybackProtocol._quality_observation(
+                state, now, raw.get('TranscodingInfo'))
         return {
             'targetId': identifier,
             'name': name,
             'available': available,
             'currentItemId': current,
             'positionSeconds': ticks // 10_000_000,
+            'qualityObservation': quality,
         }
 
     @classmethod

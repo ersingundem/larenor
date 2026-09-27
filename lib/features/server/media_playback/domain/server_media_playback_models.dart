@@ -41,6 +41,137 @@ String _text(Object? value) {
   return value;
 }
 
+final _qualityTokenPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}$');
+
+String? _qualityToken(Object? value) {
+  if (value == null) return null;
+  if (value is! String || !_qualityTokenPattern.hasMatch(value)) _invalid();
+  return value;
+}
+
+int? _qualityBitrate(Object? value) {
+  if (value == null) return null;
+  if (value is! int || value < 1 || value > 1000000000) _invalid();
+  return value;
+}
+
+List<String> _qualityTokens(Object? value, {required int maximum}) {
+  if (value is! List || value.length > maximum) _invalid();
+  final result = <String>[];
+  for (final raw in value) {
+    final token = _qualityToken(raw);
+    if (token == null) _invalid();
+    result.add(token);
+  }
+  if (result.toSet().length != result.length) _invalid();
+  return List.unmodifiable(result);
+}
+
+enum ServerMediaPlaybackMethod { unknown, directPlay, directStream, transcode }
+
+final class ServerMediaPlaybackSourceEvidence {
+  const ServerMediaPlaybackSourceEvidence._({
+    required this.container,
+    required this.bitrate,
+    required this.videoCodecs,
+    required this.audioCodecs,
+    required this.videoRanges,
+  });
+
+  factory ServerMediaPlaybackSourceEvidence.fromJson(Object? value) {
+    final map = _object(value, {
+      'container',
+      'bitrate',
+      'videoCodecs',
+      'audioCodecs',
+      'videoRanges',
+    });
+    return ServerMediaPlaybackSourceEvidence._(
+      container: _qualityToken(map['container']),
+      bitrate: _qualityBitrate(map['bitrate']),
+      videoCodecs: _qualityTokens(map['videoCodecs'], maximum: 8),
+      audioCodecs: _qualityTokens(map['audioCodecs'], maximum: 8),
+      videoRanges: _qualityTokens(map['videoRanges'], maximum: 8),
+    );
+  }
+
+  final String? container;
+  final int? bitrate;
+  final List<String> videoCodecs, audioCodecs, videoRanges;
+}
+
+final class ServerMediaPlaybackTranscodingEvidence {
+  const ServerMediaPlaybackTranscodingEvidence._({
+    required this.container,
+    required this.videoCodec,
+    required this.audioCodec,
+    required this.bitrate,
+    required this.reasons,
+  });
+
+  factory ServerMediaPlaybackTranscodingEvidence.fromJson(Object? value) {
+    final map = _object(value, {
+      'container',
+      'videoCodec',
+      'audioCodec',
+      'bitrate',
+      'reasons',
+    });
+    return ServerMediaPlaybackTranscodingEvidence._(
+      container: _qualityToken(map['container']),
+      videoCodec: _qualityToken(map['videoCodec']),
+      audioCodec: _qualityToken(map['audioCodec']),
+      bitrate: _qualityBitrate(map['bitrate']),
+      reasons: _qualityTokens(map['reasons'], maximum: 16),
+    );
+  }
+
+  final String? container, videoCodec, audioCodec;
+  final int? bitrate;
+  final List<String> reasons;
+}
+
+final class ServerMediaPlaybackQualityObservation {
+  const ServerMediaPlaybackQualityObservation._({
+    required this.itemId,
+    required this.method,
+    required this.source,
+    required this.transcoding,
+  });
+
+  factory ServerMediaPlaybackQualityObservation.fromJson(Object? value) {
+    final map = _object(value, {
+      'schemaVersion',
+      'itemId',
+      'playMethod',
+      'source',
+      'transcoding',
+    });
+    if (map['schemaVersion'] != 1) _invalid();
+    final method = switch (map['playMethod']) {
+      'unknown' => ServerMediaPlaybackMethod.unknown,
+      'direct_play' => ServerMediaPlaybackMethod.directPlay,
+      'direct_stream' => ServerMediaPlaybackMethod.directStream,
+      'transcode' => ServerMediaPlaybackMethod.transcode,
+      _ => _invalid(),
+    };
+    final rawTranscoding = map['transcoding'];
+    return ServerMediaPlaybackQualityObservation._(
+      itemId: _identity(map['itemId']),
+      method: method,
+      source: ServerMediaPlaybackSourceEvidence.fromJson(map['source']),
+      transcoding: rawTranscoding == null
+          ? null
+          : ServerMediaPlaybackTranscodingEvidence.fromJson(rawTranscoding),
+    );
+  }
+
+  final String itemId;
+  final ServerMediaPlaybackMethod method;
+  final ServerMediaPlaybackSourceEvidence source;
+  final ServerMediaPlaybackTranscodingEvidence? transcoding;
+}
+
 final class ServerMediaPlaybackTarget {
   const ServerMediaPlaybackTarget._({
     required this.id,
@@ -49,6 +180,7 @@ final class ServerMediaPlaybackTarget {
     required this.available,
     required this.currentItemId,
     required this.positionSeconds,
+    required this.qualityObservation,
   });
 
   factory ServerMediaPlaybackTarget.fromJson(Object? value) {
@@ -59,10 +191,12 @@ final class ServerMediaPlaybackTarget {
       'available',
       'currentItemId',
       'positionSeconds',
+      'qualityObservation',
     });
     final available = map['available'];
     final current = map['currentItemId'];
     final position = map['positionSeconds'];
+    final rawQuality = map['qualityObservation'];
     if (available is! bool ||
         current != null &&
             (current is! String || !_identityPattern.hasMatch(current)) ||
@@ -71,6 +205,10 @@ final class ServerMediaPlaybackTarget {
         position > 8640000) {
       _invalid();
     }
+    final quality = rawQuality == null
+        ? null
+        : ServerMediaPlaybackQualityObservation.fromJson(rawQuality);
+    if (quality != null && quality.itemId != current) _invalid();
     return ServerMediaPlaybackTarget._(
       id: _target(map['targetId']),
       revision: _revision(map['targetRevision']),
@@ -78,6 +216,7 @@ final class ServerMediaPlaybackTarget {
       available: available,
       currentItemId: current as String?,
       positionSeconds: position,
+      qualityObservation: quality,
     );
   }
 
@@ -85,6 +224,7 @@ final class ServerMediaPlaybackTarget {
   final int revision, positionSeconds;
   final bool available;
   final String? currentItemId;
+  final ServerMediaPlaybackQualityObservation? qualityObservation;
 }
 
 final class ServerMediaPlaybackIntent {

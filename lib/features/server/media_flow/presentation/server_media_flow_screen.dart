@@ -333,6 +333,57 @@ final class _ServerMediaFlowScreenState
     }
   }
 
+  String _playbackQualityMethod(
+    AppLocalizations l,
+    ServerMediaPlaybackMethod method,
+  ) => switch (method) {
+    ServerMediaPlaybackMethod.unknown => l.jellyfinQualityAdvisorUnavailable,
+    ServerMediaPlaybackMethod.directPlay => l.jellyfinQualityAdvisorDirectPlay,
+    ServerMediaPlaybackMethod.directStream => l.jellyfinQualityAdvisorRemux,
+    ServerMediaPlaybackMethod.transcode => l.jellyfinQualityAdvisorTranscode,
+  };
+
+  List<String> _playbackQualityLines(
+    AppLocalizations l,
+    ServerMediaPlaybackTarget target,
+  ) {
+    final observation = target.qualityObservation;
+    if (observation == null || observation.itemId != target.currentItemId) {
+      return const [];
+    }
+    final source = observation.source;
+    final transcoding = observation.transcoding;
+    final method = _playbackQualityMethod(l, observation.method);
+    String value(String? source, String? output) =>
+        output == null ? source ?? '—' : '${source ?? '—'} → $output';
+    String bitrate(int? value) =>
+        value == null ? '—' : '${(value / 1000000).toStringAsFixed(1)} Mbps';
+    final videoSource = source.videoCodecs.isEmpty
+        ? null
+        : source.videoCodecs.join('/');
+    final audioSource = source.audioCodecs.isEmpty
+        ? null
+        : source.audioCodecs.join('/');
+    final lines = <String>[
+      l.jellyfinQualityAdvisorPath(method),
+      l.jellyfinQualityAdvisorEvidence(
+        value(source.container, transcoding?.container),
+        value(videoSource, transcoding?.videoCodec),
+        value(audioSource, transcoding?.audioCodec),
+        value(
+          bitrate(source.bitrate),
+          transcoding?.bitrate == null ? null : bitrate(transcoding?.bitrate),
+        ),
+      ),
+    ];
+    final reasons = transcoding?.reasons ?? const <String>[];
+    if (reasons.isNotEmpty) {
+      lines.add(l.jellyfinQualityAdvisorReason(reasons.join(', ')));
+    }
+    lines.add(l.jellyfinQualityAdvisorNetworkUnknown);
+    return List.unmodifiable(lines);
+  }
+
   List<Widget> _playbackBody(AppLocalizations l) {
     final playback = _playback;
     if (playback == null) return const [];
@@ -399,20 +450,39 @@ final class _ServerMediaFlowScreenState
         )
       else
         for (final target in intent.targets.where((item) => item.available))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 80),
-            child: Semantics(
-              key: ValueKey('server-media-playback-target-${target.id}'),
-              button: true,
-              label: l.serverMediaPlaybackTarget(target.name),
-              child: ExcludeSemantics(
-                child: CupertinoButton(
-                  minimumSize: const Size(48, 48),
-                  onPressed: _active ? () => _confirm(l, target) : null,
-                  child: Text(target.name),
+          Builder(
+            builder: (context) {
+              final quality = _playbackQualityLines(l, target);
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 80),
+                child: Semantics(
+                  key: ValueKey('server-media-playback-target-${target.id}'),
+                  button: true,
+                  label: [
+                    l.serverMediaPlaybackTarget(target.name),
+                    ...quality,
+                  ].join('. '),
+                  child: ExcludeSemantics(
+                    child: CupertinoButton(
+                      minimumSize: const Size(48, 48),
+                      onPressed: _active ? () => _confirm(l, target) : null,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(target.name),
+                          for (final line in quality)
+                            Text(
+                              line,
+                              textAlign: TextAlign.center,
+                              style: AppText.caption1,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
     ];
   }
