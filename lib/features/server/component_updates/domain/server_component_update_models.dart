@@ -620,6 +620,27 @@ final class ServerComponentUpdateJob {
   bool get terminal => {'succeeded', 'failed', 'cancelled'}.contains(state);
 }
 
+final class ServerComponentUpdateJobs {
+  const ServerComponentUpdateJobs(this.jobs);
+
+  factory ServerComponentUpdateJobs.fromJson(Object? raw) {
+    final json = _object(raw, {'schemaVersion', 'jobs'});
+    final values = json['jobs'];
+    if (json['schemaVersion'] != 1 || values is! List || values.length > 6) {
+      _invalid();
+    }
+    final jobs = values
+        .map(ServerComponentUpdateJob.fromJson)
+        .toList(growable: false);
+    if (jobs.map((item) => item.installationId).toSet().length != jobs.length) {
+      _invalid();
+    }
+    return ServerComponentUpdateJobs(List.unmodifiable(jobs));
+  }
+
+  final List<ServerComponentUpdateJob> jobs;
+}
+
 final class ServerComponentUpdateInventory {
   const ServerComponentUpdateInventory({
     required this.coreId,

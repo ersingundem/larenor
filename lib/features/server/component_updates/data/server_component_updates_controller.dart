@@ -55,9 +55,15 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
         final nextInventory = await updates.inventory();
         if (!valid()) throw const LarenorServerException('cancelled');
         final currentConfirmation = confirmation;
-        final nextJob = currentConfirmation == null
-            ? null
-            : await updates.getJob(currentConfirmation.updateId);
+        final latest = (await updates.latestJobs()).jobs;
+        final matches = currentConfirmation == null
+            ? latest
+            : latest
+                  .where(
+                    (item) => item.updateId == currentConfirmation.updateId,
+                  )
+                  .toList(growable: false);
+        final nextJob = matches.isEmpty ? null : matches.first;
         return (inventory: nextInventory, job: nextJob);
       });
       if (valid()) {

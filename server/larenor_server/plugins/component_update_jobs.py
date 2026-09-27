@@ -17,6 +17,7 @@ from .component_updates import (
     ComponentUpdateEffectResult,
     ComponentUpdateError,
     ComponentUpdateJob,
+    ComponentUpdateJobs,
     verify_update_command,
 )
 
@@ -296,6 +297,27 @@ class ComponentUpdateJobStore:
             self._admin(connection, actor)
             row = self._find(connection, update_id)
             return self._public(row, self._decode(row))
+
+    def latest(self, actor):
+        """Return the newest authenticated job for each managed installation."""
+        with self.db.connection() as connection:
+            connection.execute("BEGIN")
+            self._admin(connection, actor)
+            rows = connection.execute(
+                "SELECT * FROM component_update_jobs ORDER BY sequence DESC LIMIT ?",
+                (MAX_JOBS,),
+            ).fetchall()
+            selected = []
+            installations = set()
+            for row in rows:
+                command = self._decode(row)
+                if command.installationId in installations:
+                    continue
+                installations.add(command.installationId)
+                selected.append(self._public(row, command))
+                if len(selected) == 6:
+                    break
+            return ComponentUpdateJobs(schemaVersion=1, jobs=tuple(selected))
 
     def cancel(self, actor, update_id, body):
         try:

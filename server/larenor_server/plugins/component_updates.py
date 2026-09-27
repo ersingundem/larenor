@@ -332,6 +332,18 @@ class ComponentUpdateJob(FrozenModel):
         return self
 
 
+class ComponentUpdateJobs(FrozenModel):
+    schemaVersion: Literal[1]
+    jobs: tuple[ComponentUpdateJob, ...] = Field(max_length=6)
+
+    @model_validator(mode="after")
+    def unique_installations(self):
+        installations = tuple(item.installationId for item in self.jobs)
+        if len(set(installations)) != len(installations):
+            raise ValueError("invalid_component_update_jobs")
+        return self
+
+
 class ComponentUpdateEffectResult(FrozenModel):
     schemaVersion: Literal[1]
     updateId: Identity

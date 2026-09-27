@@ -16,6 +16,7 @@ from .component_updates import (
     ComponentUpdateCommand,
     ComponentUpdateInventory,
     ComponentUpdateJob,
+    ComponentUpdateJobs,
     ConfirmComponentUpdateRequest,
     PutComponentReleasePreference,
 )
@@ -71,6 +72,13 @@ def build_component_update_router(service: ComponentUpdateService) -> APIRouter:
             installation_id,
             body,
         )
+
+    @router.get(
+        "/jobs",
+        response_model=ComponentUpdateJobs,
+    )
+    async def latest_jobs(principal: Admin):
+        return await run_in_threadpool(service.latest_jobs, principal)
 
     @router.get(
         "/jobs/{update_id}",

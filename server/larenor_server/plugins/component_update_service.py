@@ -134,5 +134,8 @@ class ComponentUpdateService:
     def get_job(self, actor, update_id):
         return self._jobs.get(actor, update_id)
 
+    def latest_jobs(self, actor):
+        return self._jobs.latest(actor)
+
     def cancel_job(self, actor, update_id, body):
         return self._jobs.cancel(actor, update_id, body)
