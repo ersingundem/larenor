@@ -126,6 +126,9 @@ dependencies {
     // CameraX preview only: PRODUCT.CAMERA has no analyzer, capture or recorder.
     implementation("androidx.camera:camera-camera2:1.6.1")
     implementation("androidx.camera:camera-lifecycle:1.6.1")
+    // Bundled on-device detector: no Google Play services model download.
+    // Face detection is not identity recognition; that remains fail-closed.
+    implementation("com.google.mlkit:face-detection:16.1.7")
     // Official stable AndroidX release; keep all Media3 modules in lockstep.
     val media3Version = "1.11.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")

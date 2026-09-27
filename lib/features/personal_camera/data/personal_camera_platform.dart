@@ -34,8 +34,39 @@ final class PersonalCameraEvent {
   final String reason;
 }
 
+final class PersonalCameraCapabilities {
+  const PersonalCameraCapabilities({
+    required this.platform,
+    required this.osApiLevel,
+    required this.frontCamera,
+    required this.preview,
+    required this.detectorArtifact,
+    required this.detectorVersion,
+    required this.detectorDelivery,
+    required this.requiresGooglePlayServices,
+    required this.faceDetection,
+    required this.identityRecognition,
+    required this.termsUrl,
+    required this.performanceEvaluation,
+  });
+
+  final String platform;
+  final int osApiLevel;
+  final bool frontCamera;
+  final bool preview;
+  final String detectorArtifact;
+  final String detectorVersion;
+  final String detectorDelivery;
+  final bool requiresGooglePlayServices;
+  final bool faceDetection;
+  final bool identityRecognition;
+  final Uri termsUrl;
+  final String performanceEvaluation;
+}
+
 abstract interface class PersonalCameraPlatform {
   Stream<PersonalCameraEvent> get events;
+  Future<PersonalCameraCapabilities> capabilities();
   Future<PersonalCameraSession> open();
   Future<void> close(String sessionId);
 }
@@ -64,6 +95,64 @@ final class MethodChannelPersonalCameraPlatform
           reason: _identity(value['reason']),
         );
       });
+
+  @override
+  Future<PersonalCameraCapabilities> capabilities() async {
+    try {
+      final value = _map(
+        await _methods.invokeMethod<Object>('capabilities', const {
+          'schemaVersion': 1,
+        }),
+      );
+      _exact(value, const {
+        'schemaVersion',
+        'platform',
+        'osApiLevel',
+        'frontCamera',
+        'preview',
+        'detectorArtifact',
+        'detectorVersion',
+        'detectorDelivery',
+        'requiresGooglePlayServices',
+        'faceDetection',
+        'identityRecognition',
+        'termsUrl',
+        'performanceEvaluation',
+      });
+      if (_integer(value['schemaVersion']) != 1) {
+        throw const FormatException('Invalid personal camera capabilities');
+      }
+      final termsUrl = Uri.tryParse(_text(value['termsUrl'], 256));
+      if (termsUrl == null ||
+          termsUrl.scheme != 'https' ||
+          termsUrl.host != 'developers.google.com' ||
+          termsUrl.path != '/ml-kit/terms') {
+        throw const FormatException('Invalid personal camera terms URL');
+      }
+      return PersonalCameraCapabilities(
+        platform: _token(value['platform']),
+        osApiLevel: _integer(value['osApiLevel']),
+        frontCamera: _boolean(value['frontCamera']),
+        preview: _boolean(value['preview']),
+        detectorArtifact: _artifact(value['detectorArtifact']),
+        detectorVersion: _version(value['detectorVersion']),
+        detectorDelivery: _token(value['detectorDelivery']),
+        requiresGooglePlayServices: _boolean(
+          value['requiresGooglePlayServices'],
+        ),
+        faceDetection: _boolean(value['faceDetection']),
+        identityRecognition: _boolean(value['identityRecognition']),
+        termsUrl: termsUrl,
+        performanceEvaluation: _token(value['performanceEvaluation']),
+      );
+    } on PlatformException catch (error) {
+      throw PersonalCameraException(_failure(error.code));
+    } on MissingPluginException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    } on FormatException {
+      throw const PersonalCameraException(PersonalCameraFailure.unavailable);
+    }
+  }
 
   @override
   Future<PersonalCameraSession> open() async {
@@ -155,6 +244,42 @@ final class MethodChannelPersonalCameraPlatform
   static int _integer(Object? value) {
     if (value is! int) throw const FormatException('Expected integer');
     return value;
+  }
+
+  static bool _boolean(Object? value) {
+    if (value is! bool) throw const FormatException('Expected boolean');
+    return value;
+  }
+
+  static String _text(Object? value, int maximumLength) {
+    if (value is! String || value.isEmpty || value.length > maximumLength) {
+      throw const FormatException('Invalid text');
+    }
+    return value;
+  }
+
+  static String _token(Object? value) {
+    final text = _text(value, 32);
+    if (!RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(text)) {
+      throw const FormatException('Invalid token');
+    }
+    return text;
+  }
+
+  static String _artifact(Object? value) {
+    final text = _text(value, 128);
+    if (!RegExp(r'^[a-z0-9.-]+:[a-z0-9.-]+$').hasMatch(text)) {
+      throw const FormatException('Invalid artifact');
+    }
+    return text;
+  }
+
+  static String _version(Object? value) {
+    final text = _text(value, 32);
+    if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(text)) {
+      throw const FormatException('Invalid version');
+    }
+    return text;
   }
 
   static String _identity(Object? value) {

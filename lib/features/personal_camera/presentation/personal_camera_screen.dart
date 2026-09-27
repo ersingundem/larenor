@@ -34,6 +34,7 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
   bool _foreground = true;
   bool _focused = true;
   bool _routeVisible = true;
+  late final Future<PersonalCameraCapabilities> _capabilities;
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
       platform: widget.platform,
       isCurrent: _current,
     )..addListener(_changed);
+    _capabilities = widget.platform.capabilities();
   }
 
   bool _current() {
@@ -189,6 +191,59 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
                         ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  FutureBuilder<PersonalCameraCapabilities>(
+                    future: _capabilities,
+                    builder: (context, snapshot) {
+                      final value = snapshot.data;
+                      return SettingsSection(
+                        header: Text(l.personalCameraCapabilityTitle),
+                        footer: Text(l.personalCameraCapabilityTerms),
+                        children: [
+                          if (value == null)
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: snapshot.hasError
+                                  ? Text(l.personalCameraCapabilityUnavailable)
+                                  : const Center(
+                                      child: CupertinoActivityIndicator(),
+                                    ),
+                            )
+                          else ...[
+                            _CapabilityRow(
+                              label: l.personalCameraCapabilityDevice,
+                              value: value.frontCamera && value.preview
+                                  ? l.personalCameraCapabilityAvailable
+                                  : l.personalCameraCapabilityUnavailable,
+                            ),
+                            _CapabilityRow(
+                              label: l.personalCameraCapabilityDetector,
+                              value:
+                                  '${value.detectorArtifact}:${value.detectorVersion}',
+                            ),
+                            _CapabilityRow(
+                              label: l.personalCameraCapabilityDelivery,
+                              value: value.requiresGooglePlayServices
+                                  ? l.personalCameraCapabilityPlayServices
+                                  : l.personalCameraCapabilityBundled,
+                            ),
+                            _CapabilityRow(
+                              label: l.personalCameraCapabilityIdentity,
+                              value: value.identityRecognition
+                                  ? l.personalCameraCapabilityAvailable
+                                  : l.personalCameraCapabilityDisabled,
+                            ),
+                            _CapabilityRow(
+                              label: l.personalCameraCapabilityEvaluation,
+                              value: value.performanceEvaluation == 'pending'
+                                  ? l.personalCameraCapabilityPending
+                                  : value.performanceEvaluation,
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
                   if (!_foreground || !_focused || !_routeVisible)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -261,4 +316,32 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
       ),
     );
   }
+}
+
+final class _CapabilityRow extends StatelessWidget {
+  const _CapabilityRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Text(label, style: AppText.body)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: AppText.footnote.copyWith(
+              color: CupertinoColors.secondaryLabel.resolveFrom(context),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

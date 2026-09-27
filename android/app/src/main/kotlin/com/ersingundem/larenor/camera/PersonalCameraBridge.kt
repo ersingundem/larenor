@@ -43,6 +43,9 @@ class PersonalCameraBridge(
         private const val SCHEMA_VERSION = 1
         private const val WIDTH = 1280
         private const val HEIGHT = 720
+        private const val DETECTOR_ARTIFACT = "com.google.mlkit:face-detection"
+        private const val DETECTOR_VERSION = "16.1.7"
+        private const val TERMS_URL = "https://developers.google.com/ml-kit/terms"
     }
 
     private data class Session(
@@ -96,6 +99,7 @@ class PersonalCameraBridge(
         if (disposed) return fail(result, "unavailable")
         try {
             when (call.method) {
+                "capabilities" -> capabilities(exact(call.arguments, setOf("schemaVersion")), result)
                 "open" -> open(exact(call.arguments, setOf("schemaVersion")), result)
                 "close" -> close(exact(call.arguments, setOf("schemaVersion", "sessionId")), result)
                 else -> result.notImplemented()
@@ -105,6 +109,28 @@ class PersonalCameraBridge(
         } catch (_: RuntimeException) {
             fail(result, "unavailable")
         }
+    }
+
+    private fun capabilities(arguments: Map<String, Any?>, result: MethodChannel.Result) {
+        require(arguments["schemaVersion"] == SCHEMA_VERSION)
+        val frontCamera = activity.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT)
+        result.success(
+            mapOf(
+                "schemaVersion" to SCHEMA_VERSION,
+                "platform" to "android",
+                "osApiLevel" to Build.VERSION.SDK_INT,
+                "frontCamera" to frontCamera,
+                "preview" to frontCamera,
+                "detectorArtifact" to DETECTOR_ARTIFACT,
+                "detectorVersion" to DETECTOR_VERSION,
+                "detectorDelivery" to "bundled",
+                "requiresGooglePlayServices" to false,
+                "faceDetection" to true,
+                "identityRecognition" to false,
+                "termsUrl" to TERMS_URL,
+                "performanceEvaluation" to "pending",
+            ),
+        )
     }
 
     private fun open(arguments: Map<String, Any?>, result: MethodChannel.Result) {
