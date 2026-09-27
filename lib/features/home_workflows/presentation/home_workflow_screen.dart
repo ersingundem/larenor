@@ -385,23 +385,29 @@ final class _HomeWorkflowScreenState extends ConsumerState<HomeWorkflowScreen> {
             const SizedBox(height: 12),
             SizedBox(
               height: 48,
-              child: CupertinoSlidingSegmentedControl<HomeWorkflowAction>(
-                groupValue: _action,
-                children: {
-                  HomeWorkflowAction.turnOn: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(strings.turnOn),
+              child: IgnorePointer(
+                ignoring: !enabled,
+                child: Opacity(
+                  opacity: enabled ? 1 : 0.5,
+                  child: CupertinoSlidingSegmentedControl<HomeWorkflowAction>(
+                    groupValue: _action,
+                    children: {
+                      HomeWorkflowAction.turnOn: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(strings.turnOn),
+                      ),
+                      HomeWorkflowAction.turnOff: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(strings.turnOff),
+                      ),
+                    },
+                    onValueChanged: (value) {
+                      if (enabled && value != null) {
+                        setState(() => _action = value);
+                      }
+                    },
                   ),
-                  HomeWorkflowAction.turnOff: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(strings.turnOff),
-                  ),
-                },
-                onValueChanged: !enabled
-                    ? null
-                    : (value) {
-                        if (value != null) setState(() => _action = value);
-                      },
+                ),
               ),
             ),
             const SizedBox(height: 16),
