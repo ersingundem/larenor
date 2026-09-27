@@ -23,6 +23,7 @@ from .component_updates import (
 
 
 MAX_JOBS = 1024
+RETAINED_JOBS = 768
 TABLE = """CREATE TABLE component_update_jobs (
     update_id TEXT PRIMARY KEY CHECK(length(update_id)=32),
     sequence INTEGER NOT NULL UNIQUE CHECK(sequence>0),
@@ -220,6 +221,37 @@ class ComponentUpdateJobStore:
             updatedAtMs=int(row["updated_at"] * 1000),
         )
 
+    def _prune_settled(self, connection):
+        rows = connection.execute(
+            "SELECT * FROM component_update_jobs ORDER BY sequence LIMIT ?",
+            (MAX_JOBS + 1,),
+        ).fetchall()
+        if len(rows) > MAX_JOBS:
+            raise ValueError("component_update_job_limit")
+        decoded = [(row, self._decode(row)) for row in rows]
+        if len(decoded) < MAX_JOBS:
+            return
+        latest = set()
+        latest_update_ids = set()
+        for row, command in reversed(decoded):
+            if command.installationId in latest:
+                continue
+            latest.add(command.installationId)
+            latest_update_ids.add(row["update_id"])
+        settled = {"succeeded", "failed", "cancelled", "needs_attention"}
+        deletable = [
+            row["update_id"]
+            for row, _command in decoded
+            if row["state"] in settled
+            and row["update_id"] not in latest_update_ids
+        ]
+        delete_count = min(len(deletable), len(rows) - RETAINED_JOBS)
+        if delete_count:
+            connection.executemany(
+                "DELETE FROM component_update_jobs WHERE update_id=?",
+                ((update_id,) for update_id in deletable[:delete_count]),
+            )
+
     def validate_storage(self):
         try:
             with self.db.connection() as connection:
@@ -243,6 +275,7 @@ class ComponentUpdateJobStore:
         try:
             with self.db.transaction() as connection:
                 actor_revision = self._admin(connection, actor)
+                self._prune_settled(connection)
                 if connection.execute(
                     "SELECT count(*) FROM component_update_jobs"
                 ).fetchone()[0] >= MAX_JOBS:

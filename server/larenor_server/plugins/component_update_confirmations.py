@@ -30,6 +30,8 @@ TABLE = """CREATE TABLE component_update_confirmations (
     authentication_tag TEXT NOT NULL)"""
 INDEX = """CREATE INDEX component_update_confirmations_installation
     ON component_update_confirmations(installation_id,expires_at)"""
+MAX_CONFIRMATIONS = 1024
+RETAINED_CONFIRMATIONS = 768
 
 
 def migrate_component_update_confirmations(connection: sqlite3.Connection) -> None:
@@ -154,6 +156,28 @@ class ComponentUpdateConfirmationStore:
         except (ComponentUpdateError, ValueError, TypeError, AttributeError):
             raise ValueError("invalid_component_update_confirmation") from None
 
+    def _prune_expired(self, connection, now):
+        rows = connection.execute(
+            "SELECT * FROM component_update_confirmations "
+            "ORDER BY issued_at,update_id LIMIT ?",
+            (MAX_CONFIRMATIONS + 1,),
+        ).fetchall()
+        if len(rows) > MAX_CONFIRMATIONS:
+            raise ValueError("component_update_confirmation_limit")
+        for row in rows:
+            self._validate(row)
+        if len(rows) < MAX_CONFIRMATIONS:
+            return
+        expired = [row["update_id"] for row in rows if row["expires_at"] <= now]
+        delete_count = min(
+            len(expired), len(rows) - RETAINED_CONFIRMATIONS
+        )
+        if delete_count:
+            connection.executemany(
+                "DELETE FROM component_update_confirmations WHERE update_id=?",
+                ((update_id,) for update_id in expired[:delete_count]),
+            )
+
     def confirm(
         self,
         actor,
@@ -187,6 +211,7 @@ class ComponentUpdateConfirmationStore:
             row["authentication_tag"] = self._tag(row)
             with self.db.transaction() as connection:
                 self._admin(connection, actor)
+                self._prune_expired(connection, now)
                 active = connection.execute(
                     "SELECT * FROM component_update_confirmations "
                     "WHERE installation_id=? AND expires_at>? "
@@ -201,7 +226,7 @@ class ComponentUpdateConfirmationStore:
                 count = connection.execute(
                     "SELECT count(*) FROM component_update_confirmations"
                 ).fetchone()[0]
-                if type(count) is not int or count >= 1024:
+                if type(count) is not int or count >= MAX_CONFIRMATIONS:
                     raise ApiError("component_update_confirmation_limit", 429)
                 connection.execute(
                     "INSERT INTO component_update_confirmations "
@@ -221,9 +246,10 @@ class ComponentUpdateConfirmationStore:
             with self.db.connection() as connection:
                 rows = connection.execute(
                     "SELECT * FROM component_update_confirmations "
-                    "ORDER BY issued_at DESC LIMIT 1025"
+                    "ORDER BY issued_at DESC LIMIT ?",
+                    (MAX_CONFIRMATIONS + 1,),
                 ).fetchall()
-                if len(rows) > 1024:
+                if len(rows) > MAX_CONFIRMATIONS:
                     raise ValueError("component_update_confirmation_limit")
                 active = set()
                 now = float(self.settings.clock())
