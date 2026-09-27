@@ -89,64 +89,70 @@ class HomeAssistantRules:
     def create(self, actor, core, home, resource_id, body):
         body = RuleCreateRequest.model_validate(body)
         with self.adapter._tx(actor, core, home, admin=True) as (connection, facts):
-            rule_schema.validate(
-                connection, self.adapter._key, self.adapter.resources.scope
+            rule = self.create_in_transaction(
+                connection, facts, actor, resource_id, body
             )
-            row, ref, data, binding = self._current_target(
-                connection, facts, resource_id
-            )
-            self.adapter.resources._require(
-                facts,
-                row,
-                ref,
-                data,
-                'write',
-                expected_revision=body.expectedResourceRevision,
-                expected_acl_revision=body.expectedAclRevision,
-            )
-            if (
-                binding is None
-                or binding.revision != body.expectedBindingRevision
-                or binding.serviceRevision != body.expectedServiceRevision
-            ):
-                raise ApiError('ha_rule_changed', 409)
-            self.adapter.services._home_assistant_connection(
-                connection, binding.serviceId, binding.serviceRevision
-            )
-            if len(rule_schema.rows(connection)) >= rule_schema.MAX_RULES:
-                raise ApiError('ha_rule_limit_reached', 429)
-            rule = RuleRecord(
-                id=uuid.uuid4().hex,
-                ref=ref,
-                action=body.action,
-                creatorId=actor.id,
-                resourceRevision=row['revision'],
-                aclRevision=row['acl_revision'],
-                bindingId=binding.id,
-                bindingRevision=binding.revision,
-                serviceId=binding.serviceId,
-                serviceRevision=binding.serviceRevision,
-            )
-            nonce = secrets.token_bytes(12)
-            ciphertext = self._cipher.encrypt(
-                nonce, rule.model_dump_json().encode(), self._aad(rule.id)
-            )
-            if len(ciphertext) > rule_schema.MAX_CIPHER:
-                raise ApiError('server_unavailable', 503)
-            connection.execute(
-                'INSERT INTO automation_rule_records VALUES(?,?,?)',
-                (rule.id, nonce, ciphertext),
-            )
-            rule_schema.update(
-                connection, self.adapter._key, self.adapter.resources.scope
-            )
-            rule_schema.validate(
-                connection, self.adapter._key, self.adapter.resources.scope
-            )
-            if self._stored(connection, rule.id, resource_id) != rule:
-                raise ValueError('rule_write_failed')
             return {'rule': rule.model_dump(mode='json')}
 
+    def create_in_transaction(self, connection, facts, actor, resource_id, body):
+        """Create one inert rule record inside an existing authorized transaction."""
+        rule_schema.validate(
+            connection, self.adapter._key, self.adapter.resources.scope
+        )
+        row, ref, data, binding = self._current_target(
+            connection, facts, resource_id
+        )
+        self.adapter.resources._require(
+            facts,
+            row,
+            ref,
+            data,
+            'write',
+            expected_revision=body.expectedResourceRevision,
+            expected_acl_revision=body.expectedAclRevision,
+        )
+        if (
+            binding is None
+            or binding.revision != body.expectedBindingRevision
+            or binding.serviceRevision != body.expectedServiceRevision
+        ):
+            raise ApiError('ha_rule_changed', 409)
+        self.adapter.services._home_assistant_connection(
+            connection, binding.serviceId, binding.serviceRevision
+        )
+        if len(rule_schema.rows(connection)) >= rule_schema.MAX_RULES:
+            raise ApiError('ha_rule_limit_reached', 429)
+        rule = RuleRecord(
+            id=uuid.uuid4().hex,
+            ref=ref,
+            action=body.action,
+            creatorId=actor.id,
+            resourceRevision=row['revision'],
+            aclRevision=row['acl_revision'],
+            bindingId=binding.id,
+            bindingRevision=binding.revision,
+            serviceId=binding.serviceId,
+            serviceRevision=binding.serviceRevision,
+        )
+        nonce = secrets.token_bytes(12)
+        ciphertext = self._cipher.encrypt(
+            nonce, rule.model_dump_json().encode(), self._aad(rule.id)
+        )
+        if len(ciphertext) > rule_schema.MAX_CIPHER:
+            raise ApiError('server_unavailable', 503)
+        connection.execute(
+            'INSERT INTO automation_rule_records VALUES(?,?,?)',
+            (rule.id, nonce, ciphertext),
+        )
+        rule_schema.update(
+            connection, self.adapter._key, self.adapter.resources.scope
+        )
+        rule_schema.validate(
+            connection, self.adapter._key, self.adapter.resources.scope
+        )
+        if self._stored(connection, rule.id, resource_id) != rule:
+            raise ValueError('rule_write_failed')
+        return rule
     def get(self, actor, core, home, resource_id, rule_id):
         with self.adapter._tx(actor, core, home, admin=True) as (connection, facts):
             rule_schema.validate(

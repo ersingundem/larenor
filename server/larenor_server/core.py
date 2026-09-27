@@ -11,6 +11,8 @@ import uuid
 from .admin.service import AdminService
 from .automation_trials.schema import migrate_automation_trials
 from .automation_trials.service import AutomationTrialService
+from .automation_drafts.schema import migrate_automation_drafts
+from .automation_drafts.service import AutomationDraftService
 from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
 from .ai_memory.schema import migrate_ai_memory
@@ -403,6 +405,7 @@ class CoreServices:
                 migrate_evidence_diagnostics(connection)
                 migrate_habit_anomalies(connection)
                 migrate_automation_trials(connection)
+                migrate_automation_drafts(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -743,6 +746,10 @@ class CoreServices:
             )
             self.home_assistant_rules = HomeAssistantRules(self.home_assistant)
             self.home_assistant_rules.validate_storage()
+            self.automation_drafts = AutomationDraftService(
+                self.home_assistant_rules, settings, key
+            )
+            self.automation_drafts.validate_storage()
             self.keenetic_resources = KeeneticResourceAdapter(
                 self.db, self.auth, settings, key, self.home_resources, self.services
             )
