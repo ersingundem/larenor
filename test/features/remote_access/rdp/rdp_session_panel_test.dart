@@ -166,7 +166,7 @@ void main() {
         'gateway.home.arpa',
       );
       expect(find.textContaining('Turkish Q'), findsOneWidget);
-      expect(find.textContaining('Device to remote'), findsOneWidget);
+      expect(find.text('Clipboard: Device to remote ✓'), findsOneWidget);
       expect(tester.takeException(), isNull);
       semantics.dispose();
     },
