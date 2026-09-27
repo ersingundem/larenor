@@ -4035,7 +4035,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Birlikte senkron film izleme",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4059,7 +4059,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İlk üretim dilimi, mevcut sürümlü Jellyfin playback hedeflerini kullanarak Core-owned izleme odası, açık lider yetkisi ve bounded katılımcı durumunu kuracak. Senkron komutlar yalnız güncel oda/katılımcı/target revision'larına bağlanacak; farklı alıcı yetenekleri veya ölçülmemiş fiziksel gecikme uyumlu sayılmayacak."
+      "reason": "Core-owned özel izleme odası; davet, en fazla 16 katılımcı, yeniden katılma, bağlı katılımcıya lider devri ve lider ayrılışında bounded seçim akışlarını sürümlü ve bütünlük etiketli olarak tamamladı. Client hedef seek/pause yeteneğini, konumu ve ölçülen gidiş-dönüş süresini raporluyor; Core yalnız güncel oda/katılımcı/komut revision'larıyla tolerans dışı takipçiye play, pause veya seek-and-play yönergesi veriyor. Testler kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek iki Client→Core→Jellyfin E2E, farklı fiziksel alıcı gecikme ölçümü, bağımsız inceleme ve exact-head CI henüz tamamlanmadı."
     },
     {
       "id": "F22",

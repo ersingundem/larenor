@@ -17,6 +17,29 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 27 Eylül F21 birlikte senkron izleme — uygulama tamamlandı, test bekliyor
+
+F21 tek çalışma dalında tamamlandı. Core artık güncel Jellyfin katalog
+otoritesine bağlı, en fazla 16 katılımcılı ve altı saatle sınırlı özel izleme
+odaları tutuyor. Davet kodu yalnız hashlenmiş olarak saklanıyor; oda,
+katılımcı, hedef ve komut revision'ları her yazmada yeniden doğrulanıyor.
+Katılımcı yeniden katılımı oturum ailesini yeniliyor, liderlik yalnız bağlı bir
+katılımcıya devredilebiliyor ve lider ayrılırsa güncel bağlı katılımcılardan
+biri deterministik biçimde lider oluyor. Etkin katılımcı kalmazsa oda kapanıyor.
+
+Oynatıcı oda oluşturma/katılma, davet kodu paylaşma, lider devri ve ayrılma
+akışlarını içeriyor. İki saniyelik bounded rapor; hedef seek/pause yeteneğini,
+oynatma konumunu ve son ölçülen gidiş-dönüş süresini Core'a iletiyor. Core,
+lider komutunun sunucu zamanına göre beklenen konumunu hesaplayıp yalnız
+tolerans dışındaki takipçiye play, pause veya seek-and-play yönergesi veriyor;
+uyumsuz alıcıyı desteklenmiyor olarak açık bırakıyor. `de9200f8`, `3fc14af3`
+ve `491de127` dilimleri odaklı Python py_compile/import/route smoke, Flutter
+analyze ve diff kapılarından geçti. Kullanıcının kararı gereği özellik testleri
+son toplu doğrulama evresine bırakıldı. F21 **uygulama tamamlandı · test
+bekliyor**; sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi.
+Gerçek iki Client→Core→Jellyfin E2E, gecikme toleransı ölçümü, farklı fiziksel
+alıcılar, bağımsız inceleme ve exact-head CI açık kalıyor.
+
 ### 27 Eylül F25 jenerik ve kapanış atlama — uygulama tamamlandı, test bekliyor
 
 F25 tek çalışma dalında tamamlandı. Oynatıcı, güncel Jellyfin öğesini önce
