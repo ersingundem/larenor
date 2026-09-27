@@ -39,6 +39,10 @@ from .component_linux_capture_preflight import (
 )
 from .component_worker_server import ComponentSnapshotWorkerServer
 from .component_update_effects import ComponentUpdateEffectJournal
+from .component_update_rollback import (
+    ComponentUpdateRollbackError,
+    ComponentUpdateRollbackStore,
+)
 
 
 class ComponentWorkerRuntimeError(RuntimeError):
@@ -121,6 +125,7 @@ class PackagedComponentSnapshotBoundary:
         self._authority = authority
         self._capture = capture
         self._effects = effects
+        self._rollbacks = ComponentUpdateRollbackStore()
         self._peer_uid = peer_uid
 
     def update_sources(self, deadline):
@@ -204,7 +209,82 @@ class PackagedComponentSnapshotBoundary:
             code=code,
         )
 
-    def _rollback_update(self, engine, preparation, record):
+    def _rollback_sources(self, service_id, volume_ids, deadline):
+        adapter = UnixDockerComponentSnapshotAdapter(
+            self._endpoint,
+            self._authority,
+            peer_uid=self._peer_uid,
+        )
+        sources = adapter.sources(deadline)
+        selected = tuple(
+            item
+            for item in sources
+            if item.service_id == service_id
+        )
+        if (
+            type(volume_ids) is not set
+            or len(selected) != len(volume_ids)
+            or {item.volume_id for item in selected}
+            != volume_ids
+        ):
+            raise ComponentUpdateRollbackError()
+        return adapter, selected
+
+    def _prepare_rollback(self, preparation, deadline):
+        adapter, sources = self._rollback_sources(
+            preparation.command.serviceId,
+            {item.volume_id for item in preparation.current.volumes},
+            deadline,
+        )
+        paused = False
+        lease = None
+        try:
+            if adapter.pause(preparation.current.container_id, deadline) is not True:
+                raise ComponentUpdateRollbackError()
+            paused = True
+            lease = self._rollbacks.prepare(
+                preparation.command.updateId, sources, deadline
+            )
+            if adapter.unpause(preparation.current.container_id, deadline) is not True:
+                raise ComponentUpdateRollbackError()
+            paused = False
+            return lease
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            if lease is not None:
+                try:
+                    lease.discard(deadline)
+                except Exception:
+                    lease.close()
+            if paused:
+                try:
+                    adapter.unpause(preparation.current.container_id, deadline)
+                except Exception:
+                    pass
+            raise ComponentUpdateRollbackError() from None
+
+    def _clear_terminal_rollback(self, record, deadline):
+        if not record.rollback:
+            return record
+        lease = None
+        try:
+            _adapter, sources = self._rollback_sources(
+                record.command.serviceId,
+                {item.volume_id for item in record.rollback},
+                deadline,
+            )
+            lease = self._rollbacks.recover(
+                record.command.updateId, sources, record.rollback, deadline
+            )
+            lease.discard(deadline)
+        except ComponentUpdateRollbackError:
+            if lease is not None:
+                lease.close()
+        with self._effects.locked():
+            return self._effects.clear_rollback(record.command.updateId, record.state)
+
+    def _rollback_update(self, engine, preparation, record, rollback_lease=None):
         """Best-effort exact rollback; uncertainty remains operator-visible."""
         try:
             if record.new_container_id is not None:
@@ -225,6 +305,8 @@ class PackagedComponentSnapshotBoundary:
                 old = engine.inspect_container(record.old_container_id)
             if old is None or old.get("Name") != "/" + canonical:
                 raise DockerWorkerError()
+            if rollback_lease is not None:
+                rollback_lease.restore(time.monotonic() + 30)
             if old["State"].get("Running") is not True:
                 engine.start_container(record.old_container_id)
                 old = engine.inspect_container(record.old_container_id)
@@ -234,12 +316,22 @@ class PackagedComponentSnapshotBoundary:
             ):
                 raise DockerWorkerError()
             with self._effects.locked():
-                return self._effects.transition(
+                rolled_back = self._effects.transition(
                     record.command.updateId,
                     "mutating",
                     "rolled_back",
                     new_container_id=record.new_container_id,
                 )
+            if rollback_lease is not None:
+                try:
+                    rollback_lease.discard(time.monotonic() + 30)
+                    with self._effects.locked():
+                        rolled_back = self._effects.clear_rollback(
+                            record.command.updateId, "rolled_back"
+                        )
+                except Exception:
+                    rollback_lease.close()
+            return rolled_back
         except BaseException as error:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
@@ -259,6 +351,7 @@ class PackagedComponentSnapshotBoundary:
 
     def execute_update(self, command, deadline):
         """Pull, replace and rollback one exact confirmed managed component."""
+        rollback_lease = None
         try:
             now = time.monotonic()
             if (
@@ -284,16 +377,29 @@ class PackagedComponentSnapshotBoundary:
                 if existing.state == "committed":
                     try:
                         self._authority.accept_committed_update(command)
-                    except ComponentInstallationAuthorityError:
+                        self._clear_terminal_rollback(existing, deadline)
+                    except (ComponentInstallationAuthorityError, ComponentUpdateRollbackError):
                         return self._effect_result(
-                            command,
-                            "needs_attention",
-                            "container_state_unknown",
+                            command, "needs_attention", "container_state_unknown"
                         )
                     return self._effect_result(
                         command, "succeeded", "component_updated"
                     )
+                if existing.state == "prepared":
+                    with self._effects.locked():
+                        existing = self._effects.transition(
+                            command.updateId, "prepared", "rolled_back"
+                        )
+                    if existing.rollback:
+                        self._authority.prepare_update(command, load_catalog())
+                        self._clear_terminal_rollback(existing, deadline)
+                    return self._effect_result(
+                        command, "failed", "component_update_failed"
+                    )
                 if existing.state == "rolled_back":
+                    if existing.rollback:
+                        self._authority.prepare_update(command, load_catalog())
+                        self._clear_terminal_rollback(existing, deadline)
                     return self._effect_result(
                         command, "failed", "component_update_failed"
                     )
@@ -304,8 +410,6 @@ class PackagedComponentSnapshotBoundary:
                         "worker_response_unknown",
                     )
             command = self.validate_update(command, min(deadline, now + 5))
-            if command.rollbackSnapshotRequired:
-                return self._effect_result(command, "failed", "rollback_unavailable")
             preparation = self._authority.prepare_update(command, load_catalog())
             remaining = deadline - time.monotonic()
             image_engine = UnixImageEngine(
@@ -331,13 +435,21 @@ class PackagedComponentSnapshotBoundary:
                 preparation.catalog.model_dump(mode="json"),
                 preparation.policy.model_dump(mode="json"),
             )
+            if command.rollbackSnapshotRequired:
+                rollback_lease = self._prepare_rollback(preparation, deadline)
             with self._effects.locked():
-                record = self._effects.prepare(
-                    command,
-                    preparation.current.container_id,
-                    binding,
-                    source,
-                )
+                try:
+                    record = self._effects.prepare(
+                        command,
+                        preparation.current.container_id,
+                        binding,
+                        source,
+                        () if rollback_lease is None else rollback_lease.receipts,
+                    )
+                except Exception:
+                    if rollback_lease is not None:
+                        rollback_lease.discard(deadline)
+                    raise
                 if record.state == "committed":
                     return self._effect_result(
                         command, "succeeded", "component_updated"
@@ -408,11 +520,25 @@ class PackagedComponentSnapshotBoundary:
                     return self._effect_result(
                         command, "needs_attention", "container_state_unknown"
                     )
+                if rollback_lease is not None:
+                    try:
+                        rollback_lease.discard(deadline)
+                        with self._effects.locked():
+                            self._effects.clear_rollback(
+                                command.updateId, "committed"
+                            )
+                    except Exception:
+                        rollback_lease.close()
+                        return self._effect_result(
+                            command, "needs_attention", "rollback_required"
+                        )
                 return self._effect_result(command, "succeeded", "component_updated")
             except BaseException as error:
                 if isinstance(error, (KeyboardInterrupt, SystemExit)):
                     raise
-                rolled_back = self._rollback_update(engine, preparation, record)
+                rolled_back = self._rollback_update(
+                    engine, preparation, record, rollback_lease
+                )
                 return self._effect_result(
                     command,
                     "failed" if rolled_back is not None else "needs_attention",
@@ -438,6 +564,9 @@ class PackagedComponentSnapshotBoundary:
                 )
             except Exception:
                 raise ComponentWorkerRuntimeError("worker_unavailable") from None
+        finally:
+            if rollback_lease is not None:
+                rollback_lease.close()
 
     @contextmanager
     def quiesce(self, deadline):
