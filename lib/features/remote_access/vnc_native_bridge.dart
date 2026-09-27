@@ -304,13 +304,33 @@ class VncOpenedSession {
 }
 
 class VncFrameNotice {
-  const VncFrameNotice({
+  VncFrameNotice._({
     required this.sequence,
     required this.width,
     required this.height,
-    required this.byteLength,
+    required this.stride,
+    required this._pixels,
   });
-  final int sequence, width, height, byteLength;
+  final int sequence, width, height, stride;
+  Uint8List? _pixels;
+
+  int get byteLength => _pixels?.length ?? 0;
+
+  Uint8List takePixels() {
+    final pixels = _pixels;
+    if (pixels == null) _invalid('staleSession');
+    _pixels = null;
+    return pixels;
+  }
+
+  void dispose() {
+    _pixels?.fillRange(0, _pixels!.length, 0);
+    _pixels = null;
+  }
+
+  @override
+  String toString() =>
+      'VncFrameNotice($sequence, ${width}x$height, <redacted>)';
 
   factory VncFrameNotice.fromChannel(
     Object? raw,
@@ -322,28 +342,41 @@ class VncFrameNotice {
       'accountRevision',
       'routeRevision',
       'sessionId',
+      'schemaVersion',
       'sequence',
       'width',
       'height',
-      'byteLength',
+      'stride',
+      'pixelFormat',
+      'pixels',
     });
     if (!binding.matches({
           'ownerId': value['ownerId'],
           'accountRevision': value['accountRevision'],
           'routeRevision': value['routeRevision'],
         }) ||
-        value['sessionId'] != sessionId) {
+        value['sessionId'] != sessionId ||
+        value['schemaVersion'] != 1 ||
+        value['pixelFormat'] != 'rgba8888') {
       _invalid('staleSession');
     }
     final width = _integer(value['width'], min: 640, max: 8192);
     final height = _integer(value['height'], min: 480, max: 8192);
-    final bytes = _integer(value['byteLength'], min: 1, max: 16 * 1024 * 1024);
-    if (bytes > width * height * 4) _invalid();
-    return VncFrameNotice(
+    final stride = _integer(value['stride'], min: 1, max: 8192 * 4);
+    final pixels = value['pixels'];
+    if (stride != width * 4 ||
+        pixels is! Uint8List ||
+        pixels.isEmpty ||
+        pixels.length > 16 * 1024 * 1024 ||
+        pixels.length != stride * height) {
+      _invalid();
+    }
+    return VncFrameNotice._(
       sequence: _integer(value['sequence'], min: 1),
       width: width,
       height: height,
-      byteLength: bytes,
+      stride: stride,
+      pixels: Uint8List.fromList(pixels),
     );
   }
 }
@@ -525,6 +558,10 @@ class VncBridgeSession {
   bool _keyboardAllowed = false;
   bool _clipboardAllowed = false;
   int _inputSequence = 0, _frameSequence = 0;
+  final StreamController<VncFrameNotice> _frameController =
+      StreamController<VncFrameNotice>.broadcast(sync: true);
+
+  Stream<VncFrameNotice> get frames => _frameController.stream;
 
   bool get _ownsSession {
     try {
@@ -609,6 +646,7 @@ class VncBridgeSession {
       final frame = VncFrameNotice.fromChannel(raw, binding, opened.sessionId);
       if (frame.sequence != _frameSequence + 1) _invalid('staleSession');
       pendingFrame = frame;
+      _frameController.add(frame);
     } catch (_) {
       unawaited(_retire());
     }
@@ -627,6 +665,7 @@ class VncBridgeSession {
       await transport.ackFrame(binding, sequence);
       if (!await _guard()) return;
       _frameSequence = sequence;
+      frame.dispose();
       pendingFrame = null;
     } catch (_) {
       await _retire();
@@ -721,6 +760,7 @@ class VncBridgeSession {
   Future<void> _retire() async {
     if (phase == VncBridgePhase.retired) return;
     phase = VncBridgePhase.retired;
+    pendingFrame?.dispose();
     pendingFrame = null;
     await _frames?.cancel();
     _frames = null;
@@ -729,6 +769,7 @@ class VncBridgeSession {
     _pointerAllowed = false;
     _keyboardAllowed = false;
     _clipboardAllowed = false;
+    await _frameController.close();
   }
 
   Future<void> _cancelOnce() async {

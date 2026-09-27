@@ -77,6 +77,17 @@ class VncRawFrame {
     );
   }
 
+  factory VncRawFrame.fromNotice(VncFrameNotice notice) {
+    final pixels = notice.takePixels();
+    return VncRawFrame._(
+      notice.sequence,
+      notice.width,
+      notice.height,
+      notice.stride,
+      pixels,
+    );
+  }
+
   @visibleForTesting
   Uint8List get debugOwnedPixels => _pixels ?? Uint8List(0);
 

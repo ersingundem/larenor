@@ -308,16 +308,18 @@ class VncNativeBridge(
         sequence: Long,
         width: Int,
         height: Int,
-        byteLength: Int,
+        pixels: ByteArray,
     ): Boolean {
         if (disposed || !resumed || !windowFocused || session == null || sink == null) return false
         val found = try { VncBridgeBinding.parse(rawBinding) } catch (_: VncNativeFailure) { return false }
         if (found != binding) return false
         val activeRequest = request ?: return false
         if (pendingFrameSequence != null) return false
+        val stride = width * 4
         if (sequence != nextFrameSequence || width != activeRequest.display.width ||
-            height != activeRequest.display.height || byteLength <= 0 || byteLength > MAX_FRAME_BYTES ||
-            byteLength.toLong() > width.toLong() * height * 4L) {
+            height != activeRequest.display.height || pixels.isEmpty() || pixels.size > MAX_FRAME_BYTES ||
+            pixels.size.toLong() != stride.toLong() * height) {
+            pixels.fill(0)
             retire()
             return false
         }
@@ -325,15 +327,20 @@ class VncNativeBridge(
         return try {
             sink?.success(found.toChannel() + mapOf(
                 "sessionId" to activeRequest.requestId,
+                "schemaVersion" to 1,
                 "sequence" to sequence,
                 "width" to width,
                 "height" to height,
-                "byteLength" to byteLength,
+                "stride" to stride,
+                "pixelFormat" to "rgba8888",
+                "pixels" to pixels.copyOf(),
             ))
             true
         } catch (_: Exception) {
             retire()
             false
+        } finally {
+            pixels.fill(0)
         }
     }
 
