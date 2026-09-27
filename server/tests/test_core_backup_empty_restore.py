@@ -108,6 +108,9 @@ def test_legacy_four_resource_bundle_still_restores(server, tmp_path):
     raw_manifest["contractVersion"] = 1
     raw_manifest.pop("components")
     raw_manifest.pop("consistencyBoundary")
+    raw_manifest.pop("sourceCoreId")
+    raw_manifest.pop("sourceHomeId")
+    raw_manifest.pop("restoreMode")
     raw_manifest["resources"] = [
         item for item in raw_manifest["resources"]
         if item["id"] != "family-board"

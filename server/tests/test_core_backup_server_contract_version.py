@@ -73,6 +73,9 @@ def _true_legacy_capture(capture):
     raw["contractVersion"] = 1
     raw.pop("components")
     raw.pop("consistencyBoundary")
+    raw.pop("sourceCoreId")
+    raw.pop("sourceHomeId")
+    raw.pop("restoreMode")
     raw["resources"] = [
         resource
         for resource in raw["resources"]

@@ -56,7 +56,10 @@ def test_admin_plan_binds_one_consistent_db_key_config_and_component_set(
     assert response["status"] == "ready"
     assert response["blockers"] == []
     manifest = response["manifest"]
-    assert manifest["contractVersion"] == 2
+    assert manifest["contractVersion"] == 3
+    assert manifest["sourceCoreId"] == app.state.core.context.coreId
+    assert manifest["sourceHomeId"] == app.state.core.context.homeId
+    assert manifest["restoreMode"] == "replacement"
     assert len(manifest["snapshotId"]) == 32
     assert manifest["coreVersion"] == app.version
     assert manifest["databaseSchemaVersion"] == 3
@@ -172,7 +175,7 @@ def test_restore_validation_is_exact_versioned_and_fail_closed(server):
     assert accepted.json() == {"compatible": True, "reasons": []}
 
     for field, value, reason in (
-        ("contractVersion", 3, "unsupported_contract_version"),
+        ("contractVersion", 4, "unsupported_contract_version"),
         ("databaseSchemaVersion", 2, "database_schema_mismatch"),
         ("coreVersion", "99.0.0", "core_version_mismatch"),
         ("componentSchemaVersions", {}, "component_schema_mismatch"),

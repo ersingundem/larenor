@@ -91,10 +91,10 @@ def _read_journal(settings: Settings) -> dict | None:
         value = json.loads(private_read(path, 1024))
     except (OSError, UnicodeError, ValueError, StartupError):
         raise StartupError("restore_recovery_invalid") from None
-    if type(value) is not dict or value.get("version") not in (1, 2):
+    if type(value) is not dict or value.get("version") not in (1, 2, 3):
         raise StartupError("restore_recovery_invalid")
     expected = {"version", "snapshotId", "databaseSha256", "keySha256"}
-    if value["version"] == 2:
+    if value["version"] >= 2:
         expected.add("familyBoardSha256")
     if "componentState" in value:
         expected.add("componentState")
@@ -167,7 +167,7 @@ def recover_empty_restore(settings: Settings) -> bool:
     artifacts = [
         (stage_key, settings.key_file, 32, journal["keySha256"]),
     ]
-    if journal["version"] == 2:
+    if journal["version"] >= 2:
         artifacts.append(
             (
                 stage_dir / "family-board.sqlite3",
