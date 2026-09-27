@@ -4642,7 +4642,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Evdeyken kamera kayıt profili",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4667,7 +4667,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "e9f8cf9b exact readback revizyonu/modu, 60 saniyelik apply tazeliği, 5 dakikalık sağlayıcı fact sınırı, 20 saniyelik Client timeout ve 15 dakikalık idempotent geri alma ekledi. Aradaki manuel/provider değişikliği korunur; ACK kaybı, bozuk yanıt, readback uyuşmazlığı ve kısmi geri alma kamera bazında görünür. Paket kanıtı: 11 Python ve 8 Flutter testi, hedefli analiz ve partial→rollback smoke temiz; gerçek kamera/provider, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
     },
     {
       "id": "F42",
