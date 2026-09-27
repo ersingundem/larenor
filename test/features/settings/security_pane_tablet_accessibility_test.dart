@@ -55,8 +55,8 @@ void main() {
           await _mount(tester, language: language, width: width);
 
           expect(find.byType(SettingsPaneScaffold), findsOneWidget);
-          expect(find.byType(SettingsSection), findsOneWidget);
-          expect(find.byType(SettingsActionTile), findsOneWidget);
+          expect(find.byType(SettingsSection), findsAtLeastNWidgets(2));
+          expect(find.byType(SettingsActionTile), findsAtLeastNWidgets(2));
           expect(
             tester
                 .getSemantics(
