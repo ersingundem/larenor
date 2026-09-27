@@ -1,9 +1,9 @@
 # F24 Core language preference player integration
 
-This slice consumes the merged provider-neutral language preference contract
-from PR #440.
-It leaves F24 pending: queue progress remains **26/125** and selected-feature
-progress remains **0/63**.
+This record covers the provider-neutral language preference contract and its
+player/Bazarr consumers. Historical commit counts below belong to the earlier
+player slice. F24 implementation is now complete and remains outside the done
+count until deferred tests, review and exact-head CI pass.
 
 ## Three delivered boundaries
 
@@ -46,14 +46,31 @@ progress remains **0/63**.
 - Focused `flutter analyze` over the ten changed production/support/test files:
   **no issues found**. Python compilation also passed.
 
-## Remaining F24 acceptance
+## Bazarr acquisition completion
 
-- Subtitle acquisition/provider consent and bounded provider quota are not
-  implemented by this preference slice. The saved value is only a requested
-  language and never claims subtitle availability.
-- Separate real Jellyfin service plus renderer/subtitle-engine integration
-  evidence remains required. Independent review and all required exact-head
-  checks passed on `900c0b74`, which merged as `193a6c77`.
+- `7e363878` adds a version-1 request built only from the exact current wanted
+  row. Movie and episode identities are mutually exclusive, IDs/languages and
+  response collections are bounded, malformed provider data is rejected, and
+  the provider status code remains available for known rejection handling.
+- Each Bazarr route session has a five-request provider budget and reserves an
+  exact target/language before dispatch. A reservation is never released
+  because a timeout can have consumed provider quota. The PATCH is never
+  retried automatically.
+- `ed5b1dad` requires an explicit localized confirmation. It prioritizes the
+  current Core person's saved subtitle language when that language is actually
+  missing. After provider acknowledgement, one read-only wanted-list refresh
+  can confirm availability. An absent/ambiguous row stays accepted but
+  unconfirmed; timeout and transport loss stay unknown. Late callbacks cannot
+  update a retired route or replacement provider account.
+- Saved audio preference still selects only a native track reported by the
+  current media source. Missing audio is never presented as found.
+
+## Deferred verification
+
+- Focused acquisition/controller/widget tests, malformed and late-response
+  cases, independent review and required exact-head CI are intentionally held
+  for the final verification phase.
+- A real Jellyfin service plus renderer/subtitle-engine integration remains a
+  separate software acceptance gate.
 - Playback with actual language tracks on target Huawei/DeX hardware stays a
-  physical MANUAL gate. F24 must not be marked done from this client contract
-  alone.
+  physical MANUAL gate and cannot mark the software task done.

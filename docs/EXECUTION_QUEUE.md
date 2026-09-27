@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 0 | 1 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 1 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F24 | Akıllı altyazı ve dil tercihleri | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -151,3 +151,4 @@ Tamamlanan ve test/CI bekleyen işler
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
+| F24 | Akıllı altyazı ve dil tercihleri | Uygulama tamamlandı · test bekliyor | — |

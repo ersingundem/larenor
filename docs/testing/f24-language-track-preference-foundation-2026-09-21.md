@@ -1,9 +1,11 @@
 # F24 — Jellyfin language preference software slice
 
-This is an independent Client foundation for F24. The queue stays **22/125**
-and selected features stay **0/63** until F24's full Client-to-Core/service
-contract and CI acceptance are complete. This slice does not download or
-generate subtitles, or claim that a missing audio language exists.
+This document records the original Client foundation for F24. The preference
+has since moved to the provider-neutral Core contract and the explicit Bazarr
+acquisition boundary described in
+`docs/testing/f24-player-language-integration.tdd.md`. The historical queue
+counts below are evidence for that original slice, not the current project
+totals.
 
 ## Three acceptance criteria
 
@@ -31,10 +33,11 @@ before the matching/epoch fixes. Focused unit, player interaction and player
 lifecycle tests, scoped `flutter analyze`, queue/security checks, progress
 trailers, gitleaks and merge-tree are the software gates for this PR.
 
-## Remaining F24 work
+## Current boundary
 
-Preferences are currently device-local. Core-managed per-person sync,
-provider quota/consent for optional subtitle acquisition, a real isolated
-Jellyfin/renderer integration test, and playback on Huawei/DeX with actual
-audio/subtitle tracks remain **PENDING/MANUAL**. An actual missing voice track
-must continue to be reported as missing.
+Preferences are Core-owned and per-person. Optional subtitle acquisition now
+requires exact-row consent, consumes a bounded provider-account session budget
+and performs a read-only Bazarr observation without retrying an uncertain
+mutation. Real-service/renderer tests, exact-head CI and physical Huawei/DeX
+playback remain pending final verification. An actual missing voice track
+continues to be reported as missing.
