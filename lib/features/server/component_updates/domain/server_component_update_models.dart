@@ -618,6 +618,8 @@ final class ServerComponentUpdateJob {
   final int updatedAtMs;
 
   bool get terminal => {'succeeded', 'failed', 'cancelled'}.contains(state);
+  bool get settled => terminal || state == 'needs_attention';
+  bool get cancellable => {'queued', 'validating', 'ready'}.contains(state);
 }
 
 final class ServerComponentUpdateJobs {

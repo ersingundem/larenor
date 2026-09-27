@@ -330,7 +330,13 @@ class ComponentUpdateJobStore:
             command = self._decode(row)
             if row["revision"] != body.expectedRevision:
                 raise ApiError("revision_conflict", 409)
-            if row["state"] in {"succeeded", "failed", "cancelled"}:
+            if row["state"] in {
+                "running",
+                "succeeded",
+                "failed",
+                "cancelled",
+                "needs_attention",
+            }:
                 return self._public(row, command)
             changed = dict(row)
             changed.update(

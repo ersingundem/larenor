@@ -58,7 +58,7 @@ final class _ServerComponentUpdatesScreenState
   }
 
   void _updatesChanged() {
-    final pending = _updates.jobs.any((item) => !item.terminal);
+    final pending = _updates.jobs.any((item) => !item.settled);
     if (!pending || !_active) {
       _jobPoll?.cancel();
       _jobPoll = null;
@@ -318,7 +318,7 @@ final class _ServerComponentUpdatesScreenState
               child: Text(l10n.serverComponentUpdatesConfirmAction),
             ),
           ),
-        if (job != null && !job.terminal)
+        if (job != null && job.cancellable)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: CupertinoButton(

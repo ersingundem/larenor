@@ -180,7 +180,11 @@ final class ServerComponentUpdatesController extends ChangeNotifier {
     required bool Function() current,
   }) async {
     final selected = job;
-    if (_disposed || busy || selected.terminal || !authorized || !current()) {
+    if (_disposed ||
+        busy ||
+        !selected.cancellable ||
+        !authorized ||
+        !current()) {
       return;
     }
     final epoch = _epoch;
