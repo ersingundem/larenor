@@ -12,9 +12,18 @@ from .selection import (
     MemoryAlbumStore,
     MemorySelection,
 )
+from .service import FamilyMemoriesService
+
+
+def __getattr__(name):
+    if name == "router":
+        from .api import router
+        return router
+    raise AttributeError(name)
 
 __all__ = [
     "ImmichMemoryAdapter",
+    "FamilyMemoriesService",
     "MemoryAlbum",
     "MemoryAlbumAuthority",
     "MemoryAlbumStore",
@@ -24,4 +33,5 @@ __all__ = [
     "MemorySearch",
     "MemorySearchResult",
     "MemorySelection",
+    "router",
 ]

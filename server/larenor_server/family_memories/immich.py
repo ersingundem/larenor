@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 from datetime import datetime
 from types import MappingProxyType
@@ -98,10 +99,43 @@ class ImmichMemoryAdapter:
                 "service_unavailable" if error.code != "request_timeout" else "timeout"
             )
             raise MemoryError(code) from None
-        return self._parse(response, request.limit)
+        return self._parse(response, request.limit, request.album_ids[0])
+
+    def asset(self, asset_id: str) -> MemoryAsset | None:
+        """Read one source asset for integrity reconciliation; never downloads it."""
+        if self._closed:
+            raise MemoryError("retired")
+        if not _uuid(asset_id):
+            raise MemoryError("invalid_search")
+        try:
+            response = self._transport.request(
+                "GET", f"/api/assets/{asset_id}", headers=self._headers,
+            )
+        except ProbeTransportError as error:
+            raise MemoryError(
+                "timeout" if error.code == "request_timeout"
+                else "service_unavailable"
+            ) from None
+        if response.status == 404:
+            return None
+        if (response.status != 200 or len(response.body) > _MAX_RESPONSE
+                or [value.split(";", 1)[0].strip().lower()
+                    for key, value in response.headers
+                    if key.lower() == "content-type"] != ["application/json"]):
+            raise MemoryError("invalid_response")
+        try:
+            value = json.loads(response.body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise MemoryError("invalid_response") from None
+        asset = self._asset(value)
+        if asset.id != asset_id:
+            raise MemoryError("invalid_response")
+        return asset
 
     @staticmethod
-    def _parse(response: ProbeResponse, limit: int) -> MemorySearchResult:
+    def _parse(
+        response: ProbeResponse, limit: int, source_album_id: str
+    ) -> MemorySearchResult:
         if (
             not isinstance(response, ProbeResponse)
             or response.status != 200
@@ -127,23 +161,26 @@ class ImmichMemoryAdapter:
             or len(items) > limit
         ):
             raise MemoryError("invalid_response")
-        assets = tuple(ImmichMemoryAdapter._asset(item) for item in items)
+        assets = tuple(
+            ImmichMemoryAdapter._asset(item, source_album_id) for item in items
+        )
         if len({asset.id for asset in assets}) != len(assets):
             raise MemoryError("invalid_response")
         return MemorySearchResult(assets)
 
     @staticmethod
-    def _asset(value: object) -> MemoryAsset:
+    def _asset(value: object, source_album_id: str | None = None) -> MemoryAsset:
         if (
             not isinstance(value, dict)
             or not _uuid(value.get("id"))
             or value.get("type") != "IMAGE"
         ):
             raise MemoryError("invalid_response")
-        name, taken, thumbhash = (
+        name, taken, thumbhash, checksum = (
             value.get("originalFileName"),
             value.get("fileCreatedAt"),
             value.get("thumbhash"),
+            value.get("checksum"),
         )
         if (
             not isinstance(name, str)
@@ -153,6 +190,8 @@ class ImmichMemoryAdapter:
             or len(taken) > 40
             or thumbhash is not None
             and (not isinstance(thumbhash, str) or len(thumbhash) > _MAX_THUMBHASH)
+            or not isinstance(checksum, str)
+            or not 1 <= len(checksum) <= 512
         ):
             raise MemoryError("invalid_response")
         try:
@@ -163,7 +202,11 @@ class ImmichMemoryAdapter:
                 base64.b64decode(thumbhash, validate=True)
         except (ValueError, TypeError):
             raise MemoryError("invalid_response") from None
-        return MemoryAsset(value["id"], name, taken, thumbhash)
+        return MemoryAsset(
+            value["id"], name, taken, thumbhash,
+            hashlib.sha256(checksum.encode("utf-8")).hexdigest(),
+            source_album_id,
+        )
 
     def close(self) -> None:
         if self._closed:

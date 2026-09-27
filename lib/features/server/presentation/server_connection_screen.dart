@@ -24,6 +24,7 @@ import '../automation_trials/presentation/server_automation_trial_screen.dart';
 import '../component_updates/presentation/server_component_updates_screen.dart';
 import '../core_backups/presentation/server_core_backups_screen.dart';
 import '../evidence_diagnostics/presentation/server_evidence_diagnostic_screen.dart';
+import '../family_memories/presentation/server_family_memories_route.dart';
 import '../habit_anomalies/presentation/server_habit_anomaly_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
@@ -1074,6 +1075,29 @@ class _ServerConnectionScreenState
                                           CupertinoPageRoute(
                                             builder: (_) =>
                                                 ServerAiMemoryScreen(
+                                                  gateCurrent:
+                                                      widget.adminGateCurrent ??
+                                                      () => true,
+                                                ),
+                                          ),
+                                        );
+                                      })
+                                    : null,
+                              ),
+                              SettingsActionTile(
+                                buttonKey: const ValueKey(
+                                  'server-family-memories',
+                                ),
+                                leading: const Icon(
+                                  CupertinoIcons.photo_on_rectangle,
+                                ),
+                                title: Text(l10n.serverFamilyMemoriesTitle),
+                                onTap: _enabled
+                                    ? _callback(() {
+                                        Navigator.of(context).push<void>(
+                                          CupertinoPageRoute(
+                                            builder: (_) =>
+                                                ServerFamilyMemoriesRoute(
                                                   gateCurrent:
                                                       widget.adminGateCurrent ??
                                                       () => true,

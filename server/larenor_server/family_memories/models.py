@@ -82,7 +82,7 @@ class MemorySearch:
             not _safe_text(query, 256)
             or query != self.query
             or not isinstance(self.album_ids, tuple)
-            or not 1 <= len(self.album_ids) <= 16
+            or len(self.album_ids) != 1
             or len(set(self.album_ids)) != len(self.album_ids)
             or any(not _uuid(value) for value in self.album_ids)
             or type(self.limit) is not int
@@ -107,6 +107,8 @@ class MemoryAsset:
     file_name: str
     taken_at: str
     thumbhash: str | None
+    source_etag: str
+    source_album_id: str | None = None
 
 
 @dataclass(frozen=True)

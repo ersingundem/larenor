@@ -104,6 +104,7 @@ from .room_presence.api import router as room_presence_router
 from .home_documents.api import router as home_documents_router
 from .resource_reservations.api import router as resource_reservations_router
 from .family_board.api import router as family_board_router
+from .family_memories import router as family_memories_router
 from .camera_profiles.api import router as camera_profile_router
 from .power_budget.api import router as power_budget_router
 from .floor_plan.api import router as floor_plan_router
@@ -150,6 +151,9 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                power_budget_provider=None,
                legacy_remote_provider=None,
                power_recovery_executor=None,
+               family_memory_connection_provider=None,
+               family_memory_authority_provider=None,
+               family_memory_policy_provider=None,
                camera_search_runtime: CameraSearchRuntime | None = None) -> FastAPI:
     source = source or SourceInformation.from_environment()
     @asynccontextmanager
@@ -294,7 +298,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         live_tv_recorder=live_tv_recorder,
         power_budget_provider=power_budget_provider,
         legacy_remote_provider=legacy_remote_provider,
-        power_recovery_executor=power_recovery_executor)
+        power_recovery_executor=power_recovery_executor,
+        family_memory_connection_provider=family_memory_connection_provider,
+        family_memory_authority_provider=family_memory_authority_provider,
+        family_memory_policy_provider=family_memory_policy_provider)
     app.state.plugin_job_dispatcher = None
     app.state.media_inspection_dispatcher = None
     app.state.media_installation_dispatcher = None
@@ -447,6 +454,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(home_documents_router, prefix="/api/v1")
     app.include_router(resource_reservations_router, prefix="/api/v1")
     app.include_router(family_board_router, prefix="/api/v1")
+    app.include_router(family_memories_router, prefix="/api/v1")
     app.include_router(camera_profile_router, prefix="/api/v1")
     app.include_router(power_budget_router, prefix="/api/v1")
     app.include_router(floor_plan_router, prefix="/api/v1")

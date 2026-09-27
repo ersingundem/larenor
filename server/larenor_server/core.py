@@ -41,7 +41,7 @@ from .power_recovery.schema import migrate_power_recovery
 from .power_recovery.service import PowerRecoveryService
 from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
-from .errors import StartupError
+from .errors import ApiError, StartupError
 from .files import (
     checked_path,
     private_create,
@@ -208,6 +208,7 @@ from .home_documents.repository import HomeDocumentRepository
 from .resource_reservations.schema import migrate_resource_reservations
 from .resource_reservations.integration import ResourceReservationService
 from .family_board.service import FamilyBoardService
+from .family_memories import FamilyMemoriesService, MemoryAlbumAuthority, MemoryAlbumStore
 from .camera_profiles.runtime import build_camera_profile_gateway
 from .power_budget.schema import migrate_power_budget
 from .power_budget.runtime import build_power_budget_gateway
@@ -249,6 +250,9 @@ class CoreServices:
         power_budget_provider=None,
         legacy_remote_provider=None,
         power_recovery_executor=None,
+        family_memory_connection_provider=None,
+        family_memory_authority_provider=None,
+        family_memory_policy_provider=None,
     ):
         self.settings = settings
         self._blob_provider = blob_provider
@@ -271,6 +275,9 @@ class CoreServices:
         self._power_budget_provider = power_budget_provider
         self._legacy_remote_provider = legacy_remote_provider
         self._power_recovery_executor = power_recovery_executor
+        self._family_memory_connection_provider = family_memory_connection_provider
+        self._family_memory_authority_provider = family_memory_authority_provider
+        self._family_memory_policy_provider = family_memory_policy_provider
         self.bootstrap_created = False
         self.bootstrap_cleanup_pending = False
         try:
@@ -279,6 +286,51 @@ class CoreServices:
             raise
         except (OSError, ValueError, sqlite3.Error):
             raise StartupError("storage_initialization_failed") from None
+
+    def _family_memory_authority(self, actor):
+        """Resolve the current single-home membership generation.
+
+        The digest is only a revision token. User IDs and their revisions stay
+        inside the Core and are never exposed through it.
+        """
+        with self.db.connection() as connection:
+            rows = connection.execute(
+                "SELECT id,revision FROM users "
+                "WHERE disabled=0 AND must_change_password=0 ORDER BY id LIMIT 33"
+            ).fetchall()
+        if len(rows) > 32 or not any(row["id"] == actor.id for row in rows):
+            raise ApiError("memory_authority_changed", 409)
+        member_ids = tuple(row["id"] for row in rows)
+        payload = b"\0".join(
+            row["id"].encode("ascii") + b":" + str(row["revision"]).encode("ascii")
+            for row in rows
+        )
+        revision = int.from_bytes(
+            hmac.new(
+                self._family_memory_members_key,
+                b"larenor-family-memory-members-revision-v1\0" + payload,
+                hashlib.sha256,
+            ).digest()[:8],
+            "big",
+        ) & (2**63 - 1)
+        return (
+            MemoryAlbumAuthority(
+                self.context.coreId,
+                self.context.homeId,
+                actor.id,
+                actor.family_id,
+                revision or 1,
+            ),
+            member_ids,
+        )
+
+    @staticmethod
+    def _family_memory_connection_unavailable(_actor, _service_id, _revision):
+        raise ApiError("memory_service_unavailable", 503)
+
+    @staticmethod
+    def _family_memory_policy_unavailable(_actor, _service_id, _revision):
+        raise ApiError("memory_policy_unavailable", 503)
 
     def _initialize(self) -> None:
         settings = self.settings
@@ -444,6 +496,7 @@ class CoreServices:
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
                 migrate_resource_reservations(connection)
+                MemoryAlbumStore.migrate(connection)
                 migrate_power_budget(connection)
                 migrate_floor_plan(connection)
                 migrate_shared_expenses(connection)
@@ -723,6 +776,29 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.services.validate_storage()
+            self._family_memory_members_key = hmac.new(
+                key, b"larenor-family-memory-members-v1", hashlib.sha256
+            ).digest()
+            self.family_memory_albums = MemoryAlbumStore(
+                self.db,
+                encryption_key=hmac.new(
+                    key, b"larenor-family-memory-encryption-v1", hashlib.sha256
+                ).digest(),
+                audit_key=hmac.new(
+                    key, b"larenor-family-memory-audit-v1", hashlib.sha256
+                ).digest(),
+                clock=settings.clock,
+            )
+            self.family_memories = FamilyMemoriesService(
+                self.family_memory_albums,
+                self.auth,
+                self._family_memory_authority_provider
+                or self._family_memory_authority,
+                self._family_memory_connection_provider
+                or self._family_memory_connection_unavailable,
+                self._family_memory_policy_provider
+                or self._family_memory_policy_unavailable,
+            )
             self.workshop = WorkshopService(
                 self.db, self.auth, settings, key, self.context, self.services)
             self.workshop.validate_storage()

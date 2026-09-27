@@ -260,7 +260,7 @@ class MemoryAlbumStore:
             "service_id": album.service_id,
             "service_revision": album.service_revision,
             "payload_hash": hashlib.sha256(payload).hexdigest(),
-            "updated_at": album.updated_at,
+            "updated_at": float(album.updated_at),
         }
         ciphertext = self._cipher.encrypt(nonce, payload, self._aad(shell))
         shell["record_hash"] = self._record_hash(shell)
@@ -344,6 +344,76 @@ class MemoryAlbumStore:
         if actor.id not in album.member_ids:
             raise ApiError("not_found", 404)
         return album
+
+    def list(
+        self, actor: Principal, authority: MemoryAlbumAuthority
+    ) -> tuple[MemoryAlbum, ...]:
+        """Return only albums visible to this exact account and home scope."""
+        self._authorize(actor, authority)
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM memory_albums WHERE core_id=? AND home_id=? "
+                "ORDER BY updated_at DESC,id LIMIT ?",
+                (*self._scope(authority), MAX_ALBUMS + 1),
+            ).fetchall()
+            if len(rows) > MAX_ALBUMS:
+                raise StartupError("memory_album_storage_invalid")
+            albums = tuple(self._decode(row) for row in rows)
+        return tuple(album for album in albums if actor.id in album.member_ids)
+
+    def update(
+        self,
+        actor: Principal,
+        authority: MemoryAlbumAuthority,
+        *,
+        album_id: str,
+        expected_revision: int,
+        title: str,
+        visibility: str,
+        member_ids: tuple[str, ...],
+    ) -> MemoryAlbum:
+        current = self.read(actor, authority, album_id)
+        if current.owner_id != actor.id:
+            raise ApiError("forbidden", 403)
+        if current.revision != expected_revision or expected_revision >= 2**63 - 1:
+            raise ApiError("memory_album_changed", 409)
+        updated = MemoryAlbum(
+            **{
+                **asdict(current),
+                "revision": current.revision + 1,
+                "title": title.strip(),
+                "visibility": visibility,
+                "member_ids": member_ids,
+                "updated_at": self._clock(),
+            }
+        )
+        self._validate_album(updated)
+        with self.database.transaction() as connection:
+            row = connection.execute(
+                "SELECT revision FROM memory_albums WHERE id=?", (album_id,)
+            ).fetchone()
+            if row is None or row["revision"] != expected_revision:
+                raise ApiError("memory_album_changed", 409)
+            self._save(connection, updated, self._scope(authority))
+        return updated
+
+    def delete(
+        self, actor: Principal, authority: MemoryAlbumAuthority, *,
+        album_id: str, expected_revision: int,
+    ) -> None:
+        current = self.read(actor, authority, album_id)
+        if current.owner_id != actor.id:
+            raise ApiError("forbidden", 403)
+        if current.revision != expected_revision:
+            raise ApiError("memory_album_changed", 409)
+        with self.database.transaction() as connection:
+            deleted = connection.execute(
+                "DELETE FROM memory_albums WHERE id=? AND core_id=? AND home_id=? "
+                "AND owner_id=? AND revision=?",
+                (album_id, *self._scope(authority), actor.id, expected_revision),
+            ).rowcount
+            if deleted != 1:
+                raise ApiError("memory_album_changed", 409)
 
     def replace(
         self,
