@@ -23,16 +23,33 @@ class SharedExpenseLease {
   final SharedExpenseAuthority authority;
 }
 
-class _PendingExpense {
-  const _PendingExpense(
+class _PendingCommand {
+  const _PendingCommand.expense(
     this.commandId,
     this.expectedLedgerRevision,
-    this.draft,
-  );
+    ExpenseDraft value,
+  ) : expense = value,
+      payment = null;
+
+  const _PendingCommand.payment(
+    this.commandId,
+    this.expectedLedgerRevision,
+    ExpensePaymentDraft value,
+  ) : expense = null,
+      payment = value;
 
   final String commandId;
   final int expectedLedgerRevision;
-  final ExpenseDraft draft;
+  final ExpenseDraft? expense;
+  final ExpensePaymentDraft? payment;
+
+  bool matches(SharedExpenseRecord record) {
+    final expenseDraft = expense;
+    if (expenseDraft != null) return record.matchesDraft(expenseDraft);
+    final paymentDraft = payment;
+    if (paymentDraft != null) return record.matchesPayment(paymentDraft);
+    return false;
+  }
 }
 
 class SharedExpenseController extends ChangeNotifier {
@@ -44,19 +61,54 @@ class SharedExpenseController extends ChangeNotifier {
   SharedExpenseViewState _state = SharedExpenseViewState.detached;
   List<ExpenseParticipant> _participants = const [];
   List<SharedExpenseRecord> _records = const [];
+  List<ExpenseBalance> _balances = const [];
+  List<ExpenseSettlement> _settlements = const [];
   List<SharedExpenseRecord> _exportedRecords = const [];
   int? _ledgerRevision;
   int? _membersRevision;
   int _epoch = 0;
-  _PendingExpense? _pending;
+  _PendingCommand? _pending;
 
   SharedExpenseAuthority? get authority => _authority;
   SharedExpenseViewState get state => _state;
   List<ExpenseParticipant> get participants => List.unmodifiable(_participants);
   List<SharedExpenseRecord> get records => List.unmodifiable(_records);
+  List<ExpenseBalance> get balances => List.unmodifiable(_balances);
+  List<ExpenseSettlement> get settlements => List.unmodifiable(_settlements);
   List<SharedExpenseRecord> get exportedRecords =>
       List.unmodifiable(_exportedRecords);
   int? get ledgerRevision => _ledgerRevision;
+
+  String get exportText {
+    if (_exportedRecords.isEmpty) return '';
+    String cell(Object value) => '"${value.toString().replaceAll('"', '""')}"';
+    final labels = {for (final value in _participants) value.id: value.label};
+    final rows = <String>['kind,created_at,title,currency,total,payer,shares'];
+    for (final record in _exportedRecords) {
+      final shares = record.shares
+          .map(
+            (share) =>
+                '${labels[share.accountId] ?? share.accountId}='
+                '${formatExpenseMinor(share.amountMinor, record.currencyScale)}',
+          )
+          .join('; ');
+      rows.add(
+        [
+          record.kind.name,
+          DateTime.fromMillisecondsSinceEpoch(
+            (record.createdAt * 1000).round(),
+            isUtc: true,
+          ).toIso8601String(),
+          record.title,
+          record.currency,
+          formatExpenseMinor(record.totalMinor, record.currencyScale),
+          labels[record.payerId] ?? record.payerId,
+          shares,
+        ].map(cell).join(','),
+      );
+    }
+    return rows.join('\n');
+  }
 
   SharedExpenseLease bind(SharedExpenseAuthority authority) {
     _epoch++;
@@ -64,6 +116,8 @@ class SharedExpenseController extends ChangeNotifier {
     _state = SharedExpenseViewState.idle;
     _participants = const [];
     _records = const [];
+    _balances = const [];
+    _settlements = const [];
     _exportedRecords = const [];
     _ledgerRevision = null;
     _membersRevision = null;
@@ -82,6 +136,8 @@ class SharedExpenseController extends ChangeNotifier {
     _state = SharedExpenseViewState.detached;
     _participants = const [];
     _records = const [];
+    _balances = const [];
+    _settlements = const [];
     _exportedRecords = const [];
     _ledgerRevision = null;
     _membersRevision = null;
@@ -102,6 +158,8 @@ class SharedExpenseController extends ChangeNotifier {
     }
     _participants = const [];
     _records = const [];
+    _balances = const [];
+    _settlements = const [];
     _exportedRecords = const [];
     _ledgerRevision = null;
     _membersRevision = null;
@@ -118,6 +176,17 @@ class SharedExpenseController extends ChangeNotifier {
           !result.participants.any(
             (participant) => participant.id == lease.authority.accountId,
           ) ||
+          result.balances.any(
+            (balance) =>
+                !lease.authority.canViewAll &&
+                balance.accountId != lease.authority.accountId,
+          ) ||
+          result.settlements.any(
+            (settlement) =>
+                !lease.authority.canViewAll &&
+                settlement.debtorId != lease.authority.accountId &&
+                settlement.creditorId != lease.authority.accountId,
+          ) ||
           result.records.any(
             (record) =>
                 !lease.authority.canViewAll &&
@@ -133,6 +202,8 @@ class SharedExpenseController extends ChangeNotifier {
       _membersRevision = result.membersRevision;
       _participants = result.participants;
       _records = result.records;
+      _balances = result.balances;
+      _settlements = result.settlements;
       _exportedRecords = const [];
       _set(
         _records.isEmpty
@@ -149,18 +220,22 @@ class SharedExpenseController extends ChangeNotifier {
   bool _matches(
     SharedExpenseReceipt receipt,
     SharedExpenseLease lease,
-    _PendingExpense pending,
+    _PendingCommand pending,
   ) =>
       receipt.authority == lease.authority &&
       receipt.commandId == pending.commandId &&
       receipt.ledgerRevision == pending.expectedLedgerRevision + 1 &&
-      receipt.record.matchesDraft(pending.draft);
+      pending.matches(receipt.record);
 
-  void _accept(SharedExpenseReceipt receipt) {
+  Future<void> _accept(
+    SharedExpenseLease lease,
+    SharedExpenseReceipt receipt,
+  ) async {
     _records = List.unmodifiable([..._records, receipt.record]);
     _ledgerRevision = receipt.ledgerRevision;
     _pending = null;
     _set(SharedExpenseViewState.ready);
+    await load(lease);
   }
 
   Future<void> create(SharedExpenseLease lease, ExpenseDraft draft) async {
@@ -174,7 +249,11 @@ class SharedExpenseController extends ChangeNotifier {
             _state != SharedExpenseViewState.empty)) {
       return;
     }
-    final pending = _PendingExpense(commandIds(), ledgerRevision, draft);
+    final pending = _PendingCommand.expense(
+      commandIds(),
+      ledgerRevision,
+      draft,
+    );
     _pending = pending;
     _set(SharedExpenseViewState.busy);
     try {
@@ -191,7 +270,60 @@ class SharedExpenseController extends ChangeNotifier {
         _set(SharedExpenseViewState.error);
         return;
       }
-      _accept(receipt);
+      await _accept(lease, receipt);
+    } on TimeoutException {
+      if (_current(lease)) _set(SharedExpenseViewState.uncertain);
+    } catch (_) {
+      if (_current(lease)) {
+        _pending = null;
+        _set(SharedExpenseViewState.error);
+      }
+    }
+  }
+
+  Future<void> createPayment(
+    SharedExpenseLease lease,
+    ExpensePaymentDraft draft,
+  ) async {
+    final ledgerRevision = _ledgerRevision;
+    final membersRevision = _membersRevision;
+    if (!_current(lease) ||
+        ledgerRevision == null ||
+        membersRevision == null ||
+        _pending != null ||
+        (_state != SharedExpenseViewState.ready &&
+            _state != SharedExpenseViewState.empty)) {
+      return;
+    }
+    final pending = _PendingCommand.payment(
+      commandIds(),
+      ledgerRevision,
+      draft,
+    );
+    final paymentApi = _api is SharedExpensePaymentApi
+        ? _api as SharedExpensePaymentApi
+        : null;
+    if (paymentApi == null) {
+      _set(SharedExpenseViewState.error);
+      return;
+    }
+    _pending = pending;
+    _set(SharedExpenseViewState.busy);
+    try {
+      final receipt = await paymentApi.payment(
+        lease.authority,
+        expectedLedgerRevision: ledgerRevision,
+        expectedMembersRevision: membersRevision,
+        commandId: pending.commandId,
+        draft: draft,
+      );
+      if (!_current(lease)) return;
+      if (!_matches(receipt, lease, pending)) {
+        _pending = null;
+        _set(SharedExpenseViewState.error);
+        return;
+      }
+      await _accept(lease, receipt);
     } on TimeoutException {
       if (_current(lease)) _set(SharedExpenseViewState.uncertain);
     } catch (_) {
@@ -217,7 +349,7 @@ class SharedExpenseController extends ChangeNotifier {
         _set(SharedExpenseViewState.error);
         return;
       }
-      _accept(receipt);
+      await _accept(lease, receipt);
     } on TimeoutException {
       // Keep the single command uncertain; never replay the write.
     } catch (_) {
@@ -244,6 +376,17 @@ class SharedExpenseController extends ChangeNotifier {
       if (!_current(lease)) return;
       if (result.authority != lease.authority ||
           result.ledgerRevision != revision ||
+          result.balances.any(
+            (balance) =>
+                !lease.authority.canViewAll &&
+                balance.accountId != lease.authority.accountId,
+          ) ||
+          result.settlements.any(
+            (settlement) =>
+                !lease.authority.canViewAll &&
+                settlement.debtorId != lease.authority.accountId &&
+                settlement.creditorId != lease.authority.accountId,
+          ) ||
           result.records.any(
             (record) =>
                 !lease.authority.canViewAll &&

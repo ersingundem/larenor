@@ -6,6 +6,8 @@ const sharedExpenseCurrencyScales = <String, int>{
   'USD': 2,
 };
 
+enum SharedExpenseKind { expense, payment }
+
 class SharedExpenseAuthority {
   const SharedExpenseAuthority({
     required this.coreId,
@@ -184,6 +186,66 @@ class ExpenseDraft {
   }
 }
 
+class ExpensePaymentDraft {
+  const ExpensePaymentDraft._({
+    required this.currency,
+    required this.currencyScale,
+    required this.totalMinor,
+    required this.payerId,
+    required this.recipientId,
+  });
+
+  final String currency;
+  final int currencyScale;
+  final int totalMinor;
+  final String payerId;
+  final String recipientId;
+
+  static ExpensePaymentDraft? tryParse({
+    required String currency,
+    required String amount,
+    required String payerId,
+    required String recipientId,
+    required int maximumMinor,
+  }) {
+    final scale = sharedExpenseCurrencyScales[currency];
+    final total = _parseMinor(amount, scale);
+    if (scale == null ||
+        total == null ||
+        total > maximumMinor ||
+        payerId == recipientId ||
+        !_expenseId(payerId) ||
+        !_expenseId(recipientId)) {
+      return null;
+    }
+    return ExpensePaymentDraft._(
+      currency: currency,
+      currencyScale: scale,
+      totalMinor: total,
+      payerId: payerId,
+      recipientId: recipientId,
+    );
+  }
+}
+
+int? _parseMinor(String amount, int? scale) {
+  if (scale == null) return null;
+  final normalized = amount.trim().replaceAll(',', '.');
+  final expression = scale == 0
+      ? RegExp(r'^[0-9]{1,12}$')
+      : RegExp('^[0-9]{1,10}(?:\\.[0-9]{1,$scale})?\$');
+  if (!expression.hasMatch(normalized)) return null;
+  final parts = normalized.split('.');
+  final factor = _pow10(scale);
+  final whole = int.tryParse(parts.first);
+  if (whole == null) return null;
+  final fraction = scale == 0 || parts.length == 1
+      ? 0
+      : int.parse(parts[1].padRight(scale, '0'));
+  final total = whole * factor + fraction;
+  return total >= 1 && total <= 1000000000000 ? total : null;
+}
+
 int _pow10(int scale) {
   var result = 1;
   for (var index = 0; index < scale; index++) {
@@ -204,33 +266,56 @@ class SharedExpenseRecord {
   const SharedExpenseRecord({
     required this.id,
     required this.revision,
+    this.kind = SharedExpenseKind.expense,
     required this.title,
     required this.currency,
     required this.currencyScale,
     required this.totalMinor,
     required this.payerId,
     required this.shares,
+    this.createdAt = 1,
   });
 
   factory SharedExpenseRecord.fromDraft(String id, ExpenseDraft draft) =>
       SharedExpenseRecord(
         id: id,
         revision: 1,
+        kind: SharedExpenseKind.expense,
         title: draft.title,
         currency: draft.currency,
         currencyScale: draft.currencyScale,
         totalMinor: draft.totalMinor,
         payerId: draft.payerId,
         shares: draft.shares,
+        createdAt: 0,
       );
 
+  factory SharedExpenseRecord.fromPayment(
+    String id,
+    ExpensePaymentDraft draft,
+  ) => SharedExpenseRecord(
+    id: id,
+    revision: 1,
+    kind: SharedExpenseKind.payment,
+    title: 'Payment',
+    currency: draft.currency,
+    currencyScale: draft.currencyScale,
+    totalMinor: draft.totalMinor,
+    payerId: draft.payerId,
+    shares: [
+      ExpenseShare(accountId: draft.recipientId, amountMinor: draft.totalMinor),
+    ],
+    createdAt: 0,
+  );
+
   factory SharedExpenseRecord.fromJson(Map<String, dynamic> json) {
-    if ((json.length != 8 && json.length != 9) ||
+    if ((json.length != 10 && json.length != 9) ||
         !_expenseId(json['id']) ||
         !_expenseId(json['payerId'])) {
       throw const FormatException('invalid_expense');
     }
     final revision = json['revision'];
+    final rawKind = json['kind'] ?? 'expense';
     final title = json['title'];
     final currency = json['currency'];
     final scale = json['currencyScale'];
@@ -239,6 +324,8 @@ class SharedExpenseRecord {
     final createdAt = json['createdAt'];
     if (revision is! int ||
         revision < 1 ||
+        rawKind is! String ||
+        !{'expense', 'payment'}.contains(rawKind) ||
         title is! String ||
         title.isEmpty ||
         title.length > 200 ||
@@ -250,8 +337,9 @@ class SharedExpenseRecord {
         rawShares is! List ||
         rawShares.isEmpty ||
         rawShares.length > 32 ||
-        (json.containsKey('createdAt') &&
-            (createdAt is! num || !createdAt.isFinite || createdAt <= 0))) {
+        createdAt is! num ||
+        !createdAt.isFinite ||
+        createdAt <= 0) {
       throw const FormatException('invalid_expense');
     }
     final shares = <ExpenseShare>[];
@@ -275,29 +363,43 @@ class SharedExpenseRecord {
     if (shares.fold<int>(0, (sum, value) => sum + value.amountMinor) != total) {
       throw const FormatException('invalid_expense');
     }
+    final kind = rawKind == 'payment'
+        ? SharedExpenseKind.payment
+        : SharedExpenseKind.expense;
+    if (kind == SharedExpenseKind.payment &&
+        (title != 'Payment' ||
+            shares.length != 1 ||
+            shares.single.accountId == json['payerId'])) {
+      throw const FormatException('invalid_expense');
+    }
     return SharedExpenseRecord(
       id: json['id'] as String,
       revision: revision,
+      kind: kind,
       title: title,
       currency: currency,
       currencyScale: scale as int,
       totalMinor: total,
       payerId: json['payerId'] as String,
       shares: List.unmodifiable(shares),
+      createdAt: createdAt.toDouble(),
     );
   }
 
   final String id;
   final int revision;
+  final SharedExpenseKind kind;
   final String title;
   final String currency;
   final int currencyScale;
   final int totalMinor;
   final String payerId;
   final List<ExpenseShare> shares;
+  final double createdAt;
 
   bool matchesDraft(ExpenseDraft draft) {
     if (revision != 1 ||
+        kind != SharedExpenseKind.expense ||
         title != draft.title ||
         currency != draft.currency ||
         currencyScale != draft.currencyScale ||
@@ -314,6 +416,96 @@ class SharedExpenseRecord {
     }
     return true;
   }
+
+  bool matchesPayment(ExpensePaymentDraft draft) =>
+      revision == 1 &&
+      kind == SharedExpenseKind.payment &&
+      title == 'Payment' &&
+      currency == draft.currency &&
+      currencyScale == draft.currencyScale &&
+      totalMinor == draft.totalMinor &&
+      payerId == draft.payerId &&
+      shares.length == 1 &&
+      shares.single.accountId == draft.recipientId &&
+      shares.single.amountMinor == draft.totalMinor;
+}
+
+class ExpenseBalance {
+  const ExpenseBalance({
+    required this.accountId,
+    required this.currency,
+    required this.currencyScale,
+    required this.amountMinor,
+  });
+
+  factory ExpenseBalance.fromJson(Map<String, dynamic> json) {
+    final accountId = json['accountId'];
+    final currency = json['currency'];
+    final scale = json['currencyScale'];
+    final amount = json['amountMinor'];
+    if (json.length != 4 ||
+        !_expenseId(accountId) ||
+        currency is! String ||
+        sharedExpenseCurrencyScales[currency] != scale ||
+        amount is! int ||
+        amount == 0 ||
+        amount.abs() > 1000000000000000) {
+      throw const FormatException('invalid_balance');
+    }
+    return ExpenseBalance(
+      accountId: accountId as String,
+      currency: currency,
+      currencyScale: scale as int,
+      amountMinor: amount,
+    );
+  }
+
+  final String accountId;
+  final String currency;
+  final int currencyScale;
+  final int amountMinor;
+}
+
+class ExpenseSettlement {
+  const ExpenseSettlement({
+    required this.debtorId,
+    required this.creditorId,
+    required this.currency,
+    required this.currencyScale,
+    required this.amountMinor,
+  });
+
+  factory ExpenseSettlement.fromJson(Map<String, dynamic> json) {
+    final debtor = json['debtorId'];
+    final creditor = json['creditorId'];
+    final currency = json['currency'];
+    final scale = json['currencyScale'];
+    final amount = json['amountMinor'];
+    if (json.length != 5 ||
+        !_expenseId(debtor) ||
+        !_expenseId(creditor) ||
+        debtor == creditor ||
+        currency is! String ||
+        sharedExpenseCurrencyScales[currency] != scale ||
+        amount is! int ||
+        amount < 1 ||
+        amount > 1000000000000000) {
+      throw const FormatException('invalid_settlement');
+    }
+    return ExpenseSettlement(
+      debtorId: debtor as String,
+      creditorId: creditor as String,
+      currency: currency,
+      currencyScale: scale as int,
+      amountMinor: amount,
+    );
+  }
+
+  final String debtorId;
+  final String creditorId;
+  final String currency;
+  final int currencyScale;
+  final int amountMinor;
 }
 
 class ExpenseLedgerSnapshot {
@@ -322,14 +514,20 @@ class ExpenseLedgerSnapshot {
     required this.ledgerRevision,
     required this.membersRevision,
     required List<ExpenseParticipant> participants,
+    List<ExpenseBalance> balances = const [],
+    List<ExpenseSettlement> settlements = const [],
     required List<SharedExpenseRecord> records,
   }) : participants = List.unmodifiable(participants),
+       balances = List.unmodifiable(balances),
+       settlements = List.unmodifiable(settlements),
        records = List.unmodifiable(records);
 
   final SharedExpenseAuthority authority;
   final int ledgerRevision;
   final int membersRevision;
   final List<ExpenseParticipant> participants;
+  final List<ExpenseBalance> balances;
+  final List<ExpenseSettlement> settlements;
   final List<SharedExpenseRecord> records;
 }
 
@@ -358,11 +556,17 @@ class ExpenseExport {
   ExpenseExport(
     this.authority,
     this.ledgerRevision,
-    List<SharedExpenseRecord> records,
-  ) : records = List.unmodifiable(records);
+    List<SharedExpenseRecord> records, {
+    List<ExpenseBalance> balances = const [],
+    List<ExpenseSettlement> settlements = const [],
+  }) : balances = List.unmodifiable(balances),
+       settlements = List.unmodifiable(settlements),
+       records = List.unmodifiable(records);
 
   final SharedExpenseAuthority authority;
   final int ledgerRevision;
+  final List<ExpenseBalance> balances;
+  final List<ExpenseSettlement> settlements;
   final List<SharedExpenseRecord> records;
 }
 
@@ -385,5 +589,15 @@ abstract interface class SharedExpenseApi {
   Future<ExpenseExport> export(
     SharedExpenseAuthority authority, {
     required int ledgerRevision,
+  });
+}
+
+abstract interface class SharedExpensePaymentApi {
+  Future<SharedExpenseReceipt> payment(
+    SharedExpenseAuthority authority, {
+    required int expectedLedgerRevision,
+    required int expectedMembersRevision,
+    required String commandId,
+    required ExpensePaymentDraft draft,
   });
 }

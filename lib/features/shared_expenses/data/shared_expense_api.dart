@@ -5,7 +5,8 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/shared_expense_models.dart';
 
-final class SharedExpenseAccountApi implements SharedExpenseApi {
+final class SharedExpenseAccountApi
+    implements SharedExpenseApi, SharedExpensePaymentApi {
   SharedExpenseAccountApi._({
     required this.account,
     required this.context,
@@ -142,9 +143,11 @@ final class SharedExpenseAccountApi implements SharedExpenseApi {
   ) async {
     if (expected != authority) throw const FormatException('authority_changed');
     final json = _object(await _request('GET', _root));
-    if (json.length != 4 ||
+    if (json.length != 6 ||
         json['ledgerRevision'] is! int ||
         json['participants'] is! List ||
+        json['balances'] is! List ||
+        json['settlements'] is! List ||
         json['records'] is! List) {
       throw const FormatException('invalid_response');
     }
@@ -158,10 +161,47 @@ final class SharedExpenseAccountApi implements SharedExpenseApi {
       participants: (json['participants'] as List)
           .map((value) => ExpenseParticipant.fromJson(_object(value)))
           .toList(growable: false),
+      balances: (json['balances'] as List)
+          .map((value) => ExpenseBalance.fromJson(_object(value)))
+          .toList(growable: false),
+      settlements: (json['settlements'] as List)
+          .map((value) => ExpenseSettlement.fromJson(_object(value)))
+          .toList(growable: false),
       records: (json['records'] as List)
           .map((value) => SharedExpenseRecord.fromJson(_object(value)))
           .toList(growable: false),
     );
+  }
+
+  @override
+  Future<SharedExpenseReceipt> payment(
+    SharedExpenseAuthority expected, {
+    required int expectedLedgerRevision,
+    required int expectedMembersRevision,
+    required String commandId,
+    required ExpensePaymentDraft draft,
+  }) async {
+    if (expected != authority ||
+        expectedMembersRevision != authority.membersRevision) {
+      throw const FormatException('authority_changed');
+    }
+    final json = _object(
+      await _request(
+        'POST',
+        '$_root/commands/payment',
+        body: {
+          'schemaVersion': 1,
+          'commandId': commandId,
+          'expectedLedgerRevision': expectedLedgerRevision,
+          'expectedMembersRevision': expectedMembersRevision,
+          'currency': draft.currency,
+          'totalMinor': draft.totalMinor,
+          'payerId': draft.payerId,
+          'recipientId': draft.recipientId,
+        },
+      ),
+    );
+    return _receipt(json);
   }
 
   @override
@@ -242,8 +282,10 @@ final class SharedExpenseAccountApi implements SharedExpenseApi {
         body: {'schemaVersion': 1, 'expectedLedgerRevision': ledgerRevision},
       ),
     );
-    if (json.length != 3 ||
+    if (json.length != 5 ||
         json['ledgerRevision'] != ledgerRevision ||
+        json['balances'] is! List ||
+        json['settlements'] is! List ||
         json['records'] is! List) {
       throw const FormatException('invalid_export');
     }
@@ -252,6 +294,12 @@ final class SharedExpenseAccountApi implements SharedExpenseApi {
       ledgerRevision,
       (json['records'] as List)
           .map((value) => SharedExpenseRecord.fromJson(_object(value)))
+          .toList(growable: false),
+      balances: (json['balances'] as List)
+          .map((value) => ExpenseBalance.fromJson(_object(value)))
+          .toList(growable: false),
+      settlements: (json['settlements'] as List)
+          .map((value) => ExpenseSettlement.fromJson(_object(value)))
           .toList(growable: false),
     );
   }

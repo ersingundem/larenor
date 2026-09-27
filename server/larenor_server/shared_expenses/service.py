@@ -56,6 +56,7 @@ class ExpenseShare:
 class ExpenseRecord:
     id: str
     revision: int
+    kind: str
     title: str
     currency: str
     currency_scale: int
@@ -207,6 +208,40 @@ class ExpenseStore:
         }
         return value, hashlib.sha256(self._canonical(value)).hexdigest()
 
+    def _payment_request(
+        self,
+        *,
+        expected_ledger_revision: int,
+        currency: str,
+        total_minor: int,
+        payer_id: str,
+        recipient_id: str,
+        members: HouseholdAccounts,
+    ) -> tuple[dict, str]:
+        if (
+            type(expected_ledger_revision) is not int
+            or expected_ledger_revision < 1
+            or currency not in CURRENCY_SCALES
+            or type(total_minor) is not int
+            or not 1 <= total_minor <= MAX_TOTAL_MINOR
+            or payer_id == recipient_id
+            or payer_id not in members.ids
+            or recipient_id not in members.ids
+        ):
+            raise ApiError("invalid_request", 400)
+        value = {
+            "expected_ledger_revision": expected_ledger_revision,
+            "kind": "payment",
+            "title": "Payment",
+            "currency": currency,
+            "currency_scale": CURRENCY_SCALES[currency],
+            "total_minor": total_minor,
+            "payer_id": payer_id,
+            "shares": [{"account_id": recipient_id, "amount_minor": total_minor}],
+            "members_revision": members.revision,
+        }
+        return value, hashlib.sha256(self._canonical(value)).hexdigest()
+
     def _decrypt(self, row: sqlite3.Row) -> ExpenseRecord:
         try:
             aad = f"{row['core_id']}\0{row['home_id']}\0{row['id']}".encode()
@@ -215,10 +250,19 @@ class ExpenseStore:
                 raise ValueError
             value = json.loads(raw)
             shares = tuple(ExpenseShare(**share) for share in value.pop("shares"))
+            value.setdefault("kind", "expense")
             record = ExpenseRecord(
                 id=row["id"], revision=row["revision"], shares=shares, **value
             )
             if sum(share.amount_minor for share in shares) != record.total_minor:
+                raise ValueError
+            if record.kind not in {"expense", "payment"}:
+                raise ValueError
+            if record.kind == "payment" and (
+                record.title != "Payment"
+                or len(record.shares) != 1
+                or record.shares[0].account_id == record.payer_id
+            ):
                 raise ValueError
             return record
         except (InvalidTag, KeyError, TypeError, ValueError, json.JSONDecodeError):
@@ -284,6 +328,8 @@ class ExpenseStore:
                 "shares": [asdict(share) for share in record.shares],
                 "members_revision": record.members_revision,
             }
+            if record.kind == "payment":
+                request_value["kind"] = "payment"
             if (
                 hashlib.sha256(self._canonical(request_value)).hexdigest()
                 != row["request_hash"]
@@ -314,36 +360,79 @@ class ExpenseStore:
             raise StartupError("shared_expense_history_invalid")
         return tuple(events)
 
-    def create(
+    @staticmethod
+    def _balances(records: list[ExpenseRecord]) -> list[dict]:
+        values: dict[tuple[str, str], int] = {}
+        scales: dict[str, int] = {}
+        for record in records:
+            scales[record.currency] = record.currency_scale
+            payer = (record.currency, record.payer_id)
+            values[payer] = values.get(payer, 0) + record.total_minor
+            for share in record.shares:
+                account = (record.currency, share.account_id)
+                values[account] = values.get(account, 0) - share.amount_minor
+        return [
+            {
+                "account_id": account_id,
+                "currency": currency,
+                "currency_scale": scales[currency],
+                "amount_minor": amount_minor,
+            }
+            for (currency, account_id), amount_minor in sorted(values.items())
+            if amount_minor
+        ]
+
+    @classmethod
+    def _settlements(cls, records: list[ExpenseRecord]) -> list[dict]:
+        by_currency: dict[str, list[dict]] = {}
+        for balance in cls._balances(records):
+            by_currency.setdefault(balance["currency"], []).append(balance)
+        result: list[dict] = []
+        for currency, balances in sorted(by_currency.items()):
+            debtors = [
+                [value["account_id"], -value["amount_minor"]]
+                for value in balances
+                if value["amount_minor"] < 0
+            ]
+            creditors = [
+                [value["account_id"], value["amount_minor"]]
+                for value in balances
+                if value["amount_minor"] > 0
+            ]
+            debtor_index = creditor_index = 0
+            while debtor_index < len(debtors) and creditor_index < len(creditors):
+                amount = min(
+                    debtors[debtor_index][1], creditors[creditor_index][1]
+                )
+                result.append(
+                    {
+                        "debtor_id": debtors[debtor_index][0],
+                        "creditor_id": creditors[creditor_index][0],
+                        "currency": currency,
+                        "currency_scale": CURRENCY_SCALES[currency],
+                        "amount_minor": amount,
+                    }
+                )
+                debtors[debtor_index][1] -= amount
+                creditors[creditor_index][1] -= amount
+                if debtors[debtor_index][1] == 0:
+                    debtor_index += 1
+                if creditors[creditor_index][1] == 0:
+                    creditor_index += 1
+            if debtor_index != len(debtors) or creditor_index != len(creditors):
+                raise StartupError("shared_expense_storage_invalid")
+        return result
+
+    def _append(
         self,
         actor: Principal,
         *,
         core_id: str,
         home_id: str,
-        expected_ledger_revision: int,
         command_id: str,
-        title: str,
-        currency: str,
-        total_minor: int,
-        payer_id: str,
-        participant_ids: tuple[str, ...],
-        members: HouseholdAccounts,
+        request: dict,
+        request_hash: str,
     ) -> ExpenseReceipt:
-        self._scope(core_id, home_id)
-        self._authorize(actor, members)
-        if not _identifier(command_id):
-            raise ApiError("invalid_request", 400)
-        if actor.role != "admin" and actor.id != payer_id:
-            raise ApiError("forbidden", 403)
-        request, request_hash = self._request(
-            expected_ledger_revision=expected_ledger_revision,
-            title=title,
-            currency=currency,
-            total_minor=total_minor,
-            payer_id=payer_id,
-            participant_ids=participant_ids,
-            members=members,
-        )
         with self.database.transaction() as connection:
             self._verified_history(connection, core_id, home_id)
             replay = connection.execute(
@@ -364,11 +453,33 @@ class ExpenseStore:
                 )
             state = self._state(connection, core_id, home_id)
             current_revision = 1 if state is None else state["revision"]
-            if expected_ledger_revision != current_revision:
+            if request["expected_ledger_revision"] != current_revision:
                 raise ApiError("revision_conflict", 409)
             count = 0 if state is None else state["event_count"]
             if count >= MAX_EXPENSES:
                 raise ApiError("shared_expense_limit_reached", 413)
+            if request.get("kind") == "payment":
+                rows = connection.execute(
+                    "SELECT * FROM shared_expense_records WHERE core_id=? AND home_id=? "
+                    "ORDER BY created_at,id LIMIT ?",
+                    (core_id, home_id, MAX_EXPENSES + 1),
+                ).fetchall()
+                if len(rows) > MAX_EXPENSES:
+                    raise StartupError("shared_expense_storage_invalid")
+                records = [self._decrypt(row) for row in rows]
+                recipient_id = request["shares"][0]["account_id"]
+                available = next(
+                    (
+                        item["amount_minor"]
+                        for item in self._settlements(records)
+                        if item["currency"] == request["currency"]
+                        and item["debtor_id"] == request["payer_id"]
+                        and item["creditor_id"] == recipient_id
+                    ),
+                    0,
+                )
+                if request["total_minor"] > available:
+                    raise ApiError("revision_conflict", 409)
             now = time.time()
             record_id, event_id = uuid.uuid4().hex, uuid.uuid4().hex
             record_value = {
@@ -430,6 +541,82 @@ class ExpenseStore:
             record = self._record(connection, record_id)
         return ExpenseReceipt(event_id, command_id, ledger_revision, record)
 
+    def create(
+        self,
+        actor: Principal,
+        *,
+        core_id: str,
+        home_id: str,
+        expected_ledger_revision: int,
+        command_id: str,
+        title: str,
+        currency: str,
+        total_minor: int,
+        payer_id: str,
+        participant_ids: tuple[str, ...],
+        members: HouseholdAccounts,
+    ) -> ExpenseReceipt:
+        self._scope(core_id, home_id)
+        self._authorize(actor, members)
+        if not _identifier(command_id):
+            raise ApiError("invalid_request", 400)
+        if actor.role != "admin" and actor.id != payer_id:
+            raise ApiError("forbidden", 403)
+        request, request_hash = self._request(
+            expected_ledger_revision=expected_ledger_revision,
+            title=title,
+            currency=currency,
+            total_minor=total_minor,
+            payer_id=payer_id,
+            participant_ids=participant_ids,
+            members=members,
+        )
+        return self._append(
+            actor,
+            core_id=core_id,
+            home_id=home_id,
+            command_id=command_id,
+            request=request,
+            request_hash=request_hash,
+        )
+
+    def payment(
+        self,
+        actor: Principal,
+        *,
+        core_id: str,
+        home_id: str,
+        expected_ledger_revision: int,
+        command_id: str,
+        currency: str,
+        total_minor: int,
+        payer_id: str,
+        recipient_id: str,
+        members: HouseholdAccounts,
+    ) -> ExpenseReceipt:
+        self._scope(core_id, home_id)
+        self._authorize(actor, members)
+        if not _identifier(command_id):
+            raise ApiError("invalid_request", 400)
+        if actor.role != "admin" and actor.id != payer_id:
+            raise ApiError("forbidden", 403)
+        request, request_hash = self._payment_request(
+            expected_ledger_revision=expected_ledger_revision,
+            currency=currency,
+            total_minor=total_minor,
+            payer_id=payer_id,
+            recipient_id=recipient_id,
+            members=members,
+        )
+        return self._append(
+            actor,
+            core_id=core_id,
+            home_id=home_id,
+            command_id=command_id,
+            request=request,
+            request_hash=request_hash,
+        )
+
     def history(
         self,
         actor: Principal,
@@ -442,6 +629,11 @@ class ExpenseStore:
         self._authorize(actor, members)
         with self.database.connection() as connection:
             return self._verified_history(connection, core_id, home_id)
+
+    def validate_storage(self, *, core_id: str, home_id: str) -> None:
+        self._scope(core_id, home_id)
+        with self.database.connection() as connection:
+            self._verified_history(connection, core_id, home_id)
 
     def receipt(
         self,
@@ -502,15 +694,46 @@ class ExpenseStore:
             or actor.id == record.payer_id
             or any(share.account_id == actor.id for share in record.shares)
         ]
+        balances = self._balances(records)
+        settlements = self._settlements(records)
+        if actor.role != "admin":
+            balances = [
+                value for value in balances if value["account_id"] == actor.id
+            ]
+            settlements = [
+                value
+                for value in settlements
+                if actor.id in {value["debtor_id"], value["creditor_id"]}
+            ]
         return {
             "schemaVersion": 1,
             "coreId": core_id,
             "homeId": home_id,
             "ledgerRevision": 1 if state is None else state["revision"],
+            "balances": [
+                {
+                    "accountId": value["account_id"],
+                    "currency": value["currency"],
+                    "currencyScale": value["currency_scale"],
+                    "amountMinor": value["amount_minor"],
+                }
+                for value in balances
+            ],
+            "settlements": [
+                {
+                    "debtorId": value["debtor_id"],
+                    "creditorId": value["creditor_id"],
+                    "currency": value["currency"],
+                    "currencyScale": value["currency_scale"],
+                    "amountMinor": value["amount_minor"],
+                }
+                for value in settlements
+            ],
             "expenses": [
                 {
                     "id": record.id,
                     "revision": record.revision,
+                    "kind": record.kind,
                     "title": record.title,
                     "currency": record.currency,
                     "currencyScale": record.currency_scale,

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../data/shared_expense_controller.dart';
@@ -109,6 +110,16 @@ class SharedExpenseStrings {
   final String uncertain;
   final String reconcile;
   final String decimalSeparator;
+
+  bool get _turkish => decimalSeparator == ',';
+  String get balances => _turkish ? 'Borç ve alacaklar' : 'Balances and debts';
+  String get owes => _turkish ? 'borçlu' : 'owes';
+  String get isOwed => _turkish ? 'alacaklı' : 'is owed';
+  String get settle => _turkish ? 'Ödemeyi kaydet' : 'Record payment';
+  String get payment => _turkish ? 'Ödeme' : 'Payment';
+  String get cancel => _turkish ? 'Vazgeç' : 'Cancel';
+  String get copyExport => _turkish ? 'Dışa aktarımı kopyala' : 'Copy export';
+  String get copied => _turkish ? 'Kopyalandı' : 'Copied';
 }
 
 class SharedExpenseScreen extends StatefulWidget {
@@ -133,6 +144,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
   final _selected = <String>{};
   late SharedExpenseLease _lease;
   String _currency = 'TRY';
+  late String _payerId;
 
   @override
   void initState() {
@@ -144,6 +156,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
 
   void _attach() {
     _selected.clear();
+    _payerId = widget.authority.accountId;
     _lease = widget.controller.bind(widget.authority);
     widget.controller.addListener(_controllerChanged);
     widget.controller.load(_lease);
@@ -173,6 +186,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
       _title.clear();
       _amount.clear();
       _currency = 'TRY';
+      _payerId = widget.authority.accountId;
       _attach();
     }
   }
@@ -192,7 +206,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
     title: _title.text,
     currency: _currency,
     amount: _amount.text,
-    payerId: widget.authority.accountId,
+    payerId: _payerId,
     participantIds: _selected,
   );
 
@@ -253,16 +267,30 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
             placeholder: strings.amount,
           ),
           const SizedBox(height: 12),
-          CupertinoSlidingSegmentedControl<String>(
-            groupValue: _currency,
-            children: const {
-              'TRY': Text('TRY'),
-              'EUR': Text('EUR'),
-              'JPY': Text('JPY'),
-            },
-            onValueChanged: (value) =>
-                setState(() => _currency = value ?? _currency),
-          ),
+          _currencyPicker(),
+          if (widget.authority.canViewAll) ...[
+            const SizedBox(height: 16),
+            Text(
+              strings.payer,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final person in widget.controller.participants)
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    color: _payerId == person.id
+                        ? CupertinoColors.activeBlue
+                        : CupertinoColors.systemGrey5,
+                    onPressed: () => setState(() => _payerId = person.id),
+                    child: Text(person.label),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Text(
             strings.participants,
@@ -324,6 +352,89 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
           .firstOrNull ??
       id;
 
+  Widget _currencyPicker() => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final currency in sharedExpenseCurrencyScales.keys)
+        CupertinoButton(
+          minimumSize: const Size(40, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          color: _currency == currency
+              ? CupertinoColors.activeBlue
+              : CupertinoColors.systemGrey5,
+          onPressed: () => setState(() => _currency = currency),
+          child: Text(currency),
+        ),
+    ],
+  );
+
+  Future<void> _recordPayment(ExpenseSettlement settlement) async {
+    final input = TextEditingController(
+      text: formatExpenseMinor(
+        settlement.amountMinor,
+        settlement.currencyScale,
+        separator: widget.strings.decimalSeparator,
+      ),
+    );
+    ExpensePaymentDraft? draft;
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => CupertinoAlertDialog(
+          title: Text(widget.strings.payment),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: CupertinoTextField(
+              controller: input,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              placeholder: widget.strings.amount,
+              onChanged: (_) => setDialogState(() {}),
+            ),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(widget.strings.cancel),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed:
+                  ExpensePaymentDraft.tryParse(
+                        currency: settlement.currency,
+                        amount: input.text,
+                        payerId: settlement.debtorId,
+                        recipientId: settlement.creditorId,
+                        maximumMinor: settlement.amountMinor,
+                      ) ==
+                      null
+                  ? null
+                  : () {
+                      draft = ExpensePaymentDraft.tryParse(
+                        currency: settlement.currency,
+                        amount: input.text,
+                        payerId: settlement.debtorId,
+                        recipientId: settlement.creditorId,
+                        maximumMinor: settlement.amountMinor,
+                      );
+                      Navigator.of(dialogContext).pop();
+                    },
+              child: Text(widget.strings.settle),
+            ),
+          ],
+        ),
+      ),
+    );
+    input.dispose();
+    final payment = draft;
+    if (payment != null && mounted) {
+      await widget.controller.createPayment(_lease, payment);
+    }
+  }
+
   Widget _history() {
     final strings = widget.strings;
     final state = widget.controller.state;
@@ -343,9 +454,47 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (status != null) Semantics(liveRegion: true, child: Text(status)),
+          if (widget.controller.balances.isNotEmpty) ...[
+            Text(
+              strings.balances,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            for (final balance in widget.controller.balances)
+              Text(
+                '${_label(balance.accountId)} · '
+                '${balance.amountMinor < 0 ? strings.owes : strings.isOwed} '
+                '${formatExpenseMinor(balance.amountMinor.abs(), balance.currencyScale, separator: strings.decimalSeparator)} '
+                '${balance.currency}',
+              ),
+            const SizedBox(height: 16),
+          ],
+          for (final settlement in widget.controller.settlements.where(
+            (value) => value.debtorId == _payerId,
+          )) ...[
+            Text(
+              '${_label(settlement.debtorId)} → '
+              '${_label(settlement.creditorId)} · '
+              '${formatExpenseMinor(settlement.amountMinor, settlement.currencyScale, separator: strings.decimalSeparator)} '
+              '${settlement.currency}',
+            ),
+            const SizedBox(height: 6),
+            _ActionButton(
+              label: strings.settle,
+              onPressed:
+                  state == SharedExpenseViewState.ready &&
+                      (widget.authority.canViewAll ||
+                          settlement.debtorId == widget.authority.accountId)
+                  ? () => _recordPayment(settlement)
+                  : null,
+            ),
+            const SizedBox(height: 12),
+          ],
           for (final record in widget.controller.records) ...[
             Text(
-              record.title,
+              record.kind == SharedExpenseKind.payment
+                  ? strings.payment
+                  : record.title,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             Text(
@@ -372,7 +521,33 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
               key: const ValueKey('expense-export-result'),
               liveRegion: true,
               label: strings.exportReady,
-              child: Text(strings.exportReady),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(strings.exportReady),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.systemGrey6,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Text(widget.controller.exportText),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _ActionButton(
+                    label: strings.copyExport,
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: widget.controller.exportText),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
         ],
       ),

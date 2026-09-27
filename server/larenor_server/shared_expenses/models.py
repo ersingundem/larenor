@@ -34,6 +34,17 @@ class CreateExpense(FrozenModel):
         return value
 
 
+class RecordPayment(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    expectedLedgerRevision: Revision
+    expectedMembersRevision: Revision
+    currency: Literal["EUR", "GBP", "JPY", "TRY", "USD"]
+    totalMinor: int = Field(ge=1, le=10**12)
+    payerId: Identity
+    recipientId: Identity
+
+
 class ExpectedLedger(FrozenModel):
     schemaVersion: Literal[1]
     expectedLedgerRevision: Revision

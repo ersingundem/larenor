@@ -7,7 +7,7 @@ from ..core import CoreServices
 from ..dependencies import get_core, require_ready_user
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import CreateExpense, ExpectedLedger
+from .models import CreateExpense, ExpectedLedger, RecordPayment
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
@@ -31,6 +31,13 @@ def create(
     core_id: Identity, home_id: Identity, body: CreateExpense, actor: Ready, core: Core
 ):
     return core.shared_expenses.create(actor, core_id, home_id, body)
+
+
+@router.post(ROOT + "/commands/payment", status_code=201)
+def payment(
+    core_id: Identity, home_id: Identity, body: RecordPayment, actor: Ready, core: Core
+):
+    return core.shared_expenses.payment(actor, core_id, home_id, body)
 
 
 @router.get(ROOT + "/receipts/{command_id}")

@@ -21,6 +21,9 @@ class SharedExpenseService:
         self._members_key = hmac.new(
             key, b"larenor-shared-expense-members-v1", hashlib.sha256
         ).digest()
+        self.store.validate_storage(
+            core_id=self.context.coreId, home_id=self.context.homeId
+        )
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.context.coreId, self.context.homeId):
@@ -76,6 +79,7 @@ class SharedExpenseService:
         return {
             "id": record.id,
             "revision": record.revision,
+            "kind": record.kind,
             "title": record.title,
             "currency": record.currency,
             "currencyScale": record.currency_scale,
@@ -85,6 +89,7 @@ class SharedExpenseService:
                 {"accountId": share.account_id, "amountMinor": share.amount_minor}
                 for share in record.shares
             ],
+            "createdAt": record.created_at,
         }
 
     def snapshot(self, actor, core_id, home_id):
@@ -100,6 +105,8 @@ class SharedExpenseService:
                 {"id": identifier, "label": labels[identifier]}
                 for identifier in members.ids
             ],
+            "balances": exported["balances"],
+            "settlements": exported["settlements"],
             "records": exported["expenses"],
         }
 
@@ -119,6 +126,25 @@ class SharedExpenseService:
             total_minor=body.totalMinor,
             payer_id=body.payerId,
             participant_ids=tuple(body.participantIds),
+            members=members,
+        )
+        return self._receipt(actor, members, receipt)
+
+    def payment(self, actor, core_id, home_id, body):
+        self._scope(core_id, home_id)
+        members, _labels = self._members(actor, write=True)
+        if body.expectedMembersRevision != members.revision:
+            raise ApiError("authority_changed", 409)
+        receipt = self.store.payment(
+            actor,
+            core_id=core_id,
+            home_id=home_id,
+            expected_ledger_revision=body.expectedLedgerRevision,
+            command_id=body.commandId,
+            currency=body.currency,
+            total_minor=body.totalMinor,
+            payer_id=body.payerId,
+            recipient_id=body.recipientId,
             members=members,
         )
         return self._receipt(actor, members, receipt)
@@ -146,6 +172,8 @@ class SharedExpenseService:
         return {
             "authority": self._authority(actor, members),
             "ledgerRevision": value["ledgerRevision"],
+            "balances": value["balances"],
+            "settlements": value["settlements"],
             "records": value["expenses"],
         }
 
