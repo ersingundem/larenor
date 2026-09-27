@@ -12,7 +12,12 @@ final class DualDisplayTaskController extends ChangeNotifier
     this._platform,
     this._authorityResolver,
     this._isCurrent,
-  );
+  ) {
+    final platform = _platform;
+    if (platform is Listenable) {
+      (platform as Listenable).addListener(_platformChanged);
+    }
+  }
 
   final DualDisplayPlatformPort _platform;
   final DisplayRouteAuthority Function() _authorityResolver;
@@ -22,6 +27,7 @@ final class DualDisplayTaskController extends ChangeNotifier
   bool _busy = false, _disposed = false;
   String? _failure;
   int _operation = 0;
+  bool _topologyEventPending = false;
 
   @override
   bool get busy => _busy;
@@ -37,6 +43,22 @@ final class DualDisplayTaskController extends ChangeNotifier
 
   void _emit() {
     if (!_disposed) notifyListeners();
+  }
+
+  void _platformChanged() {
+    if (_disposed) return;
+    _topologyEventPending = true;
+    _drainTopologyEvent();
+  }
+
+  void _drainTopologyEvent() {
+    if (_disposed || _busy || !_topologyEventPending) return;
+    _topologyEventPending = false;
+    scheduleMicrotask(() async {
+      if (_disposed || _busy || !_isCurrent()) return;
+      await refresh();
+      if (_topologyEventPending) _drainTopologyEvent();
+    });
   }
 
   @override
@@ -71,6 +93,7 @@ final class DualDisplayTaskController extends ChangeNotifier
       if (_current(operation)) {
         _busy = false;
         _emit();
+        _drainTopologyEvent();
       }
     }
   }
@@ -121,6 +144,7 @@ final class DualDisplayTaskController extends ChangeNotifier
       if (_current(operation)) {
         _busy = false;
         _emit();
+        _drainTopologyEvent();
       }
     }
   }
@@ -142,6 +166,7 @@ final class DualDisplayTaskController extends ChangeNotifier
       if (_current(operation)) {
         _busy = false;
         _emit();
+        _drainTopologyEvent();
       }
     }
   }
@@ -173,6 +198,10 @@ final class DualDisplayTaskController extends ChangeNotifier
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    final platform = _platform;
+    if (platform is Listenable) {
+      (platform as Listenable).removeListener(_platformChanged);
+    }
     _operation++;
     unawaited(_retireCoordinator());
     super.dispose();

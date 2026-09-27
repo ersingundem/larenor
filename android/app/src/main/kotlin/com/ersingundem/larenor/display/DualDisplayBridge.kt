@@ -49,8 +49,7 @@ class DualDisplayBridge(
 
     fun configurationChanged() {
         if (disposed) return
-        host.refresh()
-        controller.snapshot()
+        topologyChanged()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -77,16 +76,23 @@ class DualDisplayBridge(
     }
 
     override fun onDisplayAdded(displayId: Int) {
-        host.refresh()
-        controller.snapshot()
+        topologyChanged()
     }
     override fun onDisplayChanged(displayId: Int) {
-        host.refresh()
-        controller.snapshot()
+        topologyChanged()
     }
     override fun onDisplayRemoved(displayId: Int) {
+        topologyChanged()
+    }
+
+    private fun topologyChanged() {
+        if (disposed) return
         host.refresh()
-        controller.snapshot()
+        val snapshot = controller.snapshot()
+        channel.invokeMethod(
+            "topologyChanged",
+            mapOf("revision" to snapshot["revision"]),
+        )
     }
 
     fun dispose() {

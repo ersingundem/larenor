@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/dual_display_session.dart';
@@ -9,12 +10,28 @@ abstract interface class DualDisplayPlatformPort
   Future<DisplayTopology> snapshot();
 }
 
-final class MethodChannelSecondaryDisplayPort
+final class MethodChannelSecondaryDisplayPort extends ChangeNotifier
     implements DualDisplayPlatformPort {
-  const MethodChannelSecondaryDisplayPort({MethodChannel? channel})
-    : _channel = channel ?? _defaultChannel;
+  MethodChannelSecondaryDisplayPort({MethodChannel? channel})
+    : _channel = channel ?? _defaultChannel {
+    _channel.setMethodCallHandler(_onNativeCall);
+  }
 
   final MethodChannel _channel;
+  bool _disposed = false;
+  int _eventRevision = 0;
+
+  Future<Object?> _onNativeCall(MethodCall call) async {
+    if (_disposed || call.method != 'topologyChanged') {
+      throw MissingPluginException();
+    }
+    final value = _closedMap(call.arguments, const {'revision'});
+    final revision = _integer(value['revision']);
+    if (revision < 1 || revision <= _eventRevision) return null;
+    _eventRevision = revision;
+    notifyListeners();
+    return null;
+  }
 
   @override
   Future<DisplayTopology> snapshot() async {
@@ -90,6 +107,14 @@ final class MethodChannelSecondaryDisplayPort
     } on Object {
       throw const DualDisplayException('platform_unavailable');
     }
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _channel.setMethodCallHandler(null);
+    super.dispose();
   }
 
   static DisplaySurface _surface(Object? raw) {

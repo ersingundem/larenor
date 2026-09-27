@@ -31,6 +31,7 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
   HomeSessionController? _home;
   AppInteractionController? _interaction;
   DualDisplayTaskController? _controller;
+  MethodChannelSecondaryDisplayPort? _ownedPlatform;
   Object? _identity;
   int? _accountGeneration, _homeEpoch, _viewId;
   bool _foreground = true, _focused = true, _closed = false, _scheduled = false;
@@ -112,7 +113,8 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
         }
       } else if (_controller == null) {
         final controller = DualDisplayTaskController(
-          widget.platform ?? const MethodChannelSecondaryDisplayPort(),
+          widget.platform ??
+              (_ownedPlatform ??= MethodChannelSecondaryDisplayPort()),
           _authority,
           _current,
         );
@@ -180,6 +182,8 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
     _interaction?.removeListener(_changed);
     _home?.removeListener(_changed);
     _disposeRuntime(rebuild: false);
+    _ownedPlatform?.dispose();
+    _ownedPlatform = null;
     super.dispose();
   }
 
