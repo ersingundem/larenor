@@ -34,6 +34,7 @@ from .models import (
     ComponentBackup,
 )
 from .drill_service import RecoveryDrillAuthority, RecoveryDrillManagement
+from .immutable_service import ImmutableBackupTargetManagement
 
 _ACTIVE = (
     ("bounded_transfer_receipts", "state='accepted'", "active_bounded_transfer"),
@@ -384,6 +385,7 @@ class CoreBackupContract:
         settings: Settings,
         *,
         component_boundary=None,
+        encryption_key: bytes | None = None,
         monotonic=time.monotonic,
     ):
         self.db, self.auth, self.settings = db, auth, settings
@@ -399,6 +401,14 @@ class CoreBackupContract:
             IsolatedRecoveryDrillRunner(self),
         )
         self.drills.validate_storage()
+        if encryption_key is None:
+            encryption_key = private_read(settings.key_file, 32)
+        if len(encryption_key) != 32:
+            raise StartupError("vault_key_invalid")
+        self.immutable_target = ImmutableBackupTargetManagement(
+            db, auth, settings, encryption_key
+        )
+        self.immutable_target.validate_storage()
 
     @staticmethod
     def _catalog_components():

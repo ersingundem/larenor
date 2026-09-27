@@ -22,6 +22,7 @@ from .config import Settings
 from .context import migrate_context
 from .core_backups.service import CoreBackupContract
 from .core_backups.drill_schema import migrate_core_recovery_drills
+from .core_backups.immutable_schema import migrate_immutable_backup_target
 from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
 from .errors import StartupError
@@ -370,6 +371,7 @@ class CoreServices:
                 migrate_bounded_transfer_events(connection, key)
                 migrate_bounded_blobs(connection)
                 migrate_core_recovery_drills(connection)
+                migrate_immutable_backup_target(connection)
                 migrate_home_people(connection, self.context, key)
                 migrate_meal_plans(connection)
                 migrate_personal_profiles(connection)
@@ -620,7 +622,9 @@ class CoreServices:
             self.admin = AdminService(
                 self.db, self.auth, settings, key, self.context
             )
-            self.core_backups = CoreBackupContract(self.db, self.auth, settings)
+            self.core_backups = CoreBackupContract(
+                self.db, self.auth, settings, encryption_key=key
+            )
             self.services = ServiceManagement(
                 self.db, self.auth, settings, key, self.context
             )

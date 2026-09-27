@@ -20,6 +20,10 @@ from .drill_models import (
     RecoveryDrillScheduleResponse,
     UpdateRecoveryDrillScheduleRequest,
 )
+from .immutable_models import (
+    ConfigureImmutableTargetRequest,
+    ImmutableTargetResponse,
+)
 
 Core = Annotated[object, Depends(get_core)]
 Admin = Annotated[Principal, Depends(require_admin)]
@@ -113,3 +117,15 @@ def update_drill_schedule(
     actor: Admin,
 ):
     return core.core_backups.drills.update_schedule(actor, body)
+
+
+@router.get("/immutable-target", response_model=ImmutableTargetResponse)
+def get_immutable_target(core: Core, actor: Admin):
+    return core.core_backups.immutable_target.get(actor)
+
+
+@router.put("/immutable-target", response_model=ImmutableTargetResponse)
+def configure_immutable_target(
+    body: ConfigureImmutableTargetRequest, core: Core, actor: Admin
+):
+    return core.core_backups.immutable_target.configure(actor, body)
