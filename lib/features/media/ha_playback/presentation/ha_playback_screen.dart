@@ -64,6 +64,20 @@ String haPlaybackTransportLabel(
   HaPlaybackTransport.appleTvVideo => l10n.haMediaTransportAppleTvVideo,
 };
 
+String haPlaybackBlockLabel(AppLocalizations l10n, HaPlaybackBlock block) =>
+    switch (block) {
+      HaPlaybackBlock.serviceUnavailable => l10n.haMediaServiceMissing,
+      HaPlaybackBlock.registryUnavailable ||
+      HaPlaybackBlock.identityMissing => l10n.haMediaRegistryRequired,
+      HaPlaybackBlock.sourceUnavailable => l10n.haMediaSourceUnsupported,
+      HaPlaybackBlock.videoOutputRequired => l10n.haMediaVideoOutputRequired,
+      HaPlaybackBlock.appleTvCompatibilityUnknown =>
+        l10n.haMediaAppleTvUnsupported,
+      HaPlaybackBlock.targetDisabled ||
+      HaPlaybackBlock.targetUnavailable ||
+      HaPlaybackBlock.playMediaUnavailable => l10n.haMediaTargetUnsupported,
+    };
+
 class HaPlaybackScreen extends ConsumerStatefulWidget {
   const HaPlaybackScreen({super.key});
 
@@ -403,7 +417,8 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
             itemCount: inventory.targets.length,
             itemBuilder: (context, index) {
               final target = inventory.targets[index];
-              final supported = target.canPlay(source, inventory);
+              final support = target.playbackSupport(source, inventory);
+              final supported = support.allowed;
               return SettingsSection(
                 margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                 children: [
@@ -419,7 +434,8 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(haMediaReceiverLabel(l10n, target.receiverKind)),
-                        if (!supported) Text(l10n.haMediaTargetUnsupported),
+                        if (support.blockedBy case final blocked?)
+                          Text(haPlaybackBlockLabel(l10n, blocked)),
                       ],
                     ),
                     onTap: active && !busy && supported

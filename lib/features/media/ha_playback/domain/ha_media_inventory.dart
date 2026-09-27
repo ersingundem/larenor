@@ -11,6 +11,27 @@ enum HaMediaReceiverKind {
   unknown,
 }
 
+enum HaPlaybackBlock {
+  serviceUnavailable,
+  registryUnavailable,
+  identityMissing,
+  targetDisabled,
+  targetUnavailable,
+  playMediaUnavailable,
+  sourceUnavailable,
+  videoOutputRequired,
+  appleTvCompatibilityUnknown,
+}
+
+class HaPlaybackSupport {
+  const HaPlaybackSupport.allowed(this.transport) : blockedBy = null;
+  const HaPlaybackSupport.blocked(this.blockedBy) : transport = null;
+
+  final HaPlaybackTransport? transport;
+  final HaPlaybackBlock? blockedBy;
+  bool get allowed => transport != null;
+}
+
 class HaMediaTarget {
   const HaMediaTarget({
     required this.entityId,
@@ -74,31 +95,62 @@ class HaMediaTarget {
       platform == other.platform &&
       deviceId == other.deviceId &&
       configEntryId == other.configEntryId;
-  HaPlaybackTransport? transportFor(
+  HaPlaybackSupport playbackSupport(
     HaMediaNode source,
     HaMediaInventory inventory,
   ) {
-    if (!inventory.hasPlayMedia ||
-        !inventory.registryAvailable ||
-        !hasRegistryIdentity ||
-        !enabled ||
-        !available ||
-        !supportsPlayMedia ||
-        !source.playable) {
-      return null;
+    if (!inventory.hasPlayMedia) {
+      return const HaPlaybackSupport.blocked(
+        HaPlaybackBlock.serviceUnavailable,
+      );
     }
-    if (source.isAudio) return HaPlaybackTransport.audio;
-    if (!source.isVideo || !isDisplay) return null;
+    if (!inventory.registryAvailable) {
+      return const HaPlaybackSupport.blocked(
+        HaPlaybackBlock.registryUnavailable,
+      );
+    }
+    if (!hasRegistryIdentity) {
+      return const HaPlaybackSupport.blocked(HaPlaybackBlock.identityMissing);
+    }
+    if (!enabled) {
+      return const HaPlaybackSupport.blocked(HaPlaybackBlock.targetDisabled);
+    }
+    if (!available) {
+      return const HaPlaybackSupport.blocked(HaPlaybackBlock.targetUnavailable);
+    }
+    if (!supportsPlayMedia) {
+      return const HaPlaybackSupport.blocked(
+        HaPlaybackBlock.playMediaUnavailable,
+      );
+    }
+    if (!source.playable) {
+      return const HaPlaybackSupport.blocked(HaPlaybackBlock.sourceUnavailable);
+    }
+    if (source.isAudio) {
+      return const HaPlaybackSupport.allowed(HaPlaybackTransport.audio);
+    }
+    if (!source.isVideo || !isDisplay) {
+      return const HaPlaybackSupport.blocked(
+        HaPlaybackBlock.videoOutputRequired,
+      );
+    }
     if (platform == 'apple_tv') {
       return source.isExplicitAppleTvVideo
-          ? HaPlaybackTransport.appleTvVideo
-          : null;
+          ? const HaPlaybackSupport.allowed(HaPlaybackTransport.appleTvVideo)
+          : const HaPlaybackSupport.blocked(
+              HaPlaybackBlock.appleTvCompatibilityUnknown,
+            );
     }
-    return HaPlaybackTransport.displayVideo;
+    return const HaPlaybackSupport.allowed(HaPlaybackTransport.displayVideo);
   }
 
+  HaPlaybackTransport? transportFor(
+    HaMediaNode source,
+    HaMediaInventory inventory,
+  ) => playbackSupport(source, inventory).transport;
+
   bool canPlay(HaMediaNode source, HaMediaInventory inventory) =>
-      transportFor(source, inventory) != null;
+      playbackSupport(source, inventory).allowed;
 }
 
 class HaMediaInventory {
