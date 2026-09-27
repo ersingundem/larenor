@@ -584,6 +584,26 @@ class LinuxDirectoryRestoreEngine:
         return lease.rollback
 
     @staticmethod
+    def adopt_rollback(lease, rollback, deadline):
+        if (
+            type(lease) is not LinuxRestoreFileLease
+            or type(rollback) is not tuple
+            or len(rollback) != 2
+            or type(rollback[0]) is not int
+            or not 1 <= rollback[0] <= MAX_COMPONENT_VOLUME_BYTES
+            or type(rollback[1]) is not str
+            or len(rollback[1]) != 64
+        ):
+            raise ComponentRestorePlanError()
+        _active(deadline)
+        payload = _read_private(lease.parent, lease.rollback_name)
+        observed = (len(payload), hashlib.sha256(payload).hexdigest())
+        if observed != rollback:
+            raise ComponentRestorePlanError()
+        lease.rollback = rollback
+        return rollback
+
+    @staticmethod
     def stage(lease, payload, deadline):
         if (
             type(lease) is not LinuxRestoreFileLease
@@ -713,6 +733,25 @@ class LinuxDirectoryRestoreEngine:
         _extract_archive(payload, lease.root, deadline)
         if self._root_current(lease, deadline) != lease.rollback:
             raise ComponentRestorePlanError()
+
+    def restore_rollback(self, lease, deadline):
+        if type(lease) is not LinuxRestoreFileLease or lease.rollback is None:
+            raise ComponentRestorePlanError()
+        self._restore_rollback(lease, deadline)
+        return True
+
+    @staticmethod
+    def discard_rollback(lease, deadline):
+        if type(lease) is not LinuxRestoreFileLease or lease.rollback is None:
+            raise ComponentRestorePlanError()
+        _active(deadline)
+        payload = _read_private(lease.parent, lease.rollback_name)
+        if (len(payload), hashlib.sha256(payload).hexdigest()) != lease.rollback:
+            raise ComponentRestorePlanError()
+        os.unlink(lease.rollback_name, dir_fd=lease.parent)
+        os.fsync(lease.parent)
+        lease.artifacts_finalized = True
+        return True
 
     def rollback(self, lease, deadline):
         if lease.stage is None:
