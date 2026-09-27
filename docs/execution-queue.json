@@ -2475,7 +2475,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Apple TV video ve medya hedefleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B2",
         "S08.8"
@@ -2496,7 +2496,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Apple TV video hedefi yazılım dilimi tek dalda uygulanıyor; mevcut Cast/Apple ses ve Jellyfin oturum yollarından ayrı, capability ve taşıma kimliği bağlı bir video hedefi sözleşmesi hazırlanıyor."
+      "reason": "Apple TV video, Cast video ve Apple/AirPlay ses yolları ayrı taşıma kimlikleriyle bağlandı; Apple TV hedefi exact registry/device/config identity, açık video/mp4 ve video/movie/episode medya sözleşmesi olmadan fail-closed kalıyor. Hedef seçimi ve onay makbuzu yolu gösteriyor; uygun olmayan kaynak/hedef nedeni görünür. İptal, yaşam döngüsü ve bağlantı değişimi gönderim kiralamasını geçersizleştiriyor. Testler, bağımsız inceleme, exact-head CI ve gerçek alıcıda kodek/DRM/kopuş kabulü son doğrulama kapısında bekliyor."
     },
     {
       "id": "PRODUCT.PROVIDERS",
@@ -2837,7 +2837,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Cihaz bilgisi ve kontrollü uzaktan görünüm",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "K07"
       ],
@@ -2857,7 +2857,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Sınırlı read-only cihaz ölçümü ve açık kullanıcı onaylı uygulama görünümü/MediaProjection ayrımı tek dalda uygulanıyor; hassas ekran ve onay sonlandırma sınırları kodlanacak."
     },
     {
       "id": "K10",
