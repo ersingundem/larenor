@@ -92,6 +92,7 @@ void main() {
                       'reductionW': 3000,
                       'targetW': 0,
                       'priority': 10,
+                      'communicationLossBehavior': 'stop_charging',
                     },
                   ],
                 },
