@@ -108,6 +108,18 @@ class GameStreamNativeAdapterTest {
         }
     }
 
+    @Test fun handoffProviderLaunchMustMatchAdvertisedCapability() {
+        val adapter = GameStreamNativeAdapter(HandoffEngine())
+        val capabilities = adapter.capabilities()
+        assertEquals("moonlight", capabilities.provider)
+        assertTrue(capabilities.handoffOnly)
+        assertTrue(capabilities.intents.isEmpty())
+        assertEquals(
+            GameStreamProviderLaunch("moonlight", "moonlight-1202", true),
+            adapter.openProvider(),
+        )
+    }
+
     @Test fun duplicateInflightDispatchesOnceAndExactReadbackCompletesBoth() {
         val engine = DelayedEngine()
         val adapter = GameStreamNativeAdapter(engine)
@@ -240,5 +252,27 @@ class GameStreamNativeAdapterTest {
         fun complete(receipt: GameStreamEngineReceipt, index: Int = callbacks.lastIndex) {
             callbacks[index].invoke(receipt, null)
         }
+    }
+
+    private class HandoffEngine : GameStreamNativeEngine {
+        override fun capabilities() = GameStreamNativeCapabilities(
+            availability = "available",
+            engineRevision = "moonlight-1202",
+            intents = emptySet(),
+            provider = "moonlight",
+            handoffOnly = true,
+            inputKinds = setOf("touch", "gamepad"),
+        )
+
+        override fun openProvider() =
+            GameStreamProviderLaunch("moonlight", "moonlight-1202", true)
+
+        override fun execute(
+            command: GameStreamNativeCommand,
+            credentialHandle: String,
+            callback: (GameStreamEngineReceipt?, GameStreamNativeFailure?) -> Unit,
+        ) = callback(null, GameStreamNativeFailure("unsupported"))
+
+        override fun retire(sessionId: String) = Unit
     }
 }

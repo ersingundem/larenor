@@ -28,6 +28,21 @@ class GameStreamNativeAdapter(
     fun capabilities(): GameStreamNativeCapabilities =
         engine?.capabilities() ?: GameStreamNativeCapabilities.unavailable()
 
+    @Synchronized
+    fun openProvider(): GameStreamProviderLaunch {
+        val nativeEngine = engine ?: gameStreamFail("engineUnavailable")
+        val capabilities = nativeEngine.capabilities()
+        if (capabilities.availability != "available" || !capabilities.handoffOnly) {
+            gameStreamFail("unsupported")
+        }
+        val launch = nativeEngine.openProvider()
+        if (launch.provider != capabilities.provider ||
+            launch.engineRevision != capabilities.engineRevision ||
+            !launch.handoffOnly
+        ) gameStreamFail("invalidReceipt")
+        return launch
+    }
+
     fun bind(next: GameStreamNativeBinding) {
         val previous: GameStreamNativeBinding?
         val callbacks: List<(GameStreamNativeOutcome) -> Unit>

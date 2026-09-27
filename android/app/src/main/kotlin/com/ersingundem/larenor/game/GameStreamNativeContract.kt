@@ -11,7 +11,7 @@ class GameStreamNativeFailure(val code: String) : RuntimeException(code) {
                 "invalidRequest", "invalidCredentialHandle", "staleSession",
                 "foregroundRequired", "engineUnavailable", "unsupported",
                 "busy", "cancelled", "idempotencyConflict", "invalidReceipt",
-                "unknownEffect",
+                "providerUnavailable", "providerLaunchFailed", "unknownEffect",
             )
         ) throw IllegalArgumentException("invalidFailure")
     }
@@ -244,11 +244,23 @@ data class GameStreamNativeCapabilities(
     val availability: String,
     val engineRevision: String?,
     val intents: Set<GameStreamNativeIntent>,
+    val provider: String? = null,
+    val handoffOnly: Boolean = false,
+    val inputKinds: Set<String> = emptySet(),
 ) {
     init {
         val revisionSafe = engineRevision?.matches(Regex("^[A-Za-z0-9._-]{1,128}$")) == true
-        if ((availability == "available" && (!revisionSafe || intents.isEmpty())) ||
-            (availability == "unavailable" && (engineRevision != null || intents.isNotEmpty())) ||
+        val providerSafe = provider?.matches(Regex("^[a-z0-9._-]{1,64}$")) == true
+        val inputsSafe = inputKinds.isNotEmpty() && inputKinds.size <= 4 &&
+            inputKinds.all { it in setOf("touch", "gamepad", "keyboard", "mouse") }
+        val validAvailable = availability == "available" && revisionSafe && when {
+            handoffOnly -> providerSafe && intents.isEmpty() && inputsSafe
+            else -> intents.isNotEmpty() && inputKinds.isEmpty()
+        }
+        if ((!validAvailable && availability == "available") ||
+            (availability == "unavailable" &&
+                (engineRevision != null || intents.isNotEmpty() || provider != null ||
+                    handoffOnly || inputKinds.isNotEmpty())) ||
             availability !in setOf("available", "unavailable") ||
             intents.size > GameStreamNativeIntent.entries.size
         ) gameStreamFail("invalidRequest")
@@ -260,6 +272,9 @@ data class GameStreamNativeCapabilities(
         "engineRevision" to engineRevision,
         "intents" to intents.map { it.wire }.sorted(),
         "maxInflight" to 1,
+        "provider" to provider,
+        "handoffOnly" to handoffOnly,
+        "inputKinds" to inputKinds.sorted(),
     )
 
     companion object {
@@ -275,6 +290,28 @@ interface GameStreamNativeEngine {
         callback: (GameStreamEngineReceipt?, GameStreamNativeFailure?) -> Unit,
     )
     fun retire(sessionId: String)
+
+    fun openProvider(): GameStreamProviderLaunch = gameStreamFail("unsupported")
+}
+
+data class GameStreamProviderLaunch(
+    val provider: String,
+    val engineRevision: String,
+    val handoffOnly: Boolean,
+) {
+    init {
+        if (!provider.matches(Regex("^[a-z0-9._-]{1,64}$")) ||
+            !engineRevision.matches(Regex("^[A-Za-z0-9._-]{1,128}$")) ||
+            !handoffOnly
+        ) gameStreamFail("invalidReceipt")
+    }
+
+    fun toChannel(): Map<String, Any> = mapOf(
+        "schemaVersion" to 1,
+        "provider" to provider,
+        "engineRevision" to engineRevision,
+        "handoffOnly" to handoffOnly,
+    )
 }
 
 internal fun strictMap(raw: Any?, keys: Set<String>): Map<*, *> {

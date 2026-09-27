@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -9,20 +10,24 @@ import '../../../shared/widgets/icon_badge.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../../settings/presentation/panes/settings_nav_row.dart';
+import '../../server/data/larenor_server_api.dart';
+import '../../server/providers/server_providers.dart';
 import '../data/android_game_stream_port.dart';
+import '../data/core_game_stream_api.dart';
 
-class GameStreamSettingsScreen extends StatefulWidget {
+class GameStreamSettingsScreen extends ConsumerStatefulWidget {
   const GameStreamSettingsScreen({super.key, this.port, this.gateCurrent});
 
   final GameStreamCapabilityPort? port;
   final bool Function()? gateCurrent;
 
   @override
-  State<GameStreamSettingsScreen> createState() =>
+  ConsumerState<GameStreamSettingsScreen> createState() =>
       _GameStreamSettingsScreenState();
 }
 
-class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
+class _GameStreamSettingsScreenState
+    extends ConsumerState<GameStreamSettingsScreen>
     with WidgetsBindingObserver {
   late final GameStreamCapabilityPort _port;
   AppInteractionController? _interaction;
@@ -35,7 +40,10 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
   bool _loading = false;
   bool _started = false;
   AndroidGameStreamCapabilities? _capabilities;
+  CoreGameStreamHosts? _hosts;
   String? _error;
+  String? _hostsError;
+  bool _openingProvider = false;
 
   @override
   void initState() {
@@ -102,7 +110,9 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
     _loading = false;
     if (clearStatus) {
       _capabilities = null;
+      _hosts = null;
       _error = null;
+      _hostsError = null;
     }
   }
 
@@ -129,21 +139,80 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
     setState(() {
       _loading = true;
       _error = null;
+      _hostsError = null;
+    });
+    AndroidGameStreamCapabilities? capabilities;
+    CoreGameStreamHosts? hosts;
+    String? capabilityError;
+    String? hostsError;
+    try {
+      capabilities = await _port.capabilities();
+    } catch (_) {
+      capabilityError = 'capability_read_failed';
+    }
+    if (!_current(generation)) return;
+    final account = ref.read(serverAccountControllerProvider);
+    final session = account.session;
+    if (account.initialized &&
+        !account.working &&
+        session?.context != null &&
+        !session!.user.mustChangePassword) {
+      final transport = LarenorServerApi(endpoint: session.endpoint);
+      final api = CoreGameStreamApi(
+        transport,
+        session,
+        isCurrent: () =>
+            _current(generation) &&
+            identical(ref.read(serverAccountControllerProvider), account) &&
+            identical(account.session, session),
+      );
+      try {
+        hosts = await api.hosts();
+      } catch (_) {
+        hostsError = 'host_read_failed';
+      } finally {
+        api.retire();
+        transport.close();
+      }
+    }
+    if (!_current(generation)) return;
+    setState(() {
+      _capabilities = capabilities;
+      _hosts = hosts;
+      _error = capabilityError;
+      _hostsError = hostsError;
+      _loading = false;
+    });
+  }
+
+  Future<void> _openProvider() async {
+    final provider = _port;
+    if (provider is! GameStreamProviderPort ||
+        _capabilities?.available != true ||
+        _capabilities?.handoffOnly != true ||
+        _openingProvider) {
+      return;
+    }
+    final providerPort = provider as GameStreamProviderPort;
+    final generation = _generation;
+    setState(() {
+      _openingProvider = true;
+      _error = null;
     });
     try {
-      final capabilities = await _port.capabilities();
-      if (!_current(generation)) return;
-      setState(() {
-        _capabilities = capabilities;
-        _loading = false;
-      });
+      final launch = await providerPort.openProvider();
+      if (!_current(generation) ||
+          launch.provider != _capabilities?.provider ||
+          launch.engineRevision != _capabilities?.engineRevision ||
+          !launch.handoffOnly) {
+        return;
+      }
     } catch (_) {
-      if (!_current(generation)) return;
-      setState(() {
-        _capabilities = null;
-        _error = 'capability_read_failed';
-        _loading = false;
-      });
+      if (_current(generation)) _error = 'provider_launch_failed';
+    } finally {
+      if (_current(generation)) {
+        setState(() => _openingProvider = false);
+      }
     }
   }
 
@@ -157,7 +226,9 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(serverAccountControllerProvider);
     final l10n = AppLocalizations.of(context);
+    final copy = _GameStreamCopy.of(context);
     final status = _loading
         ? l10n.gameStreamingChecking
         : _error != null
@@ -177,6 +248,14 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
         ? CupertinoColors.systemOrange
         : CupertinoColors.secondaryLabel;
     final current = _current(_generation);
+    final capabilities = _capabilities;
+    final providerReady =
+        current &&
+        !_loading &&
+        !_openingProvider &&
+        capabilities?.available == true &&
+        capabilities?.handoffOnly == true &&
+        _port is GameStreamProviderPort;
 
     return SettingsPaneScaffold(
       title: l10n.gameStreamingTitle,
@@ -187,7 +266,11 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
             header: true,
             child: Text(l10n.gameStreamingEngineHeader),
           ),
-          footer: Text(l10n.gameStreamingDeferredBody),
+          footer: Text(
+            capabilities?.handoffOnly == true
+                ? copy.handoffBoundary
+                : l10n.gameStreamingDeferredBody,
+          ),
           children: [
             Semantics(
               key: const ValueKey('game-stream-status'),
@@ -222,6 +305,95 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
               title: Text(l10n.gameStreamingCheckAgain),
               onTap: current && !_loading ? () => unawaited(_refresh()) : null,
             ),
+            if (capabilities?.handoffOnly == true)
+              SettingsActionTile(
+                buttonKey: const ValueKey('game-stream-open-provider'),
+                leading: const IconBadge(
+                  icon: CupertinoIcons.play_rectangle_fill,
+                  color: CupertinoColors.systemPurple,
+                ),
+                title: Text(
+                  _openingProvider ? copy.openingProvider : copy.openProvider,
+                ),
+                additionalInfo: Text(
+                  '${copy.provider}: ${capabilities?.provider ?? copy.unknown}; '
+                  '${copy.version}: ${capabilities?.engineRevision ?? copy.unknown}',
+                ),
+                onTap: providerReady ? () => unawaited(_openProvider()) : null,
+              ),
+          ],
+        ),
+        SettingsSection(
+          header: Semantics(header: true, child: Text(copy.configuredHosts)),
+          footer: Text(copy.hostsBoundary),
+          children: [
+            if (_hostsError != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  copy.hostReadFailed,
+                  style: const TextStyle(color: CupertinoColors.systemRed),
+                ),
+              )
+            else if (_hosts == null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(copy.signInForHosts),
+              )
+            else if (_hosts!.hosts.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(copy.noHosts),
+              )
+            else
+              for (final host in _hosts!.hosts)
+                Semantics(
+                  container: true,
+                  label:
+                      '${host.name}. ${host.codecs.join(', ')}. '
+                      '${host.maxWidth} × ${host.maxHeight}, ${host.maxFps} FPS.',
+                  child: ExcludeSemantics(
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        16,
+                        12,
+                        16,
+                        12,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            CupertinoIcons.desktopcomputer,
+                            color: CupertinoColors.systemPurple,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(host.name),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${host.codecs.join(' · ')} · '
+                                  '${host.maxWidth}×${host.maxHeight} · '
+                                  '${host.maxFps} FPS',
+                                  style: const TextStyle(
+                                    color: CupertinoColors.secondaryLabel,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            CupertinoIcons.checkmark_shield_fill,
+                            color: CupertinoColors.systemGreen,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
           ],
         ),
         SettingsSection(
@@ -240,4 +412,74 @@ class _GameStreamSettingsScreenState extends State<GameStreamSettingsScreen>
       ],
     );
   }
+}
+
+final class _GameStreamCopy {
+  const _GameStreamCopy({
+    required this.openProvider,
+    required this.openingProvider,
+    required this.provider,
+    required this.version,
+    required this.unknown,
+    required this.handoffBoundary,
+    required this.configuredHosts,
+    required this.hostsBoundary,
+    required this.hostReadFailed,
+    required this.signInForHosts,
+    required this.noHosts,
+  });
+
+  final String openProvider;
+  final String openingProvider;
+  final String provider;
+  final String version;
+  final String unknown;
+  final String handoffBoundary;
+  final String configuredHosts;
+  final String hostsBoundary;
+  final String hostReadFailed;
+  final String signInForHosts;
+  final String noHosts;
+
+  static _GameStreamCopy of(BuildContext context) =>
+      Localizations.localeOf(context).languageCode == 'tr' ? tr : en;
+
+  static const tr = _GameStreamCopy(
+    openProvider: 'Moonlight uygulamasını aç',
+    openingProvider: 'Moonlight açılıyor…',
+    provider: 'Sağlayıcı',
+    version: 'Sürüm',
+    unknown: 'bilinmiyor',
+    handoffBoundary:
+        'Larenor yalnız kurulu Moonlight istemcisini doğrular ve açar. '
+        'Eşleme, yayın, görüntü, ses ve giriş yaşam döngüsü Moonlight tarafından yönetilir; '
+        'Larenor harici yayının başladığını veya durduğunu iddia etmez.',
+    configuredHosts: 'Yapılandırılmış Sunshine bilgisayarları',
+    hostsBoundary:
+        'Bu liste Core üzerindeki sürüm sabitli, gizli bilgi içermeyen host kayıtlarıdır. '
+        'Canlı erişilebilirlik ve fiziksel yayın ayrıca doğrulanır.',
+    hostReadFailed: 'Bilgisayar kayıtları Core’dan okunamadı.',
+    signInForHosts:
+        'Bilgisayarları görmek için geçerli bir Core oturumu gerekir.',
+    noHosts: 'Henüz yapılandırılmış bir oyun bilgisayarı yok.',
+  );
+
+  static const en = _GameStreamCopy(
+    openProvider: 'Open Moonlight',
+    openingProvider: 'Opening Moonlight…',
+    provider: 'Provider',
+    version: 'Version',
+    unknown: 'unknown',
+    handoffBoundary:
+        'Larenor only verifies and opens the installed Moonlight client. '
+        'Moonlight owns pairing, streaming, video, audio and input lifecycle; '
+        'Larenor does not claim that an external stream started or stopped.',
+    configuredHosts: 'Configured Sunshine computers',
+    hostsBoundary:
+        'This list contains revision-bound, secret-free host records from Core. '
+        'Live reachability and physical streaming require separate verification.',
+    hostReadFailed: 'Computer records could not be read from Core.',
+    signInForHosts: 'A current Core session is required to show computers.',
+    noHosts: 'No game computer has been configured yet.',
+  );
 }

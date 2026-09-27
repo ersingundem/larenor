@@ -78,11 +78,29 @@ final class AndroidGameStreamCapabilities {
     required this.available,
     required this.engineRevision,
     required this.intents,
+    this.provider,
+    this.handoffOnly = false,
+    this.inputKinds = const {},
   });
 
   final bool available;
   final String? engineRevision;
   final Set<GameStreamIntent> intents;
+  final String? provider;
+  final bool handoffOnly;
+  final Set<String> inputKinds;
+}
+
+final class AndroidGameStreamProviderLaunch {
+  const AndroidGameStreamProviderLaunch({
+    required this.provider,
+    required this.engineRevision,
+    required this.handoffOnly,
+  });
+
+  final String provider;
+  final String engineRevision;
+  final bool handoffOnly;
 }
 
 abstract interface class GameStreamNativeBindingPort {
@@ -97,13 +115,18 @@ abstract interface class GameStreamCapabilityPort {
   Future<AndroidGameStreamCapabilities> capabilities();
 }
 
-/// Fail-closed Android port. The default native implementation advertises an
-/// unavailable engine until a reviewed Moonlight/Sunshine runtime is packaged.
+abstract interface class GameStreamProviderPort {
+  Future<AndroidGameStreamProviderLaunch> openProvider();
+}
+
+/// Fail-closed Android port. Native capability discovery may expose either an
+/// embedded command engine or a separately installed provider handoff.
 final class AndroidGameStreamPort
     implements
         GameStreamPort,
         GameStreamNativeBindingPort,
-        GameStreamCapabilityPort {
+        GameStreamCapabilityPort,
+        GameStreamProviderPort {
   AndroidGameStreamPort({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(_channelName);
 
@@ -116,23 +139,42 @@ final class AndroidGameStreamPort
   @override
   Future<AndroidGameStreamCapabilities> capabilities() async {
     final raw = await _channel.invokeMethod<Object?>('capabilities');
-    final value = _strictMap(raw, {
-      'schemaVersion',
-      'availability',
-      'engineRevision',
-      'intents',
-      'maxInflight',
-    });
+    final value = _strictMapEither(raw, [
+      {
+        'schemaVersion',
+        'availability',
+        'engineRevision',
+        'intents',
+        'maxInflight',
+      },
+      {
+        'schemaVersion',
+        'availability',
+        'engineRevision',
+        'intents',
+        'maxInflight',
+        'provider',
+        'handoffOnly',
+        'inputKinds',
+      },
+    ]);
     if (value['schemaVersion'] != 1 || value['maxInflight'] != 1) {
       throw const GameStreamException('invalid_capabilities');
     }
     final availability = value['availability'];
     final rawEngineRevision = value['engineRevision'];
     final rawIntents = value['intents'];
+    final provider = value['provider'];
+    final handoffOnly = value['handoffOnly'] ?? false;
+    final rawInputKinds = value['inputKinds'] ?? const <Object>[];
     if ((availability != 'available' && availability != 'unavailable') ||
         (rawEngineRevision != null && rawEngineRevision is! String) ||
+        (provider != null && provider is! String) ||
+        handoffOnly is! bool ||
         rawIntents is! List ||
-        rawIntents.length > GameStreamIntent.values.length) {
+        rawIntents.length > GameStreamIntent.values.length ||
+        rawInputKinds is! List ||
+        rawInputKinds.length > 4) {
       throw const GameStreamException('invalid_capabilities');
     }
     final intents = <GameStreamIntent>{};
@@ -142,21 +184,68 @@ final class AndroidGameStreamPort
         throw const GameStreamException('invalid_capabilities');
       }
     }
+    final inputKinds = <String>{};
+    for (final input in rawInputKinds) {
+      if (input is! String ||
+          !{'touch', 'gamepad', 'keyboard', 'mouse'}.contains(input) ||
+          !inputKinds.add(input)) {
+        throw const GameStreamException('invalid_capabilities');
+      }
+    }
     final engineRevision = rawEngineRevision as String?;
     if (availability == 'unavailable' &&
-        (engineRevision != null || intents.isNotEmpty)) {
+        (engineRevision != null ||
+            intents.isNotEmpty ||
+            provider != null ||
+            handoffOnly ||
+            inputKinds.isNotEmpty)) {
       throw const GameStreamException('invalid_capabilities');
     }
     if (availability == 'available' &&
         (engineRevision == null ||
             !_engineRevision.hasMatch(engineRevision) ||
-            intents.isEmpty)) {
+            (handoffOnly
+                ? provider is! String ||
+                      !_provider.hasMatch(provider) ||
+                      intents.isNotEmpty ||
+                      inputKinds.isEmpty
+                : intents.isEmpty || inputKinds.isNotEmpty))) {
       throw const GameStreamException('invalid_capabilities');
     }
     return AndroidGameStreamCapabilities(
       available: availability == 'available',
       engineRevision: engineRevision,
       intents: Set.unmodifiable(intents),
+      provider: provider as String?,
+      handoffOnly: handoffOnly,
+      inputKinds: Set.unmodifiable(inputKinds),
+    );
+  }
+
+  @override
+  Future<AndroidGameStreamProviderLaunch> openProvider() async {
+    final generation = _generation;
+    final value = _strictMap(
+      await _channel.invokeMethod<Object?>('openProvider'),
+      {'schemaVersion', 'provider', 'engineRevision', 'handoffOnly'},
+    );
+    if (generation != _generation) {
+      throw const GameStreamException('stale_native_callback');
+    }
+    final provider = value['provider'];
+    final revision = value['engineRevision'];
+    if (value['schemaVersion'] != 1 ||
+        provider is! String ||
+        !_provider.hasMatch(provider) ||
+        revision is! String ||
+        !_engineRevision.hasMatch(revision) ||
+        value['handoffOnly'] != true) {
+      throw const GameStreamException('invalid_native_receipt');
+    }
+    return AndroidGameStreamProviderLaunch(
+      provider: provider,
+      engineRevision: revision,
+      handoffOnly: true,
     );
   }
 
@@ -301,6 +390,20 @@ Map<Object?, Object?> _strictMap(Object? raw, Set<String> keys) {
   return value;
 }
 
+Map<Object?, Object?> _strictMapEither(Object? raw, List<Set<String>> choices) {
+  if (raw is! Map || raw.keys.any((key) => key is! String)) {
+    throw const GameStreamException('invalid_native_payload');
+  }
+  final value = Map<Object?, Object?>.from(raw);
+  final keys = value.keys.toSet();
+  if (!choices.any(
+    (choice) => keys.length == choice.length && keys.containsAll(choice),
+  )) {
+    throw const GameStreamException('invalid_native_payload');
+  }
+  return value;
+}
+
 GameStreamIntent _intent(Object? raw, String code) {
   final matches = GameStreamIntent.values.where((value) => value.name == raw);
   if (matches.length != 1) throw GameStreamException(code);
@@ -323,3 +426,4 @@ void _requireRevision(int value) {
 
 final _identity = RegExp(r'^[0-9a-f]{32}$');
 final _engineRevision = RegExp(r'^[A-Za-z0-9._-]{1,128}$');
+final _provider = RegExp(r'^[a-z0-9._-]{1,64}$');

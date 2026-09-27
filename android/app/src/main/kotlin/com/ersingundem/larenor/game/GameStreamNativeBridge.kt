@@ -41,6 +41,11 @@ class GameStreamNativeBridge(
                     if (call.arguments != null) gameStreamFail("invalidRequest")
                     result.success(adapter.capabilities().toChannel())
                 }
+                "openProvider" -> {
+                    requireForeground()
+                    if (call.arguments != null) gameStreamFail("invalidRequest")
+                    result.success(adapter.openProvider().toChannel())
+                }
                 "bind" -> {
                     requireForeground()
                     adapter.bind(GameStreamNativeBinding.parse(call.arguments))

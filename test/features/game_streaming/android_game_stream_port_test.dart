@@ -144,6 +144,42 @@ void main() {
     expect(capabilities.intents, isEmpty);
   });
 
+  test('Moonlight handoff capability and launch receipt stay exact', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'capabilities') {
+        return {
+          'schemaVersion': 1,
+          'availability': 'available',
+          'engineRevision': 'moonlight-1202',
+          'intents': <String>[],
+          'maxInflight': 1,
+          'provider': 'moonlight',
+          'handoffOnly': true,
+          'inputKinds': ['gamepad', 'keyboard', 'mouse', 'touch'],
+        };
+      }
+      expect(call.method, 'openProvider');
+      expect(call.arguments, isNull);
+      return {
+        'schemaVersion': 1,
+        'provider': 'moonlight',
+        'engineRevision': 'moonlight-1202',
+        'handoffOnly': true,
+      };
+    });
+    final port = AndroidGameStreamPort();
+    final capabilities = await port.capabilities();
+    expect(capabilities.available, isTrue);
+    expect(capabilities.handoffOnly, isTrue);
+    expect(capabilities.provider, 'moonlight');
+    expect(capabilities.intents, isEmpty);
+    expect(capabilities.inputKinds, {'touch', 'gamepad', 'keyboard', 'mouse'});
+    final launch = await port.openProvider();
+    expect(launch.provider, capabilities.provider);
+    expect(launch.engineRevision, capabilities.engineRevision);
+    expect(launch.handoffOnly, isTrue);
+  });
+
   test(
     'bind passes one opaque handle and no credential-shaped fields',
     () async {

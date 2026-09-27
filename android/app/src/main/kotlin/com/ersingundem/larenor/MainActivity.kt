@@ -19,6 +19,7 @@ import com.ersingundem.larenor.inventory.InventoryShareBridge
 import com.ersingundem.larenor.notifications.LocalNotificationBridge
 import com.ersingundem.larenor.display.DualDisplayBridge
 import com.ersingundem.larenor.game.GameStreamNativeBridge
+import com.ersingundem.larenor.game.MoonlightAppGameStreamEngine
 import com.ersingundem.larenor.webpanel.WebPanelRendererBridge
 import com.ersingundem.larenor.webpanel.WebPanelDownloadBridge
 import com.ersingundem.larenor.webpanel.WebPanelNativeEffectBridge
@@ -67,7 +68,10 @@ class MainActivity : FlutterActivity() {
         inventoryShare = InventoryShareBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         localNotifications = LocalNotificationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         dualDisplay = DualDisplayBridge(this, flutterEngine.dartExecutor.binaryMessenger)
-        gameStreamNative = GameStreamNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
+        gameStreamNative = GameStreamNativeBridge(
+            flutterEngine.dartExecutor.binaryMessenger,
+            MoonlightAppGameStreamEngine(this),
+        )
         webPanelRenderer = WebPanelRendererBridge(
             flutterEngine.dartExecutor.binaryMessenger,
             flutterEngine,
