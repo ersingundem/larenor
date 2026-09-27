@@ -163,17 +163,16 @@ void main() {
     expect(find.text('Arrival'), findsOneWidget);
   });
 
-  testWidgets('older search completion cannot unlock replacement search', (
+  testWidgets('older search completion cannot unlock a retired request', (
     tester,
   ) async {
     final oldResponse = Completer<http.Response>();
-    final newResponse = Completer<http.Response>();
     BazarrClient client(Completer<http.Response> response) => BazarrClient(
       config: _config,
       httpClient: MockClient((_) => response.future),
     );
     final oldClient = client(oldResponse);
-    final newClient = client(newResponse);
+    final newClient = client(Completer<http.Response>());
     addTearDown(oldClient.dispose);
     addTearDown(newClient.dispose);
     _initialBazarrClient = oldClient;
@@ -196,21 +195,18 @@ void main() {
         find.byKey(const ValueKey('bazarr-wanted-movie-42-search'));
     tester.widget<CupertinoButton>(action()).onPressed!();
     await tester.pump();
+    await tester.tap(find.widgetWithText(CupertinoDialogAction, 'Search'));
+    await tester.pump();
     final container = ProviderScope.containerOf(
       tester.element(find.byType(BazarrHomeScreen)),
     );
     container.read(_currentBazarrClient.notifier).replace(newClient);
     await tester.pump();
-    tester.widget<CupertinoButton>(action()).onPressed!();
-    await tester.pump();
-
-    oldResponse.complete(http.Response('{}', 200));
-    await tester.pump();
     expect(tester.widget<CupertinoButton>(action()).onPressed, isNull);
 
-    newResponse.complete(http.Response('{}', 200));
+    oldResponse.complete(http.Response('{}', 200));
     await tester.pumpAndSettle();
-    expect(tester.widget<CupertinoButton>(action()).onPressed, isNotNull);
+    expect(tester.widget<CupertinoButton>(action()).onPressed, isNull);
   });
 
   for (final locale in const [Locale('en'), Locale('tr')]) {
@@ -300,11 +296,19 @@ void main() {
           Focus.of(tester.element(searchLabel)).requestFocus();
           await tester.pump();
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          tester
+              .widget<CupertinoDialogAction>(
+                find.widgetWithText(CupertinoDialogAction, l10n.commonSearch),
+              )
+              .onPressed!();
           await tester.pumpAndSettle();
-          expect(requests, hasLength(1));
-          expect(requests.single.method, 'PATCH');
-          expect(requests.single.body, contains('radarrid=42'));
-          expect(requests.single.body, contains('language=en'));
+          final writes = requests
+              .where((request) => request.method == 'PATCH')
+              .toList();
+          expect(writes, hasLength(1));
+          expect(writes.single.body, contains('radarrid=42'));
+          expect(writes.single.body, contains('language=en'));
           expect(tester.takeException(), isNull);
         } finally {
           semantics.dispose();
