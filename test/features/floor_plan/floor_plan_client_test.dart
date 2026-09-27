@@ -20,7 +20,11 @@ final context = ServerContext.fromJson({
 });
 
 Map<String, Object?> response() => {
+  'schemaVersion': 1,
   'layoutRevision': 7,
+  'entityRegistryRevision': 11,
+  'resourceRevision': 13,
+  'grantRevision': 17,
   'layout': {
     'floors': [
       {'floorId': 'ground', 'label': 'Ground floor', 'order': 0},
@@ -61,6 +65,28 @@ Map<String, Object?> response() => {
       },
     ],
   },
+  'projections': [
+    {
+      'anchorId': 'light',
+      'targetKind': 'entity',
+      'targetId': 'light.living',
+      'targetRevision': 3,
+      'state': 'on',
+      'status': 'live',
+      'capability': {
+        'kind': 'none',
+        'actions': <Object?>[],
+        'resourceId': null,
+        'resourceRevision': null,
+        'aclRevision': null,
+        'bindingId': null,
+        'bindingRevision': null,
+        'serviceRevision': null,
+      },
+    },
+  ],
+  'projectionLimit': 512,
+  'projectionTruncated': false,
 };
 
 const strings = FloorPlanStrings(
