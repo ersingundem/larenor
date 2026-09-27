@@ -137,6 +137,7 @@ class Harness {
     WebPanelTransferAccess? transferAccess,
     WebPanelExternalActionPort? externalActionPort,
     WebPanelRendererMonitor? rendererMonitor,
+    DateTime Function()? recoveryNow,
     WebPanelNativeAuthorityLease? nativeAuthority,
     WebPanelNativeBridgePort? nativePort,
     WebPanelNativeBridgePort Function()? nativePortFactory,
@@ -193,6 +194,7 @@ class Harness {
                             transferAccess: transferAccess,
                             externalActionPort: externalActionPort,
                             rendererMonitor: monitor,
+                            recoveryNow: recoveryNow,
                             nativeAuthority: nativeAuthority,
                             nativePort: nativePort,
                             nativePortFactory: nativePortFactory,
@@ -1011,42 +1013,69 @@ void main() {
     await h.close(tester);
   });
 
-  testWidgets(
-    'exhausted durable recovery opens safe maintenance without a renderer',
-    (tester) async {
-      final h = Harness();
-      final now = DateTime.utc(2026, 9, 23).millisecondsSinceEpoch;
-      h._attemptStore.value = jsonEncode({
-        'version': 1,
-        'attempts': [now - 3000, now - 2000, now - 1000],
-      });
-      await h.mount(tester);
-      h.platform.controllers.single.delegate.resourceError(
-        const WebResourceError(
-          errorCode: -1,
-          description: 'private renderer payload',
-          isForMainFrame: true,
-        ),
-      );
-      await tester.pump();
+  for (final locale in const [Locale('en'), Locale('tr')]) {
+    testWidgets(
+      '${locale.languageCode} exhausted retries open 48dp safe maintenance',
+      (tester) async {
+        var now = DateTime.utc(2026, 9, 23);
+        final h = Harness();
+        await h.mount(
+          tester,
+          locale: locale,
+          size: const Size(600, 900),
+          scale: 2,
+          recoveryNow: () => now,
+        );
 
-      await h.panel.currentState!.restart();
-      await tester.pump();
+        for (var attempt = 0; attempt < 3; attempt++) {
+          h.platform.controllers.last.delegate.resourceError(
+            const WebResourceError(
+              errorCode: -1,
+              description: 'private renderer payload',
+              isForMainFrame: true,
+            ),
+          );
+          await tester.pump();
+          await h.panel.currentState!.restart();
+          await tester.pump();
+          now = now.add(const Duration(seconds: 2));
+        }
+        expect(h.platform.controllers, hasLength(4));
 
-      expect(h.platform.controllers, hasLength(1));
-      expect(find.textContaining('private renderer payload'), findsNothing);
-      expect((await h.usage.read()).count(KioskUsageEvent.recoveryBlocked), 1);
-      final maintenance = find.byKey(
-        const ValueKey('web-panel-open-maintenance'),
-      );
-      expect(maintenance, findsOneWidget);
+        h.platform.controllers.last.delegate.resourceError(
+          const WebResourceError(
+            errorCode: -1,
+            description: 'private renderer payload',
+            isForMainFrame: true,
+          ),
+        );
+        await tester.pump();
+        await h.panel.currentState!.restart();
+        await tester.pump();
 
-      await tester.tap(maintenance);
-      await tester.pumpAndSettle();
-      expect(find.byType(KioskMaintenanceScreen), findsOneWidget);
-      await h.close(tester);
-    },
-  );
+        expect(h.platform.controllers, hasLength(4));
+        expect(find.textContaining('private renderer payload'), findsNothing);
+        expect(
+          (await h.usage.read()).count(KioskUsageEvent.recoveryAttempt),
+          3,
+        );
+        expect(
+          (await h.usage.read()).count(KioskUsageEvent.recoveryBlocked),
+          1,
+        );
+        final maintenance = find.byKey(
+          const ValueKey('web-panel-open-maintenance'),
+        );
+        expect(maintenance, findsOneWidget);
+        expect(tester.getSize(maintenance).height, greaterThanOrEqualTo(48));
+
+        await tester.tap(maintenance);
+        await tester.pumpAndSettle();
+        expect(find.byType(KioskMaintenanceScreen), findsOneWidget);
+        await h.close(tester);
+      },
+    );
+  }
 
   testWidgets(
     'replacing renderer monitor revokes the stale monitor generation',

@@ -36,6 +36,7 @@ class WebPanelView extends StatefulWidget {
     this.externalActionPort,
     this.rendererMonitor,
     this.recoveryGate,
+    this.recoveryNow,
     this.nativeAuthority,
     this.nativePort,
     this.nativePortFactory,
@@ -50,6 +51,7 @@ class WebPanelView extends StatefulWidget {
   final WebPanelExternalActionPort? externalActionPort;
   final WebPanelRendererMonitor? rendererMonitor;
   final KioskRecoveryGate? recoveryGate;
+  final DateTime Function()? recoveryNow;
   final WebPanelNativeAuthorityLease? nativeAuthority;
   final WebPanelNativeBridgePort? nativePort;
   final WebPanelNativeBridgePort Function()? nativePortFactory;
@@ -66,7 +68,7 @@ class WebPanelViewState extends State<WebPanelView> {
   bool _foreground = true, _visible = false, _ready = false;
   _Failure? _failure;
   Timer? _watchdog;
-  final _recovery = WebPanelRecoveryBudget();
+  late final WebPanelRecoveryBudget _recovery;
   late KioskRecoveryGate _recoveryGate;
   bool _backBusy = false;
   late WebPanelDataCoordinator _data;
@@ -80,6 +82,7 @@ class WebPanelViewState extends State<WebPanelView> {
     super.initState();
     _data = widget.dataCoordinator ?? WebPanelDataCoordinator.shared;
     _recoveryGate = widget.recoveryGate ?? KioskRecoveryGate();
+    _recovery = WebPanelRecoveryBudget(now: widget.recoveryNow);
     _data.register(_clearRetire);
     _data.addListener(_dataChanged);
     final state = WidgetsBinding.instance.lifecycleState;
@@ -186,7 +189,9 @@ class WebPanelViewState extends State<WebPanelView> {
   }
 
   Future<void> restart() async {
-    if (!_active || !_recovery.take()) return;
+    if (!_active) return;
+    final recoveryDecision = _recovery.take();
+    if (recoveryDecision == WebPanelRecoveryDecision.tooSoon) return;
     final generation = _generation;
     if (!await _recoveryGate.allowExplicitRecovery()) {
       if (_current(generation)) setState(() {});
@@ -433,7 +438,7 @@ class WebPanelViewState extends State<WebPanelView> {
   void _recoverRenderer(int generation) {
     if (!_current(generation)) return;
     unawaited(_recoveryGate.recordRendererFailure(timeout: false));
-    if (!_recovery.take()) {
+    if (_recovery.take() != WebPanelRecoveryDecision.allowed) {
       _fail(_Failure.load, generation);
       return;
     }
@@ -523,6 +528,7 @@ class WebPanelViewState extends State<WebPanelView> {
                   ),
                   CupertinoButton(
                     key: const ValueKey('web-panel-open-maintenance'),
+                    minimumSize: const Size.fromHeight(48),
                     onPressed: _openMaintenance,
                     child: Text(l10n.kioskMaintenanceTitle),
                   ),

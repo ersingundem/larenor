@@ -35,6 +35,24 @@ S08.8 ve S08.11'in kabulüyle artık tamamlandı. F31 `done`; sayaç
 Home Assistant ve tablet yolculuğu `MANUAL.SERVICES`/`MANUAL.TABLET` altında
 ayrı kalır. [Kapanış kanıtı](testing/f31-meal-edit-handoff.tdd.md).
 
+### 27 Eylül K12 sınırlı watchdog yazılımı — exact CI bekliyor
+
+WebPanel'in yerel beş dakikalık recovery bütçesi artık `tooSoon` ile gerçek
+`exhausted` sonucunu ayırıyor. İlk durum kalıcı deneme sayacını tüketmiyor;
+üç açık kurtarma sonrasındaki doğal dördüncü istek durable gate'e ulaşıp tek
+`recoveryBlocked` kaydı oluşturuyor, yeni renderer açmıyor ve Retry yerine
+48 dp güvenli bakım eylemini gösteriyor. Eylem yalnız içeriksiz 30 günlük
+sayaçları ve CSV önizlemesini sunan yerel bakım ekranını açıyor. Otomatik
+yeniden bağlanma, force-stop sonrası dirilme veya komut replay yolu yok.
+
+EN/TR, 600 piksel ve 2x metinle gerçek dört denemelik akışı içeren odaklı
+watchdog/maintenance/WebPanel paketi **55/55** geçti; dokuz üretim/test dosyası
+için dar analiz temizdi. Bağımsız final P1/P2 incelemesi blocker bulmadı. K12
+`awaiting_ci`; final tek-dal exact CI geçmeden `done` sayılmadığı için sayaçlar
+**35/125 (%28,0)** ve **1/63 (%1,6)** kalır. Fiziksel process-death/DeX/uzun
+bekleme `MANUAL.KIOSK` altında ayrıdır.
+[TDD ve kabul kanıtı](testing/k12-watchdog-local-usage-foundation.tdd.md).
+
 ### 24 Eylül S09.3 yazılım kabulü
 
 PR #491 exact `8113e8e456f36abca19b2eb8e3d4296a60faeef4`

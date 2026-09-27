@@ -1,9 +1,11 @@
-# K12 watchdog and local usage foundation — 2026-09-21
+# K12 watchdog and local usage software acceptance — 2026-09-27
 
-K12 remains **pending** while `K03.remaining` and the physical Huawei/DeX gates
-remain open. The final WebPanel renderer-death, ready and timeout callbacks now
-feed the content-free durable watchdog, and manual WebPanel retry consumes the
-same persistent explicit-recovery gate used by the maintenance surface.
+K12's software behavior is complete and waits only for final exact-head CI.
+`K03.remaining` is complete. Physical Huawei/DeX process-death and long-idle
+checks remain separate under `MANUAL.KIOSK`; they do not reopen this software
+acceptance. WebPanel renderer-death, ready and timeout callbacks feed the
+content-free durable watchdog, and manual WebPanel retry consumes the same
+persistent explicit-recovery gate used by the maintenance surface.
 
 ## Acceptance contract
 
@@ -25,6 +27,10 @@ same persistent explicit-recovery gate used by the maintenance surface.
    kiosk recovery screen. EN/TR layouts pass at 600 and 1280 logical pixels
    with 2x text, the refresh action is at least 48 dp, corrupt storage hides
    stale counts, and the UI states the Android force-stop/OS termination limit.
+   Three accepted WebPanel recoveries followed by a fourth request create no
+   renderer, record one blocked loop and replace Retry with an explicit 48 dp
+   maintenance action. The action opens the same safe local screen in EN/TR at
+   600 logical pixels with 2x text.
 
 ## TDD evidence
 
@@ -41,11 +47,20 @@ same persistent explicit-recovery gate used by the maintenance surface.
   Recreated and concurrent owners now share the persisted ten-minute throttle;
   corrupt or unwritable throttle state grants no recovery. Its timestamps are
   operational gate state and never enter the aggregate usage CSV.
+- Final review RED/GREEN: the five-minute WebPanel budget previously returned a
+  single `false` for both debounce and exhaustion, so a natural fourth retry
+  never reached the durable gate and could not enter maintenance. The budget
+  now distinguishes `tooSoon` from `exhausted`; only exhaustion proceeds to the
+  durable fail-closed decision. The natural four-attempt EN/TR test proves
+  three renderer replacements, one blocked receipt, no fifth renderer and the
+  48 dp maintenance route.
 
 ## Remaining K12 gates
 
-- Run physical Huawei/DeX process-death and long-idle checks. Android
-  force-stop and OS relaunch remain unsupported claims.
+- Final exact-head CI must pass before the queue node changes from
+  `awaiting_ci` to `done`.
+- Physical Huawei/DeX process-death and long-idle checks remain in
+  `MANUAL.KIOSK`. Android force-stop and OS relaunch remain unsupported claims.
 
 ## WebPanel integration evidence
 
@@ -55,7 +70,8 @@ same persistent explicit-recovery gate used by the maintenance surface.
   enter the journal.
 - Manual retry durably consumes `KioskRecoveryGate` before a new renderer is
   constructed. A corrupt, unwritable or exhausted gate cannot reopen web
-  content, and the gate still reports that no automatic recovery is pending.
-- Focused WebPanel widget coverage exercises native renderer callbacks, ready
-  receipts and the persistent manual-retry gate alongside the existing stale
-  generation and bounded recovery cases.
+  content. An exhausted gate exposes only the local maintenance action, and the
+  gate still reports that no automatic recovery is pending.
+- The focused package passes **55/55** tests across watchdog persistence,
+  maintenance UI, recovery-budget policy and WebPanel lifecycle behavior.
+  Scoped analysis over the nine production and test files reports no issues.

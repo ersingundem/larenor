@@ -2919,7 +2919,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Watchdog ve yerel kullanım ölçümü",
-      "status": "pending",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K03.remaining"
       ],

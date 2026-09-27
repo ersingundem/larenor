@@ -80,16 +80,16 @@ void main() {
     () {
       var now = DateTime.utc(2026, 9, 21);
       final budget = WebPanelRecoveryBudget(now: () => now);
-      expect(budget.take(), true);
-      expect(budget.take(), false);
+      expect(budget.take(), WebPanelRecoveryDecision.allowed);
+      expect(budget.take(), WebPanelRecoveryDecision.tooSoon);
       now = now.add(const Duration(seconds: 2));
-      expect(budget.take(), true);
+      expect(budget.take(), WebPanelRecoveryDecision.allowed);
       now = now.add(const Duration(seconds: 2));
-      expect(budget.take(), true);
+      expect(budget.take(), WebPanelRecoveryDecision.allowed);
       now = now.add(const Duration(seconds: 2));
-      expect(budget.take(), false);
+      expect(budget.take(), WebPanelRecoveryDecision.exhausted);
       now = now.add(const Duration(minutes: 5));
-      expect(budget.take(), true);
+      expect(budget.take(), WebPanelRecoveryDecision.allowed);
     },
   );
 }
