@@ -167,6 +167,13 @@ class _ServerComponentEgressDialogState
                             _controller.value!.audit.length,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        _exactScope(
+                          l10n,
+                          policy,
+                          saved: grant,
+                          resolved: _controller.resolution,
+                        ),
                         if (_controller.resolution != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
@@ -277,4 +284,105 @@ class _ServerComponentEgressDialogState
       child: Text(label),
     ),
   );
+
+  Widget _exactScope(
+    AppLocalizations l10n,
+    ServerComponentEgressPolicy policy, {
+    required ServerComponentEgressGrant? saved,
+    required ServerComponentEgressResolution? resolved,
+  }) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: CupertinoColors.tertiarySystemGroupedBackground.resolveFrom(
+        context,
+      ),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(l10n.serverEgressExactScope, style: AppText.headline),
+          const SizedBox(height: 8),
+          _readOnlyValue(l10n.serverEgressComponent, policy.component.wireName),
+          if (saved != null) ...[
+            const SizedBox(height: 10),
+            _grantSummary(
+              l10n,
+              l10n.serverEgressSavedEndpoint,
+              l10n.serverEgressSavedPins,
+              saved,
+            ),
+          ],
+          if (resolved != null) ...[
+            const SizedBox(height: 10),
+            _grantSummary(
+              l10n,
+              l10n.serverEgressResolvedEndpoint,
+              l10n.serverEgressResolvedPins,
+              resolved.grant,
+            ),
+          ],
+          const SizedBox(height: 10),
+          Text(l10n.serverEgressBoundaryNote, style: AppText.footnote),
+        ],
+      ),
+    ),
+  );
+
+  Widget _grantSummary(
+    AppLocalizations l10n,
+    String title,
+    String pinsTitle,
+    ServerComponentEgressGrant grant,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(title, style: AppText.subhead),
+      _readOnlyValue(l10n.serverEgressScheme, grant.scheme.name),
+      _readOnlyValue(l10n.serverEgressHost, grant.host),
+      _readOnlyValue(l10n.serverEgressPort, '${grant.port}'),
+      const SizedBox(height: 6),
+      Text(pinsTitle, style: AppText.subhead),
+      for (final address in grant.addresses)
+        Semantics(
+          readOnly: true,
+          label: '${address.address}, ${_networkLabel(l10n, address.network)}',
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Expanded(child: SelectableText(address.address)),
+                const SizedBox(width: 8),
+                Text(
+                  _networkLabel(l10n, address.network),
+                  style: AppText.footnote,
+                ),
+              ],
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _readOnlyValue(String label, String value) => Semantics(
+    readOnly: true,
+    label: '$label: $value',
+    child: Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label: ', style: AppText.footnote),
+          Expanded(child: SelectableText(value, style: AppText.footnote)),
+        ],
+      ),
+    ),
+  );
+
+  String _networkLabel(AppLocalizations l10n, ServerEgressNetwork network) =>
+      switch (network) {
+        ServerEgressNetwork.lan => l10n.serverEgressNetworkLan,
+        ServerEgressNetwork.public => l10n.serverEgressNetworkPublic,
+      };
 }
