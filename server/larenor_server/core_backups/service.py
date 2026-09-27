@@ -69,6 +69,11 @@ _ACTIVE = (
         "active_music_assistant_bootstrap",
     ),
     (
+        "component_update_jobs",
+        "state IN ('queued','validating','ready','running')",
+        "active_component_update",
+    ),
+    (
         "music_assistant_key_rotations",
         "state IN ('preparing','activated')",
         "active_music_key_rotation",

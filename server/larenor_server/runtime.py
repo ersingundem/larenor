@@ -124,6 +124,10 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
             app.state.core.component_update_confirmations,
             app.state.core.component_update_jobs,
         )
+        if component_backup_boundary is not None:
+            app.state.core.component_update_jobs.bind_backend(
+                component_backup_boundary
+            )
         app.include_router(
             build_component_update_router(component_updates),
             prefix="/api/v1",

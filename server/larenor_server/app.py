@@ -171,6 +171,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         music_provider_task = asyncio.create_task(dispatch(
             music_providers, "music_provider_setup_dispatch_unavailable"
         )) if music_providers.backend is not None else None
+        component_updates = application.state.core.component_update_jobs
+        component_update_task = asyncio.create_task(dispatch(
+            component_updates, "component_update_dispatch_unavailable"
+        )) if component_updates.backend is not None else None
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
@@ -179,6 +183,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.seerr_bootstrap_dispatcher = seerr_task
         application.state.music_assistant_bootstrap_dispatcher = music_assistant_task
         application.state.music_provider_setup_dispatcher = music_provider_task
+        application.state.component_update_dispatcher = component_update_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -209,6 +214,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await music_assistant_task
             if music_provider_task is not None:
                 await music_provider_task
+            if component_update_task is not None:
+                await component_update_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,
@@ -240,6 +247,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.seerr_bootstrap_dispatcher = None
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
+    app.state.component_update_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.irrigation_gateway = app.state.core.irrigation
     app.state.camera_profile_gateway = app.state.core.camera_profiles

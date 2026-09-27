@@ -1,10 +1,14 @@
 """Authenticated durable lifecycle for verified component update effects."""
 
+import fcntl
 import hashlib
 import hmac
 import json
 import math
+import os
 import sqlite3
+import stat
+import time
 
 from ..errors import ApiError, StartupError
 from .component_updates import (
@@ -86,6 +90,14 @@ class ComponentUpdateJobStore:
     def __init__(self, db, auth, settings, key, context):
         self.db, self.auth, self.settings, self._key = db, auth, settings, key
         self.context = context
+        self.backend = None
+
+    def bind_backend(self, backend):
+        if not callable(getattr(backend, "validate_update", None)):
+            raise StartupError("component_update_worker_invalid")
+        if self.backend is not None:
+            raise StartupError("component_update_worker_invalid")
+        self.backend = backend
 
     def _admin(self, connection, actor):
         self.auth.assert_current(connection, actor)
@@ -320,3 +332,160 @@ class ComponentUpdateJobStore:
                 ),
             )
             return self._public(changed, command)
+
+    def _transition(self, connection, row, command, *, state, error=None):
+        changed = dict(row)
+        changed.update(
+            revision=row["revision"] + 1,
+            state=state,
+            error_code=error,
+            updated_at=max(row["updated_at"], float(self.settings.clock())),
+        )
+        changed["authentication_tag"] = self._tag(changed)
+        connection.execute(
+            "UPDATE component_update_jobs SET revision=?,state=?,error_code=?,"
+            "updated_at=?,authentication_tag=? WHERE update_id=?",
+            (
+                changed["revision"],
+                changed["state"],
+                changed["error_code"],
+                changed["updated_at"],
+                changed["authentication_tag"],
+                command.updateId,
+            ),
+        )
+        return self._public(changed, command)
+
+    def _dispatch_authorized(self, connection, row):
+        current = connection.execute(
+            "SELECT u.revision,u.role,u.disabled,u.must_change_password,"
+            "f.revoked_at,f.expires_at FROM users u JOIN session_families f "
+            "ON f.user_id=u.id WHERE u.id=? AND f.id=?",
+            (row["actor_id"], row["family_id"]),
+        ).fetchone()
+        return bool(
+            current
+            and current["revision"] == row["actor_revision"]
+            and current["role"] == "admin"
+            and not current["disabled"]
+            and not current["must_change_password"]
+            and current["revoked_at"] is None
+            and current["expires_at"] > self.settings.clock()
+        )
+
+    def _dispatch_lock(self):
+        class Lease:
+            def __init__(self, owner):
+                self.owner = owner
+                self.descriptor = None
+                self.acquired = False
+
+            def __enter__(self):
+                try:
+                    self.descriptor = os.open(
+                        self.owner.settings.data_dir / ".component-updates.lock",
+                        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                        0o600,
+                    )
+                    info = os.fstat(self.descriptor)
+                    if (
+                        not stat.S_ISREG(info.st_mode)
+                        or info.st_uid != os.geteuid()
+                        or stat.S_IMODE(info.st_mode) != 0o600
+                        or info.st_nlink != 1
+                    ):
+                        raise OSError()
+                    try:
+                        fcntl.flock(
+                            self.descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB
+                        )
+                    except BlockingIOError:
+                        return False
+                    self.acquired = True
+                    return True
+                except OSError:
+                    raise ApiError(
+                        "component_update_job_storage_unavailable", 503
+                    ) from None
+
+            def __exit__(self, *_args):
+                if self.descriptor is not None:
+                    os.close(self.descriptor)
+
+        return Lease(self)
+
+    def tick(self):
+        """Validate one queued command without repeating an uncertain effect."""
+        with self._dispatch_lock() as acquired:
+            if not acquired:
+                return None
+            with self.db.transaction() as connection:
+                row = connection.execute(
+                    "SELECT * FROM component_update_jobs "
+                    "WHERE state IN ('validating','queued') "
+                    "ORDER BY CASE state WHEN 'validating' THEN 0 ELSE 1 END,"
+                    "sequence LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    return None
+                command = self._decode(row)
+                if row["state"] == "validating":
+                    return self._transition(
+                        connection,
+                        row,
+                        command,
+                        state="needs_attention",
+                        error="worker_response_unknown",
+                    )
+                if row["cancel_requested"]:
+                    return self._transition(
+                        connection, row, command, state="cancelled"
+                    )
+                if not self._dispatch_authorized(connection, row):
+                    return self._transition(
+                        connection,
+                        row,
+                        command,
+                        state="needs_attention",
+                        error="authority_changed",
+                    )
+                if int(float(self.settings.clock()) * 1000) >= command.expiresAtMs:
+                    return self._transition(
+                        connection,
+                        row,
+                        command,
+                        state="failed",
+                        error="confirmation_expired",
+                    )
+                if self.backend is None:
+                    return self._transition(
+                        connection,
+                        row,
+                        command,
+                        state="failed",
+                        error="worker_unavailable",
+                    )
+                self._transition(connection, row, command, state="validating")
+                update_id = command.updateId
+            try:
+                validated = self.backend.validate_update(
+                    command, time.monotonic() + 5
+                )
+                outcome = "ready" if validated == command else "failed"
+                code = None if outcome == "ready" else "worker_result_invalid"
+            except BaseException as error:
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                outcome, code = "failed", "worker_unavailable"
+            with self.db.transaction() as connection:
+                row = self._find(connection, update_id)
+                command = self._decode(row)
+                if row["state"] != "validating":
+                    return self._public(row, command)
+                if row["cancel_requested"]:
+                    return self._transition(
+                        connection, row, command, state="cancelled"
+                    )
+                return self._transition(
+                    connection, row, command, state=outcome, error=code
+                )
