@@ -184,6 +184,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         recovery_drill_task = asyncio.create_task(dispatch(
             recovery_drills, "recovery_drill_dispatch_unavailable"
         )) if recovery_drills.backend is not None else None
+        immutable_backups = application.state.core.core_backups.immutable_target
+        immutable_backup_task = asyncio.create_task(dispatch(
+            immutable_backups, "immutable_backup_dispatch_unavailable"
+        ))
         application.state.media_inspection_dispatcher = media_task
         application.state.media_installation_dispatcher = installation_task
         application.state.media_service_bootstrap_dispatcher = bootstrap_task
@@ -194,6 +198,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.music_provider_setup_dispatcher = music_provider_task
         application.state.component_update_dispatcher = component_update_task
         application.state.recovery_drill_dispatcher = recovery_drill_task
+        application.state.immutable_backup_dispatcher = immutable_backup_task
         application.state.plugin_job_dispatcher = task
         try:
             yield
@@ -228,6 +233,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await component_update_task
             if recovery_drill_task is not None:
                 await recovery_drill_task
+            await immutable_backup_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
                   redoc_url=None, openapi_url=None,

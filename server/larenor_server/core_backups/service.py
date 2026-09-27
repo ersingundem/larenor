@@ -406,7 +406,7 @@ class CoreBackupContract:
         if len(encryption_key) != 32:
             raise StartupError("vault_key_invalid")
         self.immutable_target = ImmutableBackupTargetManagement(
-            db, auth, settings, encryption_key
+            db, auth, settings, encryption_key, self
         )
         self.immutable_target.validate_storage()
 
@@ -814,6 +814,30 @@ class CoreBackupContract:
         try:
             try:
                 capture = self.capture(actor)
+            except BackupBlocked:
+                raise ApiError("backup_blocked", 409) from None
+            salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+            aad = MAGIC + salt + nonce
+            payload = aad + AESGCM(self._derive_key(passphrase, salt)).encrypt(
+                nonce,
+                self._archive(capture),
+                aad,
+            )
+            return BackupPublication(
+                payload=payload,
+                capture_generation=capture.manifest.snapshotId,
+            )
+        finally:
+            self._export_lock.release()
+
+    def publish_for_authority(
+        self, authority: RecoveryDrillAuthority, passphrase: str
+    ) -> BackupPublication:
+        if not self._export_lock.acquire(blocking=False):
+            raise ApiError("backup_busy", 409)
+        try:
+            try:
+                capture = self.capture_for_drill(authority)
             except BackupBlocked:
                 raise ApiError("backup_blocked", 409) from None
             salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)

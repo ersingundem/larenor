@@ -68,8 +68,52 @@ class ImmutableTarget(StrictModel):
     writerScope: Literal["append_only"]
     recoveryScope: Literal["read_and_retain"]
     configuredAt: Annotated[int, Field(ge=0, le=253402300799)]
+    nextRunAt: Annotated[int, Field(ge=0, le=253402300799)]
 
 
 class ImmutableTargetResponse(StrictModel):
     target: ImmutableTarget | None
 
+
+class ImmutableRestorePoint(StrictModel):
+    objectId: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+    targetRevision: Annotated[int, Field(ge=1, le=2**63 - 1)]
+    createdAt: Annotated[int, Field(ge=0, le=253402300799)]
+    protectedUntil: Annotated[int, Field(ge=0, le=253402300799)]
+    byteLength: Annotated[int, Field(ge=1, le=512 * 1024 * 1024)]
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    remoteReceiptId: Annotated[
+        str, StringConstraints(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
+    ]
+
+
+class ImmutableRestorePointsResponse(StrictModel):
+    points: list[ImmutableRestorePoint] = Field(max_length=100)
+    quotaUsedBytes: Annotated[int, Field(ge=0, le=10 * 1024**4)]
+    quotaBytes: Annotated[int, Field(ge=64 * 1024 * 1024, le=10 * 1024**4)]
+
+
+class AppendOnlyRemoteReceipt(StrictModel):
+    contractVersion: Literal[1]
+    targetId: TargetId
+    objectId: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
+    remoteReceiptId: Annotated[
+        str, StringConstraints(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")
+    ]
+    storedAt: Annotated[int, Field(ge=0, le=253402300799)]
+    protectedUntil: Annotated[int, Field(ge=0, le=253402300799)]
+    byteLength: Annotated[int, Field(ge=1, le=512 * 1024 * 1024)]
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    quotaUsedBytes: Annotated[int, Field(ge=0, le=10 * 1024**4)]
+    quotaBytes: Annotated[int, Field(ge=64 * 1024 * 1024, le=10 * 1024**4)]
+    writerScope: Literal["append_only"]
+
+    @model_validator(mode="after")
+    def coherent_receipt(self):
+        if (
+            self.protectedUntil <= self.storedAt
+            or self.quotaUsedBytes > self.quotaBytes
+            or self.byteLength > self.quotaBytes
+        ):
+            raise ValueError("invalid_append_receipt")
+        return self

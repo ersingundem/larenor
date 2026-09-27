@@ -22,6 +22,7 @@ from .drill_models import (
 )
 from .immutable_models import (
     ConfigureImmutableTargetRequest,
+    ImmutableRestorePointsResponse,
     ImmutableTargetResponse,
 )
 
@@ -129,3 +130,11 @@ def configure_immutable_target(
     body: ConfigureImmutableTargetRequest, core: Core, actor: Admin
 ):
     return core.core_backups.immutable_target.configure(actor, body)
+
+
+@router.get(
+    "/immutable-target/restore-points",
+    response_model=ImmutableRestorePointsResponse,
+)
+def list_immutable_restore_points(core: Core, actor: Admin):
+    return core.core_backups.immutable_target.points(actor)
