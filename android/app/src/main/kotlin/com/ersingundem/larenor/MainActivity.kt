@@ -164,6 +164,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (kioskPeripherals?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (personalCamera?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)

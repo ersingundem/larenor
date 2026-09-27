@@ -23,8 +23,13 @@ abstract interface class KioskPeripheralRuntime {
   int nowElapsedMs();
 }
 
+abstract interface class KioskPeripheralPermissionRuntime {
+  Future<bool> requestProviderPermission(String providerId);
+}
+
 /// Review-only Android adapter for explicitly armed NFC and external HID input.
-final class AndroidKioskPeripheralRuntime implements KioskPeripheralRuntime {
+final class AndroidKioskPeripheralRuntime
+    implements KioskPeripheralRuntime, KioskPeripheralPermissionRuntime {
   AndroidKioskPeripheralRuntime({MethodChannel? channel, bool? isAndroid})
     : _channel =
           channel ??
@@ -108,6 +113,21 @@ final class AndroidKioskPeripheralRuntime implements KioskPeripheralRuntime {
 
   @override
   int nowElapsedMs() => _lastElapsedMs;
+
+  @override
+  Future<bool> requestProviderPermission(String providerId) async {
+    if (!_isAndroid || providerId != 'ble.gatt' || _authority == null) {
+      return false;
+    }
+    try {
+      return await _channel.invokeMethod<bool>('requestPermission', {
+            'providerId': providerId,
+          }) ==
+          true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 KioskPeripheralRuntimeSnapshot _unavailable() => KioskPeripheralRuntimeSnapshot(

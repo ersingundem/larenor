@@ -204,6 +204,13 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
       await _consumeQr(provider);
       return;
     }
+    if (provider.kind == KioskPeripheralKind.ble &&
+        !provider.acceptsInput &&
+        provider.supported &&
+        _optedIn.contains(provider.providerId)) {
+      await _requestPermission(provider);
+      return;
+    }
     final epoch = _epoch;
     final authority = _authority;
     if (!_current(epoch) ||
@@ -235,6 +242,30 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
     } finally {
       if (_current(epoch)) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _requestPermission(KioskPeripheralCapability provider) async {
+    final runtime = _runtime;
+    final epoch = _epoch;
+    if (runtime is! KioskPeripheralPermissionRuntime ||
+        !_current(epoch) ||
+        _busy) {
+      return;
+    }
+    final permissionRuntime = runtime as KioskPeripheralPermissionRuntime;
+    setState(() {
+      _busy = true;
+      _error = false;
+    });
+    final granted = await permissionRuntime.requestProviderPermission(
+      provider.providerId,
+    );
+    if (!mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    await _refresh();
+    if (!granted && mounted) setState(() => _error = true);
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _consumeQr(KioskPeripheralCapability provider) async {
@@ -375,8 +406,15 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
         enabled &&
         provider.supported &&
         provider.connected;
+    final canRequestBle =
+        provider.kind == KioskPeripheralKind.ble &&
+        enabled &&
+        provider.supported &&
+        provider.permission != KioskPeripheralPermission.granted;
     final canConsume =
-        (provider.acceptsInput || canRequestQr) && _authority != null && !_busy;
+        (provider.acceptsInput || canRequestQr || canRequestBle) &&
+        _authority != null &&
+        !_busy;
     final title = switch (provider.kind) {
       KioskPeripheralKind.qr => l.kioskPeripheralQr,
       KioskPeripheralKind.nfc => l.kioskPeripheralNfc,
