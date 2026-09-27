@@ -13,6 +13,8 @@ from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
 from .ai_memory.schema import migrate_ai_memory
 from .ai_memory.service import AiMemoryService
+from .evidence_diagnostics.schema import migrate_evidence_diagnostics
+from .evidence_diagnostics.service import EvidenceDiagnosticService
 from .rule_arbitration.schema import migrate_rule_arbitration
 from .rule_arbitration.service import RuleArbitrationService
 from .auth import AuthService
@@ -394,6 +396,7 @@ class CoreServices:
                 migrate_tablet_fleet(connection)
                 migrate_ai_resources(connection)
                 migrate_ai_memory(connection)
+                migrate_evidence_diagnostics(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -548,6 +551,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.ai_memory.validate_storage()
+            self.evidence_diagnostics = EvidenceDiagnosticService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.evidence_diagnostics.validate_storage()
             self.rule_arbitration = RuleArbitrationService(
                 self.db, self.auth, settings, key, self.context
             )
