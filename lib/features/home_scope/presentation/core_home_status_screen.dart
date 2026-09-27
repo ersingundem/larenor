@@ -10,6 +10,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../../pantry_stock/presentation/pantry_stock_screen.dart';
 
 /// Core metadata and independent account recovery; no home adapters are mounted.
 class CoreHomeStatusScreen extends ConsumerWidget {
@@ -224,6 +225,17 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                         ? null
                         : () {
                             if (current()) context.push('/inventory');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-pantry-entry'),
+                    buttonKey: const ValueKey('core-home-pantry-action'),
+                    title: Text(PantryStockStrings.of(context).title),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/pantry');
                           },
                   ),
                 if (controller.account.session?.user.canAdminister == true)

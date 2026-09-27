@@ -18,6 +18,7 @@ import '../features/settings/data/app_service.dart';
 import '../features/settings/presentation/settings_gate_screen.dart';
 import '../features/intercom/presentation/intercom_screen.dart';
 import '../features/inventory/presentation/inventory_route.dart';
+import '../features/pantry_stock/presentation/pantry_stock_route.dart';
 import '../features/home_documents/presentation/home_documents_route.dart';
 import '../features/family_board/presentation/family_board_route.dart';
 import '../features/room_presence/presentation/room_presence_route.dart';
@@ -53,6 +54,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       routes: [
         GoRoute(path: '/', builder: (_, _) => const CoreHomeStatusScreen()),
         GoRoute(path: '/inventory', builder: (_, _) => const InventoryRoute()),
+        GoRoute(path: '/pantry', builder: (_, _) => const PantryStockRoute()),
         GoRoute(path: '/floor-plan', builder: (_, _) => const FloorPlanRoute()),
         GoRoute(
           path: '/weekly-menu',
