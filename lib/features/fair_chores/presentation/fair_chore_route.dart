@@ -137,7 +137,11 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
         return;
       }
       _api = api;
-      _controller = FairChoreController(api, commandIds: _randomId);
+      _controller = FairChoreController(
+        api,
+        commandIds: _randomId,
+        onAuthorityChanged: _refreshAuthority,
+      );
     } catch (_) {
       // No cached chore state crosses a failed or replaced authority.
       if (operation == _operation) _failed = true;
@@ -158,6 +162,13 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
     if (controller != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
     }
+  }
+
+  void _refreshAuthority() {
+    if (!mounted) return;
+    _retire();
+    setState(() {});
+    _schedule();
   }
 
   String _randomId() {
@@ -239,6 +250,7 @@ final class _FairChoreRouteState extends ConsumerState<FairChoreRoute>
         controller: controller,
         authority: api.authority,
         strings: strings,
+        turkish: Localizations.localeOf(context).languageCode == 'tr',
       );
     }
     return CupertinoPageScaffold(

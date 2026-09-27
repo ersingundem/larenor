@@ -2,7 +2,7 @@ import sqlite3
 
 from ..errors import StartupError
 
-TABLES = {
+TABLES_V1 = {
     "fair_chore_tasks": """CREATE TABLE fair_chore_tasks (
         id TEXT PRIMARY KEY,
         core_id TEXT NOT NULL,
@@ -31,6 +31,13 @@ TABLES = {
         event_hash TEXT NOT NULL,
         FOREIGN KEY(task_id) REFERENCES fair_chore_tasks(id) ON DELETE RESTRICT)""",
 }
+TABLES = {
+    **TABLES_V1,
+    "fair_chore_events": TABLES_V1["fair_chore_events"].replace(
+        "('created','completed','deferred')",
+        "('created','completed','deferred','skipped')",
+    ),
+}
 INDEXES = {
     "fair_chore_scope": "CREATE INDEX fair_chore_scope ON fair_chore_tasks(core_id,home_id,due_at,id)",
     "fair_chore_history": "CREATE INDEX fair_chore_history ON fair_chore_events(task_id,sequence)",
@@ -54,11 +61,34 @@ def migrate_fair_chores(connection: sqlite3.Connection) -> None:
                 connection.execute(statement)
             for statement in INDEXES.values():
                 connection.execute(statement)
-            connection.execute("INSERT INTO metadata VALUES('fair_chore_schema','1')")
+            connection.execute("INSERT INTO metadata VALUES('fair_chore_schema','2')")
             return
         expected = TABLES | INDEXES
+        if marker["value"] == "1":
+            previous = TABLES_V1 | INDEXES
+            if set(actual) != set(previous) or any(
+                row["type"] != ("table" if name in TABLES_V1 else "index")
+                or " ".join(row["sql"].split())
+                != " ".join(previous[name].split())
+                for name, row in actual.items()
+            ):
+                raise ValueError("invalid_fair_chore_storage")
+            connection.execute("DROP INDEX fair_chore_history")
+            connection.execute(
+                "ALTER TABLE fair_chore_events RENAME TO fair_chore_events_v1"
+            )
+            connection.execute(TABLES["fair_chore_events"])
+            connection.execute(
+                "INSERT INTO fair_chore_events SELECT * FROM fair_chore_events_v1"
+            )
+            connection.execute("DROP TABLE fair_chore_events_v1")
+            connection.execute(INDEXES["fair_chore_history"])
+            connection.execute(
+                "UPDATE metadata SET value='2' WHERE key='fair_chore_schema'"
+            )
+            return
         if (
-            marker["value"] != "1"
+            marker["value"] != "2"
             or set(actual) != set(expected)
             or any(
                 row["type"] != ("table" if name in TABLES else "index")

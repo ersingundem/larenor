@@ -164,7 +164,7 @@ class FairChoreStore:
         action: str,
         actor_id: str,
         occurred_at: float,
-    ) -> ChoreReceipt:
+    ) -> ChoreTask:
         if (
             connection.execute("SELECT COUNT(*) FROM fair_chore_events").fetchone()[0]
             >= MAX_HISTORY
@@ -234,7 +234,7 @@ class FairChoreStore:
         interval_days: int,
         due_at: float,
         command_id: str | None = None,
-    ) -> ChoreTask:
+    ) -> ChoreReceipt:
         self._validate_scope(core_id, home_id)
         if actor.role != "admin":
             raise ApiError("forbidden", 403)
@@ -284,15 +284,13 @@ class FairChoreStore:
                     raise ApiError("forbidden", 403)
                 if (
                     receipt.action != "created"
-                    or stored.title != task.title
-                    or stored.members_revision != task.members_revision
-                    or stored.member_order != task.member_order
-                    or stored.timezone_name != task.timezone_name
-                    or stored.interval_days != task.interval_days
-                    or stored.due_at != task.due_at
+                    or receipt.task.title != task.title
+                    or receipt.task.timezone_name != task.timezone_name
+                    or receipt.task.interval_days != task.interval_days
+                    or receipt.task.due_at != task.due_at
                 ):
                     raise ApiError("idempotency_conflict", 409)
-                return stored
+                return receipt
             connection.execute(
                 "INSERT INTO fair_chore_tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
@@ -311,7 +309,7 @@ class FairChoreStore:
                     now,
                 ),
             )
-            self._append(
+            receipt = self._append(
                 connection,
                 task=task,
                 command_id=command_id,
@@ -319,7 +317,7 @@ class FairChoreStore:
                 actor_id=actor.id,
                 occurred_at=now,
             )
-        return task
+        return receipt
 
     def get(
         self,
@@ -424,11 +422,14 @@ class FairChoreStore:
         expected_action: str,
     ) -> ChoreReceipt | None:
         row = connection.execute(
-            "SELECT actor_id,receipt_json FROM fair_chore_events WHERE task_id=? AND command_id=?",
-            (task.id, command_id),
+            "SELECT task_id,actor_id,receipt_json FROM fair_chore_events "
+            "WHERE command_id=?",
+            (command_id,),
         ).fetchone()
         if row is None:
             return None
+        if row["task_id"] != task.id:
+            raise ApiError("idempotency_conflict", 409)
         if row["actor_id"] != actor.id and actor.role != "admin":
             raise ApiError("forbidden", 403)
         self._verified_history(connection, task.id)
@@ -566,11 +567,82 @@ class FairChoreStore:
                 "WHERE id=? AND revision=?",
                 (updated.revision, due_at, now, task.id, expected_revision),
             )
+            if connection.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ApiError("revision_conflict", 409)
             return self._append(
                 connection,
                 task=updated,
                 command_id=command_id,
                 action="deferred",
+                actor_id=actor.id,
+                occurred_at=now,
+            )
+
+    def skip(
+        self,
+        actor: Principal,
+        task_id: str,
+        *,
+        core_id: str,
+        home_id: str,
+        expected_revision: int,
+        command_id: str,
+        members: HouseholdMembers,
+    ) -> ChoreReceipt:
+        if (
+            type(expected_revision) is not int
+            or expected_revision < 1
+            or not _identifier(command_id)
+        ):
+            raise ApiError("invalid_request", 400)
+        with self.database.transaction() as connection:
+            task = self._load(connection, task_id, core_id, home_id)
+            self._assert_current(connection, task)
+            replay = self._replay(connection, task, command_id, actor, "skipped")
+            if replay is not None:
+                return replay
+            if task.revision != expected_revision:
+                raise ApiError("revision_conflict", 409)
+            if actor.role != "admin" and (
+                actor.id not in members.ids
+                or (
+                    actor.id != task.assignee_id
+                    and task.assignee_id in members.ids
+                )
+            ):
+                raise ApiError("forbidden", 403)
+            if members.revision < task.members_revision:
+                raise ApiError("revision_conflict", 409)
+            updated = ChoreTask(
+                **{
+                    **asdict(task),
+                    "revision": task.revision + 1,
+                    "assignee_id": self._next_assignee(task, members),
+                    "members_revision": members.revision,
+                    "member_order": members.ids,
+                }
+            )
+            now = time.time()
+            connection.execute(
+                "UPDATE fair_chore_tasks SET revision=?,assignee_id=?,members_revision=?,"
+                "member_order_json=?,updated_at=? WHERE id=? AND revision=?",
+                (
+                    updated.revision,
+                    updated.assignee_id,
+                    updated.members_revision,
+                    json.dumps(updated.member_order, separators=(",", ":")),
+                    now,
+                    task.id,
+                    expected_revision,
+                ),
+            )
+            if connection.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ApiError("revision_conflict", 409)
+            return self._append(
+                connection,
+                task=updated,
+                command_id=command_id,
+                action="skipped",
                 actor_id=actor.id,
                 occurred_at=now,
             )

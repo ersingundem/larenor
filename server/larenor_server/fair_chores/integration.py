@@ -55,23 +55,49 @@ class FairChoreService:
 
     def _authority(self, actor, members):
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "coreId": self.context.coreId,
             "homeId": self.context.homeId,
             "accountId": actor.id,
             "sessionId": actor.family_id,
             "membersRevision": members.revision,
+            "canManage": actor.role == "admin",
         }
 
     @staticmethod
-    def _task(task, labels=None):
+    def _task(task, actor, members, labels=None):
+        labels = labels or {}
+        active = tuple(item for item in task.member_order if item in members.ids)
+        active += tuple(item for item in members.ids if item not in active)
+        assignee_active = task.assignee_id in members.ids
+        may_act = actor.role == "admin" or actor.id == task.assignee_id
         return {
+            "schemaVersion": 2,
             "id": task.id,
             "title": task.title,
             "revision": task.revision,
             "assigneeId": task.assignee_id,
-            "assigneeLabel": (labels or {}).get(task.assignee_id, task.assignee_id),
+            "assigneeLabel": labels.get(task.assignee_id, task.assignee_id),
             "dueAt": task.due_at,
+            "timezone": task.timezone_name,
+            "intervalDays": task.interval_days,
+            "memberOrder": [
+                {
+                    "schemaVersion": 1,
+                    "id": identifier,
+                    "label": labels[identifier],
+                }
+                for identifier in active
+            ],
+            "permissions": {
+                "complete": may_act and assignee_active,
+                "defer": may_act and assignee_active,
+                "skip": may_act
+                or (
+                    not assignee_active
+                    and actor.id in members.ids
+                ),
+            },
         }
 
     def list(self, actor, core_id, home_id):
@@ -84,12 +110,17 @@ class FairChoreService:
             current_members=members,
         )
         return {
+            "schemaVersion": 2,
             "authority": self._authority(actor, members),
             "members": [
-                {"id": identifier, "label": labels[identifier]}
+                {
+                    "schemaVersion": 1,
+                    "id": identifier,
+                    "label": labels[identifier],
+                }
                 for identifier in members.ids
             ],
-            "tasks": [self._task(task, labels) for task in tasks],
+            "tasks": [self._task(task, actor, members, labels) for task in tasks],
         }
 
     def create(self, actor, core_id, home_id, body):
@@ -99,7 +130,7 @@ class FairChoreService:
             raise ApiError("forbidden", 403)
         # The command id is retained in the created event and rejects another
         # meaning for the same task event; task creation itself stays admin only.
-        task = self.store.create(
+        receipt = self.store.create(
             actor,
             core_id=core_id,
             home_id=home_id,
@@ -110,11 +141,7 @@ class FairChoreService:
             due_at=body.dueAt,
             command_id=body.commandId,
         )
-        return {
-            "authority": self._authority(actor, members),
-            "members": [{"id": key, "label": value} for key, value in labels.items()],
-            "task": self._task(task, labels),
-        }
+        return self._receipt(actor, members, receipt, labels)
 
     def complete(self, actor, core_id, home_id, task_id, body):
         self._scope(core_id, home_id)
@@ -146,6 +173,20 @@ class FairChoreService:
         )
         return self._receipt(actor, members, receipt, labels)
 
+    def skip(self, actor, core_id, home_id, task_id, body):
+        self._scope(core_id, home_id)
+        members, labels = self._members(actor, write=True)
+        receipt = self.store.skip(
+            actor,
+            task_id,
+            core_id=core_id,
+            home_id=home_id,
+            expected_revision=body.expectedRevision,
+            command_id=body.commandId,
+            members=members,
+        )
+        return self._receipt(actor, members, receipt, labels)
+
     def receipt(self, actor, core_id, home_id, command_id):
         self._scope(core_id, home_id)
         members, labels = self._members(actor)
@@ -158,9 +199,10 @@ class FairChoreService:
 
     def _receipt(self, actor, members, receipt, labels):
         return {
+            "schemaVersion": 2,
             "authority": self._authority(actor, members),
             "eventId": receipt.event_id,
             "commandId": receipt.command_id,
             "action": receipt.action,
-            "task": self._task(receipt.task, labels),
+            "task": self._task(receipt.task, actor, members, labels),
         }

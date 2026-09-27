@@ -5,7 +5,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/fair_chore_models.dart';
 
-final class FairChoreAccountApi implements FairChoreApi {
+final class FairChoreAccountApi implements FairChoreCommandApi {
   FairChoreAccountApi._({
     required this.account,
     required this.context,
@@ -43,7 +43,7 @@ final class FairChoreAccountApi implements FairChoreApi {
         throw const LarenorServerException('authority_changed');
       }
       final authority = FairChoreAuthority.fromJson(
-        _object(json)['authority'] as Map<String, dynamic>,
+        _object(_object(json)['authority']),
         routeId: routeId,
         coreId: context.coreId,
         homeId: context.homeId,
@@ -138,16 +138,67 @@ final class FairChoreAccountApi implements FairChoreApi {
   Future<FairChorePage> list(FairChoreAuthority expected) async {
     if (expected != authority) throw const FormatException('authority_changed');
     final json = _object(await _request('GET', _root));
-    if (json.length != 3 ||
+    if (json.length != 4 ||
+        json['schemaVersion'] != 2 ||
         json['tasks'] is! List ||
         json['members'] is! List) {
       throw const FormatException('invalid_response');
     }
     final responseAuthority = _authority(json);
+    final members = (json['members'] as List)
+        .map((value) => FairChoreMember.fromJson(_object(value)))
+        .toList(growable: false);
     final tasks = (json['tasks'] as List)
         .map((value) => FairChoreTask.fromJson(_object(value)))
         .toList(growable: false);
-    return FairChorePage(responseAuthority, tasks);
+    final memberIds = members.map((item) => item.id).toSet();
+    if (members.isEmpty ||
+        members.length > 32 ||
+        memberIds.length != members.length ||
+        !memberIds.contains(responseAuthority.accountId) ||
+        tasks.length > 256 ||
+        tasks.map((item) => item.id).toSet().length != tasks.length ||
+        tasks.any(
+          (task) =>
+              task.memberOrder.length != members.length ||
+              task.memberOrder.any(
+                (member) => !memberIds.contains(member.id),
+              ) ||
+              task.memberOrder.map((member) => member.id).toSet().length !=
+                  members.length,
+        )) {
+      throw const FormatException('invalid_response');
+    }
+    return FairChorePage(responseAuthority, tasks, members: members);
+  }
+
+  @override
+  Future<FairChoreReceipt> create(
+    FairChoreAuthority expected, {
+    required String commandId,
+    required String title,
+    required String timezone,
+    required int intervalDays,
+    required DateTime dueAt,
+  }) async {
+    if (expected != authority || !expected.canManage) {
+      throw const FormatException('authority_changed');
+    }
+    final json = _object(
+      await _request(
+        'POST',
+        _root,
+        body: {
+          'schemaVersion': 1,
+          'commandId': commandId,
+          'title': title,
+          'timezone': timezone,
+          'intervalDays': intervalDays,
+          'dueAt': dueAt.toUtc().millisecondsSinceEpoch / 1000,
+        },
+      ),
+    );
+    return _receipt(json);
   }
 
   @override
@@ -180,6 +231,20 @@ final class FairChoreAccountApi implements FairChoreApi {
     days: days,
   );
 
+  @override
+  Future<FairChoreReceipt> skip(
+    FairChoreAuthority expected, {
+    required String taskId,
+    required int expectedRevision,
+    required String commandId,
+  }) => _mutate(
+    expected,
+    taskId: taskId,
+    expectedRevision: expectedRevision,
+    commandId: commandId,
+    action: FairChoreAction.skipped,
+  );
+
   Future<FairChoreReceipt> _mutate(
     FairChoreAuthority expected, {
     required String taskId,
@@ -189,7 +254,12 @@ final class FairChoreAccountApi implements FairChoreApi {
     int days = 1,
   }) async {
     if (expected != authority) throw const FormatException('authority_changed');
-    final suffix = action == FairChoreAction.completed ? 'complete' : 'defer';
+    final suffix = switch (action) {
+      FairChoreAction.completed => 'complete',
+      FairChoreAction.deferred => 'defer',
+      FairChoreAction.skipped => 'skip',
+      FairChoreAction.created => throw const FormatException('invalid_action'),
+    };
     final json = _object(
       await _request(
         'POST',
@@ -200,7 +270,7 @@ final class FairChoreAccountApi implements FairChoreApi {
           'expectedRevision': expectedRevision,
           if (action == FairChoreAction.completed)
             'completedAt': DateTime.now().toUtc().millisecondsSinceEpoch / 1000
-          else
+          else if (action == FairChoreAction.deferred)
             'days': days,
         },
       ),
@@ -223,12 +293,16 @@ final class FairChoreAccountApi implements FairChoreApi {
   }
 
   FairChoreReceipt _receipt(Map<String, dynamic> json) {
-    if (json.length != 5) throw const FormatException('invalid_receipt');
+    if (json.length != 6 || json['schemaVersion'] != 2) {
+      throw const FormatException('invalid_receipt');
+    }
     final eventId = json['eventId'];
     final commandId = json['commandId'];
     final action = switch (json['action']) {
+      'created' => FairChoreAction.created,
       'completed' => FairChoreAction.completed,
       'deferred' => FairChoreAction.deferred,
+      'skipped' => FairChoreAction.skipped,
       _ => throw const FormatException('invalid_receipt'),
     };
     if (!_identity(eventId) || !_identity(commandId)) {

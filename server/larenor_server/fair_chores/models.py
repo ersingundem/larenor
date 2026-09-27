@@ -38,3 +38,9 @@ class DeferChore(FrozenModel):
     commandId: Identity
     expectedRevision: Revision
     days: int = Field(ge=1, le=30)
+
+
+class SkipChore(FrozenModel):
+    schemaVersion: Literal[1]
+    commandId: Identity
+    expectedRevision: Revision

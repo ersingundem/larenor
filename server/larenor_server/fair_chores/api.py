@@ -7,7 +7,7 @@ from ..core import CoreServices
 from ..dependencies import get_core, require_ready_user
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import CompleteChore, CreateChore, DeferChore
+from .models import CompleteChore, CreateChore, DeferChore, SkipChore
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
@@ -59,6 +59,18 @@ def defer_chore(
     core: Core,
 ):
     return core.fair_chores.defer(actor, core_id, home_id, task_id, body)
+
+
+@router.post(ROOT + "/{task_id}/commands/skip")
+def skip_chore(
+    core_id: Identity,
+    home_id: Identity,
+    task_id: Identity,
+    body: SkipChore,
+    actor: Ready,
+    core: Core,
+):
+    return core.fair_chores.skip(actor, core_id, home_id, task_id, body)
 
 
 @router.get(ROOT + "/receipts/{command_id}")
