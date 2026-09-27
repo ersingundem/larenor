@@ -4363,5 +4363,14 @@
   "@serverAutomationTrialLocalTime": {"placeholders": {"localTime": {"type": "String"}, "offset": {"type": "int"}, "fold": {"type": "int"}}},
   "serverAutomationTrialNoDecision": "Bu olayla eşleşen kural yok.",
   "serverAutomationTrialTriggered": "Tetiklenirdi",
-  "serverAutomationTrialSuppressed": "Bastırıldı"
+  "serverAutomationTrialSuppressed": "Bastırıldı",
+  "serverAutomationReplayRun": "Değiştirilmiş eylemle geçmişi tekrar oynat",
+  "serverAutomationReplayTitle": "Deterministik geçmiş tekrarı",
+  "serverAutomationReplayVerified": "Geçmiş canlı yazma veya kuyruk işi olmadan tekrar oynatıldı.",
+  "serverAutomationReplayComplete": "Tekrar tamamlandı",
+  "serverAutomationReplayUnknown": "Bilinmiyor: geçmiş olaylar eksik",
+  "serverAutomationReplayCounts": "Mevcut {available}/{requiredCount} · değişen karar {changed}",
+  "@serverAutomationReplayCounts": {"placeholders": {"available": {"type": "int"}, "requiredCount": {"type": "int"}, "changed": {"type": "int"}}},
+  "serverAutomationReplayFingerprint": "Deterministik girdi parmak izi {fingerprint} · adaptör yazması 0 · kuyruk yazması 0",
+  "@serverAutomationReplayFingerprint": {"placeholders": {"fingerprint": {"type": "String"}}}
 }

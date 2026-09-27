@@ -150,6 +150,7 @@ MESSAGES = {
     'automation_trial_limit_reached': 'The automation trial journal is full.',
     'automation_trial_event_limit_reached': 'The automation trial event journal is full.',
     'automation_trial_event_future': 'The automation trial event is too far in the future.',
+    'automation_trial_changed': 'The automation trial changed. Read it again.',
     'rule_arbiter_limit_reached': 'The rule arbitration journal is full.',
     'rule_arbiter_result_invalid': 'The device result does not match its authorized effect ticket.',
     'rule_arbiter_result_stale': 'The authorized device write was superseded or expired.',

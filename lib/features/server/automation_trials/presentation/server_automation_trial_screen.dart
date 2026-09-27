@@ -135,6 +135,7 @@ class _ServerAutomationTrialScreenState
     null => switch (_controller.announcement) {
       'created' => l10n.serverAutomationTrialCreated,
       'evaluated' => l10n.serverAutomationTrialEvaluated,
+      'replayed' => l10n.serverAutomationReplayVerified,
       _ => '',
     },
     'trial_services_empty' => l10n.serverAutomationTrialNoServices,
@@ -153,6 +154,7 @@ class _ServerAutomationTrialScreenState
         final trial = _controller.trial;
         final enabled = _active && !_controller.busy;
         final latest = trial?.events.lastOrNull;
+        final replay = _controller.replay;
         final message = _message(l10n);
         return ServiceRootScaffold(
           title: l10n.serverAutomationTrialTitle,
@@ -223,9 +225,52 @@ class _ServerAutomationTrialScreenState
                             )
                           : null,
                     ),
+                    SettingsActionTile(
+                      leading: const Icon(
+                        CupertinoIcons.arrow_counterclockwise,
+                      ),
+                      title: Text(l10n.serverAutomationReplayRun),
+                      onTap: enabled
+                          ? () => _controller.replayHistory(
+                              () => mounted && _active,
+                            )
+                          : null,
+                    ),
                   ],
                 ),
               ),
+              if (replay != null)
+                SliverToBoxAdapter(
+                  child: SettingsSection(
+                    header: Text(l10n.serverAutomationReplayTitle),
+                    footer: Text(
+                      l10n.serverAutomationReplayFingerprint(
+                        replay.deterministicFingerprint.substring(0, 12),
+                      ),
+                    ),
+                    children: [
+                      CupertinoListTile(
+                        leading: Icon(
+                          replay.status == 'complete'
+                              ? CupertinoIcons.checkmark_shield_fill
+                              : CupertinoIcons.question_circle_fill,
+                        ),
+                        title: Text(
+                          replay.status == 'complete'
+                              ? l10n.serverAutomationReplayComplete
+                              : l10n.serverAutomationReplayUnknown,
+                        ),
+                        subtitle: Text(
+                          l10n.serverAutomationReplayCounts(
+                            replay.availableEventCount,
+                            replay.requiredEventCount,
+                            replay.changedDecisionCount,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (latest != null)
                 SliverToBoxAdapter(
                   child: SettingsSection(

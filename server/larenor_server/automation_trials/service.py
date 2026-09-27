@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
-from .models import CreateTrial, EvaluateTrialEvent
+from .models import CreateTrial, EvaluateTrialEvent, ReplayTrial
 
 
 MAX_TRIALS = 128
@@ -211,10 +211,14 @@ class AutomationTrialService:
             "state": state, "reason": reason,
         }
 
-    def _evaluate(self, trial, body):
+    def _evaluate(self, trial, body, proposed_rules=None):
         zone = ZoneInfo(trial["timezone"])
         rules = [
-            rule for rule in json.loads(trial["rules_json"])
+            rule for rule in (
+                json.loads(trial["rules_json"])
+                if proposed_rules is None
+                else proposed_rules
+            )
             if rule["eventKey"] == body.eventKey
         ]
         local = datetime.fromtimestamp(body.occurredAtMs / 1000, timezone.utc).astimezone(zone)
@@ -290,6 +294,96 @@ class AutomationTrialService:
                 (*row.values(), self._event_tag(row)),
             )
             return {"trial": self._public_trial(trial, self._events(connection, trial_id))}
+
+    @staticmethod
+    def _decision_map(result):
+        return {
+            decision["ruleId"]: {
+                "state": decision["state"],
+                "reason": decision["reason"],
+                "action": decision["action"],
+                "priority": decision["priority"],
+            }
+            for decision in result["decisions"]
+        }
+
+    def replay(self, actor, core_id, home_id, trial_id, body):
+        self._scope(core_id, home_id)
+        body = ReplayTrial.model_validate(body)
+        if body.expectedTrialId != trial_id:
+            raise ApiError("automation_trial_changed", 409)
+        with self.db.connection() as connection:
+            connection.execute("BEGIN")
+            self._actor(connection, actor)
+            self._validate(connection)
+            trial = self._stored(connection, actor, trial_id)
+            events = self._events(connection, trial_id)
+            proposed = [rule.model_dump(mode="json") for rule in body.proposedRules]
+            fingerprint_input = {
+                "schemaVersion": 1,
+                "trialId": trial_id,
+                "timezone": trial["timezone"],
+                "rules": proposed,
+                "events": [
+                    {
+                        "source": event["source"],
+                        "eventKey": event["event_key"],
+                        "occurredAtMs": event["occurred_at_ms"],
+                    }
+                    for event in events
+                ],
+            }
+            fingerprint = hashlib.sha256(
+                _json(fingerprint_input).encode("ascii")
+            ).hexdigest()
+            if len(events) < body.requiredEventCount:
+                return {"replay": {
+                    "schemaVersion": 1,
+                    "trialId": trial_id,
+                    "status": "unknown",
+                    "unknownReason": "missing_history",
+                    "requiredEventCount": body.requiredEventCount,
+                    "availableEventCount": len(events),
+                    "changedDecisionCount": 0,
+                    "decisionDiffs": [],
+                    "deterministicFingerprint": fingerprint,
+                    "adapterWriteCount": 0,
+                    "queueWriteCount": 0,
+                }}
+            diffs = []
+            for event in events:
+                historical = json.loads(event["result_json"])
+                replay_body = EvaluateTrialEvent(
+                    schemaVersion=1,
+                    requestKey=event["request_key"],
+                    source=event["source"],
+                    eventKey=event["event_key"],
+                    occurredAtMs=event["occurred_at_ms"],
+                )
+                replayed = self._evaluate(trial, replay_body, proposed)
+                before = self._decision_map(historical)
+                after = self._decision_map(replayed)
+                for rule_id in sorted(set(before) | set(after)):
+                    if before.get(rule_id) != after.get(rule_id):
+                        diffs.append({
+                            "eventId": event["id"],
+                            "ruleId": rule_id,
+                            "before": before.get(rule_id),
+                            "after": after.get(rule_id),
+                        })
+            return {"replay": {
+                "schemaVersion": 1,
+                "trialId": trial_id,
+                "status": "complete",
+                "unknownReason": None,
+                "requiredEventCount": body.requiredEventCount,
+                "availableEventCount": len(events),
+                "changedDecisionCount": len(diffs),
+                "decisionDiffs": diffs,
+                "deterministicFingerprint": fingerprint,
+                "adapterWriteCount": 0,
+                "queueWriteCount": 0,
+            }}
 
     def snapshot(self, actor, core_id, home_id):
         self._scope(core_id, home_id)

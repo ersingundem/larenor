@@ -109,6 +109,132 @@ final class AutomationTrialEvent {
   final List<AutomationTrialDecision> decisions;
 }
 
+final class AutomationTrialRule {
+  const AutomationTrialRule({
+    required this.ruleId,
+    required this.eventKey,
+    required this.deviceId,
+    required this.action,
+    required this.priority,
+    required this.weekdays,
+    required this.startMinute,
+    required this.endMinute,
+  });
+
+  factory AutomationTrialRule.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'ruleId',
+      'eventKey',
+      'deviceId',
+      'action',
+      'priority',
+      'weekdays',
+      'startMinute',
+      'endMinute',
+    });
+    final priority = json['priority'];
+    final weekdays = json['weekdays'];
+    final start = json['startMinute'];
+    final end = json['endMinute'];
+    if (priority is! int ||
+        weekdays is! List ||
+        weekdays.any((day) => day is! int || day < 0 || day > 6) ||
+        start is! int ||
+        end is! int ||
+        end <= start) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return AutomationTrialRule(
+      ruleId: serverText(json['ruleId'], max: 32),
+      eventKey: serverText(json['eventKey'], max: 64),
+      deviceId: serverText(json['deviceId'], max: 32),
+      action: serverText(json['action'], max: 32),
+      priority: priority,
+      weekdays: List.unmodifiable(weekdays.cast<int>()),
+      startMinute: start,
+      endMinute: end,
+    );
+  }
+
+  final String ruleId, eventKey, deviceId, action;
+  final int priority, startMinute, endMinute;
+  final List<int> weekdays;
+
+  Map<String, dynamic> toJson({bool flipAction = false}) => {
+    'ruleId': ruleId,
+    'eventKey': eventKey,
+    'deviceId': deviceId,
+    'action': flipAction
+        ? (action == 'turn_on' ? 'turn_off' : 'turn_on')
+        : action,
+    'priority': priority,
+    'weekdays': weekdays,
+    'startMinute': startMinute,
+    'endMinute': endMinute,
+  };
+}
+
+final class AutomationTrialReplay {
+  const AutomationTrialReplay({
+    required this.status,
+    required this.unknownReason,
+    required this.requiredEventCount,
+    required this.availableEventCount,
+    required this.changedDecisionCount,
+    required this.deterministicFingerprint,
+  });
+
+  factory AutomationTrialReplay.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'schemaVersion',
+      'trialId',
+      'status',
+      'unknownReason',
+      'requiredEventCount',
+      'availableEventCount',
+      'changedDecisionCount',
+      'decisionDiffs',
+      'deterministicFingerprint',
+      'adapterWriteCount',
+      'queueWriteCount',
+    });
+    final required = json['requiredEventCount'];
+    final available = json['availableEventCount'];
+    final changed = json['changedDecisionCount'];
+    final status = json['status'];
+    final reason = json['unknownReason'];
+    final fingerprint = json['deterministicFingerprint'];
+    if (json['schemaVersion'] != 1 ||
+        !{'unknown', 'complete'}.contains(status) ||
+        (status == 'unknown') != (reason != null) ||
+        required is! int ||
+        required < 1 ||
+        available is! int ||
+        available < 0 ||
+        changed is! int ||
+        changed < 0 ||
+        _objects(json['decisionDiffs']).length != changed ||
+        fingerprint is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(fingerprint) ||
+        json['adapterWriteCount'] != 0 ||
+        json['queueWriteCount'] != 0) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return AutomationTrialReplay(
+      status: status as String,
+      unknownReason: reason as String?,
+      requiredEventCount: required,
+      availableEventCount: available,
+      changedDecisionCount: changed,
+      deterministicFingerprint: fingerprint,
+    );
+  }
+
+  final String status, deterministicFingerprint;
+  final String? unknownReason;
+  final int requiredEventCount, availableEventCount, changedDecisionCount;
+}
+
 final class AutomationTrial {
   const AutomationTrial({
     required this.id,
@@ -117,7 +243,7 @@ final class AutomationTrial {
     required this.startsAtMs,
     required this.endsAtMs,
     required this.utcDurationSeconds,
-    required this.ruleDeviceId,
+    required this.rules,
     required this.eventCount,
     required this.triggeredCount,
     required this.suppressedCount,
@@ -141,7 +267,10 @@ final class AutomationTrial {
       'suppressedCount',
       'events',
     });
-    final rules = _objects(json['rules'], max: 32);
+    final rules = _objects(
+      json['rules'],
+      max: 32,
+    ).map(AutomationTrialRule.fromJson).toList();
     final events = _objects(json['events'])
         .map(AutomationTrialEvent.fromJson)
         .toList();
@@ -173,7 +302,7 @@ final class AutomationTrial {
       startsAtMs: starts,
       endsAtMs: ends,
       utcDurationSeconds: duration,
-      ruleDeviceId: serverText(rules.first['deviceId'], max: 32),
+      rules: List.unmodifiable(rules),
       eventCount: eventCount,
       triggeredCount: triggered,
       suppressedCount: suppressed,
@@ -181,8 +310,10 @@ final class AutomationTrial {
     );
   }
 
-  final String id, timezone, localStartDate, ruleDeviceId;
+  final String id, timezone, localStartDate;
   final int startsAtMs, endsAtMs, utcDurationSeconds;
   final int eventCount, triggeredCount, suppressedCount;
   final List<AutomationTrialEvent> events;
+  final List<AutomationTrialRule> rules;
+  String get ruleDeviceId => rules.first.deviceId;
 }

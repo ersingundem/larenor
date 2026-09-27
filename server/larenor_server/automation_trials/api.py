@@ -6,7 +6,7 @@ from ..auth import Principal
 from ..dependencies import get_core, require_admin
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import CreateTrial, EvaluateTrialEvent
+from .models import CreateTrial, EvaluateTrialEvent, ReplayTrial
 
 
 Core = Annotated[object, Depends(get_core)]
@@ -32,3 +32,9 @@ def create(core_id: Identity, home_id: Identity, body: CreateTrial, actor: Admin
 def evaluate(core_id: Identity, home_id: Identity, trial_id: Identity,
              body: EvaluateTrialEvent, actor: Admin, core: Core):
     return core.automation_trials.evaluate(actor, core_id, home_id, trial_id, body)
+
+
+@router.post(ROOT + "/{trial_id}/replays")
+def replay(core_id: Identity, home_id: Identity, trial_id: Identity,
+           body: ReplayTrial, actor: Admin, core: Core):
+    return core.automation_trials.replay(actor, core_id, home_id, trial_id, body)

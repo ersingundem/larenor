@@ -60,3 +60,16 @@ class EvaluateTrialEvent(Versioned):
     source: Literal["real", "synthetic"]
     eventKey: EventKey
     occurredAtMs: Annotated[int, Field(ge=0, le=2**63 - 1)]
+
+
+class ReplayTrial(Versioned):
+    expectedTrialId: Identity
+    requiredEventCount: Annotated[int, Field(ge=1, le=512)]
+    proposedRules: Annotated[list[TrialRule], Field(min_length=1, max_length=32)]
+
+    @field_validator("proposedRules")
+    @classmethod
+    def unique_rules(cls, value):
+        if len({item.ruleId for item in value}) != len(value):
+            raise ValueError("duplicate_trial_rule")
+        return value

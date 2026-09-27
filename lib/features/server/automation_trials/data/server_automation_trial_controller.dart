@@ -21,6 +21,7 @@ final class ServerAutomationTrialController extends ChangeNotifier {
   bool _disposed = false, busy = false, needsRefresh = false;
   String? failure, announcement;
   AutomationTrial? trial;
+  AutomationTrialReplay? replay;
 
   bool get _authorized {
     final session = account.session;
@@ -43,6 +44,7 @@ final class ServerAutomationTrialController extends ChangeNotifier {
     busy = needsRefresh = false;
     failure = announcement = null;
     trial = null;
+    replay = null;
     _emit();
   }
 
@@ -51,6 +53,7 @@ final class ServerAutomationTrialController extends ChangeNotifier {
   Future<void> create(String timezone, bool Function() current) =>
       _run(current, (api) async {
         trial = await api.create(timezone);
+        replay = null;
         announcement = 'created';
       });
   Future<void> evaluate(String source, bool Function() current) async {
@@ -58,7 +61,17 @@ final class ServerAutomationTrialController extends ChangeNotifier {
     if (selected == null) return;
     await _run(current, (api) async {
       trial = await api.evaluate(selected, source);
+      replay = null;
       announcement = 'evaluated';
+    });
+  }
+
+  Future<void> replayHistory(bool Function() current) async {
+    final selected = trial;
+    if (selected == null) return;
+    await _run(current, (api) async {
+      replay = await api.replay(selected);
+      announcement = 'replayed';
     });
   }
 

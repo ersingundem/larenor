@@ -107,6 +107,28 @@ final class ServerAutomationTrialApi {
     return _trial(json);
   }
 
+  Future<AutomationTrialReplay> replay(AutomationTrial trial) async {
+    final json = serverObject(
+      await api.request(
+        'POST',
+        '$_root/${trial.id}/replays',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'expectedTrialId': trial.id,
+          'requiredEventCount': 1,
+          'proposedRules': [
+            for (final rule in trial.rules) rule.toJson(flipAction: true),
+          ],
+        },
+      ),
+    );
+    if (json.length != 1 || !json.containsKey('replay')) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return AutomationTrialReplay.fromJson(json['replay']);
+  }
+
   static AutomationTrial _trial(Map<String, dynamic> json) {
     if (json.length != 1 || !json.containsKey('trial')) {
       throw const LarenorServerException('invalid_response');

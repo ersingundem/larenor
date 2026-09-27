@@ -4716,5 +4716,14 @@
   "@serverAutomationTrialLocalTime": {"placeholders": {"localTime": {"type": "String"}, "offset": {"type": "int"}, "fold": {"type": "int"}}},
   "serverAutomationTrialNoDecision": "No rule matched this event.",
   "serverAutomationTrialTriggered": "Would trigger",
-  "serverAutomationTrialSuppressed": "Suppressed"
+  "serverAutomationTrialSuppressed": "Suppressed",
+  "serverAutomationReplayRun": "Replay history with revised action",
+  "serverAutomationReplayTitle": "Deterministic history replay",
+  "serverAutomationReplayVerified": "History was replayed without live writes or queue work.",
+  "serverAutomationReplayComplete": "Replay complete",
+  "serverAutomationReplayUnknown": "Unknown: historical events are missing",
+  "serverAutomationReplayCounts": "Available {available}/{requiredCount} · changed decisions {changed}",
+  "@serverAutomationReplayCounts": {"placeholders": {"available": {"type": "int"}, "requiredCount": {"type": "int"}, "changed": {"type": "int"}}},
+  "serverAutomationReplayFingerprint": "Deterministic input fingerprint {fingerprint} · adapter writes 0 · queue writes 0",
+  "@serverAutomationReplayFingerprint": {"placeholders": {"fingerprint": {"type": "String"}}}
 }
