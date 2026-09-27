@@ -14,9 +14,12 @@ MAX_BYTES = 1024 * 1024
 MAX_NODES = 512
 FEATURES = frozenset('F%02d' % n for n in range(1, 64))
 DEFAULT_FILE = Path(__file__).resolve().parents[1] / 'docs/execution-queue.json'
-STATUSES = ('pending', 'in_progress', 'awaiting_ci', 'needs_user', 'done')
-LABELS = dict(zip(STATUSES, ('Bekliyor', 'Çalışılıyor', 'CI bekliyor',
+STATUSES = ('pending', 'in_progress', 'implemented', 'awaiting_ci', 'needs_user', 'done')
+LABELS = dict(zip(STATUSES, ('Bekliyor', 'Çalışılıyor',
+                             'Uygulama tamamlandı · test bekliyor', 'CI bekliyor',
                              'Kullanıcı gerekiyor', 'Kanıtla tamamlandı')))
+DISPLAY_ORDER = {status: index for index, status in enumerate(
+    ('done', 'implemented', 'in_progress', 'awaiting_ci', 'pending', 'needs_user'))}
 EVIDENCE_KINDS = {'test', 'review', 'ci', 'manual'}
 ID = re.compile(r'[A-Z][A-Za-z0-9]*(?:[.-][A-Za-z0-9]+)*\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
@@ -186,7 +189,7 @@ def validate_queue(data):
     for identifier, node in nodes.items():
         if node['kind'] == 'group':
             continue
-        if node['status'] in ('in_progress', 'awaiting_ci', 'done'):
+        if node['status'] in ('in_progress', 'implemented', 'awaiting_ci', 'done'):
             require(not model.blockers(identifier, finishing=node['status'] == 'done'),
                     'dependencies_unfinished')
     return model
@@ -280,7 +283,8 @@ class Queue:
                          finishBlockers=self.blockers(n['id'], finishing=True))
                     for n in tasks if n['status'] == status]
         # Waiting rows are never silently hidden behind a ready-work limit.
-        return {'active': select('in_progress'), 'awaitingCi': select('awaiting_ci'),
+        return {'active': select('in_progress'), 'implemented': select('implemented'),
+                'awaitingCi': select('awaiting_ci'),
                 'needsUser': select('needs_user'),
                 'ready': [n for n in select('pending') if not n['blockers']][:limit]}
 
@@ -305,17 +309,18 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
     lines = ['F01–F63 yazılım kapısı: **%d/%d** (fiziksel kabul ayrı). Kalan kuyruk: **%d/%d iş kanıtla tamamlandı**.' %
              (counts['featuresDone'], counts['featuresTotal'], counts['done'], counts['total']),
              '', 'Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.', '',
-             '| Grup | İş | Biten | Çalışılan | CI | Kullanıcı |',
-             '| --- | ---: | ---: | ---: | ---: | ---: |']
+             '| Grup | İş | Biten | Test bekliyor | Çalışılan | CI | Kullanıcı |',
+             '| --- | ---: | ---: | ---: | ---: | ---: | ---: |']
     for node in status['groups']:
         c = node['counts']
-        lines.append('| %s — %s | %d | %d | %d | %d | %d |' %
+        lines.append('| %s — %s | %d | %d | %d | %d | %d | %d |' %
                      (node['id'], escape(node['title']), c['total'], c['done'],
-                      c['in_progress'], c['awaiting_ci'], c['needs_user']))
+                      c['implemented'], c['in_progress'], c['awaiting_ci'],
+                      c['needs_user']))
     if not summary_only:
         tasks = model.tasks(group)
         current = [node for node in tasks
-                   if node['status'] in ('in_progress', 'awaiting_ci')]
+                   if node['status'] in ('in_progress', 'implemented', 'awaiting_ci')]
         pending = [node for node in tasks if node['status'] == 'pending']
         ready = [node for node in pending if not model.blockers(node['id'])]
         blocked = [node for node in pending if model.blockers(node['id'])]
@@ -350,11 +355,13 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
                          (index, node['id'], escape(node['title']),
                           'Başlanabilir' if not blockers else 'Bağımlılık bekliyor',
                           ', '.join(blockers) or '—'))
-        pages = max(1, (len(tasks) + page_size - 1) // page_size)
-        require(page <= pages, 'invalid_options')
-        lines.extend(['', 'İşler · sayfa %d/%d · en çok %d satır' % (page, pages, page_size), '',
+        closed_tasks = sorted(
+            (node for node in tasks if node['status'] in ('done', 'implemented')),
+            key=lambda node: DISPLAY_ORDER[node['status']],
+        )
+        lines.extend(['', 'Tamamlanan ve test bekleyen işler', '',
                       '| ID | İş | Durum | Beklenen bağımlılık |', '| --- | --- | --- | --- |'])
-        for node in tasks[(page - 1) * page_size:page * page_size]:
+        for node in closed_tasks:
             blocked = ', '.join(model.blockers(node['id'])) or '—'
             lines.append('| %s | %s | %s | %s |' %
                          (node['id'], escape(node['title']), LABELS[node['status']], blocked))

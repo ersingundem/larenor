@@ -3117,7 +3117,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Bileşen bazında internet izinleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3141,7 +3141,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek bağlantı yolları ve exact egress kapsamı üretimde tamamlandı; birleşik Client-Core-izole servis E2E, bağımsız inceleme ve exact-head CI son doğrulama kapısına bırakıldı."
+      "reason": "Gerçek bağlantı yolları ve exact egress kapsamı üretimde tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
     },
     {
       "id": "F15",
@@ -3281,7 +3281,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Uzun süren ev iş akışları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3306,7 +3306,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Server ve Client üretim akışı tek dalda tamamlandı; birleşik E2E, bağımsız inceleme ve exact-head CI son doğrulama kapısına bırakıldı."
+      "reason": "Server ve Client üretim akışı tek dalda tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
     },
     {
       "id": "G02",
@@ -3479,7 +3479,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Etkileşimli ev kat planı",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3502,7 +3502,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Kat seçimi, canlı durum projeksiyonu, exact yetkili eylem ve erişilebilir liste Server ve Client tarafında tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
     },
     {
       "id": "F52",
