@@ -2,7 +2,9 @@ import hashlib
 import hmac
 import json
 import os
+import resource
 import sqlite3
+import sys
 import uuid
 
 from ..errors import ApiError, StartupError
@@ -42,6 +44,10 @@ class AiResourceService:
         return self._tag(b"lease", [row[name] for name in (
             "family_id", "owner_id", "expires_at", "updated_at")])
 
+    def _measurement_tag(self, row):
+        return self._tag(b"measurement", [row[name] for name in (
+            "sequence", "measured_at", "process_memory_mb", "system_load_percent")])
+
     @staticmethod
     def _default_policy():
         return {"revision": 1, "max_memory_mb": 2048, "max_cpu_percent": 70,
@@ -70,11 +76,19 @@ class AiResourceService:
             raise StartupError("ai_resource_storage_invalid")
         return [dict(row) for row in rows]
 
+    def _verified_measurements(self, connection):
+        rows = connection.execute("SELECT * FROM ai_resource_measurements ORDER BY sequence").fetchall()
+        if any(not hmac.compare_digest(row["record_tag"], self._measurement_tag(row))
+               for row in rows):
+            raise StartupError("ai_resource_storage_invalid")
+        return [dict(row) for row in rows]
+
     def validate_storage(self):
         with self.db.connection() as connection:
             self._policy(connection)
             self._verified_jobs(connection)
             self._verified_leases(connection)
+            self._verified_measurements(connection)
 
     @staticmethod
     def _memory_mb():
@@ -82,6 +96,41 @@ class AiResourceService:
             return max(64, int(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // 1_048_576))
         except (OSError, ValueError):
             return 64
+
+    @staticmethod
+    def _process_memory_mb():
+        try:
+            with open("/proc/self/statm", encoding="ascii") as stream:
+                pages = int(stream.read().split()[1])
+            return max(0, pages * os.sysconf("SC_PAGE_SIZE") // 1_048_576)
+        except (OSError, ValueError, IndexError):
+            value = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            bytes_used = value if sys.platform == "darwin" else value * 1024
+            return max(0, int(bytes_used // 1_048_576))
+
+    @staticmethod
+    def _system_load_percent():
+        try:
+            load = os.getloadavg()[0]
+        except OSError:
+            return 0
+        return max(0, min(100, round(load * 100 / max(1, os.cpu_count() or 1))))
+
+    def _record_measurement(self, connection, now):
+        memory = self._process_memory_mb()
+        load = self._system_load_percent()
+        cursor = connection.execute(
+            "INSERT INTO ai_resource_measurements(measured_at,process_memory_mb,system_load_percent,record_tag) "
+            "VALUES(?,?,?,'')", (now, memory, load))
+        row = {"sequence": cursor.lastrowid, "measured_at": now,
+               "process_memory_mb": memory, "system_load_percent": load}
+        connection.execute("UPDATE ai_resource_measurements SET record_tag=? WHERE sequence=?",
+                           (self._measurement_tag(row), row["sequence"]))
+        connection.execute(
+            "DELETE FROM ai_resource_measurements WHERE sequence IN (SELECT sequence FROM "
+            "ai_resource_measurements ORDER BY sequence DESC LIMIT -1 OFFSET 256)"
+        )
+        return row
 
     def _public_policy(self, row):
         return {"schemaVersion": 1, "revision": row["revision"],
@@ -123,12 +172,14 @@ class AiResourceService:
 
     def snapshot(self, actor, core_id, home_id):
         self._scope(core_id, home_id)
-        with self.db.connection() as connection:
+        now = float(self.settings.clock())
+        with self.db.transaction() as connection:
             self.auth.assert_current(connection, actor)
             policy = self._policy(connection)
             jobs = self._verified_jobs(connection)
             leases = self._verified_leases(connection)
-        now = float(self.settings.clock())
+            self._verified_measurements(connection)
+            measurement = self._record_measurement(connection, now)
         media_active = any(row["expires_at"] > now for row in leases)
         public_jobs, used_memory, used_cpu = self._allocate(policy, jobs, media_active)
         for public, row in zip(public_jobs, jobs, strict=True):
@@ -144,6 +195,9 @@ class AiResourceService:
                                                      if media_active else policy["max_cpu_percent"]),
                              "allocatedMemoryMb": used_memory,
                              "allocatedCpuPercent": used_cpu,
+                             "processMemoryMb": measurement["process_memory_mb"],
+                             "systemLoadPercent": measurement["system_load_percent"],
+                             "measuredAt": measurement["measured_at"],
                              "mediaActive": media_active},
                 "jobs": public_jobs[-MAX_JOBS:]}
 

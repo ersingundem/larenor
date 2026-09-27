@@ -35,6 +35,12 @@ TABLES = {
         expires_at REAL NOT NULL,
         updated_at REAL NOT NULL,
         record_tag TEXT NOT NULL)""",
+    "ai_resource_measurements": """CREATE TABLE ai_resource_measurements (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        measured_at REAL NOT NULL,
+        process_memory_mb INTEGER NOT NULL CHECK(process_memory_mb >= 0),
+        system_load_percent INTEGER NOT NULL CHECK(system_load_percent BETWEEN 0 AND 100),
+        record_tag TEXT NOT NULL)""",
 }
 
 INDEXES = {
@@ -75,4 +81,3 @@ def migrate_ai_resources(connection: sqlite3.Connection) -> None:
             raise ValueError("invalid_ai_resource_storage")
     except (sqlite3.Error, TypeError, ValueError):
         raise StartupError("ai_resource_storage_invalid") from None
-

@@ -75,6 +75,9 @@ final class AiResourceCapacity {
     required this.effectiveCpuPercent,
     required this.allocatedMemoryMb,
     required this.allocatedCpuPercent,
+    required this.processMemoryMb,
+    required this.systemLoadPercent,
+    required this.measuredAt,
     required this.mediaActive,
   });
 
@@ -85,6 +88,9 @@ final class AiResourceCapacity {
       'effectiveCpuPercent',
       'allocatedMemoryMb',
       'allocatedCpuPercent',
+      'processMemoryMb',
+      'systemLoadPercent',
+      'measuredAt',
       'mediaActive',
     });
     if (json['mediaActive'] is! bool) {
@@ -96,6 +102,9 @@ final class AiResourceCapacity {
       effectiveCpuPercent: _integer(json['effectiveCpuPercent'], 1, 100),
       allocatedMemoryMb: _integer(json['allocatedMemoryMb'], 0, 1048576),
       allocatedCpuPercent: _integer(json['allocatedCpuPercent'], 0, 100),
+      processMemoryMb: _integer(json['processMemoryMb'], 0, 1048576),
+      systemLoadPercent: _integer(json['systemLoadPercent'], 0, 100),
+      measuredAt: _finite(json['measuredAt']),
       mediaActive: json['mediaActive'] as bool,
     );
   }
@@ -105,6 +114,8 @@ final class AiResourceCapacity {
       effectiveCpuPercent,
       allocatedMemoryMb,
       allocatedCpuPercent;
+  final int processMemoryMb, systemLoadPercent;
+  final double measuredAt;
   final bool mediaActive;
 }
 

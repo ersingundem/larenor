@@ -208,6 +208,15 @@ class _ServerAiResourceScreenState
             ),
           ),
         ),
+        CupertinoListTile(
+          title: Text(l10n.serverAiResourcesMeasured),
+          subtitle: Text(
+            l10n.serverAiResourcesMeasuredValue(
+              value.processMemoryMb,
+              value.systemLoadPercent,
+            ),
+          ),
+        ),
       ],
     );
   }
