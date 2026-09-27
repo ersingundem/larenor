@@ -98,6 +98,8 @@ MESSAGES = {
     'notification_not_delivered': 'This notification was not delivered to the subscription.',
     'notification_limit_reached': 'The local notification limit has been reached.',
     'notification_storage_unavailable': 'The local notification inbox is unavailable.',
+    'audit_limit_reached': 'The Core audit journal is full.',
+    'core_audit_integrity_failed': 'The Core audit journal could not be verified.',
     'capability_evidence_replay': 'This evidence request key belongs to another result.',
     'capability_evidence_changed': 'This evidence record changed. Read it again.',
     'capability_evidence_limit_reached': 'The evidence registry is full.',

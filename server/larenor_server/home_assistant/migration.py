@@ -229,10 +229,15 @@ class DirectHaMigration:
             schema.validate(c, self._key, self.resources.scope)
             if self._stored(c, actor, resource, body.requestId) != stored:
                 raise ValueError()
-            c.execute('INSERT INTO service_audit(event,action,status,timestamp,actor_id,target_id) VALUES(?,?,?,?,?,?)',
-                      ('admin.service.create', 'create', 'success', self.adapter.settings.clock(), actor.id, p.service.id))
-            c.execute('DELETE FROM service_audit WHERE id IN (SELECT id FROM service_audit ORDER BY id DESC LIMIT -1 OFFSET ?)',
-                      (MAX_AUDIT_EVENTS,))
+            self.services.record_audit(
+                c,
+                event='admin.service.create',
+                action='create',
+                status='success',
+                timestamp=self.adapter.settings.clock(),
+                actor_id=actor.id,
+                target_id=p.service.id,
+            )
             # The last write can have effects too. A receipt acknowledges the
             # complete persisted tuple only after all writes, in this same TX.
             bounds = c.execute("SELECT revision,typeof(nonce),length(nonce),typeof(ciphertext),length(ciphertext) "

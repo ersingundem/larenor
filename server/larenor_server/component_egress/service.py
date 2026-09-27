@@ -98,11 +98,15 @@ class ComponentEgress:
                       timestamp=float(self.services.settings.clock()))
         state.events = [*state.events[-255:], event]
         storage.save(c, self.key, self.scope, state)
-        c.execute('INSERT INTO service_audit(event,action,status,timestamp,actor_id,target_id) VALUES(?,?,?,?,?,?)',
-                  ('admin.component.egress', 'update' if reason == 'policy_replaced' else 'check',
-                   'denied' if reason in ('grant_missing', 'probe_unconfirmed') else 'success',
-                   event.timestamp, actor.id, policy.serviceId))
-        c.execute('DELETE FROM service_audit WHERE id IN (SELECT id FROM service_audit ORDER BY id DESC LIMIT -1 OFFSET 10000)')
+        self.services.record_audit(
+            c,
+            event='admin.component.egress',
+            action='update' if reason == 'policy_replaced' else 'check',
+            status='denied' if reason in ('grant_missing', 'probe_unconfirmed') else 'success',
+            timestamp=event.timestamp,
+            actor_id=actor.id,
+            target_id=policy.serviceId,
+        )
 
     @staticmethod
     def _response(state, policy):

@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
 
 from .admin.api import router as admin_router
+from .core_audit.api import router as core_audit_router
 from .auth import Principal
 from .boundary import SafeBoundaryMiddleware
 from .config import Settings
@@ -328,6 +329,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(router)
     app.include_router(component_egress_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(core_audit_router, prefix="/api/v1")
     app.include_router(services_router, prefix="/api/v1")
     app.include_router(home_resources_router, prefix="/api/v1")
     app.include_router(bounded_transfer_router, prefix="/api/v1")

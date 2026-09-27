@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from ..admin.service import utc
 from ..auth import AuthService, Principal
 from ..config import Settings
+from ..core_audit import append_service
 from ..database import Database
 from ..errors import ApiError, StartupError
 from .models import CreateServiceRequest, ServiceVerification, StoredService, UpdateServiceRequest
@@ -35,9 +36,32 @@ class ServiceConnection:
 
 
 class ServiceManagement:
-    def __init__(self, db: Database, auth: AuthService, settings: Settings, key: bytes):
+    def __init__(self, db: Database, auth: AuthService, settings: Settings, key: bytes, scope):
         self.db, self.auth, self.settings = db, auth, settings
-        self._cipher = AESGCM(key)
+        self._key, self._scope, self._cipher = key, scope, AESGCM(key)
+
+    def record_audit(
+        self,
+        connection,
+        *,
+        event: str,
+        action: str,
+        status: str,
+        timestamp: float,
+        actor_id: str,
+        target_id: str,
+    ) -> int:
+        return append_service(
+            connection,
+            self._key,
+            self._scope,
+            event=event,
+            action=action,
+            status=status,
+            timestamp=timestamp,
+            actor_id=actor_id,
+            target_id=target_id,
+        )
 
     @staticmethod
     def _aad(service_id: str, revision: int) -> bytes:
@@ -75,11 +99,15 @@ class ServiceManagement:
                 connection.execute("ROLLBACK TO service_action")
                 error = caught
             connection.execute("RELEASE service_action")
-            connection.execute("INSERT INTO service_audit(event,action,status,timestamp,actor_id,target_id) VALUES(?,?,?,?,?,?)",
-                               (f"admin.service.{action}", action, "denied" if error else "success",
-                                self.settings.clock(), actor.id, target_id))
-            connection.execute("DELETE FROM service_audit WHERE id IN (SELECT id FROM service_audit ORDER BY id DESC LIMIT -1 OFFSET ?)",
-                               (MAX_AUDIT_EVENTS,))
+            self.record_audit(
+                connection,
+                event=f"admin.service.{action}",
+                action=action,
+                status="denied" if error else "success",
+                timestamp=self.settings.clock(),
+                actor_id=actor.id,
+                target_id=target_id,
+            )
         if error:
             raise error
 

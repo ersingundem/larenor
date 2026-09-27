@@ -6,6 +6,7 @@ import uuid
 
 from ..auth import AuthService, Principal
 from ..config import Settings
+from ..core_audit import append_admin
 from ..database import Database
 from ..errors import ApiError
 from .models import CreateUserRequest, ResetPasswordRequest, UpdateUserRequest
@@ -26,8 +27,9 @@ def public_user(row: sqlite3.Row) -> dict:
 
 
 class AdminService:
-    def __init__(self, db: Database, auth: AuthService, settings: Settings):
+    def __init__(self, db: Database, auth: AuthService, settings: Settings, key: bytes, scope):
         self.db, self.auth, self.settings = db, auth, settings
+        self._audit_key, self._audit_scope = key, scope
 
     def _assert_admin(self, connection: sqlite3.Connection, actor: Principal) -> None:
         # Recheck inside the transaction: HTTP dependencies are only an early gate.
@@ -63,11 +65,18 @@ class AdminService:
                 connection.execute("ROLLBACK TO admin_action")
                 error = caught
             connection.execute("RELEASE admin_action")
-            connection.execute("INSERT INTO admin_audit(event,action,object,status,timestamp,actor_id,target_id) "
-                               "VALUES(?,?,?,?,?,?,?)", (event, action, object_type,
-                               "denied" if error else "success", self.settings.clock(), actor.id, target_id))
-            connection.execute("DELETE FROM admin_audit WHERE id IN (SELECT id FROM admin_audit "
-                               "ORDER BY id DESC LIMIT -1 OFFSET ?)", (MAX_AUDIT_EVENTS,))
+            append_admin(
+                connection,
+                self._audit_key,
+                self._audit_scope,
+                event=event,
+                action=action,
+                object_type=object_type,
+                status="denied" if error else "success",
+                timestamp=self.settings.clock(),
+                actor_id=actor.id,
+                target_id=target_id,
+            )
         if error:
             raise error
 

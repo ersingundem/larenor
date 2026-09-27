@@ -21,6 +21,7 @@ from .component_egress.storage import migrate as migrate_component_egress
 from .config import Settings
 from .context import migrate_context
 from .core_backups.service import CoreBackupContract
+from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
 from .errors import StartupError
 from .files import (
@@ -369,6 +370,7 @@ class CoreServices:
                 migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_services(connection)
+                migrate_core_audit(connection, key, self.context)
                 migrate_workshop(connection)
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
@@ -575,9 +577,16 @@ class CoreServices:
             self.game_streaming = GameStreamAuthorityService(
                 self.db, self.auth, settings, key, self.context)
             self.game_streaming.validate_storage()
-            self.admin = AdminService(self.db, self.auth, settings)
+            self.core_audit = CoreAuditService(
+                self.db, self.auth, key, self.context
+            )
+            self.admin = AdminService(
+                self.db, self.auth, settings, key, self.context
+            )
             self.core_backups = CoreBackupContract(self.db, self.auth, settings)
-            self.services = ServiceManagement(self.db, self.auth, settings, key)
+            self.services = ServiceManagement(
+                self.db, self.auth, settings, key, self.context
+            )
             self.services.validate_storage()
             self.workshop = WorkshopService(
                 self.db, self.auth, settings, key, self.context, self.services)

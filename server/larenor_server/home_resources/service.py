@@ -11,6 +11,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..context import _authentication_tag
+from ..core_audit import append_home_resource
 from ..errors import ApiError, StartupError
 from .api_models import CreateRecordRequest, SetGrantRequest, StoredRecord, UpdateRecordRequest
 from .authorization import evaluate_access
@@ -135,10 +136,16 @@ class HomeResourceRegistry:
                     c.execute('ROLLBACK TO registry_action'); error = caught
                 c.execute('RELEASE registry_action')
                 if action:
-                    c.execute('INSERT INTO home_resource_audit(action,status,actor_id,target_id,created_at) VALUES(?,?,?,?,?)',
-                              (action, 'denied' if error else 'success', actor.id, target_id, self.settings.clock()))
-                    c.execute('DELETE FROM home_resource_audit WHERE sequence IN (SELECT sequence FROM home_resource_audit '
-                              'ORDER BY sequence DESC LIMIT -1 OFFSET ?)', (schema.MAX_AUDIT,))
+                    append_home_resource(
+                        c,
+                        self._key,
+                        self.scope,
+                        action=action,
+                        status='denied' if error else 'success',
+                        actor_id=actor.id,
+                        target_id=target_id,
+                        created_at=self.settings.clock(),
+                    )
             if error:
                 raise error
         except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
