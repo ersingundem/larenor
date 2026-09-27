@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/configuration_writes.dart';
+import '../../data/server_scoped_cache_backend.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_music_retained_models.dart';
 
@@ -18,7 +19,7 @@ abstract interface class ServerMusicRetainedCacheBackend {
 }
 
 final class SharedPreferencesServerMusicRetainedCacheBackend
-    implements ServerMusicRetainedCacheBackend {
+    implements ServerMusicRetainedCacheBackend, ServerScopedStringCacheBackend {
   SharedPreferencesServerMusicRetainedCacheBackend({
     Future<SharedPreferences> Function()? loadPreferences,
   }) : _loadPreferences = loadPreferences ?? SharedPreferences.getInstance;
@@ -77,6 +78,43 @@ final class SharedPreferencesServerMusicRetainedCacheBackend
         }
         return true;
       });
+  ServerScopedStringCacheBackend get _scoped =>
+      SharedPreferencesScopedStringCache(_loadPreferences);
+
+  @override
+  Future<String?> readScoped(String key) => _scoped.readScoped(key);
+
+  @override
+  Future<void> writeScoped(String key, String value, String failureCode) =>
+      _scoped.writeScoped(key, value, failureCode);
+
+  @override
+  Future<bool> compareAndWriteScoped(
+    String key,
+    String? expected,
+    String value, {
+    required bool Function() current,
+    required String writeFailureCode,
+    required String clearFailureCode,
+  }) => _scoped.compareAndWriteScoped(
+    key,
+    expected,
+    value,
+    current: current,
+    writeFailureCode: writeFailureCode,
+    clearFailureCode: clearFailureCode,
+  );
+
+  @override
+  Future<bool> compareAndClearScoped(
+    String key,
+    String expected,
+    String failureCode,
+  ) => _scoped.compareAndClearScoped(key, expected, failureCode);
+
+  @override
+  Future<void> clearScoped(String key, String failureCode) =>
+      _scoped.clearScoped(key, failureCode);
 }
 
 final class ServerMusicRetainedCacheScope {
@@ -130,6 +168,60 @@ final class ServerMusicRetainedCache {
   static const timeToLive = Duration(minutes: 5);
 
   final ServerMusicRetainedCacheBackend _backend;
+
+  String _storageKey(ServerMusicRetainedCacheScope scope) =>
+      serverScopedCacheKey(
+        SharedPreferencesServerMusicRetainedCacheBackend.key,
+        coreId: scope.coreId,
+        homeId: scope.homeId,
+        accountId: scope.accountId,
+      );
+
+  Future<String?> _readBackend(ServerMusicRetainedCacheScope scope) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).readScoped(
+        _storageKey(scope),
+      );
+    }
+    return backend.read();
+  }
+
+  Future<bool> _compareAndWrite(
+    ServerMusicRetainedCacheScope scope,
+    String? expected,
+    String value, {
+    required bool Function() current,
+  }) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).compareAndWriteScoped(
+        _storageKey(scope),
+        expected,
+        value,
+        current: current,
+        writeFailureCode: 'music_retained_cache_write_failed',
+        clearFailureCode: 'music_retained_cache_clear_failed',
+      );
+    }
+    return backend.compareAndWrite(expected, value, current: current);
+  }
+
+  Future<bool> _compareAndClear(
+    ServerMusicRetainedCacheScope scope,
+    String expected,
+  ) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).compareAndClearScoped(
+        _storageKey(scope),
+        expected,
+        'music_retained_cache_clear_failed',
+      );
+    }
+    return backend.compareAndClear(expected);
+  }
+
   final DateTime Function() _now;
   final String Function() _recordId;
 
@@ -156,13 +248,13 @@ final class ServerMusicRetainedCache {
     if (!isCurrent() || !scope.valid) return null;
     final String? raw;
     try {
-      raw = await _backend.read();
+      raw = await _readBackend(scope);
     } catch (_) {
       return null;
     }
     if (!isCurrent() || raw == null) return null;
     if (raw.length > maximumBytes || utf8.encode(raw).length > maximumBytes) {
-      await _clearIfCurrent(raw, isCurrent);
+      await _clearIfCurrent(scope, raw, isCurrent);
       return null;
     }
     try {
@@ -208,7 +300,7 @@ final class ServerMusicRetainedCache {
       if (!isCurrent()) return null;
       return overview;
     } catch (_) {
-      await _clearIfCurrent(raw, isCurrent);
+      await _clearIfCurrent(scope, raw, isCurrent);
       return null;
     }
   }
@@ -228,7 +320,7 @@ final class ServerMusicRetainedCache {
 
     if (!isCurrent()) return false;
     if (!scope.valid) throw StateError('music_retained_cache_scope_invalid');
-    final expected = await _backend.read();
+    final expected = await _readBackend(scope);
     if (!isCurrent()) return false;
     final recordId = _recordId();
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(recordId)) {
@@ -246,23 +338,28 @@ final class ServerMusicRetainedCache {
       throw StateError('music_retained_cache_quota_exceeded');
     }
     if (!isCurrent()) return false;
-    final written = await _backend.compareAndWrite(
+    final written = await _compareAndWrite(
+      scope,
       expected,
       raw,
       current: isCurrent,
     );
     if (!written) return false;
     if (!isCurrent()) {
-      await _clearIfCurrent(raw, () => true);
+      await _clearIfCurrent(scope, raw, () => true);
       return false;
     }
     return true;
   }
 
-  Future<void> _clearIfCurrent(String raw, bool Function() current) async {
+  Future<void> _clearIfCurrent(
+    ServerMusicRetainedCacheScope scope,
+    String raw,
+    bool Function() current,
+  ) async {
     if (!current()) return;
     try {
-      await _backend.compareAndClear(raw);
+      await _compareAndClear(scope, raw);
     } catch (_) {}
   }
 }

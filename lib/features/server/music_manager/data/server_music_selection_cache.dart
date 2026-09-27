@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/configuration_writes.dart';
+import '../../data/server_scoped_cache_backend.dart';
 import '../../domain/server_models.dart';
 import '../domain/server_music_manager_models.dart';
 
@@ -14,7 +15,9 @@ abstract interface class ServerMusicSelectionCacheBackend {
 }
 
 final class SharedPreferencesServerMusicSelectionCacheBackend
-    implements ServerMusicSelectionCacheBackend {
+    implements
+        ServerMusicSelectionCacheBackend,
+        ServerScopedStringCacheBackend {
   SharedPreferencesServerMusicSelectionCacheBackend({
     Future<SharedPreferences> Function()? loadPreferences,
   }) : _loadPreferences = loadPreferences ?? SharedPreferences.getInstance;
@@ -60,6 +63,43 @@ final class SharedPreferencesServerMusicSelectionCacheBackend
       throw StateError('music_selection_clear_failed');
     }
   });
+  ServerScopedStringCacheBackend get _scoped =>
+      SharedPreferencesScopedStringCache(_loadPreferences);
+
+  @override
+  Future<String?> readScoped(String key) => _scoped.readScoped(key);
+
+  @override
+  Future<void> writeScoped(String key, String value, String failureCode) =>
+      _scoped.writeScoped(key, value, failureCode);
+
+  @override
+  Future<bool> compareAndWriteScoped(
+    String key,
+    String? expected,
+    String value, {
+    required bool Function() current,
+    required String writeFailureCode,
+    required String clearFailureCode,
+  }) => _scoped.compareAndWriteScoped(
+    key,
+    expected,
+    value,
+    current: current,
+    writeFailureCode: writeFailureCode,
+    clearFailureCode: clearFailureCode,
+  );
+
+  @override
+  Future<bool> compareAndClearScoped(
+    String key,
+    String expected,
+    String failureCode,
+  ) => _scoped.compareAndClearScoped(key, expected, failureCode);
+
+  @override
+  Future<void> clearScoped(String key, String failureCode) =>
+      _scoped.clearScoped(key, failureCode);
 }
 
 final class ServerMusicSelectionScope {
@@ -126,6 +166,56 @@ final class ServerMusicSelectionCache {
   static const timeToLive = Duration(days: 30);
   final ServerMusicSelectionCacheBackend _backend;
   final DateTime Function() _now;
+  String? _lastWrittenKey;
+  String? _lastWrittenValue;
+
+  String _storageKey(ServerMusicSelectionScope scope) => serverScopedCacheKey(
+    SharedPreferencesServerMusicSelectionCacheBackend.key,
+    coreId: scope.coreId,
+    homeId: scope.homeId,
+    accountId: scope.accountId,
+  );
+
+  Future<String?> _readBackend(ServerMusicSelectionScope scope) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).readScoped(
+        _storageKey(scope),
+      );
+    }
+    return backend.read();
+  }
+
+  Future<bool> _compareAndWrite(
+    ServerMusicSelectionScope scope,
+    String? expected,
+    String value,
+  ) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).compareAndWriteScoped(
+        _storageKey(scope),
+        expected,
+        value,
+        current: () => true,
+        writeFailureCode: 'music_selection_write_failed',
+        clearFailureCode: 'music_selection_clear_failed',
+      );
+    }
+    return backend.compareAndWrite(expected, value);
+  }
+
+  Future<bool> _compareAndClear(String key, String value) {
+    final backend = _backend;
+    if (backend is ServerScopedStringCacheBackend) {
+      return (backend as ServerScopedStringCacheBackend).compareAndClearScoped(
+        key,
+        value,
+        'music_selection_clear_failed',
+      );
+    }
+    return backend.compareAndClear(value);
+  }
 
   Future<ServerMusicSelection?> read(
     ServerMusicSelectionScope scope,
@@ -134,13 +224,13 @@ final class ServerMusicSelectionCache {
     if (!scope.valid) return null;
     final String? raw;
     try {
-      raw = await _backend.read();
+      raw = await _readBackend(scope);
     } catch (_) {
       return null;
     }
     if (raw == null) return null;
     if (utf8.encode(raw).length > maximumBytes) {
-      await clearIfCurrent(raw);
+      await _clearScopeIfCurrent(scope, raw);
       return null;
     }
     try {
@@ -243,7 +333,7 @@ final class ServerMusicSelectionCache {
         receiverId: currentReceiver.id,
       );
     } catch (_) {
-      await clearIfCurrent(raw);
+      await _clearScopeIfCurrent(scope, raw);
       return null;
     }
   }
@@ -261,7 +351,7 @@ final class ServerMusicSelectionCache {
         !receiver.enabled) {
       throw StateError('music_selection_invalid');
     }
-    final expected = await _backend.read();
+    final expected = await _readBackend(scope);
     final raw = jsonEncode({
       'schemaVersion': 1,
       'scope': scope.toJson(),
@@ -289,21 +379,52 @@ final class ServerMusicSelectionCache {
     if (utf8.encode(raw).length > maximumBytes) {
       throw StateError('music_selection_quota_exceeded');
     }
-    return await _backend.compareAndWrite(expected, raw) ? raw : null;
+    if (!await _compareAndWrite(scope, expected, raw)) return null;
+    _lastWrittenKey = _storageKey(scope);
+    _lastWrittenValue = raw;
+    return raw;
   }
 
   Future<void> clear() => _clearQuietly();
 
   Future<void> clearIfCurrent(String value) async {
     try {
-      await _backend.compareAndClear(value);
+      final key = _lastWrittenValue == value ? _lastWrittenKey : null;
+      if (key == null) {
+        await _backend.compareAndClear(value);
+      } else {
+        await _compareAndClear(key, value);
+      }
+    } catch (_) {}
+    if (_lastWrittenValue == value) {
+      _lastWrittenKey = null;
+      _lastWrittenValue = null;
+    }
+  }
+
+  Future<void> _clearScopeIfCurrent(
+    ServerMusicSelectionScope scope,
+    String value,
+  ) async {
+    try {
+      await _compareAndClear(_storageKey(scope), value);
     } catch (_) {}
   }
 
   Future<void> _clearQuietly() async {
     try {
-      await _backend.clear();
+      final key = _lastWrittenKey;
+      if (key != null && _backend is ServerScopedStringCacheBackend) {
+        await (_backend as ServerScopedStringCacheBackend).clearScoped(
+          key,
+          'music_selection_clear_failed',
+        );
+      } else {
+        await _backend.clear();
+      }
     } catch (_) {}
+    _lastWrittenKey = null;
+    _lastWrittenValue = null;
   }
 }
 
