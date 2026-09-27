@@ -5224,7 +5224,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "SSH terminal, SFTP ve güvenli tüneller",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5250,14 +5250,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mevcut SSH, SFTP ve tünel motorları tek çalışma dalında uçtan uca ürün akışına bağlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
+      "reason": "Doğrudan SSH terminali; parola/anahtar/MFA, host-key pinleme, PTY/Unicode/Türkçe, sekmeler, SFTP açma/indirme/yükleme, jump host ve yerel güvenli tünel ürün ekranına bağlı. Güncel kaynak statik analizden geçti; özellik testleri, izole gerçek SSH hostu, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
     },
     {
       "id": "F62",
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız RDP uzak masaüstü",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5283,7 +5283,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mevcut güvenli RDP motoru ve tablet oturumu tek çalışma dalında kabul ölçütlerine göre incelenip eksik ürün akışları tamamlanıyor; özellik testleri son toplu doğrulama evresinde yazılacak."
     },
     {
       "id": "F61",

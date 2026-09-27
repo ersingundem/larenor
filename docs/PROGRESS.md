@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `1a8d1707` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32 ve F56 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `1a8d1707` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F21, F25, F26, F27, F28, F32, F56 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,28 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F63 SSH, SFTP ve güvenli tüneller — uygulama tamamlandı, test bekliyor
+
+F63'ün doğrudan cihaz profili, SSH terminali, SFTP ve tünel uygulaması güncel
+tek çalışma dalında mevcut ve ürün ekranına bağlı. Parola veya şifreli özel
+anahtar, klavye etkileşimli MFA, hedef ve jump-host anahtar parmak izi
+sabitlemesi, PTY yeniden boyutlandırma, UTF-8/Türkçe çıktı, çoklu terminal
+sekmeleri ve komutun bağlantı koptuğunda otomatik tekrarlanmaması uygulanıyor.
+SFTP; sınırlı dizin listeleme, açık kullanıcı seçimiyle indirme/yükleme,
+dosya boyutu ve yol normalizasyonunu koruyor. Tüneller yalnız loopback'te
+dinliyor, bağlantı sayısını sınırlıyor ve profil/hesap/rota/foreground/pencere
+yetkisi kaybolunca bütün soketleri kapatıyor.
+
+Temel teslim `717f6dbc`, terminal çıktı bütünlüğü `1abab368`, SFTP yol ve buffer
+sertleştirmesi `1351869d` commitlerinde bulunuyor; üçü de güncel branch HEAD'inin
+atası olarak doğrulandı. Güncel SSH/SFTP/tünel ve ortak oturum kaynakları odaklı
+Flutter analyze kapısından hatasız geçti. Kullanıcının kararı gereği özellik
+testleri yeniden çalıştırılmadı ve final toplu doğrulamaya bırakıldı. F63
+**uygulama tamamlandı · test bekliyor**; sayaçlar **37/125 (%29,6)** ve
+**3/63 (%4,8)** olarak değişmedi. İzole gerçek SSH hostu handshake/MFA/jump/
+SFTP/kopuş E2E, bağımsız inceleme, fiziksel Huawei/DeX kabulü ve exact-head CI
+açık kalıyor.
 
 ### 27 Eylül F56 eski cihaz akıllı kumandası — uygulama tamamlandı, test bekliyor
 
