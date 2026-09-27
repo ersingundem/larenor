@@ -1035,10 +1035,7 @@ void main() {
 
       expect(h.platform.controllers, hasLength(1));
       expect(find.textContaining('private renderer payload'), findsNothing);
-      expect(
-        (await h.usage.read()).count(KioskUsageEvent.recoveryBlocked),
-        1,
-      );
+      expect((await h.usage.read()).count(KioskUsageEvent.recoveryBlocked), 1);
       final maintenance = find.byKey(
         const ValueKey('web-panel-open-maintenance'),
       );

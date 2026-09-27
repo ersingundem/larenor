@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../../core/app_interaction_scope.dart';
 import '../../kiosk/domain/kiosk_watchdog.dart';
+import '../../kiosk/presentation/kiosk_maintenance_screen.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../data/web_panel_navigation_budget.dart';
 import '../data/web_panel_native_runtime.dart';
@@ -197,6 +198,13 @@ class WebPanelViewState extends State<WebPanelView> {
       _failure = null;
       _sync();
     });
+  }
+
+  void _openMaintenance() {
+    if (!_active || !_recoveryGate.maintenanceRequired) return;
+    Navigator.of(context).push(
+      CupertinoPageRoute<void>(builder: (_) => const KioskMaintenanceScreen()),
+    );
   }
 
   /// True means the back press was consumed. A cancelled old press must never
@@ -505,10 +513,24 @@ class WebPanelViewState extends State<WebPanelView> {
                   _Failure.timeout => l10n.webPanelTimedOut,
                   _Failure.load => l10n.webPanelLoadFailed,
                 }, textAlign: TextAlign.center),
-                CupertinoButton(
-                  onPressed: _recoveryGate.maintenanceRequired ? null : restart,
-                  child: Text(l10n.commonRetry),
-                ),
+                if (_recoveryGate.maintenanceRequired) ...[
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      l10n.kioskMaintenanceHint,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  CupertinoButton(
+                    key: const ValueKey('web-panel-open-maintenance'),
+                    onPressed: _openMaintenance,
+                    child: Text(l10n.kioskMaintenanceTitle),
+                  ),
+                ] else
+                  CupertinoButton(
+                    onPressed: restart,
+                    child: Text(l10n.commonRetry),
+                  ),
               ],
             ),
           ),
