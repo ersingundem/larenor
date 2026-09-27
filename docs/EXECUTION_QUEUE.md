@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 7 | 0 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 7 | 1 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 1 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F23 | Canlı TV ve kayıt merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,34 +37,33 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F23 | Canlı TV ve kayıt merkezi | Başlanabilir | — |
-| 2 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 3 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
-| 4 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
-| 5 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
-| 6 | F37 | Ortak ev masrafları | Başlanabilir | — |
-| 7 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
-| 8 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
-| 9 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
-| 10 | F42 | Mahremiyet korumalı olay paylaşımı | Başlanabilir | — |
-| 11 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
-| 12 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
-| 13 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 14 | F50 | Oda konforu ve havalandırma planı | Başlanabilir | — |
-| 15 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
-| 16 | F49 | Bahçe sulama ve su bütçesi | Başlanabilir | — |
-| 17 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
-| 18 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 19 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
-| 20 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 21 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
-| 22 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 23 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G06, G07, G08, G09, G10, G11 |
-| 24 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 25 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 26 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 27 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 28 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 2 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
+| 3 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
+| 4 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
+| 5 | F37 | Ortak ev masrafları | Başlanabilir | — |
+| 6 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
+| 7 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
+| 8 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
+| 9 | F42 | Mahremiyet korumalı olay paylaşımı | Başlanabilir | — |
+| 10 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
+| 11 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
+| 12 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 13 | F50 | Oda konforu ve havalandırma planı | Başlanabilir | — |
+| 14 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
+| 15 | F49 | Bahçe sulama ve su bütçesi | Başlanabilir | — |
+| 16 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
+| 17 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
+| 18 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
+| 19 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 20 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 21 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
+| 22 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | PRODUCT, G06, G07, G08, G09, G10, G11 |
+| 23 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 24 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 25 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 26 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 27 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 

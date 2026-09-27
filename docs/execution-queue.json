@@ -4097,7 +4097,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Canlı TV ve kayıt merkezi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
