@@ -131,6 +131,7 @@ MESSAGES = {
     'ai_resource_job_changed': 'The AI workload changed. Read it again.',
     'ai_resource_replay_changed': 'This AI workload request key was reused with different fields.',
     'ai_resource_job_limit': 'The AI workload queue is full.',
+    'ai_memory_storage_invalid': 'The AI memory store could not be verified.',
     'rule_arbiter_limit_reached': 'The rule arbitration journal is full.',
     'rule_arbiter_result_invalid': 'The device result does not match its authorized effect ticket.',
     'rule_arbiter_result_stale': 'The authorized device write was superseded or expired.',

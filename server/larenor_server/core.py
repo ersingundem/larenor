@@ -11,6 +11,8 @@ import uuid
 from .admin.service import AdminService
 from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
+from .ai_memory.schema import migrate_ai_memory
+from .ai_memory.service import AiMemoryService
 from .rule_arbitration.schema import migrate_rule_arbitration
 from .rule_arbitration.service import RuleArbitrationService
 from .auth import AuthService
@@ -391,6 +393,7 @@ class CoreServices:
                 migrate_media_language_preferences(connection)
                 migrate_tablet_fleet(connection)
                 migrate_ai_resources(connection)
+                migrate_ai_memory(connection)
                 migrate_rule_arbitration(connection, key, self.context)
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
@@ -541,6 +544,10 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.ai_resources.validate_storage()
+            self.ai_memory = AiMemoryService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.ai_memory.validate_storage()
             self.rule_arbitration = RuleArbitrationService(
                 self.db, self.auth, settings, key, self.context
             )
