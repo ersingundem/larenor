@@ -330,6 +330,38 @@ class ComponentUpdateJob(FrozenModel):
         return self
 
 
+class ComponentUpdateEffectResult(FrozenModel):
+    schemaVersion: Literal[1]
+    updateId: Identity
+    installationId: Identity
+    serviceId: ServiceId
+    commandDigest: Digest
+    sourceDigest: Digest
+    targetManifestDigest: Digest
+    state: Literal["succeeded", "failed", "needs_attention", "cancelled"]
+    code: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")]
+
+    @model_validator(mode="after")
+    def coherent_effect_result(self):
+        allowed = {
+            "succeeded": {"component_updated"},
+            "failed": {
+                "worker_unavailable",
+                "image_unavailable",
+                "rollback_unavailable",
+            },
+            "needs_attention": {
+                "worker_response_unknown",
+                "container_state_unknown",
+                "rollback_required",
+            },
+            "cancelled": {"cancelled"},
+        }
+        if self.code not in allowed[self.state]:
+            raise ValueError("invalid_component_update_effect_result")
+        return self
+
+
 class ComponentUpdateInventory(FrozenModel):
     schemaVersion: Literal[1]
     coreId: Identity

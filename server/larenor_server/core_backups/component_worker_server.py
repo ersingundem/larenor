@@ -11,6 +11,7 @@ from pathlib import Path
 from ..files import checked_path
 from ..plugins.component_updates import (
     ComponentUpdateCommand,
+    ComponentUpdateEffectResult,
     ComponentUpdateError,
     InstalledComponentUpdateSource,
     verify_installed_update_source,
@@ -108,7 +109,10 @@ class ComponentSnapshotWorkerServer:
             "operation",
             "timeoutMilliseconds",
         }
-        if operation == "component_update_validate":
+        if operation in {
+            "component_update_validate",
+            "component_update_execute",
+        }:
             expected.add("command")
         if (
             set(value) != expected
@@ -122,13 +126,19 @@ class ComponentSnapshotWorkerServer:
                 "quiesce",
                 "component_update_sources",
                 "component_update_validate",
+                "component_update_execute",
             }
             or type(value.get("timeoutMilliseconds")) is not int
-            or not 1 <= value["timeoutMilliseconds"] <= 5000
+            or not 1
+            <= value["timeoutMilliseconds"]
+            <= (300000 if operation == "component_update_execute" else 5000)
         ):
             raise ComponentSnapshotWorkerError("invalid_worker_result")
         command = None
-        if operation == "component_update_validate":
+        if operation in {
+            "component_update_validate",
+            "component_update_execute",
+        }:
             try:
                 command = verify_update_command(
                     ComponentUpdateCommand.model_validate(value["command"])
@@ -268,6 +278,39 @@ class ComponentSnapshotWorkerServer:
                     "commandDigest": validated.commandDigest,
                     "sourceDigest": validated.sourceDigest,
                     "targetManifestDigest": validated.targetManifestDigest,
+                },
+                deadline,
+            )
+            self.completed += 1
+            return
+        if operation == "component_update_execute":
+            try:
+                result = self.provider.execute_update(command, deadline)
+                result = ComponentUpdateEffectResult.model_validate_json(
+                    result.model_dump_json()
+                )
+            except (
+                AttributeError,
+                TypeError,
+                ValueError,
+                RecursionError,
+            ):
+                raise ComponentSnapshotWorkerError(
+                    "invalid_worker_result"
+                ) from None
+            if (
+                result.updateId != command.updateId
+                or result.installationId != command.installationId
+                or result.commandDigest != command.commandDigest
+            ):
+                raise ComponentSnapshotWorkerError("invalid_worker_result")
+            _write_frame(
+                connection,
+                {
+                    "protocol": PROTOCOL,
+                    "requestId": request_id,
+                    "status": "complete",
+                    "result": result.model_dump(mode="json"),
                 },
                 deadline,
             )
