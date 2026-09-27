@@ -80,6 +80,7 @@ from .proxmox_commands.api import router as proxmox_power_router
 from .keenetic_commands.api import router as keenetic_command_router
 from .inventory.api import router as inventory_router
 from .cooking.api import router as cooking_router
+from .personal_channels.api import router as personal_channels_router
 from .pantry_stock.api import router as pantry_stock_router
 from .local_notifications.api import router as local_notification_router
 from .media_preferences.api import router as media_preferences_router
@@ -397,6 +398,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(personal_profiles_router, prefix="/api/v1")
     app.include_router(inventory_router, prefix="/api/v1")
     app.include_router(cooking_router, prefix="/api/v1")
+    app.include_router(personal_channels_router, prefix="/api/v1")
     app.include_router(pantry_stock_router, prefix="/api/v1")
     app.include_router(local_notification_router, prefix="/api/v1")
     app.include_router(media_preferences_router, prefix="/api/v1")

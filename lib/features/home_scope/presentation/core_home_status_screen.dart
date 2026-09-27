@@ -149,6 +149,28 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             if (current()) context.push('/media');
                           },
                   ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
+                    key: const ValueKey('core-home-personal-channels-entry'),
+                    buttonKey: const ValueKey(
+                      'core-home-personal-channels-action',
+                    ),
+                    title: Text(
+                      isTurkish ? 'Kişisel kanallar' : 'Personal channels',
+                    ),
+                    additionalInfo: Text(
+                      isTurkish
+                          ? 'Kendi yayın akışını ve program rehberini oluştur'
+                          : 'Build your own stream and programme guide',
+                    ),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) {
+                              context.push('/media/personal-channels');
+                            }
+                          },
+                  ),
                 if (controller.account.context != null &&
                     controller.account.session?.user.canAdminister == true)
                   SettingsActionTile(

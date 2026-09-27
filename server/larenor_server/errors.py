@@ -13,6 +13,16 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'personal_channel_schema_unsupported': 'This personal channel schema is not supported.',
+    'personal_channel_storage_invalid': 'The personal channel schedule could not be verified.',
+    'personal_channel_authority_changed': 'The personal channel media authority changed. Refresh it first.',
+    'personal_channel_cancelled': 'This personal channel has been cancelled.',
+    'personal_channel_changed': 'The personal channel schedule changed. Read it again.',
+    'personal_channel_guide_limit_reached': 'The personal channel guide limit has been reached.',
+    'personal_channel_limit_reached': 'The personal channel limit has been reached.',
+    'personal_channel_source_unavailable': 'This personal channel source is no longer available.',
+    'personal_channel_programme_not_live': 'This programme is not live now.',
+    'personal_channel_programme_not_started': 'This programme has not started yet.',
     'power_recovery_held': 'New heavy work is paused while orderly power recovery is active.',
     'power_recovery_active': 'Finish the active power recovery run before changing its policy.',
     'power_recovery_unconfigured': 'Configure an orderly power recovery policy first.',

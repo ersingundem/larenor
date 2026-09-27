@@ -34,6 +34,24 @@ final class ServerMediaPlaybackApi {
     if (!page.items.any((candidate) => identical(candidate, item))) {
       throw const LarenorServerException('invalid_request');
     }
+    return prepareAuthority(
+      installationId: page.installationId,
+      installationRevision: page.installationRevision,
+      snapshotRevision: page.snapshotRevision,
+      jellyfinServiceRevision: page.jellyfinServiceRevision,
+      itemId: item.itemId,
+      mediaKey: item.mediaKey,
+    );
+  }
+
+  Future<ServerMediaPlaybackIntent> prepareAuthority({
+    required String installationId,
+    required int installationRevision,
+    required int snapshotRevision,
+    required int jellyfinServiceRevision,
+    required String itemId,
+    required String mediaKey,
+  }) async {
     final requestId = _requestId();
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId)) {
       throw const LarenorServerException('invalid_request');
@@ -46,12 +64,12 @@ final class ServerMediaPlaybackApi {
           token: token,
           body: {
             'requestId': requestId,
-            'installationId': page.installationId,
-            'expectedInstallationRevision': page.installationRevision,
-            'expectedSnapshotRevision': page.snapshotRevision,
-            'expectedJellyfinServiceRevision': page.jellyfinServiceRevision,
-            'itemId': item.itemId,
-            'mediaKey': item.mediaKey,
+            'installationId': installationId,
+            'expectedInstallationRevision': installationRevision,
+            'expectedSnapshotRevision': snapshotRevision,
+            'expectedJellyfinServiceRevision': jellyfinServiceRevision,
+            'itemId': itemId,
+            'mediaKey': mediaKey,
           },
         ),
       );
@@ -60,12 +78,12 @@ final class ServerMediaPlaybackApi {
       }
       final intent = ServerMediaPlaybackIntent.fromJson(response['intent']);
       if (intent.id != requestId ||
-          intent.installationId != page.installationId ||
-          intent.installationRevision != page.installationRevision ||
-          intent.snapshotRevision != page.snapshotRevision ||
-          intent.jellyfinServiceRevision != page.jellyfinServiceRevision ||
-          intent.itemId != item.itemId ||
-          intent.mediaKey != item.mediaKey ||
+          intent.installationId != installationId ||
+          intent.installationRevision != installationRevision ||
+          intent.snapshotRevision != snapshotRevision ||
+          intent.jellyfinServiceRevision != jellyfinServiceRevision ||
+          intent.itemId != itemId ||
+          intent.mediaKey != mediaKey ||
           !_now().toUtc().isBefore(intent.expiresAt)) {
         throw const FormatException();
       }

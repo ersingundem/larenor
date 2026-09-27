@@ -43,6 +43,7 @@ import '../features/server/music_manager/presentation/server_music_manager_scree
 import '../features/wellbeing/presentation/wellbeing_gate.dart';
 import '../features/camera_search/presentation/camera_search_route.dart';
 import '../features/cooking_assistant/presentation/cooking_assistant_route.dart';
+import '../features/server/personal_channels/presentation/server_personal_channels_route.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootKey = GlobalKey<NavigatorState>();
@@ -115,6 +116,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, _) => const CoreMediaArchiveHealthRoute(),
         ),
         GoRoute(path: '/media', builder: (_, _) => const MediaHubScreen()),
+        GoRoute(
+          path: '/media/personal-channels',
+          builder: (_, _) => const ServerPersonalChannelsRoute(),
+        ),
         GoRoute(path: '/media/catalog', redirect: (_, _) => '/media'),
         GoRoute(
           path: '/dashboard',

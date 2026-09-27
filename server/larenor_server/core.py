@@ -66,6 +66,8 @@ from .inventory.schema import migrate_inventory
 from .inventory.service import InventoryRegistry
 from .cooking.schema import migrate_cooking_sessions
 from .cooking.service import CookingSessionStore
+from .personal_channels.schema import migrate_personal_channels
+from .personal_channels.service import PersonalChannelService
 from .pantry_stock.schema import migrate_pantry_stock
 from .pantry_stock.service import PantryStockService
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
@@ -404,6 +406,7 @@ class CoreServices:
                 migrate_personal_profiles(connection)
                 migrate_inventory(connection, key, self.context)
                 migrate_cooking_sessions(connection)
+                migrate_personal_channels(connection)
                 migrate_pantry_stock(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_jellyfin_track_preferences(connection)
@@ -979,6 +982,15 @@ class CoreServices:
                 context=self.context,
             )
             self.media_playback.validate_storage()
+            self.personal_channels = PersonalChannelService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                self.media_playback,
+            )
+            self.personal_channels.validate_storage()
             self.watch_parties = WatchPartyService(
                 self.db, self.auth, settings, key, self.context,
                 self.media_playback,
