@@ -806,3 +806,172 @@ final class RecoveryDrillSchedule {
   final bool enabled;
   final DateTime? nextRunAt;
 }
+
+final class ImmutableBackupTarget {
+  const ImmutableBackupTarget._({
+    required this.revision,
+    required this.endpoint,
+    required this.targetId,
+    required this.retentionDays,
+    required this.quotaBytes,
+    required this.configuredAt,
+    required this.nextRunAt,
+  });
+
+  factory ImmutableBackupTarget.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {
+      'contractVersion',
+      'revision',
+      'kind',
+      'endpoint',
+      'targetId',
+      'retentionDays',
+      'quotaBytes',
+      'writerScope',
+      'recoveryScope',
+      'configuredAt',
+      'nextRunAt',
+    };
+    final revision = json['revision'];
+    final endpoint = json['endpoint'];
+    final targetId = json['targetId'];
+    final retentionDays = json['retentionDays'];
+    final quotaBytes = json['quotaBytes'];
+    final uri = endpoint is String ? Uri.tryParse(endpoint) : null;
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        json['contractVersion'] != 1 ||
+        json['kind'] != 'rest_append_only_v1' ||
+        json['writerScope'] != 'append_only' ||
+        json['recoveryScope'] != 'read_and_retain' ||
+        revision is! int ||
+        revision < 1 ||
+        endpoint is! String ||
+        uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        targetId is! String ||
+        !RegExp(r'^[a-z][a-z0-9-]{2,63}$').hasMatch(targetId) ||
+        retentionDays is! int ||
+        retentionDays < 7 ||
+        retentionDays > 3650 ||
+        quotaBytes is! int ||
+        quotaBytes < 64 * 1024 * 1024 ||
+        quotaBytes > 10 * 1024 * 1024 * 1024 * 1024) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ImmutableBackupTarget._(
+      revision: revision,
+      endpoint: endpoint,
+      targetId: targetId,
+      retentionDays: retentionDays,
+      quotaBytes: quotaBytes,
+      configuredAt: _drillTime(json['configuredAt']),
+      nextRunAt: _drillTime(json['nextRunAt']),
+    );
+  }
+
+  final int revision, retentionDays, quotaBytes;
+  final String endpoint, targetId;
+  final DateTime configuredAt, nextRunAt;
+}
+
+final class ImmutableRestorePoint {
+  const ImmutableRestorePoint._({
+    required this.objectId,
+    required this.targetRevision,
+    required this.createdAt,
+    required this.protectedUntil,
+    required this.byteLength,
+    required this.sha256,
+    required this.remoteReceiptId,
+  });
+
+  factory ImmutableRestorePoint.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {
+      'objectId',
+      'targetRevision',
+      'createdAt',
+      'protectedUntil',
+      'byteLength',
+      'sha256',
+      'remoteReceiptId',
+    };
+    final objectId = json['objectId'];
+    final revision = json['targetRevision'];
+    final bytes = json['byteLength'];
+    final digest = json['sha256'];
+    final receipt = json['remoteReceiptId'];
+    final created = _drillTime(json['createdAt']);
+    final protected = _drillTime(json['protectedUntil']);
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        objectId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(objectId) ||
+        revision is! int ||
+        revision < 1 ||
+        bytes is! int ||
+        bytes < 1 ||
+        bytes > 512 * 1024 * 1024 ||
+        digest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+        receipt is! String ||
+        !RegExp(r'^[A-Za-z0-9_.:-]{1,128}$').hasMatch(receipt) ||
+        !protected.isAfter(created)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ImmutableRestorePoint._(
+      objectId: objectId,
+      targetRevision: revision,
+      createdAt: created,
+      protectedUntil: protected,
+      byteLength: bytes,
+      sha256: digest,
+      remoteReceiptId: receipt,
+    );
+  }
+
+  final String objectId, sha256, remoteReceiptId;
+  final int targetRevision, byteLength;
+  final DateTime createdAt, protectedUntil;
+}
+
+final class ImmutableRestorePoints {
+  const ImmutableRestorePoints._({
+    required this.points,
+    required this.quotaUsedBytes,
+    required this.quotaBytes,
+  });
+
+  factory ImmutableRestorePoints.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    const keys = {'points', 'quotaUsedBytes', 'quotaBytes'};
+    final rawPoints = json['points'];
+    final used = json['quotaUsedBytes'];
+    final quota = json['quotaBytes'];
+    if (json.length != keys.length ||
+        !json.keys.every(keys.contains) ||
+        rawPoints is! List ||
+        rawPoints.length > 100 ||
+        used is! int ||
+        used < 0 ||
+        quota is! int ||
+        quota < 64 * 1024 * 1024 ||
+        used > quota) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ImmutableRestorePoints._(
+      points: List.unmodifiable(rawPoints.map(ImmutableRestorePoint.fromJson)),
+      quotaUsedBytes: used,
+      quotaBytes: quota,
+    );
+  }
+
+  final List<ImmutableRestorePoint> points;
+  final int quotaUsedBytes, quotaBytes;
+}

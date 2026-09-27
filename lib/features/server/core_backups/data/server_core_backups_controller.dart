@@ -32,6 +32,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
   CoreBackupPlan? plan;
   RecoveryDrillSchedule? drillSchedule;
   List<RecoveryDrill> drills = const [];
+  ImmutableBackupTarget? immutableTarget;
+  ImmutableRestorePoints? immutableRestorePoints;
   CoreBackupCompatibility? compatibility;
   ServerCoreBackupSourceInspection? sourceInspection;
   bool sourceBusy = false;
@@ -70,6 +72,8 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     plan = null;
     drillSchedule = null;
     drills = const [];
+    immutableTarget = null;
+    immutableRestorePoints = null;
     compatibility = null;
     sourceInspection = null;
     _emit();
@@ -109,10 +113,17 @@ final class ServerCoreBackupsController extends ChangeNotifier {
         final value = await backupsApi.plan(cancellation);
         final schedule = await backupsApi.drillSchedule(cancellation);
         final history = await backupsApi.drills(cancellation);
+        final target = await backupsApi.immutableTarget(cancellation);
+        final points = await backupsApi.immutableRestorePoints(
+          target != null,
+          cancellation,
+        );
         if (_current(epoch, accountEpoch, current)) {
           plan = value;
           drillSchedule = schedule;
           drills = history;
+          immutableTarget = target;
+          immutableRestorePoints = points;
         }
       });
     } catch (error) {
@@ -166,6 +177,36 @@ final class ServerCoreBackupsController extends ChangeNotifier {
       drills = [
         for (final item in drills) item.id == changed.id ? changed : item,
       ];
+    });
+  }
+
+  Future<void> configureImmutableTarget({
+    required String endpoint,
+    required String targetId,
+    required int retentionDays,
+    required int quotaBytes,
+    required String writeToken,
+    required String recoveryToken,
+    required String backupPassphrase,
+    required bool Function() current,
+  }) async {
+    final expectedRevision = immutableTarget?.revision ?? 0;
+    await _drillAction(current, (api, cancellation, stillCurrent) async {
+      final target = await api.configureImmutableTarget(
+        expectedRevision: expectedRevision,
+        endpoint: endpoint,
+        targetId: targetId,
+        retentionDays: retentionDays,
+        quotaBytes: quotaBytes,
+        writeToken: writeToken,
+        recoveryToken: recoveryToken,
+        backupPassphrase: backupPassphrase,
+        cancellation: cancellation,
+      );
+      final points = await api.immutableRestorePoints(true, cancellation);
+      if (!stillCurrent()) return;
+      immutableTarget = target;
+      immutableRestorePoints = points;
     });
   }
 

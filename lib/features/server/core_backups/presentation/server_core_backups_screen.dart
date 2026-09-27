@@ -40,10 +40,18 @@ class _ServerCoreBackupsScreenState
   late final int _accountEpoch;
   final _passphrase = TextEditingController();
   final _confirmation = TextEditingController();
+  final _immutableEndpoint = TextEditingController();
+  final _immutableTargetId = TextEditingController();
+  final _immutableRetention = TextEditingController(text: '30');
+  final _immutableQuota = TextEditingController(text: '10');
+  final _immutableWriteToken = TextEditingController();
+  final _immutableRecoveryToken = TextEditingController();
+  final _immutablePassphrase = TextEditingController();
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true, _expired = false, _loaded = false, _pinReady = false;
   bool _wasCurrent = true;
   bool _invalidPassphrase = false;
+  bool _invalidImmutableTarget = false;
   bool _choosingDestination = false;
   LarenorRequestSecret? _pendingPassphrase;
   _BackupNotice? _notice;
@@ -116,6 +124,7 @@ class _ServerCoreBackupsScreenState
     _expired = true;
     sessionGeneration++;
     _clearPassphrase();
+    _clearImmutableSecrets();
     _pendingPassphrase?.dispose();
     _pendingPassphrase = null;
     if (_files.hasPendingOperation) unawaited(_files.cancelPending());
@@ -128,6 +137,12 @@ class _ServerCoreBackupsScreenState
     _invalidPassphrase = false;
   }
 
+  void _clearImmutableSecrets() {
+    _immutableWriteToken.clear();
+    _immutableRecoveryToken.clear();
+    _immutablePassphrase.clear();
+  }
+
   @override
   void dispose() {
     _account.removeListener(_accountChanged);
@@ -138,6 +153,14 @@ class _ServerCoreBackupsScreenState
     if (_files.hasPendingOperation) unawaited(_files.cancelPending());
     _passphrase.dispose();
     _confirmation.dispose();
+    _immutableEndpoint.dispose();
+    _immutableTargetId.dispose();
+    _immutableRetention.dispose();
+    _immutableQuota.dispose();
+    _clearImmutableSecrets();
+    _immutableWriteToken.dispose();
+    _immutableRecoveryToken.dispose();
+    _immutablePassphrase.dispose();
     _backups.dispose();
     super.dispose();
   }
@@ -150,6 +173,15 @@ class _ServerCoreBackupsScreenState
   Future<void> _load() async {
     if (!_active || _backups.busy || _backups.actionBusy) return;
     await _backups.load(current: _capture());
+    if (!mounted || !_active) return;
+    final target = _backups.immutableTarget;
+    if (target != null) {
+      _immutableEndpoint.text = target.endpoint;
+      _immutableTargetId.text = target.targetId;
+      _immutableRetention.text = '${target.retentionDays}';
+      _immutableQuota.text = (target.quotaBytes / (1024 * 1024 * 1024))
+          .toStringAsFixed(0);
+    }
   }
 
   bool _validPassphrase(String value) =>
@@ -255,6 +287,56 @@ class _ServerCoreBackupsScreenState
     await _backups.cancelDrill(drill, current: _capture());
   }
 
+  Future<void> _configureImmutableTarget() async {
+    if (!_active || _backups.busy || _backups.actionBusy) return;
+    final endpoint = _immutableEndpoint.text.trim();
+    final targetId = _immutableTargetId.text.trim();
+    final retention = int.tryParse(_immutableRetention.text.trim());
+    final quotaGiB = int.tryParse(_immutableQuota.text.trim());
+    final writeToken = _immutableWriteToken.text;
+    final recoveryToken = _immutableRecoveryToken.text;
+    final backupPassphrase = _immutablePassphrase.text;
+    final uri = Uri.tryParse(endpoint);
+    final valid =
+        uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.userInfo.isEmpty &&
+        !uri.hasQuery &&
+        !uri.hasFragment &&
+        RegExp(r'^[a-z][a-z0-9-]{2,63}$').hasMatch(targetId) &&
+        retention != null &&
+        retention >= 7 &&
+        retention <= 3650 &&
+        quotaGiB != null &&
+        quotaGiB >= 1 &&
+        quotaGiB <= 10240 &&
+        writeToken.length >= 32 &&
+        writeToken.length <= 512 &&
+        recoveryToken.length >= 32 &&
+        recoveryToken.length <= 512 &&
+        writeToken != recoveryToken &&
+        _validPassphrase(backupPassphrase);
+    if (!valid) {
+      setState(() => _invalidImmutableTarget = true);
+      return;
+    }
+    setState(() => _invalidImmutableTarget = false);
+    await _backups.configureImmutableTarget(
+      endpoint: endpoint.endsWith('/')
+          ? endpoint.substring(0, endpoint.length - 1)
+          : endpoint,
+      targetId: targetId,
+      retentionDays: retention,
+      quotaBytes: quotaGiB * 1024 * 1024 * 1024,
+      writeToken: writeToken,
+      recoveryToken: recoveryToken,
+      backupPassphrase: backupPassphrase,
+      current: _capture(),
+    );
+    _clearImmutableSecrets();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -339,6 +421,7 @@ class _ServerCoreBackupsScreenState
                       ),
                     if (_backups.plan case final plan?) _plan(l10n, plan),
                     if (_backups.drillSchedule != null) _drillSection(l10n),
+                    _immutableTargetSection(l10n),
                     _sourceInspectionSection(l10n),
                     SettingsSection(
                       margin: const EdgeInsets.symmetric(
@@ -485,6 +568,167 @@ class _ServerCoreBackupsScreenState
         RecoveryDrillState.failed => l10n.serverRecoveryDrillFailed,
         RecoveryDrillState.cancelled => l10n.serverRecoveryDrillCancelled,
       };
+
+  Widget _immutableTargetSection(AppLocalizations l10n) {
+    final target = _backups.immutableTarget;
+    final points = _backups.immutableRestorePoints;
+    return SettingsSection(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      header: Text(l10n.serverImmutableBackupTitle),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.serverImmutableBackupHint),
+        ),
+        if (target != null) ...[
+          _row(l10n.serverImmutableBackupTarget, target.targetId),
+          _row(
+            l10n.serverImmutableBackupNext,
+            DateFormat.yMd(l10n.localeName)
+                .add_Hm()
+                .format(target.nextRunAt.toLocal()),
+          ),
+          _row(
+            l10n.serverImmutableBackupRetention,
+            l10n.serverImmutableBackupDays(target.retentionDays),
+          ),
+          if (points != null)
+            _row(
+              l10n.serverImmutableBackupQuota,
+              '${_size(points.quotaUsedBytes)} / ${_size(points.quotaBytes)}',
+            ),
+        ],
+        _plainField(
+          l10n.serverImmutableBackupEndpoint,
+          'server-immutable-endpoint',
+          _immutableEndpoint,
+        ),
+        _plainField(
+          l10n.serverImmutableBackupTargetId,
+          'server-immutable-target-id',
+          _immutableTargetId,
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _plainField(
+                l10n.serverImmutableBackupRetentionDays,
+                'server-immutable-retention',
+                _immutableRetention,
+                number: true,
+              ),
+            ),
+            Expanded(
+              child: _plainField(
+                l10n.serverImmutableBackupQuotaGiB,
+                'server-immutable-quota',
+                _immutableQuota,
+                number: true,
+              ),
+            ),
+          ],
+        ),
+        _secretField(
+          label: l10n.serverImmutableBackupWriteToken,
+          key: 'server-immutable-write-token',
+          controller: _immutableWriteToken,
+        ),
+        _secretField(
+          label: l10n.serverImmutableBackupRecoveryToken,
+          key: 'server-immutable-recovery-token',
+          controller: _immutableRecoveryToken,
+        ),
+        _secretField(
+          label: l10n.serverImmutableBackupPassphrase,
+          key: 'server-immutable-passphrase',
+          controller: _immutablePassphrase,
+          done: true,
+        ),
+        if (_invalidImmutableTarget)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(l10n.serverImmutableBackupInvalid),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: CupertinoButton(
+              key: const ValueKey('server-immutable-save'),
+              onPressed: !_backups.busy && !_backups.actionBusy
+                  ? _configureImmutableTarget
+                  : null,
+              child: Text(l10n.serverImmutableBackupSave),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            l10n.serverImmutableBackupPoints,
+            style: AppText.headline,
+          ),
+        ),
+        if (points == null || points.points.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Text(l10n.serverImmutableBackupNoPoints),
+          )
+        else
+          for (final point in points.points)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DateFormat.yMd(l10n.localeName)
+                        .add_Hm()
+                        .format(point.createdAt.toLocal()),
+                    style: AppText.headline,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l10n.serverImmutableBackupProtectedUntil(
+                      DateFormat.yMd(l10n.localeName)
+                          .add_Hm()
+                          .format(point.protectedUntil.toLocal()),
+                    ),
+                    style: AppText.footnote,
+                  ),
+                ],
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _plainField(
+    String label,
+    String key,
+    TextEditingController controller, {
+    bool number = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: AppText.subhead),
+        const SizedBox(height: 8),
+        CupertinoTextField(
+          key: ValueKey(key),
+          controller: controller,
+          keyboardType: number ? TextInputType.number : TextInputType.url,
+          autocorrect: false,
+          enableSuggestions: false,
+          padding: const EdgeInsets.all(12),
+        ),
+      ],
+    ),
+  );
 
   Widget _exportSection(AppLocalizations l10n) => SettingsSection(
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

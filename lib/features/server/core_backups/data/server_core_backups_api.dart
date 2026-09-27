@@ -139,6 +139,69 @@ final class ServerCoreBackupsApi {
     ))?['drill'],
   );
 
+  Future<ImmutableBackupTarget?> immutableTarget(
+    LarenorTransferCancellation cancellation,
+  ) async {
+    final response = serverObject(
+      await api.request(
+        'GET',
+        '/admin/backups/immutable-target',
+        token: token,
+        cancellation: cancellation,
+      ),
+    );
+    if (response.length != 1 || !response.containsKey('target')) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return response['target'] == null
+        ? null
+        : ImmutableBackupTarget.fromJson(response['target']);
+  }
+
+  Future<ImmutableRestorePoints?> immutableRestorePoints(
+    bool configured,
+    LarenorTransferCancellation cancellation,
+  ) async => configured
+      ? ImmutableRestorePoints.fromJson(
+          await api.request(
+            'GET',
+            '/admin/backups/immutable-target/restore-points',
+            token: token,
+            cancellation: cancellation,
+          ),
+        )
+      : null;
+
+  Future<ImmutableBackupTarget> configureImmutableTarget({
+    required int expectedRevision,
+    required String endpoint,
+    required String targetId,
+    required int retentionDays,
+    required int quotaBytes,
+    required String writeToken,
+    required String recoveryToken,
+    required String backupPassphrase,
+    required LarenorTransferCancellation cancellation,
+  }) async => ImmutableBackupTarget.fromJson(
+    (await api.request(
+      'PUT',
+      '/admin/backups/immutable-target',
+      token: token,
+      body: {
+        'contractVersion': 1,
+        'expectedRevision': expectedRevision,
+        'endpoint': endpoint,
+        'targetId': targetId,
+        'retentionDays': retentionDays,
+        'quotaBytes': quotaBytes,
+        'writeToken': writeToken,
+        'recoveryToken': recoveryToken,
+        'backupPassphrase': backupPassphrase,
+      },
+      cancellation: cancellation,
+    ))?['target'],
+  );
+
   @override
   String toString() => 'ServerCoreBackupsApi';
 }
