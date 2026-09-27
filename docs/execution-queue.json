@@ -4512,7 +4512,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ortak ev masrafları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4536,7 +4536,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Ortak masraf, borç bakiyesi, kişi arası ödeme/mahsup, para birimi-yuvarlama, audit ve dışa aktarım akışı geliştiriliyor."
+      "reason": "Uygulama commit d4d35617: şifreli append-only masraf/ödeme defteri, deterministic borç settlement, overpayment ve para birimi reddi, exact yetki/idempotency/revision, restart zincir doğrulaması, borç-alacak görünümü, admin payer, beş para birimi ve kopyalanabilir CSV dışa aktarım tamamlandı. Focused py_compile, gerçek SQLite smoke, Dart format ve Flutter analyze geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
     },
     {
       "id": "F38",
@@ -4575,7 +4575,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Canlı aile panosu ve beyaz tahta",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4598,7 +4598,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Canlı aile panosunda öğe yetkisi, eşzamanlı çakışma/birleştirme, audit geçmişi ve çevrimdışı yeniden bağlanma akışı geliştiriliyor."
+      "reason": "Uygulama commit 94d08d66: farklı öğelerde güvenli eşzamanlı revision merge, aynı öğede açık conflict, öğe sahibi/admin düzenleme yetkisi, exact permission sözleşmesi ve son 20 audit hareketinin Cupertino görünümü tamamlandı. Focused py_compile, Flutter analyze ve iki üyeli concurrency/permission smoke geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
     },
     {
       "id": "F40",
@@ -4674,7 +4674,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4698,14 +4698,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Mahremiyet korumalı olay paylaşımında redaction preview, açık alıcı/TTL/scope, revoke, erişim audit ve exact revision/idempotency akışı geliştiriliyor."
     },
     {
       "id": "F41",
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4729,7 +4729,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Kamera kayıtlarında doğal dil aramasında gerçek kaynak bağlama, mahremiyet, bounded sonuç, exact authority ve Client akışı geliştiriliyor."
     },
     {
       "id": "F44",
