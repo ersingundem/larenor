@@ -14,6 +14,7 @@ from ..errors import ApiError, StartupError
 from .component_updates import (
     CancelComponentUpdateJobRequest,
     ComponentUpdateCommand,
+    ComponentUpdateEffectResult,
     ComponentUpdateError,
     ComponentUpdateJob,
     verify_update_command,
@@ -93,7 +94,10 @@ class ComponentUpdateJobStore:
         self.backend = None
 
     def bind_backend(self, backend):
-        if not callable(getattr(backend, "validate_update", None)):
+        if (
+            not callable(getattr(backend, "validate_update", None))
+            or not callable(getattr(backend, "execute_update", None))
+        ):
             raise StartupError("component_update_worker_invalid")
         if self.backend is not None:
             raise StartupError("component_update_worker_invalid")
@@ -415,20 +419,30 @@ class ComponentUpdateJobStore:
         return Lease(self)
 
     def tick(self):
-        """Validate one queued command without repeating an uncertain effect."""
+        """Advance one command without repeating an uncertain worker effect."""
         with self._dispatch_lock() as acquired:
             if not acquired:
                 return None
             with self.db.transaction() as connection:
                 row = connection.execute(
                     "SELECT * FROM component_update_jobs "
-                    "WHERE state IN ('validating','queued') "
-                    "ORDER BY CASE state WHEN 'validating' THEN 0 ELSE 1 END,"
+                    "WHERE state IN ('running','validating','ready','queued') "
+                    "ORDER BY CASE state "
+                    "WHEN 'running' THEN 0 WHEN 'validating' THEN 1 "
+                    "WHEN 'ready' THEN 2 ELSE 3 END,"
                     "sequence LIMIT 1"
                 ).fetchone()
                 if row is None:
                     return None
                 command = self._decode(row)
+                if row["state"] == "running":
+                    return self._transition(
+                        connection,
+                        row,
+                        command,
+                        state="needs_attention",
+                        error="worker_response_unknown",
+                    )
                 if row["state"] == "validating":
                     return self._transition(
                         connection,
@@ -465,27 +479,70 @@ class ComponentUpdateJobStore:
                         state="failed",
                         error="worker_unavailable",
                     )
-                self._transition(connection, row, command, state="validating")
+                operation = (
+                    "execute_update" if row["state"] == "ready" else "validate_update"
+                )
+                self._transition(
+                    connection,
+                    row,
+                    command,
+                    state="running" if operation == "execute_update" else "validating",
+                )
                 update_id = command.updateId
             try:
-                validated = self.backend.validate_update(
-                    command, time.monotonic() + 5
-                )
-                outcome = "ready" if validated == command else "failed"
-                code = None if outcome == "ready" else "worker_result_invalid"
+                if operation == "validate_update":
+                    validated = self.backend.validate_update(
+                        command, time.monotonic() + 5
+                    )
+                    outcome = "ready" if validated == command else "failed"
+                    code = None if outcome == "ready" else "worker_result_invalid"
+                else:
+                    result = ComponentUpdateEffectResult.model_validate_json(
+                        self.backend.execute_update(
+                            command, time.monotonic() + 300
+                        ).model_dump_json()
+                    )
+                    if (
+                        result.updateId != command.updateId
+                        or result.installationId != command.installationId
+                        or result.serviceId != command.serviceId
+                        or result.commandDigest != command.commandDigest
+                        or result.sourceDigest != command.sourceDigest
+                        or result.targetManifestDigest
+                        != command.targetManifestDigest
+                    ):
+                        raise ValueError("worker_result_invalid")
+                    outcome = result.state
+                    code = (
+                        None
+                        if outcome in {"succeeded", "cancelled"}
+                        else result.code
+                    )
             except BaseException as error:
                 if isinstance(error, (KeyboardInterrupt, SystemExit)):
                     raise
-                outcome, code = "failed", "worker_unavailable"
+                outcome, code = (
+                    ("needs_attention", "worker_response_unknown")
+                    if operation == "execute_update"
+                    else ("failed", "worker_unavailable")
+                )
             with self.db.transaction() as connection:
                 row = self._find(connection, update_id)
                 command = self._decode(row)
-                if row["state"] != "validating":
+                expected_state = (
+                    "running" if operation == "execute_update" else "validating"
+                )
+                if row["state"] != expected_state:
                     return self._public(row, command)
-                if row["cancel_requested"]:
+                if operation == "validate_update" and row["cancel_requested"]:
                     return self._transition(
                         connection, row, command, state="cancelled"
                     )
+                if operation == "execute_update":
+                    if outcome == "cancelled" and not row["cancel_requested"]:
+                        outcome, code = "needs_attention", "worker_result_invalid"
+                    elif outcome == "succeeded" and row["cancel_requested"]:
+                        outcome, code = "needs_attention", "container_state_unknown"
                 return self._transition(
                     connection, row, command, state=outcome, error=code
                 )
