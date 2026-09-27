@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..home_resources.models import HomeScope
+
 
 Identity = str
 StockUnit = Literal['g', 'kg', 'ml', 'l', 'piece']
@@ -97,3 +99,55 @@ class StockSnapshot(FrozenModel):
     schemaVersion: Literal[1]
     revision: int = Field(ge=0, le=2**63 - 1)
     lots: tuple[LotBalance, ...]
+
+
+class PantryRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    expectedRevision: int = Field(ge=0, le=2**63 - 1)
+
+    @field_validator('requestId')
+    @classmethod
+    def request_identity(cls, value):
+        if (len(value) != 32 or
+                any(char not in '0123456789abcdef' for char in value)):
+            raise ValueError('invalid_identity')
+        return value
+
+
+class ReceiveStockRequest(PantryRequest):
+    lot: StockLot
+
+
+class ConsumeStockRequest(PantryRequest):
+    ingredientKey: str = Field(min_length=1, max_length=80)
+    amount: StockAmount
+
+    @field_validator('ingredientKey')
+    @classmethod
+    def ingredient(cls, value):
+        if (value != value.strip() or value != value.lower() or
+                any(ord(char) < 32 or ord(char) == 127 for char in value)):
+            raise ValueError('invalid_ingredient')
+        return value
+
+
+class UndoStockRequest(PantryRequest):
+    movementId: Identity
+
+    @field_validator('movementId')
+    @classmethod
+    def movement_identity(cls, value):
+        if (len(value) != 32 or
+                any(char not in '0123456789abcdef' for char in value)):
+            raise ValueError('invalid_identity')
+        return value
+
+
+class PantrySnapshotResponse(FrozenModel):
+    scope: HomeScope
+    snapshot: StockSnapshot
+
+
+class PantryMutationResponse(PantrySnapshotResponse):
+    receipt: StockReceipt

@@ -46,6 +46,8 @@ from .home_workflows.schema import migrate_home_workflows
 from .home_workflows.service import HomeWorkflowService
 from .inventory.schema import migrate_inventory
 from .inventory.service import InventoryRegistry
+from .pantry_stock.schema import migrate_pantry_stock
+from .pantry_stock.service import PantryStockService
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
 from .keenetic_commands.journal import KeeneticCommandJournal
 from .keenetic_commands.journal import state_tag as keenetic_state_tag
@@ -370,6 +372,7 @@ class CoreServices:
                 migrate_meal_plans(connection)
                 migrate_personal_profiles(connection)
                 migrate_inventory(connection, key, self.context)
+                migrate_pantry_stock(connection, key, self.context)
                 migrate_local_notifications(connection)
                 migrate_jellyfin_track_preferences(connection)
                 migrate_media_language_preferences(connection)
@@ -493,6 +496,10 @@ class CoreServices:
                 self.product_blobs,
             )
             self.inventory.validate_storage()
+            self.pantry_stock = PantryStockService(
+                self.db, self.auth, settings, key, self.context
+            )
+            self.pantry_stock.validate_storage()
             self.home_documents = HomeDocumentRepository(
                 self.db, self.auth, settings, key, self.context,
                 self.product_blobs, self.inventory)

@@ -210,3 +210,130 @@ class PantryLedger:
             )
             return StockSnapshot(
                 schemaVersion=1, revision=self._revision, lots=lots)
+
+    def export_state(self):
+        """Return the exact bounded reducer state for authenticated storage."""
+        with self._lock:
+            return {
+                'schemaVersion': 1,
+                'revision': self._revision,
+                'sequence': self._sequence,
+                'lots': [
+                    {
+                        'lot': value.value.model_dump(mode='json'),
+                        'measure': value.measure,
+                        'remaining': value.remaining,
+                        'sequence': value.sequence,
+                    }
+                    for _, value in sorted(self._lots.items())
+                ],
+                'movements': [
+                    {
+                        'movementId': key,
+                        'allocations': [item.model_dump(mode='json')
+                                        for item in value.allocations],
+                        'reverted': value.reverted,
+                    }
+                    for key, value in sorted(self._movements.items())
+                ],
+                'receipts': [
+                    {
+                        'requestId': key,
+                        'digest': value[0],
+                        'receipt': value[1].model_dump(mode='json'),
+                    }
+                    for key, value in sorted(self._receipts.items())
+                ],
+            }
+
+    @classmethod
+    def from_state(cls, value, *, max_lots=256, max_receipts=4096):
+        """Rebuild a reducer only from its exact authenticated state."""
+        if (type(value) is not dict or set(value) != {
+                'schemaVersion', 'revision', 'sequence', 'lots',
+                'movements', 'receipts'} or value['schemaVersion'] != 1 or
+                type(value['revision']) is not int or
+                not 0 <= value['revision'] <= 2**63 - 1 or
+                type(value['sequence']) is not int or
+                not 0 <= value['sequence'] <= max_lots or
+                type(value['lots']) is not list or
+                len(value['lots']) > max_lots or
+                type(value['movements']) is not list or
+                len(value['movements']) > max_receipts or
+                type(value['receipts']) is not list or
+                len(value['receipts']) > max_receipts):
+            raise ValueError('invalid_pantry_state')
+        ledger = cls(max_lots=max_lots, max_receipts=max_receipts)
+        seen_sequences = set()
+        for raw in value['lots']:
+            if type(raw) is not dict or set(raw) != {
+                    'lot', 'measure', 'remaining', 'sequence'}:
+                raise ValueError('invalid_pantry_state')
+            lot = StockLot.model_validate(raw['lot'])
+            measure, original = lot.amount.normalized
+            if (raw['measure'] != measure or type(raw['remaining']) is not int
+                    or not 0 <= raw['remaining'] <= original
+                    or type(raw['sequence']) is not int
+                    or not 1 <= raw['sequence'] <= value['sequence']
+                    or raw['sequence'] in seen_sequences
+                    or lot.id in ledger._lots):
+                raise ValueError('invalid_pantry_state')
+            seen_sequences.add(raw['sequence'])
+            ledger._lots[lot.id] = _Lot(
+                lot, measure, raw['remaining'], raw['sequence'])
+        for raw in value['movements']:
+            if (type(raw) is not dict or set(raw) != {
+                    'movementId', 'allocations', 'reverted'} or
+                    type(raw['reverted']) is not bool or
+                    type(raw['allocations']) is not list or
+                    not 1 <= len(raw['allocations']) <= max_lots):
+                raise ValueError('invalid_pantry_state')
+            try:
+                movement_id = ledger._identity(raw['movementId'])
+            except PantryConflict:
+                raise ValueError('invalid_pantry_state') from None
+            allocations = tuple(
+                StockAllocation.model_validate(item)
+                for item in raw['allocations'])
+            if (movement_id in ledger._movements or
+                    any(item.lotId not in ledger._lots
+                        for item in allocations)):
+                raise ValueError('invalid_pantry_state')
+            ledger._movements[movement_id] = _Movement(
+                allocations, raw['reverted'])
+        revisions = set()
+        for raw in value['receipts']:
+            if (type(raw) is not dict or set(raw) != {
+                    'requestId', 'digest', 'receipt'} or
+                    type(raw['digest']) is not str or
+                    len(raw['digest']) != 64 or
+                    any(char not in '0123456789abcdef'
+                        for char in raw['digest'])):
+                raise ValueError('invalid_pantry_state')
+            try:
+                request_id = ledger._identity(raw['requestId'])
+            except PantryConflict:
+                raise ValueError('invalid_pantry_state') from None
+            receipt = StockReceipt.model_validate(raw['receipt'])
+            if (request_id != receipt.requestId or
+                    request_id in ledger._receipts or
+                    receipt.revision in revisions or
+                    receipt.revision > value['revision']):
+                raise ValueError('invalid_pantry_state')
+            revisions.add(receipt.revision)
+            ledger._receipts[request_id] = raw['digest'], receipt
+        consume_movements = {
+            receipt.movementId: receipt.allocations
+            for _, receipt in ledger._receipts.values()
+            if receipt.kind == 'consume'
+        }
+        if (set(consume_movements) != set(ledger._movements) or
+                any(consume_movements[key] != movement.allocations
+                    for key, movement in ledger._movements.items())):
+            raise ValueError('invalid_pantry_state')
+        if (len(revisions) != value['revision'] or
+                revisions != set(range(1, value['revision'] + 1))):
+            raise ValueError('invalid_pantry_state')
+        ledger._revision = value['revision']
+        ledger._sequence = value['sequence']
+        return ledger
