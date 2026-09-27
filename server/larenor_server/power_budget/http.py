@@ -1,6 +1,7 @@
 """Authenticated, read-only power-budget projection for tablet clients."""
 
 import hashlib
+import hmac
 import json
 from dataclasses import asdict
 
@@ -21,12 +22,23 @@ class PowerBudgetHttpGateway:
         ).encode()
         return "view-" + hashlib.sha256(raw).hexdigest()
 
-    def snapshot(self, actor):
+    def _projection(self, actor):
         try:
             authority = self._provider.authority(actor)
             inputs = self._provider.inputs(actor, authority)
             labels = self._provider.load_labels(actor, authority)
             capability = self._provider.control_capability(actor, authority)
+            enabled = (
+                capability == "manual_required"
+                and authority.can_control
+                and callable(getattr(self._provider, "manual_control_enabled", None))
+                and self._provider.manual_control_enabled(actor, authority) is True
+            )
+            raw_behaviors = (
+                self._provider.communication_loss_behaviors(actor, authority)
+                if enabled
+                else {load.load_id: "not_applicable_read_only" for load in inputs.loads}
+            )
         except ApiError:
             raise
         except Exception:
@@ -45,11 +57,32 @@ class PowerBudgetHttpGateway:
             raise ApiError("power_inputs_unverified", 409)
         if capability not in {"read_only", "manual_required"}:
             raise ApiError("power_capability_unverified", 409)
+        allowed_behaviors = {
+            "stop_charging",
+            "hold_last_safe_limit",
+            "provider_managed",
+            "not_applicable_read_only",
+        }
+        load_ids = {load.load_id for load in inputs.loads}
+        if (
+            not isinstance(raw_behaviors, dict)
+            or set(raw_behaviors) != load_ids
+            or any(value not in allowed_behaviors for value in raw_behaviors.values())
+            or enabled
+            and any(value == "not_applicable_read_only" for value in raw_behaviors.values())
+        ):
+            raise ApiError("power_capability_unverified", 409)
         preview = self._service.preview(
             actor,
             authority=authority,
             inputs=inputs,
             preview_id=self._preview_id(authority, inputs),
+        )
+        return authority, inputs, labels, capability, enabled, raw_behaviors, preview
+
+    def snapshot(self, actor):
+        authority, inputs, labels, capability, enabled, behaviors, preview = (
+            self._projection(actor)
         )
         return {
             "schemaVersion": 1,
@@ -93,10 +126,47 @@ class PowerBudgetHttpGateway:
                         "reductionW": item.reduction_w,
                         "targetW": item.target_w,
                         "priority": item.priority,
+                        "communicationLossBehavior": behaviors[item.load_id],
                     }
                     for item in preview.actions
                 ],
             },
             "controlCapability": capability,
-            "commandEndpointAvailable": False,
+            "commandEndpointAvailable": enabled,
+        }
+
+    def confirm(self, actor, *, preview_id, expected_plan_hash, request_key):
+        authority, _inputs, _labels, _capability, enabled, behaviors, preview = (
+            self._projection(actor)
+        )
+        if not enabled:
+            raise ApiError("power_capability_unverified", 409)
+        if preview.id != preview_id or not hmac.compare_digest(
+            preview.plan_hash, expected_plan_hash
+        ):
+            raise ApiError("power_budget_preview_changed", 409)
+        command_id = "manual-" + hashlib.sha256(
+            f"{actor.id}\0{request_key}".encode("utf-8")
+        ).hexdigest()
+        receipt = self._service.confirm(
+            actor,
+            authority=authority,
+            preview_id=preview_id,
+            command_id=command_id,
+            expected_plan_hash=expected_plan_hash,
+        )
+        if receipt.status == "awaiting_readback":
+            receipt = self._service.readback(
+                actor, authority=authority, command_id=command_id
+            )
+        return {
+            "schemaVersion": 1,
+            "commandId": receipt.command_id,
+            "previewId": receipt.preview_id,
+            "planHash": receipt.plan_hash,
+            "status": receipt.status,
+            "applyCount": receipt.apply_count,
+            "communicationLossBehavior": {
+                action.load_id: behaviors[action.load_id] for action in preview.actions
+            },
         }

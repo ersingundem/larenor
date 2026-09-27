@@ -1,9 +1,12 @@
+import 'dart:math';
+
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/power_budget_models.dart';
 
 abstract interface class PowerBudgetApi {
   Future<PowerBudgetSnapshot> load();
+  Future<PowerBudgetReceipt> confirm(PowerBudgetSnapshot snapshot);
   void retire();
 }
 
@@ -72,6 +75,77 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
     return _decode(_object(response['snapshot']), session);
   });
 
+  @override
+  Future<PowerBudgetReceipt> confirm(PowerBudgetSnapshot snapshot) =>
+      account.withSession((api, session) async {
+        _check();
+        if (!identical(_session, session) ||
+            !identical(account.session, session) ||
+            !snapshot.commandEndpointAvailable ||
+            snapshot.authority.accountId != session.user.id ||
+            snapshot.authority.coreId != session.context?.coreId ||
+            snapshot.authority.homeId != session.context?.homeId) {
+          retire();
+          throw const LarenorServerException('cancelled');
+        }
+        final random = Random.secure();
+        final requestKey = List.generate(
+          24,
+          (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join();
+        final response = _object(
+          await api.request(
+            'POST',
+            '/admin/power-budget/confirm',
+            token: session.accessToken,
+            body: {
+              'schemaVersion': 1,
+              'previewId': snapshot.planId,
+              'expectedPlanHash': snapshot.planHash,
+              'requestKey': 'power-budget:$requestKey',
+            },
+          ),
+        );
+        _check();
+        _keys(response, const {'receipt'});
+        final value = _object(response['receipt']);
+        _keys(value, const {
+          'schemaVersion',
+          'commandId',
+          'previewId',
+          'planHash',
+          'status',
+          'applyCount',
+          'communicationLossBehavior',
+        });
+        final behaviors = _object(value['communicationLossBehavior']);
+        final expectedLoads = snapshot.actions
+            .map((value) => value.loadId)
+            .toSet();
+        if (_int(value['schemaVersion']) != 1 ||
+            _text(value['previewId'], 128) != snapshot.planId ||
+            _text(value['planHash'], 64) != snapshot.planHash ||
+            _positive(value['applyCount']) != 1 ||
+            behaviors.keys.toSet() != expectedLoads ||
+            snapshot.actions.any(
+              (action) =>
+                  behaviors[action.loadId] != action.communicationLossBehavior,
+            )) {
+          _invalid();
+        }
+        return PowerBudgetReceipt(
+          commandId: _text(value['commandId'], 128),
+          previewId: snapshot.planId,
+          planHash: snapshot.planHash,
+          status: _oneOf(value['status'], const {
+            'verified',
+            'awaiting_readback',
+            'uncertain',
+          }),
+          applyCount: 1,
+        );
+      });
+
   PowerBudgetSnapshot _decode(Map<String, dynamic> raw, ServerSession session) {
     _keys(raw, const {
       'schemaVersion',
@@ -82,7 +156,7 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
       'commandEndpointAvailable',
     });
     if (_int(raw['schemaVersion']) != 1 ||
-        raw['commandEndpointAvailable'] != false) {
+        raw['commandEndpointAvailable'] is! bool) {
       _invalid();
     }
     final authorityRaw = _object(raw['authority']);
@@ -166,6 +240,7 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
         'reductionW',
         'targetW',
         'priority',
+        'communicationLossBehavior',
       });
       actions.add(
         PowerBudgetAction(
@@ -175,6 +250,15 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
           reductionW: _nonNegative(value['reductionW']),
           targetW: _nonNegative(value['targetW']),
           priority: _nonNegative(value['priority']),
+          communicationLossBehavior: _oneOf(
+            value['communicationLossBehavior'],
+            const {
+              'stop_charging',
+              'hold_last_safe_limit',
+              'provider_managed',
+              'not_applicable_read_only',
+            },
+          ),
         ),
       );
     }
@@ -199,7 +283,7 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
         'read_only',
         'manual_required',
       }),
-      commandEndpointAvailable: false,
+      commandEndpointAvailable: raw['commandEndpointAvailable'] as bool,
       actions: List.unmodifiable(actions),
     );
   }

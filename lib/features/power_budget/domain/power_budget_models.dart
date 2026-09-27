@@ -64,8 +64,9 @@ final class PowerBudgetAction {
     required this.reductionW,
     required this.targetW,
     required this.priority,
+    required this.communicationLossBehavior,
   });
-  final String loadId, label;
+  final String loadId, label, communicationLossBehavior;
   final int loadRevision, reductionW, targetW, priority;
 }
 
@@ -100,6 +101,22 @@ final class PowerBudgetSnapshot {
       authority.isBounded &&
       meterStatus == 'verified' &&
       tariffStatus == 'verified' &&
-      !commandEndpointAvailable &&
-      const {'read_only', 'manual_required'}.contains(controlCapability);
+      const {'read_only', 'manual_required'}.contains(controlCapability) &&
+      (!commandEndpointAvailable ||
+          controlCapability == 'manual_required' && authority.canControl);
+}
+
+@immutable
+final class PowerBudgetReceipt {
+  const PowerBudgetReceipt({
+    required this.commandId,
+    required this.previewId,
+    required this.planHash,
+    required this.status,
+    required this.applyCount,
+  });
+  final String commandId, previewId, planHash, status;
+  final int applyCount;
+
+  bool get verified => status == 'verified' && applyCount == 1;
 }

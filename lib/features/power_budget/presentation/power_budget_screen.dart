@@ -30,6 +30,34 @@ class _PowerBudgetScreenState extends State<PowerBudgetScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _confirm(PowerBudgetSnapshot snapshot) async {
+    final l10n = AppLocalizations.of(context);
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(l10n.powerBudgetConfirmTitle),
+        content: Text(
+          l10n.powerBudgetConfirmBody(
+            snapshot.actions.length,
+            snapshot.requiredReductionW,
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.commonCancel),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.powerBudgetConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && mounted) await widget.controller.confirm();
+  }
+
   @override
   void dispose() {
     widget.controller.removeListener(_changed);
@@ -96,6 +124,29 @@ class _PowerBudgetScreenState extends State<PowerBudgetScreen> {
                         );
                       },
                     ),
+                  if (snapshot.commandEndpointAvailable &&
+                      snapshot.actions.isNotEmpty &&
+                      controller.receipt == null) ...[
+                    const SizedBox(height: 16),
+                    CupertinoButton.filled(
+                      onPressed:
+                          controller.state == PowerBudgetViewState.loading
+                          ? null
+                          : () => _confirm(snapshot),
+                      child: Text(l10n.powerBudgetConfirmAction),
+                    ),
+                  ],
+                  if (controller.receipt case final receipt?) ...[
+                    const SizedBox(height: 16),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        receipt.verified
+                            ? l10n.powerBudgetApplied
+                            : l10n.powerBudgetUncertain,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -184,10 +235,22 @@ class _ActionCard extends StatelessWidget {
         Text(l10n.powerBudgetDefer(action.reductionW)),
         Text(l10n.powerBudgetTarget(action.targetW)),
         Text(l10n.powerBudgetPriority(action.priority)),
+        Text(
+          l10n.powerBudgetCommunicationLoss(
+            _failureBehavior(l10n, action.communicationLossBehavior),
+          ),
+        ),
       ],
     );
   }
 }
+
+String _failureBehavior(AppLocalizations l10n, String value) => switch (value) {
+  'stop_charging' => l10n.powerBudgetLossStop,
+  'hold_last_safe_limit' => l10n.powerBudgetLossHold,
+  'provider_managed' => l10n.powerBudgetLossProvider,
+  _ => l10n.powerBudgetLossReadOnly,
+};
 
 class _Card extends StatelessWidget {
   const _Card({required this.label, required this.children});

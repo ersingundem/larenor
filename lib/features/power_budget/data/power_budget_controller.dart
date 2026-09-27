@@ -13,6 +13,7 @@ final class PowerBudgetController extends ChangeNotifier {
   bool _interactive = true, _disposed = false;
   PowerBudgetViewState state = PowerBudgetViewState.idle;
   PowerBudgetSnapshot? snapshot;
+  PowerBudgetReceipt? receipt;
 
   bool _current() {
     try {
@@ -24,6 +25,7 @@ final class PowerBudgetController extends ChangeNotifier {
 
   void _stale() {
     snapshot = null;
+    receipt = null;
     state = PowerBudgetViewState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -42,6 +44,7 @@ final class PowerBudgetController extends ChangeNotifier {
     if (!_current()) return _stale();
     final operation = ++_epoch;
     snapshot = null;
+    receipt = null;
     state = PowerBudgetViewState.loading;
     notifyListeners();
     try {
@@ -55,6 +58,37 @@ final class PowerBudgetController extends ChangeNotifier {
       }
     } catch (_) {
       if (operation != _epoch || !_current()) return _stale();
+      state = PowerBudgetViewState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> confirm() async {
+    final current = snapshot;
+    if (!_current() ||
+        current == null ||
+        !current.commandEndpointAvailable ||
+        state != PowerBudgetViewState.ready) {
+      return _stale();
+    }
+    final operation = ++_epoch;
+    state = PowerBudgetViewState.loading;
+    receipt = null;
+    notifyListeners();
+    try {
+      final result = await api.confirm(current);
+      if (operation != _epoch || !_current()) return _stale();
+      receipt = result;
+      state = PowerBudgetViewState.ready;
+    } catch (_) {
+      if (operation != _epoch || !_current()) return _stale();
+      receipt = const PowerBudgetReceipt(
+        commandId: 'unavailable',
+        previewId: 'unavailable',
+        planHash: 'unavailable',
+        status: 'uncertain',
+        applyCount: 1,
+      );
       state = PowerBudgetViewState.failed;
     }
     if (!_disposed) notifyListeners();

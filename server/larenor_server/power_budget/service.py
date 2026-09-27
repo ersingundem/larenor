@@ -642,6 +642,12 @@ class PowerBudgetService:
                 ):
                     raise ApiError("power_budget_command_conflict", 409)
                 return self._receipt(connection, old, scope)
+            prior = connection.execute(
+                "SELECT command_id FROM power_budget_commands WHERE preview_id=?",
+                (preview_id,),
+            ).fetchone()
+            if prior is not None:
+                raise ApiError("power_budget_preview_changed", 409)
             preview_row = connection.execute(
                 "SELECT * FROM power_budget_previews WHERE id=?", (preview_id,)
             ).fetchone()
