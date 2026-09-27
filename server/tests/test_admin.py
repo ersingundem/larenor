@@ -288,17 +288,19 @@ def test_sessions_paginate_ties_filter_and_revoke_only_selected_family(server):
     assert client.get("/api/v1/admin/users", headers=auth(admin)).status_code == 401
 
 
-def test_audit_static_redacted_ordered_paginated_retained(server, monkeypatch):
-    import larenor_server.admin.service as service_module
+def test_audit_static_redacted_ordered_paginated_and_bounded(server, monkeypatch):
+    from larenor_server.core_audit import schema as audit_schema
     app, client, _settings, _clock = server
     admin = ready(server)
-    monkeypatch.setattr(service_module, "MAX_AUDIT_EVENTS", 3)
+    monkeypatch.setattr(audit_schema, "MAX_SOURCE_ROWS", 3)
     user = create(client, admin, "sensitive-name")
     path = f'/api/v1/admin/users/{user["id"]}'
-    for payload in [{"expectedRevision": 1, "disabled": True},
-                    {"expectedRevision": 1, "role": "admin"},
-                    {"expectedRevision": 2, "disabled": False}]:
-        client.patch(path, headers=auth(admin), json=payload)
+    outcomes = [client.patch(path, headers=auth(admin), json=payload)
+                for payload in [{"expectedRevision": 1, "disabled": True},
+                                {"expectedRevision": 1, "role": "admin"},
+                                {"expectedRevision": 2, "disabled": False}]]
+    assert [response.status_code for response in outcomes] == [200, 409, 429]
+    assert outcomes[-1].json()["error"]["code"] == "audit_limit_reached"
     page = client.get("/api/v1/admin/audit", headers=auth(admin), params={"limit": 2}).json()
     tail = client.get("/api/v1/admin/audit", headers=auth(admin), params={"limit": 2, "cursor": page["nextCursor"]}).json()
     events = page["events"] + tail["events"]

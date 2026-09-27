@@ -13,7 +13,6 @@ from .models import CreateUserRequest, ResetPasswordRequest, UpdateUserRequest
 
 
 MAX_USERS = 256
-MAX_AUDIT_EVENTS = 10000
 
 
 def utc(value: float) -> str:

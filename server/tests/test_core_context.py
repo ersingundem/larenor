@@ -110,6 +110,36 @@ def legacy_v2(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='legacy_remote_schema'"
         )
+        # The authenticated common audit chronology is scoped to the later
+        # Core/home identity and did not exist in a real v2 database.
+        for table in ("core_audit_chain", "core_audit_state"):
+            connection.execute(f"DROP TABLE {table}")
+        connection.execute(
+            "DELETE FROM metadata WHERE key='core_audit_schema'"
+        )
+        # Keep the synthetic downgrade faithful as new context-bound feature
+        # schemas are added. A historical v2 database contained only the
+        # authentication, vault, rate-limit and admin-audit tables below.
+        legacy_tables = {
+            "metadata",
+            "users",
+            "session_families",
+            "session_tokens",
+            "vaults",
+            "rate_limits",
+            "admin_audit",
+            "sqlite_sequence",
+        }
+        extra_tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        ).fetchall()
+        for row in extra_tables:
+            if row["name"] not in legacy_tables:
+                name = row["name"].replace('"', '""')
+                connection.execute(f'DROP TABLE "{name}"')
+        connection.execute(
+            "DELETE FROM metadata WHERE key NOT IN ('schema_version','key_check')"
+        )
         connection.execute("UPDATE metadata SET value='2' WHERE key='schema_version'")
 
 

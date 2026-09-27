@@ -88,6 +88,25 @@ def downgrade_to_known_v1(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='legacy_remote_schema'"
         )
+        # Keep this historical fixture independent of every later feature
+        # schema.  A real v1 database cannot contain context-bound extension
+        # tables or their migration markers; merely changing schema_version on
+        # a current database constructs an impossible, correctly rejected
+        # hybrid as new features are added.
+        legacy_tables = {
+            'metadata', 'users', 'session_families', 'session_tokens',
+            'vaults', 'rate_limits', 'sqlite_sequence',
+        }
+        current_tables = {
+            row['name'] for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        for table in sorted(current_tables - legacy_tables):
+            connection.execute(f'DROP TABLE "{table}"')
+        connection.execute(
+            "DELETE FROM metadata WHERE key NOT IN ('schema_version','key_check')"
+        )
         connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
 
 
