@@ -108,12 +108,17 @@ void main() {
         if (call.method == 'start') return {'status': 'active'};
         if (call.method == 'snapshot') {
           return {
-            'schemaVersion': 1,
+            'schemaVersion': 2,
             'batteryPercent': 80,
+            'charging': true,
             'network': 'wifi',
             'appVersion': '1.2.3',
+            'appBuild': 45,
             'appForeground': true,
             'kioskState': 'locked',
+            'memoryUsedMb': 256,
+            'memoryLimitMb': 1024,
+            'processUptimeSeconds': 3600,
           };
         }
         return null;

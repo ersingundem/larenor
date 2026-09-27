@@ -45,8 +45,8 @@ Map<String, Object?> _inventory({bool ready = true}) => {
 Map<String, Object?> _event() => {
   'schemaVersion': 1,
   'eventId': '0123456789abcdef0123456789abcdef',
-  'providerId': 'qr.local',
-  'kind': 'qr',
+  'providerId': 'nfc.local',
+  'kind': 'nfc',
   'capabilityRevision': 3,
   'deviceRevision': 7,
   'policyRevision': 11,
@@ -235,10 +235,12 @@ void main() {
     tester,
   ) async {
     final runtime = _Runtime();
-    final store = _Store()..value = {'qr.local'};
+    final store = _Store()..value = {'nfc.local'};
     await _mount(tester, runtime, store);
     expect(runtime.consumes, 0);
-    await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
+    await tester.tap(
+      find.byKey(const ValueKey('peripheral-consume-nfc.local')),
+    );
     await tester.pumpAndSettle();
     expect(runtime.consumes, 1);
     expect(find.text('javascript:alert(1)'), findsOneWidget);
@@ -246,7 +248,9 @@ void main() {
       find.byKey(const ValueKey('peripheral-review-only')),
       findsOneWidget,
     );
-    await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
+    await tester.tap(
+      find.byKey(const ValueKey('peripheral-consume-nfc.local')),
+    );
     await tester.pumpAndSettle();
     expect(runtime.consumes, 2);
     expect(find.text('javascript:alert(1)'), findsNothing);
@@ -254,9 +258,11 @@ void main() {
 
   testWidgets('route disposal drops late input without review', (tester) async {
     final runtime = _Runtime()..pending = Completer<Object?>();
-    final store = _Store()..value = {'qr.local'};
+    final store = _Store()..value = {'nfc.local'};
     await _mount(tester, runtime, store);
-    await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
+    await tester.tap(
+      find.byKey(const ValueKey('peripheral-consume-nfc.local')),
+    );
     await tester.pump();
     await tester.pumpWidget(const CupertinoApp(home: SizedBox()));
     runtime.pending!.complete(_event());
@@ -270,10 +276,10 @@ void main() {
       final interaction = AppInteractionController();
       addTearDown(interaction.dispose);
       final runtime = _Runtime()..pending = Completer<Object?>();
-      final store = _Store()..value = {'qr.local'};
+      final store = _Store()..value = {'nfc.local'};
       await _mount(tester, runtime, store, interaction: interaction);
       await tester.tap(
-        find.byKey(const ValueKey('peripheral-consume-qr.local')),
+        find.byKey(const ValueKey('peripheral-consume-nfc.local')),
       );
       await tester.pump();
       interaction.setActive(false);
@@ -291,9 +297,11 @@ void main() {
     tester,
   ) async {
     final runtime = _Runtime();
-    final store = _Store()..value = {'qr.local'};
+    final store = _Store()..value = {'nfc.local'};
     await _mount(tester, runtime, store);
-    await tester.tap(find.byKey(const ValueKey('peripheral-consume-qr.local')));
+    await tester.tap(
+      find.byKey(const ValueKey('peripheral-consume-nfc.local')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('javascript:alert(1)'), findsOneWidget);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));

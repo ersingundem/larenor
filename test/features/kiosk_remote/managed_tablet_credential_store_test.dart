@@ -164,13 +164,27 @@ void main() {
               'availabilityTopic': '${value.topicPrefix}/availability',
               'commandTopic': '${value.topicPrefix}/command',
               'ackTopic': '${value.topicPrefix}/ack',
+              'remoteView': {
+                'modes': ['appSurface'],
+                'frameTopic': '${value.topicPrefix}/remote_view/frame',
+                'receiptTopic': '${value.topicPrefix}/remote_view/receipt',
+                'retained': false,
+                'maxFrameBytes': 393216,
+                'maxFramesPerSecond': 1,
+                'localConfirmationRequired': true,
+              },
               'sensors': [
                 for (final kind in const [
                   'battery',
+                  'charging',
                   'network',
                   'app_version',
+                  'app_build',
                   'app_foreground',
                   'kiosk_state',
+                  'memory_used_mb',
+                  'memory_limit_mb',
+                  'process_uptime_seconds',
                 ])
                   {
                     'kind': kind,

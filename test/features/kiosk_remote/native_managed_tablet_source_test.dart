@@ -36,6 +36,33 @@ final class _Actions implements ManagedTabletLocalActions {
   }
 }
 
+Map<String, Object?> _snapshot({
+  int batteryPercent = 50,
+  bool charging = false,
+  String network = 'wifi',
+  String appVersion = '1.2.3',
+  int appBuild = 45,
+  bool appForeground = true,
+  String kioskState = 'none',
+  int memoryUsedMb = 256,
+  int memoryLimitMb = 1024,
+  int processUptimeSeconds = 3600,
+  Map<String, Object?> extra = const {},
+}) => {
+  'schemaVersion': 2,
+  'batteryPercent': batteryPercent,
+  'charging': charging,
+  'network': network,
+  'appVersion': appVersion,
+  'appBuild': appBuild,
+  'appForeground': appForeground,
+  'kioskState': kioskState,
+  'memoryUsedMb': memoryUsedMb,
+  'memoryLimitMb': memoryLimitMb,
+  'processUptimeSeconds': processUptimeSeconds,
+  ...extra,
+};
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel(NativeManagedTabletSource.channelName);
@@ -65,14 +92,12 @@ void main() {
       calls.add(call);
       if (call.method == 'start') return {'status': 'active'};
       if (call.method == 'snapshot') {
-        return {
-          'schemaVersion': 1,
-          'batteryPercent': 73,
-          'network': 'wifi',
-          'appVersion': '1.2.3+45',
-          'appForeground': true,
-          'kioskState': 'locked',
-        };
+        return _snapshot(
+          batteryPercent: 73,
+          charging: true,
+          appVersion: '1.2.3+45',
+          kioskState: 'locked',
+        );
       }
       return null;
     });
@@ -87,10 +112,15 @@ void main() {
 
     expect(telemetry.values(), {
       'battery': 73,
+      'charging': true,
       'network': 'wifi',
       'app_version': '1.2.3+45',
+      'app_build': 45,
       'app_foreground': true,
       'kiosk_state': 'locked',
+      'memory_used_mb': 256,
+      'memory_limit_mb': 1024,
+      'process_uptime_seconds': 3600,
     });
     expect(calls.map((call) => call.method), ['start', 'snapshot']);
     final wire = calls
@@ -119,39 +149,10 @@ void main() {
     final lease = await source.bind('scope');
 
     for (final invalid in [
-      {
-        'schemaVersion': 1,
-        'batteryPercent': 101,
-        'network': 'wifi',
-        'appVersion': '1',
-        'appForeground': true,
-        'kioskState': 'none',
-      },
-      {
-        'schemaVersion': 1,
-        'batteryPercent': 50,
-        'network': 'ssid:private-home',
-        'appVersion': '1',
-        'appForeground': true,
-        'kioskState': 'none',
-      },
-      {
-        'schemaVersion': 1,
-        'batteryPercent': 50,
-        'network': 'wifi',
-        'appVersion': 'x' * 65,
-        'appForeground': true,
-        'kioskState': 'none',
-      },
-      {
-        'schemaVersion': 1,
-        'batteryPercent': 50,
-        'network': 'wifi',
-        'appVersion': '1',
-        'appForeground': false,
-        'kioskState': 'none',
-        'token': 'must-not-cross',
-      },
+      _snapshot(batteryPercent: 101),
+      _snapshot(network: 'ssid:private-home'),
+      _snapshot(appVersion: 'x' * 65),
+      _snapshot(appForeground: false, extra: const {'token': 'must-not-cross'}),
     ]) {
       snapshot = invalid;
       await expectLater(lease!.readTelemetry(), throwsFormatException);
@@ -179,14 +180,7 @@ void main() {
       final late = old!.readTelemetry();
 
       final current = await source.bind('session-two');
-      pending.complete({
-        'schemaVersion': 1,
-        'batteryPercent': 50,
-        'network': 'offline',
-        'appVersion': '1',
-        'appForeground': true,
-        'kioskState': 'none',
-      });
+      pending.complete(_snapshot(network: 'offline', appVersion: '1'));
 
       await expectLater(late, throwsStateError);
       expect(
@@ -261,14 +255,7 @@ void main() {
         return {'result': 'succeeded'};
       }
       if (call.method == 'snapshot') {
-        return {
-          'schemaVersion': 1,
-          'batteryPercent': 50,
-          'network': 'wifi',
-          'appVersion': '1.2.3',
-          'appForeground': true,
-          'kioskState': 'none',
-        };
+        return _snapshot();
       }
       return null;
     });
@@ -315,14 +302,7 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'start') return {'status': 'active'};
       if (call.method == 'snapshot') {
-        return {
-          'schemaVersion': 1,
-          'batteryPercent': 50,
-          'network': 'wifi',
-          'appVersion': '1.2.3',
-          'appForeground': true,
-          'kioskState': 'none',
-        };
+        return _snapshot();
       }
       return null;
     });
