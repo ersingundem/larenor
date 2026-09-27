@@ -2946,7 +2946,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Yönetilen profil dağıtımı ve filo bağı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "K07",
         "K12",
@@ -2968,7 +2968,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal tesliminde yönetilen profil yayınlama/geri alma, Android doğrulama ve güvenli dağıtım hattı uygulanıyor."
     },
     {
       "id": "POC",
@@ -3578,7 +3578,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Çakışan kurallar hakemi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3603,7 +3603,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal paralel tesliminde Core çakışma hakemi uygulanıyor; aynı cihaz önceliği, süreli sahiplik, manuel müdahale ve gözlem-only dış HA yazmaları kapsamda."
     },
     {
       "id": "F02",
@@ -3705,7 +3705,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Görülebilir, süreli AI hafızası",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3729,7 +3729,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal paralel tesliminde süreli AI hafızası uygulanıyor; kaynak/kullanıcı/süre görünürlüğü, ev-hesap yalıtımı, tombstone ve indeks/önbellek unutması kapsamda."
     },
     {
       "id": "F07",
@@ -3767,7 +3767,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Kanıta dayalı arıza yardımcısı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3791,7 +3791,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek dal paralel tesliminde kanıta dayalı arıza yardımcısı uygulanıyor; ölçüm kaynakları, redaction, açık belirsizlik ve ayrı yetkili onarım önizlemesi kapsamda."
     },
     {
       "id": "G05",
