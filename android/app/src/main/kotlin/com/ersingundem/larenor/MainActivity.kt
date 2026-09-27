@@ -2,6 +2,7 @@ package com.ersingundem.larenor
 
 import android.content.res.Configuration
 import android.content.Intent
+import android.view.KeyEvent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.media3.common.util.UnstableApi
@@ -54,7 +55,9 @@ class MainActivity : FlutterActivity() {
         windowPolicy = WindowPolicyBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         kiosk = KioskBridge(this, flutterEngine.dartExecutor.binaryMessenger)
-        kioskPeripherals = KioskPeripheralBridge(flutterEngine.dartExecutor.binaryMessenger)
+        kioskPeripherals = KioskPeripheralBridge(this, flutterEngine.dartExecutor.binaryMessenger).also {
+            it.setWindowFocused(hasWindowFocus())
+        }
         launcherShortcuts = LauncherShortcutBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         updater = ClientUpdaterBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         vncNative = VncNativeBridge(flutterEngine.dartExecutor.binaryMessenger)
@@ -84,6 +87,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.setResumed(true)
         wellbeing?.setResumed(true)
         kiosk?.setResumed(true)
+        kioskPeripherals?.setResumed(true)
         launcherShortcuts?.setResumed(true)
         updater?.setResumed(true)
         vncNative?.setResumed(true)
@@ -101,6 +105,7 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.setResumed(false)
         wellbeing?.setResumed(false)
         kiosk?.setResumed(false)
+        kioskPeripherals?.setResumed(false)
         launcherShortcuts?.setResumed(false)
         updater?.setResumed(false)
         vncNative?.setResumed(false)
@@ -122,6 +127,7 @@ class MainActivity : FlutterActivity() {
         super.onWindowFocusChanged(hasFocus)
         wellbeing?.windowFocusChanged()
         kiosk?.windowChanged()
+        kioskPeripherals?.setWindowFocused(hasFocus)
         updater?.windowChanged()
         windowPolicy?.windowChanged()
         vncNative?.setWindowFocused(hasFocus)
@@ -143,6 +149,11 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         launcherShortcuts?.handleIntent(intent)
         localNotifications?.handleIntent(intent)
+        kioskPeripherals?.onNewIntent(intent)
+    }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        kioskPeripherals?.onKeyEvent(event)
+        return super.dispatchKeyEvent(event)
     }
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

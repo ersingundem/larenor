@@ -23,7 +23,7 @@ abstract interface class KioskPeripheralRuntime {
   int nowElapsedMs();
 }
 
-/// Read-only adapter boundary. No peripheral worker is advertised yet.
+/// Review-only Android adapter for explicitly armed NFC and external HID input.
 final class AndroidKioskPeripheralRuntime implements KioskPeripheralRuntime {
   AndroidKioskPeripheralRuntime({MethodChannel? channel, bool? isAndroid})
     : _channel =
@@ -33,36 +33,81 @@ final class AndroidKioskPeripheralRuntime implements KioskPeripheralRuntime {
 
   final MethodChannel _channel;
   final bool _isAndroid;
+  KioskPeripheralAuthority? _authority;
+  int _routeEpoch = 0;
+  int _lastElapsedMs = 0;
 
   @override
   Future<KioskPeripheralRuntimeSnapshot> snapshot() async {
     if (!_isAndroid) return _unavailable();
     try {
       final raw = await _channel.invokeMethod<Object?>('capabilities');
-      // The native stub has no trusted device/session authority or input worker.
-      // It can only advertise unavailable capabilities for tablet settings.
-      final inventory = KioskPeripheralInventory.fromChannel(
-        raw,
-        gmsAvailable: false,
-      );
-      if (inventory.providers.any((provider) => provider.supported)) {
-        return _unavailable();
+      if (raw is! Map ||
+          raw.length != 3 ||
+          raw['schemaVersion'] != 1 ||
+          raw['gmsAvailable'] is! bool ||
+          raw['inventory'] is! Map) {
+        throw const FormatException('invalid peripheral capabilities');
       }
+      final gmsAvailable = raw['gmsAvailable'] as bool;
+      final inventoryRaw = raw['inventory'];
+      final inventory = KioskPeripheralInventory.fromChannel(
+        inventoryRaw,
+        gmsAvailable: gmsAvailable,
+      );
+      if (_routeEpoch >= 0x7ffffffe) {
+        throw StateError('peripheral_route_epoch_exhausted');
+      }
+      final authority = KioskPeripheralAuthority(
+        deviceRevision: inventory.inventoryRevision,
+        policyRevision: inventory.inventoryRevision,
+        sessionEpoch: 1,
+        routeEpoch: ++_routeEpoch,
+        lifecycleEpoch: 1,
+      );
+      _authority = authority;
       return KioskPeripheralRuntimeSnapshot(
-        rawInventory: raw,
-        authority: null,
-        gmsAvailable: false,
+        rawInventory: inventoryRaw,
+        authority: authority,
+        gmsAvailable: gmsAvailable,
       );
     } catch (_) {
+      _authority = null;
       return _unavailable();
     }
   }
 
   @override
-  Future<Object?> takeNextInput(String providerId) async => null;
+  Future<Object?> takeNextInput(String providerId) async {
+    final authority = _authority;
+    if (!_isAndroid ||
+        authority == null ||
+        !RegExp(r'^[a-z][a-z0-9_.-]{2,63}$').hasMatch(providerId)) {
+      return null;
+    }
+    final raw = await _channel
+        .invokeMethod<Object?>('takeNextInput', {
+          'providerId': providerId,
+          'deviceRevision': authority.deviceRevision,
+          'policyRevision': authority.policyRevision,
+          'sessionEpoch': authority.sessionEpoch,
+          'routeEpoch': authority.routeEpoch,
+          'lifecycleEpoch': authority.lifecycleEpoch,
+        })
+        .timeout(const Duration(seconds: 16));
+    if (raw is! Map ||
+        raw.length != 2 ||
+        raw['input'] is! Map ||
+        raw['nowElapsedMs'] is! int ||
+        (raw['nowElapsedMs'] as int) < 0) {
+      throw const FormatException('invalid peripheral input response');
+    }
+    _lastElapsedMs = raw['nowElapsedMs'] as int;
+    return raw['input'];
+  }
 
   @override
-  int nowElapsedMs() => 0;
+  int nowElapsedMs() => _lastElapsedMs;
 }
 
 KioskPeripheralRuntimeSnapshot _unavailable() => KioskPeripheralRuntimeSnapshot(
