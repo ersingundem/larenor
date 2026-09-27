@@ -27,6 +27,7 @@ from .home_people.api import router as home_people_router
 from .meal_plans.api import router as meal_plans_router
 from .personal_profiles.api import router as personal_profiles_router
 from .home_assistant.api import router as home_assistant_router
+from .home_workflows.api import router as home_workflows_router
 from .home_assistant.rule_api import router as home_assistant_rule_router
 from .keenetic_resources.api import router as keenetic_resources_router
 from .home_assistant.history_api import router as command_history_router
@@ -363,6 +364,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(camera_visual_sensor_router, prefix="/api/v1")
     app.include_router(sound_events_router, prefix="/api/v1")
     app.include_router(home_assistant_router, prefix="/api/v1")
+    app.include_router(home_workflows_router, prefix="/api/v1")
     app.include_router(home_assistant_rule_router, prefix="/api/v1")
     app.include_router(keenetic_resources_router, prefix="/api/v1")
     app.include_router(command_history_router, prefix="/api/v1")

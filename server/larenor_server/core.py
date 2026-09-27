@@ -41,6 +41,8 @@ from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_resources.schema import migrate_home_resources
 from .home_resources.service import HomeResourceRegistry
+from .home_workflows.schema import migrate_home_workflows
+from .home_workflows.service import HomeWorkflowService
 from .inventory.schema import migrate_inventory
 from .inventory.service import InventoryRegistry
 from .keenetic_commands.core_worker import build_keenetic_worker_effect
@@ -371,6 +373,7 @@ class CoreServices:
                 migrate_component_egress(connection, self.context, key)
                 migrate_home_assistant(connection, self.context, key)
                 migrate_automation_rules(connection, self.context, key)
+                migrate_home_workflows(connection)
                 migrate_keenetic_resources(connection, self.context, key)
                 migrate_command_history(connection, self.context, key)
                 migrate_direct_ha(connection, key, self.context)
@@ -609,6 +612,12 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.home_resources, self.services
             )
             self.home_assistant.validate_storage()
+            self.home_workflows = HomeWorkflowService(
+                self.db, self.auth, settings, key,
+                self.home_resources, self.home_assistant,
+            )
+            self.home_workflows.validate_storage()
+            self.home_workflows.recover_incomplete()
             self.floor_plan = FloorPlanRuntime(
                 self.db,
                 self.auth,

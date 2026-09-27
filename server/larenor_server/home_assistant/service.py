@@ -334,7 +334,7 @@ class HomeAssistantAdapter:
             raise ApiError('not_found', 404)
         if value.request != body:
             raise ApiError('ha_command_conflict', 409)
-        if (attribution is None and value.attribution.source == 'core_rule') or (
+        if (attribution is None and value.attribution.source != 'core_api') or (
                 attribution is not None and value.attribution != attribution):
             raise ApiError('ha_command_conflict', 409)
         if value.receipt.dispatchState == 'pending' and body.requestId not in self._active_commands:

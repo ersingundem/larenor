@@ -153,15 +153,19 @@ class LegacyStoredCommand(FrozenModel):
 class CommandAttribution(FrozenModel):
     schemaVersion: Literal[1] = 1
     correlationId: Identity
-    source: Literal['core_api', 'core_rule', 'unknown']
+    source: Literal['core_api', 'core_rule', 'core_workflow', 'unknown']
     reason: Literal[
-        'explicit_command_request', 'explicit_rule_execution', 'unknown'
+        'explicit_command_request', 'explicit_rule_execution',
+        'workflow_step_execution', 'unknown'
     ]
     serviceId: Identity | None
     serviceRevision: Revision | None
     ruleId: Identity | None = None
     ruleRevision: Revision | None = None
     executionId: Identity | None = None
+    workflowId: Identity | None = None
+    workflowRevision: Revision | None = None
+    stepId: Literal['effect'] | None = None
 
     _integer_version = field_validator('schemaVersion', mode='before')(CommandRequest.integer_version.__func__)
 
@@ -170,23 +174,37 @@ class CommandAttribution(FrozenModel):
         if self.source == 'unknown':
             if (self.reason != 'unknown' or self.serviceId is not None
                     or self.serviceRevision is not None or self.ruleId is not None
-                    or self.ruleRevision is not None or self.executionId is not None):
+                    or self.ruleRevision is not None or self.executionId is not None
+                    or self.workflowId is not None or self.workflowRevision is not None
+                    or self.stepId is not None):
                 raise ValueError('invalid_attribution')
         elif self.source == 'core_api':
             if (self.reason != 'explicit_command_request' or self.serviceId is None
                     or self.serviceRevision is None or self.ruleId is not None
-                    or self.ruleRevision is not None or self.executionId is not None):
+                    or self.ruleRevision is not None or self.executionId is not None
+                    or self.workflowId is not None or self.workflowRevision is not None
+                    or self.stepId is not None):
                 raise ValueError('invalid_attribution')
-        elif (self.reason != 'explicit_rule_execution' or self.serviceId is None
-                or self.serviceRevision is None or self.ruleId is None
-                or self.ruleRevision is None or self.executionId != self.correlationId):
+        elif self.source == 'core_rule':
+            if (self.reason != 'explicit_rule_execution' or self.serviceId is None
+                    or self.serviceRevision is None or self.ruleId is None
+                    or self.ruleRevision is None or self.executionId != self.correlationId
+                    or self.workflowId is not None or self.workflowRevision is not None
+                    or self.stepId is not None):
+                raise ValueError('invalid_attribution')
+        elif (self.reason != 'workflow_step_execution' or self.serviceId is None
+                or self.serviceRevision is None or self.ruleId is not None
+                or self.ruleRevision is not None or self.executionId is not None
+                or self.workflowId is None or self.workflowRevision is None
+                or self.stepId != 'effect'):
             raise ValueError('invalid_attribution')
         return self
 
     @model_serializer(mode='wrap')
     def omit_empty_rule(self, handler):
         value = handler(self)
-        for key in ('ruleId', 'ruleRevision', 'executionId'):
+        for key in ('ruleId', 'ruleRevision', 'executionId', 'workflowId',
+                    'workflowRevision', 'stepId'):
             if value[key] is None:
                 del value[key]
         return value
