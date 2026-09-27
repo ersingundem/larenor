@@ -27,6 +27,7 @@ import '../features/irrigation_budget/presentation/irrigation_budget_route.dart'
 import '../features/epaper/presentation/epaper_management_route.dart';
 import '../features/floor_plan/presentation/floor_plan_route.dart';
 import '../features/fair_chores/presentation/fair_chore_route.dart';
+import '../features/home_workflows/presentation/home_workflow_route.dart';
 import '../features/local_notifications/presentation/local_notification_screen.dart';
 import '../features/meal_planner/presentation/weekly_meal_plan_route.dart';
 import '../features/shared_expenses/presentation/shared_expense_route.dart';
@@ -58,6 +59,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, _) => const WeeklyMealPlanRoute(),
         ),
         GoRoute(path: '/chores', builder: (_, _) => const FairChoreRoute()),
+        GoRoute(
+          path: '/workflows',
+          builder: (_, _) => const HomeWorkflowRoute(),
+        ),
         GoRoute(
           path: '/documents',
           builder: (_, _) => const HomeDocumentsRoute(),

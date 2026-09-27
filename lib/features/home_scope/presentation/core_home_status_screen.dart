@@ -294,6 +294,18 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                   ),
                 if (controller.account.context != null)
                   SettingsActionTile(
+                    key: const ValueKey('core-home-workflows-entry'),
+                    buttonKey: const ValueKey('core-home-workflows-action'),
+                    title: Text(l10n.homeWorkflowsTitle),
+                    additionalInfo: Text(l10n.homeWorkflowsSubtitle),
+                    onTap: !current()
+                        ? null
+                        : () {
+                            if (current()) context.push('/workflows');
+                          },
+                  ),
+                if (controller.account.context != null)
+                  SettingsActionTile(
                     key: const ValueKey('local-notification-entry'),
                     buttonKey: const ValueKey(
                       'local-notification-entry-action',
