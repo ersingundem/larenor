@@ -21,6 +21,7 @@ from ..plugins.managed_container import (
     _binding_parts,
 )
 from ..plugins.worker import DockerWorkerError, _canonical, _decode, _safe_path
+from .component_update_rollback_models import ComponentUpdateRollbackReceipt
 
 
 _SCHEMA = """CREATE TABLE component_update_effects (
@@ -60,6 +61,7 @@ class ComponentUpdateEffectRecord:
     new_container_id: str | None
     binding: ManagedContainerBinding
     source: tuple
+    rollback: tuple[ComponentUpdateRollbackReceipt, ...]
 
     def __repr__(self):
         return "ComponentUpdateEffectRecord(<private>)"
@@ -95,6 +97,34 @@ def _binding(payload):
     except ComponentUpdateEffectJournalError:
         raise
     except (KeyError, TypeError, ValueError, AttributeError, DockerWorkerError):
+        _fail()
+
+
+def _rollback(payload):
+    try:
+        value = payload.get("rollback", [])
+        if type(value) is not list or len(value) > 3:
+            _fail()
+        result = tuple(
+            ComponentUpdateRollbackReceipt(
+                volume_id=item["volumeId"],
+                byte_length=item["byteLength"],
+                sha256=item["sha256"],
+            )
+            for item in value
+            if type(item) is dict
+            and set(item) == {"volumeId", "byteLength", "sha256"}
+        )
+        if (
+            len(result) != len(value)
+            or tuple(sorted(result, key=lambda item: item.volume_id)) != result
+            or len({item.volume_id for item in result}) != len(result)
+        ):
+            _fail()
+        return result
+    except ComponentUpdateEffectJournalError:
+        raise
+    except (KeyError, TypeError, ValueError, AttributeError):
         _fail()
 
 
@@ -267,11 +297,10 @@ class ComponentUpdateEffectJournal:
             ):
                 _fail()
             payload = _decode(row["payload"], 524288)
-            if type(payload) is not dict or set(payload) != {
-                "command",
-                "binding",
-                "source",
-            }:
+            if type(payload) is not dict or set(payload) not in (
+                {"command", "binding", "source"},
+                {"command", "binding", "source", "rollback"},
+            ):
                 _fail()
             command = verify_update_command(
                 ComponentUpdateCommand.model_validate(payload["command"])
@@ -296,6 +325,7 @@ class ComponentUpdateEffectJournal:
                 row["new_container_id"],
                 _binding(payload),
                 tuple(source),
+                _rollback(payload),
             )
         except ComponentUpdateEffectJournalError:
             raise
@@ -309,7 +339,7 @@ class ComponentUpdateEffectJournal:
         ).fetchone()
         return None if row is None else self._decode(row)
 
-    def prepare(self, command, old_container_id, binding, source):
+    def prepare(self, command, old_container_id, binding, source, rollback=()):
         self._locked()
         try:
             command = verify_update_command(command)
@@ -319,6 +349,15 @@ class ComponentUpdateEffectJournal:
                 or len(old_container_id) != 64
                 or type(source) is not tuple
                 or len(source) != 3
+                or type(rollback) is not tuple
+                or len(rollback) > 3
+                or any(
+                    type(item) is not ComponentUpdateRollbackReceipt
+                    for item in rollback
+                )
+                or tuple(sorted(rollback, key=lambda item: item.volume_id))
+                != rollback
+                or len({item.volume_id for item in rollback}) != len(rollback)
             ):
                 _fail()
             payload = _canonical(
@@ -326,6 +365,14 @@ class ComponentUpdateEffectJournal:
                     "command": command.model_dump(mode="json"),
                     "binding": binding.payload(),
                     "source": list(source),
+                    "rollback": [
+                        {
+                            "volumeId": item.volume_id,
+                            "byteLength": item.byte_length,
+                            "sha256": item.sha256,
+                        }
+                        for item in rollback
+                    ],
                 }
             )
             existing = self.get(command.updateId)
@@ -335,6 +382,7 @@ class ComponentUpdateEffectJournal:
                     or existing.old_container_id != old_container_id
                     or existing.binding != binding
                     or existing.source != source
+                    or existing.rollback != rollback
                 ):
                     _fail()
                 return existing
