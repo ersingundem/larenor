@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `cabd9324` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F18, F20, F21, F25, F26, F27, F28, F32, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `e6842910` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F16, F17, F18, F20, F21, F25, F26, F27, F28, F32, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. F19 çoklu bağımsız ev/Core teslimi aktif. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
@@ -16,6 +16,17 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 27 Eylül F19 birden fazla ev, bağımsız Core — uygulama başladı
+
+F19 tek Core/ev Server güvenlik sınırını koruyup Client tarafında birden fazla
+bağımsız Core oturumunu yönetmek üzere başladı. İlk dilim sürümlü ve sınırlı
+çoklu ev kasasını, mevcut tek oturum kaydının kayıpsız geçişini ve profil
+kimliğini kuracak. Ardından aktif ev değişiminde eski oturumun gecikmiş
+cevaplarını kapatma, tam runtime remount, ev kapsamlı cache/search yalıtımı,
+restore kimlik çakışması ve iki Core'un ayrı yetkisini isteyen hareket sözleşmesi
+gelecek. F19 kabul edilmedi; sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)**
+olarak değişmedi.
 
 ### 27 Eylül F18 elektrik kesintisinde düzenli kapanış — uygulama tamamlandı, test bekliyor
 

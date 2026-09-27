@@ -3901,7 +3901,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Birden fazla ev, bağımsız Core",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3928,7 +3928,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Tek Core/ev Server sınırı korunarak Client tarafında sürümlü çoklu ev kasası, güvenli aktif profil değişimi, tam runtime remount, ev kapsamlı cache/search yalıtımı, restore kimlik çakışması ve ayrı çift yetkili evler arası hareket dilimleri uygulanıyor."
     },
     {
       "id": "G06",
