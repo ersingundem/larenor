@@ -18,6 +18,7 @@ import '../../settings/providers/settings_providers.dart';
 import '../../settings/presentation/settings_gate_screen.dart';
 import '../admin/presentation/server_admin_screen.dart';
 import '../ai_resources/presentation/server_ai_resource_screen.dart';
+import '../ai_memory/presentation/server_ai_memory_screen.dart';
 import '../component_updates/presentation/server_component_updates_screen.dart';
 import '../core_backups/presentation/server_core_backups_screen.dart';
 import '../data/server_account_controller.dart';
@@ -836,6 +837,25 @@ class _ServerConnectionScreenState
                                         })
                                       : null,
                                 ),
+                              SettingsActionTile(
+                                buttonKey: const ValueKey('server-ai-memory'),
+                                leading: const Icon(CupertinoIcons.lightbulb),
+                                title: Text(l10n.serverAiMemoryTitle),
+                                onTap: _enabled
+                                    ? _callback(() {
+                                        Navigator.of(context).push<void>(
+                                          CupertinoPageRoute(
+                                            builder: (_) =>
+                                                ServerAiMemoryScreen(
+                                                  gateCurrent:
+                                                      widget.adminGateCurrent ??
+                                                      () => true,
+                                                ),
+                                          ),
+                                        );
+                                      })
+                                    : null,
+                              ),
                               SettingsActionTile(
                                 key: const ValueKey('server-vault'),
                                 leading: const Icon(CupertinoIcons.lock_shield),
