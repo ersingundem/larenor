@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 1 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 6 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 1 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F08 | Yapay zekâ kaynak yöneticisi | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -39,37 +39,37 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | ---: | --- | --- | --- | --- |
 | 1 | K13 | Yönetilen profil dağıtımı ve filo bağı | Başlanabilir | — |
 | 2 | F04 | Çakışan kurallar hakemi | Başlanabilir | — |
-| 3 | F11 | Sınırlı yetkili mini eklentiler | Başlanabilir | — |
-| 4 | F12 | Yetkili MCP kapısı | Başlanabilir | — |
-| 5 | F14 | Süreli destek oturumu | Başlanabilir | — |
-| 6 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
-| 7 | F23 | Canlı TV ve kayıt merkezi | Başlanabilir | — |
-| 8 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 9 | F33 | Büyük ekran pişirme asistanı | Başlanabilir | — |
-| 10 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
-| 11 | F37 | Ortak ev masrafları | Başlanabilir | — |
-| 12 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
-| 13 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
-| 14 | F43 | Evdeyken kamera kayıt profili | Başlanabilir | — |
-| 15 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
-| 16 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
-| 17 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
-| 18 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
-| 19 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
-| 20 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
-| 21 | F02 | Otomasyonun deneme haftası | Bağımlılık bekliyor | F04 |
-| 22 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
-| 23 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03, F04 |
-| 24 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08 |
-| 25 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
-| 26 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
-| 27 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F08 |
-| 28 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F08 |
-| 29 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08 |
+| 3 | F09 | Görülebilir, süreli AI hafızası | Başlanabilir | — |
+| 4 | F07 | Evin alışılmış düzeninden sapmalar | Başlanabilir | — |
+| 5 | F10 | Kanıta dayalı arıza yardımcısı | Başlanabilir | — |
+| 6 | F11 | Sınırlı yetkili mini eklentiler | Başlanabilir | — |
+| 7 | F12 | Yetkili MCP kapısı | Başlanabilir | — |
+| 8 | F14 | Süreli destek oturumu | Başlanabilir | — |
+| 9 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 10 | F23 | Canlı TV ve kayıt merkezi | Başlanabilir | — |
+| 11 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 12 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
+| 13 | F33 | Büyük ekran pişirme asistanı | Başlanabilir | — |
+| 14 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
+| 15 | F36 | Adil ev işi paylaşımı | Başlanabilir | — |
+| 16 | F37 | Ortak ev masrafları | Başlanabilir | — |
+| 17 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
+| 18 | F39 | Canlı aile panosu ve beyaz tahta | Başlanabilir | — |
+| 19 | F40 | Ortak kaynak rezervasyonu | Başlanabilir | — |
+| 20 | F43 | Evdeyken kamera kayıt profili | Başlanabilir | — |
+| 21 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
+| 22 | F57 | Oda düzeyinde yerel varlık algısı | Başlanabilir | — |
+| 23 | F58 | E-paper mini ev ekranları | Başlanabilir | — |
+| 24 | F59 | 3D yazıcı ve atölye merkezi | Başlanabilir | — |
+| 25 | F60 | Tablette ev bilgisayarından oyun yayını | Başlanabilir | — |
+| 26 | F61 | Bağımsız VNC uzak ekran | Başlanabilir | — |
+| 27 | F02 | Otomasyonun deneme haftası | Bağımlılık bekliyor | F04 |
+| 28 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
+| 29 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F02, F03, F04 |
 | 30 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43 |
-| 31 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43, F08 |
-| 32 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43, F08 |
-| 33 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43, F08 |
+| 31 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43 |
+| 32 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43 |
+| 33 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43 |
 | 34 | F50 | Oda konforu ve havalandırma planı | Bağımlılık bekliyor | F04 |
 | 35 | F48 | Ev güç bütçesi | Bağımlılık bekliyor | F04 |
 | 36 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
@@ -160,6 +160,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
+| F08 | Yapay zekâ kaynak yöneticisi | Uygulama tamamlandı · test bekliyor | — |
 | F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
 | F24 | Akıllı altyazı ve dil tercihleri | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |

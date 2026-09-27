@@ -3546,7 +3546,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Yapay zekâ kaynak yöneticisi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3571,7 +3571,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core kaynak kotası, öncelikli iş kuyruğu, medya etkinliği baskılama ve açık yetersiz donanım durumu tek çalışma dalında uygulanıyor; özellik testleri final doğrulama evresine bırakıldı."
+      "reason": "Core üzerinde HMAC korumalı bellek/CPU/eşzamanlılık politikası, öncelikli-idempotent iş kuyruğu, iptal/tamamlama, kısa medya lease’iyle otomatik CPU baskılama ve açık yetersiz donanım durumu tamamlandı. Gerçek süreç belleği ve normalize sistem yükü zaman damgalı, HMAC’li ve 256 ölçümle sınırlı tutuluyor; Flutter yönetim ekranı ve Jellyfin lease’i bağlı. Şema/idempotence/medya baskılama/iptal smoke’u, Python compile, l10n ve odaklı Flutter analyze temiz. Özellik testleri, gerçek AI yüküyle izole Core E2E, bağımsız inceleme, düşük donanım kabulü ve exact-head CI final doğrulama kapısında bekliyor."
     },
     {
       "id": "F04",
