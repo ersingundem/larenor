@@ -17,6 +17,27 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 27 Eylül F25 jenerik ve kapanış atlama — uygulama tamamlandı, test bekliyor
+
+F25 tek çalışma dalında tamamlandı. Oynatıcı, güncel Jellyfin öğesini önce
+Core katalog otoritesinden çözüp `MediaSegments` işaretlerini yalnız izole
+worker üzerinden okuyor. Public ve private sözleşmeler hesap, oturum ailesi,
+kurulum, snapshot, Jellyfin servis revision'ı, öğe ve medya anahtarını birlikte
+bağlıyor. En fazla 32 ham işaret kabul ediliyor; oynatıcıya yalnız sıralı,
+çakışmayan ve süre sınırları içindeki en fazla sekiz Intro/Outro aralığı
+aktarılıyor. Desteklenmeyen endpoint, boş sonuç ve bozuk/farklı sözleşme ayrı
+fail-closed durumlar olarak kalıyor.
+
+Flutter oynatıcı yalnız doğrulanmış aralık aktifken “Jeneriği atla” veya
+“Kapanışı atla” düğmesini gösteriyor ve ancak açık kullanıcı eylemiyle aralığın
+sonuna gidiyor; otomatik atlama yok. `9cc7a491` kaynak dilimi odaklı Flutter
+analyze, Python py_compile, import/route smoke ve diff kapılarından geçti.
+Kullanıcının kararı gereği özellik testleri son toplu doğrulama evresine
+bırakıldı. Bu yüzden F25 kuyrukta **uygulama tamamlandı · test bekliyor**;
+sayaçlar **37/125 (%29,6)** ve **3/63 (%4,8)** olarak değişmedi. Gerçek
+Jellyfin Client→Core→worker E2E, bağımsız inceleme, exact-head CI ve gerçek
+eklenti/sürüm kabulü açık kalıyor.
+
 ### 27 Eylül F26 oynatma kalitesi danışmanı — uygulama tamamlandı, test bekliyor
 
 F26 tek çalışma dalında tamamlandı. Yerel Jellyfin oynatıcı kaynak codec'i,

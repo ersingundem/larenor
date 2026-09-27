@@ -4004,7 +4004,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Jenerik ve kapanış atlama",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4028,7 +4028,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Jellyfin MediaSegments kaynak işaretlerini yalnız izole Core adaptörü üzerinden sürümlü ve bounded sözleşmeyle okuyup Intro/Outro zaman aralıklarını doğrulayan, yanlış veya eksik işarette fail-closed kalan ve oynatıcıda yalnız açık kullanıcı eylemiyle atlayan üretim akışı uygulanıyor. Otomatik atlama ve gerçek eklenti/sürüm kabulü bu dilimde iddia edilmeyecek."
+      "reason": "Jellyfin 10.10+ MediaSegments işaretleri mevcut Core katalog target/resolve kanıtına bağlanarak yalnız izole worker üzerinden exact ve bounded v1 sözleşmeyle okunuyor. Intro/Outro aralıkları süre, sıra ve çakışma sınırlarıyla doğrulanıyor; 400/404, bozuk veya farklı sözleşme fail-closed kalıyor. Oynatıcı yalnız geçerli aralıkta manuel Jeneriği/Kapanışı atla düğmesi gösteriyor; otomatik atlama yok. Testler kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Jellyfin Client→Core→worker E2E, bağımsız inceleme, exact-head CI ve gerçek eklenti/sürüm kabulü henüz tamamlanmadı."
     },
     {
       "id": "F21",
