@@ -3179,7 +3179,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Değiştirilmesi fark edilen işlem günlüğü",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3203,7 +3203,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Core çapında HMAC zincirli audit journal, admin doğrulama endpointi ve cihazda güvenli checkpoint pin/karşılaştırma/döndürme akışı Server ve Client tarafında tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
     },
     {
       "id": "F06",
