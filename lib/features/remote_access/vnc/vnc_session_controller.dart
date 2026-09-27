@@ -40,6 +40,10 @@ class VncSessionController extends ChangeNotifier {
   VncCertificatePin? pendingCertificate;
   String? error;
   bool get hasSensitiveInput => _passwordDecision != null;
+  VncFramebufferChannel? get framebufferChannel =>
+      _channel is VncFramebufferChannel
+      ? _channel! as VncFramebufferChannel
+      : null;
 
   VncEngine? _engine;
   VncChannel? _channel;

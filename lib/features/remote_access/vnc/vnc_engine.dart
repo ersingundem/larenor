@@ -1,4 +1,5 @@
 import '../data/remote_profiles.dart';
+import '../vnc_framebuffer_surface.dart';
 import 'vnc_models.dart';
 
 abstract interface class VncChannel {
@@ -6,6 +7,14 @@ abstract interface class VncChannel {
   void pointer(VncPointerEvent event);
   void key(VncKeyEvent event);
   void close();
+}
+
+/// Optional channel capability implemented only by engines that deliver real
+/// bounded RGBA frames and await presentation acknowledgements.
+abstract interface class VncFramebufferChannel
+    implements VncChannel, VncSurfaceSink {
+  Stream<VncRawFrame> get frames;
+  bool get clipboardSupported;
 }
 
 abstract interface class VncEngine {

@@ -12,6 +12,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
+import '../vnc_framebuffer_surface.dart';
 import 'vnc_engine.dart';
 import 'vnc_models.dart';
 import 'vnc_security_store.dart';
@@ -46,6 +47,9 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
   VncSessionController? _controller;
   VncEngine Function()? _factory;
   VncTrustStore? _trust;
+  VncFramebufferController? _framebuffer;
+  VncFramebufferChannel? _framebufferChannel;
+  StreamSubscription<VncRawFrame>? _frames;
   bool _resumed = true, _focused = true, _retired = false;
 
   bool _current() {
@@ -129,7 +133,46 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
   void _changed() {
     if (!mounted) return;
     if (_controller?.hasSensitiveInput != true) _password.clear();
+    _synchronizeFramebuffer();
     setState(() {});
+  }
+
+  void _synchronizeFramebuffer() {
+    final channel = _controller?.framebufferChannel;
+    if (channel == null || _controller?.phase != VncSessionPhase.connected) {
+      _disposeFramebuffer();
+      return;
+    }
+    if (identical(channel, _framebufferChannel)) return;
+    _disposeFramebuffer();
+    final framebuffer = VncFramebufferController(
+      sink: channel,
+      isCurrent: _current,
+      isForeground: _current,
+      clipboardSupported: channel.clipboardSupported,
+    );
+    _framebufferChannel = channel;
+    _framebuffer = framebuffer;
+    _frames = channel.frames.listen(
+      (frame) => unawaited(
+        framebuffer.offer(frame).catchError((Object _) async {
+          await framebuffer.retire();
+        }),
+      ),
+      onError: (_) => unawaited(framebuffer.retire()),
+      onDone: () => unawaited(framebuffer.retire()),
+      cancelOnError: true,
+    );
+  }
+
+  void _disposeFramebuffer() {
+    final frames = _frames;
+    _frames = null;
+    unawaited(frames?.cancel());
+    final framebuffer = _framebuffer;
+    _framebuffer = null;
+    _framebufferChannel = null;
+    if (framebuffer != null) unawaited(framebuffer.retire());
   }
 
   void _ownerChanged() {
@@ -140,6 +183,7 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
     if (_retired) return;
     _retired = true;
     _password.clear();
+    _disposeFramebuffer();
     _controller?.retire();
     if (mounted) setState(() {});
   }
@@ -162,6 +206,7 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
     WidgetsBinding.instance.removeObserver(this);
     _interaction?.removeListener(_ownerChanged);
     _controller?.removeListener(_changed);
+    _disposeFramebuffer();
     _controller?.dispose();
     _password.dispose();
     super.dispose();
@@ -318,7 +363,17 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
                             () => unawaited(c.authenticate(_password.text)),
                           ),
                         ],
-                        if (c.phase == VncSessionPhase.connected)
+                        if (c.phase == VncSessionPhase.connected &&
+                            _framebuffer != null)
+                          SizedBox(
+                            height: 560,
+                            child: VncFramebufferSurface(
+                              controller: _framebuffer!,
+                              semanticsLabel: l.vncInputReady,
+                              clipboardLabel: l.vncClipboardOff,
+                            ),
+                          )
+                        else if (c.phase == VncSessionPhase.connected)
                           Padding(
                             padding: const EdgeInsets.all(20),
                             child: Semantics(
