@@ -7,7 +7,6 @@ import re
 import threading
 import time
 
-from ..plugins.catalog import load_catalog
 from ..plugins.component_updates import (
     ComponentUpdateError,
     installed_update_source,
@@ -25,6 +24,7 @@ from ..plugins.volume_create_journal import (
     VolumeCreateIntent,
     VolumeCreateJournal,
 )
+from ..plugins.models import Catalog, CatalogEntry
 from .component_snapshot_provider import ComponentVolumeSource
 
 
@@ -80,6 +80,8 @@ class InstalledComponentReceipt:
     service_version: str
     config_schema_version: int
     data_schema_version: str
+    catalog_digest: str
+    catalog_entry: CatalogEntry = field(repr=False)
     installed: ManagedInstalledContainer = field(repr=False)
     volumes: tuple[InstalledComponentVolumeReceipt, ...] = field(repr=False)
 
@@ -93,6 +95,11 @@ class InstalledComponentReceipt:
                 or type(self.service_version) is not str
                 or type(self.config_schema_version) is not int
                 or type(self.data_schema_version) is not str
+                or type(self.catalog_digest) is not str
+                or type(self.catalog_entry) is not CatalogEntry
+                or self.catalog_entry.catalogDigest != self.catalog_digest
+                or self.catalog_entry.manifest.serviceId != self.service_id
+                or self.catalog_entry.manifest.version != self.service_version
                 or type(self.volumes) is not tuple
                 or not self.volumes
                 or any(
@@ -127,14 +134,6 @@ class DurableComponentInstallationAuthority:
         self._mutex = threading.Lock()
         self._expected = None
         self._sources = None
-
-    @staticmethod
-    def _catalog():
-        catalog = load_catalog()
-        return catalog, {
-            entry.manifest.serviceId: (entry, entry.manifest)
-            for entry in catalog.entries
-        }
 
     @staticmethod
     def _current_binding(installed, intents, stack, catalog, policy, service_id):
@@ -221,7 +220,7 @@ class DurableComponentInstallationAuthority:
             raise ComponentInstallationAuthorityError()
 
     @staticmethod
-    def _component(installed, intents, catalog, entries):
+    def _component(installed, intents):
         candidates = tuple(
             intent
             for intent in intents
@@ -232,33 +231,51 @@ class DurableComponentInstallationAuthority:
         if len(services) != 1:
             raise ComponentInstallationAuthorityError()
         service_id = next(iter(services))
-        current = entries.get(service_id)
-        if current is None:
-            raise ComponentInstallationAuthorityError()
-        entry, manifest = current
-        expected = {
-            (mount.target, f"{service_id}-{mount.relativePath.rsplit('/', 1)[-1]}")
-            for mount in manifest.mounts
-            if mount.kind == "managed_appdata"
-        }
-        if len(candidates) != len(expected):
-            raise ComponentInstallationAuthorityError()
         mounted = {item.name: item for item in installed.binding.mounts}
         receipts = []
         observed = set()
         current_source = None
+        catalog = None
+        entry = None
+        manifest = None
+        expected = None
         for intent in candidates:
             resource = intent.binding.resource
             source = intent.binding.source
             if (
                 type(source) is not tuple
                 or len(source) != 4
-                or source[2] != catalog
-                or source[0].catalogDigest != catalog.digest
                 or current_source is not None and source != current_source
                 or intent.receipt.state != "observed_requires_bootstrap"
             ):
                 raise ComponentInstallationAuthorityError()
+            if current_source is None:
+                if type(source[2]) is not Catalog:
+                    raise ComponentInstallationAuthorityError()
+                catalog = Catalog.model_validate_json(source[2].model_dump_json())
+                entries = tuple(
+                    item
+                    for item in catalog.entries
+                    if item.manifest.serviceId == service_id
+                )
+                if (
+                    len(entries) != 1
+                    or any(item.catalogDigest != catalog.digest for item in catalog.entries)
+                    or source[0].catalogDigest != catalog.digest
+                ):
+                    raise ComponentInstallationAuthorityError()
+                entry = entries[0]
+                manifest = entry.manifest
+                expected = {
+                    (
+                        mount.target,
+                        f"{service_id}-{mount.relativePath.rsplit('/', 1)[-1]}",
+                    )
+                    for mount in manifest.mounts
+                    if mount.kind == "managed_appdata"
+                }
+                if len(candidates) != len(expected):
+                    raise ComponentInstallationAuthorityError()
             current_source = source
             component = next(
                 (
@@ -277,6 +294,7 @@ class DurableComponentInstallationAuthority:
                 component is None
                 or component.serviceId != service_id
                 or component.plan.manifestDigest != entry.manifestDigest
+                or expected is None
                 or identity not in expected
                 or mount is None
                 or mount.target != resource.target
@@ -287,9 +305,14 @@ class DurableComponentInstallationAuthority:
             receipts.append(
                 InstalledComponentVolumeReceipt(identity[1], resource.target, intent)
             )
-        if observed != expected:
+        if expected is None or observed != expected:
             raise ComponentInstallationAuthorityError()
-        if current_source is None:
+        if (
+            current_source is None
+            or catalog is None
+            or entry is None
+            or manifest is None
+        ):
             raise ComponentInstallationAuthorityError()
         DurableComponentInstallationAuthority._current_binding(
             installed,
@@ -306,19 +329,20 @@ class DurableComponentInstallationAuthority:
             manifest.version,
             manifest.configSchemaVersion,
             manifest.dataSchemaVersion,
+            catalog.digest,
+            entry,
             installed,
             tuple(sorted(receipts, key=lambda item: item.volume_id)),
         )
 
     def _read(self):
-        catalog, entries = self._catalog()
         with self._containers.locked(), self._volumes.locked():
             installed = self._containers.installed()
             intents = self._volumes.intents()
             result = tuple(
                 sorted(
                     (
-                        self._component(item, intents, catalog, entries)
+                        self._component(item, intents)
                         for item in installed
                     ),
                     key=lambda item: item.service_id,
@@ -349,7 +373,6 @@ class DurableComponentInstallationAuthority:
         """Return display-safe F15 identities only for current live receipts."""
         try:
             receipts = self._read()
-            _catalog, entries = self._catalog()
             return tuple(
                 installed_update_source(
                     installation_id=receipt.installation_id,
@@ -359,7 +382,8 @@ class DurableComponentInstallationAuthority:
                     data_schema_version=receipt.data_schema_version,
                     platform=receipt.installed.binding.platform,
                     observed_image_config_digest=receipt.installed.binding.image_id,
-                    catalog_entry=entries[receipt.service_id][0],
+                    catalog_entry=receipt.catalog_entry,
+                    recorded_catalog_digest=receipt.catalog_digest,
                 )
                 for receipt in receipts
             )

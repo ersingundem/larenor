@@ -389,6 +389,78 @@ def release_identity(entry: CatalogEntry, platform: str) -> tuple[ComponentRelea
         raise ComponentUpdateError("component_release_untrusted") from None
 
 
+def recorded_release_identity(
+    entry: CatalogEntry,
+    catalog_digest: str,
+    platform: str,
+) -> tuple[
+    ComponentReleaseIdentity,
+    ComponentPermissionSet,
+    ComponentSchemaIdentity,
+]:
+    """Rebuild an installed identity from its journal-bound catalog entry.
+
+    Target releases must pass :func:`release_identity` and therefore the current
+    package pins.  An installed release is instead bound to the exact catalog
+    snapshot retained by the private installation journal.  Revalidate every
+    field and both recorded digests here so a later package catalog cannot
+    silently rewrite the identity of the running container.
+    """
+    try:
+        if type(entry) is not CatalogEntry or type(catalog_digest) is not str:
+            raise ValueError("recorded_release_type")
+        validated = CatalogEntry.model_validate_json(
+            _canonical(entry.model_dump(mode="json"))
+        )
+        manifest = validated.manifest
+        manifest_digest = hashlib.sha256(
+            _canonical(manifest.model_dump(mode="json"))
+        ).hexdigest()
+        if (
+            validated.catalogDigest != catalog_digest
+            or validated.manifestDigest != manifest_digest
+        ):
+            raise ValueError("recorded_release_digest")
+        selected = next(
+            item for item in manifest.images if item.platform == platform
+        )
+        identity = ComponentReleaseIdentity(
+            schemaVersion=1,
+            serviceId=manifest.serviceId,
+            integrationRole=manifest.integrationRole,
+            distributionId=manifest.distributionId,
+            version=manifest.version,
+            publisher=_publisher(manifest.repository),
+            upstreamRepository=manifest.upstreamRepository,
+            sourceRepository=manifest.sourceRepository,
+            releaseUrl=manifest.releaseUrl,
+            repository=manifest.repository,
+            platform=selected.platform,
+            signature=UpstreamSignatureEvidence(
+                status="unavailable",
+                kind="upstream_unavailable",
+                issuer=None,
+                subject=None,
+                bundleDigest=None,
+            ),
+            build=ComponentBuildEvidence(
+                kind="packaged_catalog_pin",
+                catalogDigest=validated.catalogDigest,
+                manifestDigest=validated.manifestDigest,
+                sourceRevision=manifest.sourceRevision,
+                imageDigest=selected.digest,
+                imageConfigDigest=selected.configDigest,
+            ),
+        )
+        schema = ComponentSchemaIdentity(
+            configSchemaVersion=manifest.configSchemaVersion,
+            dataSchemaVersion=manifest.dataSchemaVersion,
+        )
+        return identity, _permissions(manifest), schema
+    except (ValueError, TypeError, AttributeError, StopIteration, RecursionError):
+        raise ComponentUpdateError("component_release_untrusted") from None
+
+
 def installed_update_source(
     *,
     installation_id: str,
@@ -399,6 +471,7 @@ def installed_update_source(
     platform: str,
     observed_image_config_digest: str,
     catalog_entry: CatalogEntry,
+    recorded_catalog_digest: str,
 ) -> InstalledComponentUpdateSource:
     """Bind one revalidated installation receipt to its packaged release.
 
@@ -418,8 +491,10 @@ def installed_update_source(
             or type(observed_image_config_digest) is not str
         ):
             raise ValueError("installed_source_type")
-        identity, permissions, component_schema = release_identity(
-            catalog_entry, platform
+        identity, permissions, component_schema = recorded_release_identity(
+            catalog_entry,
+            recorded_catalog_digest,
+            platform,
         )
         if (
             identity.serviceId != service_id
