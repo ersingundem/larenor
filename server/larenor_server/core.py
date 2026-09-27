@@ -150,6 +150,8 @@ from .watch_parties.schema import migrate_watch_parties
 from .watch_parties.service import WatchPartyService
 from .offline_media.schema import migrate_offline_media
 from .offline_media.service import OfflineMediaService
+from .longform_sessions.schema import migrate_longform_sessions
+from .longform_sessions.service import LongformSessionService
 from .core_backups.service import CoreBackupContract
 from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
@@ -420,6 +422,7 @@ class CoreServices:
                 migrate_media_playback(connection)
                 migrate_watch_parties(connection)
                 migrate_offline_media(connection)
+                migrate_longform_sessions(connection)
                 migrate_proxmox_power(connection, key)
                 migrate_keenetic_commands(
                     connection,
@@ -877,6 +880,11 @@ class CoreServices:
                 self.media_playback,
             )
             self.offline_media.validate_storage()
+            self.longform_sessions = LongformSessionService(
+                self.db, self.auth, settings, key, self.context,
+                self.music_playback,
+            )
+            self.longform_sessions.validate_storage()
             self.media_rows = MediaRowsManagement(
                 self.auth,
                 settings,

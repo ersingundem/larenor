@@ -102,6 +102,7 @@ from .camera_visual_sensors.api import router as camera_visual_sensor_router
 from .sound_events.api import router as sound_events_router
 from .watch_parties.api import router as watch_parties_router
 from .offline_media.api import router as offline_media_router
+from .longform_sessions.api import router as longform_sessions_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -409,6 +410,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(media_playback_router, prefix="/api/v1")
     app.include_router(watch_parties_router, prefix="/api/v1")
     app.include_router(offline_media_router, prefix="/api/v1")
+    app.include_router(longform_sessions_router, prefix="/api/v1")
     app.include_router(media_rows_router, prefix="/api/v1")
     app.include_router(proxmox_power_router, prefix="/api/v1")
     app.include_router(keenetic_command_router, prefix="/api/v1")
