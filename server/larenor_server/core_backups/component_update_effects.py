@@ -463,6 +463,42 @@ class ComponentUpdateEffectJournal:
                 self._database.execute("ROLLBACK")
             _fail()
 
+    def clear_rollback(self, update_id, expected):
+        """Forget a rollback archive only after its terminal state is durable."""
+        self._locked()
+        try:
+            if expected not in {"committed", "rolled_back"}:
+                _fail()
+            row = self._database.execute(
+                "SELECT * FROM component_update_effects WHERE update_id=?", (update_id,)
+            ).fetchone()
+            if row is None or row["state"] != expected:
+                _fail()
+            record = self._decode(row)
+            if not record.rollback:
+                return record
+            payload = _decode(row["payload"], 524288)
+            payload["rollback"] = []
+            changed = dict(row)
+            changed["payload"] = _canonical(payload)
+            changed["digest"] = self._row_digest(changed)
+            self._database.execute("BEGIN IMMEDIATE")
+            self._database.execute(
+                "UPDATE component_update_effects SET payload=?,digest=? "
+                "WHERE update_id=?",
+                (changed["payload"], changed["digest"], update_id),
+            )
+            self._database.execute("COMMIT")
+            return self.get(update_id)
+        except ComponentUpdateEffectJournalError:
+            if self._database.in_transaction:
+                self._database.execute("ROLLBACK")
+            raise
+        except (sqlite3.Error, TypeError, ValueError):
+            if self._database.in_transaction:
+                self._database.execute("ROLLBACK")
+            _fail()
+
     def committed(self):
         self._locked()
         rows = self._database.execute(
