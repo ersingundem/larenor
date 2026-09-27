@@ -278,3 +278,93 @@ class RemoteConfirmRequest(FrozenModel):
     authority: RemoteAuthority
     preview: RemoteCommandPreview
     confirmationToken: Snapshot
+
+
+class RemoteLearningRequest(FrozenModel):
+    """Learn one logical key without exposing captured signal material."""
+
+    schemaVersion: Literal[1]
+    authority: RemoteAuthority
+    requestId: Identity
+    deviceId: Identity
+    expectedDeviceRevision: Revision
+    providerId: Identity
+    expectedProviderRevision: Revision
+    bridgeId: Identity
+    expectedBridgeRevision: Revision
+    profileId: Identity
+    expectedProfileRevision: Revision
+    codeSetId: Identity
+    expectedCodeSetRevision: Revision
+    commandKey: RemoteCommandKey
+
+
+class RemoteLearningWorkerCommand(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    coreId: Identity
+    homeId: Identity
+    homeRevision: Revision
+    accountId: Identity
+    accountRevision: Revision
+    memberRevision: Revision
+    sessionFamilyId: Identity
+    deviceId: Identity
+    deviceRevision: Revision
+    providerType: RemoteProvider
+    providerId: Identity
+    providerRevision: Revision
+    bridgeId: Identity
+    bridgeRevision: Revision
+    profileId: Identity
+    profileRevision: Revision
+    codeSetId: Identity
+    codeSetRevision: Revision
+    key: RemoteCommandKey
+
+
+class RemoteLearningReceipt(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    coreId: Identity
+    homeId: Identity
+    providerId: Identity
+    providerRevision: Revision
+    bridgeId: Identity
+    bridgeRevision: Revision
+    deviceId: Identity
+    deviceRevision: Revision
+    profileId: Identity
+    previousProfileRevision: Revision
+    profileRevision: Revision
+    codeSetId: Identity
+    previousCodeSetRevision: Revision
+    codeSetRevision: Revision
+    bindingId: Identity
+    key: RemoteCommandKey
+    status: Literal["learned"]
+
+    @model_validator(mode="after")
+    def revisions_advance(self):
+        if (self.profileRevision <= self.previousProfileRevision or
+                self.codeSetRevision <= self.previousCodeSetRevision):
+            raise ValueError("learning_revision_not_advanced")
+        return self
+
+
+class RemoteLearningResult(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    status: Literal["learned", "uncertain"]
+    reason: Literal["lost_ack", "readback_mismatch"] | None
+    learningVerified: bool
+    receipt: RemoteLearningReceipt | None
+
+    @model_validator(mode="after")
+    def coherent_result(self):
+        if self.status == "learned":
+            if not self.learningVerified or self.receipt is None or self.reason is not None:
+                raise ValueError("invalid_learning_result")
+        elif self.learningVerified or self.receipt is not None or self.reason is None:
+            raise ValueError("invalid_learning_result")
+        return self

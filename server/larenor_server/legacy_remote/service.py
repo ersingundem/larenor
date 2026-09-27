@@ -16,6 +16,9 @@ from .models import (
     RemoteCommandResult,
     RemoteDeliveryReceipt,
     RemoteDevice,
+    RemoteLearningReceipt,
+    RemoteLearningResult,
+    RemoteLearningWorkerCommand,
     RemoteWorkerCommand,
 )
 
@@ -58,6 +61,13 @@ class _CommandState:
     attempted: bool = False
 
 
+@dataclass
+class _LearningState:
+    command: RemoteLearningWorkerCommand
+    result: RemoteLearningResult | None = None
+    attempted: bool = False
+
+
 class LegacyRemoteManager:
     def __init__(
         self,
@@ -69,6 +79,8 @@ class LegacyRemoteManager:
         worker: Callable[[RemoteWorkerCommand], RemoteDeliveryReceipt],
         clockMs: Callable[[], int],
         store=None,
+        learningWorker: Callable[[RemoteLearningWorkerCommand],
+                                 RemoteLearningReceipt] | None = None,
     ):
         if not isinstance(auditKey, bytes) or len(auditKey) < 32:
             raise ValueError("invalid_audit_key")
@@ -77,9 +89,11 @@ class LegacyRemoteManager:
         self._resolve_device = deviceResolver
         self._resolve_profile = profileResolver
         self._worker = worker
+        self._learning_worker = learningWorker
         self._clock = clockMs
         self._store = store
         self._commands: dict[str, _CommandState] = {}
+        self._learnings: dict[str, _LearningState] = {}
         self._audit: list[RemoteAuditEntry] = []
         self._lock = threading.RLock()
         if store is not None:
@@ -101,6 +115,16 @@ class LegacyRemoteManager:
                 }
                 for _request_id, state in sorted(self._commands.items())
             ],
+            "learnings": [
+                {
+                    "command": state.command.model_dump(mode="json"),
+                    "result": None
+                    if state.result is None
+                    else state.result.model_dump(mode="json"),
+                    "attempted": state.attempted,
+                }
+                for _request_id, state in sorted(self._learnings.items())
+            ],
             "audit": [asdict(entry) for entry in self._audit],
         }
 
@@ -108,11 +132,16 @@ class LegacyRemoteManager:
         try:
             if (
                 not isinstance(snapshot, dict)
-                or set(snapshot) != {"schemaVersion", "commands", "audit"}
+                or set(snapshot) not in (
+                    {"schemaVersion", "commands", "audit"},
+                    {"schemaVersion", "commands", "learnings", "audit"},
+                )
                 or snapshot["schemaVersion"] != 1
                 or not isinstance(snapshot["commands"], list)
                 or not isinstance(snapshot["audit"], list)
                 or len(snapshot["commands"]) > MAX_COMMANDS
+                or not isinstance(snapshot.get("learnings", []), list)
+                or len(snapshot.get("learnings", [])) > MAX_COMMANDS
                 or len(snapshot["audit"]) > MAX_AUDIT
             ):
                 raise ValueError("invalid_snapshot")
@@ -143,6 +172,25 @@ class LegacyRemoteManager:
                 if preview.requestId in commands:
                     raise ValueError("invalid_snapshot")
                 commands[preview.requestId] = state
+            learnings = {}
+            for raw in snapshot.get("learnings", []):
+                if not isinstance(raw, dict) or set(raw) != {
+                    "command", "result", "attempted"
+                }:
+                    raise ValueError("invalid_snapshot")
+                command = RemoteLearningWorkerCommand.model_validate(raw["command"])
+                state = _LearningState(
+                    command=command,
+                    result=None
+                    if raw["result"] is None
+                    else RemoteLearningResult.model_validate(raw["result"]),
+                    attempted=raw["attempted"],
+                )
+                if (type(state.attempted) is not bool or
+                        state.result is not None and not state.attempted or
+                        command.requestId in learnings):
+                    raise ValueError("invalid_snapshot")
+                learnings[command.requestId] = state
             audit = []
             for raw in snapshot["audit"]:
                 if not isinstance(raw, dict) or set(raw) != set(
@@ -150,7 +198,7 @@ class LegacyRemoteManager:
                 ):
                     raise ValueError("invalid_snapshot")
                 audit.append(RemoteAuditEntry(**raw))
-            self._commands, self._audit = commands, audit
+            self._commands, self._learnings, self._audit = commands, learnings, audit
         except Exception:
             raise ApiError("remote_command_integrity_failed", 503) from None
 
@@ -592,6 +640,162 @@ class LegacyRemoteManager:
             ):
                 raise ApiError("not_found", 404)
             result = state.result or self._recover_attempted(state)
+            if result is None:
+                raise ApiError("not_found", 404)
+            return result
+
+    @staticmethod
+    def _uncertain_learning(command, reason="lost_ack"):
+        return RemoteLearningResult(
+            schemaVersion=1,
+            requestId=command.requestId,
+            status="uncertain",
+            reason=reason,
+            learningVerified=False,
+            receipt=None,
+        )
+
+    def _recover_learning(self, state):
+        if state.attempted and state.result is None:
+            state.result = self._uncertain_learning(state.command)
+            self._persist()
+        return state.result
+
+    def learn(self, presentedAuthority, rawDevice, rawProfile, *,
+              commandKey, requestId):
+        if self._learning_worker is None:
+            raise ApiError("remote_learning_unavailable", 503)
+        authority = self._authority(presentedAuthority)
+        device = self._current_device(authority, rawDevice)
+        profile = self._current_profile(authority, device, rawProfile)
+        try:
+            command = RemoteLearningWorkerCommand(
+                schemaVersion=1,
+                requestId=requestId,
+                coreId=authority.coreId,
+                homeId=authority.homeId,
+                homeRevision=authority.homeRevision,
+                accountId=authority.accountId,
+                accountRevision=authority.accountRevision,
+                memberRevision=authority.memberRevision,
+                sessionFamilyId=authority.sessionFamilyId,
+                deviceId=device.deviceId,
+                deviceRevision=device.revision,
+                providerType=device.providerType,
+                providerId=device.providerId,
+                providerRevision=device.providerRevision,
+                bridgeId=device.bridgeId,
+                bridgeRevision=device.bridgeRevision,
+                profileId=profile.profileId,
+                profileRevision=profile.revision,
+                codeSetId=profile.codeSetId,
+                codeSetRevision=profile.codeSetRevision,
+                key=commandKey,
+            )
+        except Exception:
+            raise ApiError("invalid_request") from None
+        with self._lock:
+            prior = self._learnings.get(command.requestId)
+            if prior is not None:
+                if prior.command != command:
+                    raise ApiError("invalid_request")
+                return prior.result or self._recover_learning(prior)
+            if len(self._learnings) >= MAX_COMMANDS:
+                raise ApiError("revision_conflict", 409)
+            state = _LearningState(command=command, attempted=True)
+            self._learnings[command.requestId] = state
+            try:
+                self._persist()
+            except Exception:
+                self._learnings.pop(command.requestId, None)
+                raise
+            try:
+                receipt = RemoteLearningReceipt.model_validate(
+                    self._learning_worker(command))
+            except Exception:
+                receipt = None
+            fixed = None if receipt is None else (
+                receipt.requestId,
+                receipt.coreId,
+                receipt.homeId,
+                receipt.providerId,
+                receipt.providerRevision,
+                receipt.bridgeId,
+                receipt.bridgeRevision,
+                receipt.deviceId,
+                receipt.deviceRevision,
+                receipt.profileId,
+                receipt.previousProfileRevision,
+                receipt.codeSetId,
+                receipt.previousCodeSetRevision,
+                receipt.key,
+                receipt.status,
+            )
+            expected = (
+                command.requestId,
+                command.coreId,
+                command.homeId,
+                command.providerId,
+                command.providerRevision,
+                command.bridgeId,
+                command.bridgeRevision,
+                command.deviceId,
+                command.deviceRevision,
+                command.profileId,
+                command.profileRevision,
+                command.codeSetId,
+                command.codeSetRevision,
+                command.key,
+                "learned",
+            )
+            if fixed == expected:
+                result = RemoteLearningResult(
+                    schemaVersion=1,
+                    requestId=command.requestId,
+                    status="learned",
+                    reason=None,
+                    learningVerified=True,
+                    receipt=receipt,
+                )
+            else:
+                result = self._uncertain_learning(
+                    command,
+                    "lost_ack" if receipt is None else "readback_mismatch",
+                )
+            state.result = result
+            try:
+                self._persist()
+            except Exception:
+                state.result = None
+                raise
+            return result
+
+    def learning_result(self, presentedAuthority, requestId):
+        authority = self._authority(presentedAuthority)
+        with self._lock:
+            state = self._learnings.get(requestId)
+            if state is None:
+                raise ApiError("not_found", 404)
+            command = state.command
+            if (
+                command.coreId,
+                command.homeId,
+                command.homeRevision,
+                command.accountId,
+                command.accountRevision,
+                command.memberRevision,
+                command.sessionFamilyId,
+            ) != (
+                authority.coreId,
+                authority.homeId,
+                authority.homeRevision,
+                authority.accountId,
+                authority.accountRevision,
+                authority.memberRevision,
+                authority.sessionFamilyId,
+            ):
+                raise ApiError("not_found", 404)
+            result = state.result or self._recover_learning(state)
             if result is None:
                 raise ApiError("not_found", 404)
             return result

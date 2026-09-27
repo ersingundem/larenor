@@ -53,11 +53,17 @@ class LegacyRemoteStore:
         value = json.loads(plain)
         if (
             not isinstance(value, dict)
-            or set(value) != {"schemaVersion", "commands", "audit"}
+            or set(value) not in (
+                {"schemaVersion", "commands", "audit"},
+                {"schemaVersion", "commands", "learnings", "audit"},
+            )
             or value["schemaVersion"] != 1
             or not isinstance(value["commands"], list)
             or not isinstance(value["audit"], list)
         ):
+            raise ValueError("invalid_legacy_remote_state")
+        value.setdefault("learnings", [])
+        if not isinstance(value["learnings"], list):
             raise ValueError("invalid_legacy_remote_state")
         return value
 
@@ -137,7 +143,9 @@ class LegacyRemoteStore:
     def validate_storage(self):
         try:
             snapshot = self.load()
-            if len(snapshot["commands"]) > 1_000 or len(snapshot["audit"]) > 10_000:
+            if (len(snapshot["commands"]) > 1_000 or
+                    len(snapshot.get("learnings", [])) > 1_000 or
+                    len(snapshot["audit"]) > 10_000):
                 raise ValueError("invalid_legacy_remote_state")
         except ApiError:
             raise StartupError("storage_initialization_failed") from None

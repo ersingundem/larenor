@@ -9,7 +9,8 @@ from ..dependencies import require_admin
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import RemoteConfirmRequest, RemotePreviewRequest
+from .models import (RemoteConfirmRequest, RemoteLearningRequest,
+                     RemotePreviewRequest)
 
 
 Admin = Annotated[Principal, Depends(require_admin)]
@@ -75,3 +76,29 @@ def result(
     request: Request,
 ):
     return {"result": _gateway(request).result(actor, core_id, home_id, request_id)}
+
+
+@router.post(ROOT + "/learnings", status_code=201)
+def learn(
+    core_id: Identity,
+    home_id: Identity,
+    body: RemoteLearningRequest,
+    actor: Admin,
+    request: Request,
+):
+    return {"learning": _gateway(request).learn(actor, core_id, home_id, body)}
+
+
+@router.get(ROOT + "/learnings/{request_id}")
+def learning_result(
+    core_id: Identity,
+    home_id: Identity,
+    request_id: Identity,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "learning": _gateway(request).learning_result(
+            actor, core_id, home_id, request_id
+        )
+    }

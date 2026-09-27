@@ -49,7 +49,7 @@ def state_tag(
 
 
 def _empty_payload() -> bytes:
-    return b'{"audit":[],"commands":[],"schemaVersion":1}'
+    return b'{"audit":[],"commands":[],"learnings":[],"schemaVersion":1}'
 
 
 def migrate_legacy_remote(connection: sqlite3.Connection, key: bytes, context) -> None:

@@ -285,6 +285,7 @@ MESSAGES = {
     'remote_command_forbidden': 'This legacy remote command is not allowed by the current profile.',
     'remote_preview_expired': 'Create and review a new legacy remote preview.',
     'remote_command_integrity_failed': 'The legacy remote command history could not be verified.',
+    'remote_learning_unavailable': 'This legacy remote provider does not support secure learning.',
     'backup_blocked': 'Wait for active Core operations to finish before creating a backup.',
     'backup_busy': 'Another Core backup is already being created.',
     'backup_too_large': 'The Core backup exceeds the supported size.',

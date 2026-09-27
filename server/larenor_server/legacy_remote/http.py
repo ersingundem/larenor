@@ -1,7 +1,8 @@
 """Authenticated route adapter for the bounded legacy-remote manager."""
 
 from ..errors import ApiError
-from .models import RemoteCatalog, RemoteConfirmRequest, RemotePreviewRequest
+from .models import (RemoteCatalog, RemoteConfirmRequest, RemoteLearningRequest,
+                     RemotePreviewRequest)
 
 
 class LegacyRemoteHttpGateway:
@@ -100,3 +101,48 @@ class LegacyRemoteHttpGateway:
     def result(self, actor, core_id, home_id, request_id):
         catalog = self._catalog(actor, core_id, home_id)
         return self._manager.result(catalog.authority, request_id)
+
+    def learn(self, actor, core_id, home_id, raw):
+        body = RemoteLearningRequest.model_validate(raw)
+        catalog = self._catalog(actor, core_id, home_id)
+        if body.authority != catalog.authority:
+            raise ApiError("revision_conflict", 409)
+        item = next(
+            (value for value in catalog.items
+             if value.device.deviceId == body.deviceId), None)
+        if item is None:
+            raise ApiError("not_found", 404)
+        device, profile = item.device, item.profile
+        if (
+            device.revision,
+            device.providerId,
+            device.providerRevision,
+            device.bridgeId,
+            device.bridgeRevision,
+            profile.profileId,
+            profile.revision,
+            profile.codeSetId,
+            profile.codeSetRevision,
+        ) != (
+            body.expectedDeviceRevision,
+            body.providerId,
+            body.expectedProviderRevision,
+            body.bridgeId,
+            body.expectedBridgeRevision,
+            body.profileId,
+            body.expectedProfileRevision,
+            body.codeSetId,
+            body.expectedCodeSetRevision,
+        ):
+            raise ApiError("revision_conflict", 409)
+        return self._manager.learn(
+            body.authority,
+            device,
+            profile,
+            commandKey=body.commandKey,
+            requestId=body.requestId,
+        )
+
+    def learning_result(self, actor, core_id, home_id, request_id):
+        catalog = self._catalog(actor, core_id, home_id)
+        return self._manager.learning_result(catalog.authority, request_id)

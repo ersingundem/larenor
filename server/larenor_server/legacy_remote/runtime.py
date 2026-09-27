@@ -10,6 +10,8 @@ from .models import (
     RemoteCommandProfile,
     RemoteDeliveryReceipt,
     RemoteDevice,
+    RemoteLearningReceipt,
+    RemoteLearningWorkerCommand,
     RemoteWorkerCommand,
 )
 from .service import LegacyRemoteManager
@@ -28,6 +30,8 @@ class LegacyRemoteProvider(Protocol):
     def resolve_profile(self, profile_id: str) -> RemoteCommandProfile | None: ...
 
     def emit(self, command: RemoteWorkerCommand) -> RemoteDeliveryReceipt: ...
+
+    def learn(self, command: RemoteLearningWorkerCommand) -> RemoteLearningReceipt: ...
 
 
 def build_legacy_remote_gateway(database, settings, key, context, provider):
@@ -53,6 +57,7 @@ def build_legacy_remote_gateway(database, settings, key, context, provider):
             worker=provider.emit,
             clockMs=lambda: int(settings.clock() * 1000),
             store=store,
+            learningWorker=getattr(provider, "learn", None),
         )
     except ApiError:
         raise StartupError("storage_initialization_failed") from None
