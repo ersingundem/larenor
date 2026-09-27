@@ -309,7 +309,22 @@ class SharedExpenseRecord {
   );
 
   factory SharedExpenseRecord.fromJson(Map<String, dynamic> json) {
-    if ((json.length != 10 && json.length != 9) ||
+    const requiredKeys = {
+      'id',
+      'revision',
+      'title',
+      'currency',
+      'currencyScale',
+      'totalMinor',
+      'payerId',
+      'shares',
+      'createdAt',
+    };
+    final keys = json.keys.toSet();
+    if ((!keys.containsAll(requiredKeys) ||
+            !requiredKeys.containsAll(keys.difference({'kind'}))) ||
+        (keys.length != requiredKeys.length &&
+            keys.length != requiredKeys.length + 1) ||
         !_expenseId(json['id']) ||
         !_expenseId(json['payerId'])) {
       throw const FormatException('invalid_expense');
