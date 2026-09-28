@@ -111,7 +111,7 @@ dependencies {
     if (hasFreeRdp) {
         implementation(files(freeRdpAar))
         implementation("androidx.appcompat:appcompat:1.8.0")
-        implementation("androidx.core:core:1.19.0")
+        implementation("androidx.core:core:1.19.1")
         implementation("androidx.preference:preference:1.2.1")
         implementation("androidx.recyclerview:recyclerview:1.4.0")
         implementation("androidx.lifecycle:lifecycle-viewmodel:2.11.0")
