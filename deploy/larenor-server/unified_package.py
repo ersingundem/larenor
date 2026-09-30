@@ -24,22 +24,22 @@ FORBIDDEN_KEY = re.compile(r"token|api.?key|password|credential|authorization|se
 MAX_CONFIG_BYTES = 512 * 1024
 
 _HOST_WORKER_ENVIRONMENT = {
-    "LARENOR_PLUGIN_WORKER_SOCKET": "/data/host-workers/ipc/root/preflight.sock",
+    "LARENOR_PLUGIN_WORKER_SOCKET": "/run/larenor-workers/root/preflight.sock",
     "LARENOR_PLUGIN_WORKER_UID": "0",
-    "LARENOR_INSTALLATION_WORKER_SOCKET": "/data/host-workers/ipc/root/installation.sock",
+    "LARENOR_INSTALLATION_WORKER_SOCKET": "/run/larenor-workers/root/installation.sock",
     "LARENOR_INSTALLATION_WORKER_UID": "0",
-    "LARENOR_COMPONENT_BACKUP_WORKER_SOCKET": "/data/host-workers/ipc/root/component-backup.sock",
+    "LARENOR_COMPONENT_BACKUP_WORKER_SOCKET": "/run/larenor-workers/root/component-backup.sock",
     "LARENOR_COMPONENT_BACKUP_WORKER_UID": "0",
-    "LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-read.sock",
+    "LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET": "/run/larenor-workers/archive/archive-read.sock",
     "LARENOR_MEDIA_ARCHIVE_WORKER_UID": "1000",
-    "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-action.sock",
+    "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET": "/run/larenor-workers/archive/archive-action.sock",
     "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID": "1000",
-    "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET": "/data/host-workers/ipc/core/archive-authority.sock",
+    "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET": "/run/larenor-workers/core/archive-authority.sock",
     "LARENOR_MEDIA_ARCHIVE_SOCKET_GID": "10002",
-    "LARENOR_AI_WORKER_SOCKET": "/data/host-workers/ipc/ai/runtime.sock",
+    "LARENOR_AI_WORKER_SOCKET": "/run/larenor-workers/ai/runtime.sock",
     "LARENOR_AI_WORKER_UID": "10003",
     "LARENOR_AI_WORKER_SOCKET_GID": "10002",
-    "LARENOR_MESH_WORKER_SOCKET": "/data/host-workers/ipc/mesh/runtime.sock",
+    "LARENOR_MESH_WORKER_SOCKET": "/run/larenor-workers/mesh/runtime.sock",
     "LARENOR_MESH_WORKER_UID": "10004",
     "LARENOR_MESH_WORKER_SOCKET_GID": "10002",
 }
@@ -68,7 +68,7 @@ def _host_worker_runtime(service):
         "aiOwnerUid": 10003,
         "meshOwnerUid": 10004,
         "coreOwnerUid": 10001,
-        "ipcMount": "/data/host-workers/ipc",
+        "ipcMount": "/run/larenor-workers",
     }
 
 

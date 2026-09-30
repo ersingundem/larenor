@@ -3,7 +3,7 @@
 F15 verified component updates and F16 component-aware recovery drills now use the
 existing privileged component worker in the unified Linux deployment. Core keeps
 no Docker socket. The host worker exposes only the bounded component protocol at
-`/data/host-workers/ipc/root/component-backup.sock`, accepts the exact Core peer
+`/run/larenor-workers/root/component-backup.sock`, accepts the exact Core peer
 UID `10001`, and publishes its socket for IPC group `10002`.
 
 ## Root boundary and fixed configuration
@@ -20,7 +20,7 @@ capture root, current Docker peer identity and exact Core IPC peer.
 
 The production paths are fixed:
 
-- component socket: `/var/lib/larenor-server/core/data/host-workers/ipc/root/component-backup.sock`;
+- component socket: `/var/lib/larenor-server/host-workers/ipc/root/component-backup.sock`;
 - resource, volume and container journals:
   `/var/lib/larenor-server/host-workers/installation/{resources,volumes,containers}`;
 - COW state: `/var/lib/larenor-server/host-workers/component-backup/captures`

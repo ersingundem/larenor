@@ -12,8 +12,8 @@ User=root
 Group=root
 UMask=0007
 ExecStartPre=/opt/larenor-server-host/current/server/bin/python /usr/libexec/larenor-installation-journals verify
-ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-component-backup-worker --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/component-backup.sock --container-journal /var/lib/larenor-server/host-workers/installation/containers --volume-journal /var/lib/larenor-server/host-workers/installation/volumes --engine-socket /var/run/docker.sock --capture-root /var/lib/larenor-server/host-workers/component-backup/captures --capture-journal /var/lib/larenor-server/host-workers/component-backup/capture-journal.json --api-uid 10001 --socket-gid 10002 --engine-uid 0 --btrfs /usr/bin/btrfs --check-config
-ExecStart=/opt/larenor-server-host/current/server/bin/larenor-component-backup-worker --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/component-backup.sock --container-journal /var/lib/larenor-server/host-workers/installation/containers --volume-journal /var/lib/larenor-server/host-workers/installation/volumes --engine-socket /var/run/docker.sock --capture-root /var/lib/larenor-server/host-workers/component-backup/captures --capture-journal /var/lib/larenor-server/host-workers/component-backup/capture-journal.json --api-uid 10001 --socket-gid 10002 --engine-uid 0 --btrfs /usr/bin/btrfs
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-component-backup-worker --socket /var/lib/larenor-server/host-workers/ipc/root/component-backup.sock --container-journal /var/lib/larenor-server/host-workers/installation/containers --volume-journal /var/lib/larenor-server/host-workers/installation/volumes --engine-socket /var/run/docker.sock --capture-root /var/lib/larenor-server/host-workers/component-backup/captures --capture-journal /var/lib/larenor-server/host-workers/component-backup/capture-journal.json --api-uid 10001 --socket-gid 10002 --engine-uid 0 --btrfs /usr/bin/btrfs --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-component-backup-worker --socket /var/lib/larenor-server/host-workers/ipc/root/component-backup.sock --container-journal /var/lib/larenor-server/host-workers/installation/containers --volume-journal /var/lib/larenor-server/host-workers/installation/volumes --engine-socket /var/run/docker.sock --capture-root /var/lib/larenor-server/host-workers/component-backup/captures --capture-journal /var/lib/larenor-server/host-workers/component-backup/capture-journal.json --api-uid 10001 --socket-gid 10002 --engine-uid 0 --btrfs /usr/bin/btrfs
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=yes
@@ -26,7 +26,7 @@ ProtectKernelTunables=yes
 LockPersonality=yes
 RestrictRealtime=yes
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=/var/run/docker.sock /var/lib/larenor-server/core/data/host-workers/ipc /var/lib/larenor-server/host-workers/installation/containers /var/lib/larenor-server/host-workers/installation/volumes /var/lib/larenor-server/host-workers/component-backup
+ReadWritePaths=/var/run/docker.sock /var/lib/larenor-server/host-workers/ipc /var/lib/larenor-server/host-workers/installation/containers /var/lib/larenor-server/host-workers/installation/volumes /var/lib/larenor-server/host-workers/component-backup
 
 [Install]
 WantedBy=multi-user.target

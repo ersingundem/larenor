@@ -2,15 +2,15 @@
 Description=Larenor read-only Docker host preflight worker
 After=docker.service
 Requires=docker.service
-ConditionPathIsReadWrite=/var/lib/larenor-server/core/data/host-workers/ipc
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/ipc
 
 [Service]
 Type=simple
 User=root
 Group=root
 UMask=0007
-ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-preflight-worker --policy /etc/larenor-server/host-workers/root/preflight.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/preflight.sock --api-uid 10001 --socket-gid 10002 --check-config
-ExecStart=/opt/larenor-server-host/current/server/bin/larenor-preflight-worker --policy /etc/larenor-server/host-workers/root/preflight.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/preflight.sock --api-uid 10001 --socket-gid 10002
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-preflight-worker --policy /etc/larenor-server/host-workers/root/preflight.json --socket /var/lib/larenor-server/host-workers/ipc/root/preflight.sock --api-uid 10001 --socket-gid 10002 --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-preflight-worker --policy /etc/larenor-server/host-workers/root/preflight.json --socket /var/lib/larenor-server/host-workers/ipc/root/preflight.sock --api-uid 10001 --socket-gid 10002
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=yes
@@ -23,7 +23,7 @@ ProtectKernelTunables=yes
 LockPersonality=yes
 RestrictRealtime=yes
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=/var/lib/larenor-server/core/data/host-workers/ipc
+ReadWritePaths=/var/lib/larenor-server/host-workers/ipc
 
 [Install]
 WantedBy=multi-user.target

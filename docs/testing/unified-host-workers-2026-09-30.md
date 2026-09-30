@@ -18,8 +18,8 @@ service UID, so group access alone cannot impersonate Core or a worker.
 The bridge reuses the existing private Core `/data` bind instead of adding a new
 persistent mount:
 
-- host: `/var/lib/larenor-server/core/data/host-workers/ipc`
-- Core container: `/data/host-workers/ipc`
+- host: `/var/lib/larenor-server/host-workers/ipc`
+- Core container: `/run/larenor-workers`
 - root worker sockets: `root/preflight.sock`, `root/installation.sock`
 - archive sockets: `archive/archive-read.sock`, `archive/archive-action.sock`
 - Core authority socket: `core/archive-authority.sock`
@@ -148,3 +148,7 @@ Still manual, and therefore not claimed by this slice:
 Pip console scripts record their interpreter using an absolute shebang. The installer formerly created a venv in a temporary release directory and then renamed it, leaving these paths stale. Python explicitly documents that venvs are not movable ([official Python 3.12 documentation](https://docs.python.org/3.12/library/venv.html)). The installer now builds at the final private release path, executes all installed worker `--help` entrypoints before publishing the receipt, and changes only the current symlink after validation. Existing receipts are also checked by executing the installed entrypoints.
 
 `python3 -m unittest tool.tests.host_worker_release_paths_test -v`: 1 passed. This uses real offline pip, venvs and executable console scripts from tiny path-fixture wheels; it verifies activation through the current symlink and reproduces rejection of a relocated venv. These wheels are explicitly test fixtures, not provider evidence. The full production offline bundle install and real host service activation remain Linux acceptance gates. An interrupted final directory without a valid receipt fails closed; this change does not silently recreate existing or corrupt releases.
+
+## Separate IPC mount correction
+
+Core data and secrets retain UID10001 mode0700. Host workers cannot traverse that private directory. Shared IPC is therefore bound separately from `/var/lib/larenor-server/host-workers/ipc` to `/run/larenor-workers`, with root-owned mode0750 GID10002 parent and owner-specific child directories. The host-worker parent is root-owned0711; private journals remain0700. Core needs narrow write access for its authority socket; it receives no host Docker socket. Linux hosted acceptance starts normal Core against private0700 data and the separate mount; macOS cannot prove cross-UID/systemd behavior.

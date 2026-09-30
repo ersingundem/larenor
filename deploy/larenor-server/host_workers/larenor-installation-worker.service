@@ -11,8 +11,8 @@ User=root
 Group=root
 UMask=0007
 ExecStartPre=/opt/larenor-server-host/current/server/bin/python /usr/libexec/larenor-installation-journals verify
-ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-installation-worker --policy /etc/larenor-server/host-workers/root/installation.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/installation.sock --api-uid 10001 --socket-gid 10002 --check-config
-ExecStart=/opt/larenor-server-host/current/server/bin/larenor-installation-worker --policy /etc/larenor-server/host-workers/root/installation.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/root/installation.sock --api-uid 10001 --socket-gid 10002
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-installation-worker --policy /etc/larenor-server/host-workers/root/installation.json --socket /var/lib/larenor-server/host-workers/ipc/root/installation.sock --api-uid 10001 --socket-gid 10002 --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-installation-worker --policy /etc/larenor-server/host-workers/root/installation.json --socket /var/lib/larenor-server/host-workers/ipc/root/installation.sock --api-uid 10001 --socket-gid 10002
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=yes
@@ -25,7 +25,7 @@ ProtectKernelTunables=yes
 LockPersonality=yes
 RestrictRealtime=yes
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=/var/run/docker.sock /var/lib/larenor-server/core/data/host-workers/ipc /var/lib/larenor-server/host-workers/installation
+ReadWritePaths=/var/run/docker.sock /var/lib/larenor-server/host-workers/ipc /var/lib/larenor-server/host-workers/installation
 
 [Install]
 WantedBy=multi-user.target

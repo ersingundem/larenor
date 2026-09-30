@@ -179,7 +179,7 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("u larenor-ai 10003:10003", sysusers)
         self.assertIn("m larenor-ai larenor-ipc", sysusers)
         self.assertIn(
-            "d /var/lib/larenor-server/core/data/host-workers/ipc/ai 0770 10001 larenor-ipc",
+            "d /var/lib/larenor-server/host-workers/ipc/ai 0770 10001 larenor-ipc",
             tmpfiles,
         )
         self.assertIn(
@@ -197,38 +197,42 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("u larenor-mesh 10004:10004", sysusers)
         self.assertIn("m larenor-mesh larenor-ipc", sysusers)
         self.assertIn(
-            "d /var/lib/larenor-server/core/data/host-workers/ipc/mesh 0770 larenor-mesh larenor-ipc",
+            "d /var/lib/larenor-server/host-workers/ipc/mesh 0770 larenor-mesh larenor-ipc",
             tmpfiles,
         )
         self.assertIn((package.CONFIG / "mesh/runtime.json", 10004), package.PRIVATE_CONFIGS)
         self.assertIn("larenor-mesh-worker.service", package.UNITS)
 
-    def test_unified_core_reuses_data_mount_for_ipc_and_preserves_host_docker_boundary(self):
+    def test_unified_core_separate_ipc_mount_preserves_private_data_and_host_boundary(self):
         compose = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
         core = compose["services"]["larenor-core"]
         self.assertEqual(core["group_add"], ["10002"])
         self.assertNotIn("/var/run/docker.sock", json.dumps(core))
         self.assertEqual({item["target"] for item in core["volumes"]},
-                         {"/data", "/secrets"})
-        self.assertTrue(all(value.startswith("/data/host-workers/ipc/")
+                         {"/data", "/secrets", "/run/larenor-workers"})
+        ipc_mount = next(m for m in core["volumes"] if m["target"] == "/run/larenor-workers")
+        self.assertEqual(ipc_mount["source"], "/var/lib/larenor-server/host-workers/ipc")
+        self.assertFalse(ipc_mount.get("read_only", False))
+        self.assertFalse(ipc_mount["bind"]["create_host_path"])
+        self.assertTrue(all(value.startswith("/run/larenor-workers/")
                             for key, value in core["environment"].items()
                             if key.endswith("_SOCKET")))
         self.assertEqual(core["environment"]["LARENOR_INSTALLATION_WORKER_UID"], "0")
         self.assertEqual(core["environment"]["LARENOR_COMPONENT_BACKUP_WORKER_UID"], "0")
         self.assertEqual(
             core["environment"]["LARENOR_COMPONENT_BACKUP_WORKER_SOCKET"],
-            "/data/host-workers/ipc/root/component-backup.sock",
+            "/run/larenor-workers/root/component-backup.sock",
         )
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_WORKER_UID"], "1000")
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_UID"], "10003")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET"],
-                         "/data/host-workers/ipc/ai/runtime.sock")
+                         "/run/larenor-workers/ai/runtime.sock")
         self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_UID"], "10004")
         self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET"],
-                         "/data/host-workers/ipc/mesh/runtime.sock")
+                         "/run/larenor-workers/mesh/runtime.sock")
         self.assertTrue(all(
             port.startswith("127.0.0.1:")
             for name in ("larenor-jellyfin", "larenor-sonarr",

@@ -24,7 +24,7 @@ ProtectKernelTunables=yes
 LockPersonality=yes
 RestrictRealtime=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/var/lib/larenor-server/core/data/host-workers/ipc /var/lib/larenor-server/host-workers/archive /var/lib/larenor-server/library
+ReadWritePaths=/var/lib/larenor-server/host-workers/ipc /var/lib/larenor-server/host-workers/archive /var/lib/larenor-server/library
 
 [Install]
 WantedBy=multi-user.target

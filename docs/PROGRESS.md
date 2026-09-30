@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül özel Core verisi ve ayrı worker IPC
+
+Worker socketleri özel Core veri dizininden çıkarılıp yalnız IPC içeren ayrı mount’a taşındı. Core veri/anahtar izinleri 0700 kalır; dedicated kullanıcılar ortak IPC grubuyla iletişim kurar. 7 izole paket regresyonu geçti; gerçek farklı UID/systemd başlangıcı Ubuntu kabulünde açık. [Kurulum sınırları](testing/unified-host-workers-2026-09-30.md).
+
 ### 30 Eylül F15/F16 gerçek component host worker
 
 Normal Core bileşen snapshot/update/restore işlemleri gerçek Unix IPC worker’a bağlandı. Installation journal seti temiz kurulum ve kesintili başlangıç için kalıcı receipt ile doğrulanır; kayıp geçmiş sessizce yeniden oluşturulmaz. 54 odaklı ve 19 paket/bundle testi geçti; Linux distinct UID kapısı yerelde atlandı. [Kanıt](testing/f15-f16-component-host-worker-2026-09-30.md). Docker/Btrfs hedef ve geniş CI açık; sayaç değişmedi.

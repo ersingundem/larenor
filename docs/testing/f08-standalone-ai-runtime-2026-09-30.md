@@ -23,8 +23,8 @@ supplementary IPC GID 10002, and creates these fixed paths:
   10003 and mode `0600`;
 - runtime state: `/var/lib/larenor-server/host-workers/ai`, owner 10003 and
   mode `0700`;
-- host socket: `/var/lib/larenor-server/core/data/host-workers/ipc/ai/runtime.sock`;
-- Core socket: `/data/host-workers/ipc/ai/runtime.sock`.
+- host socket: `/var/lib/larenor-server/host-workers/ipc/ai/runtime.sock`;
+- Core socket: `/run/larenor-workers/ai/runtime.sock`.
 
 The catalog must select `manager: "user"`, `/usr/bin/systemd-run`,
 `/usr/bin/systemctl`, the fixed state directory, and at least one real

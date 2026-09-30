@@ -34,7 +34,7 @@ MAX_MANIFEST = 256 * 1024
 MAX_WHEELS = 256
 MAX_WHEEL_BYTES = 256 * 1024 * 1024
 PREFIX = Path("/opt/larenor-server-host")
-IPC = Path("/var/lib/larenor-server/core/data/host-workers/ipc")
+IPC = Path("/var/lib/larenor-server/host-workers/ipc")
 CONFIG = Path("/etc/larenor-server/host-workers")
 ASSETS = {
     "larenor-host-workers.sysusers": (Path("/usr/lib/sysusers.d/larenor-host-workers.conf"), 0o644),

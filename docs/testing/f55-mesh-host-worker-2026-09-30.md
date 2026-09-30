@@ -2,7 +2,7 @@
 
 The normal unified deployment now binds Mesh Center to a dedicated host worker
 instead of leaving `Core.mesh_center` unavailable. The Core container connects
-to `/data/host-workers/ipc/mesh/runtime.sock` as UID `10001`; the worker runs as
+to `/run/larenor-workers/mesh/runtime.sock` as UID `10001`; the worker runs as
 UID/GID `10004`, and both share only the existing IPC group `10002`. The Unix
 socket is owned by `10004:10002`, has mode `0660`, and both sides verify the
 kernel peer UID. The Core also verifies the socket owner, group and mode before
