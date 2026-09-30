@@ -38,6 +38,8 @@ _RECEIPT_QUERY = '''SELECT
     r.receipt_json AS stored_receipt_json,
     i.id AS stored_intent_id,
     i.actor_id AS intent_actor_id,
+    i.actor_revision AS intent_actor_revision,
+    i.family_id AS intent_family_id,
     i.installation_id AS installation_id,
     i.item_id AS item_id,
     i.playback_revision AS intent_playback_revision,
@@ -262,11 +264,13 @@ class MediaPlaybackManagement:
         except Exception:  # noqa: BLE001 - authority callbacks fail closed
             return False
 
-    def _readback(self, actor, authority):
+    def _readback(self, actor, authority, actor_revision=None):
         if self.backend is None:
             raise ApiError('media_playback_worker_unavailable', 503)
         deadline = time.monotonic() + 5
-        gate = lambda: time.monotonic() < deadline and self._gate(actor, authority)
+        gate = lambda: (
+            time.monotonic() < deadline
+            and self._gate(actor, authority, actor_revision))
         try:
             result = self.backend.read_media_playback(
                 authority, deadline=deadline, gate=gate)
@@ -279,15 +283,18 @@ class MediaPlaybackManagement:
         except Exception:  # noqa: BLE001 - private worker errors stay private
             raise ApiError('media_playback_worker_unavailable', 503) from None
 
+    def _current_actor_revision(self, connection, actor):
+        self.auth.assert_current(connection, actor)
+        row = connection.execute(
+            'SELECT revision FROM users WHERE id=?',
+            (actor.id,)).fetchone()
+        if row is None or actor.must_change_password:
+            raise ApiError('invalid_session', 401)
+        return row['revision']
+
     def _actor_revision(self, actor):
         with self.db.connection() as connection:
-            self.auth.assert_current(connection, actor)
-            row = connection.execute(
-                'SELECT revision FROM users WHERE id=?',
-                (actor.id,)).fetchone()
-            if row is None or actor.must_change_password:
-                raise ApiError('invalid_session', 401)
-            return row['revision']
+            return self._current_actor_revision(connection, actor)
 
     def segments(self, actor, body):
         if type(body) is not MediaSegmentsRequest or self.context is None:
@@ -337,8 +344,9 @@ class MediaPlaybackManagement:
     def prepare(self, actor, body):
         if type(body) is not PrepareMediaPlaybackIntentRequest:
             raise ApiError('invalid_request')
+        actor_revision = self._actor_revision(actor)
         authority = self._catalog(actor, body)
-        readback = self._readback(actor, authority)
+        readback = self._readback(actor, authority, actor_revision)
         expires = int(self.settings.clock()) + 30
         intent = MediaPlaybackIntent(
             **body.model_dump(), playbackRevision=readback.playbackRevision,
@@ -348,7 +356,9 @@ class MediaPlaybackManagement:
             separators=(',', ':'), sort_keys=True)
         try:
             with self.db.transaction() as connection:
-                self.auth.assert_current(connection, actor)
+                if (self._current_actor_revision(connection, actor)
+                        != actor_revision):
+                    raise ApiError('media_playback_authority_changed', 409)
                 existing = connection.execute(
                     'SELECT 1 FROM media_playback_intents WHERE id=?',
                     (body.requestId,)).fetchone()
@@ -356,9 +366,14 @@ class MediaPlaybackManagement:
                     raise ApiError('media_playback_intent_conflict', 409)
                 self._make_intent_room(connection)
                 connection.execute(
-                    'INSERT INTO media_playback_intents VALUES('
-                    '?,?,?,?,?,?,?,?,?,?,?,NULL)',
-                    (body.requestId, actor.id, body.installationId,
+                    'INSERT INTO media_playback_intents('
+                    'id,actor_id,actor_revision,family_id,installation_id,'
+                    'installation_revision,snapshot_revision,'
+                    'jellyfin_service_revision,item_id,media_key,'
+                    'playback_revision,targets_json,expires_at,consumed_by) '
+                    'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)',
+                    (body.requestId, actor.id, actor_revision, actor.family_id,
+                     body.installationId,
                      body.expectedInstallationRevision,
                      body.expectedSnapshotRevision,
                      body.expectedJellyfinServiceRevision,
@@ -391,6 +406,10 @@ class MediaPlaybackManagement:
                 or request.intentId != row['receipt_intent_id']
                 or row['receipt_intent_id'] != row['stored_intent_id']
                 or row['receipt_actor_id'] != row['intent_actor_id']
+                or type(row['intent_actor_revision']) is not int
+                or row['intent_actor_revision'] < 1
+                or type(row['intent_family_id']) is not str
+                or len(row['intent_family_id']) != 32
                 or row['intent_consumed_by'] != row['receipt_request_id']
                 or request.expectedPlaybackRevision
                 != row['intent_playback_revision']):
@@ -471,7 +490,7 @@ class MediaPlaybackManagement:
             raise ApiError('invalid_request')
         encoded = self._request_json(body)
         with self.db.connection() as connection:
-            self.auth.assert_current(connection, actor)
+            actor_revision = self._current_actor_revision(connection, actor)
             receipt_row = connection.execute(
                 _RECEIPT_QUERY + ' WHERE r.request_id=?',
                 (body.requestId,)).fetchone()
@@ -484,6 +503,9 @@ class MediaPlaybackManagement:
                     raise ApiError(
                         'media_playback_storage_unavailable', 503) from None
                 if (receipt_row['receipt_actor_id'] != actor.id
+                        or receipt_row['intent_actor_revision']
+                        != actor_revision
+                        or receipt_row['intent_family_id'] != actor.family_id
                         or stored_request != body
                         or receipt_row['receipt_request_json'] != encoded):
                     raise ApiError('media_playback_command_conflict', 409)
@@ -491,15 +513,24 @@ class MediaPlaybackManagement:
                     return {'receipt': stored_receipt.model_dump()}
                 return {'receipt': self._receipt(
                     receipt_row, stored_request, uncertain=True).model_dump()}
+            now = int(self.settings.clock())
             row = connection.execute(
-                'SELECT * FROM media_playback_intents WHERE id=?',
-                (body.intentId,)).fetchone()
-        if row is None or row['actor_id'] != actor.id:
-            raise ApiError('media_playback_intent_unavailable', 409)
-        if (row['consumed_by'] is not None
-                or int(self.settings.clock()) >= row['expires_at']
-                or row['playback_revision'] != body.expectedPlaybackRevision):
-            raise ApiError('media_playback_intent_conflict', 409)
+                'SELECT * FROM media_playback_intents '
+                'WHERE id=? AND actor_id=? AND actor_revision=? '
+                'AND family_id=? AND consumed_by IS NULL '
+                'AND expires_at>? AND playback_revision=?',
+                (body.intentId, actor.id, actor_revision, actor.family_id,
+                 now, body.expectedPlaybackRevision)).fetchone()
+            if row is None:
+                binding = connection.execute(
+                    'SELECT actor_id,actor_revision,family_id '
+                    'FROM media_playback_intents WHERE id=?',
+                    (body.intentId,)).fetchone()
+                if (binding is None or binding['actor_id'] != actor.id
+                        or binding['actor_revision'] != actor_revision
+                        or binding['family_id'] != actor.family_id):
+                    raise ApiError('media_playback_intent_unavailable', 409)
+                raise ApiError('media_playback_intent_conflict', 409)
         targets = MediaPlaybackReadback(
             playbackRevision=row['playback_revision'],
             targets=json.loads(row['targets_json'])).targets
@@ -515,7 +546,7 @@ class MediaPlaybackManagement:
             snapshotRevision=row['snapshot_revision'],
             jellyfinServiceRevision=row['jellyfin_service_revision'],
             itemId=row['item_id'], mediaKey=row['media_key'])
-        current = self._readback(actor, authority)
+        current = self._readback(actor, authority, actor_revision)
         fresh = next((item for item in current.targets
                       if item.targetId == body.targetId
                       and item.targetRevision == body.expectedTargetRevision
@@ -524,7 +555,8 @@ class MediaPlaybackManagement:
                 or fresh is None):
             raise ApiError('media_playback_authority_changed', 409)
         with self.db.transaction() as connection:
-            self.auth.assert_current(connection, actor)
+            fresh_actor_revision = self._current_actor_revision(
+                connection, actor)
             receipt_count = connection.execute(
                 'SELECT COUNT(*) AS count FROM media_playback_receipts'
             ).fetchone()['count']
@@ -539,8 +571,13 @@ class MediaPlaybackManagement:
                     'media_playback_storage_unavailable', 503) from None
             changed = connection.execute(
                 'UPDATE media_playback_intents SET consumed_by=? '
-                'WHERE id=? AND consumed_by IS NULL',
-                (body.requestId, body.intentId)).rowcount
+                'WHERE id=? AND actor_id=? AND actor_revision=? '
+                'AND family_id=? AND playback_revision=? '
+                'AND consumed_by IS NULL AND expires_at>?',
+                (body.requestId, body.intentId, actor.id,
+                 fresh_actor_revision, actor.family_id,
+                 body.expectedPlaybackRevision,
+                 int(self.settings.clock()))).rowcount
             if changed != 1:
                 raise ApiError('media_playback_intent_conflict', 409)
             connection.execute(
@@ -554,7 +591,9 @@ class MediaPlaybackManagement:
             jellyfinServiceRevision=row['jellyfin_service_revision'],
             itemId=row['item_id'], mediaKey=row['media_key'])
         deadline = time.monotonic() + 5
-        gate = lambda: time.monotonic() < deadline and self._gate(actor, authority)
+        gate = lambda: (
+            time.monotonic() < deadline
+            and self._gate(actor, authority, actor_revision))
         try:
             result = self.backend.execute_media_playback(
                 action, deadline=deadline, gate=gate)
@@ -571,20 +610,20 @@ class MediaPlaybackManagement:
                 raise ValueError()
         except JellyfinPlaybackExecutionError as error:
             if error.uncertain_effect:
-                if not self._gate(actor, authority):
+                if not self._gate(actor, authority, actor_revision):
                     with self.db.connection() as connection:
                         self.auth.assert_current(connection, actor)
                 raise ApiError(
                     'media_playback_worker_unavailable', 503) from None
             self._retire_no_effect(actor, body, encoded)
             if error.code == 'jellyfin_playback_authority_changed':
-                if not self._gate(actor, authority):
+                if not self._gate(actor, authority, actor_revision):
                     with self.db.connection() as connection:
                         self.auth.assert_current(connection, actor)
                 raise ApiError('media_playback_authority_changed', 409) from None
             raise ApiError('media_playback_worker_unavailable', 503) from None
         except Exception:  # noqa: BLE001 - dispatched effect is now uncertain
-            if not self._gate(actor, authority):
+            if not self._gate(actor, authority, actor_revision):
                 with self.db.connection() as connection:
                     self.auth.assert_current(connection, actor)
             raise ApiError('media_playback_worker_unavailable', 503) from None
@@ -594,7 +633,9 @@ class MediaPlaybackManagement:
             targetId=body.targetId, playbackRevision=result.playbackRevision,
             state='succeeded', code='authenticated_readback')
         with self.db.transaction() as connection:
-            self.auth.assert_current(connection, actor)
+            if (self._current_actor_revision(connection, actor)
+                    != actor_revision):
+                raise ApiError('media_playback_worker_unavailable', 503)
             try:
                 stored_row = connection.execute(
                     _RECEIPT_QUERY + ' WHERE r.request_id=?',
@@ -604,7 +645,10 @@ class MediaPlaybackManagement:
                     self._validated_receipt_row(stored_row))
                 if (stored_receipt is not None
                         or stored_request != body
-                        or stored_row['receipt_actor_id'] != actor.id):
+                        or stored_row['receipt_actor_id'] != actor.id
+                        or stored_row['intent_actor_revision']
+                        != actor_revision
+                        or stored_row['intent_family_id'] != actor.family_id):
                     raise ValueError()
             except (ValidationError, ValueError, TypeError,
                     json.JSONDecodeError):

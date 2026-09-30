@@ -1,7 +1,8 @@
 import json
+import sqlite3
 
 import pytest
-from conftest import auth
+from conftest import auth, login
 from larenor_server.errors import StartupError
 from larenor_server.plugins.jellyfin_playback_executor import (
     JellyfinPlaybackExecutionError,
@@ -11,6 +12,7 @@ from larenor_server.plugins.media_playback_models import (
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
 )
+from larenor_server.plugins.media_playback_schema import migrate_media_playback
 from test_admin import activate
 from test_admin import create as create_user
 from test_media_archive_core_read import configured
@@ -18,16 +20,62 @@ from test_media_archive_core_read import configured
 BASE = '/api/v1/media/playback'
 
 
+def test_v1_migration_invalidates_unbound_intents_and_receipts():
+    connection = sqlite3.connect(':memory:')
+    connection.row_factory = sqlite3.Row
+    connection.execute('PRAGMA foreign_keys=ON')
+    connection.execute('CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT)')
+    connection.execute(
+        "INSERT INTO metadata VALUES('media_playback_schema','1')")
+    connection.execute('''CREATE TABLE media_playback_intents (
+        id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL,
+        installation_id TEXT NOT NULL, installation_revision INTEGER NOT NULL,
+        snapshot_revision INTEGER NOT NULL,
+        jellyfin_service_revision INTEGER NOT NULL, item_id TEXT NOT NULL,
+        media_key TEXT NOT NULL, playback_revision INTEGER NOT NULL,
+        targets_json TEXT NOT NULL, expires_at INTEGER NOT NULL,
+        consumed_by TEXT UNIQUE)''')
+    connection.execute('''CREATE TABLE media_playback_receipts (
+        request_id TEXT PRIMARY KEY NOT NULL,
+        intent_id TEXT UNIQUE NOT NULL REFERENCES media_playback_intents(id),
+        actor_id TEXT NOT NULL, request_json TEXT NOT NULL,
+        state TEXT NOT NULL, receipt_json TEXT, created_at INTEGER NOT NULL)''')
+    connection.execute(
+        'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+        ('a' * 32, 'b' * 32, 'c' * 32, 1, 1, 1, 'd' * 32,
+         'movie:tmdb:603', 1, '[]', 100, 'e' * 32))
+    connection.execute(
+        'INSERT INTO media_playback_receipts VALUES(?,?,?,?,?,?,?)',
+        ('e' * 32, 'a' * 32, 'b' * 32, '{}', 'pending', None, 1))
+
+    migrate_media_playback(connection)
+
+    assert connection.execute(
+        "SELECT value FROM metadata WHERE key='media_playback_schema'"
+    ).fetchone()['value'] == '2'
+    assert connection.execute(
+        'SELECT COUNT(*) FROM media_playback_intents').fetchone()[0] == 0
+    assert connection.execute(
+        'SELECT COUNT(*) FROM media_playback_receipts').fetchone()[0] == 0
+    assert {row['name'] for row in connection.execute(
+        "PRAGMA table_info('media_playback_intents')")} >= {
+            'actor_revision', 'family_id'}
+    connection.close()
+
+
 class PlaybackWorker:
     def __init__(self):
         self.calls = []
         self.reads = 0
+        self.read_change = None
         self.change = None
         self.execute_error = None
 
     def read_media_playback(self, _authority, *, deadline, gate):
         assert deadline > 0 and gate() is True
         self.reads += 1
+        if self.read_change is not None:
+            self.read_change(self.reads)
         return MediaPlaybackReadback(
             playbackRevision=7,
             targets=[MediaPlaybackTarget(
@@ -93,6 +141,15 @@ def test_member_and_admin_prepare_revision_pinned_secret_free_intents(server):
     assert worker.reads == 1
     assert all(value not in json.dumps(admin.json()).lower()
                for value in ('token', 'password', 'endpoint', 'url'))
+    with app.state.core.db.connection() as connection:
+        stored = connection.execute(
+            'SELECT actor_revision,family_id FROM media_playback_intents '
+            'WHERE id=?', (body['requestId'],)).fetchone()
+        current_revision = connection.execute(
+            'SELECT revision FROM users WHERE id=?',
+            (pair['user']['id'],)).fetchone()['revision']
+    assert stored['actor_revision'] == current_revision
+    assert stored['family_id'] == pair['sessionFamilyId']
 
     create_user(client, pair)
     member = activate(client, 'member')
@@ -147,6 +204,94 @@ def test_intent_is_one_use_and_same_command_replays_only_its_receipt(server):
     assert worker.calls.__len__() == 1
 
 
+def test_intent_cannot_be_consumed_from_another_session_family(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    other_family = login(
+        client, 'admin', 'Synthetic new password 2026',
+        device='Other playback tablet').json()
+
+    response = client.post(BASE + '/commands', headers=auth(other_family), json={
+        'requestId': 'c' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 12,
+    })
+
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_playback_intent_unavailable'
+    assert worker.reads == 1
+    assert worker.calls == []
+
+
+def test_intent_cannot_be_consumed_after_actor_revision_changes(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            'UPDATE users SET revision=revision+1 WHERE id=?',
+            (pair['user']['id'],))
+
+    response = client.post(BASE + '/commands', headers=auth(pair), json={
+        'requestId': 'c' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 12,
+    })
+
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_playback_intent_unavailable'
+    assert worker.reads == 1
+    assert worker.calls == []
+
+
+def test_intent_expiring_during_readback_is_not_claimed(server):
+    app, client, _, clock = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+    worker.read_change = lambda reads: setattr(
+        clock, 'now', clock.now + 31) if reads == 2 else None
+
+    response = client.post(BASE + '/commands', headers=auth(pair), json={
+        'requestId': 'c' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': intent['playbackRevision'],
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 12,
+    })
+
+    assert response.status_code == 409
+    assert response.json()['error']['code'] == 'media_playback_intent_conflict'
+    with app.state.core.db.connection() as connection:
+        row = connection.execute(
+            'SELECT consumed_by FROM media_playback_intents WHERE id=?',
+            (intent['requestId'],)).fetchone()
+    assert row['consumed_by'] is None
+    assert worker.calls == []
+
+
 def test_authority_loss_after_dispatch_never_publishes_success_or_replays(server):
     app, client, _, _ = server
     pair, installation, current, _reader, _archive, _body = configured(server)
@@ -169,6 +314,46 @@ def test_authority_loss_after_dispatch_never_publishes_success_or_replays(server
     assert first.status_code == 401
     assert 'authenticated_readback' not in first.text
     assert len(worker.calls) == 1
+
+
+def test_actor_revision_change_after_dispatch_never_publishes_success(server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current),
+    ).json()['intent']
+
+    def change_revision():
+        with app.state.core.db.transaction() as connection:
+            connection.execute(
+                'UPDATE users SET revision=revision+1 WHERE id=?',
+                (pair['user']['id'],))
+
+    worker.change = change_revision
+    command = {
+        'requestId': '9' * 32,
+        'intentId': intent['requestId'],
+        'expectedPlaybackRevision': 7,
+        'targetId': 'living-room',
+        'expectedTargetRevision': 3,
+        'startSeconds': 0,
+    }
+
+    response = client.post(BASE + '/commands', headers=auth(pair), json=command)
+
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'media_playback_worker_unavailable'
+    assert 'authenticated_readback' not in response.text
+    assert len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        receipt = connection.execute(
+            'SELECT state,receipt_json FROM media_playback_receipts '
+            'WHERE request_id=?', (command['requestId'],)).fetchone()
+    assert receipt['state'] == 'pending'
+    assert receipt['receipt_json'] is None
 
 
 def test_definite_pre_effect_denial_retires_attempt_without_uncertain_replay(
@@ -310,8 +495,10 @@ def test_intent_capacity_rejects_257th_prepare_without_growing_storage(server):
     assert count == 256
 
 
-def _fill_receipts(connection, *, actor_id, body, count=256,
+def _fill_receipts(connection, *, actor_id, family_id, body, count=256,
                    state='pending'):
+    actor_revision = connection.execute(
+        'SELECT revision FROM users WHERE id=?', (actor_id,)).fetchone()[0]
     targets = json.dumps([{
         'targetId': 'living-room', 'targetRevision': 3,
         'name': 'Living room', 'available': True,
@@ -340,8 +527,14 @@ def _fill_receipts(connection, *, actor_id, body, count=256,
             'installAvailable': False,
         }
         connection.execute(
-            'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-            (intent_id, actor_id, body['installationId'],
+            'INSERT INTO media_playback_intents('
+            'id,actor_id,actor_revision,family_id,installation_id,'
+            'installation_revision,snapshot_revision,'
+            'jellyfin_service_revision,item_id,media_key,playback_revision,'
+            'targets_json,expires_at,consumed_by) '
+            'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (intent_id, actor_id, actor_revision, family_id,
+             body['installationId'],
              body['expectedInstallationRevision'],
              body['expectedSnapshotRevision'],
              body['expectedJellyfinServiceRevision'], body['itemId'],
@@ -391,10 +584,20 @@ def test_pending_receipt_capacity_never_consumes_another_intent(server):
     }], separators=(',', ':'), sort_keys=True)
     with app.state.core.db.transaction() as connection:
         _fill_receipts(
-            connection, actor_id=pair['user']['id'], body=body)
+            connection, actor_id=pair['user']['id'],
+            family_id=pair['sessionFamilyId'], body=body)
+        actor_revision = connection.execute(
+            'SELECT revision FROM users WHERE id=?',
+            (pair['user']['id'],)).fetchone()[0]
         connection.execute(
-            'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)',
-            (candidate_id, pair['user']['id'], body['installationId'],
+            'INSERT INTO media_playback_intents('
+            'id,actor_id,actor_revision,family_id,installation_id,'
+            'installation_revision,snapshot_revision,'
+            'jellyfin_service_revision,item_id,media_key,playback_revision,'
+            'targets_json,expires_at,consumed_by) '
+            'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)',
+            (candidate_id, pair['user']['id'], actor_revision,
+             pair['sessionFamilyId'], body['installationId'],
              body['expectedInstallationRevision'],
              body['expectedSnapshotRevision'],
              body['expectedJellyfinServiceRevision'], body['itemId'],
@@ -435,11 +638,20 @@ def test_oldest_succeeded_receipt_is_pruned_without_losing_pending_evidence(
     }], separators=(',', ':'), sort_keys=True)
     with app.state.core.db.transaction() as connection:
         _fill_receipts(
-            connection, actor_id=pair['user']['id'], body=body,
-            state='succeeded')
+            connection, actor_id=pair['user']['id'],
+            family_id=pair['sessionFamilyId'], body=body, state='succeeded')
+        actor_revision = connection.execute(
+            'SELECT revision FROM users WHERE id=?',
+            (pair['user']['id'],)).fetchone()[0]
         connection.execute(
-            'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)',
-            (candidate_id, pair['user']['id'], body['installationId'],
+            'INSERT INTO media_playback_intents('
+            'id,actor_id,actor_revision,family_id,installation_id,'
+            'installation_revision,snapshot_revision,'
+            'jellyfin_service_revision,item_id,media_key,playback_revision,'
+            'targets_json,expires_at,consumed_by) '
+            'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)',
+            (candidate_id, pair['user']['id'], actor_revision,
+             pair['sessionFamilyId'], body['installationId'],
              body['expectedInstallationRevision'],
              body['expectedSnapshotRevision'],
              body['expectedJellyfinServiceRevision'], body['itemId'],
@@ -470,6 +682,7 @@ def test_startup_validation_rejects_more_than_256_receipts(server):
     with app.state.core.db.transaction() as connection:
         _fill_receipts(
             connection, actor_id=pair['user']['id'],
+            family_id=pair['sessionFamilyId'],
             body=_request(installation, current), count=257)
 
     with pytest.raises(StartupError, match='invalid_media_playback_storage'):
@@ -609,8 +822,8 @@ def test_capacity_pruning_never_launders_a_corrupt_succeeded_receipt(server):
     }], separators=(',', ':'), sort_keys=True)
     with app.state.core.db.transaction() as connection:
         _fill_receipts(
-            connection, actor_id=pair['user']['id'], body=body,
-            state='succeeded')
+            connection, actor_id=pair['user']['id'],
+            family_id=pair['sessionFamilyId'], body=body, state='succeeded')
         oldest_id = f'{1024:032x}'
         receipt = json.loads(connection.execute(
             'SELECT receipt_json FROM media_playback_receipts '
@@ -622,8 +835,16 @@ def test_capacity_pruning_never_launders_a_corrupt_succeeded_receipt(server):
             (json.dumps(receipt, separators=(',', ':'), sort_keys=True),
              oldest_id))
         connection.execute(
-            'INSERT INTO media_playback_intents VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL)',
-            (candidate_id, pair['user']['id'], body['installationId'],
+            'INSERT INTO media_playback_intents('
+            'id,actor_id,actor_revision,family_id,installation_id,'
+            'installation_revision,snapshot_revision,'
+            'jellyfin_service_revision,item_id,media_key,playback_revision,'
+            'targets_json,expires_at,consumed_by) '
+            'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)',
+            (candidate_id, pair['user']['id'], connection.execute(
+                'SELECT revision FROM users WHERE id=?',
+                (pair['user']['id'],)).fetchone()[0],
+             pair['sessionFamilyId'], body['installationId'],
              body['expectedInstallationRevision'],
              body['expectedSnapshotRevision'],
              body['expectedJellyfinServiceRevision'], body['itemId'],
