@@ -111,7 +111,9 @@ class PowerStepReceipt(StrictModel):
     ]
     targetId: Identity | None
     targetKind: Literal["service", "proxmoxGuest", "networkDevice", "coreHost"] | None
-    state: Literal["queued", "executing", "succeeded", "failed", "skipped"]
+    state: Literal[
+        "queued", "executing", "succeeded", "failed", "skipped", "uncertain"
+    ]
     resultCode: Literal[
         "pending",
         "completed",
@@ -120,6 +122,7 @@ class PowerStepReceipt(StrictModel):
         "checkpoint_failed",
         "effect_failed",
         "restore_disabled",
+        "reconciliation_required",
     ]
     createdAt: Timestamp
     updatedAt: Timestamp

@@ -344,7 +344,18 @@ class _ServerPowerRecoveryScreenState
             _row(l10n.serverPowerRecoveryActiveRun, _runLabel(l10n, run.state)),
             if (run.failureCode != null)
               _row(l10n.serverPowerRecoveryResult, run.failureCode!),
-            if (run.state == PowerRunState.failed)
+            if (run.steps.any((step) => step.state == PowerStepState.uncertain))
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(l10n.serverPowerRecoveryUncertain),
+                ),
+              ),
+            if (run.state == PowerRunState.failed &&
+                !run.steps.any(
+                  (step) => step.state == PowerStepState.uncertain,
+                ))
               CupertinoButton(
                 key: const ValueKey('server-power-recovery-retry'),
                 onPressed: !_power.busy
@@ -527,7 +538,7 @@ class _ServerPowerRecoveryScreenState
                     Text(l10n.serverPowerRecoveryStepCount(run.steps.length)),
                     for (final step in run.steps)
                       Text(
-                        '${step.sequence}. ${_stepLabel(l10n, step.action)} · ${step.state.name}',
+                        '${step.sequence}. ${_stepLabel(l10n, step.action)} · ${_stepStateLabel(l10n, step.state)}',
                         style: AppText.footnote,
                       ),
                   ],
@@ -593,4 +604,14 @@ class _ServerPowerRecoveryScreenState
     'startTarget' => l10n.serverPowerRecoveryStartTarget,
     _ => l10n.serverPowerRecoveryReleaseWork,
   };
+
+  String _stepStateLabel(AppLocalizations l10n, PowerStepState value) =>
+      switch (value) {
+        PowerStepState.queued => l10n.serverPowerRecoveryStepQueued,
+        PowerStepState.executing => l10n.serverPowerRecoveryStepExecuting,
+        PowerStepState.succeeded => l10n.serverPowerRecoveryStepSucceeded,
+        PowerStepState.failed => l10n.serverPowerRecoveryStepFailed,
+        PowerStepState.skipped => l10n.serverPowerRecoveryStepSkipped,
+        PowerStepState.uncertain => l10n.serverPowerRecoveryStepUncertain,
+      };
 }

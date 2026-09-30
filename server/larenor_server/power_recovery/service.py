@@ -51,8 +51,14 @@ _DRAIN_SECONDS = 30
 
 
 class UnavailablePowerRecoveryExecutor:
+    available = False
+
     def execute(self, _request):
         raise RuntimeError("power_recovery_executor_unavailable")
+
+    def reconcile(self, _request):
+        """No observation is safer than replaying an unproved host effect."""
+        return None
 
 
 class PowerRecoveryService:
@@ -413,16 +419,92 @@ class PowerRecoveryService:
 
     def _recover_incomplete(self):
         now = int(self.settings.clock())
+        effects = []
         with self.db.transaction() as connection:
             state = connection.execute(
                 "SELECT active_run_id FROM power_recovery_state WHERE id=1"
             ).fetchone()
             if state["active_run_id"] is not None:
+                run = connection.execute(
+                    "SELECT * FROM power_recovery_runs WHERE run_id=?",
+                    (state["active_run_id"],),
+                ).fetchone()
+                policy = self._policy(self._policy_row(connection))
+                targets = (
+                    {}
+                    if policy is None or run is None
+                    or policy.revision != run["policy_revision"]
+                    else {target.targetId: target for target in policy.targets}
+                )
                 connection.execute(
                     """UPDATE power_recovery_steps SET state='queued',
                         result_code='pending',updated_at=?
-                        WHERE run_id=? AND state='executing'""",
+                        WHERE run_id=? AND state='executing'
+                        AND action='checkpointDatabase'""",
                     (now, state["active_run_id"]),
+                )
+                for step in connection.execute(
+                    """SELECT * FROM power_recovery_steps
+                        WHERE run_id=? AND state='executing'
+                        AND action IN ('shutdownTarget','startTarget')
+                        ORDER BY sequence""",
+                    (state["active_run_id"],),
+                ).fetchall():
+                    target = targets.get(step["target_id"])
+                    if target is None or target.kind != step["target_kind"]:
+                        effects.append((step["step_id"], step["updated_at"], None))
+                        continue
+                    effects.append((
+                        step["step_id"],
+                        step["updated_at"],
+                        PowerEffectRequest(
+                            contractVersion=1,
+                            runId=step["run_id"],
+                            stepId=step["step_id"],
+                            action=(
+                                "shutdown"
+                                if step["action"] == "shutdownTarget"
+                                else "start"
+                            ),
+                            target=target,
+                            deadlineAt=step["updated_at"] + target.timeoutSeconds,
+                        ),
+                    ))
+        reconciler = getattr(self._executor, "reconcile", None)
+        for step_id, started_at, effect in effects:
+            receipt = None
+            if effect is not None and callable(reconciler):
+                try:
+                    receipt = self._validated_effect_receipt(
+                        effect, reconciler(effect), not_before=started_at
+                    )
+                except Exception:
+                    receipt = None
+            finished_at = now if receipt is None else receipt.completedAt
+            with self.db.transaction() as connection:
+                current = connection.execute(
+                    "SELECT state,run_id FROM power_recovery_steps WHERE step_id=?",
+                    (step_id,),
+                ).fetchone()
+                if current is None or current["state"] != "executing":
+                    continue
+                if receipt is not None:
+                    self._finish_step(
+                        connection, step_id, "succeeded", "completed", finished_at
+                    )
+                    continue
+                self._finish_step(
+                    connection,
+                    step_id,
+                    "uncertain",
+                    "reconciliation_required",
+                    finished_at,
+                )
+                connection.execute(
+                    """UPDATE power_recovery_runs
+                        SET state='failed',failure_code='effect_failed',updated_at=?
+                        WHERE run_id=?""",
+                    (finished_at, current["run_id"]),
                 )
 
     def retry(self, actor, run_id, raw):
@@ -502,6 +584,20 @@ class PowerRecoveryService:
             "UPDATE power_recovery_steps SET state=?,result_code=?,updated_at=? WHERE step_id=?",
             (state, code, now, step_id),
         )
+
+    def _validated_effect_receipt(self, effect, raw, *, not_before):
+        receipt = PowerEffectReceipt.model_validate(raw)
+        if (
+            receipt.runId != effect.runId
+            or receipt.stepId != effect.stepId
+            or receipt.targetId != effect.target.targetId
+            or receipt.action != effect.action
+            or receipt.completedAt < not_before
+            or receipt.completedAt > effect.deadlineAt
+            or receipt.completedAt > int(self.settings.clock()) + 5
+        ):
+            raise ValueError("power_effect_receipt_mismatch")
+        return receipt
 
     def tick(self):
         with self._lock:
@@ -609,19 +705,29 @@ class PowerRecoveryService:
             return ok
         if effect is None:
             return True
+        receipt = None
         try:
-            receipt = PowerEffectReceipt.model_validate(self._executor.execute(effect))
-            if (
-                receipt.runId != effect.runId
-                or receipt.stepId != effect.stepId
-                or receipt.targetId != effect.target.targetId
-                or receipt.action != effect.action
-                or receipt.completedAt > int(self.settings.clock()) + 5
-            ):
-                raise ValueError()
+            receipt = self._validated_effect_receipt(
+                effect, self._executor.execute(effect), not_before=now
+            )
         except Exception:
+            reconciler = getattr(self._executor, "reconcile", None)
+            if callable(reconciler):
+                try:
+                    receipt = self._validated_effect_receipt(
+                        effect, reconciler(effect), not_before=now
+                    )
+                except Exception:
+                    receipt = None
+        if receipt is None:
             with self.db.transaction() as connection:
-                self._finish_step(connection, effect.stepId, "failed", "effect_failed", int(self.settings.clock()))
+                self._finish_step(
+                    connection,
+                    effect.stepId,
+                    "uncertain",
+                    "reconciliation_required",
+                    int(self.settings.clock()),
+                )
                 connection.execute(
                     "UPDATE power_recovery_runs SET state='failed',failure_code='effect_failed',updated_at=? WHERE run_id=?",
                     (int(self.settings.clock()), effect.runId),

@@ -164,7 +164,7 @@ final class PowerRecoveryPolicy {
   final DateTime configuredAt;
 }
 
-enum PowerStepState { queued, executing, succeeded, failed, skipped }
+enum PowerStepState { queued, executing, succeeded, failed, skipped, uncertain }
 
 final class PowerRecoveryStep {
   const PowerRecoveryStep({
@@ -201,6 +201,7 @@ final class PowerRecoveryStep {
       'succeeded' => PowerStepState.succeeded,
       'failed' => PowerStepState.failed,
       'skipped' => PowerStepState.skipped,
+      'uncertain' => PowerStepState.uncertain,
       _ => throw const LarenorServerException('invalid_response'),
     };
     final targeted = action == 'shutdownTarget' || action == 'startTarget';
@@ -232,6 +233,7 @@ final class PowerRecoveryStep {
           'active_work_timeout',
           'checkpoint_failed',
           'effect_failed',
+          'reconciliation_required',
           'restore_disabled',
         }.contains(result)) {
       throw const LarenorServerException('invalid_response');
