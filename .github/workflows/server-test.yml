@@ -5,13 +5,14 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Run the complete Server gate or only the F08 Linux proof"
+        description: "Run all Server gates, F08 cgroup, or host worker proofs"
         required: true
         default: all
         type: choice
         options:
           - all
           - f08
+          - host
 
 permissions:
   contents: read
@@ -23,6 +24,7 @@ concurrency:
 jobs:
   f08-linux-cgroup:
     name: f08-linux-cgroup
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'host'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -79,6 +81,22 @@ jobs:
           sudo --preserve-env=LARENOR_F08_SYSTEMD_ACCEPTANCE \
             "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
             tests/test_f08_ai_worker_ipc.py::test_actual_uid10003_user_manager_runs_through_uid10001_ipc
+
+  host-workers-linux:
+    name: host-workers-linux
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'f08'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare pinned host-proof tooling
+        run: |
+          python3 -m venv "$RUNNER_TEMP/larenor-host-tools"
+          "$RUNNER_TEMP/larenor-host-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
+      - name: Prove private Core and dedicated host-worker identities
+        run: bash tool/run_host_worker_acceptance.sh "$RUNNER_TEMP/larenor-host-tools/bin/uv"
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}
@@ -201,7 +219,7 @@ jobs:
   server-test:
     name: server-test
     if: always() && (github.event_name != 'workflow_dispatch' || inputs.scope == 'all')
-    needs: [server-test-shard, f08-linux-cgroup]
+    needs: [server-test-shard, f08-linux-cgroup, host-workers-linux]
     permissions:
       contents: read
       pull-requests: read
@@ -215,10 +233,15 @@ jobs:
         env:
           SHARD_RESULT: ${{ needs.server-test-shard.result }}
           F08_CGROUP_RESULT: ${{ needs.f08-linux-cgroup.result }}
+          HOST_WORKER_RESULT: ${{ needs.host-workers-linux.result }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 tool/required_ci_aggregate.py server
           if [ "$F08_CGROUP_RESULT" != "success" ]; then
             echo "F08 Linux cgroup gate did not pass: $F08_CGROUP_RESULT"
+            exit 1
+          fi
+          if [ "$HOST_WORKER_RESULT" != "success" ]; then
+            echo "Host worker Linux gate did not pass: $HOST_WORKER_RESULT"
             exit 1
           fi

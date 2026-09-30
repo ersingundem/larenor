@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül FINAL.FUNCTION Linux worker kabulü
+
+Farklı kullanıcılarla gerçek IPC/systemd kabulü, exact committed kaynak ve kurulu paketleri ayrı `/tmp` ortamında kullanacak şekilde bağlandı. F08 ve host kapıları yalnız dar teşhis için ayrı seçilebilir; tam Server aggregate iki kapıyı da zorunlu tutar. 34 workflow/policy testi ve actionlint geçti; actual Linux sonucu henüz bekleniyor. F45 gerçek bildirim teslim bağlantısı şu anda geliştirmede; F41 uygulaması geniş CI tablosunda.
+
 ### 30 Eylül özel Core verisi ve ayrı worker IPC
 
 Worker socketleri özel Core veri dizininden çıkarılıp yalnız IPC içeren ayrı mount’a taşındı. Core veri/anahtar izinleri 0700 kalır; dedicated kullanıcılar ortak IPC grubuyla iletişim kurar. 7 izole paket regresyonu geçti; gerçek farklı UID/systemd başlangıcı Ubuntu kabulünde açık. [Kurulum sınırları](testing/unified-host-workers-2026-09-30.md).

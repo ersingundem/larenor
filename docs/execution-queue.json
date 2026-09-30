@@ -4706,7 +4706,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4730,7 +4730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). Yeniden açılan gerçek production bağımlılığı bekleniyor: F08."
+      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). 30 Eylül bağımsız provider incelemesi: gerçek Frigate semantic search doğrudan normal Core’a bağlı; F08 dependency sıra/kabul kapısı olarak korunuyor, runtime ingest eksikliği olarak gösterilmiyor. Native decode/UI ve exact HEAD geniş CI açık."
     },
     {
       "id": "F44",
@@ -4768,7 +4768,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4793,7 +4793,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Frigate ses review akışı ve doğrulanmış discovery ayrı. Yerel kaynak metadata GET upstream erişim istemeden kayıtlı camera/room + exact revision verir; soğuk başlangıçta çevrimdışı izin geri alınır. Yeniden izin öncesi authenticated Frigate config/profile + güncel camera/room yetkisi discovery zorunlu; erişim değişiminde eski history boş/unavailable. 12 Server, 15 Flutter + 1 gerçek Client→normal Core→TCP kabulü ve analyze geçti. Geniş kabul/exact CI ve fiziksel ses matrisi açık; sessizlik veya gerçek alarm doğrulandığı iddia edilmez. Yeniden açılan gerçek production bağımlılığı bekleniyor: F08."
+      "reason": "FINAL.FUNCTION gerçek runtime incelemesi: Frigate ses olayı providerı ve Client geçmiş/rıza yolu mevcut; bildirim tercihleri F54 durable teslim/receipt hattına bağlı değil. Şu anda normal Core→SoundEventEngine→F54 dedupe/teslim/receipt bağlantısı geliştiriliyor; tamamlanmış uygulama henüz kabul edilmedi. Fiziksel ses doğruluğu ve exact HEAD geniş CI açık."
     },
     {
       "id": "G09",

@@ -115,7 +115,7 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
             'upgrade_source="$PR_BASE_SHA"',
             'reviewed_head="$PR_HEAD_SHA"',
             "git show -s --format='%P'",
-            'set -- $(git show -s --format=',
+            'read -r -a parents <<<',
             'test "$#" -eq 1',
             'reviewed_head="$GITHUB_SHA"',
             '*[!0-9a-f]*',
@@ -201,7 +201,12 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
                     if item.get("name") == "Verify planner and native policy contracts")
         script = step["run"]
         self.assertIn("tool.tests.unified_host_worker_package_test", script)
-        self.assertIn("uv\" sync --frozen --project server", script)
+        self.assertIn("bash tool/run_host_worker_acceptance.sh", script)
+        script = (ROOT / "tool/run_host_worker_acceptance.sh").read_text()
+        self.assertIn("git archive HEAD", script)
+        self.assertIn("mktemp -d /tmp/larenor-host-proof", script)
+        self.assertIn("--locked --no-editable", script)
+        self.assertIn("UV_PYTHON_INSTALL_DIR=/tmp/", script)
         self.assertIn("sudo --non-interactive env -i", script)
         self.assertIn("RUNNER_ENVIRONMENT=github-hosted", script)
         self.assertIn("LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE=1", script)

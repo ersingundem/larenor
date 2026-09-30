@@ -18,7 +18,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 3 | 0 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 4 | 1 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 5 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F45 | Havlama ve gürültü olayları | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -38,15 +38,13 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
 | 1 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
-| 2 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
-| 3 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 4 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G08 |
-| 5 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 6 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 7 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 8 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 9 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 10 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 2 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G08 |
+| 3 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 4 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 5 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 6 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 7 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 8 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -159,6 +157,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F42 | Mahremiyet korumalı olay paylaşımı | Uygulama tamamlandı · test bekliyor | — |
+| F41 | Kamera kayıtlarında doğal dille arama | Uygulama tamamlandı · test bekliyor | — |
 | F44 | Kameradan görsel sensörler | Uygulama tamamlandı · test bekliyor | — |
 | F50 | Oda konforu ve havalandırma planı | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
