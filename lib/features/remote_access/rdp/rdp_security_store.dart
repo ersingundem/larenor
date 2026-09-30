@@ -5,7 +5,52 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../data/remote_profiles.dart';
+import '../data/remote_security_namespace.dart';
 import 'rdp_models.dart';
+
+typedef RdpProfileValidator = Future<void> Function(
+  RemoteProfile profile,
+  void Function() check,
+);
+
+final class RdpSecurityNamespace {
+  RdpSecurityNamespace._(this.digest, {required this.allowsLegacyLocal});
+
+  factory RdpSecurityNamespace.local() {
+    final value = RemoteSecurityNamespace.local();
+    return RdpSecurityNamespace._(
+      value.digest,
+      allowsLegacyLocal: value.allowsLegacyLocal,
+    );
+  }
+
+  factory RdpSecurityNamespace.coreManaged({
+    required String endpoint,
+    required String coreId,
+    required String homeId,
+    required String accountId,
+    required String sessionFamilyId,
+  }) {
+    try {
+      final value = RemoteSecurityNamespace.coreManaged(
+        endpoint: endpoint,
+        coreId: coreId,
+        homeId: homeId,
+        accountId: accountId,
+        sessionFamilyId: sessionFamilyId,
+      );
+      return RdpSecurityNamespace._(
+        value.digest,
+        allowsLegacyLocal: value.allowsLegacyLocal,
+      );
+    } on FormatException {
+      throw const RdpFailure('invalid_namespace');
+    }
+  }
+
+  final String digest;
+  final bool allowsLegacyLocal;
+}
 
 abstract interface class RdpTrustStore {
   Future<void> checkProfile(
@@ -43,19 +88,22 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
   RdpSecurityStore({
     FlutterSecureStorage? storage,
     RemoteProfilesStore? profiles,
+    RdpSecurityNamespace? namespace,
+    this.profileValidator,
   }) : _storage = storage ?? const FlutterSecureStorage(),
-       _profiles = profiles ?? RemoteProfilesStore();
+       _profiles = profiles ?? RemoteProfilesStore(),
+       _namespace = namespace ?? RdpSecurityNamespace.local();
+
   final FlutterSecureStorage _storage;
   final RemoteProfilesStore _profiles;
+  final RdpSecurityNamespace _namespace;
+  final RdpProfileValidator? profileValidator;
 
   String reference(RemoteProfile profile) =>
       sha256.convert(utf8.encode(jsonEncode(profile.toJson()))).toString();
-  String _key(RemoteProfile profile) =>
-      'rdp_certificate_v1_${reference(profile)}';
-  String _settingsKey(RemoteProfile profile) =>
-      'rdp_settings_v1_${reference(profile)}';
-  String _credentialKey(RemoteProfile profile) =>
-      'rdp_credential_v1_${reference(profile)}';
+  String _key(String kind, String target) =>
+      'rdp_${kind}_v2_${_namespace.digest}_$target';
+  String _legacyKey(String kind, String target) => 'rdp_${kind}_v1_$target';
 
   void Function() _guard(bool Function() current) {
     var retired = false;
@@ -69,6 +117,14 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
   }
 
   Future<void> _profile(RemoteProfile profile, void Function() check) async {
+    if (profile.protocol != RemoteProtocol.rdp || profile.username.isEmpty) {
+      throw const RdpFailure('profile_changed');
+    }
+    if (profileValidator case final validator?) {
+      await validator(profile, check);
+      check();
+      return;
+    }
     check();
     final snapshot = await _profiles.read(
       isCurrent: () {
@@ -77,11 +133,9 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
       },
     );
     check();
-    if (profile.protocol != RemoteProtocol.rdp ||
-        profile.username.isEmpty ||
-        !snapshot.profiles.any(
-          (value) => reference(value) == reference(profile),
-        )) {
+    if (!snapshot.profiles.any(
+      (value) => reference(value) == reference(profile),
+    )) {
       throw const RdpFailure('profile_changed');
     }
   }
@@ -95,9 +149,11 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     return ConfigurationWrites.run(() async {
       try {
         await _profile(profile, check);
+        check();
         final result = await action(check);
         check();
         await _profile(profile, check);
+        check();
         return result;
       } on RdpFailure {
         rethrow;
@@ -112,6 +168,74 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     });
   }
 
+  Future<Map<String, dynamic>?> _read(
+    RemoteProfile profile,
+    String kind,
+    void Function() check,
+  ) async {
+    final target = reference(profile);
+    check();
+    var raw = await _storage.read(key: _key(kind, target));
+    check();
+    var legacy = false;
+    if (raw == null && _namespace.allowsLegacyLocal) {
+      raw = await _storage.read(key: _legacyKey(kind, target));
+      check();
+      legacy = raw != null;
+    }
+    if (raw == null) return null;
+    if (utf8.encode(raw).length > 12288) {
+      throw const RdpFailure('invalid_record');
+    }
+    final value = jsonDecode(raw);
+    if (value is! Map ||
+        value['version'] != (legacy ? 1 : 2) ||
+        value['version'] is! int ||
+        value['target'] != target ||
+        (!legacy && value['namespace'] != _namespace.digest)) {
+      throw const RdpFailure('invalid_record');
+    }
+    return Map<String, dynamic>.from(value);
+  }
+
+  Future<void> _write(
+    RemoteProfile profile,
+    String kind,
+    Map<String, dynamic>? value,
+    void Function() check,
+  ) async {
+    final target = reference(profile);
+    final key = _key(kind, target);
+    final raw = value == null
+        ? null
+        : jsonEncode({
+            'version': 2,
+            'namespace': _namespace.digest,
+            'target': target,
+            ...value,
+          });
+    check();
+    if (raw == null) {
+      await _storage.delete(key: key);
+    } else {
+      await _storage.write(key: key, value: raw);
+    }
+    check();
+    if (await _storage.read(key: key) != raw) {
+      throw const RdpFailure('storage_failed');
+    }
+    check();
+    if (_namespace.allowsLegacyLocal) {
+      final legacyKey = _legacyKey(kind, target);
+      await _storage.delete(key: legacyKey);
+      check();
+      if (await _storage.read(key: legacyKey) != null) {
+        throw const RdpFailure('storage_failed');
+      }
+      check();
+    }
+  }
+
   @override
   Future<void> checkProfile(
     RemoteProfile profile, {
@@ -123,16 +247,11 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
-    check();
-    final raw = await _storage.read(key: _key(profile));
-    check();
-    if (raw == null) return null;
-    if (raw.length > 256) throw const RdpFailure('invalid_record');
-    final value = jsonDecode(raw);
-    if (value is! Map ||
-        value.length != 4 ||
-        value['version'] != 1 ||
-        value['target'] != reference(profile)) {
+    final value = await _read(profile, 'certificate', check);
+    if (value == null) return null;
+    if ((value.length != 4 && value.length != 5) ||
+        value['algorithm'] is! String ||
+        value['fingerprint'] is! String) {
       throw const RdpFailure('invalid_record');
     }
     return RdpCertificatePin.fromJson({
@@ -148,37 +267,23 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
     value.validate();
-    final existing = await _storage.read(key: _key(profile));
-    check();
-    if (existing != null) throw const RdpFailure('certificate_already_pinned');
-    final encoded = jsonEncode({
-      'version': 1,
-      'target': reference(profile),
+    if (await _read(profile, 'certificate', check) != null) {
+      throw const RdpFailure('certificate_already_pinned');
+    }
+    await _write(profile, 'certificate', {
       'algorithm': value.algorithm,
       'fingerprint': value.fingerprint,
-    });
-    await _storage.write(key: _key(profile), value: encoded);
-    check();
-    if (await _storage.read(key: _key(profile)) != encoded) {
-      throw const RdpFailure('storage_failed');
-    }
+    }, check);
   });
 
   Future<RdpProfileSettings> readSettings(
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
-    final raw = await _storage.read(key: _settingsKey(profile));
-    check();
-    if (raw == null) return const RdpProfileSettings();
-    if (utf8.encode(raw).length > 4096) {
-      throw const RdpFailure('invalid_record');
-    }
-    final value = jsonDecode(raw);
-    if (value is! Map ||
-        value.length != 3 ||
-        value['version'] != 1 ||
-        value['target'] != reference(profile)) {
+    final value = await _read(profile, 'settings', check);
+    if (value == null) return const RdpProfileSettings();
+    if ((value.length != 3 && value.length != 4) ||
+        !value.containsKey('settings')) {
       throw const RdpFailure('invalid_record');
     }
     return RdpProfileSettings.fromJson(value['settings']);
@@ -189,16 +294,9 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     RdpProfileSettings settings, {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
-    final encoded = jsonEncode({
-      'version': 1,
-      'target': reference(profile),
-      'settings': settings.toJson(),
-    });
-    await _storage.write(key: _settingsKey(profile), value: encoded);
-    check();
-    if (await _storage.read(key: _settingsKey(profile)) != encoded) {
-      throw const RdpFailure('storage_failed');
-    }
+    final old = await _read(profile, 'settings', check);
+    if (old != null) RdpProfileSettings.fromJson(old['settings']);
+    await _write(profile, 'settings', {'settings': settings.toJson()}, check);
   });
 
   @override
@@ -206,17 +304,9 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
-    final raw = await _storage.read(key: _credentialKey(profile));
-    check();
-    if (raw == null) return null;
-    if (utf8.encode(raw).length > 12288) {
-      throw const RdpFailure('invalid_record');
-    }
-    final value = jsonDecode(raw);
-    if (value is! Map ||
-        value.length != 4 ||
-        value['version'] != 1 ||
-        value['target'] != reference(profile) ||
+    final value = await _read(profile, 'credential', check);
+    if (value == null) return null;
+    if ((value.length != 4 && value.length != 5) ||
         value['password'] is! String ||
         value['gatewayPassword'] is! String) {
       throw const RdpFailure('invalid_record');
@@ -236,28 +326,61 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
     required bool Function() isCurrent,
   }) => _run(profile, isCurrent, (check) async {
     credential.validate();
-    final encoded = jsonEncode({
-      'version': 1,
-      'target': reference(profile),
+    final old = await _read(profile, 'credential', check);
+    if (old != null) {
+      final oldCredential = RdpCredential(
+        password: old['password'] is String ? old['password'] as String : '',
+        gatewayPassword: old['gatewayPassword'] is String
+            ? old['gatewayPassword'] as String
+            : '',
+      );
+      oldCredential.validate();
+    }
+    await _write(profile, 'credential', {
       'password': credential.password,
       'gatewayPassword': credential.gatewayPassword,
-    });
-    await _storage.write(key: _credentialKey(profile), value: encoded);
-    check();
-    if (await _storage.read(key: _credentialKey(profile)) != encoded) {
-      throw const RdpFailure('storage_failed');
-    }
+    }, check);
   });
 
   @override
   Future<void> deleteCredential(
     RemoteProfile profile, {
     required bool Function() isCurrent,
-  }) => _run(profile, isCurrent, (check) async {
-    await _storage.delete(key: _credentialKey(profile));
-    check();
-    if (await _storage.read(key: _credentialKey(profile)) != null) {
-      throw const RdpFailure('storage_failed');
-    }
-  });
+  }) => _run(
+    profile,
+    isCurrent,
+    (check) => _write(profile, 'credential', null, check),
+  );
+
+  /// Deletes only records bound to this source namespace and public profile.
+  Future<void> forgetProfileRecords(
+    RemoteProfile profile, {
+    required bool Function() isCurrent,
+  }) {
+    final check = _guard(isCurrent);
+    final target = reference(profile);
+    return ConfigurationWrites.run(() async {
+      try {
+        for (final kind in const ['certificate', 'settings', 'credential']) {
+          for (final key in [
+            _key(kind, target),
+            if (_namespace.allowsLegacyLocal) _legacyKey(kind, target),
+          ]) {
+            check();
+            await _storage.delete(key: key);
+            check();
+            if (await _storage.read(key: key) != null) {
+              throw const RdpFailure('storage_failed');
+            }
+            check();
+          }
+        }
+      } on RdpFailure {
+        rethrow;
+      } catch (_) {
+        check();
+        throw const RdpFailure('storage_failed');
+      }
+    });
+  }
 }

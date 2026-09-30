@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/configuration_writes.dart';
 import '../data/remote_profiles.dart';
+import '../data/remote_security_namespace.dart';
 import 'ssh_tunnel_models.dart';
 
 typedef SshProfileValidator = Future<void> Function(
@@ -21,12 +22,13 @@ typedef SshProfileValidator = Future<void> Function(
 final class SshSecurityNamespace {
   SshSecurityNamespace._(this.digest, {required this.allowsLegacyLocal});
 
-  factory SshSecurityNamespace.local() => SshSecurityNamespace._(
-    sha256
-        .convert(utf8.encode('{"schemaVersion":1,"source":"local"}'))
-        .toString(),
-    allowsLegacyLocal: true,
-  );
+  factory SshSecurityNamespace.local() {
+    final value = RemoteSecurityNamespace.local();
+    return SshSecurityNamespace._(
+      value.digest,
+      allowsLegacyLocal: value.allowsLegacyLocal,
+    );
+  }
 
   factory SshSecurityNamespace.coreManaged({
     required String endpoint,
@@ -35,34 +37,21 @@ final class SshSecurityNamespace {
     required String accountId,
     required String sessionFamilyId,
   }) {
-    final uri = Uri.tryParse(endpoint);
-    final identity = RegExp(r'^[0-9a-f]{32}$');
-    if (uri == null ||
-        (uri.scheme != 'http' && uri.scheme != 'https') ||
-        uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty ||
-        uri.hasQuery ||
-        uri.hasFragment ||
-        endpoint != uri.toString() ||
-        !identity.hasMatch(coreId) ||
-        !identity.hasMatch(homeId) ||
-        !identity.hasMatch(accountId) ||
-        !identity.hasMatch(sessionFamilyId)) {
+    try {
+      final value = RemoteSecurityNamespace.coreManaged(
+        endpoint: endpoint,
+        coreId: coreId,
+        homeId: homeId,
+        accountId: accountId,
+        sessionFamilyId: sessionFamilyId,
+      );
+      return SshSecurityNamespace._(
+        value.digest,
+        allowsLegacyLocal: value.allowsLegacyLocal,
+      );
+    } on FormatException {
       throw const SshFailure('invalid_namespace');
     }
-    final encoded = jsonEncode({
-      'schemaVersion': 1,
-      'source': 'coreManaged',
-      'endpoint': endpoint,
-      'coreId': coreId,
-      'homeId': homeId,
-      'accountId': accountId,
-      'sessionFamilyId': sessionFamilyId,
-    });
-    return SshSecurityNamespace._(
-      sha256.convert(utf8.encode(encoded)).toString(),
-      allowsLegacyLocal: false,
-    );
   }
 
   final String digest;

@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/core/core_managed_profile_authority.dart';
 import 'package:larenor/features/remote_access/core/core_personal_profiles.dart';
 import 'package:larenor/features/remote_access/core/core_personal_profiles_api.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_security_store.dart';
+import 'package:larenor/features/remote_access/vnc/vnc_models.dart';
 
 import 'core_personal_profiles_test_support.dart';
 
@@ -55,8 +57,14 @@ void main() {
     addTearDown(authority.dispose);
     await authority.start();
 
+    var retireNotifications = 0;
+    authority.addListener(() => retireNotifications++);
+
     await fixture.account.signOut();
     expect(authority.isCurrent, isFalse);
+    expect(retireNotifications, 1);
+    authority.retire();
+    expect(retireNotifications, 1);
     await expectLater(
       authority.validateProfile(snapshot.profiles.single.profile, () {}),
       throwsA(
@@ -64,4 +72,64 @@ void main() {
       ),
     );
   });
+
+  for (final protocol in const ['rdp', 'vnc']) {
+    test('$protocol store revalidates exact live Core authority', () async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(
+          protocol: protocol,
+          username: protocol == 'vnc' ? '' : 'private-user',
+        );
+      addTearDown(fixture.account.dispose);
+      await fixture.account.initialize();
+      final snapshot = await _snapshot(fixture);
+      final authority = CoreManagedProfileAuthority(
+        account: fixture.account,
+        profile: snapshot.profiles.single,
+        authority: snapshot.authority,
+        ownerCurrent: () => true,
+      );
+      addTearDown(authority.dispose);
+      await authority.start();
+
+      if (protocol == 'rdp') {
+        await authority.createRdpSecurityStore().checkProfile(
+          snapshot.profiles.single.profile,
+          isCurrent: () => true,
+        );
+      } else {
+        await authority.createVncSecurityStore().checkProfile(
+          snapshot.profiles.single.profile,
+          isCurrent: () => true,
+        );
+      }
+      fixture.record = profileJson(
+        revision: 2,
+        protocol: protocol,
+        username: protocol == 'vnc' ? '' : 'private-user',
+        label: 'Drifted on Core',
+      );
+      fixture.storedCollectionRevision = 2;
+
+      if (protocol == 'rdp') {
+        await expectLater(
+          authority.createRdpSecurityStore().checkProfile(
+            snapshot.profiles.single.profile,
+            isCurrent: () => true,
+          ),
+          throwsA(isA<RdpFailure>()),
+        );
+      } else {
+        await expectLater(
+          authority.createVncSecurityStore().checkProfile(
+            snapshot.profiles.single.profile,
+            isCurrent: () => true,
+          ),
+          throwsA(isA<VncFailure>()),
+        );
+      }
+      expect(authority.isCurrent, isFalse);
+    });
+  }
 }

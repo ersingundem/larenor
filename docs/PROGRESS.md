@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F61/F62 yönetilen masaüstü profil kabulü
+
+Core RDP/VNC artık source/endpoint/Core/home/account/family+profile digest v2 kasası, live authority, protocol action/panel ve exact DELETE sonrası local cleanup/retry kullanır. Yerel-only legacy kayıt korunur; SSH v2 digest byte eşitliği korunur. Root gerçek normal Core TCP gateini ve 34 focused Flutter/0skip kapısını doğruladı; analyze temiz. Gerçek TigerVNC/packaged FreeRDP hosted gate ayrı ve henüz yeşil değil; bu dilim native protocol veya fiziksel cihaz kabulü yerine sayılmadı, sayaçlar değişmedi. [Core masaüstü kanıtı](testing/f61-f62-core-managed-desktop-acceptance-2026-09-30.md).
+
 ### 30 Eylül FreeRDP gerçek host komut bağlamı düzeltmesi
 
 Exact b76558c4 / run 36765836443 iki paket/APK ve NLA hostu geçti; KVM düzeltmesiyle emulator 29sn boot oldu. Action her script satırını ayrı shell ile çalıştırdığı için cd android sonraki gradlew komutuna taşınmadı, exit127 geldi; instrumentation başlamadı. Tek Python runner Android cwd/argvyi kendisi bağlar ve yeni exact XMLde bir named test/sıfır skip olmadan receipt vermez. 12 policy/package/receipt testi geçti; yeni exact host sonucu bekliyor. [RDP kanıtı](testing/f62-freerdp-native-acceptance-2026-09-30.md).

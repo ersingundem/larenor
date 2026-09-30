@@ -55,7 +55,7 @@ class RemoteUi {
   final boundary = GlobalKey();
   final windows = StreamController<WindowPolicySnapshot>.broadcast(sync: true);
   String? clipboard;
-  bool failWrite = false, failSshDelete = false;
+  bool failWrite = false, failSshDelete = false, failDesktopDelete = false;
   Future<void> Function(String key)? afterRead;
   int get writes =>
       calls.where((c) => c == 'write:${RemoteProfilesStore.storageKey}').length;
@@ -93,7 +93,10 @@ class RemoteUi {
                 }
                 return null;
               case 'delete':
-                if (failSshDelete && k?.startsWith('ssh_') == true) {
+                if (failSshDelete && k?.startsWith('ssh_') == true ||
+                    failDesktopDelete &&
+                        (k?.startsWith('rdp_') == true ||
+                            k?.startsWith('vnc_') == true)) {
                   throw PlatformException(code: 'private');
                 }
                 values.remove(k);

@@ -31,10 +31,12 @@ class VncSessionPanel extends ConsumerStatefulWidget {
     required this.profile,
     required this.isCurrent,
     required this.onBack,
+    this.securityStore,
   });
   final RemoteProfile profile;
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final VncSecurityStore? securityStore;
   @override
   ConsumerState<VncSessionPanel> createState() => _VncSessionPanelState();
 }
@@ -68,7 +70,10 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent != true ||
           !identical(_factory, ref.read(vncEngineFactoryProvider)) ||
-          !identical(_trust, ref.read(vncTrustStoreProvider))) {
+          !identical(
+            _trust,
+            widget.securityStore ?? ref.read(vncTrustStoreProvider),
+          )) {
         return false;
       }
       final state = ref.read(windowPolicySnapshotProvider);
@@ -100,9 +105,18 @@ class _VncSessionPanelState extends ConsumerState<VncSessionPanel>
       interaction?.addListener(_ownerChanged);
     }
     _factory ??= ref.read(vncEngineFactoryProvider);
-    _trust ??= ref.read(vncTrustStoreProvider);
+    _trust ??= widget.securityStore ?? ref.read(vncTrustStoreProvider);
     _controller ??= _newController()..addListener(_changed);
     if (!TickerMode.valuesOf(context).enabled) _retire();
+  }
+
+  @override
+  void didUpdateWidget(covariant VncSessionPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.securityStore, widget.securityStore) ||
+        !identical(oldWidget.profile, widget.profile)) {
+      _retire();
+    }
   }
 
   VncSessionController _newController() {

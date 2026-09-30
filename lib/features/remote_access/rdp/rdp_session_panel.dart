@@ -34,10 +34,12 @@ class RdpSessionPanel extends ConsumerStatefulWidget {
     required this.profile,
     required this.isCurrent,
     required this.onBack,
+    this.securityStore,
   });
   final RemoteProfile profile;
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final RdpSecurityStore? securityStore;
   @override
   ConsumerState<RdpSessionPanel> createState() => _RdpSessionPanelState();
 }
@@ -78,8 +80,14 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           !TickerMode.valuesOf(context).enabled ||
           ModalRoute.of(context)?.isCurrent != true ||
           !identical(_factory, ref.read(rdpEngineFactoryProvider)) ||
-          !identical(_trust, ref.read(rdpTrustStoreProvider)) ||
-          !identical(_security, ref.read(rdpSecurityStoreProvider))) {
+          !identical(
+            _trust,
+            widget.securityStore ?? ref.read(rdpTrustStoreProvider),
+          ) ||
+          !identical(
+            _security,
+            widget.securityStore ?? ref.read(rdpSecurityStoreProvider),
+          )) {
         return false;
       }
       final state = ref.read(windowPolicySnapshotProvider);
@@ -111,14 +119,23 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       interaction?.addListener(_ownerChanged);
     }
     _factory ??= ref.read(rdpEngineFactoryProvider);
-    _trust ??= ref.read(rdpTrustStoreProvider);
-    _security ??= ref.read(rdpSecurityStoreProvider);
+    _trust ??= widget.securityStore ?? ref.read(rdpTrustStoreProvider);
+    _security ??= widget.securityStore ?? ref.read(rdpSecurityStoreProvider);
     _controller ??= _newController()..addListener(_changed);
     if (!_settingsStarted) {
       _settingsStarted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
     }
     if (!TickerMode.valuesOf(context).enabled) _retire();
+  }
+
+  @override
+  void didUpdateWidget(covariant RdpSessionPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.securityStore, widget.securityStore) ||
+        !identical(oldWidget.profile, widget.profile)) {
+      _retire();
+    }
   }
 
   RdpSessionController _newController() {

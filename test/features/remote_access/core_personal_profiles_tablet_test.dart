@@ -46,6 +46,37 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final protocol in const ['rdp', 'vnc']) {
+    testWidgets('Core-managed $protocol opens its scoped desktop panel', (
+      tester,
+    ) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(
+          protocol: protocol,
+          username: protocol == 'vnc' ? '' : 'private-user',
+        );
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+      );
+
+      await press(tester, 'remote-source-core-managed');
+      expect(key('core-profile-$protocol-open-$profileId'), findsOneWidget);
+      expect(key('core-profile-ssh-open-$profileId'), findsNothing);
+      await press(tester, 'core-profile-$protocol-open-$profileId');
+      expect(key('core-profile-session-open-failed'), findsNothing);
+      expect(key('core-$protocol-$profileId'), findsOneWidget);
+      expect(find.textContaining('synthetic_admin_access'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
@@ -112,6 +143,61 @@ void main() {
         },
       );
     }
+
+    testWidgets('Core-managed RDP with empty username cannot mint a session', (
+      tester,
+    ) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(protocol: 'rdp', username: '');
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+      );
+
+      await press(tester, 'remote-source-core-managed');
+      expect(key('core-profile-rdp-open-$profileId'), findsNothing);
+      expect(key('core-rdp-$profileId'), findsNothing);
+    });
+
+    testWidgets('Core logout retires an open desktop panel without replay', (
+      tester,
+    ) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(protocol: 'rdp');
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+      );
+
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-rdp-open-$profileId');
+      expect(key('core-rdp-$profileId'), findsOneWidget);
+      final getCalls = fixture.calls
+          .where((call) => call.method == 'GET')
+          .length;
+
+      await fixture.account.signOut();
+      await tester.pumpAndSettle();
+      expect(key('core-rdp-$profileId'), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      expect(
+        fixture.calls.where((call) => call.method == 'GET').length,
+        getCalls,
+      );
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets(
@@ -209,4 +295,43 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final protocol in const ['rdp', 'vnc']) {
+    testWidgets('Core $protocol delete retries only typed local cleanup', (
+      tester,
+    ) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(
+          protocol: protocol,
+          username: protocol == 'vnc' ? '' : 'private-user',
+        );
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi()..failDesktopDelete = true;
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await press(tester, 'core-profile-delete');
+      await press(tester, 'core-profile-delete-confirm');
+      await tester.pump(const Duration(seconds: 1));
+      expect(fixture.deleteCalls, 1);
+      expect(key('core-profile-local-cleanup-failed'), findsOneWidget);
+
+      ui.failDesktopDelete = false;
+      await press(tester, 'core-profile-local-cleanup-retry');
+      expect(fixture.deleteCalls, 1);
+      expect(key('core-profile-local-cleanup-failed'), findsNothing);
+      expect(
+        ui.calls.where((call) => call.startsWith('delete:${protocol}_')).length,
+        protocol == 'rdp' ? 4 : 2,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -14,6 +14,9 @@ Map<String, dynamic> profileJson({
   String home = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
   String account = adminId,
   String label = 'Living room desktop',
+  String protocol = 'ssh',
+  int? port,
+  String username = 'private-user',
 }) => {
   'ref': {
     'schemaVersion': 1,
@@ -25,10 +28,16 @@ Map<String, dynamic> profileJson({
   },
   'revision': revision,
   'label': label,
-  'protocol': 'ssh',
+  'protocol': protocol,
   'host': 'desk.internal.example',
-  'port': 22,
-  'username': 'private-user',
+  'port':
+      port ??
+      switch (protocol) {
+        'rdp' => 3389,
+        'vnc' => 5900,
+        _ => 22,
+      },
+  'username': username,
 };
 
 Map<String, dynamic> authorityJson({

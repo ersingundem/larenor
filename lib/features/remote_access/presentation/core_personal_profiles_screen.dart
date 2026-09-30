@@ -14,24 +14,25 @@ import '../core/core_personal_profiles.dart';
 import '../core/core_personal_profiles_controller.dart';
 import '../core/core_managed_profile_authority.dart';
 import '../data/remote_profiles.dart';
+import '../rdp/rdp_models.dart';
+import '../rdp/rdp_security_store.dart';
+import '../rdp/rdp_session_panel.dart';
 import '../ssh/sftp_browser_panel.dart';
 import '../ssh/ssh_security_store.dart';
 import '../ssh/ssh_terminal_panel.dart';
 import '../ssh/ssh_tunnel_panel.dart';
+import '../vnc/vnc_models.dart';
+import '../vnc/vnc_security_store.dart';
+import '../vnc/vnc_session_panel.dart';
 import 'personal_session_boundary.dart';
 
 enum _LocalCleanupPhase { retrying, failed }
 
 final class _PendingLocalCleanup {
-  _PendingLocalCleanup({
-    required this.authority,
-    required this.store,
-    required this.profile,
-  });
+  _PendingLocalCleanup({required this.authority, required this.erase});
 
   final CoreManagedProfileAuthority authority;
-  final SshSecurityStore store;
-  final RemoteProfile profile;
+  final Future<void> Function(bool Function() current) erase;
   _LocalCleanupPhase phase = _LocalCleanupPhase.retrying;
 }
 
@@ -59,7 +60,9 @@ class _CorePersonalProfilesScreenState
   CorePersonalProfilesController? _controller;
   CorePersonalProfile? _editing;
   CoreManagedProfileAuthority? _sessionAuthority;
-  SshSecurityStore? _sessionStore;
+  SshSecurityStore? _sshSessionStore;
+  RdpSecurityStore? _rdpSessionStore;
+  VncSecurityStore? _vncSessionStore;
   _PendingLocalCleanup? _localCleanup;
   PersonalSessionResource? _sessionResource;
   String? _conflictedId;
@@ -138,7 +141,9 @@ class _CorePersonalProfilesScreenState
   void _closeSession() {
     final authority = _sessionAuthority;
     _sessionAuthority = null;
-    _sessionStore = null;
+    _sshSessionStore = null;
+    _rdpSessionStore = null;
+    _vncSessionStore = null;
     _sessionResource = null;
     authority?.removeListener(_authorityChanged);
     authority?.dispose();
@@ -155,8 +160,8 @@ class _CorePersonalProfilesScreenState
         !_current() ||
         controller?.evidence.isFreshVerified != true ||
         snapshot == null ||
-        profile.profile.protocol != RemoteProtocol.ssh ||
-        profile.profile.username.isEmpty ||
+        (profile.profile.protocol != RemoteProtocol.vnc &&
+            profile.profile.username.isEmpty) ||
         !PersonalSessionPolicy.allows(profile.profile.protocol, resource)) {
       return;
     }
@@ -176,10 +181,25 @@ class _CorePersonalProfilesScreenState
         return;
       }
       _sessionAuthority = authority;
-      _sessionStore = authority.createSecurityStore();
+      switch (profile.profile.protocol) {
+        case RemoteProtocol.ssh:
+          _sshSessionStore = authority.createSecurityStore();
+        case RemoteProtocol.rdp:
+          _rdpSessionStore = authority.createRdpSecurityStore();
+        case RemoteProtocol.vnc:
+          _vncSessionStore = authority.createVncSecurityStore();
+      }
       _sessionResource = resource;
       if (mounted) setState(() {});
     } catch (_) {
+      if (identical(_sessionAuthority, authority)) {
+        _sessionAuthority = null;
+        _sshSessionStore = null;
+        _rdpSessionStore = null;
+        _vncSessionStore = null;
+        _sessionResource = null;
+      }
+      authority.removeListener(_authorityChanged);
       authority.dispose();
       if (_current()) _sessionOpenFailed = true;
     } finally {
@@ -264,15 +284,28 @@ class _CorePersonalProfilesScreenState
     );
     var retainedForRetry = false;
     try {
-      final cleanup = cleanupAuthority.createSecurityStore();
+      final Future<void> Function(bool Function()) erase;
+      switch (target.profile.protocol) {
+        case RemoteProtocol.ssh:
+          final store = cleanupAuthority.createSecurityStore();
+          erase = (current) =>
+              store.forgetProfileRecords(target.profile, isCurrent: current);
+        case RemoteProtocol.rdp:
+          final store = cleanupAuthority.createRdpSecurityStore();
+          erase = (current) =>
+              store.forgetProfileRecords(target.profile, isCurrent: current);
+        case RemoteProtocol.vnc:
+          final store = cleanupAuthority.createVncSecurityStore();
+          erase = (current) =>
+              store.forgetProfileRecords(target.profile, isCurrent: current);
+      }
       await controller.delete(target, ownerCurrent: _current);
       if (_current() &&
           controller.mutationOutcome == CoreProfileMutationOutcome.deleted &&
           !controller.profiles.any((profile) => profile.id == target.id)) {
         final pending = _PendingLocalCleanup(
           authority: cleanupAuthority,
-          store: cleanup,
-          profile: target.profile,
+          erase: erase,
         );
         _localCleanup = pending;
         retainedForRetry = true;
@@ -288,9 +321,8 @@ class _CorePersonalProfilesScreenState
     pending.phase = _LocalCleanupPhase.retrying;
     if (mounted) setState(() {});
     try {
-      await pending.store.forgetProfileRecords(
-        pending.profile,
-        isCurrent: () =>
+      await pending.erase(
+        () =>
             identical(_localCleanup, pending) &&
             pending.authority.isCurrent &&
             _current(),
@@ -299,6 +331,12 @@ class _CorePersonalProfilesScreenState
       _localCleanup = null;
       pending.authority.dispose();
     } on SshFailure {
+      if (!identical(_localCleanup, pending)) return;
+      pending.phase = _LocalCleanupPhase.failed;
+    } on RdpFailure {
+      if (!identical(_localCleanup, pending)) return;
+      pending.phase = _LocalCleanupPhase.failed;
+    } on VncFailure {
       if (!identical(_localCleanup, pending)) return;
       pending.phase = _LocalCleanupPhase.failed;
     }
@@ -327,31 +365,52 @@ class _CorePersonalProfilesScreenState
     final l = AppLocalizations.of(context);
     final controller = _controller!;
     final sessionProfile = _sessionAuthority?.profile.profile;
-    final sessionStore = _sessionStore;
-    if (sessionProfile != null && sessionStore != null) {
+    if (sessionProfile != null &&
+        (_sshSessionStore != null ||
+            _rdpSessionStore != null ||
+            _vncSessionStore != null)) {
       final close = _closeSession;
-      return switch (_sessionResource) {
-        PersonalSessionResource.sshTerminal => SshTerminalPanel(
-          key: ValueKey('core-ssh-${sessionProfile.id}'),
-          profile: sessionProfile,
-          securityStore: sessionStore,
-          isCurrent: _sessionCurrent,
-          onBack: close,
-        ),
-        PersonalSessionResource.sftpFiles => SftpBrowserPanel(
-          key: ValueKey('core-sftp-${sessionProfile.id}'),
-          profile: sessionProfile,
-          securityStore: sessionStore,
-          isCurrent: _sessionCurrent,
-          onBack: close,
-        ),
-        PersonalSessionResource.sshTunnel => SshTunnelPanel(
-          key: ValueKey('core-tunnel-${sessionProfile.id}'),
-          profile: sessionProfile,
-          securityStore: sessionStore,
-          isCurrent: _sessionCurrent,
-          onBack: close,
-        ),
+      return switch ((sessionProfile.protocol, _sessionResource)) {
+        (RemoteProtocol.ssh, PersonalSessionResource.sshTerminal) =>
+          SshTerminalPanel(
+            key: ValueKey('core-ssh-${sessionProfile.id}'),
+            profile: sessionProfile,
+            securityStore: _sshSessionStore!,
+            isCurrent: _sessionCurrent,
+            onBack: close,
+          ),
+        (RemoteProtocol.ssh, PersonalSessionResource.sftpFiles) =>
+          SftpBrowserPanel(
+            key: ValueKey('core-sftp-${sessionProfile.id}'),
+            profile: sessionProfile,
+            securityStore: _sshSessionStore!,
+            isCurrent: _sessionCurrent,
+            onBack: close,
+          ),
+        (RemoteProtocol.ssh, PersonalSessionResource.sshTunnel) =>
+          SshTunnelPanel(
+            key: ValueKey('core-tunnel-${sessionProfile.id}'),
+            profile: sessionProfile,
+            securityStore: _sshSessionStore!,
+            isCurrent: _sessionCurrent,
+            onBack: close,
+          ),
+        (RemoteProtocol.rdp, PersonalSessionResource.desktop) =>
+          RdpSessionPanel(
+            key: ValueKey('core-rdp-${sessionProfile.id}'),
+            profile: sessionProfile,
+            securityStore: _rdpSessionStore!,
+            isCurrent: _sessionCurrent,
+            onBack: close,
+          ),
+        (RemoteProtocol.vnc, PersonalSessionResource.desktop) =>
+          VncSessionPanel(
+            key: ValueKey('core-vnc-${sessionProfile.id}'),
+            profile: sessionProfile,
+            securityStore: _vncSessionStore!,
+            isCurrent: _sessionCurrent,
+            onBack: close,
+          ),
         _ => const SizedBox.shrink(),
       };
     }
@@ -563,6 +622,25 @@ class _CorePersonalProfilesScreenState
                             ),
                           ),
                         ],
+                        if (item.profile.protocol == RemoteProtocol.rdp &&
+                            item.profile.username.isNotEmpty)
+                          action(
+                            'core-profile-rdp-open-${item.id}',
+                            l.rdpTitle,
+                            () => _openSession(
+                              item,
+                              PersonalSessionResource.desktop,
+                            ),
+                          ),
+                        if (item.profile.protocol == RemoteProtocol.vnc)
+                          action(
+                            'core-profile-vnc-open-${item.id}',
+                            l.vncTitle,
+                            () => _openSession(
+                              item,
+                              PersonalSessionResource.desktop,
+                            ),
+                          ),
                       ],
                     ],
                   ),

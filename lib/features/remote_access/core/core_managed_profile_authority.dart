@@ -5,7 +5,11 @@ import 'package:flutter/foundation.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../data/remote_profiles.dart';
+import '../rdp/rdp_models.dart';
+import '../rdp/rdp_security_store.dart';
 import '../ssh/ssh_security_store.dart';
+import '../vnc/vnc_models.dart';
+import '../vnc/vnc_security_store.dart';
 import 'core_personal_profiles.dart';
 import 'core_personal_profiles_api.dart';
 
@@ -141,6 +145,46 @@ final class CoreManagedProfileAuthority extends ChangeNotifier {
         sessionFamilyId: authority.sessionFamilyId,
       ),
       profileValidator: validateProfile,
+    );
+  }
+
+  RdpSecurityStore createRdpSecurityStore() {
+    _check();
+    return RdpSecurityStore(
+      namespace: RdpSecurityNamespace.coreManaged(
+        endpoint: _session!.endpoint.baseUrl,
+        coreId: authority.context.coreId,
+        homeId: authority.context.homeId,
+        accountId: authority.accountId,
+        sessionFamilyId: authority.sessionFamilyId,
+      ),
+      profileValidator: (profile, check) async {
+        try {
+          await validateProfile(profile, check);
+        } on SshFailure catch (error) {
+          throw RdpFailure(error.code);
+        }
+      },
+    );
+  }
+
+  VncSecurityStore createVncSecurityStore() {
+    _check();
+    return VncSecurityStore(
+      namespace: VncSecurityNamespace.coreManaged(
+        endpoint: _session!.endpoint.baseUrl,
+        coreId: authority.context.coreId,
+        homeId: authority.context.homeId,
+        accountId: authority.accountId,
+        sessionFamilyId: authority.sessionFamilyId,
+      ),
+      profileValidator: (profile, check) async {
+        try {
+          await validateProfile(profile, check);
+        } on SshFailure catch (error) {
+          throw VncFailure(error.code);
+        }
+      },
     );
   }
 
