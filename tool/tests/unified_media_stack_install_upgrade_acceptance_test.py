@@ -187,7 +187,7 @@ class UpgradeDriver(FakeDriver):
             }
             for service_id, mounts in persistent_sources
             for mount in mounts
-            if mount["readOnly"] is False
+            if target._private_state_mount(service_id, mount)
         ]
 
     def _receipt(self, revision):
@@ -1030,7 +1030,7 @@ class UnifiedMediaStackInstallUpgradeAcceptanceTest(unittest.TestCase):
             (service_id, mount["target"])
             for service_id, mounts in persistent_sources
             for mount in mounts
-            if mount["readOnly"] is False
+            if target._private_state_mount(service_id, mount)
         }
         self.assertEqual(
             {(service, target_path) for service, target_path, _ in expected},

@@ -93,7 +93,7 @@ class UnifiedMediaStackDeploymentTest(unittest.TestCase):
             "control": {"name": "larenor-server-control-v1", "driver": "bridge"}
         })
         expected_targets = {
-            "larenor-core": {"/data", "/secrets"},
+            "larenor-core": {"/data", "/secrets", "/run/larenor-workers"},
             "larenor-jellyfin": {"/config", "/cache", "/media"},
             "larenor-seerr": {"/app/config"},
             "larenor-sonarr": {"/config", "/data"},

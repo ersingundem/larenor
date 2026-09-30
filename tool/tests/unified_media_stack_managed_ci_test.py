@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -110,6 +111,34 @@ class FakeDriver:
 
 
 class UnifiedMediaStackManagedCITest(unittest.TestCase):
+    def test_only_fixed_worker_ipc_is_excluded_from_private_state(self):
+        manifest = target.expected_manifest(REVISION)
+        retained = target._persistent_mounts(manifest)
+        self.assertIn(("core", "/data"), retained)
+        self.assertNotIn(("core", "/run/larenor-workers"), retained)
+        self.assertEqual(
+            retained,
+            target._persistent_mounts(target._revision_manifest(LEGACY_REVISION)),
+        )
+        driver = target.DockerDriver.__new__(target.DockerDriver)
+        self.assertEqual(
+            {(service, mount) for service, mount, _ in driver._mount_specs(manifest)},
+            retained,
+        )
+        for field, value in (
+            ("source", str(target.ROOT / "core" / "data")),
+            ("target", "/other-runtime"),
+        ):
+            changed = copy.deepcopy(manifest)
+            ipc = next(item for item in changed["core"]["mounts"]
+                       if item["target"] == "/run/larenor-workers")
+            ipc[field] = value
+            self.assertIn(("core", ipc["target"]), target._persistent_mounts(changed))
+        # An equally named provider mount is retained as private data too.
+        ipc = next(item for item in manifest["core"]["mounts"]
+                   if item["target"] == "/run/larenor-workers")
+        self.assertTrue(target._private_state_mount("jellyfin", ipc))
+
     def launch_environment(self, **changed):
         value = {
             "EXPECTED_PLATFORM": "linux/amd64", "RUNNER_ARCH": "X64",
@@ -149,15 +178,15 @@ class UnifiedMediaStackManagedCITest(unittest.TestCase):
             value = target.run_native(REVISION, platform_name, driver)
             target.validate_receipt(value, REVISION, platform_name)
             self.assertEqual(driver.calls[:4], ["config", "prepare_owned", "inspect", "inspect"])
-            self.assertEqual(driver.calls.count("inspect"), 10)
-            self.assertEqual(driver.calls[12:16], [
+            self.assertEqual(driver.calls.count("inspect"), 11)
+            self.assertEqual(driver.calls[13:17], [
                 "pull", "create", "start", "receipts:initial",
             ])
-            self.assertEqual(driver.calls[16:22], [
+            self.assertEqual(driver.calls[17:23], [
                 "health:initial:" + item for item in COMPONENTS
             ])
-            self.assertEqual(driver.calls[22:24], ["restart", "receipts:restart"])
-            self.assertEqual(driver.calls[24:30], [
+            self.assertEqual(driver.calls[23:25], ["restart", "receipts:restart"])
+            self.assertEqual(driver.calls[25:31], [
                 "health:restart:" + item for item in COMPONENTS
             ])
             self.assertEqual(driver.calls[-7:-1], ["readiness:" + item for item in COMPONENTS])

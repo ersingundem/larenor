@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül geniş platform kapısında IPC ayrımı
+
+Eski kurulum/yükseltme kabulü, yeni worker socket mount’unu kalıcı özel veri gibi sınıflandırdığı için 24 hata veriyordu. Yalnız exact Core `/run/larenor-workers`→sabit host IPC kaynağı volatile olarak ayrıldı; Core/servis özel verisinin exact digest/sentinel koruması aynen sürer. Yanlış kaynak veya başka hedef/servis bu istisnaya girmez. 45 dar kurulum/yükseltme testi ve 454 platform/policy kontrolü geçti (4 desteklenmeyen yerel kapı skip). Exact HEAD Security CI ayrıca bekleniyor; önceki kırmızı koşu körlemesine tekrarlanmadı.
+
 ### 30 Eylül F11 gerçek sınır sözleşmesi
 
 Sabit metadata eklentisinin uygulanmayan 50 ms CPU/1 MiB bellek garantileri Server ve Client v2 sözleşmesinden çıkarıldı. Gerçek 1 KiB çıktı, ağ/dosya erişimi olmayan sabit işlem, yetki/ev sınırı ve durdurma korunur; eski yanlış v1 sözleşmesi Client tarafından reddedilir. 4 odaklı Server ve 4 Flutter loopback testi, analyze geçti. F11 geliştirmede kalır: tam CPU/bellek izolasyonlu eklenti kabulü henüz yoktur. [Kanıt ve açık kapsam](testing/f11-mini-plugin-truthful-boundary-2026-09-30.md).

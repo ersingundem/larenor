@@ -612,12 +612,25 @@ def _installation_receipt(value, revision, selected_platform):
     return value
 
 
+def _private_state_mount(service_id, item):
+    # Worker IPC carries live sockets, not retained Core/provider data. This
+    # one fixed mount was added after the historical upgrade source; it must
+    # not create a false private-data migration or receive a state sentinel.
+    # Every other writable mount stays in the exact preservation contract.
+    return item["readOnly"] is False and not (
+        service_id == "core"
+        and item["target"] == "/run/larenor-workers"
+        and item["source"] == str(ROOT / "host-workers" / "ipc")
+    )
+
+
 def _persistent_mounts(manifest):
     values = [("core", item["target"])
-              for item in manifest["core"]["mounts"] if item["readOnly"] is False]
+              for item in manifest["core"]["mounts"] if _private_state_mount("core", item)]
     values.extend((component["serviceId"], item["target"])
                   for component in manifest["components"]
-                  for item in component["mounts"] if item["readOnly"] is False)
+                  for item in component["mounts"]
+                  if _private_state_mount(component["serviceId"], item))
     if len(values) != len(set(values)) or not values:
         raise ManagedStackCIError("unified_private_state_changed")
     return set(values)
@@ -1773,7 +1786,7 @@ class DockerDriver:
                       for item in component["mounts"])
         result = []
         for service_id, item in values:
-            if item["readOnly"] is False:
+            if _private_state_mount(service_id, item):
                 source = Path(item["source"])
                 if ROOT not in source.parents:
                     raise ManagedStackCIError("unified_private_state_changed")
