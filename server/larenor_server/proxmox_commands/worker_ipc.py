@@ -537,12 +537,15 @@ def _result(value):
 class ProxmoxPowerWorkerClient:
     def __init__(
         self, path, *, owner_uid=0, peer_uid=None, timeout=5,
-        expected_identity=None,
+        expected_identity=None, socket_gid=None,
     ):
         if (
             type(owner_uid) is not int or owner_uid < 0
             or type(timeout) not in (int, float) or isinstance(timeout, bool)
             or not 0 < timeout <= 30
+            or socket_gid is not None and (
+                type(socket_gid) is not int or not 0 <= socket_gid < 2**31
+            )
             or expected_identity is not None and (
                 type(expected_identity) is not tuple
                 or len(expected_identity) != 3
@@ -556,6 +559,36 @@ class ProxmoxPowerWorkerClient:
         self.peer_uid = peer_uid or _peer_uid
         self.timeout = timeout
         self.expected_identity = expected_identity
+        self.socket_gid = socket_gid
+
+    def _socket(self):
+        if self.socket_gid is None:
+            return _safe_path(
+                self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True
+            )
+        try:
+            selected = self.path.absolute()
+            if ".." in selected.parts:
+                raise ValueError()
+            for parent in reversed(selected.parents):
+                info = parent.lstat()
+                if (
+                    stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+                    or info.st_uid not in {0, os.geteuid(), self.owner_uid}
+                    or info.st_mode & 0o002
+                    or info.st_mode & 0o020 and info.st_gid != self.socket_gid
+                ):
+                    raise ValueError()
+            info = selected.lstat()
+            if (
+                not stat.S_ISSOCK(info.st_mode) or info.st_uid != self.owner_uid
+                or info.st_gid != self.socket_gid
+                or stat.S_IMODE(info.st_mode) != 0o660
+            ):
+                raise ValueError()
+            return selected
+        except (OSError, ValueError):
+            raise ProxmoxPowerWorkerError() from None
 
     def execute_bounded(
         self, descriptor, action, guard, *, preview, deadline_ms,
@@ -571,9 +604,7 @@ class ProxmoxPowerWorkerClient:
         )
         try:
             guard()
-            selected = _safe_path(
-                self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True
-            )
+            selected = self._socket()
             info = selected.lstat()
             if (
                 self.expected_identity is not None
@@ -632,9 +663,7 @@ class ProxmoxPowerWorkerClient:
         )
         try:
             guard()
-            selected = _safe_path(
-                self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True
-            )
+            selected = self._socket()
             info = selected.lstat()
             if (
                 self.expected_identity is not None
@@ -680,16 +709,25 @@ class ProxmoxPowerWorkerClient:
 
 def verified_power_worker_client(
     socket_path, health_path, owner_uid, *, peer_uid=None, timeout=5,
+    socket_gid=None,
 ):
     """Return an inode-bound client only for an exact live health receipt."""
     try:
         from .worker_runtime import read_health_receipt
 
-        selected = _safe_path(
-            Path(socket_path), uid=owner_uid, kind=stat.S_ISSOCK, private=True
+        probe = ProxmoxPowerWorkerClient(
+            socket_path, owner_uid=owner_uid, peer_uid=peer_uid,
+            timeout=timeout, socket_gid=socket_gid,
         )
+        selected = probe._socket()
         info = selected.lstat()
-        receipt = read_health_receipt(Path(health_path))
+        receipt = (
+            read_health_receipt(Path(health_path))
+            if socket_gid is None else
+            read_health_receipt(
+                Path(health_path), owner_uid=owner_uid, socket_gid=socket_gid,
+            )
+        )
         identity = (info.st_dev, info.st_ino)
         if (
             receipt.state != "ready"
@@ -699,7 +737,7 @@ def verified_power_worker_client(
             return None
         return ProxmoxPowerWorkerClient(
             selected, owner_uid=owner_uid, peer_uid=peer_uid, timeout=timeout,
-            expected_identity=(*identity, info.st_ctime_ns),
+            expected_identity=(*identity, info.st_ctime_ns), socket_gid=socket_gid,
         )
     except BaseException as error:
         if isinstance(error, (KeyboardInterrupt, SystemExit)):
@@ -708,9 +746,15 @@ def verified_power_worker_client(
 
 
 class ProxmoxPowerWorkerServer:
-    def __init__(self, path, adapter=None, *, allowed_uid, peer_uid=None, timeout=5):
+    def __init__(
+        self, path, adapter=None, *, allowed_uid, peer_uid=None, timeout=5,
+        socket_gid=None,
+    ):
         if (
             type(allowed_uid) is not int or allowed_uid < 0
+            or socket_gid is not None and (
+                type(socket_gid) is not int or not 0 <= socket_gid < 2**31
+            )
             or type(timeout) not in (int, float) or isinstance(timeout, bool)
             or not 0 < timeout <= 30
         ):
@@ -720,6 +764,7 @@ class ProxmoxPowerWorkerServer:
         self.allowed_uid = allowed_uid
         self.peer_uid = peer_uid or _peer_uid
         self.timeout = timeout
+        self.socket_gid = socket_gid
         self._listener = self._thread = self._lock_file = self._identity = None
         self._stopped = threading.Event()
         self._active_lock = threading.Lock()
@@ -731,11 +776,44 @@ class ProxmoxPowerWorkerServer:
         if self._listener is not None or self._lock_file is not None:
             raise ProxmoxPowerWorkerError()
         try:
-            _safe_path(self.path.parent, uid=os.getuid(), kind=stat.S_ISDIR)
+            if self.socket_gid is None:
+                _safe_path(self.path.parent, uid=os.getuid(), kind=stat.S_ISDIR)
+            else:
+                for ancestor in reversed(self.path.parent.parents):
+                    info = ancestor.lstat()
+                    if (
+                        stat.S_ISLNK(info.st_mode)
+                        or not stat.S_ISDIR(info.st_mode)
+                        or info.st_uid not in {0, os.geteuid(), self.allowed_uid}
+                        or info.st_mode & 0o002
+                        or info.st_mode & 0o020 and info.st_gid != self.socket_gid
+                    ):
+                        raise ProxmoxPowerWorkerError()
+                parent = self.path.parent.lstat()
+                if (
+                    stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode)
+                    or parent.st_uid != os.geteuid()
+                    or parent.st_gid != self.socket_gid
+                    or stat.S_IMODE(parent.st_mode) != 0o770
+                ):
+                    raise ProxmoxPowerWorkerError()
             lock_path = self.path.parent / (self.path.name + ".lock")
             descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             self._lock_file = descriptor
-            _safe_path(lock_path, uid=os.getuid(), kind=stat.S_ISREG, private=True)
+            if self.socket_gid is None:
+                _safe_path(lock_path, uid=os.getuid(), kind=stat.S_ISREG, private=True)
+            else:
+                lock_info = os.fstat(descriptor)
+                lock_entry = os.stat(lock_path, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(lock_info.st_mode)
+                    or lock_info.st_uid != os.geteuid()
+                    or stat.S_IMODE(lock_info.st_mode) != 0o600
+                    or lock_info.st_nlink != 1
+                    or (lock_info.st_dev, lock_info.st_ino)
+                    != (lock_entry.st_dev, lock_entry.st_ino)
+                ):
+                    raise ProxmoxPowerWorkerError()
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if self.path.exists() or self.path.is_symlink():
                 raise ProxmoxPowerWorkerError()
@@ -744,7 +822,11 @@ class ProxmoxPowerWorkerServer:
             listener.bind(str(self.path))
             info = self.path.lstat()
             self._identity = (info.st_dev, info.st_ino)
-            os.chmod(self.path, 0o600)
+            if self.socket_gid is None:
+                os.chmod(self.path, 0o600)
+            else:
+                os.chown(self.path, os.geteuid(), self.socket_gid)
+                os.chmod(self.path, 0o660)
             listener.listen(4)
             listener.settimeout(0.1)
             self._stopped.clear()

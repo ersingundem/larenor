@@ -62,10 +62,12 @@ class SupervisorConfig:
         if runtime.binding_key_path is not None:
             command.extend(("--binding-key-file", str(runtime.binding_key_path)))
         command.extend(("--api-uid", str(runtime.api_uid)))
+        if runtime.socket_gid is not None:
+            command.extend(("--socket-gid", str(runtime.socket_gid)))
         return tuple(command)
 
 
-def cleanup_exact_socket(path, identity, owner_uid):
+def cleanup_exact_socket(path, identity, owner_uid, socket_gid=None):
     try:
         selected = Path(path)
         if (
@@ -78,7 +80,8 @@ def cleanup_exact_socket(path, identity, owner_uid):
         if (
             stat.S_ISLNK(info.st_mode) or not stat.S_ISSOCK(info.st_mode)
             or info.st_uid != owner_uid
-            or stat.S_IMODE(info.st_mode) != 0o600
+            or socket_gid is not None and info.st_gid != socket_gid
+            or stat.S_IMODE(info.st_mode) != (0o600 if socket_gid is None else 0o660)
             or (info.st_dev, info.st_ino) != identity
         ):
             return False
@@ -97,15 +100,25 @@ def check_health(runtime):
     try:
         if not isinstance(runtime, WorkerRuntimeConfig):
             return False
-        receipt = read_health_receipt(runtime.health_path)
+        receipt = (
+            read_health_receipt(runtime.health_path)
+            if runtime.socket_gid is None else
+            read_health_receipt(
+                runtime.health_path, owner_uid=os.geteuid(),
+                socket_gid=runtime.socket_gid,
+            )
+        )
         info = runtime.socket_path.lstat()
         return (
             receipt.state == "ready"
-            and receipt.worker_uid == os.geteuid() == runtime.api_uid
+            and receipt.worker_uid == os.geteuid()
             and stat.S_ISSOCK(info.st_mode)
             and not stat.S_ISLNK(info.st_mode)
             and info.st_uid == receipt.worker_uid
-            and stat.S_IMODE(info.st_mode) == 0o600
+            and (runtime.socket_gid is None or info.st_gid == runtime.socket_gid)
+            and stat.S_IMODE(info.st_mode) == (
+                0o600 if runtime.socket_gid is None else 0o660
+            )
             and (info.st_dev, info.st_ino)
             == (receipt.socket_device, receipt.socket_inode)
         )
@@ -137,7 +150,15 @@ class ProxmoxWorkerSupervisor:
 
     def _cleanup_child_socket(self):
         try:
-            receipt = read_health_receipt(self.config.runtime.health_path)
+            runtime = self.config.runtime
+            receipt = (
+                read_health_receipt(runtime.health_path)
+                if runtime.socket_gid is None else
+                read_health_receipt(
+                    runtime.health_path, owner_uid=os.geteuid(),
+                    socket_gid=runtime.socket_gid,
+                )
+            )
         except ProxmoxWorkerRuntimeError:
             return False
         if receipt.state != "ready" or receipt.worker_uid != os.geteuid():
@@ -146,6 +167,7 @@ class ProxmoxWorkerSupervisor:
             self.config.runtime.socket_path,
             (receipt.socket_device, receipt.socket_inode),
             receipt.worker_uid,
+            self.config.runtime.socket_gid,
         )
 
     def _stop(self, process):
@@ -212,12 +234,13 @@ def main(argv=None):
     parser.add_argument("--credential-file", required=True, type=Path)
     parser.add_argument("--binding-key-file", type=Path)
     parser.add_argument("--api-uid", required=True, type=_uid)
+    parser.add_argument("--socket-gid", type=_uid)
     parser.add_argument("--check-health", action="store_true")
     try:
         args = parser.parse_args(argv)
         runtime = WorkerRuntimeConfig(
             args.socket, args.health_receipt, args.credential_file, args.api_uid,
-            args.binding_key_file,
+            args.binding_key_file, args.socket_gid,
         )
         selected = SupervisorConfig.from_runtime(runtime)
         if os.getuid() != os.geteuid() or os.geteuid() == 0:

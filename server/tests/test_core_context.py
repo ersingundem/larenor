@@ -117,6 +117,14 @@ def legacy_v2(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='core_audit_schema'"
         )
+        # E-paper commands and polls reference previews/devices. Remove those
+        # dependants before the generic historical cleanup drops their parent.
+        for table in (
+            "epaper_provider_commands",
+            "epaper_polls",
+            "epaper_previews",
+        ):
+            connection.execute(f"DROP TABLE {table}")
         # Keep the synthetic downgrade faithful as new context-bound feature
         # schemas are added. A historical v2 database contained only the
         # authentication, vault, rate-limit and admin-audit tables below.

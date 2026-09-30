@@ -110,8 +110,11 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         archive = (root / "larenor-media-archive-worker.service").read_text()
         ai = (root / "larenor-ai-worker.service").read_text()
         mesh = (root / "larenor-mesh-worker.service").read_text()
+        proxmox = (root / "larenor-proxmox-power-worker.service").read_text()
+        nut = (root / "larenor-nut-bridge.service").read_text()
         unmanic = (root / "larenor-unmanic.service").read_text()
-        for unit in (preflight, installation, component, archive, ai, mesh, unmanic):
+        for unit in (preflight, installation, component, archive, ai, mesh,
+                     proxmox, nut, unmanic):
             self.assertIn("NoNewPrivileges=yes", unit)
             self.assertIn("ProtectSystem=strict", unit)
             self.assertIn("Restart=on-failure", unit)
@@ -162,6 +165,14 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("--core-uid 10001 --socket-gid 10002", mesh)
         self.assertIn("--check-config", mesh)
         self.assertNotIn("User=root", mesh)
+        self.assertIn("User=10005", proxmox)
+        self.assertIn("Group=10005", proxmox)
+        self.assertIn("SupplementaryGroups=10002", proxmox)
+        self.assertIn("--api-uid 10001 --socket-gid 10002", proxmox)
+        self.assertIn("User=10006", nut)
+        self.assertIn("Group=10006", nut)
+        self.assertIn("RuntimeDirectory=larenor-power-recovery", nut)
+        self.assertIn("upsmon.conf check-config", nut)
         provision = (root / "larenor-unmanic-provision.service").read_text()
         self.assertIn("User=1000", provision)
         self.assertIn("RestrictAddressFamilies=AF_UNIX", provision)
@@ -203,6 +214,31 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn((package.CONFIG / "mesh/runtime.json", 10004), package.PRIVATE_CONFIGS)
         self.assertIn("larenor-mesh-worker.service", package.UNITS)
 
+    def test_power_workers_have_exact_private_identities_and_configuration(self):
+        root = MODULE.parent
+        sysusers = (root / "larenor-host-workers.sysusers").read_text()
+        tmpfiles = (root / "larenor-host-workers.tmpfiles").read_text()
+        self.assertIn("u larenor-proxmox 10005:10005", sysusers)
+        self.assertIn("m larenor-proxmox larenor-ipc", sysusers)
+        self.assertIn("u larenor-power 10006:10006", sysusers)
+        self.assertIn("m nut larenor-power", sysusers)
+        self.assertIn("m larenor-power nut", sysusers)
+        self.assertIn(
+            "host-workers/ipc/proxmox 0770 larenor-proxmox larenor-ipc", tmpfiles,
+        )
+        self.assertIn((package.CONFIG / "proxmox/credential.bin", 10005),
+                      package.PRIVATE_CONFIGS)
+        self.assertIn((package.CONFIG / "proxmox/binding.key", 10005),
+                      package.PRIVATE_CONFIGS)
+        self.assertIn((package.CONFIG / "power-recovery/nut-bridge.json", 10006),
+                      package.PRIVATE_CONFIGS)
+        self.assertIn("larenor-proxmox-power-worker.service", package.UNITS)
+        self.assertIn("larenor-nut-bridge.service", package.UNITS)
+        self.assertEqual(
+            package.ASSETS["nut_notify.py"],
+            (Path("/usr/libexec/larenor-nut-notify"), 0o755),
+        )
+
     def test_unified_core_separate_ipc_mount_preserves_private_data_and_host_boundary(self):
         compose = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
         core = compose["services"]["larenor-core"]
@@ -233,6 +269,16 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET"],
                          "/run/larenor-workers/mesh/runtime.sock")
+        self.assertEqual(core["environment"]["LARENOR_PROXMOX_POWER_WORKER_UID"],
+                         "10005")
+        self.assertEqual(
+            core["environment"]["LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID"],
+            "10002",
+        )
+        self.assertEqual(
+            core["environment"]["LARENOR_PROXMOX_POWER_WORKER_SOCKET"],
+            "/run/larenor-workers/proxmox/power.sock",
+        )
         self.assertTrue(all(
             port.startswith("127.0.0.1:")
             for name in ("larenor-jellyfin", "larenor-sonarr",

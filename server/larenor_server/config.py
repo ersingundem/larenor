@@ -25,6 +25,7 @@ class Settings:
     proxmox_power_worker_socket: Path | None = None
     proxmox_power_worker_health: Path | None = None
     proxmox_power_worker_uid: int = 0
+    proxmox_power_worker_socket_gid: int | None = None
     keenetic_worker_socket: Path | None = None
     keenetic_worker_health: Path | None = None
     keenetic_worker_key_file: Path | None = None
@@ -77,6 +78,11 @@ class Settings:
         if (self.mesh_center_worker_socket_gid is not None
                 and (type(self.mesh_center_worker_socket_gid) is not int
                      or not 0 <= self.mesh_center_worker_socket_gid < 2**31)):
+            raise ValueError("invalid_worker_configuration")
+        if (self.proxmox_power_worker_socket_gid is not None
+                and (type(self.proxmox_power_worker_socket_gid) is not int
+                     or not 0 <= self.proxmox_power_worker_socket_gid < 2**31
+                     or self.proxmox_power_worker_socket is None)):
             raise ValueError("invalid_worker_configuration")
         if ((self.ai_worker_socket is None) != (self.ai_worker_socket_gid is None)
                 or self.ai_worker_socket is not None
@@ -209,6 +215,11 @@ class Settings:
                 proxmox_power_worker_health=Path(os.environ["LARENOR_PROXMOX_POWER_WORKER_HEALTH"]
                                                  ) if os.environ.get("LARENOR_PROXMOX_POWER_WORKER_HEALTH") else None,
                 proxmox_power_worker_uid=int(os.environ.get("LARENOR_PROXMOX_POWER_WORKER_UID", "0")),
+                proxmox_power_worker_socket_gid=(
+                    int(os.environ["LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID"])
+                    if os.environ.get("LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID")
+                    else None
+                ),
                 keenetic_worker_socket=(
                     Path(os.environ["LARENOR_KEENETIC_WORKER_SOCKET"])
                     if os.environ.get("LARENOR_KEENETIC_WORKER_SOCKET") else None

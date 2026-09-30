@@ -5,3 +5,10 @@ m larenor-ai larenor-ipc
 g larenor-mesh 10004 - -
 u larenor-mesh 10004:10004 "Larenor mesh worker" /var/lib/larenor-server/host-workers/mesh /usr/sbin/nologin
 m larenor-mesh larenor-ipc
+g larenor-proxmox 10005 - -
+u larenor-proxmox 10005:10005 "Larenor Proxmox worker" /var/lib/larenor-server/host-workers/proxmox /usr/sbin/nologin
+m larenor-proxmox larenor-ipc
+g larenor-power 10006 - -
+u larenor-power 10006:10006 "Larenor power event bridge" /var/lib/larenor-server/host-workers/power-recovery /usr/sbin/nologin
+m nut larenor-power
+m larenor-power nut

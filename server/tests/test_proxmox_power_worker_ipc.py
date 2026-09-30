@@ -438,14 +438,21 @@ def test_worker_configuration_is_explicit_absolute_and_uid_private(monkeypatch, 
     monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_SOCKET", str(path))
     monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_HEALTH", str(health_path))
     monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_UID", str(os.getuid()))
+    monkeypatch.setenv("LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID", str(os.getgid()))
     settings = Settings.from_environment()
     assert settings.proxmox_power_worker_socket == path
     assert settings.proxmox_power_worker_health == health_path
     assert settings.proxmox_power_worker_uid == os.getuid()
+    assert settings.proxmox_power_worker_socket_gid == os.getgid()
     with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
         Settings(
             tmp_path / "data", tmp_path / "key",
             proxmox_power_worker_socket=Path("relative.sock"),
+        )
+    with pytest.raises(ValueError, match="^invalid_worker_configuration$"):
+        Settings(
+            tmp_path / "data", tmp_path / "key",
+            proxmox_power_worker_socket_gid=os.getgid(),
         )
 
 

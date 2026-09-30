@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F18 gerçek NUT ve Proxmox host bağlantısı
+
+NUT producer, durable sıralı outbox ve kayıp ACK uzlaştırması normal Core ingest’e bağlandı. Proxmox ayrı UID10005 worker ile bounded health/socket identity üzerinden çalışır; Core veri dizini açılmaz. İzole snapshotta 75 focused ve 8 paket testi geçti; 2 hosted Linux kapısı macOS üzerinde atlandı. [Kanıt](testing/f18-power-recovery-production-2026-09-30.md). Fiziksel UPS/Proxmox ve exact HEAD geniş CI açık; sayaç değişmedi.
+
 ### 30 Eylül FINAL.FUNCTION Linux worker kabulü
 
 Farklı kullanıcılarla gerçek IPC/systemd kabulü, exact committed kaynak ve kurulu paketleri ayrı `/tmp` ortamında kullanacak şekilde bağlandı. F08 ve host kapıları yalnız dar teşhis için ayrı seçilebilir; tam Server aggregate iki kapıyı da zorunlu tutar. 34 workflow/policy testi ve actionlint geçti; actual Linux sonucu henüz bekleniyor. F45 gerçek bildirim teslim bağlantısı şu anda geliştirmede; F41 uygulaması geniş CI tablosunda.

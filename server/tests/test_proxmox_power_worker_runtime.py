@@ -192,6 +192,44 @@ def test_runtime_health_is_atomic_private_and_graceful_shutdown_removes_owned_so
         assert check_health(selected) is False
 
 
+def test_shared_health_is_group_readable_bounded_and_identity_checked(tmp_path):
+    parent = Path(__file__).parent / (".proxmox-shared-" + str(os.getpid()))
+    parent.mkdir(mode=0o770)
+    parent.chmod(0o770)
+    socket_path = parent / "power.sock"
+    health_path = parent / "health.json"
+    selected = WorkerRuntimeConfig(
+        socket_path,
+        health_path,
+        encrypted_credential(tmp_path / "credential.bin"),
+        os.getuid(),
+        socket_gid=os.getgid(),
+    )
+    stopped = threading.Event()
+    thread = threading.Thread(target=serve_worker, args=(selected, stopped))
+    thread.start()
+    try:
+        wait_for(health_path.exists)
+        receipt = read_health_receipt(
+            health_path, owner_uid=os.getuid(), socket_gid=os.getgid(),
+        )
+        assert receipt.state == "ready"
+        assert stat.S_IMODE(health_path.stat().st_mode) == 0o640
+        assert stat.S_IMODE(socket_path.stat().st_mode) == 0o660
+        health_path.chmod(0o660)
+        with pytest.raises(ProxmoxWorkerRuntimeError, match="health_receipt_invalid"):
+            read_health_receipt(
+                health_path, owner_uid=os.getuid(), socket_gid=os.getgid(),
+            )
+        health_path.chmod(0o640)
+    finally:
+        stopped.set()
+        thread.join(2)
+        for child in parent.iterdir():
+            child.unlink()
+        parent.rmdir()
+
+
 def test_runtime_check_config_is_non_effectful_and_static(monkeypatch, capsys):
     with private_root() as name:
         selected = config(Path(name))

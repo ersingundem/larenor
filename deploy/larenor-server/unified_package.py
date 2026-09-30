@@ -42,6 +42,10 @@ _HOST_WORKER_ENVIRONMENT = {
     "LARENOR_MESH_WORKER_SOCKET": "/run/larenor-workers/mesh/runtime.sock",
     "LARENOR_MESH_WORKER_UID": "10004",
     "LARENOR_MESH_WORKER_SOCKET_GID": "10002",
+    "LARENOR_PROXMOX_POWER_WORKER_SOCKET": "/run/larenor-workers/proxmox/power.sock",
+    "LARENOR_PROXMOX_POWER_WORKER_HEALTH": "/run/larenor-workers/proxmox/health.json",
+    "LARENOR_PROXMOX_POWER_WORKER_UID": "10005",
+    "LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID": "10002",
 }
 _HOST_WORKER_PORTS = {
     "larenor-jellyfin": ["127.0.0.1:8096:8096"],
@@ -67,6 +71,7 @@ def _host_worker_runtime(service):
         "archiveOwnerUid": 1000,
         "aiOwnerUid": 10003,
         "meshOwnerUid": 10004,
+        "proxmoxOwnerUid": 10005,
         "coreOwnerUid": 10001,
         "ipcMount": "/run/larenor-workers",
     }

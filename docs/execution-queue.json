@@ -3381,7 +3381,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3405,7 +3405,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Proxmox target/executor uygulandı; FINAL.FUNCTION denetiminde NUT olay producer/bridge ve paketleme eksik bulundu. NOTIFYCMD/NOTIFYFLAGS EXEC, source sequence/deadline ve readonly fixture kabulü tamamlanacak."
+      "reason": "Gerçek NUT NOTIFYCMD/EXEC producer bridge, UID10006 durable sıralı outbox ve aynı body lost-ACK retry; pinned upsc/TLS/normal Core ingest; UID10005 Proxmox worker ile ayrı IPC/health/peer UID ve unified paketleme tamamlandı. İzole snapshotta 75 focused test geçti, 2 hosted Linux kapısı yerelde atlandı; 8 paket testi geçti. docs/testing/f18-power-recovery-production-2026-09-30.md. Exact HEAD geniş Linux CI ve fiziksel UPS/Proxmox bakım penceresi kabulü açık; yazılım tam kabulü henüz verilmedi."
     },
     {
       "id": "G03",

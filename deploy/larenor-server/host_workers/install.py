@@ -49,6 +49,9 @@ ASSETS = {
     "larenor-media-archive-worker.service": (Path("/etc/systemd/system/larenor-media-archive-worker.service"), 0o644),
     "larenor-ai-worker.service": (Path("/etc/systemd/system/larenor-ai-worker.service"), 0o644),
     "larenor-mesh-worker.service": (Path("/etc/systemd/system/larenor-mesh-worker.service"), 0o644),
+    "larenor-proxmox-power-worker.service": (Path("/etc/systemd/system/larenor-proxmox-power-worker.service"), 0o644),
+    "larenor-nut-bridge.service": (Path("/etc/systemd/system/larenor-nut-bridge.service"), 0o644),
+    "nut_notify.py": (Path("/usr/libexec/larenor-nut-notify"), 0o755),
 }
 PRIVATE_CONFIGS = (
     (CONFIG / "root/preflight.json", 0),
@@ -60,6 +63,9 @@ PRIVATE_CONFIGS = (
     (CONFIG / "archive/callback.json", 1000),
     (CONFIG / "ai/runtime.json", 10003),
     (CONFIG / "mesh/runtime.json", 10004),
+    (CONFIG / "proxmox/credential.bin", 10005),
+    (CONFIG / "proxmox/binding.key", 10005),
+    (CONFIG / "power-recovery/nut-bridge.json", 10006),
 )
 UNITS = (
     "larenor-preflight-worker.service",
@@ -70,6 +76,8 @@ UNITS = (
     "larenor-media-archive-worker.service",
     "larenor-ai-worker.service",
     "larenor-mesh-worker.service",
+    "larenor-proxmox-power-worker.service",
+    "larenor-nut-bridge.service",
 )
 
 
@@ -239,6 +247,9 @@ def _validate_entrypoints(release):
         "server/bin/larenor-media-archive-worker",
         "server/bin/larenor-ai-worker",
         "server/bin/larenor-mesh-worker",
+        "server/bin/larenor-proxmox-power-worker",
+        "server/bin/larenor-proxmox-power-supervisor",
+        "server/bin/larenor-nut-bridge",
         "server/bin/larenor-unmanic-callback-package",
         "unmanic/bin/unmanic",
     ):
@@ -350,6 +361,11 @@ def install(bundle, python=Path("/usr/bin/python3")):
         ai_group = grp.getgrnam("larenor-ai")
         mesh = pwd.getpwnam("larenor-mesh")
         mesh_group = grp.getgrnam("larenor-mesh")
+        proxmox = pwd.getpwnam("larenor-proxmox")
+        proxmox_group = grp.getgrnam("larenor-proxmox")
+        power = pwd.getpwnam("larenor-power")
+        power_group = grp.getgrnam("larenor-power")
+        nut = pwd.getpwnam("nut")
         if (ai.pw_uid != 10003 or ai.pw_gid != 10003
                 or ai_group.gr_gid != 10003
                 or pwd.getpwuid(10003).pw_name != "larenor-ai"
@@ -361,6 +377,19 @@ def install(bundle, python=Path("/usr/bin/python3")):
                 or pwd.getpwuid(10004).pw_name != "larenor-mesh"
                 or grp.getgrgid(10004).gr_name != "larenor-mesh"
                 or 10002 not in os.getgrouplist("larenor-mesh", 10004)):
+            raise KeyError()
+        if (proxmox.pw_uid != 10005 or proxmox.pw_gid != 10005
+                or proxmox_group.gr_gid != 10005
+                or pwd.getpwuid(10005).pw_name != "larenor-proxmox"
+                or grp.getgrgid(10005).gr_name != "larenor-proxmox"
+                or 10002 not in os.getgrouplist("larenor-proxmox", 10005)):
+            raise KeyError()
+        if (power.pw_uid != 10006 or power.pw_gid != 10006
+                or power_group.gr_gid != 10006
+                or pwd.getpwuid(10006).pw_name != "larenor-power"
+                or grp.getgrgid(10006).gr_name != "larenor-power"
+                or 10006 not in os.getgrouplist("nut", nut.pw_gid)
+                or nut.pw_gid not in os.getgrouplist("larenor-power", 10006)):
             raise KeyError()
     except KeyError:
         raise HostWorkerPackageError("host_identity_invalid") from None
@@ -447,6 +476,23 @@ def activate():
         str(CONFIG / "mesh/runtime.json"), "--socket",
         str(IPC / "mesh/runtime.sock"), "--core-uid", "10001",
         "--socket-gid", "10002", "--check-config",
+    ])
+    _run([
+        "/usr/sbin/runuser", "--user", "larenor-proxmox", "--group",
+        "larenor-proxmox", "--supp-group", "larenor-ipc", "--",
+        str(server / "larenor-proxmox-power-worker"),
+        "--socket", str(IPC / "proxmox/power.sock"),
+        "--health-receipt", str(IPC / "proxmox/health.json"),
+        "--credential-file", str(CONFIG / "proxmox/credential.bin"),
+        "--binding-key-file", str(CONFIG / "proxmox/binding.key"),
+        "--api-uid", "10001", "--socket-gid", "10002", "--check-config",
+    ])
+    _run([
+        "/usr/sbin/runuser", "--user", "larenor-power", "--group",
+        "larenor-power", "--",
+        str(server / "larenor-nut-bridge"),
+        "--config", str(CONFIG / "power-recovery/nut-bridge.json"),
+        "--upsmon-config", "/etc/nut/upsmon.conf", "check-config",
     ])
     _run(["/usr/bin/systemctl", "enable", "--now", *UNITS], timeout=180)
 

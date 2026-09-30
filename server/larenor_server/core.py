@@ -1184,6 +1184,7 @@ class CoreServices:
                     settings.proxmox_power_worker_socket,
                     settings.proxmox_power_worker_health,
                     settings.proxmox_power_worker_uid,
+                    socket_gid=settings.proxmox_power_worker_socket_gid,
                 )
             if power_executor is None and worker is not None:
                 power_executor = EgressGatedProxmoxExecutor(

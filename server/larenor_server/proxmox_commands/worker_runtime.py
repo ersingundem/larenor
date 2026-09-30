@@ -57,6 +57,7 @@ class WorkerRuntimeConfig:
     credential_path: Path
     api_uid: int
     binding_key_path: Path | None = None
+    socket_gid: int | None = None
 
     def __post_init__(self):
         paths = (
@@ -67,6 +68,10 @@ class WorkerRuntimeConfig:
         )
         if (
             type(self.api_uid) is not int or not 0 <= self.api_uid < 2**31
+            or self.socket_gid is not None and (
+                type(self.socket_gid) is not int
+                or not 0 <= self.socket_gid < 2**31
+            )
             or any(not isinstance(path, Path) or not path.is_absolute()
                    or ".." in path.parts or any(ord(char) < 32 or ord(char) == 127
                                                 for char in str(path))
@@ -153,14 +158,56 @@ def _receipt_value(receipt):
     }
 
 
-def _write_health(path, receipt):
+def _shared_runtime_path(
+    path, owner_uid, socket_gid, *, kind, mode, allowed_ancestor_uids=(),
+):
+    try:
+        selected = Path(path).absolute()
+        if ".." in selected.parts:
+            raise ValueError()
+        allowed_owners = {0, os.geteuid(), owner_uid, *allowed_ancestor_uids}
+        for parent in reversed(selected.parents):
+            info = parent.lstat()
+            if (
+                stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+                or info.st_uid not in allowed_owners
+                or info.st_mode & 0o002
+                or info.st_mode & 0o020 and info.st_gid != socket_gid
+            ):
+                raise ValueError()
+        info = selected.lstat()
+        if (
+            not kind(info.st_mode) or info.st_uid != owner_uid
+            or info.st_gid != socket_gid or stat.S_IMODE(info.st_mode) != mode
+            or stat.S_ISREG(info.st_mode) and info.st_nlink != 1
+        ):
+            raise ValueError()
+        return selected
+    except (OSError, ValueError):
+        raise ProxmoxWorkerRuntimeError("worker_configuration_invalid") from None
+
+
+def _write_health(path, receipt, socket_gid=None, *, api_uid=None):
     target = Path(path)
     temporary = None
     descriptor = None
     try:
-        _safe_path(target.parent, uid=os.geteuid(), kind=stat.S_ISDIR, private=True)
+        if socket_gid is None:
+            _safe_path(target.parent, uid=os.geteuid(), kind=stat.S_ISDIR, private=True)
+        else:
+            _shared_runtime_path(
+                target.parent, os.geteuid(), socket_gid,
+                kind=stat.S_ISDIR, mode=0o770,
+                allowed_ancestor_uids=(() if api_uid is None else (api_uid,)),
+            )
         if target.exists() or target.is_symlink():
-            _private_file(target)
+            if socket_gid is None:
+                _private_file(target)
+            else:
+                _shared_runtime_path(
+                    target, os.geteuid(), socket_gid,
+                    kind=stat.S_ISREG, mode=0o640,
+                )
         raw = json.dumps(
             _receipt_value(receipt), sort_keys=True, separators=(",", ":"),
             ensure_ascii=True, allow_nan=False,
@@ -178,12 +225,27 @@ def _write_health(path, receipt):
                 raise OSError()
             written += count
         os.fsync(descriptor)
+        if socket_gid is not None:
+            os.fchown(descriptor, os.geteuid(), socket_gid)
+            os.fchmod(descriptor, 0o640)
         os.close(descriptor)
         descriptor = None
-        _private_file(temporary)
+        if socket_gid is None:
+            _private_file(temporary)
+        else:
+            _shared_runtime_path(
+                temporary, os.geteuid(), socket_gid,
+                kind=stat.S_ISREG, mode=0o640,
+            )
         os.replace(temporary, target)
         temporary = None
-        _private_file(target)
+        if socket_gid is None:
+            _private_file(target)
+        else:
+            _shared_runtime_path(
+                target, os.geteuid(), socket_gid,
+                kind=stat.S_ISREG, mode=0o640,
+            )
         directory = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
             os.fsync(directory)
@@ -205,9 +267,63 @@ def _write_health(path, receipt):
         raise ProxmoxWorkerRuntimeError("worker_unavailable") from None
 
 
-def read_health_receipt(path):
+def _read_shared_health(path, owner_uid, socket_gid):
+    selected = _shared_runtime_path(
+        path, owner_uid, socket_gid, kind=stat.S_ISREG, mode=0o640,
+        allowed_ancestor_uids=(os.geteuid(),),
+    )
+    descriptor = -1
     try:
-        raw = private_read(_private_file(path), MAX_HEALTH_BYTES)
+        descriptor = os.open(
+            selected, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+        before = os.fstat(descriptor)
+        entry = os.stat(selected, follow_symlinks=False)
+        identity = lambda value: (
+            value.st_dev, value.st_ino, value.st_uid, value.st_gid,
+            stat.S_IFMT(value.st_mode), stat.S_IMODE(value.st_mode),
+            value.st_nlink, value.st_size, value.st_mtime_ns, value.st_ctime_ns,
+        )
+        if (
+            not stat.S_ISREG(before.st_mode) or before.st_uid != owner_uid
+            or before.st_gid != socket_gid
+            or stat.S_IMODE(before.st_mode) != 0o640 or before.st_nlink != 1
+            or not 1 <= before.st_size <= MAX_HEALTH_BYTES
+            or identity(before) != identity(entry)
+        ):
+            raise OSError()
+        raw = bytearray()
+        while len(raw) <= MAX_HEALTH_BYTES:
+            part = os.read(
+                descriptor, min(4096, MAX_HEALTH_BYTES + 1 - len(raw)),
+            )
+            if not part:
+                break
+            raw.extend(part)
+        after = os.fstat(descriptor)
+        current = os.stat(selected, follow_symlinks=False)
+        if (
+            len(raw) != before.st_size
+            or identity(before) != identity(after)
+            or identity(after) != identity(current)
+        ):
+            raise OSError()
+        return bytes(raw)
+    except OSError:
+        raise ProxmoxWorkerRuntimeError("health_receipt_invalid") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def read_health_receipt(path, *, owner_uid=None, socket_gid=None):
+    try:
+        if (owner_uid is None) != (socket_gid is None):
+            raise ValueError()
+        if owner_uid is None:
+            raw = private_read(_private_file(path), MAX_HEALTH_BYTES)
+        else:
+            raw = _read_shared_health(path, owner_uid, socket_gid)
         value = json.loads(
             raw.decode("ascii"), object_pairs_hook=_pairs,
             parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
@@ -248,14 +364,21 @@ def _validate(config):
         not isinstance(config, WorkerRuntimeConfig)
         or os.getuid() != os.geteuid()
         or os.geteuid() == 0
-        or config.api_uid != os.geteuid()
+        or config.socket_gid is None and config.api_uid != os.geteuid()
     ):
         raise ProxmoxWorkerRuntimeError("worker_configuration_invalid")
     try:
-        _safe_path(
-            config.socket_path.parent, uid=os.geteuid(),
-            kind=stat.S_ISDIR, private=True,
-        )
+        if config.socket_gid is None:
+            _safe_path(
+                config.socket_path.parent, uid=os.geteuid(),
+                kind=stat.S_ISDIR, private=True,
+            )
+        else:
+            _shared_runtime_path(
+                config.socket_path.parent, os.geteuid(), config.socket_gid,
+                kind=stat.S_ISDIR, mode=0o770,
+                allowed_ancestor_uids=(config.api_uid,),
+            )
     except (OSError, DockerWorkerError):
         raise ProxmoxWorkerRuntimeError("worker_configuration_invalid") from None
     load_encrypted_credential(config.credential_path)
@@ -274,6 +397,7 @@ def serve_worker(config, stopped, *, adapter=None, peer_uid=None, timeout=5):
             config.socket_path,
             adapter if adapter is not None else configured_adapter,
             allowed_uid=config.api_uid, peer_uid=peer_uid, timeout=timeout,
+            socket_gid=config.socket_gid,
         )
         worker.start()
         info = config.socket_path.lstat()
@@ -281,14 +405,14 @@ def serve_worker(config, stopped, *, adapter=None, peer_uid=None, timeout=5):
         _write_health(config.health_path, WorkerHealthReceipt(
             1, "proxmox-power-effect", "ready", worker_id, os.geteuid(),
             identity[0], identity[1], time.time(),
-        ))
+        ), config.socket_gid, api_uid=config.api_uid)
         stopped.wait()
         worker.close()
         worker = None
         _write_health(config.health_path, WorkerHealthReceipt(
             1, "proxmox-power-effect", "stopped", worker_id, os.geteuid(),
             identity[0], identity[1], time.time(),
-        ))
+        ), config.socket_gid, api_uid=config.api_uid)
         return 0
     except BaseException as error:
         if worker is not None:
@@ -303,7 +427,7 @@ def serve_worker(config, stopped, *, adapter=None, peer_uid=None, timeout=5):
                 _write_health(config.health_path, WorkerHealthReceipt(
                     1, "proxmox-power-effect", "failed", worker_id,
                     os.geteuid(), identity[0], identity[1], time.time(),
-                ))
+                ), config.socket_gid, api_uid=config.api_uid)
         except Exception:
             pass
         return 1
@@ -335,12 +459,13 @@ def main(argv=None):
     parser.add_argument("--credential-file", required=True, type=Path)
     parser.add_argument("--binding-key-file", type=Path)
     parser.add_argument("--api-uid", required=True, type=_uid)
+    parser.add_argument("--socket-gid", type=_uid)
     parser.add_argument("--check-config", action="store_true")
     try:
         args = parser.parse_args(argv)
         selected = WorkerRuntimeConfig(
             args.socket, args.health_receipt, args.credential_file, args.api_uid,
-            args.binding_key_file,
+            args.binding_key_file, args.socket_gid,
         )
         _validate(selected)
     except _ParserExit as result:

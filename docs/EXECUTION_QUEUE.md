@@ -12,7 +12,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 0 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
@@ -37,14 +37,13 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
-| 2 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G08 |
-| 3 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 4 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 5 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 6 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 7 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 8 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08 |
+| 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 5 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 6 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 7 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -121,6 +120,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | Uygulama tamamlandı · test bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Uygulama tamamlandı · test bekliyor | — |
+| F18 | Elektrik kesintisinde düzenli kapanış | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |

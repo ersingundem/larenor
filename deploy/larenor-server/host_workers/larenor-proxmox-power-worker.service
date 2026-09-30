@@ -1,0 +1,31 @@
+[Unit]
+Description=Larenor private Proxmox power worker
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/ipc/proxmox
+
+[Service]
+Type=simple
+User=10005
+Group=10005
+SupplementaryGroups=10002
+UMask=0077
+ExecStartPre=/opt/larenor-server-host/current/server/bin/python -m larenor_server.proxmox_commands.worker_runtime --socket /var/lib/larenor-server/host-workers/ipc/proxmox/power.sock --health-receipt /var/lib/larenor-server/host-workers/ipc/proxmox/health.json --credential-file /etc/larenor-server/host-workers/proxmox/credential.bin --binding-key-file /etc/larenor-server/host-workers/proxmox/binding.key --api-uid 10001 --socket-gid 10002 --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/python -m larenor_server.proxmox_commands.worker_supervisor --socket /var/lib/larenor-server/host-workers/ipc/proxmox/power.sock --health-receipt /var/lib/larenor-server/host-workers/ipc/proxmox/health.json --credential-file /etc/larenor-server/host-workers/proxmox/credential.bin --binding-key-file /etc/larenor-server/host-workers/proxmox/binding.key --api-uid 10001 --socket-gid 10002
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/larenor-server/host-workers/ipc/proxmox
+
+[Install]
+WantedBy=multi-user.target

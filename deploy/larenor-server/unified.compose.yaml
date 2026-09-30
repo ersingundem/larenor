@@ -46,7 +46,11 @@
         "LARENOR_AI_WORKER_SOCKET_GID": "10002",
         "LARENOR_MESH_WORKER_SOCKET": "/run/larenor-workers/mesh/runtime.sock",
         "LARENOR_MESH_WORKER_UID": "10004",
-        "LARENOR_MESH_WORKER_SOCKET_GID": "10002"
+        "LARENOR_MESH_WORKER_SOCKET_GID": "10002",
+        "LARENOR_PROXMOX_POWER_WORKER_SOCKET": "/run/larenor-workers/proxmox/power.sock",
+        "LARENOR_PROXMOX_POWER_WORKER_HEALTH": "/run/larenor-workers/proxmox/health.json",
+        "LARENOR_PROXMOX_POWER_WORKER_UID": "10005",
+        "LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID": "10002"
       },
       "networks": {
         "control": {
