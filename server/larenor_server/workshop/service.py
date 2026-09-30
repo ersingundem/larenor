@@ -20,6 +20,7 @@ from .models import (
     WorkshopCommand,
     WorkshopCommandReadback,
     WorkshopProviderCapability,
+    WorkshopProviderObservation,
     safe_label,
 )
 
@@ -246,7 +247,105 @@ class WorkshopService:
         except ApiError:
             raise ApiError("workshop_binding_changed", 409) from None
 
-    def _capability(self, actor, binding, printer_id, action, now):
+    def _observation(self, actor, binding, row, now):
+        if not getattr(self.provider, "exact_observations", False):
+            return None
+        resolver = getattr(self.provider, "observe", None)
+        if not callable(resolver):
+            raise ApiError("workshop_provider_unavailable", 503)
+        try:
+            observation = WorkshopProviderObservation.model_validate(
+                resolver(actor, binding, row["id"])
+            )
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("workshop_provider_unavailable", 503) from None
+        if (
+            observation.observedAt > now + 5
+            or now - observation.observedAt > _SAFETY_TTL_SECONDS
+        ):
+            raise ApiError("workshop_provider_unverified", 409)
+        return observation
+
+    def _apply_observation(self, connection, row, observation, now):
+        if observation is None:
+            return row
+        fields = {
+            "job_id": observation.jobId,
+            "job_state": observation.jobState,
+            "progress_permille": observation.progressPermille,
+            "remaining_seconds": observation.remainingSeconds,
+            "connectivity": observation.connectivity,
+            "thermal": observation.thermal,
+            "filament": observation.filament,
+            "door": observation.door,
+            "emergency": observation.emergency,
+        }
+        job_changed = any(row[name] != fields[name] for name in (
+            "job_id", "job_state", "progress_permille", "remaining_seconds",
+        ))
+        safety_changed = any(row[name] != fields[name] for name in (
+            "connectivity", "thermal", "filament", "door", "emergency",
+        ))
+        # Refreshing the freshness timestamp for every HTTP read would make a
+        # reviewed preview stale before its confirmation.  Renew it only when
+        # state changed or half of the safety TTL has elapsed.
+        renew = (
+            job_changed or safety_changed
+            or observation.observedAt - row["observed_at"] >= _SAFETY_TTL_SECONDS / 2
+        )
+        if not renew:
+            return row
+        changed = dict(row)
+        changed.update(fields)
+        changed.update(
+            revision=row["revision"] + 1,
+            job_revision=row["job_revision"] + (1 if job_changed else 0),
+            safety_revision=row["safety_revision"] + 1,
+            observed_at=observation.observedAt,
+            updated_at=now,
+        )
+        changed["envelope_tag"] = self._printer_tag(changed)
+        result = connection.execute(
+            "UPDATE workshop_printers SET revision=?,job_revision=?,job_id=?,job_state=?,"
+            "progress_permille=?,remaining_seconds=?,safety_revision=?,connectivity=?,"
+            "thermal=?,filament=?,door=?,emergency=?,observed_at=?,updated_at=?,"
+            "envelope_tag=? WHERE id=? AND revision=?",
+            (
+                changed["revision"], changed["job_revision"], changed["job_id"],
+                changed["job_state"], changed["progress_permille"],
+                changed["remaining_seconds"], changed["safety_revision"],
+                changed["connectivity"], changed["thermal"], changed["filament"],
+                changed["door"], changed["emergency"], changed["observed_at"],
+                changed["updated_at"], changed["envelope_tag"], row["id"],
+                row["revision"],
+            ),
+        )
+        if result.rowcount != 1:
+            raise ApiError("workshop_state_changed", 409)
+        return self._printer(connection, row["id"])
+
+    def _apply_authority_observation(self, connection, row, observation, now):
+        if observation is None:
+            return row
+        authority = {
+            "job_id": observation.jobId,
+            "job_state": observation.jobState,
+            "connectivity": observation.connectivity,
+            "thermal": observation.thermal,
+            "filament": observation.filament,
+            "door": observation.door,
+            "emergency": observation.emergency,
+        }
+        if all(row[name] == value for name, value in authority.items()):
+            # Progress and ETA naturally move between preview and confirmation.
+            # They are projected by list/readback, but cannot identify a job.
+            return row
+        return self._apply_observation(connection, row, observation, now)
+
+    def _capability(self, actor, binding, printer_id, action, now,
+                    observation=None):
         if self.provider is None:
             raise ApiError("workshop_provider_unavailable", 503)
         resolver = getattr(self.provider, "capability", None)
@@ -255,7 +354,13 @@ class WorkshopService:
             raise ApiError("workshop_provider_unavailable", 503)
         try:
             capability = WorkshopProviderCapability.model_validate(
-                resolver(actor, binding, printer_id)
+                ({
+                    "schemaVersion": 1,
+                    "providerRevision": observation.providerRevision,
+                    "supportedActions": observation.supportedActions,
+                    "observedAt": observation.observedAt,
+                } if observation is not None else
+                 resolver(actor, binding, printer_id))
             )
         except ApiError:
             raise
@@ -301,7 +406,7 @@ class WorkshopService:
             return ["cancel"]
         return []
 
-    def _public_printer(self, row, now):
+    def _public_printer(self, row, now, provider_actions=None):
         self._validate_printer(row)
         return {"printer": {
             "schemaVersion": 1,
@@ -326,9 +431,13 @@ class WorkshopService:
                 "freshness": "current" if self._fresh(row, now) else "stale",
             },
             "availableActions": (
-                self._available_actions(row, now)
+                [action for action in self._available_actions(row, now)
+                 if provider_actions is None or action in provider_actions]
                 if callable(getattr(self.provider, "capability", None))
-                and callable(getattr(self.provider, "execute", None)) else []
+                and callable(getattr(self.provider, "execute", None))
+                and (provider_actions is not None
+                     or not getattr(self.provider, "exact_observations", False))
+                else []
             ),
         }}
 
@@ -411,8 +520,7 @@ class WorkshopService:
     def list(self, actor, core_id, home_id):
         now = float(self.settings.clock())
         try:
-            with self._transaction(actor, core_id, home_id) as connection:
-                connection.execute("BEGIN")
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
                 self._actor(connection, actor)
                 rows = connection.execute(
                     "SELECT * FROM workshop_printers ORDER BY name COLLATE NOCASE,id LIMIT ?",
@@ -420,9 +528,29 @@ class WorkshopService:
                 ).fetchall()
                 if len(rows) > schema.MAX_PRINTERS:
                     raise ValueError("workshop_printer_limit")
-                return {"schemaVersion": 1, "printers": [
-                    self._public_printer(row, now)["printer"] for row in rows
-                ]}
+                printers = []
+                for original in rows:
+                    row, actions = original, None
+                    if getattr(self.provider, "exact_observations", False):
+                        try:
+                            binding = self._binding(
+                                connection, row["service_id"], row["service_revision"]
+                            )
+                            observation = self._observation(
+                                actor, binding, row, now
+                            )
+                            row = self._apply_observation(
+                                connection, row, observation, now
+                            )
+                            actions = observation.supportedActions
+                        except ApiError:
+                            # Monitoring remains readable during an upstream
+                            # outage, but no write capability is advertised.
+                            row, actions = original, []
+                    printers.append(
+                        self._public_printer(row, now, actions)["printer"]
+                    )
+                return {"schemaVersion": 1, "printers": printers}
         except ApiError:
             raise
         except (ValueError, sqlite3.Error):
@@ -523,8 +651,7 @@ class WorkshopService:
         try:
             with self._lock:
                 self._prune_previews(now)
-                with self._transaction(actor, core_id, home_id) as connection:
-                    connection.execute("BEGIN")
+                with self._transaction(actor, core_id, home_id, write=True) as connection:
                     self._actor(connection, actor)
                     row = self._printer(
                         connection, printer_id, expected=body.expectedPrinterRevision
@@ -533,7 +660,14 @@ class WorkshopService:
                         connection, row["service_id"], body.expectedServiceRevision
                     )
                     self._assert_commandable(row, body, now)
-                    self._capability(actor, binding, printer_id, body.action, now)
+                    observation = self._observation(actor, binding, row, now)
+                    row = self._apply_authority_observation(
+                        connection, row, observation, now
+                    )
+                    self._assert_commandable(row, body, now)
+                    self._capability(
+                        actor, binding, printer_id, body.action, now, observation
+                    )
                     old = connection.execute(
                         "SELECT * FROM workshop_intents WHERE printer_id=? AND request_key=?",
                         (printer_id, body.requestKey),
@@ -701,12 +835,67 @@ class WorkshopService:
             )
             return self._effect(connection, intent_id)
 
+    def _provider_readback(self, command, raw):
+        if not getattr(self.provider, "exact_observations", False):
+            return raw
+        try:
+            if (
+                type(raw) is not dict
+                or set(raw) != {
+                    "schemaVersion", "commandId", "printerId", "action",
+                    "providerRevision", "observation",
+                }
+                or raw["schemaVersion"] != 1
+                or raw["commandId"] != command.commandId
+                or raw["printerId"] != command.printerId
+                or raw["action"] != command.action
+                or raw["providerRevision"] != command.providerRevision
+            ):
+                return None
+            observation = WorkshopProviderObservation.model_validate(
+                raw["observation"]
+            )
+            now = float(self.settings.clock())
+            if (
+                observation.observedAt > now + 5
+                or now - observation.observedAt > _SAFETY_TTL_SECONDS
+            ):
+                return None
+            with self.db.transaction() as connection:
+                row = self._printer(connection, command.printerId)
+                if any((
+                    row["service_id"] != command.serviceId,
+                    row["service_revision"] != command.serviceRevision,
+                    row["job_revision"] != command.expectedJobRevision,
+                    row["job_id"] != command.expectedJobId,
+                )):
+                    return None
+                saved = self._apply_observation(
+                    connection, row, observation, now
+                )
+            return {
+                "schemaVersion": 1,
+                "commandId": command.commandId,
+                "printerId": command.printerId,
+                "action": command.action,
+                "providerRevision": command.providerRevision,
+                "jobRevision": saved["job_revision"],
+                "jobState": saved["job_state"],
+                "connectivity": saved["connectivity"],
+                "observedAt": saved["observed_at"],
+            }
+        except Exception:
+            # The command already left the process.  A malformed or stale
+            # readback is unknown and must never trigger an implicit retry.
+            return None
+
     def _dispatch(self, actor, binding, intent, command):
         raw_readback = None
         try:
             raw_readback = self.provider.execute(
                 actor, binding, command.model_dump(mode="json")
             )
+            raw_readback = self._provider_readback(command, raw_readback)
         except Exception:
             # The command may have reached the printer. Never retry implicitly.
             raw_readback = None
@@ -760,8 +949,14 @@ class WorkshopService:
                         command_body.expectedServiceRevision,
                     )
                     self._assert_commandable(row, command_body, now)
+                    observation = self._observation(actor, binding, row, now)
+                    row = self._apply_authority_observation(
+                        connection, row, observation, now
+                    )
+                    self._assert_commandable(row, command_body, now)
                     capability = self._capability(
-                        actor, binding, printer_id, command_body.action, now
+                        actor, binding, printer_id, command_body.action, now,
+                        observation,
                     )
                     if connection.execute(
                         "SELECT COUNT(*) FROM workshop_intents"
@@ -802,6 +997,7 @@ class WorkshopService:
                         serviceRevision=command_body.expectedServiceRevision,
                         providerRevision=capability.providerRevision,
                         expectedJobRevision=command_body.expectedJobRevision,
+                        expectedJobId=row["job_id"],
                         action=command_body.action,
                     )
                     self._insert_pending_effect(connection, intent_id, command, now)

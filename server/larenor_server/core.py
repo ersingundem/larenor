@@ -185,6 +185,7 @@ from .capability_evidence.service import migrate as migrate_capability_evidence
 from .kiosk_remote.schema import migrate_kiosk_remote
 from .kiosk_remote.service import KioskRemoteService
 from .workshop.schema import migrate_workshop
+from .workshop.provider import WorkshopHttpProvider
 from .workshop.service import WorkshopService
 from .watch_parties.schema import migrate_watch_parties
 from .watch_parties.service import WatchPartyService
@@ -885,9 +886,13 @@ class CoreServices:
                 self._family_memory_policy_provider
                 or self._family_memory_policy_unavailable,
             )
+            workshop_provider = (
+                self._workshop_provider
+                or WorkshopHttpProvider(settings.clock)
+            )
             self.workshop = WorkshopService(
                 self.db, self.auth, settings, key, self.context, self.services,
-                provider=self._workshop_provider)
+                provider=workshop_provider)
             self.workshop.validate_storage()
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress

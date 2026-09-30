@@ -150,6 +150,95 @@ def test_octoprint_and_moonraker_share_a_secret_free_provider_boundary(server):
         assert SECRET not in str(printer)
 
 
+def test_exact_provider_refreshes_upstream_job_and_persists_command_readback(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+    registered = register(client, admin, app, clock, service)
+    upstream_job = "a" * 32
+
+    class ExactProvider:
+        exact_observations = True
+
+        def __init__(self):
+            self.state = "printing"
+            self.calls = []
+
+        def observe(self, actor, binding, printer_id):
+            assert actor.id == admin["user"]["id"]
+            assert binding.id == service["id"]
+            assert binding.revision == service["revision"]
+            assert printer_id == registered["ref"]["id"]
+            return {
+                "schemaVersion": 1,
+                "providerRevision": 73 if self.state == "printing" else 74,
+                "jobId": upstream_job,
+                "jobState": self.state,
+                "progressPermille": 410,
+                "remainingSeconds": 590,
+                "connectivity": "online",
+                "thermal": "normal",
+                "filament": "available",
+                "door": "closed",
+                "emergency": "clear",
+                "supportedActions": (
+                    ["pause", "cancel"] if self.state == "printing" else ["cancel"]
+                ),
+                "observedAt": clock.now,
+            }
+
+        def capability(self, *_args):
+            pytest.fail("the exact observation is the capability snapshot")
+
+        def execute(self, actor, binding, command):
+            assert actor.id == command["actorId"]
+            assert binding.id == command["serviceId"]
+            assert command["expectedJobId"] == upstream_job
+            assert command["expectedJobRevision"] == refreshed["job"]["revision"]
+            assert command["providerRevision"] == 73
+            self.calls.append(command)
+            self.state = "paused"
+            return {
+                "schemaVersion": 1,
+                "commandId": command["commandId"],
+                "printerId": command["printerId"],
+                "action": command["action"],
+                "providerRevision": command["providerRevision"],
+                "observation": self.observe(actor, binding, command["printerId"]),
+            }
+
+    provider = ExactProvider()
+    app.state.core.workshop.provider = provider
+    listed = client.get(root(app) + "/printers", headers=auth(admin))
+    assert listed.status_code == 200, listed.text
+    refreshed = listed.json()["printers"][0]
+    assert refreshed["job"]["jobId"] == upstream_job
+    assert refreshed["job"]["revision"] == registered["job"]["revision"] + 1
+    assert refreshed["availableActions"] == ["pause", "cancel"]
+
+    endpoint = root(app) + f"/printers/{refreshed['ref']['id']}/previews"
+    pending = client.post(
+        endpoint, headers=auth(admin), json=preview_body(refreshed)
+    )
+    assert pending.status_code == 201, pending.text
+    preview = pending.json()["preview"]
+    confirmed = client.post(
+        endpoint + f"/{preview['id']}/confirm",
+        headers=auth(admin),
+        json={"schemaVersion": 1, "confirmationToken": preview["confirmationToken"]},
+    )
+    assert confirmed.status_code == 201, confirmed.text
+    receipt = confirmed.json()["receipt"]
+    assert receipt["effect"] == "applied"
+    assert receipt["execution"]["readback"]["jobState"] == "paused"
+    assert receipt["execution"]["readback"]["jobRevision"] == refreshed["job"]["revision"] + 1
+    assert len(provider.calls) == 1
+
+    current = client.get(root(app) + "/printers", headers=auth(admin)).json()["printers"][0]
+    assert current["job"]["jobId"] == upstream_job
+    assert current["job"]["state"] == "paused"
+
+
 def test_admin_preview_confirm_is_bounded_idempotent_and_dispatches_once(server):
     app, client, settings, clock = server
     class Provider:

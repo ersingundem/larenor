@@ -222,7 +222,39 @@ class WorkshopCommand(Versioned):
     serviceRevision: Revision
     providerRevision: Revision
     expectedJobRevision: Revision
+    expectedJobId: Identity
     action: PrinterAction
+
+
+class WorkshopProviderObservation(Versioned):
+    providerRevision: Revision
+    jobId: Identity | None
+    jobState: JobState
+    progressPermille: int = Field(ge=0, le=1000)
+    remainingSeconds: int | None = Field(ge=0, le=31_536_000)
+    connectivity: Literal["online", "offline"]
+    thermal: Literal["normal", "warning", "runaway"]
+    filament: Literal["available", "low", "runout", "unknown"]
+    door: Literal["closed", "open", "unknown"]
+    emergency: Literal["clear", "triggered"]
+    supportedActions: list[PrinterAction] = Field(max_length=2)
+    observedAt: float
+
+    _observed = field_validator("observedAt", mode="before")(finite)
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if (self.jobState == "idle") != (self.jobId is None):
+            raise ValueError("invalid_provider_job")
+        if len(set(self.supportedActions)) != len(self.supportedActions):
+            raise ValueError("duplicate_action")
+        allowed = (
+            {"pause", "cancel"} if self.jobState == "printing"
+            else {"cancel"} if self.jobState == "paused" else set()
+        )
+        if not set(self.supportedActions) <= allowed:
+            raise ValueError("invalid_provider_action")
+        return self
 
 
 class WorkshopCommandReadback(Versioned):
