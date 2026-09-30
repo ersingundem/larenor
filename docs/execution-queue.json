@@ -4036,7 +4036,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Birlikte senkron film izleme",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4060,7 +4060,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core-owned özel izleme odası; davet, en fazla 16 katılımcı, yeniden katılma, bağlı katılımcıya lider devri ve lider ayrılışında bounded seçim akışlarını sürümlü ve bütünlük etiketli olarak tamamladı. Client hedef seek/pause yeteneğini, konumu ve ölçülen gidiş-dönüş süresini raporluyor; Core yalnız güncel oda/katılımcı/komut revision'larıyla tolerans dışı takipçiye play, pause veya seek-and-play yönergesi veriyor. Testler kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek iki Client→Core→Jellyfin E2E, farklı fiziksel alıcı gecikme ölçümü, bağımsız inceleme ve exact-head CI henüz tamamlanmadı."
+      "reason": "Gerçek iki production Flutter Client→normal Uvicorn Core→MediaArchiveReadCollector→owned authenticated Jellyfin/Sonarr/Radarr/qBit TCP read kapısı, room/invite/report/stale CAS/unsupported receiver ve ayrı fresh Core/Client restart lider devri/leave/logout geçti. Gerçek restartta bulunan eski leader_family_id yeni explicit invite rejoin içinde atomik yenilenir; eski family 404. Provider restart öncesi kapatıldı, fresh sealed source ile sıfır yeni I/O. 29 Python, fake-wire Flutter regression 1+runner-only skip, gerçek prepare/restart birer Flutter pass, analyze/py_compile temiz. Geniş exact HEAD CI ve fiziksel receiver timing/Wi-Fi/codec MANUAL açık. Kanıt: docs/testing/f21-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "F22",

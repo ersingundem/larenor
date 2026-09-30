@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 1 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 1 | 0 | 9 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 1 | 5 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
@@ -118,7 +118,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
-| F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
@@ -146,6 +145,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F24 | Akıllı altyazı ve dil tercihleri | CI bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | CI bekliyor | — |
 | F25 | Jenerik ve kapanış atlama | CI bekliyor | — |
+| F21 | Birlikte senkron film izleme | CI bekliyor | — |
 | F22 | Kendi televizyon kanalların | CI bekliyor | — |
 | F23 | Canlı TV ve kayıt merkezi | CI bekliyor | — |
 | F27 | Seyahat için çevrimdışı medya | CI bekliyor | — |

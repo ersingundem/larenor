@@ -359,9 +359,13 @@ class WatchPartyService:
                     revision=participant["revision"] + 1,
                     request_id=body.requestId, request_hash=request_hash,
                     target_json=None, playback_json=None, last_seen_at=now)
-            room = self._update_room(
-                connection, room, revision=room["revision"] + 1,
-                updated_at=now)
+            room_changes = {
+                "revision": room["revision"] + 1,
+                "updated_at": now,
+            }
+            if room["leader_account_id"] == actor.id:
+                room_changes["leader_family_id"] = actor.family_id
+            room = self._update_room(connection, room, **room_changes)
             return {"snapshot": self._snapshot(connection, room, actor)}
 
     def snapshot(self, actor, room_id):
