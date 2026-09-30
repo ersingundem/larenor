@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 import socket
+import threading
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -249,19 +251,45 @@ def test_compose_gives_worker_egress_without_published_ports_and_default_core_is
     assert isinstance(UnavailableKeeneticEffect(), UnavailableKeeneticEffect)
 
 
-def test_core_startup_installs_health_gated_effect_only_for_live_worker(tmp_path):
+def test_core_startup_installs_health_gated_effect_only_for_live_worker(tmp_path, monkeypatch):
+    from larenor_server.keenetic_commands.worker_runtime import run_worker_once
+    # Actual AF_UNIX request/response; peer UID is injected only for macOS,
+    # which lacks Linux SO_PEERCRED. The hosted cross-UID gate uses the kernel.
+    monkeypatch.setattr("larenor_server.keenetic_commands.worker_ipc._peer_uid",
+                        lambda _connection: os.getuid())
     with socket_directory() as directory:
         socket_path = directory / "worker.sock"
         health_path = directory / "health.json"
         lease_key = private_key(directory / "lease.key")
-        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        publish(listener, socket_path, health_path)
-        settings = worker_settings(tmp_path, socket_path, health_path, lease_key)
-        with TestClient(create_app(settings)) as client:
-            effect = client.app.state.core.keenetic_commands._effect
-            assert isinstance(effect, HealthGatedKeeneticWorkerEffect)
-            assert "worker.sock" not in repr(effect)
-        listener.close()
+        stopped = threading.Event()
+        worker = threading.Thread(target=lambda: run_worker_once(
+            socket_path, health_path, api_uid=os.getuid(), socket_gid=None,
+            stop=stopped, peer_uid=lambda _connection: os.getuid()), daemon=True)
+        worker.start()
+        try:
+            deadline = time.monotonic() + 3
+            while not health_path.exists():
+                assert time.monotonic() < deadline
+                time.sleep(.01)
+            settings = worker_settings(tmp_path, socket_path, health_path, lease_key)
+            with TestClient(create_app(settings)) as client:
+                effect = client.app.state.core.keenetic_commands._effect
+                assert isinstance(effect, HealthGatedKeeneticWorkerEffect)
+                assert "worker.sock" not in repr(effect)
+                effect._live()
+                # A valid socket with a stale instance identity cannot pass.
+                original_health = health_path.read_bytes()
+                raw = __import__("json").loads(original_health)
+                raw["workerId"] = "f" * 32
+                health_path.write_text(__import__("json").dumps(raw))
+                with pytest.raises(KeeneticEffectError):
+                    effect._live()
+                health_path.write_bytes(original_health)
+        finally:
+            stopped.set()
+            worker.join(3)
+            health_path.unlink(missing_ok=True)
+        assert not worker.is_alive()
 
 
 @pytest.mark.parametrize("uid", [-1, 2**31, True])

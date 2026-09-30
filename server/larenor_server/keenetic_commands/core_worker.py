@@ -29,18 +29,24 @@ class HealthGatedKeeneticWorkerEffect:
     def __init__(self, settings, services, component_egress, *, process_alive=None):
         self._settings = settings
         self._egress = component_egress
-        self._process_alive = process_alive or _process_alive
-        if not callable(self._process_alive):
+        # Only explicit same-namespace test/supervisor callers use PID checks.
+        # Production Core runs in Docker: host PIDs are not meaningful there.
+        self._process_alive = process_alive
+        if process_alive is not None and not callable(process_alive):
             raise KeeneticEffectError("keenetic_effect_unavailable")
         try:
             self._health = WorkerHealthStore(
                 settings.keenetic_worker_health,
                 owner_uid=settings.keenetic_worker_uid,
+                socket_gid=settings.keenetic_worker_socket_gid,
             )
             self._identity = self._health.verify_ready(
                 settings.keenetic_worker_socket
             )
-            if not self._process_alive(self._identity.workerPid):
+            if (
+                self._process_alive is not None
+                and not self._process_alive(self._identity.workerPid)
+            ):
                 raise ValueError()
             key = private_read(settings.keenetic_worker_key_file, 32)
             if len(key) != 32:
@@ -49,6 +55,9 @@ class HealthGatedKeeneticWorkerEffect:
                 settings.keenetic_worker_socket,
                 owner_uid=settings.keenetic_worker_uid,
             )
+            self._raw = raw
+            if self._process_alive is None:
+                raw.probe_ready(self._identity.workerId)
             issuer = KeeneticCredentialLeaseIssuer(
                 services, key, clock=settings.clock
             )
@@ -70,8 +79,11 @@ class HealthGatedKeeneticWorkerEffect:
             current = self._health.verify_ready(
                 self._settings.keenetic_worker_socket
             )
-            if current != self._identity or not self._process_alive(current.workerPid):
+            if (current != self._identity or self._process_alive is not None
+                    and not self._process_alive(current.workerPid)):
                 raise ValueError()
+            if self._process_alive is None:
+                self._raw.probe_ready(current.workerId)
         except Exception:
             raise KeeneticEffectError("keenetic_effect_unavailable") from None
 
@@ -90,15 +102,24 @@ class HealthGatedKeeneticWorkerEffect:
             raise KeeneticEffectError("keenetic_effect_unavailable") from None
 
     def execute_for_actor(self, actor, request, guard):
-        def preflight():
+        def authority_preflight():
             guard()
             self._live()
             self._allowed(actor, request.target)
 
-        preflight()
-        result = self._delegate.execute_for_actor(actor, request, preflight)
+        authority_preflight()
+        result = self._delegate.execute_for_actor(
+            actor,
+            request,
+            authority_preflight,
+        )
         try:
-            preflight()
+            # The exact pre-state guard must fail after a successful mutation.
+            # Keep worker and service-egress authority current here; the command
+            # authority immediately follows with current actor/resource ACL and
+            # causal provider readback before it can report success.
+            self._live()
+            self._allowed(actor, request.target)
         except KeeneticEffectError:
             raise KeeneticEffectError(
                 "keenetic_result_unknown", uncertain=True

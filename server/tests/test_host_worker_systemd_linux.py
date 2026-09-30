@@ -1,4 +1,5 @@
 import os
+import json
 import pwd
 from pathlib import Path
 import platform
@@ -20,6 +21,7 @@ UNITS = (
     "larenor-media-archive-worker.service",
     "larenor-ai-worker.service",
     "larenor-mesh-worker.service",
+    "larenor-keenetic-worker.service",
     "larenor-proxmox-power-worker.service",
     "larenor-nut-bridge.service",
 )
@@ -71,6 +73,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     nut_process = None
     nut_runtime = None
     component_process = None
+    keenetic_process = None
     runtime_mounted = False
     assert (not prefix.exists() and not helper.exists()
             and not journal_helper.exists() and not data_root.exists()
@@ -104,6 +107,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             (data_root / "host-workers", 0, 0, 0o711),
             (host_ipc, 0, 10002, 0o750),
             (component_ipc, 0, 10002, 0o750),
+            (host_ipc / "keenetic", 10008, 10002, 0o750),
             (ipc, 10004, 10002, 0o770),
             (host_ipc / "proxmox", 10005, 10002, 0o770),
             (data_root / "host-workers/power-recovery", 10006, 10006, 0o700),
@@ -243,6 +247,48 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             env=environment,
             preexec_fn=_identity(10001, 10001),
         )
+        keenetic_ipc = host_ipc / "keenetic"
+        keenetic_config = config_root / "host-workers/keenetic"
+        worker_key = keenetic_config / "lease.key"
+        core_lease_key = core_secrets / "keenetic-worker.key"
+        for path, owner in ((worker_key, 10008), (core_lease_key, 10001)):
+            path.write_bytes(b"k" * 32)
+            os.chown(path, owner, owner)
+            path.chmod(0o600)
+        policy_path = keenetic_config / "policy.json"
+        policy_path.write_text(json.dumps({
+            "version": 1, "adapter": "rci", "secretFile": str(worker_key),
+        }))
+        os.chown(policy_path, 10008, 10008)
+        policy_path.chmod(0o600)
+        keenetic_socket = keenetic_ipc / "commands.sock"
+        keenetic_health = keenetic_ipc / "health.json"
+        keenetic_process = subprocess.Popen(
+            [ROOT / "server/.venv/bin/python", "-m",
+             "larenor_server.keenetic_commands.worker_runtime", "--policy", policy_path,
+             "--socket", keenetic_socket, "--health", keenetic_health,
+             "--api-uid", "10001", "--socket-gid", "10002"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE, env=environment,
+            preexec_fn=_identity(10008, 10008),
+        )
+        deadline = time.monotonic() + 5
+        while not keenetic_health.exists() and keenetic_process.poll() is None:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+        detail = (keenetic_process.stderr.read().decode()
+                  if keenetic_process.poll() is not None else "keenetic_health_not_ready")
+        assert keenetic_socket.is_socket() and keenetic_health.is_file(), detail
+        subprocess.run(
+            [ROOT / "server/.venv/bin/python",
+             ROOT / "server/tests/support/keenetic_linux_core_ipc.py",
+             runtime_ipc / "keenetic/commands.sock",
+             runtime_ipc / "keenetic/health.json", core_lease_key,
+             core_data, core_secrets / "vault.key"],
+            check=True, timeout=30, env=environment,
+            preexec_fn=_identity(10001, 10001),
+        )
         component_socket = component_ipc / "component.sock"
         component_proof = ROOT / "server/tests/support/f15_component_worker_ipc.py"
         component_process = subprocess.Popen(
@@ -323,6 +369,13 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             except subprocess.TimeoutExpired:
                 proxmox_process.kill()
                 proxmox_process.wait(timeout=5)
+        if keenetic_process is not None:
+            keenetic_process.terminate()
+            try:
+                keenetic_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                keenetic_process.kill()
+                keenetic_process.wait(timeout=5)
         if component_process is not None:
             component_process.terminate()
             try:

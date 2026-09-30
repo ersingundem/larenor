@@ -30,6 +30,7 @@ class Settings:
     keenetic_worker_health: Path | None = None
     keenetic_worker_key_file: Path | None = None
     keenetic_worker_uid: int = 0
+    keenetic_worker_socket_gid: int | None = None
     component_backup_worker_socket: Path | None = None
     component_backup_worker_uid: int = 0
     media_archive_worker_socket: Path | None = None
@@ -95,6 +96,11 @@ class Settings:
         if any(path is not None for path in proxmox_paths) and any(
             path is None for path in proxmox_paths
         ):
+            raise ValueError("invalid_worker_configuration")
+        if self.keenetic_worker_socket_gid is not None and (
+                type(self.keenetic_worker_socket_gid) is not int
+                or not 0 <= self.keenetic_worker_socket_gid < 2**31
+                or self.keenetic_worker_socket is None):
             raise ValueError("invalid_worker_configuration")
         keenetic_paths = (
             self.keenetic_worker_socket,
@@ -229,11 +235,17 @@ class Settings:
                     if os.environ.get("LARENOR_KEENETIC_WORKER_HEALTH") else None
                 ),
                 keenetic_worker_key_file=(
-                    Path(os.environ["LARENOR_KEENETIC_WORKER_KEY_FILE"])
-                    if os.environ.get("LARENOR_KEENETIC_WORKER_KEY_FILE") else None
+                    Path(os.environ.get("LARENOR_KEENETIC_WORKER_LEASE_FILE")
+                         or os.environ["LARENOR_KEENETIC_WORKER_KEY_FILE"])
+                    if (os.environ.get("LARENOR_KEENETIC_WORKER_LEASE_FILE")
+                        or os.environ.get("LARENOR_KEENETIC_WORKER_KEY_FILE")) else None
                 ),
                 keenetic_worker_uid=int(
                     os.environ.get("LARENOR_KEENETIC_WORKER_UID", "0")
+                ),
+                keenetic_worker_socket_gid=(
+                    int(os.environ["LARENOR_KEENETIC_WORKER_SOCKET_GID"])
+                    if os.environ.get("LARENOR_KEENETIC_WORKER_SOCKET_GID") else None
                 ),
                 component_backup_worker_socket=(
                     Path(os.environ["LARENOR_COMPONENT_BACKUP_WORKER_SOCKET"])

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -48,6 +49,7 @@ ASSETS = {
     "unmanic_provision.py": (Path("/usr/libexec/larenor-unmanic-provision"), 0o755),
     "larenor-media-archive-worker.service": (Path("/etc/systemd/system/larenor-media-archive-worker.service"), 0o644),
     "larenor-ai-worker.service": (Path("/etc/systemd/system/larenor-ai-worker.service"), 0o644),
+    "larenor-keenetic-worker.service": (Path("/etc/systemd/system/larenor-keenetic-worker.service"), 0o644),
     "larenor-mesh-worker.service": (Path("/etc/systemd/system/larenor-mesh-worker.service"), 0o644),
     "larenor-proxmox-power-worker.service": (Path("/etc/systemd/system/larenor-proxmox-power-worker.service"), 0o644),
     "larenor-nut-bridge.service": (Path("/etc/systemd/system/larenor-nut-bridge.service"), 0o644),
@@ -63,6 +65,9 @@ PRIVATE_CONFIGS = (
     (CONFIG / "archive/callback.json", 1000),
     (CONFIG / "ai/runtime.json", 10003),
     (CONFIG / "mesh/runtime.json", 10004),
+    (CONFIG / "keenetic/policy.json", 10008),
+    (CONFIG / "keenetic/lease.key", 10008),
+    (Path("/var/lib/larenor-server/core/secrets/keenetic-worker.key"), 10001),
     (CONFIG / "proxmox/credential.bin", 10005),
     (CONFIG / "proxmox/binding.key", 10005),
     (CONFIG / "power-recovery/nut-bridge.json", 10006),
@@ -76,6 +81,7 @@ UNITS = (
     "larenor-media-archive-worker.service",
     "larenor-ai-worker.service",
     "larenor-mesh-worker.service",
+    "larenor-keenetic-worker.service",
     "larenor-proxmox-power-worker.service",
     "larenor-nut-bridge.service",
 )
@@ -247,6 +253,7 @@ def _validate_entrypoints(release):
         "server/bin/larenor-media-archive-worker",
         "server/bin/larenor-ai-worker",
         "server/bin/larenor-mesh-worker",
+        "server/bin/larenor-keenetic-worker",
         "server/bin/larenor-proxmox-power-worker",
         "server/bin/larenor-proxmox-power-supervisor",
         "server/bin/larenor-nut-bridge",
@@ -359,6 +366,8 @@ def install(bundle, python=Path("/usr/bin/python3")):
         pwd.getpwuid(1000)
         ai = pwd.getpwnam("larenor-ai")
         ai_group = grp.getgrnam("larenor-ai")
+        keenetic = pwd.getpwnam("larenor-keenetic")
+        keenetic_group = grp.getgrnam("larenor-keenetic")
         mesh = pwd.getpwnam("larenor-mesh")
         mesh_group = grp.getgrnam("larenor-mesh")
         proxmox = pwd.getpwnam("larenor-proxmox")
@@ -371,6 +380,12 @@ def install(bundle, python=Path("/usr/bin/python3")):
                 or pwd.getpwuid(10003).pw_name != "larenor-ai"
                 or grp.getgrgid(10003).gr_name != "larenor-ai"
                 or 10002 not in os.getgrouplist("larenor-ai", 10003)):
+            raise KeyError()
+        if (keenetic.pw_uid != 10008 or keenetic.pw_gid != 10008
+                or keenetic_group.gr_gid != 10008
+                or pwd.getpwuid(10008).pw_name != "larenor-keenetic"
+                or grp.getgrgid(10008).gr_name != "larenor-keenetic"
+                or 10002 not in os.getgrouplist("larenor-keenetic", 10008)):
             raise KeyError()
         if (mesh.pw_uid != 10004 or mesh.pw_gid != 10004
                 or mesh_group.gr_gid != 10004
@@ -411,11 +426,30 @@ def _private_config(path, owner):
         raise HostWorkerPackageError("private_config_invalid") from None
 
 
+def _check_keenetic_lease_pair():
+    try:
+        core = _read_regular(Path("/var/lib/larenor-server/core/secrets/keenetic-worker.key"),
+                             32, owner=10001, mode=0o600)
+        worker = _read_regular(CONFIG / "keenetic/lease.key",
+                               32, owner=10008, mode=0o600)
+        if len(core) != 32 or len(worker) != 32 or not hmac.compare_digest(core, worker):
+            raise ValueError()
+        policy = json.loads(_read_regular(CONFIG / "keenetic/policy.json",
+                                          4096, owner=10008, mode=0o600),
+                            object_pairs_hook=_pairs)
+        if type(policy.get("version")) is not int or policy != {"version": 1, "adapter": "rci",
+                      "secretFile": str(CONFIG / "keenetic/lease.key")}:
+            raise ValueError()
+    except Exception:
+        raise HostWorkerPackageError("private_config_invalid") from None
+
+
 def activate():
     if os.geteuid() != 0 or _platform() is None:
         raise HostWorkerPackageError("host_unsupported")
     for path, owner in PRIVATE_CONFIGS:
         _private_config(path, owner)
+    _check_keenetic_lease_pair()
     try:
         library = Path("/var/lib/larenor-server/library").stat()
         if (not stat.S_ISDIR(library.st_mode) or library.st_uid != 1000
@@ -493,6 +527,15 @@ def activate():
         str(server / "larenor-nut-bridge"),
         "--config", str(CONFIG / "power-recovery/nut-bridge.json"),
         "--upsmon-config", "/etc/nut/upsmon.conf", "check-config",
+    ])
+    _run([
+        "/usr/sbin/runuser", "--user", "larenor-keenetic", "--group",
+        "larenor-keenetic", "--supp-group", "larenor-ipc", "--",
+        str(server / "larenor-keenetic-worker"), "--policy",
+        str(CONFIG / "keenetic/policy.json"), "--socket",
+        str(IPC / "keenetic/commands.sock"), "--health",
+        str(IPC / "keenetic/health.json"), "--api-uid", "10001",
+        "--socket-gid", "10002", "--check-config",
     ])
     _run(["/usr/bin/systemctl", "enable", "--now", *UNITS], timeout=180)
 

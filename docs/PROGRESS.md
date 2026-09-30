@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül Keenetic gerçek host worker ve nedensel doğrulama
+
+Unified Core, özel veri izinlerini koruyarak UID10008 Keenetic worker'a ayrı IPC mount üzerinden bağlanır. Docker PID namespace varsayımı kaldırıldı; gerçek socket peer ve worker receipt doğrulanır. Gerçek TCP RCI kabulünde ortaya çıkan iki pre-state/readback hatası düzeltildi. 141 Keenetic ve 9 paket testi geçti; dedicated UID Linux, geniş CI ve fiziksel router kabulü açık. [Kanıt](testing/keenetic-host-worker-2026-09-30.md). Sayaç değişmedi.
+
 ### 30 Eylül kuyrukta CI bekleyen uygulamalar
 
 Uygulama ve odaklı kanıtı tamamlanan 34 özellik `awaiting_ci` olarak ayrıldı. Test/review eksikleri olan uygulamalar alt tablonun test bekleyen bölümünde, F45 gerçek bildirim bağlantısı aktif geliştirmede kalır. CI bekliyor etiketi tam kabul veya fiziksel cihaz kabulü sayılmaz; 37/127 ve 3/63 sayaçları değişmedi.

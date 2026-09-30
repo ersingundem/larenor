@@ -307,3 +307,30 @@ def test_worker_liveness_tracks_private_socket_thread():
         assert worker.is_alive is True
         worker.close()
         assert worker.is_alive is False
+
+
+def test_shared_health_receipt_is_group_readable_and_rejects_mode_drift():
+    with socket_directory() as directory:
+        directory.chmod(0o750)
+        os.chown(directory, -1, os.getgid())
+        path = directory / "worker.sock"
+        health = directory / "health.json"
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(str(path))
+        path.chmod(0o660)
+        os.chown(path, -1, os.getgid())
+        try:
+            store = WorkerHealthStore(health, owner_uid=os.getuid(), socket_gid=os.getgid())
+            receipt = store.publish_ready(path, worker_id="c" * 32, worker_pid=os.getpid())
+            assert health.stat().st_mode & 0o777 == 0o640
+            assert store.verify_ready(path) == receipt
+            health.chmod(0o660)
+            with pytest.raises(RuntimeConfigurationError):
+                store.verify_ready(path)
+            health.chmod(0o640)
+            path.chmod(0o600)
+            with pytest.raises(RuntimeConfigurationError):
+                store.verify_ready(path)
+        finally:
+            listener.close()
+            directory.chmod(0o700)

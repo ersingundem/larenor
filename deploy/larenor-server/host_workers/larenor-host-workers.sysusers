@@ -12,3 +12,6 @@ g larenor-power 10006 - -
 u larenor-power 10006:10006 "Larenor power event bridge" /var/lib/larenor-server/host-workers/power-recovery /usr/sbin/nologin
 m nut larenor-power
 m larenor-power nut
+g larenor-keenetic 10008 - -
+u larenor-keenetic 10008:10008 "Larenor Keenetic worker" /var/lib/larenor-server/host-workers/keenetic /usr/sbin/nologin
+m larenor-keenetic larenor-ipc

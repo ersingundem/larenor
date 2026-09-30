@@ -1,0 +1,34 @@
+[Unit]
+Description=Larenor private Keenetic RCI worker
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/larenor-server/host-workers/keenetic/policy.json
+ConditionPathExists=/etc/larenor-server/host-workers/keenetic/lease.key
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/ipc/keenetic
+
+[Service]
+Type=simple
+User=10008
+Group=10008
+SupplementaryGroups=10002
+UMask=0007
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-keenetic-worker --policy /etc/larenor-server/host-workers/keenetic/policy.json --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-keenetic-worker --policy /etc/larenor-server/host-workers/keenetic/policy.json --socket /var/lib/larenor-server/host-workers/ipc/keenetic/commands.sock --health /var/lib/larenor-server/host-workers/ipc/keenetic/health.json --api-uid 10001 --socket-gid 10002
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/larenor-server/host-workers/keenetic
+ReadWritePaths=/var/lib/larenor-server/host-workers/ipc/keenetic
+
+[Install]
+WantedBy=multi-user.target

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -239,6 +240,30 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
             (Path("/usr/libexec/larenor-nut-notify"), 0o755),
         )
 
+    def test_keenetic_key_pair_and_policy_reject_mismatch_before_activation(self):
+        policy = {"version": 1, "adapter": "rci",
+                  "secretFile": str(package.CONFIG / "keenetic/lease.key")}
+        for key, change in ((b"b" * 32, {}), (b"a" * 31, {}),
+                            (b"a" * 32, {"adapter": "unavailable"}),
+                            (b"a" * 32, {"version": True}),
+                            (b"a" * 32, {"secretFile": "/tmp/key"})):
+            values = [b"a" * 32, key, json.dumps({**policy, **change}).encode()]
+            with patch.object(package, "_read_regular", side_effect=values):
+                with self.assertRaisesRegex(package.HostWorkerPackageError,
+                                            "private_config_invalid"):
+                    package._check_keenetic_lease_pair()
+        with patch.object(package, "_read_regular", side_effect=[
+                b"a" * 32, b"a" * 32, json.dumps(policy).encode()]) as read:
+            package._check_keenetic_lease_pair()
+        self.assertEqual(read.call_args_list[0].kwargs, {"owner": 10001, "mode": 0o600})
+        self.assertEqual(read.call_args_list[1].kwargs, {"owner": 10008, "mode": 0o600})
+        self.assertIn((package.CONFIG / "keenetic/policy.json", 10008),
+                      package.PRIVATE_CONFIGS)
+        self.assertIn("larenor-keenetic-worker.service", package.UNITS)
+        tmpfiles = (MODULE.parent / "larenor-host-workers.tmpfiles").read_text()
+        self.assertIn("ipc/keenetic 0750 larenor-keenetic larenor-ipc", tmpfiles)
+        self.assertIn("/keenetic 0710 root larenor-keenetic", tmpfiles)
+
     def test_unified_core_separate_ipc_mount_preserves_private_data_and_host_boundary(self):
         compose = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
         core = compose["services"]["larenor-core"]
@@ -261,6 +286,9 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         )
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_WORKER_UID"], "1000")
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_SOCKET_GID"], "10002")
+        self.assertEqual(core["environment"]["LARENOR_KEENETIC_WORKER_UID"], "10008")
+        self.assertEqual(core["environment"]["LARENOR_KEENETIC_WORKER_LEASE_FILE"],
+                         "/secrets/keenetic-worker.key")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_UID"], "10003")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET"],

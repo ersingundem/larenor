@@ -50,7 +50,12 @@
         "LARENOR_PROXMOX_POWER_WORKER_SOCKET": "/run/larenor-workers/proxmox/power.sock",
         "LARENOR_PROXMOX_POWER_WORKER_HEALTH": "/run/larenor-workers/proxmox/health.json",
         "LARENOR_PROXMOX_POWER_WORKER_UID": "10005",
-        "LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID": "10002"
+        "LARENOR_PROXMOX_POWER_WORKER_SOCKET_GID": "10002",
+        "LARENOR_KEENETIC_WORKER_SOCKET": "/run/larenor-workers/keenetic/commands.sock",
+        "LARENOR_KEENETIC_WORKER_HEALTH": "/run/larenor-workers/keenetic/health.json",
+        "LARENOR_KEENETIC_WORKER_UID": "10008",
+        "LARENOR_KEENETIC_WORKER_SOCKET_GID": "10002",
+        "LARENOR_KEENETIC_WORKER_LEASE_FILE": "/secrets/keenetic-worker.key"
       },
       "networks": {
         "control": {

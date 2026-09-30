@@ -139,7 +139,7 @@ class KeeneticCommandStateProvider:
                 if item["target"]["targetKind"] == expected.targetKind
                 and item["target"]["targetId"] == expected.targetId
             ]
-            if len(matches) != 1 or matches[0] != expected:
+            if len(matches) != 1:
                 raise _unavailable()
             return matches[0]
         except (ApiError, KeyError, TypeError, ValueError, ValidationError):

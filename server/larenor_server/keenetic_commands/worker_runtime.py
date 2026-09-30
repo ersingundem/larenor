@@ -151,11 +151,14 @@ def runtime_adapter_factory(policy, *, clock=None):
 
 
 class WorkerHealthStore:
-    def __init__(self, path, *, owner_uid):
+    def __init__(self, path, *, owner_uid, socket_gid=None):
         if type(owner_uid) is not int or not 0 <= owner_uid < 2**31:
+            raise RuntimeConfigurationError("worker_health_invalid")
+        if socket_gid is not None and (type(socket_gid) is not int or not 0 <= socket_gid < 2**31):
             raise RuntimeConfigurationError("worker_health_invalid")
         self.path = _absolute(str(path))
         self.owner_uid = owner_uid
+        self.socket_gid = socket_gid
 
     def _socket(self, path):
         try:
@@ -165,19 +168,41 @@ class WorkerHealthStore:
                 kind=stat.S_ISSOCK,
             )
             info = source.lstat()
-            if stat.S_IMODE(info.st_mode) not in {0o600, 0o660}:
+            if (stat.S_IMODE(info.st_mode) != (0o600 if self.socket_gid is None else 0o660)
+                    or self.socket_gid is not None and info.st_gid != self.socket_gid):
                 raise ValueError()
             return source, info
         except Exception:
             raise RuntimeConfigurationError("worker_health_invalid") from None
 
     def _read(self):
+        descriptor = -1
         try:
-            raw = private_read(self.path, 4096)
+            _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISREG,
+                       private=self.socket_gid is None)
+            descriptor = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            before = os.fstat(descriptor)
+            if (not stat.S_ISREG(before.st_mode) or before.st_uid != self.owner_uid
+                    or before.st_nlink != 1 or not 1 <= before.st_size <= 4096
+                    or stat.S_IMODE(before.st_mode) != (0o600 if self.socket_gid is None else 0o640)
+                    or self.socket_gid is not None and before.st_gid != self.socket_gid):
+                raise ValueError()
+            raw = os.read(descriptor, 4097)
+            after = os.fstat(descriptor)
+            entry = self.path.lstat()
+            identity = lambda item: (item.st_dev, item.st_ino, item.st_uid, item.st_gid,
+                                     item.st_mode, item.st_nlink, item.st_size,
+                                     item.st_mtime_ns, item.st_ctime_ns)
+            if (len(raw) != before.st_size or identity(before) != identity(after)
+                    or identity(after) != identity(entry)):
+                raise ValueError()
             value = json.loads(raw.decode("ascii"), object_pairs_hook=_pairs)
             return WorkerHealthReceipt.model_validate(value)
         except Exception:
             raise RuntimeConfigurationError("worker_health_invalid") from None
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
 
     def publish_ready(self, socket_path, *, worker_id, worker_pid):
         _, info = self._socket(socket_path)
@@ -191,7 +216,11 @@ class WorkerHealthStore:
         )
         try:
             _safe_path(self.path.parent, uid=self.owner_uid,
-                       kind=stat.S_ISDIR, private=True)
+                       kind=stat.S_ISDIR, private=self.socket_gid is None)
+            parent = self.path.parent.lstat()
+            if self.socket_gid is not None and (parent.st_gid != self.socket_gid
+                    or stat.S_IMODE(parent.st_mode) != 0o750):
+                raise ValueError()
             temporary = self.path.parent / ("." + self.path.name + "." + uuid.uuid4().hex)
             descriptor = os.open(
                 temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
@@ -206,12 +235,14 @@ class WorkerHealthStore:
                 with os.fdopen(descriptor, "wb", closefd=False) as stream:
                     stream.write(raw)
                     stream.flush()
+                    if self.socket_gid is not None:
+                        os.fchown(descriptor, self.owner_uid, self.socket_gid)
+                        os.fchmod(descriptor, 0o640)
                     os.fsync(stream.fileno())
             finally:
                 os.close(descriptor)
             if self.path.exists() or self.path.is_symlink():
-                _safe_path(self.path, uid=self.owner_uid,
-                           kind=stat.S_ISREG, private=True)
+                self._read()
             os.replace(temporary, self.path)
             sync_directory(self.path.parent)
         except Exception:
@@ -308,7 +339,7 @@ class KeeneticWorkerSupervisor:
 def run_worker_once(socket_path, health_path, *, api_uid, socket_gid, stop,
                     peer_uid=None, adapter_factory=None):
     worker_id = uuid.uuid4().hex
-    store = WorkerHealthStore(health_path, owner_uid=os.geteuid())
+    store = WorkerHealthStore(health_path, owner_uid=os.geteuid(), socket_gid=socket_gid)
     adapter = None if adapter_factory is None else adapter_factory(worker_id)
     worker = KeeneticCommandWorkerServer(
         socket_path,
@@ -316,6 +347,7 @@ def run_worker_once(socket_path, health_path, *, api_uid, socket_gid, stop,
         allowed_uid=api_uid,
         socket_gid=socket_gid,
         peer_uid=peer_uid,
+        worker_id=worker_id,
         timeout=5,
     )
     published = False
@@ -393,7 +425,7 @@ def main(argv=None):
         _absolute(str(args.health))
         if args.health_check:
             receipt = WorkerHealthStore(
-                args.health, owner_uid=os.geteuid()
+                args.health, owner_uid=os.geteuid(), socket_gid=args.socket_gid
             ).verify_ready(args.socket)
             return 0 if _process_alive(receipt.workerPid) else 1
         adapter_factory = (
@@ -413,7 +445,7 @@ def main(argv=None):
         for number in (signal.SIGINT, signal.SIGTERM):
             previous[number] = signal.getsignal(number)
             signal.signal(number, stop)
-        store = WorkerHealthStore(args.health, owner_uid=os.geteuid())
+        store = WorkerHealthStore(args.health, owner_uid=os.geteuid(), socket_gid=args.socket_gid)
         supervisor = KeeneticWorkerSupervisor(
             lambda event: run_worker_once(
                 args.socket,

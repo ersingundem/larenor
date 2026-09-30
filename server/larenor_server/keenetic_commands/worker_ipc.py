@@ -46,6 +46,26 @@ class KeeneticCommandWorkerClient:
         self.peer_uid = peer_uid or _peer_uid
         self.timeout = timeout
 
+    def probe_ready(self, worker_id):
+        """Authenticate a live worker without host PID-namespace assumptions."""
+        try:
+            _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
+            packet_id = uuid.uuid4().hex
+            deadline = time.monotonic() + self.timeout
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(self.timeout)
+                connection.connect(str(self.path))
+                if self.peer_uid(connection) != self.owner_uid:
+                    raise ValueError()
+                write_packet(connection, {"protocol": 1, "requestId": packet_id,
+                                         "operation": "keenetic_worker_ready"}, deadline)
+                answer = read_packet(connection, deadline)
+            if answer != {"protocol": 1, "requestId": packet_id,
+                          "result": {"workerId": worker_id, "status": "ready"}}:
+                raise ValueError()
+        except (OSError, ValueError, TypeError, DockerWorkerError, PreflightIPCError):
+            raise KeeneticEffectError("keenetic_effect_unavailable") from None
+
     def __call__(self, request, guard):
         timeout_ms = max(50, min(10000, int(self.timeout * 1000)))
         return self.execute(
@@ -161,7 +181,11 @@ class KeeneticCommandWorkerServer(PreflightWorkerServer):
     """Owned Unix fixture/runtime boundary; it contains no router transport."""
 
     def __init__(self, path, handler=None, *, allowed_uid, socket_gid=None,
-                 peer_uid=None, timeout=5):
+                 peer_uid=None, timeout=5, worker_id=None):
+        if worker_id is not None and (not isinstance(worker_id, str) or len(worker_id) != 32
+                or any(char not in "0123456789abcdef" for char in worker_id)):
+            raise PreflightIPCError("invalid_request")
+        self.worker_id = worker_id
         self.handler = handler or UnavailableKeeneticCommandHandler()
         self._seen_packet_ids = set()
         self._seen_command_ids = set()
@@ -177,6 +201,10 @@ class KeeneticCommandWorkerServer(PreflightWorkerServer):
 
     def _answer(self, request, *, deadline=None):
         deadline = time.monotonic() + self.timeout if deadline is None else deadline
+        if (set(request) == {"protocol", "requestId", "operation"}
+                and request["operation"] == "keenetic_worker_ready"
+                and self.worker_id is not None):
+            return {"workerId": self.worker_id, "status": "ready"}
         if (
             set(request) != {
                 "protocol", "requestId", "operation", "command"

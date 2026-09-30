@@ -33,3 +33,6 @@ d /etc/larenor-server/host-workers/ai 0700 larenor-ai larenor-ai -
 d /etc/larenor-server/host-workers/mesh 0710 root larenor-mesh -
 d /etc/larenor-server/host-workers/proxmox 0700 larenor-proxmox larenor-proxmox -
 d /etc/larenor-server/host-workers/power-recovery 0700 larenor-power larenor-power -
+d /var/lib/larenor-server/host-workers/ipc/keenetic 0750 larenor-keenetic larenor-ipc -
+d /var/lib/larenor-server/host-workers/keenetic 0700 larenor-keenetic larenor-keenetic -
+d /etc/larenor-server/host-workers/keenetic 0710 root larenor-keenetic -
