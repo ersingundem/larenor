@@ -1,0 +1,162 @@
+name: F60 Sunshine owned host smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f60-sunshine-owned-host-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owned-host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require reviewed same-repository source
+        env:
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/heads/codex/project-completion-100) ;;
+            *) exit 1 ;;
+          esac
+          test -z "$PR_HEAD_REPOSITORY"
+          test "$GITHUB_REPOSITORY" = ersingundem/larenor
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test -n "$RUNNER_TEMP"
+          printf 'RECEIPT=%s/f60-sunshine-owned-host-receipt.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'RAW_RECEIPT=%s/f60-sunshine-owned-host-raw.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install exact Ubuntu fixture dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          packages=(avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-utils xvfb)
+          for package in "${packages[@]}"; do
+            candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
+            case "$candidate" in ""|"(none)") exit 1 ;; esac
+            sudo apt-get install --yes --no-install-recommends "$package=$candidate"
+            test "$(dpkg-query --show --showformat='${Version}' "$package")" = "$candidate"
+            key="$(printf '%s' "$package" | tr '[:lower:]-' '[:upper:]_')_VERSION"
+            printf '%s=%s\n' "$key" "$candidate" >> "$GITHUB_ENV"
+          done
+          sudo systemctl start avahi-daemon
+          test "$(systemctl is-active avahi-daemon)" = active
+
+      - name: Start, observe, and clean up the owned Sunshine host
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B tool/f60_sunshine_owned_host.py --readiness-only > "$RAW_RECEIPT"
+          test -s "$RAW_RECEIPT"
+
+      - name: Produce bounded source-bound public receipt
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+
+          def pairs(values):
+              result = {}
+              for key, value in values:
+                  if key in result:
+                      raise SystemExit("duplicate host receipt key")
+                  result[key] = value
+              return result
+
+          raw_path = Path(os.environ["RAW_RECEIPT"])
+          receipt_path = Path(os.environ["RECEIPT"])
+          data = raw_path.read_bytes()
+          if not 1 <= len(data) <= 4096:
+              raise SystemExit("host receipt size is invalid")
+          try:
+              raw = json.loads(data.decode("utf-8"), object_pairs_hook=pairs)
+          except (UnicodeError, json.JSONDecodeError):
+              raise SystemExit("host receipt JSON is invalid") from None
+          expected_keys = {
+              "capture", "codec", "encoder", "mdns", "packageSha256",
+              "platform", "provider", "providerTag", "schemaVersion", "state",
+              "streamAccepted", "tlsCertificateSha256",
+          }
+          if not isinstance(raw, dict) or set(raw) != expected_keys:
+              raise SystemExit("host receipt shape is invalid")
+          expected = {
+              "capture": "x11",
+              "codec": "h264",
+              "encoder": "software",
+              "mdns": {"port": 47989, "service": "_nvstream._tcp"},
+              "packageSha256": "c38e9c705f650f8705f61702717e99bec34044c5028fcb8f23a08fe041292c21",
+              "platform": "ubuntu24.04-amd64",
+              "provider": "Sunshine",
+              "providerTag": "v2026.914.233613",
+              "schemaVersion": 1,
+              "state": "host_ready",
+              "streamAccepted": False,
+          }
+          for key, value in expected.items():
+              if raw.get(key) != value:
+                  raise SystemExit("host receipt value is invalid")
+          fingerprint = raw.get("tlsCertificateSha256")
+          if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
+              raise SystemExit("host TLS receipt is invalid")
+          revision = os.environ["GITHUB_SHA"]
+          if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+              raise SystemExit("source revision is invalid")
+          dependencies = {
+              "avahiDaemon": os.environ["AVAHI_DAEMON_VERSION"],
+              "avahiUtils": os.environ["AVAHI_UTILS_VERSION"],
+              "openssl": os.environ["OPENSSL_VERSION"],
+              "pulseaudio": os.environ["PULSEAUDIO_VERSION"],
+              "pulseaudioUtils": os.environ["PULSEAUDIO_UTILS_VERSION"],
+              "x11Utils": os.environ["X11_UTILS_VERSION"],
+              "xvfb": os.environ["XVFB_VERSION"],
+          }
+          for value in dependencies.values():
+              if not isinstance(value, str) or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+:~_-]{0,127}", value) is None:
+                  raise SystemExit("fixture dependency identity is invalid")
+          public = {
+              **raw,
+              "dependencyVersions": dependencies,
+              "sourceRevision": revision,
+          }
+          encoded = json.dumps(public, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
+          if len(encoded) > 4096:
+              raise SystemExit("public receipt exceeds bound")
+          descriptor = os.open(receipt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          try:
+              os.write(descriptor, encoded)
+              os.fsync(descriptor)
+          finally:
+              os.close(descriptor)
+          PY
+          test "$(stat -c '%a' "$RECEIPT")" = 600
+          test "$(wc -c < "$RECEIPT")" -le 4096
+          rm -f -- "$RAW_RECEIPT"
+
+      - name: Upload public host-readiness receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: f60-sunshine-owned-host-${{ github.run_id }}
+          path: ${{ runner.temp }}/f60-sunshine-owned-host-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop owned host support service
+        if: always()
+        run: sudo systemctl stop avahi-daemon || true
