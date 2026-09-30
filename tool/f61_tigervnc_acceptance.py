@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import socket
@@ -180,6 +181,52 @@ def verify_report(path: Path = REPORT) -> None:
         or len(suite.findall(".//error")) != 0
     ):
         raise AcceptanceFailure("TigerVNC acceptance did not execute exactly once")
+
+
+def failure_diagnostic(path: Path = REPORT) -> dict[str, object]:
+    """Keep owned source lines only; never retain messages, output or fixture secrets."""
+    unavailable = {"code": "native_report_unavailable", "frames": []}
+    try:
+        if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= 1_048_576:
+            return unavailable
+        raw = path.read_bytes()
+        if len(raw) > 1_048_576 or b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+            return unavailable
+        suite = ET.fromstring(raw)
+        counts = {key: int(suite.attrib[key]) for key in ("tests", "skipped", "failures", "errors")}
+        if any(not 0 <= count <= 1024 for count in counts.values()):
+            return unavailable
+    except (OSError, ET.ParseError, KeyError, ValueError, TypeError):
+        return unavailable
+    cases = list(suite.iter("testcase"))
+    exact_identity = (
+        suite.tag == "testsuite" and suite.attrib.get("name") == TEST_CLASS
+        and counts["tests"] == 1 and counts["skipped"] == 0 and len(cases) == 1
+        and cases[0].attrib.get("classname") == TEST_CLASS
+        and cases[0].attrib.get("name") == TEST_NAME
+    )
+    if not exact_identity:
+        return {"code": "native_report_identity_mismatch", "frames": [], "counts": counts}
+    failures = cases[0].findall("failure") + cases[0].findall("error")
+    if len(failures) != 1:
+        return {"code": "native_failure_unavailable", "frames": [], "counts": counts}
+    # A caller-owned frame cannot masquerade as an unrelated owned source file.
+    owned_frame = re.compile(
+        r"\s*at com\.ersingundem\.larenor\.vnc\."
+        r"(VncTigerVncAcceptanceTest|VncAndroidRfbBackend|VncNativeBridge|VncNativeAdapter)"
+        r"(?:\$[A-Za-z0-9_$]+)?\.[A-Za-z0-9_$<>]+\(\1\.kt:([0-9]{1,6})\)\s*"
+    )
+    frames = []
+    for line in "".join(failures[0].itertext()).splitlines():
+        match = owned_frame.fullmatch(line)
+        if match is None or int(match[2]) < 1:
+            continue
+        frame = {"file": match[1] + ".kt", "line": int(match[2])}
+        if frame not in frames:
+            frames.append(frame)
+        if len(frames) == 8:
+            break
+    return {"code": "native_test_failed", "frames": frames, "counts": counts}
 
 
 def acceptance_receipt(
@@ -382,6 +429,7 @@ def main() -> int:
                 )
             except AndroidAcceptanceGradleError as error:
                 raise AcceptanceFailure(str(error)) from None
+            REPORT.unlink(missing_ok=True)
             subprocess.run(
                 [
                     *gradle,
@@ -414,6 +462,10 @@ def main() -> int:
             )
         except BaseException as error:
             print(f"F61 TigerVNC acceptance failed: {error}", file=sys.stderr)
+            print(json.dumps({
+                "sourceRevision": revision,
+                "diagnostic": failure_diagnostic(),
+            }, sort_keys=True), file=sys.stderr)
             print("--- bounded TigerVNC log ---", file=sys.stderr)
             print(diagnostics(xvnc_log), file=sys.stderr)
             print("--- bounded xterm log ---", file=sys.stderr)

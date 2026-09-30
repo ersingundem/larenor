@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F61 owned-host zaman aşımı teşhisi
+
+Exacta7458639/run36779316558 named TigerVNC testi awaitFrame/pumpUntil zaman aşımında düştü; önceki kare çeşitliliği assertionı verilmedi, fakat hangi adımda beklediği kanıtlanamadı. Runner yalnız source-bound allowlisted dosya/satır ve bounded count teşhisi çıkarır; mesaj/gizli yol/ham JUnit yok. 12 policy/runner testi geçti. Gerçek native kabul açık kaldı; CI bekliyor tablosuna taşınmadı, sayaçlar değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 1 Ekim F62 native başlangıç teşhis kapısı
 
 Exacte3ae7cb3 koşusunda receipted AAR ve gerçek APK buildleri geçti, fakat owned-host instrumentation başarısız. Güvenli çıktı yalnız report identity mismatch verdi; adlandırılmış testin çalıştığı kabul edilmedi. Başlangıç hatalarını sınıf/metod adı, mesaj veya gizli yol göstermeden owned source frame/count/boolean ile ayıran failure-only parser genişletildi; 30 odaklı tool testi geçti. Success receipt koşulu gevşetilmedi. F62 gerçek native kabulü açık, CI bekliyor sayısı ve kabul sayaçları değişmedi. [Kanıt](testing/f62-safe-native-failure-diagnostics-2026-09-30.md).

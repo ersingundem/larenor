@@ -149,3 +149,5 @@ F61 subsequent exact `2cf908b2` / run `36774361551` completed X509Vnc and return
 Exact 2a585d3c/run36776598508 still failed first-frame diversity. Root reproduced and fixed actual ExtendedDesktopSize control-message/false-frame and screen-ID behavior; 4 real TLS/0skip,49 native/1 intentional Linux skip and9 policy tests passed. A fresh exact TigerVNC receipt remains open; fixture-only inference is superseded.
 
 F62 exact e3ae7cb3/run36776341714 built both AAR/APKs but instrumentation failed with report identity mismatch. Named-method execution remains unproven. Failure-only bounded identity/counts/owned constructor diagnostic repair passed30 tests; success identity/no-skip receipt unchanged. Actual packaged native receipt remains open.
+
+F61 exact a7458639/run36779316558 now fails an owned frame wait at pumpUntil293 rather than the prior first-frame diversity assertion. Which wait timed out is unproven; failure-only source/count diagnostic tests12 passed, without changing the named one-test/no-skip success gate. Actual native acceptance stays open.

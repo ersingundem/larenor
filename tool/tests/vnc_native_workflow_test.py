@@ -219,6 +219,51 @@ class VncNativeWorkflowTest(unittest.TestCase):
         self.assertNotIn('ROOT / "android" / "gradlew"', self.runner)
         self.assertNotIn("def gradle_wrapper_command", self.runner)
 
+    def test_failure_diagnostic_keeps_owned_frames_without_raw_message(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.xml"
+            report.write_text(
+                f'<testsuite name="{runner.TEST_CLASS}" tests="1" skipped="0" failures="1" errors="0">'
+                f'<testcase classname="{runner.TEST_CLASS}" name="{runner.TEST_NAME}">'
+                '<failure message="secret password /private/user">java.lang.AssertionError: secret\n'
+                ' at com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest.pumpUntil(VncTigerVncAcceptanceTest.kt:293)\n'
+                ' at com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest.awaitFrame(VncTigerVncAcceptanceTest.kt:267)\n'
+                ' at com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest.normalBridgeInteroperatesWithOwnedTigerVncAndRetiresWithoutReplay(VncTigerVncAcceptanceTest.kt:156)\n'
+                ' at foreign.Secret.fail(/private/secret.kt:9)\n'
+                '</failure></testcase><system-out>secret-password</system-out></testsuite>'
+            )
+            actual = runner.failure_diagnostic(report)
+            self.assertEqual(actual["code"], "native_test_failed")
+            self.assertEqual(actual["frames"], [
+                {"file": "VncTigerVncAcceptanceTest.kt", "line": line}
+                for line in (293, 267, 156)
+            ])
+            self.assertNotIn("secret", json.dumps(actual))
+            self.assertNotIn("/private", json.dumps(actual))
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.verify_report(report)
+
+    def test_failure_diagnostic_rejects_symlink_entity_and_oversize(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.xml"
+            target = Path(temporary) / "target.xml"
+            target.write_text("<testsuite/>")
+            report.symlink_to(target)
+            self.assertEqual(runner.failure_diagnostic(report)["code"], "native_report_unavailable")
+            report.unlink()
+            for raw in ('<!DOCTYPE x [<!ENTITY s "secret">]><testsuite/>', 'x' * 1048577):
+                report.write_text(raw)
+                self.assertEqual(runner.failure_diagnostic(report)["code"], "native_report_unavailable")
+
+    def test_failure_diagnostic_never_accepts_unexpected_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "report.xml"
+            report.write_text('<testsuite tests="1" skipped="0" failures="1" errors="0"><testcase name="secret" classname="other"><failure>secret</failure></testcase></testsuite>')
+            actual = runner.failure_diagnostic(report)
+            self.assertEqual(actual["code"], "native_report_identity_mismatch")
+            self.assertEqual(actual["frames"], [])
+            self.assertNotIn("secret", json.dumps(actual))
+
     def test_receipt_source_revision_is_real_head_and_host_bound(self):
         expected = subprocess.run(
             ["git", "-C", str(ROOT), "rev-parse", "--verify", "HEAD"],

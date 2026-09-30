@@ -247,3 +247,25 @@ avoid the concurrent F60 implementation, so it is native software evidence,
 not a new full application build. Nine workflow policy tests also passed.
 F61 remains implemented/awaiting actual hosted TigerVNC validation until the
 exact one-method/no-skip receipt passes.
+
+## Source-only timeout diagnostics — 1 October
+
+[Run 36779316558](https://github.com/ersingundem/larenor/actions/runs/36779316558)
+on exact `a745863947eb7e175386b78295fa6c84cf425e01` failed the named
+real-host method in `pumpUntil`, source line 293. It no longer reported the
+first-frame diversity assertion, but the generic Gradle output does not identify
+which frame, input or resize wait timed out. No successful protocol acceptance
+is inferred from that change.
+
+The runner now prints only exact-source-bound diagnostic JSON: bounded counts
+and up to eight allowlisted owned filename/line frames. It never prints JUnit
+failure messages, arbitrary exception text, system output, host/password or raw
+paths. Symlink, entity/DTD and oversized reports are refused. The report is
+removed before the fresh native invocation; diagnostic output cannot reuse a
+previous report. The success verifier still requires exactly the original
+method, one executed test and zero skips/failures/errors.
+
+Root passed 12 workflow/runner tests, including secret-bearing failure text,
+identity rejection and malformed-report limits. A fresh run of this changed
+source is required to locate the real timeout; the failed run was not blindly
+restarted. F61 stays implemented/awaiting native acceptance.
