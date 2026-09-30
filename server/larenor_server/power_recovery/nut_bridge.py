@@ -936,6 +936,12 @@ class NutBridgeRuntime:
                 delay = max(30, self.config.retry_seconds)
             stopped.wait(delay)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
+
 
 def send_notification(
     path, environ, *, expected_uid=_NOTIFY_WORKER_UID,
@@ -984,13 +990,6 @@ def send_notification(
         return response["noticeId"]
     except Exception:
         raise NutBridgeError("bridge_unavailable") from None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_args):
-        self.close()
-
 
 class _Parser(argparse.ArgumentParser):
     def error(self, _message):

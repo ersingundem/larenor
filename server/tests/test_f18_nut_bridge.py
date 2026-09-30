@@ -114,6 +114,26 @@ def test_notify_callback_commits_only_fixed_nut_environment_without_network(tmp_
         outbox.enqueue({"UPSNAME": "other@127.0.0.1", "NOTIFYTYPE": "ONBATT"})
 
 
+def test_runtime_context_releases_worker_lock_when_startup_fails(tmp_path):
+    config = _config(tmp_path)
+    outbox = NutBridgeOutbox(config, clock=lambda: NOW)
+    # The production CLI and hosted UID proof use this context. Failure before
+    # socket publication must still release the singleton worker lock.
+    with pytest.raises(NutBridgeError):
+        with NutBridgeRuntime(
+            config, outbox, notify_socket=tmp_path / "missing" / "notify.sock",
+            peer_uid=lambda _connection: os.geteuid(),
+        ) as runtime:
+            lock = runtime._lock
+            assert lock >= 0
+            runtime.serve(threading.Event())
+    assert runtime._lock == -1
+    with pytest.raises(OSError):
+        os.fstat(lock)
+    with NutBridgeRuntime(config, outbox, notify_socket=tmp_path / "notify.sock"):
+        pass
+
+
 def test_notify_ipc_ack_means_durable_enqueue_and_filters_environment(tmp_path):
     config = _config(tmp_path)
     outbox = NutBridgeOutbox(config, clock=lambda: NOW)

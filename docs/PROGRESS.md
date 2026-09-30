@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül Linux kabulünde gerçek NUT başlangıç hatası
+
+Exact `5beb0813` host koşusu `36745640680`, production NUT worker'ın context-manager yöntemlerinin yanlış kapsamda kaldığını gösterdi. Yöntemler gerçek runtime sınıfına taşındı; socket başlangıcı başarısız olsa da singleton lock bırakıldığı doğrulandı. 14 focused test geçti, 1 Linux testi yerelde atlandı; 8 workflow testi geçti. İzole root pytest cache yazımı kapatıldı. Yeni Linux sonucu bekleniyor; kör rerun yapılmadı.
+
 ### 30 Eylül F29 gerçek Parti DJ kabulü
 
 Normal Core ve production MusicPlaybackRuntime, gerçek TCP Music Assistant fixture üzerinde kuyruk ekleme/readback, iki kullanıcı oyu/skip, restart ve kayıp ACK uzlaşmasını doğruladı. 35 focused test geçti; F29 da CI bekliyor tablosuna geçti. 35 özellik geniş CI bekliyor; kabul sayaçları değişmedi. [Kanıt](testing/f29-party-dj-production-2026-09-30.md).

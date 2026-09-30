@@ -21,6 +21,6 @@ cd "$proof_root"
 sudo --non-interactive env -i PATH=/usr/bin:/bin PYTHONPATH="$proof_root/server" \
   CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted \
   LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE=1 \
-  "$UV_PROJECT_ENVIRONMENT/bin/python" -B -m pytest -q \
+  "$UV_PROJECT_ENVIRONMENT/bin/python" -B -m pytest -q -p no:cacheprovider \
   server/tests/test_media_archive_linux_uid_ipc.py \
   server/tests/test_host_worker_systemd_linux.py
