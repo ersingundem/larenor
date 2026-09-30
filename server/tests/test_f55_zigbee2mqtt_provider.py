@@ -158,6 +158,27 @@ def test_offline_and_missing_device_availability_fail_closed_not_reachable():
     assert catalog.entries == []
 
 
+def test_unknown_power_source_is_not_claimed_as_mains():
+    raw = json.loads(observation().devices)
+    raw[1]["power_source"] = "Unknown"
+    adapter = provider(lambda: observation(devices=json.dumps(raw).encode()))
+
+    with pytest.raises(ValueError, match="unknown_power_source"):
+        adapter.snapshot(SimpleNamespace(id=ACCOUNT, family_id=FAMILY))
+
+
+def test_missing_firmware_version_remains_unknown_without_hiding_device():
+    raw = json.loads(observation().devices)
+    raw[1].pop("software_build_id")
+    adapter = provider(lambda: observation(devices=json.dumps(raw).encode()))
+
+    _, topology, _, _, _ = adapter.snapshot(
+        SimpleNamespace(id=ACCOUNT, family_id=FAMILY)
+    )
+
+    assert topology.devices[0].firmwareVersion is None
+
+
 @pytest.mark.parametrize(
     "change",
     [

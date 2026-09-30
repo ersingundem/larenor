@@ -154,7 +154,11 @@ class MeshHealthService:
         low_battery = sorted(
             device.deviceId
             for device in topology.devices
-            if device.powerSource == "battery" and device.batteryPercent < 20
+            if (
+                device.powerSource == "battery"
+                and device.batteryPercent is not None
+                and device.batteryPercent < 20
+            )
         )
         offline_routers = sorted(
             router.nodeId for router in topology.borderRouters if not router.online

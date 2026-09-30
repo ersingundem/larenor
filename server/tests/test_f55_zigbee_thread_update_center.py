@@ -209,6 +209,15 @@ def health_service(current_topology, current_interference):
     )
 
 
+def test_unknown_battery_percentage_is_not_reported_low():
+    device = zigbee_device(powerSource="battery", batteryPercent=None)
+    report = health_service(topology(devices=[device]), interference()).observe(
+        authority(), topology(devices=[device]), interference()
+    )
+
+    assert report.lowBatteryDeviceIds == []
+
+
 def update_manager(
     current_topology, catalog, public_key, worker, clock=None, state_store=None
 ):

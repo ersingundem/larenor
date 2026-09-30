@@ -65,3 +65,35 @@ Focused evidence:
 The bounded MQTT wire reader, broker credential provisioning, and default Core
 composition remain the next software gate. No physical coordinator, border
 router, or device was mutated by this evidence run.
+
+## Bounded MQTT and normal Core composition follow-up (2026-09-30)
+
+The normal server now enables Mesh Center only after its private worker proves
+a current broker connection with a transaction-matched, non-retained
+`bridge/response/health_check` response and receives retained
+`bridge/state`, `bridge/info`, and `bridge/devices`. The worker subscribes only
+to the configured fixed Zigbee2MQTT base prefix, never requests a network map,
+and exposes only bounded retained observation bytes to Core over a UID-checked
+Unix socket. Broker addresses are exact numeric egress pins; credentials are
+read from owner-only files inside the worker and never cross IPC.
+
+Core binds that observation to the authenticated administrator's current user,
+session-family, Core, and home revisions. The concrete provider still advertises
+an empty signed catalog and `canUpdateMesh=false`, so this production slice
+does not imply OTA support. A configured socket without a current broker health
+proof leaves the public capability unavailable rather than synthesizing a
+topology. The Home Assistant Thread limitation above is unchanged: this Zigbee
+inventory path does not claim a Thread or Matter control provider.
+
+Runtime configuration uses `LARENOR_MESH_WORKER_SOCKET` and
+`LARENOR_MESH_WORKER_UID` in Core. The worker additionally requires
+`LARENOR_MESH_CORE_UID`, `LARENOR_MESH_MQTT_URL`,
+`LARENOR_MESH_MQTT_ALLOWED_ADDRESSES`, and optional paired owner-only
+`LARENOR_MESH_MQTT_USERNAME_FILE` / `LARENOR_MESH_MQTT_PASSWORD_FILE` values.
+
+Focused evidence:
+
+- `server/.venv/bin/pytest -q server/tests/test_f55_mesh_center_api.py server/tests/test_f55_mesh_center_runtime.py server/tests/test_f55_mesh_mqtt_transport.py server/tests/test_f55_mesh_worker_ipc.py server/tests/test_f55_zigbee2mqtt_provider.py server/tests/test_f55_zigbee_thread_update_center.py server/tests/test_runtime.py` — 51 passed.
+- `server/.venv/bin/python -m compileall -q server/larenor_server/mesh_center server/larenor_server/app.py server/larenor_server/config.py server/larenor_server/core.py server/larenor_server/runtime.py` — passed.
+- No broker, coordinator, border router, or end device was contacted or mutated;
+  wire behavior was exercised against a deterministic scripted broker.

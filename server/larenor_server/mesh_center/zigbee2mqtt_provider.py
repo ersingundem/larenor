@@ -338,7 +338,13 @@ class Zigbee2MqttProvider:
                 battery = round(battery)
                 if not 0 <= battery <= 100:
                     raise ValueError("invalid_battery")
-            power_source = "battery" if "battery" in power.lower() else "mains"
+            normalized_power = power.strip().lower()
+            if "battery" in normalized_power:
+                power_source = "battery"
+            elif any(value in normalized_power for value in ("mains", "dc source")):
+                power_source = "mains"
+            else:
+                raise ValueError("unknown_power_source")
             if power_source == "mains":
                 battery = None
             update = raw_state.get("update")

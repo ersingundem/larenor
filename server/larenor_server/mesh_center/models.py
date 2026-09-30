@@ -92,7 +92,7 @@ class MeshDevice(FrozenModel):
     manufacturer: SafeText
     model: SafeText
     hardwareRevision: SafeText
-    firmwareVersion: Version
+    firmwareVersion: Version | None
     powerSource: Literal["mains", "battery"]
     batteryPercent: Percent | None
     reachable: bool
@@ -204,6 +204,13 @@ class FirmwareCatalogEntry(FrozenModel):
 
     @model_validator(mode="after")
     def unique_compatibility(self):
+        for value in (
+            self.manufacturer,
+            self.model,
+            *self.compatibleHardwareRevisions,
+        ):
+            if any(ord(char) < 32 or ord(char) == 127 for char in value):
+                raise ValueError("invalid_text")
         if len(self.compatibleHardwareRevisions) != len(
             set(self.compatibleHardwareRevisions)
         ) or len(self.sourceVersions) != len(set(self.sourceVersions)):
