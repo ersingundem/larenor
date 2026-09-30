@@ -29,23 +29,37 @@ class _PendingCommand {
     this.expectedLedgerRevision,
     ExpenseDraft value,
   ) : expense = value,
-      payment = null;
+      payment = null,
+      replacesId = null;
 
   const _PendingCommand.payment(
     this.commandId,
     this.expectedLedgerRevision,
     ExpensePaymentDraft value,
   ) : expense = null,
-      payment = value;
+      payment = value,
+      replacesId = null;
+
+  const _PendingCommand.correction(
+    this.commandId,
+    this.expectedLedgerRevision,
+    ExpenseDraft value,
+    this.replacesId,
+  ) : expense = value,
+      payment = null;
 
   final String commandId;
   final int expectedLedgerRevision;
   final ExpenseDraft? expense;
   final ExpensePaymentDraft? payment;
+  final String? replacesId;
 
   bool matches(SharedExpenseRecord record) {
     final expenseDraft = expense;
-    if (expenseDraft != null) return record.matchesDraft(expenseDraft);
+    if (expenseDraft != null) {
+      return record.matchesDraft(expenseDraft) &&
+          record.replacesId == replacesId;
+    }
     final paymentDraft = payment;
     if (paymentDraft != null) return record.matchesPayment(paymentDraft);
     return false;
@@ -81,9 +95,16 @@ class SharedExpenseController extends ChangeNotifier {
 
   String get exportText {
     if (_exportedRecords.isEmpty) return '';
-    String cell(Object value) => '"${value.toString().replaceAll('"', '""')}"';
+    String cell(Object value) {
+      var text = value.toString();
+      if (RegExp(r'^[\s]*[=+\-@]').hasMatch(text)) text = "'$text";
+      return '"${text.replaceAll('"', '""')}"';
+    }
+
     final labels = {for (final value in _participants) value.id: value.label};
-    final rows = <String>['kind,created_at,title,currency,total,payer,shares'];
+    final rows = <String>[
+      'id,replaces_id,superseded,kind,created_at,title,currency,total,payer,shares',
+    ];
     for (final record in _exportedRecords) {
       final shares = record.shares
           .map(
@@ -94,6 +115,9 @@ class SharedExpenseController extends ChangeNotifier {
           .join('; ');
       rows.add(
         [
+          record.id,
+          record.replacesId ?? '',
+          record.superseded,
           record.kind.name,
           DateTime.fromMillisecondsSinceEpoch(
             (record.createdAt * 1000).round(),
@@ -150,6 +174,47 @@ class SharedExpenseController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _validHistory(List<SharedExpenseRecord> records, bool canViewAll) {
+    if (records.length > 1000) return false;
+    final byId = <String, SharedExpenseRecord>{};
+    final replaced = <String>{};
+    for (final record in records) {
+      if (byId.containsKey(record.id) ||
+          (record.kind == SharedExpenseKind.payment &&
+              (record.superseded || record.replacesId != null))) {
+        return false;
+      }
+      byId[record.id] = record;
+      final previous = record.replacesId;
+      if (previous != null && !replaced.add(previous)) return false;
+    }
+    for (final record in records) {
+      final previous = record.replacesId;
+      if (previous != null) {
+        final predecessor = byId[previous];
+        if (predecessor == null) {
+          if (canViewAll) return false;
+        } else if (predecessor.kind != SharedExpenseKind.expense ||
+            predecessor.payerId != record.payerId ||
+            predecessor.currency != record.currency ||
+            !predecessor.superseded) {
+          return false;
+        }
+      }
+      if (canViewAll && record.superseded != replaced.contains(record.id)) {
+        return false;
+      }
+      // A member may have a filtered predecessor. Visible cycles are invalid.
+      final seen = <String>{};
+      SharedExpenseRecord? cursor = record;
+      while (cursor != null) {
+        if (!seen.add(cursor.id)) return false;
+        cursor = byId[cursor.replacesId];
+      }
+    }
+    return true;
+  }
+
   Future<void> load(SharedExpenseLease lease) async {
     if (!_current(lease) ||
         _state == SharedExpenseViewState.loading ||
@@ -167,7 +232,8 @@ class SharedExpenseController extends ChangeNotifier {
     try {
       final result = await _api.snapshot(lease.authority);
       if (!_current(lease)) return;
-      if (result.authority != lease.authority ||
+      if (!_validHistory(result.records, lease.authority.canViewAll) ||
+          result.authority != lease.authority ||
           result.ledgerRevision < 1 ||
           result.membersRevision != lease.authority.membersRevision ||
           result.participants.isEmpty ||
@@ -334,6 +400,76 @@ class SharedExpenseController extends ChangeNotifier {
     }
   }
 
+  bool canCorrect(SharedExpenseRecord record) =>
+      _authority != null &&
+      _api is SharedExpenseCorrectionApi &&
+      !record.superseded &&
+      _participants.any((value) => value.id == record.payerId) &&
+      record.kind == SharedExpenseKind.expense &&
+      (_authority!.canViewAll || record.payerId == _authority!.accountId) &&
+      _records.any(
+        (value) =>
+            value.id == record.id &&
+            value.revision == record.revision &&
+            !value.superseded,
+      ) &&
+      !_records.any((value) => value.replacesId == record.id);
+
+  Future<void> correct(
+    SharedExpenseLease lease,
+    SharedExpenseRecord original,
+    ExpenseDraft draft,
+  ) async {
+    final revision = _ledgerRevision;
+    final members = _membersRevision;
+    if (!_current(lease) ||
+        revision == null ||
+        members == null ||
+        _pending != null ||
+        _state != SharedExpenseViewState.ready ||
+        !canCorrect(original) ||
+        draft.currency != original.currency ||
+        draft.payerId != original.payerId ||
+        draft.shares.any(
+          (share) => !_participants.any((value) => value.id == share.accountId),
+        ) ||
+        _api is! SharedExpenseCorrectionApi) {
+      return;
+    }
+    final pending = _PendingCommand.correction(
+      commandIds(),
+      revision,
+      draft,
+      original.id,
+    );
+    _pending = pending;
+    _set(SharedExpenseViewState.busy);
+    try {
+      final receipt = await (_api as SharedExpenseCorrectionApi).correct(
+        lease.authority,
+        expectedLedgerRevision: revision,
+        expectedMembersRevision: members,
+        commandId: pending.commandId,
+        original: original,
+        draft: draft,
+      );
+      if (!_current(lease)) return;
+      if (!_matches(receipt, lease, pending)) {
+        _pending = null;
+        _set(SharedExpenseViewState.error);
+        return;
+      }
+      await _accept(lease, receipt);
+    } on TimeoutException {
+      if (_current(lease)) _set(SharedExpenseViewState.uncertain);
+    } catch (_) {
+      if (_current(lease)) {
+        _pending = null;
+        _set(SharedExpenseViewState.error);
+      }
+    }
+  }
+
   Future<void> reconcile(SharedExpenseLease lease) async {
     final pending = _pending;
     if (!_current(lease) ||
@@ -374,7 +510,8 @@ class SharedExpenseController extends ChangeNotifier {
         ledgerRevision: revision,
       );
       if (!_current(lease)) return;
-      if (result.authority != lease.authority ||
+      if (!_validHistory(result.records, lease.authority.canViewAll) ||
+          result.authority != lease.authority ||
           result.ledgerRevision != revision ||
           result.balances.any(
             (balance) =>

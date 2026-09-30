@@ -45,6 +45,11 @@ class RecordPayment(FrozenModel):
     recipientId: Identity
 
 
+class CorrectExpense(CreateExpense):
+    replacesId: Identity
+    expectedRecordRevision: Revision
+
+
 class ExpectedLedger(FrozenModel):
     schemaVersion: Literal[1]
     expectedLedgerRevision: Revision

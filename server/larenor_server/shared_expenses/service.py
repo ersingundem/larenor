@@ -37,7 +37,7 @@ class HouseholdAccounts:
     def __post_init__(self) -> None:
         if (
             type(self.revision) is not int
-            or self.revision < 1
+            or not 1 <= self.revision <= 2**53 - 1
             or not isinstance(self.ids, tuple)
             or not 1 <= len(self.ids) <= MAX_HOUSEHOLD_MEMBERS
             or len(set(self.ids)) != len(self.ids)
@@ -65,6 +65,7 @@ class ExpenseRecord:
     shares: tuple[ExpenseShare, ...]
     members_revision: int
     created_at: float
+    replaces_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class ExpenseReceipt:
     command_id: str
     ledger_revision: int
     expense: ExpenseRecord
+    superseded: bool = False
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ class ExpenseStore:
         *,
         encryption_key: bytes,
         audit_key: bytes,
+        write_guard=None,
     ):
         if (
             not isinstance(encryption_key, bytes)
@@ -105,6 +108,7 @@ class ExpenseStore:
         self.database = database
         self._cipher = AESGCM(encryption_key)
         self._audit_key = audit_key
+        self._write_guard = write_guard
 
     @staticmethod
     def _scope(core_id: str, home_id: str) -> None:
@@ -258,6 +262,11 @@ class ExpenseStore:
                 raise ValueError
             if record.kind not in {"expense", "payment"}:
                 raise ValueError
+            if record.replaces_id is not None and (
+                not _identifier(record.replaces_id) or record.replaces_id == record.id
+                or record.kind != "expense"
+            ):
+                raise ValueError
             if record.kind == "payment" and (
                 record.title != "Payment"
                 or len(record.shares) != 1
@@ -298,6 +307,7 @@ class ExpenseStore:
         previous = ""
         events: list[ExpenseEvent] = []
         seen: set[str] = set()
+        replaced: set[str] = set()
         for row in rows:
             values = (
                 row["sequence"],
@@ -330,6 +340,17 @@ class ExpenseStore:
             }
             if record.kind == "payment":
                 request_value["kind"] = "payment"
+            if record.replaces_id is not None:
+                if record.replaces_id not in seen or record.replaces_id in replaced:
+                    raise StartupError("shared_expense_history_invalid")
+                original = self._record(connection, record.replaces_id)
+                if (record.kind != "expense" or original.kind != "expense"
+                        or record.currency != original.currency
+                        or record.payer_id != original.payer_id):
+                    raise StartupError("shared_expense_history_invalid")
+                replaced.add(record.replaces_id)
+                request_value["replaces_id"] = record.replaces_id
+                request_value["expected_record_revision"] = original.revision
             if (
                 hashlib.sha256(self._canonical(request_value)).hexdigest()
                 != row["request_hash"]
@@ -364,7 +385,10 @@ class ExpenseStore:
     def _balances(records: list[ExpenseRecord]) -> list[dict]:
         values: dict[tuple[str, str], int] = {}
         scales: dict[str, int] = {}
+        replaced = {record.replaces_id for record in records if record.replaces_id}
         for record in records:
+            if record.id in replaced:
+                continue
             scales[record.currency] = record.currency_scale
             payer = (record.currency, record.payer_id)
             values[payer] = values.get(payer, 0) + record.total_minor
@@ -423,6 +447,15 @@ class ExpenseStore:
                 raise StartupError("shared_expense_storage_invalid")
         return result
 
+    def _is_superseded(self, connection, record_id, core_id, home_id):
+        rows = connection.execute(
+            "SELECT * FROM shared_expense_records WHERE core_id=? AND home_id=? LIMIT ?",
+            (core_id, home_id, MAX_EXPENSES + 1),
+        ).fetchall()
+        if len(rows) > MAX_EXPENSES:
+            raise StartupError("shared_expense_storage_invalid")
+        return any(self._decrypt(row).replaces_id == record_id for row in rows)
+
     def _append(
         self,
         actor: Principal,
@@ -435,6 +468,8 @@ class ExpenseStore:
     ) -> ExpenseReceipt:
         with self.database.transaction() as connection:
             self._verified_history(connection, core_id, home_id)
+            if self._write_guard is not None:
+                self._write_guard(connection, actor, request)
             replay = connection.execute(
                 "SELECT * FROM shared_expense_events WHERE core_id=? AND home_id=? AND command_id=?",
                 (core_id, home_id, command_id),
@@ -450,6 +485,7 @@ class ExpenseStore:
                     command_id,
                     replay["ledger_revision"],
                     self._record(connection, replay["record_id"]),
+                    self._is_superseded(connection, replay["record_id"], core_id, home_id),
                 )
             state = self._state(connection, core_id, home_id)
             current_revision = 1 if state is None else state["revision"]
@@ -458,6 +494,27 @@ class ExpenseStore:
             count = 0 if state is None else state["event_count"]
             if count >= MAX_EXPENSES:
                 raise ApiError("shared_expense_limit_reached", 413)
+            if request.get("replaces_id") is not None:
+                original_row = connection.execute(
+                    "SELECT * FROM shared_expense_records WHERE id=? AND core_id=? AND home_id=?",
+                    (request["replaces_id"], core_id, home_id),
+                ).fetchone()
+                if original_row is None:
+                    raise ApiError("not_found", 404)
+                original = self._decrypt(original_row)
+                if actor.role != "admin" and original.payer_id != actor.id:
+                    raise ApiError("forbidden", 403)
+                existing = connection.execute(
+                    "SELECT * FROM shared_expense_records WHERE core_id=? AND home_id=?",
+                    (core_id, home_id),
+                ).fetchall()
+                if (original.kind != "expense"
+                        or request["expected_record_revision"] != original.revision
+                        or request["currency"] != original.currency
+                        or request["payer_id"] != original.payer_id
+                        or any(self._decrypt(row).replaces_id == original.id
+                               for row in existing)):
+                    raise ApiError("revision_conflict", 409)
             if request.get("kind") == "payment":
                 rows = connection.execute(
                     "SELECT * FROM shared_expense_records WHERE core_id=? AND home_id=? "
@@ -485,7 +542,7 @@ class ExpenseStore:
             record_value = {
                 key: value
                 for key, value in request.items()
-                if key != "expected_ledger_revision"
+                if key not in {"expected_ledger_revision", "expected_record_revision"}
             }
             record_value["created_at"] = now
             raw = self._canonical(record_value)
@@ -540,6 +597,26 @@ class ExpenseStore:
             )
             record = self._record(connection, record_id)
         return ExpenseReceipt(event_id, command_id, ledger_revision, record)
+
+    def correct(self, actor, *, replaces_id, expected_record_revision, **values):
+        members = values["members"]
+        self._scope(values["core_id"], values["home_id"])
+        self._authorize(actor, members)
+        if (not _identifier(values["command_id"]) or not _identifier(replaces_id)
+                or type(expected_record_revision) is not int
+                or expected_record_revision < 1):
+            raise ApiError("invalid_request", 400)
+        request, _unused_hash = self._request(
+            **{key: value for key, value in values.items()
+               if key not in {"core_id", "home_id", "command_id"}}
+        )
+        request["replaces_id"] = replaces_id
+        request["expected_record_revision"] = expected_record_revision
+        return self._append(
+            actor, core_id=values["core_id"], home_id=values["home_id"],
+            command_id=values["command_id"], request=request,
+            request_hash=hashlib.sha256(self._canonical(request)).hexdigest(),
+        )
 
     def create(
         self,
@@ -649,6 +726,7 @@ class ExpenseStore:
         if not _identifier(command_id):
             raise ApiError("invalid_request", 400)
         with self.database.connection() as connection:
+            connection.execute("BEGIN")
             self._verified_history(connection, core_id, home_id)
             row = connection.execute(
                 "SELECT * FROM shared_expense_events WHERE core_id=? AND home_id=? "
@@ -664,6 +742,7 @@ class ExpenseStore:
                 row["command_id"],
                 row["ledger_revision"],
                 self._record(connection, row["record_id"]),
+                self._is_superseded(connection, row["record_id"], core_id, home_id),
             )
 
     def export(
@@ -677,6 +756,7 @@ class ExpenseStore:
         self._scope(core_id, home_id)
         self._authorize(actor, members)
         with self.database.connection() as connection:
+            connection.execute("BEGIN")
             self._verified_history(connection, core_id, home_id)
             state = self._state(connection, core_id, home_id)
             rows = connection.execute(
@@ -687,6 +767,7 @@ class ExpenseStore:
             if len(rows) > MAX_EXPENSES:
                 raise StartupError("shared_expense_storage_invalid")
             records = [self._decrypt(row) for row in rows]
+        superseded = {record.replaces_id for record in records if record.replaces_id is not None}
         visible = [
             record
             for record in records
@@ -747,6 +828,9 @@ class ExpenseStore:
                         for share in record.shares
                     ],
                     "createdAt": record.created_at,
+                    "superseded": record.id in superseded,
+                    **({"replacesId": record.replaces_id}
+                       if record.replaces_id is not None else {}),
                 }
                 for record in visible
             ],

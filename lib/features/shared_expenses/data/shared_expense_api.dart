@@ -6,7 +6,10 @@ import '../../server/domain/server_models.dart';
 import '../domain/shared_expense_models.dart';
 
 final class SharedExpenseAccountApi
-    implements SharedExpenseApi, SharedExpensePaymentApi {
+    implements
+        SharedExpenseApi,
+        SharedExpensePaymentApi,
+        SharedExpenseCorrectionApi {
   SharedExpenseAccountApi._({
     required this.account,
     required this.context,
@@ -202,6 +205,44 @@ final class SharedExpenseAccountApi
       ),
     );
     return _receipt(json);
+  }
+
+  @override
+  Future<SharedExpenseReceipt> correct(
+    SharedExpenseAuthority expected, {
+    required int expectedLedgerRevision,
+    required int expectedMembersRevision,
+    required String commandId,
+    required SharedExpenseRecord original,
+    required ExpenseDraft draft,
+  }) async {
+    if (expected != authority ||
+        expectedMembersRevision != authority.membersRevision) {
+      throw const FormatException('authority_changed');
+    }
+    return _receipt(
+      _object(
+        await _request(
+          'POST',
+          '$_root/commands/correct',
+          body: {
+            'schemaVersion': 1,
+            'commandId': commandId,
+            'expectedLedgerRevision': expectedLedgerRevision,
+            'expectedMembersRevision': expectedMembersRevision,
+            'replacesId': original.id,
+            'expectedRecordRevision': original.revision,
+            'title': draft.title,
+            'currency': draft.currency,
+            'totalMinor': draft.totalMinor,
+            'payerId': draft.payerId,
+            'participantIds': draft.shares
+                .map((share) => share.accountId)
+                .toList(),
+          },
+        ),
+      ),
+    );
   }
 
   @override

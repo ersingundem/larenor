@@ -17,7 +17,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 1 | 5 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 0 | 6 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
@@ -32,7 +32,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | F54 | Google servislerinden bağımsız bildirim | Yeniden çalışılıyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Yeniden çalışılıyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Yeniden çalışılıyor | — |
-| F37 | Ortak ev masrafları | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -40,7 +39,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G07 |
+| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Başlanabilir | — |
 | 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -155,6 +154,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F32 | Dolap stoğu ve son kullanma takibi | CI bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | CI bekliyor | — |
 | F35 | Ev belgeleri ve garanti hatırlatmaları | CI bekliyor | — |
+| F37 | Ortak ev masrafları | CI bekliyor | — |
 | F38 | Aile anıları ve fotoğraf araması | CI bekliyor | — |
 | F40 | Ortak kaynak rezervasyonu | CI bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | CI bekliyor | — |

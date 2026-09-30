@@ -17,6 +17,7 @@ class SharedExpenseService:
             audit_key=hmac.new(
                 key, b"larenor-shared-expense-audit-v1", hashlib.sha256
             ).digest(),
+            write_guard=self._assert_write_current,
         )
         self._members_key = hmac.new(
             key, b"larenor-shared-expense-members-v1", hashlib.sha256
@@ -47,6 +48,13 @@ class SharedExpenseService:
             ).fetchall()
         if not rows or not any(row["id"] == actor.id for row in rows):
             raise ApiError("invalid_session", 401)
+        revision = self._member_revision(rows)
+        return (
+            HouseholdAccounts(revision, tuple(row["id"] for row in rows)),
+            {row["id"]: row["username"] for row in rows},
+        )
+
+    def _member_revision(self, rows):
         payload = json.dumps(
             [
                 [row["id"], row["username"], row["role"], row["revision"]]
@@ -57,11 +65,25 @@ class SharedExpenseService:
         ).encode("utf-8")
         revision = int.from_bytes(
             hmac.new(self._members_key, payload, hashlib.sha256).digest()[:8], "big"
-        ) & (2**63 - 1)
-        return (
-            HouseholdAccounts(max(1, revision), tuple(row["id"] for row in rows)),
-            {row["id"]: row["username"] for row in rows},
-        )
+        ) & (2**53 - 1)
+        return max(1, revision)
+
+    def _assert_write_current(self, connection, actor, request):
+        self.auth.assert_current(connection, actor)
+        rows = connection.execute(
+            "SELECT id,username,role,revision FROM users WHERE disabled=0 "
+            "AND must_change_password=0 ORDER BY created_at,id"
+        ).fetchall()
+        if (not any(row["id"] == actor.id for row in rows)
+                or self._member_revision(rows) != request["members_revision"]):
+            raise ApiError("authority_changed", 409)
+
+    def _assert_read_current(self, actor, members):
+        # Do not return data captured under a retired session or member set.
+        with self.db.connection() as connection:
+            self._assert_write_current(connection, actor, {
+                "members_revision": members.revision,
+            })
 
     def _authority(self, actor, members):
         return {
@@ -75,8 +97,8 @@ class SharedExpenseService:
         }
 
     @staticmethod
-    def _record(record):
-        return {
+    def _record(record, *, superseded=False):
+        result = {
             "id": record.id,
             "revision": record.revision,
             "kind": record.kind,
@@ -90,7 +112,11 @@ class SharedExpenseService:
                 for share in record.shares
             ],
             "createdAt": record.created_at,
+            "superseded": superseded,
         }
+        if record.replaces_id is not None:
+            result["replacesId"] = record.replaces_id
+        return result
 
     def snapshot(self, actor, core_id, home_id):
         self._scope(core_id, home_id)
@@ -98,6 +124,7 @@ class SharedExpenseService:
         exported = self.store.export(
             actor, core_id=core_id, home_id=home_id, members=members
         )
+        self._assert_read_current(actor, members)
         return {
             "authority": self._authority(actor, members),
             "ledgerRevision": exported["ledgerRevision"],
@@ -149,6 +176,22 @@ class SharedExpenseService:
         )
         return self._receipt(actor, members, receipt)
 
+    def correct(self, actor, core_id, home_id, body):
+        self._scope(core_id, home_id)
+        members, _labels = self._members(actor, write=True)
+        if body.expectedMembersRevision != members.revision:
+            raise ApiError("authority_changed", 409)
+        receipt = self.store.correct(
+            actor, core_id=core_id, home_id=home_id,
+            expected_ledger_revision=body.expectedLedgerRevision,
+            expected_record_revision=body.expectedRecordRevision,
+            replaces_id=body.replacesId, command_id=body.commandId,
+            title=body.title, currency=body.currency, total_minor=body.totalMinor,
+            payer_id=body.payerId, participant_ids=tuple(body.participantIds),
+            members=members,
+        )
+        return self._receipt(actor, members, receipt)
+
     def receipt(self, actor, core_id, home_id, command_id):
         self._scope(core_id, home_id)
         members, _labels = self._members(actor)
@@ -159,6 +202,7 @@ class SharedExpenseService:
             home_id=home_id,
             members=members,
         )
+        self._assert_read_current(actor, members)
         return None if receipt is None else self._receipt(actor, members, receipt)
 
     def export(self, actor, core_id, home_id, body):
@@ -167,6 +211,7 @@ class SharedExpenseService:
         value = self.store.export(
             actor, core_id=core_id, home_id=home_id, members=members
         )
+        self._assert_read_current(actor, members)
         if value["ledgerRevision"] != body.expectedLedgerRevision:
             raise ApiError("revision_conflict", 409)
         return {
@@ -178,10 +223,11 @@ class SharedExpenseService:
         }
 
     def _receipt(self, actor, members, receipt):
+        self._assert_read_current(actor, members)
         return {
             "authority": self._authority(actor, members),
             "eventId": receipt.event_id,
             "commandId": receipt.command_id,
             "ledgerRevision": receipt.ledger_revision,
-            "record": self._record(receipt.expense),
+            "record": self._record(receipt.expense, superseded=receipt.superseded),
         }

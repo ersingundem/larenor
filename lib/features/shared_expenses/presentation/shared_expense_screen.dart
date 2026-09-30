@@ -120,6 +120,20 @@ class SharedExpenseStrings {
   String get cancel => _turkish ? 'Vazgeç' : 'Cancel';
   String get copyExport => _turkish ? 'Dışa aktarımı kopyala' : 'Copy export';
   String get copied => _turkish ? 'Kopyalandı' : 'Copied';
+  String get edit => _turkish ? 'Masrafı düzelt' : 'Correct expense';
+  String get saveCorrection =>
+      _turkish ? 'Düzeltmeyi kaydet' : 'Save correction';
+  String get corrected =>
+      _turkish ? 'Eski kayıt · düzeltildi' : 'Previous record · corrected';
+  String get unavailableParticipant => _turkish
+      ? 'Ayrılan katılımcı · paydan çıkarın'
+      : 'Former participant · remove from split';
+  String get inactivePayer => _turkish
+      ? 'Ödeyen artık ev üyesi değil; bu geçmiş kayıt düzeltilemez.'
+      : 'The payer is no longer a household member; this historical record cannot be corrected.';
+  String get correctionNote => _turkish
+      ? 'Önceki kayıt ve ödemeler geçmişte korunur. Para birimi ve ödeyen değişmez.'
+      : 'The previous record and payments remain in history. Currency and payer stay unchanged.';
 }
 
 class SharedExpenseScreen extends StatefulWidget {
@@ -142,9 +156,11 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
   final _title = TextEditingController();
   final _amount = TextEditingController();
   final _selected = <String>{};
+  final _scroll = ScrollController();
   late SharedExpenseLease _lease;
   String _currency = 'TRY';
   late String _payerId;
+  SharedExpenseRecord? _editing;
 
   @override
   void initState() {
@@ -155,6 +171,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
   }
 
   void _attach() {
+    _editing = null;
     _selected.clear();
     _payerId = widget.authority.accountId;
     _lease = widget.controller.bind(widget.authority);
@@ -168,7 +185,9 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
 
   void _controllerChanged() {
     if (!mounted) return;
-    if (_selected.isEmpty && widget.controller.participants.isNotEmpty) {
+    if (_editing == null &&
+        _selected.isEmpty &&
+        widget.controller.participants.isNotEmpty) {
       _selected.addAll(
         widget.controller.participants.map((person) => person.id),
       );
@@ -199,16 +218,25 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
     _amount.removeListener(_changed);
     _title.dispose();
     _amount.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  ExpenseDraft? get _draft => ExpenseDraft.tryParse(
-    title: _title.text,
-    currency: _currency,
-    amount: _amount.text,
-    payerId: _payerId,
-    participantIds: _selected,
-  );
+  ExpenseDraft? get _draft {
+    final currentIds = widget.controller.participants
+        .map((value) => value.id)
+        .toSet();
+    if (!currentIds.contains(_payerId) || !currentIds.containsAll(_selected)) {
+      return null;
+    }
+    return ExpenseDraft.tryParse(
+      title: _title.text,
+      currency: _currency,
+      amount: _amount.text,
+      payerId: _payerId,
+      participantIds: _selected,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => CupertinoPageScaffold(
@@ -221,6 +249,7 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
               ? (constraints.maxWidth - 80) / 2
               : constraints.maxWidth - 32;
           return SingleChildScrollView(
+            controller: _scroll,
             padding: EdgeInsets.symmetric(
               horizontal: wide ? 32 : 16,
               vertical: 24,
@@ -246,10 +275,14 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
         widget.controller.state == SharedExpenseViewState.ready ||
         widget.controller.state == SharedExpenseViewState.empty;
     return _Panel(
-      title: strings.newExpense,
+      title: _editing == null ? strings.newExpense : strings.edit,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_editing != null) ...[
+            Text(strings.correctionNote),
+            const SizedBox(height: 12),
+          ],
           CupertinoTextField(
             key: const ValueKey('expense-title'),
             controller: _title,
@@ -285,7 +318,9 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
                     color: _payerId == person.id
                         ? CupertinoColors.activeBlue
                         : CupertinoColors.systemGrey5,
-                    onPressed: () => setState(() => _payerId = person.id),
+                    onPressed: _editing != null
+                        ? null
+                        : () => setState(() => _payerId = person.id),
                     child: Text(person.label),
                   ),
               ],
@@ -319,6 +354,19 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
                 ),
             ],
           ),
+          for (final id in _selected.where(
+            (id) => !widget.controller.participants.any(
+              (person) => person.id == id,
+            ),
+          ))
+            CupertinoButton(
+              key: ValueKey('expense-remove-unavailable-$id'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              onPressed: canCreate
+                  ? () => setState(() => _selected.remove(id))
+                  : null,
+              child: Text(strings.unavailableParticipant),
+            ),
           if (draft != null) ...[
             const SizedBox(height: 16),
             Text(
@@ -335,14 +383,66 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
           const SizedBox(height: 16),
           _ActionButton(
             key: const ValueKey('expense-create'),
-            label: strings.create,
+            label: _editing == null ? strings.create : strings.saveCorrection,
             onPressed: draft == null || !canCreate
                 ? null
-                : () => widget.controller.create(_lease, draft),
+                : () async {
+                    final original = _editing;
+                    if (original == null) {
+                      await widget.controller.create(_lease, draft);
+                    } else {
+                      await widget.controller.correct(_lease, original, draft);
+                      if (mounted &&
+                          widget.controller.records.any(
+                            (value) => value.replacesId == original.id,
+                          )) {
+                        _cancelCorrection();
+                      }
+                    }
+                  },
           ),
+          if (_editing != null)
+            CupertinoButton(
+              onPressed: canCreate ? _cancelCorrection : null,
+              child: Text(strings.cancel),
+            ),
         ],
       ),
     );
+  }
+
+  void _edit(SharedExpenseRecord record) {
+    if (!widget.controller.canCorrect(record)) return;
+    setState(() {
+      _editing = record;
+      _title.text = record.title;
+      _amount.text = formatExpenseMinor(
+        record.totalMinor,
+        record.currencyScale,
+        separator: widget.strings.decimalSeparator,
+      );
+      _currency = record.currency;
+      _payerId = record.payerId;
+      _selected
+        ..clear()
+        ..addAll(record.shares.map((value) => value.accountId));
+    });
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _cancelCorrection() {
+    setState(() {
+      _editing = null;
+      _title.clear();
+      _amount.clear();
+      _payerId = widget.authority.accountId;
+    });
   }
 
   String _label(String id) =>
@@ -363,7 +463,9 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
           color: _currency == currency
               ? CupertinoColors.activeBlue
               : CupertinoColors.systemGrey5,
-          onPressed: () => setState(() => _currency = currency),
+          onPressed: _editing != null
+              ? null
+              : () => setState(() => _currency = currency),
           child: Text(currency),
         ),
     ],
@@ -500,6 +602,21 @@ class _SharedExpenseScreenState extends State<SharedExpenseScreen> {
             Text(
               '${formatExpenseMinor(record.totalMinor, record.currencyScale, separator: strings.decimalSeparator)} ${record.currency}',
             ),
+            if (record.superseded) Text(strings.corrected),
+            if (!record.superseded &&
+                record.kind == SharedExpenseKind.expense &&
+                !widget.controller.participants.any(
+                  (person) => person.id == record.payerId,
+                ))
+              Text(strings.inactivePayer),
+            if (widget.controller.canCorrect(record))
+              _ActionButton(
+                key: ValueKey('expense-edit-${record.id}'),
+                label: strings.edit,
+                onPressed: state == SharedExpenseViewState.ready
+                    ? () => _edit(record)
+                    : null,
+              ),
             const SizedBox(height: 12),
           ],
           if (state == SharedExpenseViewState.uncertain)

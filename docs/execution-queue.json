@@ -4513,7 +4513,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ortak ev masrafları",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4537,7 +4537,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION kabul incelemesinde para birimi/paylaştırma/payment/export yolu mevcut ancak düzenleme geçmişi yoktur. Aktif geliştirme: eski şifreli kaydı değiştirmeden replacesId ile append-only masraf düzeltme, current payer/admin/members/CAS yetkisi, terminal kayıtlarla gerçek balance ve kullanılabilir EN/TR Client edit akışı. Gerçek Client→normal Core/restart ve focused kabul geçmeden CI bekliyor yapılmaz."
+      "reason": "Gerçek production Flutter account/API/controller→normal Uvicorn Core iki yaşamında immutable replacesId correction, exact replay, minor-unit split, terminal balance+korunan payment, linked export ve encrypted storage geçti. Independent review read postflight/nil receipt, filtered superseded history, departed-share editor ve inactive payer kapılarını kapattı; admin malformed graph fail-closed. 53-bit equality-only authority gerçek Chrome JSON sınırından geçti. 19 Server, 15 focused Flutter+runner-only skip, actual prepare/restart birer pass, Chrome 2 pass ve analyze temiz. Geniş exact HEAD CI ve gerçek ev/device MANUAL açık; banka/ödeme otomasyonu kapsam dışı. Kanıt: docs/testing/f37-normal-core-expense-corrections-2026-09-30.md."
     },
     {
       "id": "F38",

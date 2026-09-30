@@ -11,6 +11,9 @@ Future<void> pumpExpenseScreen(
   required Size size,
   required SharedExpenseStrings strings,
   required FakeSharedExpenseApi api,
+  SharedExpenseAuthority authority = expenseAuthorityA,
+  List<SharedExpenseRecord>? initialRecords,
+  List<ExpenseParticipant> members = participants,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -26,14 +29,18 @@ Future<void> pumpExpenseScreen(
       child: CupertinoApp(
         home: SharedExpenseScreen(
           controller: controller,
-          authority: expenseAuthorityA,
+          authority: authority,
           strings: strings,
         ),
       ),
     ),
   );
   api.snapshots.single.complete(
-    snapshot(expenseAuthorityA, records: [record()]),
+    snapshot(
+      authority,
+      records: initialRecords ?? [record()],
+      members: members,
+    ),
   );
   await tester.pumpAndSettle();
 }

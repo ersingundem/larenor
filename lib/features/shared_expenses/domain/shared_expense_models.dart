@@ -55,7 +55,7 @@ class SharedExpenseAuthority {
         actualAccount != accountId ||
         revision is! int ||
         revision < 1 ||
-        revision > 9223372036854775807) {
+        revision > 9007199254740991) {
       throw const FormatException('authority_changed');
     }
     return SharedExpenseAuthority(
@@ -274,6 +274,8 @@ class SharedExpenseRecord {
     required this.payerId,
     required this.shares,
     this.createdAt = 1,
+    this.replacesId,
+    this.superseded = false,
   });
 
   factory SharedExpenseRecord.fromDraft(String id, ExpenseDraft draft) =>
@@ -322,9 +324,9 @@ class SharedExpenseRecord {
     };
     final keys = json.keys.toSet();
     if ((!keys.containsAll(requiredKeys) ||
-            !requiredKeys.containsAll(keys.difference({'kind'}))) ||
-        (keys.length != requiredKeys.length &&
-            keys.length != requiredKeys.length + 1) ||
+            !requiredKeys.containsAll(
+              keys.difference({'kind', 'replacesId', 'superseded'}),
+            )) ||
         !_expenseId(json['id']) ||
         !_expenseId(json['payerId'])) {
       throw const FormatException('invalid_expense');
@@ -337,7 +339,10 @@ class SharedExpenseRecord {
     final total = json['totalMinor'];
     final rawShares = json['shares'];
     final createdAt = json['createdAt'];
-    if (revision is! int ||
+    final replacesId = json['replacesId'];
+    final superseded = keys.contains('superseded') ? json['superseded'] : false;
+    if (superseded is! bool ||
+        revision is! int ||
         revision < 1 ||
         rawKind is! String ||
         !{'expense', 'payment'}.contains(rawKind) ||
@@ -381,8 +386,15 @@ class SharedExpenseRecord {
     final kind = rawKind == 'payment'
         ? SharedExpenseKind.payment
         : SharedExpenseKind.expense;
+    if (keys.contains('replacesId') &&
+        (!_expenseId(replacesId) ||
+            replacesId == json['id'] ||
+            kind != SharedExpenseKind.expense)) {
+      throw const FormatException('invalid_expense');
+    }
     if (kind == SharedExpenseKind.payment &&
-        (title != 'Payment' ||
+        (superseded ||
+            title != 'Payment' ||
             shares.length != 1 ||
             shares.single.accountId == json['payerId'])) {
       throw const FormatException('invalid_expense');
@@ -398,6 +410,8 @@ class SharedExpenseRecord {
       payerId: json['payerId'] as String,
       shares: List.unmodifiable(shares),
       createdAt: createdAt.toDouble(),
+      replacesId: replacesId as String?,
+      superseded: superseded,
     );
   }
 
@@ -411,6 +425,8 @@ class SharedExpenseRecord {
   final String payerId;
   final List<ExpenseShare> shares;
   final double createdAt;
+  final String? replacesId;
+  final bool superseded;
 
   bool matchesDraft(ExpenseDraft draft) {
     if (revision != 1 ||
@@ -614,5 +630,16 @@ abstract interface class SharedExpensePaymentApi {
     required int expectedMembersRevision,
     required String commandId,
     required ExpensePaymentDraft draft,
+  });
+}
+
+abstract interface class SharedExpenseCorrectionApi {
+  Future<SharedExpenseReceipt> correct(
+    SharedExpenseAuthority authority, {
+    required int expectedLedgerRevision,
+    required int expectedMembersRevision,
+    required String commandId,
+    required SharedExpenseRecord original,
+    required ExpenseDraft draft,
   });
 }
