@@ -24,7 +24,18 @@ class VncNativeWorkflowTest(unittest.TestCase):
         job = self.workflow["jobs"]["tigervnc"]
         self.assertEqual(job["runs-on"], "ubuntu-24.04")
         self.assertEqual(job["timeout-minutes"], 30)
-        guard = job["steps"][0]["run"]
+        self.assertNotIn("runner.", json.dumps(job.get("env", {})))
+        isolated_home = job["steps"][0]
+        self.assertEqual(isolated_home["name"], "Set isolated Gradle home")
+        self.assertEqual(
+            isolated_home["run"],
+            'set -euo pipefail\n'
+            'echo "GRADLE_USER_HOME=$RUNNER_TEMP/f61-gradle" >> "$GITHUB_ENV"\n',
+        )
+        guard = next(
+            step["run"] for step in job["steps"]
+            if step.get("name") == "Require reviewed GitHub-hosted execution"
+        )
         for required in (
             "workflow_dispatch)",
             "pull_request)",

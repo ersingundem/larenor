@@ -21,6 +21,10 @@ ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
 Google servislerinden bağımsız bildirim artık unique WorkManager immediate ve en az 15dk periyodik iş kullanır; yanlış remoteMessaging FGS ve özel boot receiver kaldırıldı. Root gerçek HTTPS Core→production Worker scheduler/store/renderer restart, dedupe ve Core DELETE revoke kabulünü geçti; 14 Kotlin, 34 Flutter, iki foreground normal Core lifetime ve analyze geçti. Async enqueue failure exact authorityyle görünür recovery olur; eski callback yeni leaseyi bozmaz. F54 CI bekliyor tablosuna taşındı: 57 seçili özellik; kabul sayaçları değişmedi. Android izin/reboot/Doze/OEM/Keystore/trust fiziksel kapıları açık. K13 submittedın terminal sonuç sayıldığı gerçek boşluk nedeniyle yeniden çalışılıyor. [F54 kanıtı](testing/f54-normal-core-native-delivery-2026-09-30.md).
 
+### 30 Eylül F61 workflow ifade düzeltmesi
+
+İlk TigerVNC dispatchi job-env içinde desteklenmeyen runner.temp bağlamı nedeniyle GitHub parse 422 ile reddedildi; hiçbir test çalışmadı. Gradle geçici dizini artık ilk stepte RUNNER_TEMPten GITHUB_ENVye yazılır; 5 workflow policy testi bu sınırı doğruladı. Gerçek hosted sonucundan önce başarı kaydedilmez.
+
 ### 30 Eylül F61 gerçek VNC host kapısı
 
 Sentetik byte-server testi gerçek TigerVNC kabulü yerine kullanılmıyor. İzole Linux Xtigervnc X509Vnc karşısında normal production bridge SPKI, auth, frame, input, resize ve lifecycle/no-replay kapısı hazırlandı. Atlanmış veya Gradle cacheinden gelen test exit0 ile tamamlandı sayılmaz: exact XML bir test ve sıfır skip/failure gerektirir. 5 policy testi geçti; macOS gerçek host koşusu çalışmadı. Hosted exact sonucu ve Core-managed adaptör tamamlanmadan F61 implemented kalır; sayaçlar değişmedi. [F61 kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

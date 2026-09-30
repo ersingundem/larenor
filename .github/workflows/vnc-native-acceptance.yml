@@ -33,10 +33,13 @@
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 30,
       "env": {
-        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}",
-        "GRADLE_USER_HOME": "${{ runner.temp }}/f61-gradle"
+        "PR_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}"
       },
       "steps": [
+        {
+          "name": "Set isolated Gradle home",
+          "run": "set -euo pipefail\necho \"GRADLE_USER_HOME=$RUNNER_TEMP/f61-gradle\" >> \"$GITHUB_ENV\"\n"
+        },
         {
           "name": "Require reviewed GitHub-hosted execution",
           "run": "case \"$GITHUB_EVENT_NAME\" in\n  workflow_dispatch) case \"$GITHUB_REF\" in refs/heads/main|refs/heads/codex/project-completion-100) ;; *) exit 1;; esac; test -z \"$PR_HEAD_REPOSITORY\";;\n  pull_request) test \"$GITHUB_BASE_REF\" = main; test \"$PR_HEAD_REPOSITORY\" = \"$GITHUB_REPOSITORY\"; case \"$GITHUB_REF\" in refs/pull/*/merge) ;; *) exit 1;; esac;;\n  *) exit 1;;\nesac\ntest \"$GITHUB_REPOSITORY\" = ersingundem/larenor\ntest \"$GITHUB_WORKFLOW_SHA\" = \"$GITHUB_SHA\"\ntest \"$RUNNER_ENVIRONMENT\" = github-hosted\n"
