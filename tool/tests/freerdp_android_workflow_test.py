@@ -26,10 +26,19 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
     def test_actions_are_commit_pinned_and_no_secret_or_production_target_exists(self):
         text = json.dumps(self.workflow)
         self.assertNotIn("secrets.", text)
-        self.assertNotRegex(text, r"192\.168\.|10\.\d+\.|172\.(?:1[6-9]|2\d|3[01])\.")
+        # 10.0.2.2 is Android Emulator's reserved host-loopback alias. It is
+        # the only private address allowed here and never names a real home.
+        self.assertEqual(text.count("10.0.2.2"), 1)
+        self.assertNotRegex(
+            text.replace("10.0.2.2", ""),
+            r"192\.168\.|10\.\d+\.|172\.(?:1[6-9]|2\d|3[01])\.",
+        )
         for step in self.workflow["jobs"]["package"]["steps"]:
             if "uses" in step:
-                self.assertRegex(step["uses"], r"^[a-z-]+/[a-z-]+@[0-9a-f]{40}$")
+                self.assertRegex(
+                    step["uses"],
+                    r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$",
+                )
                 if step["uses"].startswith("actions/checkout@"):
                     self.assertEqual(step["with"]["ref"], "${{ github.sha }}")
                     self.assertIs(step["with"]["persist-credentials"], False)
@@ -77,6 +86,31 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
         self.assertEqual(upload["with"]["if-no-files-found"], "error")
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
+
+    def test_x86_package_runs_real_owned_nla_host_acceptance(self):
+        steps = self.workflow["jobs"]["package"]["steps"]
+        host = next(step for step in steps if step.get("name") ==
+                    "Start an owned NLA FreeRDP shadow host")
+        client = next(step for step in steps if step.get("name") ==
+                      "Exercise the packaged Android client against the NLA host")
+        cleanup = next(step for step in steps if step.get("name") ==
+                       "Stop the owned RDP host")
+        self.assertEqual(host["if"], "matrix.abi == 'x86_64'")
+        for required in (
+            "openssl rand", "::add-mask::", "winpr-hash3", "/sec:nla",
+            "/sam-file:", "freerdp-shadow-cli3", "Xvfb",
+        ):
+            self.assertIn(required, host["run"])
+        self.assertEqual(client["if"], "matrix.abi == 'x86_64'")
+        self.assertRegex(client["uses"],
+                         r"^ReactiveCircus/android-emulator-runner@[0-9a-f]{40}$")
+        script = client["with"]["script"]
+        self.assertIn(":app:connectedDebugAndroidTest", script)
+        self.assertIn("RdpPackagedHostAcceptanceTest", script)
+        self.assertIn("rdpHost=10.0.2.2", script)
+        self.assertIn("rdpPassword=\"$RDP_ACCEPTANCE_PASSWORD\"", script)
+        self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
+        self.assertIn("rm -f \"$RUNNER_TEMP/larenor-rdp.sam\"", cleanup["run"])
 
 
 if __name__ == "__main__":

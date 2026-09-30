@@ -73,6 +73,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -94,6 +95,7 @@ android {
 
     if (hasFreeRdp) {
         sourceSets.getByName("main").java.srcDir("src/freerdp/kotlin")
+        sourceSets.getByName("androidTest").java.srcDir("src/freerdpAndroidTest/kotlin")
     }
 }
 
@@ -119,6 +121,9 @@ dependencies {
         implementation("androidx.room:room-runtime:2.8.5")
         implementation("net.zetetic:sqlcipher-android:4.19.0@aar")
         implementation("androidx.sqlite:sqlite:2.7.0")
+        androidTestImplementation("androidx.test:core:1.7.0")
+        androidTestImplementation("androidx.test:runner:1.7.0")
+        androidTestImplementation("androidx.test.ext:junit:1.3.0")
     }
     implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.webkit:webkit:1.15.0")
