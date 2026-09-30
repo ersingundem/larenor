@@ -1,5 +1,6 @@
 """UID-private, bounded Unix IPC for read-only F30 archive collection."""
 
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -13,11 +14,16 @@ import uuid
 
 from pydantic import ValidationError
 
-from .media_archive_core_models import PrivateMediaArchiveCollection
+from .media_archive_core_models import (
+    MediaArchiveCollectionAuthority,
+    PrivateMediaArchiveCollection,
+)
 from .media_archive_health_models import MediaArchiveObservation
 
 
 MAX_FRAME = 8 * 1024 * 1024
+PROTOCOL_VERSION = 2
+MAX_REPLAY_KEYS = 256
 _ID = re.compile(r'[0-9a-f]{32}\Z')
 
 
@@ -77,7 +83,7 @@ def read_frame(connection, deadline):
             parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
         )
         if (type(value) is not dict or type(value.get('protocol')) is not int
-                or value['protocol'] != 1
+                or value['protocol'] != PROTOCOL_VERSION
                 or type(value.get('requestId')) is not str
                 or _ID.fullmatch(value['requestId']) is None):
             raise MediaArchiveWorkerError('invalid_frame')
@@ -174,17 +180,42 @@ class MediaArchiveWorkerClient:
     def status(self):
         deadline = time.monotonic() + self.timeout
         result = self._exchange({
-            'protocol': 1, 'requestId': uuid.uuid4().hex,
+            'protocol': PROTOCOL_VERSION, 'requestId': uuid.uuid4().hex,
             'operation': 'status',
         }, deadline)
-        expected = {'state', 'readAvailable', 'mutationAvailable'}
+        expected = {
+            'state', 'authorityAvailable', 'readAvailable',
+            'mutationAvailable',
+        }
         if (type(result) is not dict or set(result) != expected
                 or result.get('state') not in {'ready', 'unavailable'}
+                or type(result.get('authorityAvailable')) is not bool
                 or type(result.get('readAvailable')) is not bool
                 or result.get('mutationAvailable') is not False
-                or (result['state'] == 'ready') != result['readAvailable']):
+                or (result['state'] == 'ready') != (
+                    result['authorityAvailable'] and result['readAvailable'])):
             raise MediaArchiveWorkerError('invalid_worker_result')
         return result
+
+    def current(self, installation_id):
+        if (type(installation_id) is not str
+                or _ID.fullmatch(installation_id) is None):
+            raise MediaArchiveWorkerError('invalid_request')
+        deadline = time.monotonic() + self.timeout
+        result = self._exchange({
+            'protocol': PROTOCOL_VERSION,
+            'requestId': uuid.uuid4().hex,
+            'operation': 'read_archive_authority',
+            'installationId': installation_id,
+        }, deadline)
+        try:
+            authority = MediaArchiveCollectionAuthority.model_validate(result)
+        except (ValidationError, ValueError, TypeError, AttributeError,
+                RecursionError, OverflowError):
+            raise MediaArchiveWorkerError('invalid_worker_result') from None
+        if authority.installationId != installation_id:
+            raise MediaArchiveWorkerError('invalid_worker_result')
+        return authority
 
     def read_media_archive(self, private, *, deadline, gate):
         now = time.monotonic()
@@ -200,7 +231,7 @@ class MediaArchiveWorkerClient:
             raise MediaArchiveWorkerError('invalid_request') from None
         _gate(gate)
         result = self._exchange({
-            'protocol': 1, 'requestId': selected.requestId,
+            'protocol': PROTOCOL_VERSION, 'requestId': selected.requestId,
             'operation': 'read_archive_health',
             'private': selected.model_dump(mode='json'),
         }, min(deadline, time.monotonic() + self.timeout))
@@ -233,11 +264,16 @@ class MediaArchiveWorkerServer:
         self._ready = threading.Event()
         self._startup_failed = False
         self._seen = set()
+        self._seen_order = deque()
         self._seen_lock = threading.Lock()
 
     @property
     def read_available(self):
         return callable(getattr(self.collector, 'collect', None))
+
+    @property
+    def authority_available(self):
+        return callable(getattr(self.collector, 'current', None))
 
     def start(self):
         if self._listener is not None or self._thread is not None:
@@ -314,11 +350,37 @@ class MediaArchiveWorkerServer:
             if (request.get('operation') == 'status'
                     and set(request) == {'protocol', 'requestId', 'operation'}):
                 available = self.read_available
+                authority_available = self.authority_available
                 result = {
-                    'state': 'ready' if available else 'unavailable',
+                    'state': (
+                        'ready' if available and authority_available
+                        else 'unavailable'
+                    ),
+                    'authorityAvailable': authority_available,
                     'readAvailable': available,
                     'mutationAvailable': False,
                 }
+            elif (request.get('operation') == 'read_archive_authority'
+                  and set(request) == {
+                      'protocol', 'requestId', 'operation',
+                      'installationId'}):
+                current = getattr(self.collector, 'current', None)
+                if (not callable(current)
+                        or type(request.get('installationId')) is not str
+                        or _ID.fullmatch(request['installationId']) is None):
+                    raise MediaArchiveWorkerError('worker_unavailable')
+                try:
+                    authority = current(request['installationId'])
+                    if type(authority) is not MediaArchiveCollectionAuthority:
+                        raise ValueError()
+                    result = MediaArchiveCollectionAuthority.model_validate(
+                        authority.model_dump(mode='python')).model_dump(
+                            mode='json')
+                except MediaArchiveWorkerError:
+                    raise
+                except Exception:
+                    raise MediaArchiveWorkerError(
+                        'worker_unavailable') from None
             elif (request.get('operation') == 'read_archive_health'
                   and set(request) == {
                       'protocol', 'requestId', 'operation', 'private'}):
@@ -334,9 +396,11 @@ class MediaArchiveWorkerServer:
                 with self._seen_lock:
                     if request_id in self._seen:
                         raise MediaArchiveWorkerError('replay_rejected')
-                    if len(self._seen) >= 256:
-                        raise MediaArchiveWorkerError('worker_unavailable')
+                    if len(self._seen_order) >= MAX_REPLAY_KEYS:
+                        expired = self._seen_order.popleft()
+                        self._seen.remove(expired)
                     self._seen.add(request_id)
+                    self._seen_order.append(request_id)
                 if time.monotonic() >= deadline:
                     raise MediaArchiveWorkerError('deadline_exceeded')
                 try:
@@ -357,9 +421,13 @@ class MediaArchiveWorkerServer:
                         'worker_unavailable') from None
             else:
                 raise MediaArchiveWorkerError('invalid_request')
-            return {'protocol': 1, 'requestId': request_id, 'result': result}
+            return {
+                'protocol': PROTOCOL_VERSION,
+                'requestId': request_id,
+                'result': result,
+            }
         except MediaArchiveWorkerError as error:
-            return {'protocol': 1, 'requestId': request_id,
+            return {'protocol': PROTOCOL_VERSION, 'requestId': request_id,
                     'error': error.code}
 
     def close(self):

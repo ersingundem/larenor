@@ -31,6 +31,10 @@ class Settings:
     keenetic_worker_uid: int = 0
     component_backup_worker_socket: Path | None = None
     component_backup_worker_uid: int = 0
+    media_archive_worker_socket: Path | None = None
+    media_archive_worker_uid: int = 0
+    media_archive_action_worker_socket: Path | None = None
+    media_archive_action_worker_uid: int = 0
 
     def __post_init__(self):
         worker_uids = (
@@ -39,6 +43,8 @@ class Settings:
             self.proxmox_power_worker_uid,
             self.keenetic_worker_uid,
             self.component_backup_worker_uid,
+            self.media_archive_worker_uid,
+            self.media_archive_action_worker_uid,
         )
         if any(
             type(value) is not int or not 0 <= value < 2**31
@@ -68,6 +74,8 @@ class Settings:
             *proxmox_paths,
             *keenetic_paths,
             self.component_backup_worker_socket,
+            self.media_archive_worker_socket,
+            self.media_archive_action_worker_socket,
         )
         for path in paths:
             if path is not None and (
@@ -87,6 +95,17 @@ class Settings:
         if (
             self.component_backup_worker_socket is None
             and self.component_backup_worker_uid != 0
+        ):
+            raise ValueError("invalid_worker_configuration")
+        if (
+            (
+                self.media_archive_worker_socket is None
+                and self.media_archive_worker_uid != 0
+            )
+            or (
+                self.media_archive_action_worker_socket is None
+                and self.media_archive_action_worker_uid != 0
+            )
         ):
             raise ValueError("invalid_worker_configuration")
 
@@ -137,6 +156,23 @@ class Settings:
                 component_backup_worker_uid=int(
                     os.environ.get("LARENOR_COMPONENT_BACKUP_WORKER_UID", "0")
                 ),
+                media_archive_worker_socket=(
+                    Path(os.environ["LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET"])
+                    if os.environ.get("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET")
+                    else None
+                ),
+                media_archive_worker_uid=int(
+                    os.environ.get("LARENOR_MEDIA_ARCHIVE_WORKER_UID", "0")
+                ),
+                media_archive_action_worker_socket=(
+                    Path(os.environ["LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET"])
+                    if os.environ.get(
+                        "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET")
+                    else None
+                ),
+                media_archive_action_worker_uid=int(os.environ.get(
+                    "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID", "0"
+                )),
             )
         except ValueError:
             # int() errors include their input. Environment values must never

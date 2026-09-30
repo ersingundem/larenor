@@ -1,3 +1,4 @@
+import os
 import stat
 
 import pytest
@@ -6,6 +7,12 @@ from fastapi.testclient import TestClient
 from conftest import auth, ready
 from larenor_server.config import Settings
 from larenor_server.errors import StartupError
+from larenor_server.media_archive_actions.worker_ipc import (
+    MediaArchiveActionWorkerClient,
+)
+from larenor_server.plugins.media_archive_worker_ipc import (
+    MediaArchiveWorkerClient,
+)
 from larenor_server.runtime import create_configured_app
 
 
@@ -84,3 +91,58 @@ def test_beta_source_configuration_is_all_or_nothing_and_secret_free(tmp_path, m
         create_configured_app(settings)
     assert value not in str(error.value)
     assert not settings.data_dir.exists()
+
+
+def test_configured_app_wires_opted_in_media_archive_workers(tmp_path):
+    root = tmp_path.resolve()
+    read_socket = root / "media-archive-read.sock"
+    action_socket = root / "media-archive-action.sock"
+    settings = Settings(
+        root / "data",
+        root / "secrets/vault.key",
+        media_archive_worker_socket=read_socket,
+        media_archive_worker_uid=os.getuid(),
+        media_archive_action_worker_socket=action_socket,
+        media_archive_action_worker_uid=os.getuid(),
+    )
+
+    app = create_configured_app(settings)
+
+    health = app.state.core.media_archive_health
+    assert isinstance(health.binding_reader, MediaArchiveWorkerClient)
+    assert health.backend is health.binding_reader
+    assert health.backend.path == read_socket
+    assert health.backend.owner_uid == os.getuid()
+    actions = app.state.core.media_archive_actions.backend
+    assert isinstance(actions, MediaArchiveActionWorkerClient)
+    assert actions.path == action_socket
+    assert actions.owner_uid == actions.peer_uid == os.getuid()
+
+
+def test_media_archive_worker_environment_is_exact_and_fail_closed(
+    tmp_path, monkeypatch,
+):
+    root = tmp_path.resolve()
+    read_socket = root / "media-archive-read.sock"
+    action_socket = root / "media-archive-action.sock"
+    monkeypatch.setenv("LARENOR_DATA_DIR", str(root / "data"))
+    monkeypatch.setenv("LARENOR_KEY_FILE", str(root / "secrets/vault.key"))
+    monkeypatch.setenv("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET", str(read_socket))
+    monkeypatch.setenv("LARENOR_MEDIA_ARCHIVE_WORKER_UID", str(os.getuid()))
+    monkeypatch.setenv(
+        "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET", str(action_socket)
+    )
+    monkeypatch.setenv(
+        "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID", str(os.getuid())
+    )
+
+    settings = Settings.from_environment()
+
+    assert settings.media_archive_worker_socket == read_socket
+    assert settings.media_archive_worker_uid == os.getuid()
+    assert settings.media_archive_action_worker_socket == action_socket
+    assert settings.media_archive_action_worker_uid == os.getuid()
+
+    monkeypatch.delenv("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET")
+    with pytest.raises(StartupError, match="^invalid_worker_configuration$"):
+        Settings.from_environment()

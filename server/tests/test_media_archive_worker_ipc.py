@@ -37,6 +37,14 @@ class Collector:
         self.calls.append(private)
         return self.result
 
+    def current(self, installation_id):
+        return authority().model_copy(update={
+            'installationId': installation_id,
+            'sources': [source.model_copy(update={
+                'installationId': installation_id,
+            }) for source in authority().sources],
+        })
+
     def close(self):
         self.lifecycle.append('close')
 
@@ -71,9 +79,11 @@ def running(path, collector=None):
 def test_uid_private_roundtrip_carries_exact_authority_and_safe_observation(runtime_path):
     with running(runtime_path) as (collector, _server, client):
         assert client.status() == {
-            'state': 'ready', 'readAvailable': True,
+            'state': 'ready', 'authorityAvailable': True,
+            'readAvailable': True,
             'mutationAvailable': False,
         }
+        assert client.current('1' * 32) == authority()
         result = client.read_media_archive(
             private(), deadline=time.monotonic() + .5, gate=lambda: True)
     assert result == ingested()
@@ -105,7 +115,8 @@ def test_default_runtime_is_supervised_but_read_effect_is_unavailable(runtime_pa
             path, owner_uid=os.getuid(),
             peer_uid=lambda _connection: os.getuid(), timeout=.5)
         assert client.status() == {
-            'state': 'unavailable', 'readAvailable': False,
+            'state': 'unavailable', 'authorityAvailable': False,
+            'readAvailable': False,
             'mutationAvailable': False,
         }
         with pytest.raises(MediaArchiveWorkerError, match='worker_unavailable'):
@@ -125,6 +136,40 @@ def test_replay_is_consumed_once_even_when_read_only(runtime_path):
             client.read_media_archive(
                 request, deadline=time.monotonic() + .5, gate=lambda: True)
     assert len(collector.calls) == 1
+
+
+def test_replay_window_evicts_oldest_key_without_permanently_stopping_reads(
+    runtime_path,
+):
+    with running(runtime_path) as (collector, server, _client):
+        for index in range(257):
+            request = private(f'{index:032x}')
+            response = server.answer({
+                'protocol': 2,
+                'requestId': request.requestId,
+                'operation': 'read_archive_health',
+                'private': request.model_dump(mode='json'),
+            }, deadline=time.monotonic() + .5)
+            assert 'result' in response
+
+        first = private(f'{0:032x}')
+        replay = server.answer({
+            'protocol': 2,
+            'requestId': first.requestId,
+            'operation': 'read_archive_health',
+            'private': first.model_dump(mode='json'),
+        }, deadline=time.monotonic() + .5)
+        last = private(f'{256:032x}')
+        retained_replay = server.answer({
+            'protocol': 2,
+            'requestId': last.requestId,
+            'operation': 'read_archive_health',
+            'private': last.model_dump(mode='json'),
+        }, deadline=time.monotonic() + .5)
+
+    assert 'result' in replay
+    assert retained_replay['error'] == 'replay_rejected'
+    assert len(collector.calls) == 258
 
 
 @pytest.mark.parametrize('uid_side', ['client_owner', 'server_peer'])
@@ -190,11 +235,11 @@ def test_cancelled_gate_opens_no_socket_and_has_no_retry(runtime_path, gate):
 def test_invalid_operation_and_secret_fields_are_rejected_without_collector(runtime_path):
     with running(runtime_path) as (collector, server, _client):
         response = server.answer({
-            'protocol': 1, 'requestId': 'f' * 32,
+            'protocol': 2, 'requestId': 'f' * 32,
             'operation': 'delete', 'token': 'private-secret',
         }, deadline=time.monotonic() + .5)
     assert response == {
-        'protocol': 1, 'requestId': 'f' * 32,
+        'protocol': 2, 'requestId': 'f' * 32,
         'error': 'invalid_request',
     }
     assert collector.calls == []

@@ -10,6 +10,8 @@ from .core_backups.component_worker import ComponentSnapshotWorkerClient
 from .core_backups.service import CoreBackupContract
 from .errors import ApiError, StartupError
 from .files import checked_path, private_create, private_directory, private_read
+from .media_archive_actions.worker_ipc import MediaArchiveActionWorkerClient
+from .plugins.media_archive_worker_ipc import MediaArchiveWorkerClient
 from .plugins.component_update_api import build_component_update_router
 from .plugins.component_update_service import ComponentUpdateService
 from .releases import (
@@ -70,7 +72,27 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
         raise StartupError("publisher_credential_must_be_outside_data_directory")
     try:
         # Check source/core before creating the additional publishing credential.
-        app = create_app(settings)
+        media_archive = (
+            None if settings.media_archive_worker_socket is None
+            else MediaArchiveWorkerClient(
+                settings.media_archive_worker_socket,
+                owner_uid=settings.media_archive_worker_uid,
+            )
+        )
+        media_archive_actions = (
+            None if settings.media_archive_action_worker_socket is None
+            else MediaArchiveActionWorkerClient(
+                settings.media_archive_action_worker_socket,
+                owner_uid=settings.media_archive_action_worker_uid,
+                peer_uid=settings.media_archive_action_worker_uid,
+            )
+        )
+        app = create_app(
+            settings,
+            media_archive_binding_reader=media_archive,
+            media_archive_worker=media_archive,
+            media_archive_action_worker=media_archive_actions,
+        )
         if component_backup_boundary is None and settings.component_backup_worker_socket:
             component_backup_boundary = ComponentSnapshotWorkerClient(
                 settings.component_backup_worker_socket,
