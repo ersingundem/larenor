@@ -180,10 +180,14 @@ private abstract class BaseConnection(
         instance = made.instance
         made.uiEventListener = this
         FreeRdpRegistry.attach(instance, this)
+        if (!LibFreeRDP.setConnectionInfo(context, instance, uri)) {
+            close()
+            unavailable()
+        }
     }
 
     protected fun connect() {
-        session?.connect(context) ?: unavailable()
+        if (session == null || instance == 0L || !LibFreeRDP.connect(instance)) unavailable()
     }
 
     protected fun await(seconds: Long): Boolean =
@@ -222,22 +226,7 @@ private abstract class BaseConnection(
     override fun OnRailMonitoredDesktop(windowIds: LongArray?, activeWindowId: Long) = Unit
 
     protected fun baseUri(width: Int, height: Int, clipboard: Boolean): Uri {
-        val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
-        return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
-            .appendQueryParameter("u", username)
-            .appendQueryParameter("sec", "nla")
-            .appendQueryParameter("tls", "seclevel:2")
-            .appendQueryParameter("size", "${width}x$height")
-            .appendQueryParameter("dynamic-resolution", "+")
-            .appendQueryParameter("clipboard", if (clipboard) "+" else "-")
-            .appendQueryParameter("sound", "-")
-            .appendQueryParameter("microphone", "-")
-            .appendQueryParameter("drive", "-")
-            .appendQueryParameter("printer", "-")
-            .appendQueryParameter("smartcard", "-")
-            .appendQueryParameter("usb", "-")
-            .appendQueryParameter("camera", "-")
-            .build()
+        return packagedConnectionUri(host, port, username, width, height, clipboard)
     }
 
     protected fun pinFromPem(fingerprint: String, flags: Long): String? {
@@ -548,3 +537,31 @@ private class FreeRdpOperation(
 }
 
 private fun unavailable(): Nothing = throw RdpNativeFailure("engineUnavailable")
+
+/**
+ * Exact URI surface consumed by FreeRDP's pinned Android URI converter.
+ *
+ * Redirection channels that default to disabled are deliberately omitted.
+ * In the pinned command-line table drive and USB require values, camera is not
+ * an option, and sound/microphone/printer/smartcard are optional-value options
+ * rather than booleans. Encoding them as `key=-` would therefore not mean
+ * "disabled" and can either fail parsing or enable a channel.
+ */
+internal fun packagedConnectionUri(
+    host: String,
+    port: Int,
+    username: String,
+    width: Int,
+    height: Int,
+    clipboard: Boolean,
+): Uri {
+    val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
+    return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
+        .appendQueryParameter("u", username)
+        .appendQueryParameter("sec", "nla")
+        .appendQueryParameter("tls", "seclevel:2")
+        .appendQueryParameter("size", "${width}x$height")
+        .appendQueryParameter("dynamic-resolution", "+")
+        .appendQueryParameter("clipboard", if (clipboard) "+" else "-")
+        .build()
+}

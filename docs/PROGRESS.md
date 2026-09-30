@@ -21,6 +21,10 @@ ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
 Run36783304533 exactf83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7 yeşil tamamlandı. Root canonical receipt source/class/method/1test/0skip/0failure/0error eşitliğini doğruladı: gerçek X509Vnc/SPKI/password, frame/input, 960×720 resize ve authority retirement/no replay geçti. F61 CI bekliyor tablosuna taşındı: 58 seçili özellik ve toplam67 iş geniş son HEAD CI bekliyor. 37/127 ve3/63 tam kabul sayaçları değişmedi; fiziksel Huawei/DeX ayrı. [Kabul kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
 
+### 1 Ekim F62 gerçek URI ayrıştırıcı düzeltmesi
+
+Exactbc65ac5a/run36784045011 original named native testini bir kez/sıfır skip ile çalıştırdı; safe receipt `connectionFailureBeforeCertificate` gösterdi. Pinned FreeRDP URI converter ve cmdline tablosu, devre dışı kanal için kullanılan `key=-` seçeneklerinin geçersiz veya kanal açıcı olabildiğini doğruladı. Bu seçenekler kaldırıldı; `setConnectionInfo` sonucu kontrol edilip yalnız başarılı ayrıştırmadan sonra native `connect` çağrılır. TLS/NLA/SPKI ve pano politikası korunur. Root receipt-verified AAR ile production ve instrumentation Kotlin source setlerini derledi (279 task); owned-host kabulünün yerini almaz. Yeni native koşu değişen kaynakla yapılacak; F62 test bekliyor, 58 seçili/toplam67 CI bekliyor ve kabul sayaçları değişmedi. [Kanıt](testing/f62-freerdp-uri-parser-contract-2026-10-01.md).
+
 ### 1 Ekim F62 gerçek probe hata ayrımı
 
 Exact78b28815/run36779907094 güvenli receipt beklenen class/methodun bir kez ve atlamasız çalıştığını, `inspect` certificate probe aşamasında başarısız olduğunu gösterdi. Ham XML tutulmadığı için aggregate shape bir çıkarım olarak kaldı. Public `engineUnavailable`, certificate return ve TLS/NLA/pinning korunur; dört sabit private probe sonucu ile strict tek-suite/count parser eklendi. Root 61 parser/kuyruk/progress testi ve receipt-verified AAR ile Kotlin derlemesi geçti. Gerçek packaged native kabul açık; F62 test bekliyor, CI bekliyor sayısı ve kabul sayaçları değişmedi. [Kanıt](testing/f62-probe-diagnostics-2026-10-01.md).

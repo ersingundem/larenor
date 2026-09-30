@@ -44,9 +44,11 @@ remain rejected. If a later report uses another structure, the public failure
 contains only the fixed shape `aggregate` or `unsupported` and a bounded child
 suite count. Raw tags, attributes, messages and report content remain private.
 
-The FreeRDP 3.31.1 Android contract uses `SessionState.connect` to apply the
-URI and begin the native connection, and routes certificate verification to
-the session UI listener. Larenor continues to request PEM certificate evidence
+At the diagnostic revision Larenor used the FreeRDP 3.31.1 Android
+`SessionState.connect` path to apply the URI and begin the native connection;
+certificate verification reaches the session UI listener. The subsequent
+[URI parser repair](f62-freerdp-uri-parser-contract-2026-10-01.md) checks
+`setConnectionInfo` before directly starting native `connect`. Larenor continues to request PEM certificate evidence
 before deriving its SPKI SHA-256 pin. See the pinned upstream
 [`SessionState.java`](https://github.com/FreeRDP/FreeRDP/blob/63b948ca5cb94307fd5444ee6e73927a41ccdab4/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/SessionState.java)
 and
@@ -89,3 +91,14 @@ They are not repository inputs.
 No hosted workflow was redispatched for this diagnostic-only slice. A later
 exact hosted run is still required to identify the real probe outcome and to
 prove the packaged NLA/frame/input/resize/clipboard/close path.
+
+## Observed diagnostic result
+
+Exact `bc65ac5ab55f9d3709660c6bc1dc894d80c93454`,
+[run36784045011](https://github.com/ersingundem/larenor/actions/runs/36784045011),
+finished with the expected original method executed once, zero skips/errors,
+and one failure. Its public receipt records
+`connectionFailureBeforeCertificate`; no raw JUnit, native message or secret
+was read or exposed. Both source and test identities were checked by root.
+The production URI/parser repair is documented separately; F62 remains test
+pending until the changed native path passes the real owned-host receipt.

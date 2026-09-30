@@ -163,3 +163,14 @@ F61 exact6b2a7577/run36781108349 source-only frames locate the timeout at resize
 F62 latest diagnostic: exact78b28815/run36779907094 safe receipt now establishes one expected class/method/zero skip failure in inspect certificate probe. The unretained raw XML does not prove aggregate shape. Four fixed private probe outcomes preserve public engineUnavailable and TLS/NLA/pinning; strict one-suite/count identity remains. Root 61 Python checks and receipted-AAR Kotlin compile passed; actual packaged NLA/frame/input/resize/clipboard/close acceptance remains open. See [probe diagnostic evidence](f62-probe-diagnostics-2026-10-01.md).
 
 F61 latest acceptance supersedes the failed historical native checkpoints: [run36783304533](https://github.com/ersingundem/larenor/actions/runs/36783304533) exactf83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7 passed the original named method once with zero skips/failures/errors. Root verified the complete canonical public receipt. Real TigerVNC frame/input/resize/retirement acceptance is closed; F61 awaits broad final-HEAD CI and physical MANUAL evidence remains separate.
+
+F62 latest probe result: exactbc65ac5ab55f9d3709660c6bc1dc894d80c93454/run36784045011
+original method/1test/0skip/1failure safe receipt identifies
+connectionFailureBeforeCertificate. Pinned URI converter/cmdline review found
+invalid disabled-channel arguments; production now omits them and checks
+setConnectionInfo before connect. The original instrumented method adds two
+actual JNI parser assertions for clipboard on/off. Root verified the cached
+AAR receipt and compiled production/instrumentation Kotlin (279 tasks); this
+does not replace the new owned-host native receipt. F62 stays test pending;
+58 selected features/67 total tasks await broad CI and counters are unchanged.
+See [URI parser evidence](f62-freerdp-uri-parser-contract-2026-10-01.md).

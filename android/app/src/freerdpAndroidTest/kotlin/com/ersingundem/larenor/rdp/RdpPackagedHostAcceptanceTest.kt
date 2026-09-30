@@ -5,6 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime
+import com.ersingundem.larenor.rdp.packaged.packagedConnectionUri
+import com.freerdp.freerdpcore.application.GlobalApp
+import com.freerdp.freerdpcore.services.LibFreeRDP
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
@@ -31,6 +34,15 @@ class RdpPackagedHostAcceptanceTest {
         val password = arguments.required("rdpPassword").toCharArray()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val runtime = RdpPackagedRuntime(context)
+
+        assertConnectionInfoParses(
+            context,
+            packagedConnectionUri(host, port, username, 1280, 800, true),
+        )
+        assertConnectionInfoParses(
+            context,
+            packagedConnectionUri(host, port, username, 1280, 800, false),
+        )
 
         assertTrue(RdpFreeRdpPackage.verify(runtime.identity()))
         val capabilities = RdpNativeCapabilities.parse(runtime.capabilities())
@@ -129,4 +141,16 @@ class RdpPackagedHostAcceptanceTest {
     private fun android.os.Bundle.required(key: String): String =
         getString(key)?.takeIf { it.isNotBlank() }
             ?: throw AssertionError("Missing instrumented acceptance argument: $key")
+
+    private fun assertConnectionInfoParses(context: Context, uri: android.net.Uri) {
+        val session = GlobalApp.createSession(uri, context)
+        try {
+            assertTrue(
+                "pinned FreeRDP accepts the packaged connection URI",
+                LibFreeRDP.setConnectionInfo(context, session.instance, uri),
+            )
+        } finally {
+            GlobalApp.freeSession(session.instance)
+        }
+    }
 }
