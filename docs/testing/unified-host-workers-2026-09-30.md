@@ -160,3 +160,7 @@ UID, GID and inode through the descriptor, and normalizes only its mode to
 ## Separate IPC mount correction
 
 Core data and secrets retain UID10001 mode0700. Host workers cannot traverse that private directory. Shared IPC is therefore bound separately from `/var/lib/larenor-server/host-workers/ipc` to `/run/larenor-workers`, with root-owned mode0750 GID10002 parent and owner-specific child directories. The host-worker parent is root-owned0711; private journals remain0700. Core needs narrow write access for its authority socket; it receives no host Docker socket. Linux hosted acceptance starts normal Core against private0700 data and the separate mount; macOS cannot prove cross-UID/systemd behavior.
+
+## Integral Core clock restart correction
+
+Exact `8b0de547afcdd71cd390e41101bee76752dd21cd`, hosted run `36760057118`, passed production bundle installation and reached the actual installed Core IPC proof. The second Core startup failed with `resource_reservation_catalog_invalid`: the prior mesh fixture uses an integral clock, while SQLite REAL columns read its timestamps back as floats. The catalog had hashed JSON `2000` before storing JSON `2000.0` on read. Both default catalog creation and catalog mutation now normalize timestamps to float before signing. Verification remains strict; no stored hash is recomputed or silently repaired. Two normal-Core restart/command-replay regressions and the existing F40 suite passed (12 tests). The next exact hosted Linux gate remains required.

@@ -58,7 +58,7 @@ class ResourceCatalog:
             raise ApiError("invalid_request", 400)
 
     def _ensure_default(self):
-        now = self.clock()
+        now = float(self.clock())
         value = [self.default_id, self.core_id, self.home_id, 1,
                  "Shared home resource", "UTC", 1, True, now, now]
         with self.db.transaction() as connection:
@@ -149,7 +149,7 @@ class ResourceCatalog:
                    "resourceId": resource_id, "expectedResourceRevision": expected_resource_revision,
                    "label": label, "timezone": timezone, "capacity": capacity}
         request_hash = self._digest(b"request", command)
-        now = self.clock()
+        now = float(self.clock())
         with self.db.transaction() as connection:
             state, resources = self._verified(connection)
             replay = connection.execute(

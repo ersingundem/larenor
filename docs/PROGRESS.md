@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül gerçek Core katalog restart hatası
+
+Exact `8b0de547` host run `36760057118` installerı geçti. İkinci gerçek Core startup integral clock timestampının SQLite REAL dönüşümü nedeniyle katalog HMACını reddetti. Default ve mutation zamanları hash öncesinde float olarak normalize edildi; eski hash veya bozuk kayıt yeniden imzalanmaz. İki gerçek restart/replay regresyonu ve F40 toplam 12 testi geçti. Yeni exact Linux gate henüz bekleniyor. [Host kanıtı](testing/unified-host-workers-2026-09-30.md).
+
 ### 30 Eylül F39 gerçek pano yeniden bağlantı kabulü
 
 Kayıp iki HTTP başarı yanıtından sonra aynı immutable command secure cachete saklanır; yeni mutation kapalı kalır. Gerçek Core/Client restart exact receipt uzlaşmasıyla tek encrypted olayı korudu. İki oturum disjoint merge, same-item conflict/no retry, private delete cache purge ve route/logout sınırları geçti. Root 11 Server, 26 Flutter ve iki actual TCP fazını doğruladı; analyze temiz. F39 CI bekliyor tablosuna taşındı: 54 özellik geniş CI bekliyor; kabul sayaçları değişmedi. [F39 kanıtı](testing/f39-normal-core-acceptance-2026-09-30.md).
