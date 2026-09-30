@@ -89,7 +89,6 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
         )
         app = create_app(
             settings,
-            media_archive_binding_reader=media_archive,
             media_archive_worker=media_archive,
             media_archive_action_worker=media_archive_actions,
         )

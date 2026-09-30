@@ -116,6 +116,8 @@ from .plugins.installation_ipc import InstallationWorkerClient
 from .plugins.job_schema import migrate_plugin_jobs
 from .plugins.jobs import JobManagement
 from .plugins.media_archive_core import MediaArchiveHealthManagement
+from .plugins.media_archive_provider import MediaArchiveWorkerProvider
+from .plugins.media_archive_snapshot_schema import migrate_media_archive_snapshots
 from .plugins.media_archive_weekly_trend_schema import (
     migrate_media_archive_weekly_trends,
 )
@@ -565,6 +567,7 @@ class CoreServices:
                 migrate_music_provider_commands(connection)
                 migrate_music_playback(connection)
                 migrate_party_dj(connection)
+                migrate_media_archive_snapshots(connection)
                 migrate_media_archive_weekly_trends(connection)
                 migrate_media_archive_actions(connection)
                 migrate_media_flow(connection)
@@ -1141,13 +1144,28 @@ class CoreServices:
                 self.music_playback,
             )
             self.party_dj.validate_storage()
+            archive_binding_reader = self._media_archive_binding_reader
+            archive_worker = self._media_archive_worker
+            if archive_binding_reader is None and archive_worker is not None:
+                archive_provider = MediaArchiveWorkerProvider(
+                    self.db,
+                    settings,
+                    self.media_installations,
+                    self.media_service_bootstraps,
+                    self.qbittorrent_configurations,
+                    self.arr_configurations,
+                    archive_worker,
+                )
+                archive_provider.validate_storage()
+                archive_binding_reader = archive_provider
+                archive_worker = archive_provider
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db,
                 self.auth,
                 settings,
                 self.media_installations,
-                self._media_archive_binding_reader,
-                self._media_archive_worker,
+                archive_binding_reader,
+                archive_worker,
             )
             self.media_archive_actions = MediaArchiveActionService(
                 self.db,

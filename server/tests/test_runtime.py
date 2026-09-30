@@ -13,6 +13,9 @@ from larenor_server.media_archive_actions.worker_ipc import (
 from larenor_server.plugins.media_archive_worker_ipc import (
     MediaArchiveWorkerClient,
 )
+from larenor_server.plugins.media_archive_provider import (
+    MediaArchiveWorkerProvider,
+)
 from larenor_server.runtime import create_configured_app
 
 
@@ -109,10 +112,11 @@ def test_configured_app_wires_opted_in_media_archive_workers(tmp_path):
     app = create_configured_app(settings)
 
     health = app.state.core.media_archive_health
-    assert isinstance(health.binding_reader, MediaArchiveWorkerClient)
+    assert isinstance(health.binding_reader, MediaArchiveWorkerProvider)
     assert health.backend is health.binding_reader
-    assert health.backend.path == read_socket
-    assert health.backend.owner_uid == os.getuid()
+    assert isinstance(health.backend.backend, MediaArchiveWorkerClient)
+    assert health.backend.backend.path == read_socket
+    assert health.backend.backend.owner_uid == os.getuid()
     actions = app.state.core.media_archive_actions.backend
     assert isinstance(actions, MediaArchiveActionWorkerClient)
     assert actions.path == action_socket

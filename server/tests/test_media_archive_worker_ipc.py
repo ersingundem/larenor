@@ -10,7 +10,8 @@ import pytest
 
 from conftest import auth
 from larenor_server.plugins.media_archive_core_models import (
-    PrivateMediaArchiveCollection,
+    PrivateMediaArchiveSourceCredential,
+    PrivateMediaArchiveWorkerCollection,
 )
 from larenor_server.plugins.media_archive_worker_ipc import (
     MediaArchiveWorkerClient,
@@ -20,6 +21,7 @@ from larenor_server.plugins.media_archive_worker_ipc import (
 )
 from test_media_archive_core_read import BASE, authority, configured
 from test_media_archive_ingestion import ingested
+from test_media_host_preflight import stack
 
 
 class Collector:
@@ -49,9 +51,37 @@ class Collector:
         self.lifecycle.append('close')
 
 
-def private(request_id='a' * 32):
-    return PrivateMediaArchiveCollection(
-        requestId=request_id, authority=authority())
+def private(request_id='a' * 32, current=None):
+    current = current or authority()
+    bindings = {item.serviceId: item for item in current.sources}
+    container_ids = {'sonarr': 'a' * 64, 'radarr': 'b' * 64,
+                     'qbittorrent': 'c' * 64}
+    api_keys = {'jellyfin': 'j' * 32, 'sonarr': 'a' * 32,
+                'radarr': 'b' * 32, 'qbittorrent': 'qbt_' + 'q' * 28}
+    return PrivateMediaArchiveWorkerCollection(
+        requestId=request_id, authority=current, plan=stack(), sources=[
+            PrivateMediaArchiveSourceCredential(
+                serviceId=service,
+                serviceRecordId=bindings[service].serviceRecordId,
+                serviceRevision=bindings[service].serviceRevision,
+                apiKey=api_keys[service],
+                serverId='2' * 32 if service == 'jellyfin' else None,
+                containerId=None if service == 'jellyfin'
+                else container_ids[service],
+            ) for service in ('jellyfin', 'sonarr', 'radarr', 'qbittorrent')
+        ])
+
+
+class PrivateBridge:
+    """Test seam standing in for Core's persisted credential provider."""
+
+    def __init__(self, client):
+        self.client = client
+
+    def read_media_archive(self, selected, *, deadline, gate):
+        request = private(selected.requestId, selected.authority)
+        return self.client.read_media_archive(
+            request, deadline=deadline, gate=gate)
 
 
 @pytest.fixture
@@ -97,7 +127,7 @@ def test_core_read_uses_one_private_ipc_roundtrip(server, runtime_path):
     pair, _installation, _current, _reader, prepared, body = configured(server)
     collector = Collector(prepared.result)
     with running(runtime_path, collector) as (_collector, _runtime, client):
-        server[0].state.core.media_archive_health.backend = client
+        server[0].state.core.media_archive_health.backend = PrivateBridge(client)
         response = server[1].post(BASE, headers=auth(pair), json=body)
     assert response.status_code == 200, response.text
     assert response.json()['archive']['snapshotRevision'] == 4

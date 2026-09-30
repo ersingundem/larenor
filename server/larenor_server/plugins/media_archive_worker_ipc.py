@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from .media_archive_core_models import (
     MediaArchiveCollectionAuthority,
-    PrivateMediaArchiveCollection,
+    PrivateMediaArchiveWorkerCollection,
 )
 from .media_archive_health_models import MediaArchiveObservation
 
@@ -219,13 +219,13 @@ class MediaArchiveWorkerClient:
 
     def read_media_archive(self, private, *, deadline, gate):
         now = time.monotonic()
-        if (type(private) is not PrivateMediaArchiveCollection
+        if (type(private) is not PrivateMediaArchiveWorkerCollection
                 or type(deadline) not in (int, float)
                 or type(deadline) is bool or not now < deadline <= now + 5
                 or not callable(gate)):
             raise MediaArchiveWorkerError('invalid_request')
         try:
-            selected = PrivateMediaArchiveCollection.model_validate(
+            selected = PrivateMediaArchiveWorkerCollection.model_validate(
                 private.model_dump(mode='python'))
         except (ValidationError, ValueError, TypeError, AttributeError):
             raise MediaArchiveWorkerError('invalid_request') from None
@@ -387,8 +387,10 @@ class MediaArchiveWorkerServer:
                 if not self.read_available:
                     raise MediaArchiveWorkerError('worker_unavailable')
                 try:
-                    private = PrivateMediaArchiveCollection.model_validate(
-                        request['private'])
+                    private = PrivateMediaArchiveWorkerCollection.model_validate_json(
+                        json.dumps(
+                            request['private'], separators=(',', ':'),
+                            ensure_ascii=True, allow_nan=False))
                 except (ValidationError, ValueError, TypeError, AttributeError):
                     raise MediaArchiveWorkerError('invalid_request') from None
                 if private.requestId != request_id:

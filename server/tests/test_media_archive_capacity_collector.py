@@ -26,6 +26,7 @@ from larenor_server.plugins.media_archive_worker_ipc import (
     MediaArchiveWorkerServer,
 )
 from test_media_archive_core_read import BASE, configured
+from test_media_archive_worker_ipc import PrivateBridge
 
 
 class Proofs:
@@ -211,7 +212,7 @@ def test_private_worker_ipc_enriches_one_read_and_core_writes_one_snapshot(
             socket_path, owner_uid=os.getuid(),
             peer_uid=lambda _connection: os.getuid(), timeout=1)
         server[0].state.core.media_archive_health.binding_reader = client
-        server[0].state.core.media_archive_health.backend = client
+        server[0].state.core.media_archive_health.backend = PrivateBridge(client)
         assert client.status()['state'] == 'ready'
         response = server[1].post(BASE, headers=auth(pair), json=body)
     finally:

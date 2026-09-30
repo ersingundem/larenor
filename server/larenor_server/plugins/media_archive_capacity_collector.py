@@ -15,7 +15,10 @@ from pydantic import Field, ValidationError, model_validator
 
 from ..models import StrictModel
 from .managed_container import ManagedVolumeProof, VerifiedJellyfinResources
-from .media_archive_core_models import PrivateMediaArchiveCollection
+from .media_archive_core_models import (
+    PrivateMediaArchiveCollection,
+    PrivateMediaArchiveWorkerCollection,
+)
 from .media_archive_health_models import (
     ArchiveSourceBinding,
     MediaArchiveCapacityEvidence,
@@ -79,10 +82,11 @@ def _exact(value, kind):
 
 
 def _private(value):
-    if type(value) is not PrivateMediaArchiveCollection:
+    if type(value) not in (
+            PrivateMediaArchiveCollection, PrivateMediaArchiveWorkerCollection):
         raise MediaArchiveCapacityCollectorError('capacity_binding_unavailable')
     try:
-        return PrivateMediaArchiveCollection.model_validate(
+        return type(value).model_validate(
             value.model_dump(mode='python'))
     except (ValidationError, ValueError, TypeError, AttributeError,
             RecursionError, OverflowError):

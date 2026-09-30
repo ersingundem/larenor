@@ -1,9 +1,10 @@
 """Core API and private-worker contracts for one F30 archive read."""
 
+import re
 import unicodedata
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
@@ -12,6 +13,7 @@ from .media_archive_health_models import (
     MediaArchiveHealth,
     MediaKind,
 )
+from .stack_plan import MediaStackPlan
 
 
 class MediaArchiveReadRequest(StrictModel):
@@ -57,6 +59,66 @@ class PrivateMediaArchiveCollection(StrictModel):
     requestId: ObjectId
     authority: MediaArchiveCollectionAuthority = Field(repr=False)
     operation: Literal['read_archive_health'] = 'read_archive_health'
+
+
+class PrivateMediaArchiveSourceCredential(StrictModel):
+    """One revision-bound credential carried only over private worker IPC."""
+
+    model_config = ConfigDict(extra='forbid', strict=True, frozen=True)
+
+    serviceId: Literal['jellyfin', 'sonarr', 'radarr', 'qbittorrent']
+    serviceRecordId: ObjectId
+    serviceRevision: Revision
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)
+    serverId: ObjectId | None = Field(default=None, repr=False)
+    containerId: str | None = Field(
+        default=None, pattern=r'^[0-9a-f]{64}$', repr=False)
+
+    @model_validator(mode='after')
+    def exact_private_shape(self):
+        if ((self.serviceId == 'jellyfin') != (self.serverId is not None)
+                or (self.serviceId == 'jellyfin') ==
+                (self.containerId is not None)
+                or self.serviceId == 'jellyfin'
+                and re.fullmatch(r'[A-Za-z0-9_-]{32,128}', self.apiKey) is None
+                or self.serviceId in {'sonarr', 'radarr'}
+                and re.fullmatch(r'[0-9a-f]{32}', self.apiKey) is None
+                or self.serviceId == 'qbittorrent'
+                and re.fullmatch(
+                    r'qbt_[A-Za-z0-9_-]{28}', self.apiKey) is None):
+            raise ValueError('invalid_media_archive_private_source')
+        return self
+
+    def __repr__(self):
+        return 'PrivateMediaArchiveSourceCredential(<private>)'
+
+
+class PrivateMediaArchiveWorkerCollection(StrictModel):
+    """Exact Core-owned authority and secrets for one read-only worker call."""
+
+    model_config = ConfigDict(extra='forbid', strict=True, frozen=True)
+
+    requestId: ObjectId
+    authority: MediaArchiveCollectionAuthority = Field(repr=False)
+    plan: MediaStackPlan = Field(repr=False)
+    sources: list[PrivateMediaArchiveSourceCredential] = Field(
+        min_length=4, max_length=4, repr=False)
+    operation: Literal['read_archive_health'] = 'read_archive_health'
+
+    @model_validator(mode='after')
+    def exact_private_sources(self):
+        order = ('jellyfin', 'sonarr', 'radarr', 'qbittorrent')
+        if (tuple(item.serviceId for item in self.sources) != order
+                or {item.serviceId: (item.serviceRecordId, item.serviceRevision)
+                    for item in self.sources} != {
+                        item.serviceId: (item.serviceRecordId,
+                                         item.serviceRevision)
+                        for item in self.authority.sources}):
+            raise ValueError('invalid_media_archive_private_sources')
+        return self
+
+    def __repr__(self):
+        return 'PrivateMediaArchiveWorkerCollection(<private>)'
 
 
 class MediaArchiveReadResponse(StrictModel):
