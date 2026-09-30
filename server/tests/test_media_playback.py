@@ -3,14 +3,16 @@ import sqlite3
 
 import pytest
 from conftest import auth, login
-from larenor_server.errors import StartupError
+from larenor_server.errors import ApiError, StartupError
 from larenor_server.plugins.jellyfin_playback_executor import (
     JellyfinPlaybackExecutionError,
 )
 from larenor_server.plugins.media_playback_models import (
+    MediaPlaybackCommandRequest,
     MediaPlaybackReadback,
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
+    PrepareMediaPlaybackIntentRequest,
 )
 from larenor_server.plugins.media_playback_schema import migrate_media_playback
 from test_admin import activate
@@ -468,6 +470,161 @@ def test_uncertain_post_effect_preserves_attempt_without_worker_replay(server):
         assert connection.execute(
             'SELECT 1 FROM media_playback_intents WHERE id=?',
             (command['intentId'],)).fetchone() is not None
+
+
+def test_internal_effect_gate_denies_before_reservation_and_after_dispatch(
+        server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+
+    def prepared(request_id):
+        return client.post(
+            BASE + '/intents', headers=auth(pair),
+            json=_request(installation, current, request_id=request_id),
+        ).json()['intent']
+
+    first_intent = prepared('7' * 32)
+    first = MediaPlaybackCommandRequest(
+        requestId='8' * 32,
+        intentId=first_intent['requestId'],
+        expectedPlaybackRevision=first_intent['playbackRevision'],
+        targetId='living-room', expectedTargetRevision=3, startSeconds=0,
+    )
+    with pytest.raises(ApiError) as denied:
+        app.state.core.media_playback.command(
+            actor, first, effect_gate=lambda: False)
+    assert getattr(denied.value, 'code', None) == 'media_playback_authority_changed'
+    assert worker.calls == []
+
+    second_intent = prepared('9' * 32)
+    second = MediaPlaybackCommandRequest(
+        requestId='0' * 32,
+        intentId=second_intent['requestId'],
+        expectedPlaybackRevision=second_intent['playbackRevision'],
+        targetId='living-room', expectedTargetRevision=3, startSeconds=0,
+    )
+    current_gate = {'value': True}
+    worker.change = lambda: current_gate.update(value=False)
+    with pytest.raises(ApiError) as uncertain:
+        app.state.core.media_playback.command(
+            actor, second, effect_gate=lambda: current_gate['value'])
+    assert getattr(uncertain.value, 'code', None) == 'media_playback_worker_unavailable'
+    assert len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        stored = connection.execute(
+            'SELECT state,receipt_json FROM media_playback_receipts '
+            'WHERE request_id=?', (second.requestId,),
+        ).fetchone()
+    assert stored['state'] == 'pending' and stored['receipt_json'] is None
+
+
+def test_internal_effect_gate_is_rechecked_inside_final_receipt_transaction(
+        server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    app.state.core.media_playback.backend = worker
+    actor = app.state.core.auth.authenticate(pair['accessToken'])
+    intent = client.post(
+        BASE + '/intents', headers=auth(pair),
+        json=_request(installation, current, request_id='1' * 32),
+    ).json()['intent']
+    command = MediaPlaybackCommandRequest(
+        requestId='2' * 32, intentId=intent['requestId'],
+        expectedPlaybackRevision=intent['playbackRevision'],
+        targetId='living-room', expectedTargetRevision=3, startSeconds=0,
+    )
+    calls = 0
+
+    def final_transaction_cancel():
+        nonlocal calls
+        calls += 1
+        return calls < 4
+
+    with pytest.raises(ApiError) as uncertain:
+        app.state.core.media_playback.command(
+            actor, command, effect_gate=final_transaction_cancel)
+
+    assert uncertain.value.code == 'media_playback_worker_unavailable'
+    assert calls == 4 and len(worker.calls) == 1
+    with app.state.core.db.connection() as connection:
+        stored = connection.execute(
+            'SELECT state,receipt_json FROM media_playback_receipts '
+            'WHERE request_id=?', (command.requestId,),
+        ).fetchone()
+    assert stored['state'] == 'pending' and stored['receipt_json'] is None
+
+
+def test_durable_family_scope_ignores_bearer_rotation_and_fences_revocation(
+        server):
+    app, client, _, _ = server
+    pair, installation, current, _reader, _archive, _body = configured(server)
+    worker = PlaybackWorker()
+    playback = app.state.core.media_playback
+    playback.backend = worker
+    actor_id = pair['user']['id']
+    family_id = pair['sessionFamilyId']
+    with app.state.core.db.connection() as connection:
+        actor_revision = connection.execute(
+            'SELECT revision FROM users WHERE id=?', (actor_id,),
+        ).fetchone()['revision']
+
+    def family_current(connection):
+        row = connection.execute(
+            'SELECT u.revision,u.disabled,u.must_change_password,'
+            'f.revoked_at,f.expires_at FROM users u JOIN session_families f '
+            'ON f.user_id=u.id WHERE u.id=? AND f.id=?',
+            (actor_id, family_id),
+        ).fetchone()
+        if (row is None or row['revision'] != actor_revision
+                or row['disabled'] or row['must_change_password']
+                or row['revoked_at'] is not None
+                or app.state.core.settings.clock() >= row['expires_at']):
+            raise ApiError('invalid_session', 401)
+
+    first_body = PrepareMediaPlaybackIntentRequest.model_validate(
+        _request(installation, current, request_id='3' * 32))
+    first = playback._prepare_scoped(
+        actor_id, family_id, actor_revision, first_body, family_current,
+    )['intent']
+    rotated = client.post(
+        '/api/v1/auth/refresh', json={'refreshToken': pair['refreshToken']})
+    assert rotated.status_code == 200, rotated.text
+    first_command = MediaPlaybackCommandRequest(
+        requestId='4' * 32, intentId=first['requestId'],
+        expectedPlaybackRevision=first['playbackRevision'],
+        targetId='living-room', expectedTargetRevision=3, startSeconds=0,
+    )
+    receipt = playback._command_scoped(
+        actor_id, family_id, actor_revision, first_command, family_current,
+    )['receipt']
+    assert receipt['state'] == 'succeeded' and len(worker.calls) == 1
+
+    second_body = PrepareMediaPlaybackIntentRequest.model_validate(
+        _request(installation, current, request_id='5' * 32))
+    second = playback._prepare_scoped(
+        actor_id, family_id, actor_revision, second_body, family_current,
+    )['intent']
+    with app.state.core.db.transaction() as connection:
+        connection.execute(
+            'UPDATE session_families SET revoked_at=? WHERE id=?',
+            (app.state.core.settings.clock(), family_id),
+        )
+    second_command = MediaPlaybackCommandRequest(
+        requestId='6' * 32, intentId=second['requestId'],
+        expectedPlaybackRevision=second['playbackRevision'],
+        targetId='living-room', expectedTargetRevision=3, startSeconds=0,
+    )
+    with pytest.raises(ApiError) as retired:
+        playback._command_scoped(
+            actor_id, family_id, actor_revision, second_command,
+            family_current,
+        )
+    assert retired.value.code == 'invalid_session'
+    assert len(worker.calls) == 1
 
 
 def test_intent_capacity_rejects_257th_prepare_without_growing_storage(server):

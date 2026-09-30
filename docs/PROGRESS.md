@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 55 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 64 iş CI bekliyor tablosunda. F22 kalıcı kanal devamı, F28 gönderim sırasında oturum devralma ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 56 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 65 iş CI bekliyor tablosunda. F28 gönderim sırasında oturum devralma ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F22 kalıcı kanal devamı kabulü
+
+Core artık occurrence başına kalıcı intent/command ve current family/user revision scope ile bearer süresinden bağımsız devam eder. Root gerçek Flutter→normal Core→owned Jellyfin iki yaşamını tekrar geçti; >900sn/refresh rotation, logout, exact v1 restart ve son receipt transaction iptali dahil 35 F22/ortak 46 Server testi geçti, scoped analyze temiz. IPC sonrası belirsiz etki tekrar gönderilmez. F22 CI bekliyor tablosuna taşındı: 56 seçili özellik, toplam 65 iş; kabul sayaçları değişmedi. Fiziksel receiver MANUAL açık. [Kabul kanıtı](testing/f22-personal-channels-normal-core-2026-09-30.md).
 
 ### 30 Eylül VNC ilk gerçek frame fixture düzeltmesi
 

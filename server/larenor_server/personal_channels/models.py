@@ -1,5 +1,6 @@
 """Strict versioned contracts for personal television channels."""
 
+import re
 from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -7,6 +8,9 @@ from pydantic import Field, field_validator, model_validator
 from ..admin.models import ObjectId, Revision
 from ..models import StrictModel
 from ..plugins.media_playback_models import PrivateMediaPlaybackAuthority
+
+
+_TARGET = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}\Z")
 
 
 def _exact_version(value):
@@ -91,6 +95,27 @@ class ResolveProgrammeRequest(Versioned):
     mode: Literal["live", "restart"]
 
 
+class StartChannelExecutionRequest(Versioned):
+    requestId: ObjectId
+    expectedChannelRevision: Revision
+    expectedProgrammeRevision: Revision
+    programmeId: ObjectId
+    occurrenceStartsAt: int = Field(ge=1, le=253402300799)
+    targetId: str = Field(min_length=1, max_length=128)
+
+    @field_validator("targetId")
+    @classmethod
+    def target_id(cls, value):
+        if _TARGET.fullmatch(value) is None:
+            raise ValueError("invalid_personal_channel_target")
+        return value
+
+
+class StopChannelExecutionRequest(Versioned):
+    requestId: ObjectId
+    expectedExecutionRevision: Revision
+
+
 class ChannelAuthority(Versioned):
     coreId: ObjectId
     homeId: ObjectId
@@ -168,3 +193,47 @@ class PlaybackSource(Versioned):
 
 class PlaybackSourceResponse(StrictModel):
     playback: PlaybackSource
+
+
+class ChannelExecution(Versioned):
+    channelId: ObjectId
+    channelRevision: Revision
+    revision: Revision
+    targetId: str = Field(min_length=1, max_length=128)
+    state: Literal["active", "dispatching", "needs_attention", "cancelled"]
+    code: Literal[
+        "scheduled", "authenticated_readback", "effect_unknown", "gap",
+        "source_changed", "authority_changed", "source_unavailable",
+        "target_unavailable", "cancelled",
+    ]
+    programmeId: ObjectId | None
+    programmeRevision: Revision | None
+    occurrenceStartsAt: int | None = Field(default=None, ge=1, le=253402300799)
+    occurrenceEndsAt: int | None = Field(default=None, ge=2, le=253402300799)
+
+    @field_validator("targetId")
+    @classmethod
+    def target_id(cls, value):
+        if _TARGET.fullmatch(value) is None:
+            raise ValueError("invalid_personal_channel_target")
+        return value
+
+    @model_validator(mode="after")
+    def coherent_execution(self):
+        occurrence = (
+            self.programmeId,
+            self.programmeRevision,
+            self.occurrenceStartsAt,
+            self.occurrenceEndsAt,
+        )
+        if (any(value is None for value in occurrence)
+                != all(value is None for value in occurrence)
+                or (self.occurrenceStartsAt is not None
+                    and self.occurrenceEndsAt is not None
+                    and self.occurrenceStartsAt >= self.occurrenceEndsAt)):
+            raise ValueError("invalid_personal_channel_execution")
+        return self
+
+
+class ChannelExecutionResponse(StrictModel):
+    execution: ChannelExecution

@@ -1,5 +1,6 @@
 """Revision-bound managed Jellyfin playback with one-use command ownership."""
 
+from dataclasses import dataclass
 import hmac
 import json
 import time
@@ -27,6 +28,8 @@ from .media_playback_models import (
     PrivateMediaPlaybackAction,
     PrivateMediaPlaybackAuthority,
 )
+from .media_archive_core_models import PrivateMediaArchiveCollection
+from .media_installations import MAX_INSTALLATIONS
 
 _MAX_RECORDS = 256
 _RECEIPT_QUERY = '''SELECT
@@ -47,6 +50,18 @@ _RECEIPT_QUERY = '''SELECT
     i.consumed_by AS intent_consumed_by
 FROM media_playback_receipts r
 LEFT JOIN media_playback_intents i ON i.id=r.intent_id'''
+
+
+@dataclass(frozen=True)
+class _DurablePlaybackScope:
+    actor_id: str
+    family_id: str
+    actor_revision: int
+    assert_current: object
+
+    @property
+    def id(self):
+        return self.actor_id
 
 
 class MediaPlaybackWorkerProvider:
@@ -219,6 +234,8 @@ class MediaPlaybackManagement:
             raise ApiError('media_playback_storage_unavailable', 503)
 
     def _catalog(self, actor, body):
+        if type(actor) is _DurablePlaybackScope:
+            return self._scoped_catalog(actor, body)
         authority, observation = self.archive._collect(
             actor, body, member=True)
         jellyfin = next(
@@ -240,7 +257,107 @@ class MediaPlaybackManagement:
             mediaKey=item.mediaKey,
         )
 
+    @staticmethod
+    def _scope(actor_id, family_id, actor_revision, assert_current):
+        if (type(actor_id) is not str or len(actor_id) != 32
+                or type(family_id) is not str or len(family_id) != 32
+                or type(actor_revision) is not int or actor_revision < 1
+                or not callable(assert_current)):
+            raise ApiError('invalid_request')
+        return _DurablePlaybackScope(
+            actor_id, family_id, actor_revision, assert_current)
+
+    def _assert_scoped_resource(self, connection, scope, authority):
+        scope.assert_current(connection)
+        rows = connection.execute(
+            'SELECT * FROM media_installations ORDER BY sequence DESC LIMIT ?',
+            (MAX_INSTALLATIONS + 1,),
+        ).fetchall()
+        if len(rows) > MAX_INSTALLATIONS:
+            raise ApiError('media_playback_authority_changed', 409)
+        candidates = []
+        for row in rows:
+            payload = self.archive.installations._decode(row)
+            public = self.archive.installations._public(row, payload)
+            if (public['serviceId'] == 'jellyfin'
+                    and row['state'] == 'container_started'
+                    and row['phase'] == 'complete'
+                    and not row['cancel_requested']
+                    and row['error_code'] is None):
+                candidates.append(row)
+        if (len(candidates) != 1
+                or candidates[0]['id'] != authority.installationId
+                or candidates[0]['revision']
+                != authority.installationRevision):
+            raise ApiError('media_playback_authority_changed', 409)
+
+    def _scoped_gate(self, scope, authority):
+        try:
+            with self.db.connection() as connection:
+                self._assert_scoped_resource(connection, scope, authority)
+
+            class Body:
+                installationId = authority.installationId
+                expectedInstallationRevision = authority.installationRevision
+                expectedSnapshotRevision = authority.snapshotRevision
+
+            current = self.archive._authority(Body(), int(self.settings.clock()))
+            jellyfin = next(
+                item for item in current.sources if item.serviceId == 'jellyfin')
+            return jellyfin.serviceRevision == authority.jellyfinServiceRevision
+        except Exception:  # durable authority callbacks fail closed
+            return False
+
+    def _scoped_catalog(self, scope, body):
+        if self.archive.binding_reader is None or self.archive.backend is None:
+            raise ApiError('media_archive_worker_unavailable', 503)
+        expected = PrivateMediaPlaybackAuthority(
+            installationId=body.installationId,
+            installationRevision=body.expectedInstallationRevision,
+            snapshotRevision=body.expectedSnapshotRevision,
+            jellyfinServiceRevision=body.expectedJellyfinServiceRevision,
+            itemId=body.itemId, mediaKey=body.mediaKey,
+        )
+        with self.db.connection() as connection:
+            self._assert_scoped_resource(connection, scope, expected)
+        current = self.archive._authority(body, int(self.settings.clock()))
+        jellyfin = next(
+            item for item in current.sources if item.serviceId == 'jellyfin')
+        if jellyfin.serviceRevision != expected.jellyfinServiceRevision:
+            raise ApiError('media_playback_authority_changed', 409)
+        deadline = time.monotonic() + 5
+        gate = lambda: (
+            time.monotonic() < deadline
+            and self._scoped_gate(scope, expected))
+        try:
+            observed = self.archive.backend.read_media_archive(
+                PrivateMediaArchiveCollection(
+                    requestId=body.requestId, authority=current),
+                deadline=deadline, gate=gate)
+            if gate() is not True:
+                raise ValueError()
+            current_after = self.archive._authority(
+                body, int(self.settings.clock()))
+            if current_after != current:
+                raise ValueError()
+            observation = self.archive._observation(observed)
+            self.archive._match(current_after, observation)
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError('media_archive_worker_unavailable', 503) from None
+        item = next((item for item in observation.jellyfin.items
+                     if item.itemId == body.itemId
+                     and item.mediaKey == body.mediaKey
+                     and item.integrity == 'playable'), None)
+        if item is None:
+            raise ApiError('media_playback_item_changed', 409)
+        return expected
+
     def _gate(self, actor, authority, actor_revision=None):
+        if type(actor) is _DurablePlaybackScope:
+            return (actor_revision in (None, actor.actor_revision)
+                    and self._scoped_gate(actor, authority))
         try:
             with self.db.connection() as connection:
                 self.auth.assert_current(connection, actor)
@@ -284,6 +401,9 @@ class MediaPlaybackManagement:
             raise ApiError('media_playback_worker_unavailable', 503) from None
 
     def _current_actor_revision(self, connection, actor):
+        if type(actor) is _DurablePlaybackScope:
+            actor.assert_current(connection)
+            return actor.actor_revision
         self.auth.assert_current(connection, actor)
         row = connection.execute(
             'SELECT revision FROM users WHERE id=?',
@@ -385,6 +505,13 @@ class MediaPlaybackManagement:
             raise ApiError('media_playback_storage_unavailable', 503) from None
         return {'intent': intent.model_dump()}
 
+    def _prepare_scoped(self, actor_id, family_id, actor_revision, body,
+                        assert_current):
+        return self.prepare(
+            self._scope(actor_id, family_id, actor_revision, assert_current),
+            body,
+        )
+
     @staticmethod
     def _request_json(body):
         return json.dumps(body.model_dump(mode='json'), separators=(',', ':'),
@@ -485,9 +612,17 @@ class MediaPlaybackManagement:
         except (ValidationError, ValueError, TypeError, json.JSONDecodeError):
             raise ApiError('media_playback_storage_unavailable', 503) from None
 
-    def command(self, actor, body):
-        if type(body) is not MediaPlaybackCommandRequest:
+    def command(self, actor, body, *, effect_gate=None):
+        if (type(body) is not MediaPlaybackCommandRequest
+                or effect_gate is not None and not callable(effect_gate)):
             raise ApiError('invalid_request')
+        effect_current = lambda: (
+            effect_gate is None or effect_gate() is True)
+        try:
+            if effect_current() is not True:
+                raise ValueError()
+        except Exception:
+            raise ApiError('media_playback_authority_changed', 409) from None
         encoded = self._request_json(body)
         with self.db.connection() as connection:
             actor_revision = self._current_actor_revision(connection, actor)
@@ -593,7 +728,8 @@ class MediaPlaybackManagement:
         deadline = time.monotonic() + 5
         gate = lambda: (
             time.monotonic() < deadline
-            and self._gate(actor, authority, actor_revision))
+            and self._gate(actor, authority, actor_revision)
+            and effect_current())
         try:
             result = self.backend.execute_media_playback(
                 action, deadline=deadline, gate=gate)
@@ -612,20 +748,20 @@ class MediaPlaybackManagement:
             if error.uncertain_effect:
                 if not self._gate(actor, authority, actor_revision):
                     with self.db.connection() as connection:
-                        self.auth.assert_current(connection, actor)
+                        self._current_actor_revision(connection, actor)
                 raise ApiError(
                     'media_playback_worker_unavailable', 503) from None
             self._retire_no_effect(actor, body, encoded)
             if error.code == 'jellyfin_playback_authority_changed':
                 if not self._gate(actor, authority, actor_revision):
                     with self.db.connection() as connection:
-                        self.auth.assert_current(connection, actor)
+                        self._current_actor_revision(connection, actor)
                 raise ApiError('media_playback_authority_changed', 409) from None
             raise ApiError('media_playback_worker_unavailable', 503) from None
         except Exception:  # noqa: BLE001 - dispatched effect is now uncertain
             if not self._gate(actor, authority, actor_revision):
                 with self.db.connection() as connection:
-                    self.auth.assert_current(connection, actor)
+                    self._current_actor_revision(connection, actor)
             raise ApiError('media_playback_worker_unavailable', 503) from None
         receipt = MediaPlaybackReceipt(
             requestId=body.requestId, intentId=body.intentId,
@@ -633,6 +769,13 @@ class MediaPlaybackManagement:
             targetId=body.targetId, playbackRevision=result.playbackRevision,
             state='succeeded', code='authenticated_readback')
         with self.db.transaction() as connection:
+            # Keep a caller-owned authority fence inside the final transaction:
+            # cancellation after worker readback must retain the pending attempt.
+            try:
+                if effect_current() is not True:
+                    raise ValueError()
+            except Exception:
+                raise ApiError('media_playback_worker_unavailable', 503) from None
             if (self._current_actor_revision(connection, actor)
                     != actor_revision):
                 raise ApiError('media_playback_worker_unavailable', 503)
@@ -664,3 +807,10 @@ class MediaPlaybackManagement:
             if changed != 1:
                 raise ApiError('media_playback_worker_unavailable', 503)
         return {'receipt': receipt.model_dump()}
+
+    def _command_scoped(self, actor_id, family_id, actor_revision, body,
+                        assert_current, *, effect_gate=None):
+        return self.command(
+            self._scope(actor_id, family_id, actor_revision, assert_current),
+            body, effect_gate=effect_gate,
+        )

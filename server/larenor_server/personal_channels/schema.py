@@ -9,9 +9,11 @@ def migrate_personal_channels(connection):
     ).fetchone()
     names = {row["name"] for row in connection.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND "
-        "name IN ('personal_channels','personal_channel_programmes')"
+        "name IN ('personal_channels','personal_channel_programmes',"
+        "'personal_channel_executions')"
     ).fetchall()}
-    expected = {"personal_channels", "personal_channel_programmes"}
+    original = {"personal_channels", "personal_channel_programmes"}
+    expected = {*original, "personal_channel_executions"}
     if marker is None:
         if names:
             raise StartupError("personal_channel_schema_unsupported")
@@ -53,8 +55,55 @@ def migrate_personal_channels(connection):
             "CREATE INDEX personal_channels_owner ON "
             "personal_channels(owner_id,state,updated_at)"
         )
+        _create_executions(connection)
         connection.execute(
-            "INSERT INTO metadata(key,value) VALUES('personal_channels_schema','1')"
+            "INSERT INTO metadata(key,value) VALUES('personal_channels_schema','2')"
         )
-    elif marker["value"] != "1" or names != expected:
+    elif marker["value"] == "1" and names == original:
+        _create_executions(connection)
+        connection.execute(
+            "UPDATE metadata SET value='2' WHERE key='personal_channels_schema'"
+        )
+    elif marker["value"] != "2" or names != expected:
         raise StartupError("personal_channel_schema_unsupported")
+
+
+def _create_executions(connection):
+    connection.execute("""CREATE TABLE personal_channel_executions (
+        channel_id TEXT PRIMARY KEY NOT NULL CHECK(length(channel_id)=32),
+        owner_id TEXT NOT NULL CHECK(length(owner_id)=32),
+        family_id TEXT NOT NULL CHECK(length(family_id)=32),
+        actor_revision INTEGER NOT NULL CHECK(actor_revision>0),
+        channel_revision INTEGER NOT NULL CHECK(channel_revision>0),
+        revision INTEGER NOT NULL CHECK(revision>0),
+        target_id TEXT NOT NULL CHECK(length(target_id) BETWEEN 1 AND 128),
+        state TEXT NOT NULL CHECK(state IN
+            ('active','dispatching','needs_attention','cancelled')),
+        code TEXT NOT NULL CHECK(code IN
+            ('scheduled','authenticated_readback','effect_unknown','gap',
+             'source_changed','authority_changed','source_unavailable',
+             'target_unavailable','cancelled')),
+        programme_id TEXT CHECK(programme_id IS NULL OR length(programme_id)=32),
+        programme_revision INTEGER CHECK(
+            programme_revision IS NULL OR programme_revision>0),
+        occurrence_starts_at INTEGER,
+        occurrence_ends_at INTEGER,
+        intent_id TEXT CHECK(intent_id IS NULL OR length(intent_id)=32),
+        command_id TEXT CHECK(command_id IS NULL OR length(command_id)=32),
+        last_request_id TEXT NOT NULL CHECK(length(last_request_id)=32),
+        last_request_hash TEXT NOT NULL CHECK(length(last_request_hash)=64),
+        updated_at INTEGER NOT NULL,
+        envelope_tag TEXT NOT NULL CHECK(length(envelope_tag)=64),
+        FOREIGN KEY(channel_id) REFERENCES personal_channels(id) ON DELETE CASCADE,
+        FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE,
+        CHECK((programme_id IS NULL)=(programme_revision IS NULL)),
+        CHECK((programme_id IS NULL)=(occurrence_starts_at IS NULL)),
+        CHECK((programme_id IS NULL)=(occurrence_ends_at IS NULL)),
+        CHECK(occurrence_starts_at IS NULL OR
+              occurrence_starts_at<occurrence_ends_at),
+        CHECK((intent_id IS NULL)=(command_id IS NULL))
+    )""")
+    connection.execute(
+        "CREATE INDEX personal_channel_executions_state ON "
+        "personal_channel_executions(state,updated_at,channel_id)"
+    )

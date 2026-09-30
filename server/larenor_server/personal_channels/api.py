@@ -10,12 +10,15 @@ from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import (
     ChannelListResponse,
+    ChannelExecutionResponse,
     ChannelSnapshotResponse,
     CreateChannelRequest,
     ExpectedChannelRequest,
     PlaybackSourceResponse,
     RescheduleProgrammeRequest,
     ResolveProgrammeRequest,
+    StartChannelExecutionRequest,
+    StopChannelExecutionRequest,
 )
 
 Core = Annotated[object, Depends(get_core)]
@@ -84,3 +87,38 @@ def resolve_playback(
     actor: Ready,
 ):
     return core.personal_channels.resolve(actor, channel_id, body)
+
+
+@router.post(
+    "/{channel_id}/continuous", response_model=ChannelExecutionResponse,
+)
+def start_continuous_playback(
+    channel_id: Identity,
+    body: StartChannelExecutionRequest,
+    core: Core,
+    actor: Ready,
+):
+    return core.personal_channels.start_execution(actor, channel_id, body)
+
+
+@router.get(
+    "/{channel_id}/continuous", response_model=ChannelExecutionResponse,
+)
+def read_continuous_playback(
+    channel_id: Identity,
+    core: Core,
+    actor: Ready,
+):
+    return core.personal_channels.read_execution(actor, channel_id)
+
+
+@router.post(
+    "/{channel_id}/continuous/cancel", response_model=ChannelExecutionResponse,
+)
+def stop_continuous_playback(
+    channel_id: Identity,
+    body: StopChannelExecutionRequest,
+    core: Core,
+    actor: Ready,
+):
+    return core.personal_channels.stop_execution(actor, channel_id, body)

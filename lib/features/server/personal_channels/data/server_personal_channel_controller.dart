@@ -25,6 +25,7 @@ final class ServerPersonalChannelController extends ChangeNotifier {
   List<ServerPersonalChannel> channels = const [];
   ServerPersonalChannel? selected;
   ServerPersonalPlaybackSource? playback;
+  ServerPersonalChannelExecution? execution;
 
   bool get _authorized =>
       account.isCurrent(_accountGeneration) &&
@@ -48,6 +49,7 @@ final class ServerPersonalChannelController extends ChangeNotifier {
     channels = const [];
     selected = null;
     playback = null;
+    execution = null;
     notifyListeners();
   }
 
@@ -93,6 +95,12 @@ final class ServerPersonalChannelController extends ChangeNotifier {
       current: valid,
     );
     playback = null;
+    try {
+      execution = await client.readContinuous(channelId, current: valid);
+    } on LarenorServerException catch (error) {
+      if (error.code != 'not_found') rethrow;
+      execution = null;
+    }
     _upsertSelected();
   });
 
@@ -110,6 +118,7 @@ final class ServerPersonalChannelController extends ChangeNotifier {
             current: valid,
           );
           playback = null;
+          execution = null;
           _upsertSelected();
         });
 
@@ -134,11 +143,31 @@ final class ServerPersonalChannelController extends ChangeNotifier {
           );
         });
 
+  Future<void> startContinuous({
+    required ServerPersonalPlaybackSource source,
+    required String targetId,
+    required bool Function() current,
+  }) => _run(current, (client, valid) async {
+    execution = await client.startContinuous(
+      source: source,
+      targetId: targetId,
+      current: valid,
+    );
+  });
+
+  Future<void> stopContinuous({required bool Function() current}) =>
+      execution == null
+      ? Future.value()
+      : _run(current, (client, valid) async {
+          execution = await client.stopContinuous(execution!, current: valid);
+        });
+
   Future<void> cancel({required bool Function() current}) => selected == null
       ? Future.value()
       : _run(current, (client, valid) async {
           selected = await client.cancel(selected!, current: valid);
           playback = null;
+          execution = null;
           channels = channels
               .where((channel) => channel.id != selected!.id)
               .toList(growable: false);

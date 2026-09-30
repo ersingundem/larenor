@@ -178,6 +178,86 @@ final class ServerPersonalChannelApi {
     );
   }
 
+  Future<ServerPersonalChannelExecution> startContinuous({
+    required ServerPersonalPlaybackSource source,
+    required String targetId,
+    bool Function()? current,
+  }) async {
+    _requireCurrent(current);
+    final response = _object(
+      await api.request(
+        'POST',
+        '/media/personal-channels/${source.channelId}/continuous',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': _id(),
+          'expectedChannelRevision': source.channelRevision,
+          'expectedProgrammeRevision': source.programmeRevision,
+          'programmeId': source.programmeId,
+          'occurrenceStartsAt':
+              source.occurrenceStartsAt.millisecondsSinceEpoch ~/ 1000,
+          'targetId': _target(targetId),
+        },
+      ),
+      {'execution'},
+    );
+    _requireCurrent(current);
+    return ServerPersonalChannelExecution.fromJson(
+      response['execution'],
+      expectedChannelId: source.channelId,
+      expectedSource: source,
+      expectedTargetId: targetId,
+    );
+  }
+
+  Future<ServerPersonalChannelExecution> readContinuous(
+    String channelId, {
+    bool Function()? current,
+  }) async {
+    final id = _identity(channelId);
+    _requireCurrent(current);
+    final response = _object(
+      await api.request(
+        'GET',
+        '/media/personal-channels/$id/continuous',
+        token: session.accessToken,
+      ),
+      {'execution'},
+    );
+    _requireCurrent(current);
+    return ServerPersonalChannelExecution.fromJson(
+      response['execution'],
+      expectedChannelId: id,
+    );
+  }
+
+  Future<ServerPersonalChannelExecution> stopContinuous(
+    ServerPersonalChannelExecution execution, {
+    bool Function()? current,
+  }) async {
+    _requireCurrent(current);
+    final response = _object(
+      await api.request(
+        'POST',
+        '/media/personal-channels/${execution.channelId}/continuous/cancel',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': _id(),
+          'expectedExecutionRevision': execution.revision,
+        },
+      ),
+      {'execution'},
+    );
+    _requireCurrent(current);
+    return ServerPersonalChannelExecution.fromJson(
+      response['execution'],
+      expectedChannelId: execution.channelId,
+      expectedTargetId: execution.targetId,
+    );
+  }
+
   Future<ServerPersonalChannel> _channel(
     String method,
     String path, {
@@ -203,6 +283,13 @@ final class ServerPersonalChannelApi {
 
   static String _identity(String value) {
     if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(value)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    return value;
+  }
+
+  static String _target(String value) {
+    if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$').hasMatch(value)) {
       throw const LarenorServerException('invalid_request');
     }
     return value;

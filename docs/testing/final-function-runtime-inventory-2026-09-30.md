@@ -134,7 +134,7 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
 
 ## Kalan somut yazılım ve kanıt boşlukları
 
-1. **F22 — yeniden çalışılıyor:** `personal_channels/service.py` yalnız programme resolve, Client route tek playback isteği yapıyor. Otomatik sonraki programme yürütücüsü ve gerçek Client→normal Core→provider kesintisiz kanal kabulü eksik. Mevcut worker/package kanıtı bu davranışı kanıtlamaz.
+1. **F22 — CI bekliyor:** kalıcı occurrence dispatcher, bearer bağımsız current family/user revision authority ve final receipt cancellation gate bağlandı. Root gerçek Client/Core/Jellyfin iki yaşamı, F22 35/ortak F22-F28 46 Server ve scoped analyze geçti. Handoff sonrası belirsiz etki replay edilmez; fiziksel receiver MANUAL ayrı.
 2. **F28 — yeniden çalışılıyor:** `longform_sessions/service.py` `sleepTimerEndsAt` değerini doğrular ve saklar; sürede yetkili pause/stop, restart ve arka plan kapanışı yok. Fiziksel receiver kontrolü bu eksik yazılım yerine sayılamaz.
 3. **F47 — CI bekliyor:** recorded socTemp history ve current reserve karşılaştırması normal Core API/Client UIye bağlandı. Root 18 Server, F47/F28 ortak 37 Flutter, scoped analyze ve gerçek Client/Core/evcc/HA iki yaşamını geçti. Tarihsel policy/capacity/manual preference ve sürekli reserve uyumu bilinmiyor olarak korunur; fiziksel inverter MANUAL ayrı.
 4. **F60 — yeniden çalışılıyor:** Sunshine Core host API var, Client kayıt/eşleme UI yok; `MoonlightAppGameStreamEngine.kt` handoffOnly/zero-intent/unsupported durumda. Native playback/input hazır sayılmaz.

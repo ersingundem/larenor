@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 0 | 2 | 8 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 0 | 1 | 9 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
@@ -29,7 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F22 | Kendi televizyon kanalların | Yeniden çalışılıyor | — |
 | F28 | Sesli kitap ve podcast merkezi | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
@@ -145,6 +144,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F26 | Oynatma kalitesi danışmanı | CI bekliyor | — |
 | F25 | Jenerik ve kapanış atlama | CI bekliyor | — |
 | F21 | Birlikte senkron film izleme | CI bekliyor | — |
+| F22 | Kendi televizyon kanalların | CI bekliyor | — |
 | F23 | Canlı TV ve kayıt merkezi | CI bekliyor | — |
 | F27 | Seyahat için çevrimdışı medya | CI bekliyor | — |
 | F29 | Parti DJ'i ve ortak şarkı oylaması | CI bekliyor | — |

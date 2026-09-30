@@ -4069,7 +4069,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4093,7 +4093,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: Core programme resolve ve tek playback isteği var; kesintisiz kişisel kanal için otomatik sonraki programme/schedule yürütücüsü ve gerçek Client→normal Core kabulü eksik. Linux worker bileşimi geçti fakat bu yazılım davranışı MANUAL alıcı kapısı diye kapatılamaz."
+      "reason": "Kalıcı occurrence dispatcher ve gerçek Flutter Client→normal Core→owned Jellyfin iki yaşamı root tarafından tekrar geçti; tek occurrence reservation, programme boundary devamı, restart/cancel ve toplam iki playback POST doğrulandı. Bearer saklamadan durable family/user revision scope kullanılır; >900sn access expiry, same-family token rotation, logout/revoke, exact v1 migration ve final receipt transaction cancellation dahil F22 35 test/ortak F22-F28 46 test geçti; scoped analyze temiz. IPC öncesi iptal sıfır I/O; handoff sonrası pending/effect_unknown tekrar gönderilmez. Geniş exact HEAD CI bekliyor; fiziksel receiver MANUAL ayrı. Kanıt: docs/testing/f22-personal-channels-normal-core-2026-09-30.md."
     },
     {
       "id": "F23",

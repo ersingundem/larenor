@@ -265,6 +265,10 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         live_tv_task = asyncio.create_task(dispatch(
             application.state.core.live_tv, "live_tv_quota_dispatch_unavailable"
         ))
+        personal_channel_task = asyncio.create_task(dispatch(
+            application.state.core.personal_channels,
+            "personal_channel_dispatch_unavailable",
+        ))
         ai_resource_task = asyncio.create_task(dispatch(
             application.state.core.ai_resources,
             "ai_resource_dispatch_unavailable",
@@ -283,6 +287,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         application.state.immutable_backup_dispatcher = immutable_backup_task
         application.state.power_recovery_dispatcher = power_recovery_task
         application.state.live_tv_dispatcher = live_tv_task
+        application.state.personal_channel_dispatcher = personal_channel_task
         application.state.ai_resource_dispatcher = ai_resource_task
         application.state.plugin_job_dispatcher = task
         try:
@@ -321,6 +326,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
             await immutable_backup_task
             await power_recovery_task
             await live_tv_task
+            await personal_channel_task
             await ai_resource_task
 
     app = FastAPI(title="Larenor Server", version=server_version(), docs_url=None,
@@ -375,6 +381,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.recovery_drill_dispatcher = None
     app.state.power_recovery_dispatcher = None
     app.state.live_tv_dispatcher = None
+    app.state.personal_channel_dispatcher = None
     app.state.ai_resource_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center
     app.state.irrigation_gateway = app.state.core.irrigation

@@ -154,16 +154,23 @@ final class _ServerPersonalChannelsRouteState
         ),
       );
       if (target == null || !mounted || !_current()) return;
-      final receipt = await account.withSession(
-        (api, session) => ServerMediaPlaybackApi(
-          api,
-          session.accessToken,
-        ).play(intent, target, startSeconds: source.start.inSeconds),
+      final controller = _controller;
+      if (controller == null) return;
+      await controller.startContinuous(
+        source: source,
+        targetId: target.id,
+        current: _current,
       );
       if (!_current()) return;
+      if (controller.failure != null) {
+        await _notice(_error(controller.failure!));
+        return;
+      }
+      final execution = controller.execution;
       await _notice(
-        receipt.state == ServerMediaPlaybackReceiptState.succeeded &&
-                !receipt.effectUnknown
+        execution?.state == ServerPersonalExecutionState.active &&
+                execution?.code ==
+                    ServerPersonalExecutionCode.authenticatedReadback
             ? _strings.playbackStarted
             : _strings.playbackNeedsAttention,
       );

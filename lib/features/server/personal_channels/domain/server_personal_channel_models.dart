@@ -7,6 +7,7 @@ final _identityPattern = RegExp(r'^[0-9a-f]{32}$');
 final _mediaKeyPattern = RegExp(
   r'^(?:movie:tmdb:[1-9][0-9]{0,11}|episode:tvdb:[1-9][0-9]{0,11}:[0-9]{1,4}:[0-9]{1,5})$',
 );
+final _targetPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$');
 final _unsafeText = RegExp(
   r'[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]',
 );
@@ -387,4 +388,139 @@ final class ServerPersonalPlaybackSource {
   final int installationRevision, snapshotRevision, jellyfinServiceRevision;
   final DateTime occurrenceStartsAt;
   final Duration start;
+}
+
+enum ServerPersonalExecutionState {
+  active,
+  dispatching,
+  needsAttention,
+  cancelled,
+}
+
+enum ServerPersonalExecutionCode {
+  scheduled,
+  authenticatedReadback,
+  effectUnknown,
+  gap,
+  sourceChanged,
+  authorityChanged,
+  sourceUnavailable,
+  targetUnavailable,
+  cancelled,
+}
+
+final class ServerPersonalChannelExecution {
+  const ServerPersonalChannelExecution._({
+    required this.channelId,
+    required this.channelRevision,
+    required this.revision,
+    required this.targetId,
+    required this.state,
+    required this.code,
+    required this.programmeId,
+    required this.programmeRevision,
+    required this.occurrenceStartsAt,
+    required this.occurrenceEndsAt,
+  });
+
+  factory ServerPersonalChannelExecution.fromJson(
+    Object? raw, {
+    required String expectedChannelId,
+    ServerPersonalPlaybackSource? expectedSource,
+    String? expectedTargetId,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'channelId',
+      'channelRevision',
+      'revision',
+      'targetId',
+      'state',
+      'code',
+      'programmeId',
+      'programmeRevision',
+      'occurrenceStartsAt',
+      'occurrenceEndsAt',
+    });
+    final targetId = value['targetId'];
+    final programmeId = value['programmeId'];
+    final programmeRevision = value['programmeRevision'];
+    final startsAt = value['occurrenceStartsAt'];
+    final endsAt = value['occurrenceEndsAt'];
+    final hasOccurrence = programmeId != null;
+    if (value['schemaVersion'] != 1 ||
+        value['channelId'] != expectedChannelId ||
+        targetId is! String ||
+        !_targetPattern.hasMatch(targetId) ||
+        (expectedTargetId != null && targetId != expectedTargetId) ||
+        (hasOccurrence != (programmeRevision != null)) ||
+        (hasOccurrence != (startsAt != null)) ||
+        (hasOccurrence != (endsAt != null)) ||
+        (hasOccurrence &&
+            (_id(programmeId) != programmeId ||
+                _revision(programmeRevision) != programmeRevision ||
+                _time(startsAt) != startsAt ||
+                _time(endsAt) != endsAt ||
+                (startsAt as int) >= (endsAt as int)))) {
+      _invalid();
+    }
+    final channelRevision = _revision(value['channelRevision']);
+    if (expectedSource != null &&
+        (channelRevision != expectedSource.channelRevision ||
+            programmeId != expectedSource.programmeId ||
+            programmeRevision != expectedSource.programmeRevision ||
+            startsAt !=
+                expectedSource.occurrenceStartsAt.millisecondsSinceEpoch ~/
+                    1000)) {
+      _invalid();
+    }
+    return ServerPersonalChannelExecution._(
+      channelId: expectedChannelId,
+      channelRevision: channelRevision,
+      revision: _revision(value['revision']),
+      targetId: targetId,
+      state: switch (value['state']) {
+        'active' => ServerPersonalExecutionState.active,
+        'dispatching' => ServerPersonalExecutionState.dispatching,
+        'needs_attention' => ServerPersonalExecutionState.needsAttention,
+        'cancelled' => ServerPersonalExecutionState.cancelled,
+        _ => _invalid(),
+      },
+      code: switch (value['code']) {
+        'scheduled' => ServerPersonalExecutionCode.scheduled,
+        'authenticated_readback' =>
+          ServerPersonalExecutionCode.authenticatedReadback,
+        'effect_unknown' => ServerPersonalExecutionCode.effectUnknown,
+        'gap' => ServerPersonalExecutionCode.gap,
+        'source_changed' => ServerPersonalExecutionCode.sourceChanged,
+        'authority_changed' => ServerPersonalExecutionCode.authorityChanged,
+        'source_unavailable' => ServerPersonalExecutionCode.sourceUnavailable,
+        'target_unavailable' => ServerPersonalExecutionCode.targetUnavailable,
+        'cancelled' => ServerPersonalExecutionCode.cancelled,
+        _ => _invalid(),
+      },
+      programmeId: programmeId as String?,
+      programmeRevision: programmeRevision as int?,
+      occurrenceStartsAt: startsAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              (startsAt as int) * 1000,
+              isUtc: true,
+            ),
+      occurrenceEndsAt: endsAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              (endsAt as int) * 1000,
+              isUtc: true,
+            ),
+    );
+  }
+
+  final String channelId, targetId;
+  final int channelRevision, revision;
+  final ServerPersonalExecutionState state;
+  final ServerPersonalExecutionCode code;
+  final String? programmeId;
+  final int? programmeRevision;
+  final DateTime? occurrenceStartsAt, occurrenceEndsAt;
 }
