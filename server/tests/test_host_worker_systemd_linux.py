@@ -6,6 +6,7 @@ import platform
 import shutil
 import subprocess
 import time
+import zipfile
 
 import pytest
 
@@ -24,6 +25,14 @@ UNITS = (
     "larenor-keenetic-worker.service",
     "larenor-proxmox-power-worker.service",
     "larenor-nut-bridge.service",
+)
+PACKAGE_ASSETS = (
+    Path("/usr/lib/sysusers.d/larenor-host-workers.conf"),
+    Path("/usr/lib/tmpfiles.d/larenor-host-workers.conf"),
+    Path("/usr/libexec/larenor-unmanic-provision"),
+    Path("/usr/libexec/larenor-installation-journals"),
+    Path("/usr/libexec/larenor-nut-notify"),
+    *(Path("/etc/systemd/system") / name for name in UNITS),
 )
 
 
@@ -55,8 +64,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     assert all(path.is_file() for path in (
         systemctl, analyze, sysusers, tmpfiles, mount, umount,
     ))
-    destination = Path("/etc/systemd/system")
-    installed = []
+    installed = [Path("/etc/systemd/system") / name for name in UNITS]
     prefix = Path("/opt/larenor-server-host")
     helper = Path("/usr/libexec/larenor-unmanic-provision")
     journal_helper = Path("/usr/libexec/larenor-installation-journals")
@@ -75,9 +83,15 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     component_process = None
     keenetic_process = None
     runtime_mounted = False
+    bundle = Path(os.environ["LARENOR_HOST_WORKER_BUNDLE"])
+    package_python = Path(os.environ["LARENOR_HOST_WORKER_PYTHON"])
+    source_revision = os.environ["LARENOR_HOST_WORKER_SOURCE_REVISION"]
+    assert len(source_revision) == 40 and all(value in "0123456789abcdef" for value in source_revision)
+    assert bundle.is_file() and package_python.is_file()
     assert (not prefix.exists() and not helper.exists()
             and not journal_helper.exists() and not data_root.exists()
             and not runtime_ipc.exists() and not config_root.exists())
+    assert all(not path.exists() for path in PACKAGE_ASSETS)
     try:
         try:
             pwd.getpwnam("nut")
@@ -89,18 +103,52 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
                 "--home-dir", "/var/lib/nut", "--shell", "/usr/sbin/nologin",
                 "nut",
             ], check=True, timeout=20)
-        subprocess.run([sysusers, ASSETS / "larenor-host-workers.sysusers"],
-                       check=True, timeout=20)
+        installer = ASSETS / "install.py"
+        checked = subprocess.run(
+            [package_python, installer, "--bundle", bundle, "--check"],
+            check=True, timeout=30, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        preview = json.loads(checked.stdout)
+        assert preview["sourceRevision"] == source_revision
+        assert preview["unmanicRevision"] == "1c324b8fc3974ffce3d7cc945adb938fe7182910"
+        assert preview["startsServices"] is False
+        assert preview["createsPrivateConfiguration"] is False
+        installed_release = subprocess.run(
+            [package_python, installer, "--bundle", bundle, "--python", package_python,
+             "--install"],
+            check=True, timeout=600, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert json.loads(installed_release.stdout) == preview
+        current = prefix / "current"
+        release = prefix / "releases" / source_revision
+        assert current.is_symlink() and current.resolve() == release
+        assert json.loads((release / "release.json").read_text()) == preview
+        runtime_python = current / "server/bin/python"
+        assert runtime_python.is_file() and os.access(runtime_python, os.X_OK)
+        imported = subprocess.run(
+            [runtime_python, "-c", "import pathlib,larenor_server;"
+             "print(pathlib.Path(larenor_server.__file__).resolve())"],
+            check=True, timeout=10, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+        ).stdout.strip()
+        assert Path(imported).is_relative_to(release / "server")
+        for archive, expected_id in (
+            (current / "callback.zip", "larenor_archive_terminal"),
+            (current / "encoder.zip", "larenor_archive_encoder"),
+        ):
+            info = archive.stat(follow_symlinks=False)
+            assert (info.st_uid, info.st_gid, info.st_mode & 0o777) == (0, 0, 0o644)
+            with zipfile.ZipFile(archive) as package:
+                assert set(package.namelist()) == {"info.json", "plugin.py", "description.md"}
+                assert json.loads(package.read("info.json"))["id"] == expected_id
         core_data.mkdir(parents=True, mode=0o700)
         core_secrets.mkdir(mode=0o700)
         for path in (core_data, core_secrets):
             os.chown(path, 10001, 10001)
             path.chmod(0o700)
-        subprocess.run(
-            [tmpfiles, "--create", ASSETS / "larenor-host-workers.tmpfiles"],
-            check=True,
-            timeout=20,
-        )
         expected_paths = (
             (core_data, 10001, 10001, 0o700),
             (core_secrets, 10001, 10001, 0o700),
@@ -127,12 +175,11 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         proof = ROOT / "server/tests/support/f55_linux_mesh_ipc.py"
         environment = {
             "PATH": "/usr/bin:/bin",
-            "PYTHONPATH": str(ROOT / "server"),
             "LANG": "C",
             "LC_ALL": "C",
         }
         mesh_process = subprocess.Popen(
-            [ROOT / "server/.venv/bin/python", proof, "server", socket_path],
+            [runtime_python, proof, "server", socket_path],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
@@ -151,7 +198,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         )
         assert socket_path.is_socket(), detail
         subprocess.run(
-            [ROOT / "server/.venv/bin/python", proof, "client", core_socket_path],
+            [runtime_python, proof, "client", core_socket_path],
             check=True,
             timeout=10,
             env=environment,
@@ -167,7 +214,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         nut_proof = ROOT / "server/tests/support/f18_nut_notify_ipc.py"
         nut_process = subprocess.Popen(
             [
-                ROOT / "server/.venv/bin/python", nut_proof, "server",
+                runtime_python, nut_proof, "server",
                 nut_socket, nut_state,
             ],
             stdin=subprocess.DEVNULL,
@@ -188,7 +235,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         )
         assert nut_socket.is_socket(), detail
         subprocess.run(
-            [ROOT / "server/.venv/bin/python", nut_proof, "client", nut_socket],
+            [runtime_python, nut_proof, "client", nut_socket],
             check=True,
             timeout=10,
             env=environment,
@@ -198,7 +245,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         )
         subprocess.run(
             [
-                ROOT / "server/.venv/bin/python",
+                runtime_python,
                 proof,
                 "core",
                 core_socket_path,
@@ -216,7 +263,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         proxmox_proof = ROOT / "server/tests/support/f18_proxmox_worker_ipc.py"
         proxmox_process = subprocess.Popen(
             [
-                ROOT / "server/.venv/bin/python", proxmox_proof, "server",
+                runtime_python, proxmox_proof, "server",
                 proxmox_socket, proxmox_health,
             ],
             stdin=subprocess.DEVNULL,
@@ -239,7 +286,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         assert proxmox_socket.is_socket() and proxmox_health.is_file(), detail
         subprocess.run(
             [
-                ROOT / "server/.venv/bin/python", proxmox_proof, "client",
+                runtime_python, proxmox_proof, "client",
                 runtime_ipc / "proxmox/power.sock",
                 runtime_ipc / "proxmox/health.json",
             ],
@@ -265,7 +312,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         keenetic_socket = keenetic_ipc / "commands.sock"
         keenetic_health = keenetic_ipc / "health.json"
         keenetic_process = subprocess.Popen(
-            [ROOT / "server/.venv/bin/python", "-m",
+            [runtime_python, "-m",
              "larenor_server.keenetic_commands.worker_runtime", "--policy", policy_path,
              "--socket", keenetic_socket, "--health", keenetic_health,
              "--api-uid", "10001", "--socket-gid", "10002"],
@@ -282,7 +329,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
                   if keenetic_process.poll() is not None else "keenetic_health_not_ready")
         assert keenetic_socket.is_socket() and keenetic_health.is_file(), detail
         subprocess.run(
-            [ROOT / "server/.venv/bin/python",
+            [runtime_python,
              ROOT / "server/tests/support/keenetic_linux_core_ipc.py",
              runtime_ipc / "keenetic/commands.sock",
              runtime_ipc / "keenetic/health.json", core_lease_key,
@@ -294,7 +341,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         component_proof = ROOT / "server/tests/support/f15_component_worker_ipc.py"
         component_process = subprocess.Popen(
             [
-                ROOT / "server/.venv/bin/python",
+                runtime_python,
                 component_proof,
                 "server",
                 component_socket,
@@ -317,7 +364,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         assert component_socket.is_socket(), detail
         subprocess.run(
             [
-                ROOT / "server/.venv/bin/python",
+                runtime_python,
                 component_proof,
                 "client",
                 component_socket,
@@ -327,22 +374,6 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             env=environment,
             preexec_fn=_identity(10001, 10001),
         )
-        current = prefix / "current"
-        current.mkdir(parents=True)
-        (current / "server").symlink_to(ROOT / "server/.venv", target_is_directory=True)
-        (current / "unmanic/bin").mkdir(parents=True)
-        (current / "unmanic/bin/python").symlink_to("/bin/true")
-        (current / "unmanic/bin/unmanic").symlink_to("/bin/true")
-        shutil.copyfile(ASSETS / "unmanic_provision.py", helper)
-        helper.chmod(0o755)
-        shutil.copyfile(ASSETS / "installation_journals.py", journal_helper)
-        journal_helper.chmod(0o755)
-        for name in UNITS:
-            target = destination / name
-            assert not target.exists(), "host_worker_unit_already_exists"
-            shutil.copyfile(ASSETS / name, target)
-            target.chmod(0o644)
-            installed.append(target)
         subprocess.run([systemctl, "daemon-reload"], check=True, timeout=20)
         subprocess.run([analyze, "verify", *installed], check=True, timeout=20,
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -403,11 +434,9 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         ):
             runtime_ipc.rmdir()
         shutil.rmtree(data_root, ignore_errors=True)
-        for target in installed:
+        for target in PACKAGE_ASSETS:
             target.unlink(missing_ok=True)
         subprocess.run([systemctl, "daemon-reload"], check=False, timeout=20,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        helper.unlink(missing_ok=True)
-        journal_helper.unlink(missing_ok=True)
         shutil.rmtree(prefix, ignore_errors=True)
         shutil.rmtree(config_root, ignore_errors=True)

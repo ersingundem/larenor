@@ -18,7 +18,11 @@ class _Observer:
             revision=19,
             capturedAtMs=2_000_000,
             bridgeState=b'{"state":"online"}',
-            bridgeInfo=b'{"coordinator":{},"network":{}}',
+            bridgeInfo=(
+                b'{"coordinator":{"ieee_address":"0x00124b00120144ae",'
+                b'"meta":{"majorrel":2,"minorrel":7,"maintrel":2}},'
+                b'"network":{"channel":15}}'
+            ),
             devices=b"[]",
             deviceStates={},
             availability={},
@@ -50,8 +54,7 @@ def main():
     if operation == "core":
         if len(arguments) != 2:
             raise RuntimeError("invalid_arguments")
-        from fastapi.testclient import TestClient
-
+        from installed_core_tcp import InstalledCoreTcp
         from larenor_server.config import Settings
         from larenor_server.runtime import create_configured_app
 
@@ -67,43 +70,41 @@ def main():
             mesh_center_worker_socket_gid=10002,
         )
         app = create_configured_app(settings)
-        with TestClient(app) as client:
+        with InstalledCoreTcp(app) as client:
             password = settings.effective_bootstrap_file.read_text().split(
                 "password: ", 1
             )[1].strip()
-            signed_in = client.post(
+            status, signed_in = client.json(
+                "POST",
                 "/api/v1/auth/login",
-                json={
+                body={
                     "username": "admin",
                     "password": password,
                     "deviceName": "Hosted Linux Core",
                 },
             )
-            if signed_in.status_code != 200:
+            if status != 200:
                 raise RuntimeError("core_login_failed")
-            changed = client.post(
+            status, changed = client.json(
+                "POST",
                 "/api/v1/auth/password",
-                headers={
-                    "Authorization": "Bearer "
-                    + signed_in.json()["accessToken"]
-                },
-                json={
+                token=signed_in["accessToken"],
+                body={
                     "currentPassword": password,
                     "newPassword": "Synthetic hosted Linux password 2026",
                 },
             )
-            if changed.status_code != 200:
+            if status != 200:
                 raise RuntimeError("core_password_change_failed")
             context = app.state.core.context
-            response = client.get(
+            status, response = client.json(
+                "GET",
                 f"/api/v1/admin/mesh-center/{context.coreId}/{context.homeId}",
-                headers={
-                    "Authorization": "Bearer " + changed.json()["accessToken"]
-                },
+                token=changed["accessToken"],
             )
             if (
-                response.status_code != 200
-                or response.json()["snapshot"]["topology"]["devices"] != []
+                status != 200
+                or response["snapshot"]["topology"]["devices"] != []
             ):
                 raise RuntimeError("core_mesh_observation_failed")
         return 0

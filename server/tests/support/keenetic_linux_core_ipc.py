@@ -3,8 +3,7 @@
 from pathlib import Path
 import sys
 
-from fastapi.testclient import TestClient
-
+from installed_core_tcp import InstalledCoreTcp
 from larenor_server.config import Settings
 from larenor_server.keenetic_commands.core_worker import HealthGatedKeeneticWorkerEffect
 from larenor_server.runtime import create_configured_app
@@ -22,7 +21,7 @@ def main():
         keenetic_worker_socket_gid=10002,
     )
     app = create_configured_app(settings)
-    with TestClient(app):
+    with InstalledCoreTcp(app):
         effect = app.state.core.keenetic_commands._effect
         assert isinstance(effect, HealthGatedKeeneticWorkerEffect)
         # Only socket/receipt/kernel-peer readiness; no router request or effect.

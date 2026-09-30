@@ -210,6 +210,13 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertIn("sudo --non-interactive env -i", script)
         self.assertIn("RUNNER_ENVIRONMENT=github-hosted", script)
         self.assertIn("LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE=1", script)
+        self.assertIn("host_worker_package_linux.py", script)
+        self.assertIn("--source-revision", script)
+        self.assertIn("package_platform=linux/amd64", script)
+        self.assertIn("package_platform=linux/arm64", script)
+        self.assertIn("LARENOR_HOST_WORKER_BUNDLE=", script)
+        self.assertIn("LARENOR_HOST_WORKER_PYTHON=", script)
+        self.assertIn("LARENOR_HOST_WORKER_SOURCE_REVISION=", script)
         self.assertIn("test_media_archive_linux_uid_ipc.py", script)
         self.assertIn("test_host_worker_systemd_linux.py", script)
 

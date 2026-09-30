@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül kurulu host paketinden gerçek Core kabulü
+
+Hosted Linux kapısı artık exact commitin Server wheel'ini ve hash/revision sabitlenmiş gerçek Unmanic wheel'ini üretim offline bundle builder/installer yoluyla kurar. Sahte executable ve source sanal ortamına symlink kaldırıldı. Mesh/Keenetic kabulü kurulu release içinden normal Core'u gerçek Uvicorn TCP üzerinden başlatır; dev TestClient/httpx bağımlılığı gerekmez ve module yolu kurulu release altında doğrulanır. Bundle receipt exact kaynak SHA, platform ve wheel/manifest digestlerini kaydeder. 21 odaklı test ve 16 workflow/shard politika testi geçti; actual Linux kurulum, ayrı UID ve servis kapıları CI sonucunu bekliyor. Fiziksel Docker/Btrfs/media önkoşulları olmayan ortamda activation kabulü iddia edilmez.
+
 ### 30 Eylül F08 gerçek Linux başlangıç düzeltmesi
 
 Exact Linux `36746628951` koşusu sağlayıcı başlamadan `218/EXIT_CAPABILITIES` ile duruyordu. systemd v255 kaynak incelemesi, user manager'ın `ProtectKernelModules` için capability bounding set düşürmesini yapamadığını doğruladı. Bu seçenek yalnız system manager'da korunur; user manager dedicated unprivileged UID, NoNewPrivileges, namespace ve cgroup limitlerini korur. 21 odaklı runtime/paket/IPC testi geçti; 4 gerçek Linux kapısı macOS'ta açıkça atlandı. Yeni exact Linux sonucu henüz bekleniyor; yerel testler Linux kabulü sayılmıyor. [systemd kaynak kanıtı](https://github.com/systemd/systemd/blob/v255/src/core/unit.c).
