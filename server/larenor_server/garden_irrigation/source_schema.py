@@ -38,8 +38,9 @@ def migrate_irrigation_source(connection: sqlite3.Connection) -> None:
     )
     from .opensprinkler import migrate_opensprinkler_commands
     migrate_opensprinkler_commands(connection)
-    connection.execute(
-        "INSERT OR REPLACE INTO metadata(key,value) VALUES"
-        "('irrigation_source_schema',?)",
-        (SCHEMA_VERSION,),
-    )
+    if row is None:
+        connection.execute(
+            "INSERT INTO metadata(key,value) VALUES"
+            "('irrigation_source_schema',?)",
+            (SCHEMA_VERSION,),
+        )

@@ -88,7 +88,7 @@
       "x-larenor-blob-content-type": "text/plain; charset=utf-8",
       "x-larenor-service-revision": "1",
       "x-larenor-resume-offset": "0",
-      "cache-control": "no-store, no-store",
+      "cache-control": "no-store",
       "accept-ranges": "none"
     },
     "wireBase64": "TFJCMTY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2AAAAAAAAAAAAAAAAFkxhcmVub3Igb3J0YWsgYWt0YXLEsW1MUkIxNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYAAAAAAAAAAQEAAAAA"

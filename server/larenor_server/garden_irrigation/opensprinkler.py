@@ -77,10 +77,11 @@ def migrate_opensprinkler_commands(connection):
         )
         """
     )
-    connection.execute(
-        "INSERT OR REPLACE INTO metadata(key,value) VALUES"
-        "('opensprinkler_commands_schema','1')"
-    )
+    if row is None:
+        connection.execute(
+            "INSERT INTO metadata(key,value) VALUES"
+            "('opensprinkler_commands_schema','1')"
+        )
 
 
 def _canonical(value):
