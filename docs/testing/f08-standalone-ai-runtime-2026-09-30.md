@@ -136,3 +136,5 @@ commit run is needed to establish actual IPC/cgroup acceptance.
 ## Actual Ubuntu managed-Python düzeltmesi
 
 Exact `e2da860e1` Server koşusu `36738496557` gerçek UID10003 user manager bus aşamasını geçti. Worker başlangıcı uv managed CPython stdlibine erişemedi (`ModuleNotFoundError: encodings`). CI sadece venv izinlerini açıyordu; managed Python kurulumunun okuma/geçiş izinleri de worker için açıldı. Bu uygulama sonucu veya yeşil Linux kabulü değildir; değişmiş HEAD tekrar actual Linux kapısına gönderilir.
+
+Exact `2c07cca6c` actual Linux run `36740147929` user manager ve izin adımlarını geçti; venv ile managed Python `/home/runner` altındaki RUNNER_TEMPte olduğundan farklı UID üst dizini geçemedi. Yeni CI bu iki runtimeı `/tmp` altında kurar ve pytestten önce actual UID10003 ile `import encodings; import larenor_server` çalıştırır. Provider fixture ve state de `/tmp` altındadır. Linux kabul sonucu hâlâ açık; aynı SHA rerun edilmedi.

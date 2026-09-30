@@ -23,8 +23,8 @@ jobs:
 
       - name: Prepare isolated pinned Python tooling
         run: |
-          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/larenor-f08-venv" >> "$GITHUB_ENV"
-          echo "UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/larenor-f08-python" >> "$GITHUB_ENV"
+          echo "UV_PROJECT_ENVIRONMENT=/tmp/larenor-f08-venv" >> "$GITHUB_ENV"
+          echo "UV_PYTHON_INSTALL_DIR=/tmp/larenor-f08-python" >> "$GITHUB_ENV"
           python3 -m venv "$RUNNER_TEMP/larenor-f08-tools"
           "$RUNNER_TEMP/larenor-f08-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
           echo "$RUNNER_TEMP/larenor-f08-tools/bin" >> "$GITHUB_PATH"
@@ -57,6 +57,10 @@ jobs:
           done
           chmod -R a+rX "$UV_PROJECT_ENVIRONMENT"
           chmod -R a+rX "$UV_PYTHON_INSTALL_DIR"
+          sudo -u larenor-ai env -i \
+            PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/larenor-ai \
+            "$UV_PROJECT_ENVIRONMENT/bin/python" -c \
+            'import encodings; import larenor_server'
 
       - name: Prove Core UID IPC to the actual user-manager cgroup runtime
         working-directory: server
