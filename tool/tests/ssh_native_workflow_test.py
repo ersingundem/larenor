@@ -29,6 +29,9 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             uses,
         )
         self.assertIn('flutter-version: "3.47.2"', self.raw)
+        self.assertIn("actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6", self.raw)
+        self.assertIn("distribution: temurin", self.raw)
+        self.assertIn('java-version: "17"', self.raw)
         self.assertIn("flutter pub get --enforce-lockfile", self.raw)
         self.assertIn("flutter gen-l10n", self.raw)
         self.assertIn(
@@ -47,8 +50,40 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         )
         self.assertIn(setup, self.raw)
         self.assertIn('version: "0.12.12"', self.raw)
+        self.assertIn('python-version: "3.12"', self.raw)
         self.assertIn("enable-cache: false", self.raw)
         self.assertLess(self.raw.index(setup), self.raw.index(invocation))
+
+    def test_real_fixture_uses_strict_machine_report_before_regressions(self):
+        strict = "python3 tool/f63_openssh_acceptance.py"
+        regressions = "test/features/remote_access/ssh/ssh_session_controller_test.dart"
+        self.assertIn(strict, self.raw)
+        self.assertIn("tool.tests.f63_openssh_acceptance_test", self.raw)
+        self.assertLess(self.raw.index(strict), self.raw.index(regressions))
+        self.assertNotIn(
+            "test/features/remote_access/ssh/ssh_native_fixture_test.dart \\",
+            self.raw,
+        )
+
+    def test_only_nonsecret_native_receipt_is_uploaded(self):
+        upload = (
+            "uses: actions/upload-artifact@"
+            "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4"
+        )
+        receipt = "path: build/f63-openssh-acceptance/receipt.json"
+        self.assertEqual(self.raw.count(upload), 1)
+        self.assertIn('name: "f63-openssh-${{ github.sha }}"', self.raw)
+        self.assertIn(receipt, self.raw)
+        self.assertIn("if-no-files-found: error", self.raw)
+        self.assertNotIn("native-events.json", self.raw)
+        self.assertLess(
+            self.raw.index("python3 tool/f63_openssh_acceptance.py"),
+            self.raw.index(upload),
+        )
+        self.assertLess(
+            self.raw.index(receipt),
+            self.raw.index("test/features/remote_access/ssh/ssh_session_controller_test.dart"),
+        )
 
     def test_fixture_is_private_bounded_and_runs_exact_native_suite(self):
         self.assertIn('fixture_user="larenor-fixture"', self.raw)

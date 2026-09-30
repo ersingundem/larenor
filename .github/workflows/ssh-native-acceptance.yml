@@ -9,6 +9,8 @@ on:
       - "lib/features/remote_access/core/**"
       - "lib/features/remote_access/presentation/core_personal_profiles_screen.dart"
       - "server/tests/support/f63_flutter_acceptance.py"
+      - "tool/f63_openssh_acceptance.py"
+      - "tool/tests/f63_openssh_acceptance_test.py"
       - "tool/tests/ssh_native_workflow_test.py"
       - "android/app/src/main/AndroidManifest.xml"
       - "pubspec.lock"
@@ -35,9 +37,14 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.12.12"
+          python-version: "3.12"
           enable-cache: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -220,11 +227,21 @@ jobs:
           LARENOR_SSH_FIXTURE_DIR=$fixture
           ENV
       - name: Validate workflow policy
-        run: python3 -m unittest tool.tests.ssh_native_workflow_test
-      - name: Run real SSH, SFTP and tunnel acceptance
+        run: >-
+          python3 -m unittest
+          tool.tests.ssh_native_workflow_test
+          tool.tests.f63_openssh_acceptance_test
+      - name: Run and receipt exact real OpenSSH fixture
+        run: python3 tool/f63_openssh_acceptance.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: "f63-openssh-${{ github.sha }}"
+          path: build/f63-openssh-acceptance/receipt.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Run SSH, SFTP and tunnel regressions
         run: |
-          flutter test --reporter expanded --timeout 60s \
-            test/features/remote_access/ssh/ssh_native_fixture_test.dart \
+          flutter test --no-pub --reporter expanded --timeout 60s \
             test/features/remote_access/ssh/ssh_session_controller_test.dart \
             test/features/remote_access/ssh/ssh_terminal_panel_test.dart \
             test/features/remote_access/ssh/sftp_controller_test.dart \

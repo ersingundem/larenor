@@ -144,3 +144,28 @@ workflow repair is not itself Linux SSH interoperability evidence.
 
 Local regression evidence after this repair is 6/6 workflow-policy tests and
 45/45 focused engine/controller/terminal tests, with scoped analysis clean.
+
+## Hosted prerequisite and receipt hardening
+
+The hosted workflow now pins Temurin 17 before Flutter and asks the immutable
+setup-uv action for Python 3.12 as well as uv 0.12.12. The real OpenSSH fixture
+is executed separately through `tool/f63_openssh_acceptance.py`. That runner
+preflights every named fixture input without printing its value, consumes a
+bounded Flutter JSON event report, and writes a receipt only when the exact
+seven named tests complete successfully with zero skips or errors. The
+workflow uploads only that non-secret receipt as
+`f63-openssh-<exact commit>`. It does not upload the raw event report, fixture
+logs, keys or credentials. The remaining controller and panel regressions run
+only after that receipt gate.
+
+This closes a false-pass path in which Flutter reports exit zero when all seven
+fixture tests are skipped because their environment is absent. It does not
+replace the already observed real execution in run 36767901119, and it does not
+claim a new exact-head CI pass before one occurs.
+
+Local readiness evidence is 12/12 helper and workflow-policy tests, 45/45
+focused engine/controller/terminal tests, Python compilation, scoped Flutter
+analysis and diff validation. The parser also rejected the actual JSON emitted
+by a local missing-environment Flutter run because all seven named tests were
+marked skipped. The hosted Temurin/Python setup and strict receipt still require
+a new exact-head workflow result.

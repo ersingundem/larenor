@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül SSH exact native receipt kapısı
+
+Hosted SSH gatei pinned Temurin17/Python3.12 ile çalışır; exact yedi native testin başlaması ve sıfır skip/error ile bitmesi bounded JSON receipt üzerinden zorunludur. Eksik fixture çevresi gerçek Flutter koşusunda yedi skip üretince parser bunu reddetti; yalnız doğrulanmış sayısal receipt artifacti yayımlanır. Root birleşik native readiness/policy kapısında 26 test geçti. Yeni exact hosted kabulü gerekli; eski yerel veya skipped exit0 başarı sayılmadı. [SSH kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).
+
 ### 30 Eylül işlev envanteri kanıt uzlaşması
 
 Feature matrix/runtime envanteri named exact Linux host/cgroup kanıtlarıyla güncellendi. Kapanmış composition eksikleri, geniş güncel HEAD CI ve fiziksel MANUAL kanıtları ayrı anlatılır. F47, Apple TV ve Camera bağımsız root kabulü kapandı; K09 retirement/handshake incelemesi ile F61/F62 yeni hosted native receipts açık. F63 yeni pinned-uv hosted koşusu başladı. FINAL.FUNCTION dışında yeni FINAL başlatılmadı. [İşlev matrisi](testing/final-function-feature-matrix-2026-09-30.md), [runtime envanteri](testing/final-function-runtime-inventory-2026-09-30.md).
