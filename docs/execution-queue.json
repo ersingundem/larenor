@@ -5286,7 +5286,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız RDP uzak masaüstü",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5318,10 +5318,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Original one-test/zero-skip run passed URI/TLS inspect, rejected padded SPKI in strict request"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36789173329",
+          "commit": "7f673d55d059175a4bbbbfa213ddfc75e8b02651",
+          "state": "completed",
+          "result": "failed",
+          "label": "Original one-test/zero-skip native run passed TLS/NLA/SPKI and first nonzero frame; first ACK failed"
         }
       ],
       "completionCommit": null,
-      "reason": "Uygulama tamamlandı, gerçek native kabul bekliyor: normal Core managed-profile authority kapısı geçti. Exact1259f39e/run36786452264 safe original-method receipt 1test/0skip/1failure/0error; actual JNI URI kontrolleri ve owned TLS certificate inspect geçti, ardından strict request SPKI biçimini reddetti. PEM encoder trailing = dolgusu üretiyordu; Base64.NO_PADDING ile değişmeyen 50-karakter canonical contract sağlandı. Original native method bu biçimi açıkça doğrular. Root receipt-verified AAR ile production/instrumentation Kotlin compile (315 task) ve 7/7 RdpNativeContract/0skip/0failure/0error geçti. TLS/NLA/SPKI ve gerçek frame/input/resize/clipboard/close koşulları korunur; yeni exact hosted one-method/0skip receipt kapanmadan CI bekliyor veya done olmaz. Kanıt: docs/testing/f62-canonical-spki-pin-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact7f673d55/run36789173329 gerçek TLS/NLA/SPKI ve1280×800 nonzero ilk kareyi geçti; original named1test/0skip/1failure/0error safe tanı ilk frame ACK satır120yi belirledi. Production incelemesinde ACK sırasında yeni frame ve terminal resurrection yarışı bulundu; exact sequence yalnız consumer resume ile serbest bırakılır, terminal yeniden ACTIVE olamaz. Root eski davranışta2 RED regresyon, düzeltmede14/14 native test/0skip ve receipt-verified AAR ile production/AndroidTest compile (314 task) geçti. Ayrıca gerçek olmayan IME/bidirectional capability ve display snapshot eksikleri düzeltmede. Bunlar kapanıp yeni actual native input/resize/clipboard/close receipt geçmeden CI bekliyor/done olmaz. Kanıt: docs/testing/f62-frame-ack-lifecycle-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -5433,7 +5441,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. 58 seçili özellik ve toplam67 iş odaklı yazılım kabulünden sonra geniş exact HEAD CI bekliyor. F60 normal Core/Client/native v2 yetki ve kalıcı cleanup entegrasyonu tamamlandı; gerçek owned Sunshine NSD/pairing/stream/frame/audio/input/stop/unpair kabulü açık. F61 gerçek hosted native receipt geçti; F62 gerçek packaged native receipt kapısı açık. İkinci FINAL başlatılmaz."
+      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. 58 seçili özellik ve toplam67 iş odaklı yazılım kabulünden sonra geniş exact HEAD CI bekliyor. F60 normal Core/Client/native v2 yetki ve kalıcı cleanup entegrasyonu tamamlandı; gerçek owned Sunshine NSD/pairing/stream/frame/audio/input/stop/unpair kabulü açık. F61 gerçek hosted native receipt geçti; F62 ACK/lifecycle düzeltmesi odaklı testi geçti; capability truth/display eksikleri ve gerçek packaged native receipt kapısı açık. İkinci FINAL başlatılmaz."
     },
     {
       "id": "FINAL.UI",

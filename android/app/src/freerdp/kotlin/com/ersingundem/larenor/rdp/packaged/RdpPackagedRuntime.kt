@@ -9,6 +9,7 @@ import android.view.KeyEvent
 import com.ersingundem.larenor.rdp.RdpClipboardMode
 import com.ersingundem.larenor.rdp.RdpFreeRdpIdentity
 import com.ersingundem.larenor.rdp.RdpFreeRdpPackage
+import com.ersingundem.larenor.rdp.RdpFrameDeliveryGate
 import com.ersingundem.larenor.rdp.RdpJniInput
 import com.ersingundem.larenor.rdp.RdpJniOperation
 import com.ersingundem.larenor.rdp.RdpJniRuntime
@@ -35,7 +36,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 /** Compiled only when the exact receipted FreeRDP AAR is present. */
@@ -345,9 +345,7 @@ private class FreeRdpOperation(
     private var securityAccepted = false
     private val securityPublished = CountDownLatch(1)
     private var lastButtons = 0
-    private var framePending = false
-    private var dirty = false
-    private val nextFrame = AtomicLong(1)
+    private val frameDelivery = RdpFrameDeliveryGate()
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
         if (request.gateway != null) return false
@@ -404,43 +402,36 @@ private class FreeRdpOperation(
     @Synchronized override fun OnGraphicsUpdate(x: Int, y: Int, width: Int, height: Int) {
         val surface = bitmap ?: return
         if (!LibFreeRDP.updateGraphics(instance, surface, x, y, width, height)) { close(); return }
-        if (framePending) { dirty = true; return }
         emitFrame(surface)
     }
 
     @Synchronized private fun emitFrame(surface: Bitmap) {
+        val sequence = frameDelivery.offer() ?: return
         val bytes = surface.rowBytes.toLong() * surface.height
         if (bytes !in 1..RdpNativeFrame.MAX_FRAME_BYTES.toLong()) { close(); return }
         val buffer = ByteBuffer.allocateDirect(bytes.toInt())
         surface.copyPixelsToBuffer(buffer)
         buffer.flip()
-        framePending = true
         listener?.onFrame(RdpNativeFrame.take(
-            nextFrame.getAndIncrement(), surface.width, surface.height, surface.rowBytes,
+            sequence, surface.width, surface.height, surface.rowBytes,
             request.display.dpi, buffer,
         ))
     }
 
-    override fun acknowledgeFrame(sequence: Long): Boolean {
-        synchronized(this) {
-            if (!framePending) return false
-            framePending = false
-        }
-        return true
-    }
+    @Synchronized override fun acknowledgeFrame(sequence: Long): Boolean =
+        !terminal.get() && frameDelivery.acknowledge(sequence)
 
-    override fun resumeFrames(): Boolean {
-        synchronized(this) {
-            if (!dirty || framePending || terminal.get()) return !terminal.get()
-            dirty = false
-            val surface = bitmap ?: return true
-            callbacks.execute {
-                synchronized(this) {
-                    if (!framePending && !terminal.get()) emitFrame(surface)
-                }
+    @Synchronized override fun resumeFrames(): Boolean {
+        if (terminal.get()) return false
+        return when (frameDelivery.resume()) {
+            RdpFrameDeliveryGate.Resume.REJECTED -> false
+            RdpFrameDeliveryGate.Resume.IDLE -> true
+            RdpFrameDeliveryGate.Resume.FRAME_REQUIRED -> {
+                val surface = bitmap ?: return false
+                emitFrame(surface)
+                !terminal.get()
             }
         }
-        return true
     }
 
     override fun input(sequence: Long, event: RdpJniInput): Boolean = when (event) {
@@ -501,6 +492,7 @@ private class FreeRdpOperation(
         listener?.onDisconnected()
     }
     override fun close() {
+        frameDelivery.close()
         listener = null
         callbacks.shutdownNow()
         bitmap?.recycle(); bitmap = null

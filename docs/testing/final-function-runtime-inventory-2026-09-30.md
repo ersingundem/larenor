@@ -188,3 +188,11 @@ output_must_not_exist came from the workflow pre-created work directory. The nar
 mkdir repair passed7 discovery regression tests/actionlint. Real production NSD and
 full pairing/stream/frame/audio/input/stop/unpair receipts remain open; F60 stays
 reworking and58 selected/67 total tasks await broad CI.
+
+F62 latest actual result: exact7f673d55/run36789173329 passed TLS/NLA/SPKI and
+first nonzero1280×800 frame, then failed ACK at original source line120 (1test/0skip).
+Production ACK/frame race and terminal resurrection repairs passed2 old-behavior RED
+regressions and14 fixed native tests/zero skips, plus receipted production/AndroidTest
+compile. IME/bidirectional capability truth and current external-display snapshot
+corrections remain active; F62 is reworking, broad CI counts58/67 unchanged.
+See [ACK lifecycle evidence](f62-frame-ack-lifecycle-2026-10-01.md).

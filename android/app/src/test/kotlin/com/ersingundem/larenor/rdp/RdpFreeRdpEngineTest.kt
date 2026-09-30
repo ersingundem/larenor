@@ -101,6 +101,84 @@ class RdpFreeRdpEngineTest {
         assertEquals(1, fixture.operation.starts)
     }
 
+    @Test
+    fun graphicsDuringFrameAcknowledgementWaitForConsumerResume() {
+        val fixture = Fixture()
+        val session = fixture.active()
+        val gate = RdpFrameDeliveryGate()
+        val first = frame(requireNotNull(gate.offer()), 1280, 800, 180)
+        fixture.operation.frame(first)
+        fixture.operation.onAck = { sequence ->
+            val accepted = gate.acknowledge(sequence)
+            // A native update races the consumer's ACK while its old buffer
+            // is still pending. It must remain coalesced until explicit resume.
+            val premature = gate.offer()
+            if (premature != null) fixture.operation.frame(frame(premature, 1280, 800, 180))
+            accepted
+        }
+        fixture.operation.onResume = {
+            when (gate.resume()) {
+                RdpFrameDeliveryGate.Resume.REJECTED -> false
+                RdpFrameDeliveryGate.Resume.IDLE -> true
+                RdpFrameDeliveryGate.Resume.FRAME_REQUIRED -> {
+                    assertTrue(first.closed)
+                    assertEquals(RdpJniPhase.ACTIVE, session.phase)
+                    fixture.operation.frame(frame(requireNotNull(gate.offer()), 1280, 800, 180))
+                    true
+                }
+            }
+        }
+
+        assertTrue(session.acknowledgeFrame(1))
+        assertEquals(0, fixture.operation.closes)
+        assertNull(session.failureCode)
+        assertEquals(RdpJniPhase.AWAITING_FRAME_ACK, session.phase)
+        assertEquals(2L, session.pendingFrame?.sequence)
+        session.close()
+        gate.close()
+        assertNull(gate.offer())
+        assertFalse(gate.acknowledge(2))
+        assertEquals(RdpFrameDeliveryGate.Resume.REJECTED, gate.resume())
+    }
+
+    @Test
+    fun incorrectOrRepeatedAcknowledgementDoesNotReleaseNativeFrames() {
+        val gate = RdpFrameDeliveryGate()
+        assertEquals(1L, gate.offer())
+        assertFalse(gate.acknowledge(2))
+        assertEquals(RdpFrameDeliveryGate.Resume.REJECTED, gate.resume())
+        assertNull(gate.offer())
+        assertTrue(gate.acknowledge(1))
+        assertFalse(gate.acknowledge(1))
+        assertNull(gate.offer())
+        assertEquals(RdpFrameDeliveryGate.Resume.FRAME_REQUIRED, gate.resume())
+        assertEquals(2L, gate.offer())
+        assertTrue(gate.acknowledge(2))
+        assertEquals(RdpFrameDeliveryGate.Resume.IDLE, gate.resume())
+    }
+
+    @Test
+    fun disconnectDuringAcknowledgementCannotResurrectOrResumeSession() {
+        val fixture = Fixture()
+        val session = fixture.active()
+        val first = frame(1, 1280, 800, 180)
+        fixture.operation.frame(first)
+        fixture.operation.onAck = {
+            fixture.operation.disconnected()
+            true
+        }
+
+        assertFalse(session.acknowledgeFrame(1))
+        assertEquals(RdpJniPhase.FAILED, session.phase)
+        assertEquals("connectionFailed", session.failureCode)
+        assertNull(session.pendingFrame)
+        assertTrue(first.closed)
+        assertEquals(0, fixture.operation.resumes)
+        assertEquals(1, fixture.operation.closes)
+        assertFalse(session.pointer(1, .5, .5, 0))
+        assertEquals(0, fixture.operation.inputs)
+    }
+
     private class Fixture(
         private val clipboard: RdpClipboardMode = RdpClipboardMode.DISABLED,
     ) {
@@ -141,6 +219,8 @@ class RdpFreeRdpEngineTest {
         var inputs = 0
         var resizes = 0
         var resumes = 0
+        var onAck: ((Long) -> Boolean)? = null
+        var onResume: (() -> Boolean)? = null
         override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
             starts++
             return true
@@ -153,8 +233,8 @@ class RdpFreeRdpEngineTest {
             resizes++
             return true
         }
-        override fun acknowledgeFrame(sequence: Long): Boolean = true
-        override fun resumeFrames(): Boolean { resumes++; return true }
+        override fun acknowledgeFrame(sequence: Long): Boolean = onAck?.invoke(sequence) ?: true
+        override fun resumeFrames(): Boolean { resumes++; return onResume?.invoke() ?: true }
         override fun close() { closes++ }
         override fun detach() { listener = null }
         fun secure(value: RdpJniSecurity) { listener?.onSecurity(value) }

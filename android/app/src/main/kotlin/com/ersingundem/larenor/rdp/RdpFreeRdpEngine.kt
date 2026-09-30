@@ -197,15 +197,20 @@ class RdpFreeRdpSession internal constructor(
     private val operation: RdpJniOperation,
     private val observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
 ) : RdpNativeSession, RdpJniOperation.Listener {
+    private val stateLock = Any()
+    @Volatile
     var phase = RdpJniPhase.CONNECTING
         private set
+    @Volatile
     var failureCode: String? = null
         private set
+    @Volatile
     var pendingFrame: RdpNativeFrame? = null
         private set
     private var lastInputSequence = 0L
     private var lastFrameSequence = 0L
     private var terminal = false
+    private var acknowledging = false
 
     internal fun start(secrets: RdpNativeSecrets) {
         val accepted = try {
@@ -222,53 +227,59 @@ class RdpFreeRdpSession internal constructor(
     }
 
     override fun onSecurity(evidence: RdpJniSecurity) {
-        if (terminal) return
-        if (phase != RdpJniPhase.CONNECTING) {
-            terminate(RdpJniPhase.FAILED, "staleSession")
-            return
-        }
-        when {
-            evidence.minimumTlsProtocol !in setOf("TLSv1.2", "TLSv1.3") ->
-                terminate(RdpJniPhase.FAILED, "tlsRequired")
-            evidence.certificateFingerprint != request.certificateFingerprint ->
-                terminate(RdpJniPhase.FAILED, "certificatePinningRequired")
-            request.requiresNla && !evidence.nla ->
-                terminate(RdpJniPhase.FAILED, "nlaUnavailable")
-            else -> {
-                phase = RdpJniPhase.ACTIVE
-                observer.onSecurity()
+        val code = synchronized(stateLock) {
+            if (terminal) return
+            when {
+                phase != RdpJniPhase.CONNECTING -> "staleSession"
+                evidence.minimumTlsProtocol !in setOf("TLSv1.2", "TLSv1.3") -> "tlsRequired"
+                evidence.certificateFingerprint != request.certificateFingerprint -> "certificatePinningRequired"
+                request.requiresNla && !evidence.nla -> "nlaUnavailable"
+                else -> {
+                    phase = RdpJniPhase.ACTIVE
+                    null
+                }
             }
         }
+        if (code != null) terminate(RdpJniPhase.FAILED, code) else observer.onSecurity()
     }
 
     override fun onFrame(frame: RdpNativeFrame) {
-        if (terminal) {
+        val code = synchronized(stateLock) {
+            if (terminal) {
+                frame.close()
+                return
+            }
+            val display = request.display
+            when {
+                phase != RdpJniPhase.ACTIVE || pendingFrame != null -> "frameBackpressure"
+                frame.width > capabilities.maxWidth || frame.height > capabilities.maxHeight ||
+                    frame.dpi > capabilities.maxDpi || frame.sequence != lastFrameSequence + 1 ||
+                    frame.width.toLong() * frame.height > 33_554_432L ||
+                    !display.dynamicResize && (frame.width != display.width || frame.height != display.height) ->
+                    "framebufferUnavailable"
+                else -> {
+                    pendingFrame = frame
+                    lastFrameSequence = frame.sequence
+                    phase = RdpJniPhase.AWAITING_FRAME_ACK
+                    null
+                }
+            }
+        }
+        if (code != null) {
             frame.close()
+            terminate(RdpJniPhase.FAILED, code)
             return
         }
-        if (phase != RdpJniPhase.ACTIVE || pendingFrame != null) {
-            frame.close()
-            terminate(RdpJniPhase.FAILED, "frameBackpressure")
-            return
-        }
-        val display = request.display
-        if (frame.width > capabilities.maxWidth || frame.height > capabilities.maxHeight ||
-            frame.dpi > capabilities.maxDpi || frame.sequence != lastFrameSequence + 1 ||
-            frame.width.toLong() * frame.height > 33_554_432L ||
-            !display.dynamicResize && (frame.width != display.width || frame.height != display.height)) {
-            frame.close()
-            terminate(RdpJniPhase.FAILED, "framebufferUnavailable")
-            return
-        }
-        pendingFrame = frame
-        lastFrameSequence = frame.sequence
-        phase = RdpJniPhase.AWAITING_FRAME_ACK
         observer.onFrame()
     }
 
     fun acknowledgeFrame(sequence: Long): Boolean {
-        val frame = pendingFrame
-        if (terminal || phase != RdpJniPhase.AWAITING_FRAME_ACK || frame?.sequence != sequence) {
+        val frame = synchronized(stateLock) {
+            if (terminal || phase != RdpJniPhase.AWAITING_FRAME_ACK ||
+                pendingFrame?.sequence != sequence || acknowledging) null
+            else pendingFrame.also { acknowledging = true }
+        }
+        if (frame == null) {
             terminate(RdpJniPhase.FAILED, "staleSession")
             return false
         }
@@ -279,13 +290,19 @@ class RdpFreeRdpSession internal constructor(
         } catch (_: Exception) {
             false
         }
-        frame.close()
-        pendingFrame = null
+        synchronized(stateLock) {
+            // Native ACK can race disconnect/retirement. Do not resurrect a
+            // terminal session or resume its graphics after that boundary.
+            if (terminal) return false
+            acknowledging = false
+            frame.close()
+            pendingFrame = null
+            if (accepted) phase = RdpJniPhase.ACTIVE
+        }
         if (!accepted) {
             terminate(RdpJniPhase.FAILED, "connectionFailed")
             return false
         }
-        phase = RdpJniPhase.ACTIVE
         val resumed = try {
             operation.resumeFrames()
         } catch (_: LinkageError) {
@@ -297,7 +314,7 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "connectionFailed")
             return false
         }
-        return true
+        return synchronized(stateLock) { !terminal }
     }
 
     fun pointer(sequence: Long, x: Double, y: Double, buttons: Int): Boolean {
@@ -397,11 +414,13 @@ class RdpFreeRdpSession internal constructor(
     }
 
     private fun readyForInput(sequence: Long) =
-        !terminal && phase in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
-            sequence == lastInputSequence + 1
+        synchronized(stateLock) {
+            !terminal && phase in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
+                sequence == lastInputSequence + 1
+        }
 
     override fun onDisconnected() {
-        if (!terminal) terminate(RdpJniPhase.FAILED, "connectionFailed")
+        terminate(RdpJniPhase.FAILED, "connectionFailed")
     }
 
     override fun close() {
@@ -409,12 +428,15 @@ class RdpFreeRdpSession internal constructor(
     }
 
     private fun terminate(next: RdpJniPhase, code: String?) {
-        if (terminal) return
-        terminal = true
-        failureCode = code
-        phase = next
-        pendingFrame?.close()
-        pendingFrame = null
+        synchronized(stateLock) {
+            if (terminal) return
+            terminal = true
+            failureCode = code
+            phase = next
+            acknowledging = false
+            pendingFrame?.close()
+            pendingFrame = null
+        }
         try { operation.detach() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
         try { operation.close() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
         observer.onClosed(code)

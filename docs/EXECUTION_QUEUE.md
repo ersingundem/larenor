@@ -21,7 +21,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 1 | 0 | 2 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 0 | 1 | 2 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -30,6 +30,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
+| F62 | Bağımsız RDP uzak masaüstü | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -105,7 +106,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F31 | Haftalık menü ve tarif merkezi | Kanıtla tamamlandı | — |
 | F34 | QR etiketli ev envanteri | Kanıtla tamamlandı | — |
 | REMOTE.COMMON | Uzak erişim ortak profil/güven ve oturum temeli | Kanıtla tamamlandı | — |
-| F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | PRODUCT.APPLETV | Apple TV video ve medya hedefleri | CI bekliyor | — |
 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | CI bekliyor | — |
 | PRODUCT.HEALTH | Kişisel sağlık ve tartı sağlayıcı yazılım sınırı | CI bekliyor | — |
