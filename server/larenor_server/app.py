@@ -70,6 +70,10 @@ from .plugins.media_archive_core_api import (
     catalog_router as media_catalog_router,
     router as media_archive_health_router,
 )
+from .plugins.media_archive_worker_ipc import (
+    MediaArchiveWorkerError,
+    MediaArchiveWorkerServer,
+)
 from .media_archive_actions import router as media_archive_action_router
 from .plugins.media_flow_api import router as media_flow_router
 from .plugins.media_playback_api import router as media_playback_router
@@ -169,6 +173,13 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
         manager = application.state.core.plugin_jobs
         stop = asyncio.Event()
 
+        def close_core_clients():
+            application.state.core.home_assistant.close()
+            application.state.core.proxmox.close()
+            application.state.core.keenetic_resources.close()
+            application.state.core.direct_ha_migration.close()
+            application.state.core.proxmox_power.close()
+
         async def dispatch(manager, failure_code):
             while not stop.is_set():
                 try:
@@ -183,6 +194,24 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                     await asyncio.wait_for(stop.wait(), timeout=1)
                 except TimeoutError:
                     pass
+
+        authority_server = None
+        if settings.media_archive_authority_socket is not None:
+            provider = application.state.core.media_archive_provider
+            if provider is None:
+                close_core_clients()
+                raise StartupError("invalid_worker_configuration")
+            try:
+                authority_server = MediaArchiveWorkerServer(
+                    settings.media_archive_authority_socket,
+                    provider,
+                    allowed_uid=settings.media_archive_action_worker_uid,
+                )
+                authority_server.start()
+            except MediaArchiveWorkerError:
+                close_core_clients()
+                raise StartupError("invalid_worker_configuration") from None
+        application.state.media_archive_authority_server = authority_server
 
         task = asyncio.create_task(dispatch(manager, "preflight_dispatch_unavailable")) if manager.backend is not None else None
         media = application.state.core.media_inspections
@@ -248,11 +277,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
             yield
         finally:
             stop.set()
-            application.state.core.home_assistant.close()
-            application.state.core.proxmox.close()
-            application.state.core.keenetic_resources.close()
-            application.state.core.direct_ha_migration.close()
-            application.state.core.proxmox_power.close()
+            close_core_clients()
             if task is not None:
                 # Worker IPC has one bounded deadline. Do not cancel its DB
                 # receipt write or release a dispatch lock before it unwinds.
@@ -277,6 +302,8 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                 await component_update_task
             if media_archive_action_task is not None:
                 await media_archive_action_task
+            if authority_server is not None:
+                authority_server.close()
             if recovery_drill_task is not None:
                 await recovery_drill_task
             await immutable_backup_task
@@ -329,6 +356,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.music_assistant_bootstrap_dispatcher = None
     app.state.music_provider_setup_dispatcher = None
     app.state.component_update_dispatcher = None
+    app.state.media_archive_authority_server = None
     app.state.recovery_drill_dispatcher = None
     app.state.power_recovery_dispatcher = None
     app.state.mesh_center_gateway = app.state.core.mesh_center

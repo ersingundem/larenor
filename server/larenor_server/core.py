@@ -1234,6 +1234,7 @@ class CoreServices:
             self.party_dj.validate_storage()
             archive_binding_reader = self._media_archive_binding_reader
             archive_worker = self._media_archive_worker
+            archive_provider = None
             if archive_binding_reader is None and archive_worker is not None:
                 archive_provider = MediaArchiveWorkerProvider(
                     self.db,
@@ -1247,6 +1248,7 @@ class CoreServices:
                 archive_provider.validate_storage()
                 archive_binding_reader = archive_provider
                 archive_worker = archive_provider
+            self.media_archive_provider = archive_provider
             self.media_archive_health = MediaArchiveHealthManagement(
                 self.db,
                 self.auth,

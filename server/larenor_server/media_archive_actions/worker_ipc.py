@@ -13,6 +13,8 @@ import uuid
 
 from pydantic import ValidationError
 
+from ..peer_credentials import unix_peer_uid
+
 from .models import (
     ArchiveActionWorkerPreview,
     ArchiveActionWorkerReceipt,
@@ -107,15 +109,10 @@ def _write_frame(stream, value):
 
 
 def _peer_uid(stream):
-    if hasattr(stream, "getpeereid"):
-        return stream.getpeereid()[0]
-    if hasattr(socket, "SO_PEERCRED"):
-        raw = stream.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
-        return struct.unpack("3i", raw)[1]
-    if hasattr(socket, "LOCAL_PEERCRED"):
-        raw = stream.getsockopt(0, socket.LOCAL_PEERCRED, 8)
-        return struct.unpack("2I", raw)[1]
-    raise MediaArchiveActionWorkerError("peer_uid_unavailable")
+    try:
+        return unix_peer_uid(stream)
+    except (OSError, struct.error):
+        raise MediaArchiveActionWorkerError("peer_uid_unavailable") from None
 
 
 def _validate_socket_path(path, owner_uid, *, existing):
@@ -243,6 +240,7 @@ class MediaArchiveActionWorkerServer:
         self.handler = handler or UnavailableMediaArchiveActionHandler()
         self._socket = None
         self._thread = None
+        self._socket_identity = None
         self._stopping = threading.Event()
         self._replay_order = deque()
         self._replay_keys = set()
@@ -258,6 +256,8 @@ class MediaArchiveActionWorkerServer:
             raise MediaArchiveActionWorkerError("socket_path_exists")
         stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         stream.bind(self.path)
+        info = os.lstat(self.path)
+        self._socket_identity = (info.st_dev, info.st_ino)
         os.chmod(self.path, 0o600)
         stream.listen(8)
         stream.settimeout(0.2)
@@ -278,9 +278,13 @@ class MediaArchiveActionWorkerServer:
         if callable(closer):
             closer()
         try:
-            os.unlink(self.path)
+            info = os.lstat(self.path)
+            if self._socket_identity == (info.st_dev, info.st_ino):
+                os.unlink(self.path)
         except FileNotFoundError:
             pass
+        finally:
+            self._socket_identity = None
 
     def __enter__(self):
         return self.start()

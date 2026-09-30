@@ -35,6 +35,7 @@ class Settings:
     media_archive_worker_uid: int = 0
     media_archive_action_worker_socket: Path | None = None
     media_archive_action_worker_uid: int = 0
+    media_archive_authority_socket: Path | None = None
 
     def __post_init__(self):
         worker_uids = (
@@ -76,6 +77,7 @@ class Settings:
             self.component_backup_worker_socket,
             self.media_archive_worker_socket,
             self.media_archive_action_worker_socket,
+            self.media_archive_authority_socket,
         )
         for path in paths:
             if path is not None and (
@@ -107,6 +109,10 @@ class Settings:
                 and self.media_archive_action_worker_uid != 0
             )
         ):
+            raise ValueError("invalid_worker_configuration")
+        if (self.media_archive_authority_socket is not None
+                and (self.media_archive_worker_socket is None
+                     or self.media_archive_action_worker_socket is None)):
             raise ValueError("invalid_worker_configuration")
 
     @property
@@ -173,6 +179,11 @@ class Settings:
                 media_archive_action_worker_uid=int(os.environ.get(
                     "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID", "0"
                 )),
+                media_archive_authority_socket=(
+                    Path(os.environ["LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET"])
+                    if os.environ.get("LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET")
+                    else None
+                ),
             )
         except ValueError:
             # int() errors include their input. Environment values must never

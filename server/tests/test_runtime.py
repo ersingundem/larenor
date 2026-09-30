@@ -1,5 +1,7 @@
 import os
 import stat
+import tempfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,12 +13,13 @@ from larenor_server.media_archive_actions.worker_ipc import (
     MediaArchiveActionWorkerClient,
 )
 from larenor_server.plugins.media_archive_worker_ipc import (
-    MediaArchiveWorkerClient,
+    MediaArchiveWorkerClient, MediaArchiveWorkerError,
 )
 from larenor_server.plugins.media_archive_provider import (
     MediaArchiveWorkerProvider,
 )
 from larenor_server.runtime import create_configured_app
+from test_media_archive_core_read import authority as archive_authority
 
 
 def test_normal_entrypoint_registers_authenticated_release_and_admin_routes(tmp_path):
@@ -100,6 +103,7 @@ def test_configured_app_wires_opted_in_media_archive_workers(tmp_path):
     root = tmp_path.resolve()
     read_socket = root / "media-archive-read.sock"
     action_socket = root / "media-archive-action.sock"
+    authority_socket = root / "media-archive-authority.sock"
     settings = Settings(
         root / "data",
         root / "secrets/vault.key",
@@ -107,6 +111,7 @@ def test_configured_app_wires_opted_in_media_archive_workers(tmp_path):
         media_archive_worker_uid=os.getuid(),
         media_archive_action_worker_socket=action_socket,
         media_archive_action_worker_uid=os.getuid(),
+        media_archive_authority_socket=authority_socket,
     )
 
     app = create_configured_app(settings)
@@ -121,6 +126,79 @@ def test_configured_app_wires_opted_in_media_archive_workers(tmp_path):
     assert isinstance(actions, MediaArchiveActionWorkerClient)
     assert actions.path == action_socket
     assert actions.owner_uid == actions.peer_uid == os.getuid()
+    assert app.state.core.media_archive_provider is health.backend
+
+
+def test_core_lifespan_serves_only_live_archive_authority(tmp_path):
+    root = tmp_path.resolve()
+    with tempfile.TemporaryDirectory(prefix="la-", dir="/tmp") as socket_dir:
+        authority_socket = Path(socket_dir) / "authority.sock"
+        settings = Settings(
+            root / "data", root / "secrets/vault.key",
+            media_archive_worker_socket=root / "read.sock",
+            media_archive_worker_uid=os.getuid(),
+            media_archive_action_worker_socket=root / "action.sock",
+            media_archive_action_worker_uid=os.getuid(),
+            media_archive_authority_socket=authority_socket,
+        )
+        app = create_configured_app(settings)
+        current = [archive_authority(), archive_authority(snapshot=5)]
+        provider = app.state.core.media_archive_provider
+        provider.current = lambda installation_id: (
+            current[0] if installation_id == current[0].installationId
+            else (_ for _ in ()).throw(ValueError("unknown installation"))
+        )
+        with TestClient(app):
+            assert app.state.media_archive_authority_server is not None
+            assert settings.media_archive_authority_socket.is_socket()
+            reader = MediaArchiveWorkerClient(
+                settings.media_archive_authority_socket,
+                owner_uid=os.getuid())
+            assert reader.status() == {
+                "state": "unavailable",
+                "authorityAvailable": True,
+                "readAvailable": False,
+                "mutationAvailable": False,
+            }
+            assert reader.current(current[0].installationId) == current[0]
+            current.pop(0)
+            assert reader.current(current[0].installationId) == current[0]
+            with pytest.raises(MediaArchiveWorkerError):
+                reader.current("f" * 32)
+        assert not settings.media_archive_authority_socket.exists()
+
+
+def test_core_authority_startup_failure_closes_clients_before_dispatch(tmp_path):
+    root = tmp_path.resolve()
+    settings = Settings(
+        root / "data", root / "secrets/vault.key",
+        media_archive_worker_socket=root / "read.sock",
+        media_archive_worker_uid=os.getuid(),
+        media_archive_action_worker_socket=root / "action.sock",
+        media_archive_action_worker_uid=os.getuid(),
+        media_archive_authority_socket=root / "missing/authority.sock",
+    )
+    app = create_configured_app(settings)
+    closed = []
+    for name in (
+        "home_assistant", "proxmox", "keenetic_resources",
+        "direct_ha_migration", "proxmox_power",
+    ):
+        setattr(
+            getattr(app.state.core, name), "close",
+            lambda name=name: closed.append(name),
+        )
+
+    with pytest.raises(StartupError, match="^invalid_worker_configuration$"):
+        with TestClient(app):
+            pytest.fail("lifespan startup must fail closed")
+
+    assert set(closed) == {
+        "home_assistant", "proxmox", "keenetic_resources",
+        "direct_ha_migration", "proxmox_power",
+    }
+    assert app.state.plugin_job_dispatcher is None
+    assert getattr(app.state, "media_archive_action_dispatcher", None) is None
 
 
 def test_media_archive_worker_environment_is_exact_and_fail_closed(
@@ -129,6 +207,7 @@ def test_media_archive_worker_environment_is_exact_and_fail_closed(
     root = tmp_path.resolve()
     read_socket = root / "media-archive-read.sock"
     action_socket = root / "media-archive-action.sock"
+    authority_socket = root / "media-archive-authority.sock"
     monkeypatch.setenv("LARENOR_DATA_DIR", str(root / "data"))
     monkeypatch.setenv("LARENOR_KEY_FILE", str(root / "secrets/vault.key"))
     monkeypatch.setenv("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET", str(read_socket))
@@ -139,6 +218,9 @@ def test_media_archive_worker_environment_is_exact_and_fail_closed(
     monkeypatch.setenv(
         "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID", str(os.getuid())
     )
+    monkeypatch.setenv(
+        "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET", str(authority_socket)
+    )
 
     settings = Settings.from_environment()
 
@@ -146,6 +228,7 @@ def test_media_archive_worker_environment_is_exact_and_fail_closed(
     assert settings.media_archive_worker_uid == os.getuid()
     assert settings.media_archive_action_worker_socket == action_socket
     assert settings.media_archive_action_worker_uid == os.getuid()
+    assert settings.media_archive_authority_socket == authority_socket
 
     monkeypatch.delenv("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET")
     with pytest.raises(StartupError, match="^invalid_worker_configuration$"):

@@ -21,6 +21,8 @@ Dayanak: [handler ve success/error yazımı](https://github.com/Unmanic/unmanic/
 | Pending satırı sil | JSON gövdeli `DELETE /pending/tasks`, `{"selection_mode":"explicit","id_list":[31]}` | `{"success":true}`. Bulunmayan ID de başarılı görünebilir; bu terminal görev makbuzu değildir. |
 | Worker durumu | gövdesiz `GET /workers/status` | `workers_status[]`: `id`, `name`, `idle`, `paused`, `start_time`, `current_file`, `current_task`, `current_command`, `worker_log_tail`, `runners_info`, `subprocess`. |
 | Worker sonlandır | JSON gövdeli `DELETE /workers/worker/terminate`, `{"worker_id":"Default-0"}` | `{"success":true}`. Bu, worker redundant bayrağının ayarlandığını bildirir; task-ID ile atomik iptal değildir. |
+| Library kimliğini listele | gövdesiz `GET /settings/libraries` | `libraries[]` içindeki gerçek pozitif `id` ve `path`; Larenor private katalogdaki exact `workRoot` ile tek eşleşme ister. |
+| Library config oku | `POST /settings/library/read`, `{"id":42}` | `library_config` ve `plugins`; `library_config.id/path` liste sonucu ile exact eşleşir ve bütün cevap config digest'ine katılır. |
 
 Resmî uygulama ve şemalar:
 
@@ -29,6 +31,8 @@ Resmî uygulama ve şemalar:
 - [status lookup yalnız mevcut satırları döndürür](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/helpers/pending_tasks.py#L288-L311)
 - [worker route/terminate/status](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/api_v2/workers_api.py#L45-L81), [worker cevap şeması](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/api_v2/schema/schemas.py#L1811-L1914)
 - [terminate yalnız redundant bayrağı ayarlar](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/libs/foreman.py#L559-L585)
+- [library liste/read route ve uygulaması](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/api_v2/settings_api.py#L113-L120), [liste ve exact config okuması](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/api_v2/settings_api.py#L863-L1004), [library cevap şemaları](https://github.com/Unmanic/unmanic/blob/1c324b8fc3974ffce3d7cc945adb938fe7182910/unmanic/webserver/api_v2/schema/schemas.py#L1626-L1725)
+- [resmî library path yapılandırması](https://docs.unmanic.app/docs/configuration/libraries/configure_libraries/)
 - [resmî API kullanım sınırı](https://docs.unmanic.app/docs/using_unmanic/apis/)
 
 ## Terminal event eklentisi
@@ -91,6 +95,16 @@ plugin runtime'ının zorunlu teslim parçasıdır.
 - Path yalnız trusted file-store resolver'dan gelir; Client/Jellyfin yolu
   doğrudan Unmanic'e taşınmaz. Resolver yalnız normalize work path ve library ID
   verir; source hash/byte gözlemi file-store tarafından gerçekten hesaplanır.
+- Unmanic library ID private katalogda veya action komutunda bulunmaz. Worker
+  `settings/libraries` ile exact `workRoot` için tek gerçek ID'yi bulur,
+  `settings/library/read` ile ID/path'i yeniden doğrular ve bütün config
+  digest'ini sealed source snapshot'a bağlar. Resolve ve restart authorization
+  aynı canlı readback değiştiğinde fail-closed olur.
+- Admin tarafından yerleştirilen 0600 private resolver kataloğu yalnız
+  store/work/retained rootlarını, ayrı 0600 key dosyasını ve sabit
+  `Jellyfin serviceRoot -> hostRoot` mount eşlemelerini taşır. Worker bütün
+  rootları owner, tür, `O_NOFOLLOW` fd device/inode, distinct/non-nested
+  kontrollerinden geçirir; action IPC yolu veya library ID sağlayamaz.
 - Görev her zaman `type:"local"` oluşturulur. `remote` görev terminal callback
   sözleşmesine dahil değildir.
 - Pending satırının kaybolması başarı, başarısızlık veya iptal sayılmaz. Terminal

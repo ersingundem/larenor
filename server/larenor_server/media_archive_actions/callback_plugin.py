@@ -100,7 +100,7 @@ def _body(data, work_root):
         _check(type(data.get(field)) is bool)
     start, finish = data.get("start_time"), data.get("finish_time")
     _check(type(start) in {int, float} and type(finish) in {int, float}
-           and math.isfinite(start) and math.isfinite(finish) and 0 <= start <= finish)
+           and math.isfinite(start) and math.isfinite(finish) and 1 <= start <= finish <= 253402300799)
     worker = data.get("processed_by_worker")
     _check(type(worker) is str and 1 <= len(worker) <= 240
            and all(ord(char) >= 32 and ord(char) != 127 for char in worker))

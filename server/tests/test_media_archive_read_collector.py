@@ -123,11 +123,11 @@ def routes(*, qbit_state='stoppedUP', jelly_total=2, jelly_path=None):
     ]
 
 
-def collect(values):
+def collect(values, *, sink=None):
     transport = Transport(values)
     current = authority(observed=NOW - 1)
     result = MediaArchiveReadCollector(
-        transport, clock=lambda: NOW).collect(
+        transport, clock=lambda: NOW, private_source_sink=sink).collect(
             private(current=current), deadline=time.monotonic() + 3,
             gate=lambda: True)
     return result, transport
@@ -150,6 +150,34 @@ def test_collects_exact_identities_paths_imports_and_seeding_without_leaking_pat
     assert '/data/' not in encoded and '/media/' not in encoded
     assert 'qbt_' not in encoded
     assert all(call[2].startswith('/') for call in transport.calls)
+
+
+def test_authenticated_jellyfin_provenance_is_published_only_to_private_sink():
+    class Sink:
+        def __init__(self):
+            self.calls = []
+
+        def replace_collection_authenticated(
+                self, selected, records, *, deadline, gate):
+            assert time.monotonic() < deadline and gate() is True
+            self.calls.append((selected, records))
+
+    sink = Sink()
+    result, _transport = collect(routes(), sink=sink)
+
+    assert len(sink.calls) == 1
+    selected, records = sink.calls[0]
+    assert selected.snapshotRevision == result.jellyfin.snapshotRevision
+    assert len(records) == 1  # Existing HEVC needs no archive transcode.
+    source = records[0]
+    assert (source.sourceItemId, source.mediaKey, source.sourcePath) == (
+        '5' * 32, 'movie:tmdb:603', '/media/movies/Film/Film.mkv')
+    assert (source.sourceSizeBytes, source.sourceCodec,
+            source.sourceBitrate, source.durationSeconds) == (
+        8000, 'h264', 8_000_000, 720)
+    assert repr(source) == 'AuthenticatedArchiveSourceRecord(<private>)'
+    encoded = json.dumps(result.model_dump(mode='json'))
+    assert source.sourcePath not in encoded and source.sourceCodec not in encoded
 
 
 @pytest.mark.parametrize(('values', 'code'), [

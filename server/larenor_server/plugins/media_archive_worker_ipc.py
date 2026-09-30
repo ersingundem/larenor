@@ -14,6 +14,8 @@ import uuid
 
 from pydantic import ValidationError
 
+from ..peer_credentials import unix_peer_uid
+
 from .media_archive_core_models import (
     MediaArchiveCollectionAuthority,
     PrivateMediaArchiveWorkerCollection,
@@ -112,12 +114,8 @@ def write_frame(connection, value, deadline):
 
 
 def _peer_uid(connection):
-    if not hasattr(socket, 'SO_PEERCRED'):
-        raise MediaArchiveWorkerError()
     try:
-        return struct.unpack(
-            '3i', connection.getsockopt(
-                socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
+        return unix_peer_uid(connection)
     except (OSError, struct.error):
         raise MediaArchiveWorkerError() from None
 

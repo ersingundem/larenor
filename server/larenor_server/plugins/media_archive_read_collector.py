@@ -17,6 +17,9 @@ from urllib.parse import urlencode
 from pydantic import ValidationError
 
 from ..services.transport import _Deadline, _remaining, _request_bytes
+from ..media_archive_actions.source_resolver import (
+    AuthenticatedArchiveSourceRecord,
+)
 from .arr_authenticated_readback import ArrAuthenticatedReadbackResult
 from .catalog import load_catalog
 from .jellyfin_authenticated_readback import (
@@ -205,10 +208,16 @@ class _ArrProjection:
 class MediaArchiveReadCollector:
     """Collect four coherent service snapshots through bounded read-only APIs."""
 
-    def __init__(self, transport=None, *, clock=None):
+    def __init__(self, transport=None, *, clock=None, private_source_sink=None):
         self.transport = transport or _LoopbackTransport()
         self.clock = clock or time.time
-        if not callable(getattr(self.transport, 'get', None)) or not callable(self.clock):
+        self.private_source_sink = private_source_sink
+        if (not callable(getattr(self.transport, 'get', None))
+                or not callable(self.clock)
+                or private_source_sink is not None
+                and not callable(getattr(
+                    private_source_sink,
+                    'replace_collection_authenticated', None))):
             raise MediaArchiveReadCollectorError('invalid_media_archive_collection')
 
     def collect(self, private, *, deadline, gate):
@@ -240,13 +249,13 @@ class MediaArchiveReadCollector:
             sources['qbittorrent'], ports['qbittorrent'],
             components['qbittorrent'], deadline, gate,
             {**sonarr.imports, **radarr.imports})
-        jellyfin = self._jellyfin_records(
+        jellyfin, private_sources = self._jellyfin_records(
             jelly_raw, {**sonarr.path_keys, **radarr.path_keys})
         now = int(self.clock())
         adapter = MediaArchiveIngestion()
         _gate(deadline, gate)
         try:
-            return adapter.assemble(
+            observation = adapter.assemble(
                 jellyfin=adapter.jellyfin(
                     bindings['jellyfin'], jelly_proof, jellyfin,
                     expected_server_id=sources['jellyfin'].serverId, now=now),
@@ -260,6 +269,17 @@ class MediaArchiveReadCollector:
         except Exception:
             raise MediaArchiveReadCollectorError(
                 'media_archive_projection_invalid') from None
+        _gate(deadline, gate)
+        if self.private_source_sink is not None:
+            try:
+                self.private_source_sink.replace_collection_authenticated(
+                    selected.authority, private_sources,
+                    deadline=deadline, gate=gate)
+            except Exception:
+                raise MediaArchiveReadCollectorError(
+                    'media_archive_source_unavailable') from None
+            _gate(deadline, gate)
+        return observation
 
     def _get(self, service, port, path, source, deadline, gate, *, text=False):
         return self.transport.get(
@@ -541,7 +561,7 @@ class MediaArchiveReadCollector:
                 or value.get('TotalRecordCount') != len(value['Items'])
                 or len(value['Items']) > _MAX_ITEMS):
             raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
-        records = []
+        records, private_records = [], []
         for item in value['Items']:
             if type(item) is not dict or item.get('Type') not in {'Movie', 'Episode'}:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
@@ -585,4 +605,14 @@ class MediaArchiveReadCollector:
                 'integrity': 'playable' if direct else 'unplayable',
                 'runtimeSeconds': runtime_seconds,
             })
-        return records
+            if codec in {'h264', 'mpeg2', 'vc1'}:
+                private_records.append(AuthenticatedArchiveSourceRecord(
+                    sourceItemId=item_id,
+                    mediaKey=key,
+                    sourcePath=item['Path'],
+                    sourceSizeBytes=size,
+                    sourceCodec=codec,
+                    sourceBitrate=bitrate,
+                    durationSeconds=runtime_seconds,
+                ))
+        return records, private_records
