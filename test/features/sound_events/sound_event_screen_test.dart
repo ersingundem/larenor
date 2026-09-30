@@ -27,7 +27,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Source settings could not be loaded'), findsOneWidget);
+    expect(
+      find.textContaining('Source settings could not be loaded'),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('sound-event-source-settings')));
     expect(retries, 1);
     controller.dispose();

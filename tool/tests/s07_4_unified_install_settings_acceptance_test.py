@@ -100,7 +100,7 @@ class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
                 )
         self.assertEqual(first["casaOsCompose"]["x-casaos"]["main"], "larenor-core")
 
-    def test_internal_wiring_is_secret_free_and_exact_without_manual_service_addresses(
+    def test_internal_wiring_is_secret_free_with_exact_loopback_worker_addresses(
         self,
     ):
         value = self.planner.plan(REVISION, SETTINGS)
@@ -119,12 +119,21 @@ class S074UnifiedInstallSettingsAcceptanceTest(unittest.TestCase):
         self.assertEqual(
             services["larenor-core"]["networks"]["control"]["aliases"], ["core"]
         )
+        worker_ports = {
+            "larenor-jellyfin": ["127.0.0.1:8096:8096"],
+            "larenor-sonarr": ["127.0.0.1:8989:8989"],
+            "larenor-radarr": ["127.0.0.1:7878:7878"],
+            "larenor-qbittorrent": ["127.0.0.1:8080:8080"],
+        }
         for name in SERVICES[:-1]:
             service_id = name.removeprefix("larenor-")
             self.assertEqual(
                 services[name]["networks"]["control"]["aliases"], [service_id]
             )
-            self.assertNotIn("ports", services[name])
+            if name in worker_ports:
+                self.assertEqual(services[name].get("ports"), worker_ports[name])
+            else:
+                self.assertNotIn("ports", services[name])
             self.assertNotIn("dns", services[name])
         self.assertEqual(services["larenor-music-assistant"]["network_mode"], "host")
         self.assertNotIn("networks", services["larenor-music-assistant"])

@@ -38,7 +38,7 @@ class RequiredCiWorkflowTest(unittest.TestCase):
                 self.assertIn("      pull-requests: read", required)
                 self.assertIn("persist-credentials: false", required)
                 self.assertIn("GITHUB_TOKEN: ${{ github.token }}", required)
-                self.assertIn("run: python3 tool/required_ci_aggregate.py " + kind,
+                self.assertIn("python3 tool/required_ci_aggregate.py " + kind,
                               required)
                 caller_job = caller.partition("  " + name + ":\n")[2].split(
                     "\n\n  ", 1)[0]

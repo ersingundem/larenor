@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül geniş CI ilk hata düzeltmeleri
+
+Security exact `9bc92d369` koşusunda iki eski politika beklentisi başarısızdı: multiline zorunlu aggregate ve dört sabit loopback medya portu. Dar düzeltmelerle 449 platform-policy testi geçti, 4 skip; security policy temiz. Android exact `d8f17838f` biçim kapısındaki üç dosya formatter ile düzeltildi. Actual Linux AI user-manager hazırlık hatası ayrıca inceleniyor; koşu yeniden başlatılmadı ve yeşil kabul iddia edilmedi.
+
 ### 30 Eylül F44/F47 gerçek ev revizyonu
 
 Frigate gözlemleri ve evcc enerji girdileri actual Home Resource Registry revizyonunu taşıyor; schemaVersion veya sabit 1 authority olarak kullanılmıyor. Kamera 21, enerji/evcc 25 Server regresyonu geçti. [Kamera kanıtı](testing/f44-real-frigate-classification-2026-09-30.md), [enerji kanıtı](testing/f47-solar-battery-priorities-core.tdd.md). Geniş CI ve fiziksel provider kabulü açık; sayaç değişmedi.

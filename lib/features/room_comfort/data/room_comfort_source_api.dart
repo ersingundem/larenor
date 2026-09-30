@@ -63,9 +63,9 @@ final class AccountRoomComfortSourceApi {
             .map((raw) {
               final service = ServerService.fromJson(_object(raw));
               if (service.kind != ServerServiceKind.homeAssistant ||
-          service.verification.state !=
-              ServerServiceVerificationState.authenticated ||
-          service.revision > _maxSafeInteger ||
+                  service.verification.state !=
+                      ServerServiceVerificationState.authenticated ||
+                  service.revision > _maxSafeInteger ||
                   service.credentialKeys.length != 1 ||
                   service.credentialKeys.single != 'token') {
                 _invalid();
@@ -85,10 +85,10 @@ final class AccountRoomComfortSourceApi {
                   HomeResourceRecord.fromJson(raw, expectedContext: context),
             )
             .toList(growable: false);
-    if (rooms.any((value) => value.kind != HomeResourceKind.room) ||
-        areas.any((value) => value.kind != HomeResourceKind.resource) ||
-        rooms.any((value) => value.revision > _maxSafeInteger) ||
-        areas.any((value) => value.revision > _maxSafeInteger)) {
+        if (rooms.any((value) => value.kind != HomeResourceKind.room) ||
+            areas.any((value) => value.kind != HomeResourceKind.resource) ||
+            rooms.any((value) => value.revision > _maxSafeInteger) ||
+            areas.any((value) => value.revision > _maxSafeInteger)) {
           _invalid();
         }
         RoomComfortSourceConfiguration? configuration;

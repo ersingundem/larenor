@@ -73,7 +73,7 @@ void main() {
         'louder',
       );
       await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('legacy-command-save')));
+      await tester.tap(find.byKey(const ValueKey('legacy-command-save')));
       await tester.pumpAndSettle();
       expect(
         saved?.commandKeys,
@@ -114,7 +114,7 @@ void main() {
         'louder',
       );
       await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('legacy-command-save')));
+      await tester.tap(find.byKey(const ValueKey('legacy-command-save')));
       await tester.pumpAndSettle();
       expect(saved, 0);
       expect(api.writes, 1);
