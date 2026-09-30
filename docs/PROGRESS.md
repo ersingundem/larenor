@@ -19,7 +19,7 @@ ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
 ### 1 Ekim F60 izole gerçek Sunshine host hazırlığı
 
-Owned host harness yalnız GitHub-hosted Ubuntu24.04te pinned Sunshine paketini hash/sürüm readback ile kurar; private TLS, Xvfb/PulseAudio readiness ve exact mDNS gözlemi sağlar. Pair/unpair APIleri yalnız exact owned kimliklere sınırlıdır; gizli materyal yayımlanmaz ve owned süreçler temizlenir. Root 47 host/policy testi geçti. Yeni hosted smoke henüz çalışmadı; receipt açıkça host_ready/streamAccepted=false verir. Bu hazırlık gerçek Android eşleme/yayın/girdi/stop/revoke kabulü değildir: F60 yeniden çalışılıyor, 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).
+Owned host harness yalnız GitHub-hosted Ubuntu24.04te pinned Sunshine paketini hash/sürüm readback ile kurar; private TLS, Xvfb/PulseAudio readiness ve exact mDNS gözlemi sağlar. Pair/unpair APIleri yalnız exact owned kimliklere sınırlıdır; gizli materyal yayımlanmaz ve owned süreçler temizlenir. Root 47 host/policy testi geçti. Yeni workflow doğrudan GitHub404 verdiği için kayıtlı server-test dispatchera ayrı f60-host same-commit çağrısı eklendi; yanlış caller/contract/ref/SHA reddedilir. Root19 host/dispatcher ve47 policy testi/actionlint geçti. Hosted smoke henüz çalışmadı; receipt açıkça host_ready/streamAccepted=false verir. Bu hazırlık gerçek Android eşleme/yayın/girdi/stop/revoke kabulü değildir: F60 yeniden çalışılıyor, 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).
 
 ### 1 Ekim F62 canonical SPKI düzeltmesi
 

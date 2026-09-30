@@ -5,11 +5,21 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import textwrap
 import tempfile
 import unittest
 from unittest import mock
 
 from tool import f60_sunshine_owned_host as host
+
+
+ROOT = Path(__file__).resolve().parents[2]
+HOST_WORKFLOW = (ROOT / ".github/workflows/f60-sunshine-owned-host.yml").read_text()
+SERVER_WORKFLOW = (ROOT / ".github/workflows/server-test.yml").read_text()
+_GUARD_STEP = HOST_WORKFLOW.split(
+    "      - name: Require reviewed same-repository source\n", 1,
+)[1].split("\n      - name:", 1)[0]
+GUARD_SCRIPT = textwrap.dedent(_GUARD_STEP.split("        run: |\n", 1)[1])
 
 
 class _Response(io.BytesIO):
@@ -90,6 +100,91 @@ class _Completed:
 
 
 class F60SunshineOwnedHostTest(unittest.TestCase):
+    def _run_workflow_guard(self, **changes):
+        reference = "refs/heads/codex/project-completion-100"
+        values = {
+            "CALLER_CONTRACT": "",
+            "GITHUB_ENV": "",
+            "GITHUB_EVENT_NAME": "workflow_dispatch",
+            "GITHUB_REF": reference,
+            "GITHUB_REPOSITORY": "ersingundem/larenor",
+            "GITHUB_SHA": "a" * 40,
+            "GITHUB_WORKFLOW_REF": (
+                "ersingundem/larenor/.github/workflows/"
+                f"f60-sunshine-owned-host.yml@{reference}"
+            ),
+            "GITHUB_WORKFLOW_SHA": "a" * 40,
+            "PR_HEAD_REPOSITORY": "",
+            "RUNNER_ENVIRONMENT": "github-hosted",
+            "RUNNER_TEMP": "",
+        }
+        values.update(changes)
+        with tempfile.TemporaryDirectory() as temporary:
+            values["RUNNER_TEMP"] = values["RUNNER_TEMP"] or temporary
+            values["GITHUB_ENV"] = values["GITHUB_ENV"] or str(
+                Path(temporary) / "github-env"
+            )
+            return subprocess.run(
+                ["/bin/bash", "-e", "-o", "pipefail", "-c", GUARD_SCRIPT],
+                env=values,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+    def test_registered_dispatcher_is_isolated_from_required_server_gates(self):
+        self.assertIn("          - f60-host", SERVER_WORKFLOW)
+        self.assertIn(
+            "if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'f08'",
+            SERVER_WORKFLOW,
+        )
+        self.assertIn(
+            "if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'host'",
+            SERVER_WORKFLOW,
+        )
+        self.assertIn(
+            "if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-host'",
+            SERVER_WORKFLOW,
+        )
+        self.assertIn(
+            "uses: ./.github/workflows/f60-sunshine-owned-host.yml",
+            SERVER_WORKFLOW,
+        )
+        aggregate = SERVER_WORKFLOW.split("  server-test:\n", 1)[1]
+        self.assertIn("inputs.scope == 'all'", aggregate)
+        self.assertNotIn("f60-sunshine-owned-host", aggregate)
+
+    def test_source_guard_accepts_exact_manual_or_registered_dispatcher(self):
+        self.assertEqual(self._run_workflow_guard().returncode, 0)
+        reference = "refs/heads/codex/project-completion-100"
+        dispatched = self._run_workflow_guard(
+            CALLER_CONTRACT="f60-owned-host-v1",
+            GITHUB_WORKFLOW_REF=(
+                "ersingundem/larenor/.github/workflows/"
+                f"server-test.yml@{reference}"
+            ),
+        )
+        self.assertEqual(dispatched.returncode, 0, dispatched.stderr)
+
+    def test_source_guard_rejects_wrong_caller_contract_ref_or_revision(self):
+        reference = "refs/heads/codex/project-completion-100"
+        valid_dispatcher = (
+            "ersingundem/larenor/.github/workflows/server-test.yml@" + reference
+        )
+        for changes in (
+            {"CALLER_CONTRACT": "wrong", "GITHUB_WORKFLOW_REF": valid_dispatcher},
+            {
+                "CALLER_CONTRACT": "f60-owned-host-v1",
+                "GITHUB_WORKFLOW_REF": (
+                    "ersingundem/larenor/.github/workflows/other.yml@" + reference
+                ),
+            },
+            {"GITHUB_REF": "refs/heads/unreviewed"},
+            {"GITHUB_WORKFLOW_SHA": "b" * 40},
+        ):
+            with self.subTest(changes=changes):
+                self.assertNotEqual(self._run_workflow_guard(**changes).returncode, 0)
+
     def test_release_identity_is_exact_official_ubuntu_2404_asset(self):
         self.assertEqual(host.SUNSHINE_TAG, "v2026.914.233613")
         self.assertEqual(

@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Run all Server gates, F08 cgroup, or host worker proofs"
+        description: "Run all Server gates, F08 cgroup, host worker proofs, or the F60 owned host smoke"
         required: true
         default: all
         type: choice
@@ -13,6 +13,7 @@ on:
           - all
           - f08
           - host
+          - f60-host
 
 permissions:
   contents: read
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   f08-linux-cgroup:
     name: f08-linux-cgroup
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'host'
+    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'f08'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -85,7 +86,7 @@ jobs:
 
   host-workers-linux:
     name: host-workers-linux
-    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'f08'
+    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'host'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -98,6 +99,15 @@ jobs:
           "$RUNNER_TEMP/larenor-host-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
       - name: Prove private Core and dedicated host-worker identities
         run: bash tool/run_host_worker_acceptance.sh "$RUNNER_TEMP/larenor-host-tools/bin/uv"
+
+  f60-sunshine-owned-host:
+    name: f60-sunshine-owned-host
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-host'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/f60-sunshine-owned-host.yml
+    with:
+      caller_contract: f60-owned-host-v1
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}

@@ -141,7 +141,7 @@ an injected candidate cannot satisfy the gate.
 
 ```text
 python3 -m unittest tool.tests.f60_sunshine_owned_host_test
-16 tests; zero failures/errors/skips
+19 tests; zero failures/errors/skips
 ```
 
 The tests cover the pinned release constants, runner/OS refusal, private
@@ -150,6 +150,20 @@ installation/readback, exact API methods and JSON bodies, malformed and
 oversized responses, pre-I/O input rejection, TLS pin construction, secret-free
 representation, exact mDNS parsing, direct process plans, reverse child cleanup
 and the explicit non-acceptance readiness receipt.
+
+## Registered same-commit dispatcher
+
+Direct dispatch after commit `830de51a` returned GitHub404 because the new
+workflow was not on the default branch; no hosted run was created. The existing
+registered `server-test.yml` now accepts the separate manual `f60-host` scope.
+It calls this local reusable workflow from the same commit with the fixed
+`f60-owned-host-v1` contract. Exact caller workflow/ref, repository, source SHA,
+allowed branch and GitHub-hosted execution are independently checked.
+
+This scope skips the unrelated Server shards, F08 and host-worker jobs. It is
+not a Server required-aggregate success. Wrong caller/contract/ref/SHA are
+rejected by extracted real shell guard tests. Root passed19 host/dispatcher plus
+47 workflow/policy tests and actionlint for both workflows.
 
 ## Evidence still required
 

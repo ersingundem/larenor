@@ -1,6 +1,12 @@
 name: F60 Sunshine owned host smoke
 
 on:
+  workflow_call:
+    inputs:
+      caller_contract:
+        description: "Exact registered same-repository dispatcher contract"
+        required: true
+        type: string
   workflow_dispatch:
 
 permissions:
@@ -17,6 +23,7 @@ jobs:
     steps:
       - name: Require reviewed same-repository source
         env:
+          CALLER_CONTRACT: ${{ inputs.caller_contract || '' }}
           PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -euo pipefail
@@ -30,6 +37,11 @@ jobs:
           test "$GITHUB_REPOSITORY" = ersingundem/larenor
           test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
           test "$RUNNER_ENVIRONMENT" = github-hosted
+          case "$GITHUB_WORKFLOW_REF:$CALLER_CONTRACT" in
+            "ersingundem/larenor/.github/workflows/f60-sunshine-owned-host.yml@$GITHUB_REF:") ;;
+            "ersingundem/larenor/.github/workflows/server-test.yml@$GITHUB_REF:f60-owned-host-v1") ;;
+            *) exit 1 ;;
+          esac
           test -n "$RUNNER_TEMP"
           printf 'RECEIPT=%s/f60-sunshine-owned-host-receipt.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           printf 'RAW_RECEIPT=%s/f60-sunshine-owned-host-raw.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
