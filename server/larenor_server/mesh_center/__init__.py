@@ -30,6 +30,7 @@ from .service import (
 )
 from .store import FirmwareUpdateStore
 from .runtime import MeshCenterProvider, build_mesh_center_gateway
+from .zigbee2mqtt_provider import Zigbee2MqttObservation, Zigbee2MqttProvider
 
 __all__ = [
     "BorderRouterNode",
@@ -59,4 +60,6 @@ __all__ = [
     "MeshUpdateAuditEntry",
     "firmware_catalog_payload",
     "build_mesh_center_gateway",
+    "Zigbee2MqttObservation",
+    "Zigbee2MqttProvider",
 ]

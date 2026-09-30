@@ -144,6 +144,7 @@ final class MeshClientDevice {
     required this.batteryPercent,
     required this.reachable,
     required this.updating,
+    required this.routeKnown,
     required this.routeDepth,
     required this.lastSeenAt,
     required this.update,
@@ -159,21 +160,22 @@ final class MeshClientDevice {
   final String manufacturer;
   final String model;
   final String hardwareRevision;
-  final String installedVersion;
+  final String? installedVersion;
   final MeshPowerSource powerSource;
   final int? batteryPercent;
   final bool reachable;
   final bool updating;
-  final int routeDepth;
-  final DateTime lastSeenAt;
+  final bool routeKnown;
+  final int? routeDepth;
+  final DateTime? lastSeenAt;
   final MeshFirmwareOffer? update;
 
   bool isCoherentAt(DateTime now) {
-    final powerValid = powerSource == MeshPowerSource.mains
-        ? batteryPercent == null
-        : batteryPercent != null &&
-              batteryPercent! >= 0 &&
-              batteryPercent! <= 100;
+    final powerValid =
+        batteryPercent == null ||
+        (powerSource == MeshPowerSource.battery &&
+            batteryPercent! >= 0 &&
+            batteryPercent! <= 100);
     return deviceId.isNotEmpty &&
         name.trim().isNotEmpty &&
         deviceRevision.isNotEmpty &&
@@ -183,12 +185,12 @@ final class MeshClientDevice {
         manufacturer.trim().isNotEmpty &&
         model.trim().isNotEmpty &&
         hardwareRevision.isNotEmpty &&
-        RegExp(r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
-            .hasMatch(installedVersion) &&
+        (installedVersion == null ||
+            RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+$').hasMatch(installedVersion!)) &&
         powerValid &&
-        routeDepth >= 1 &&
-        routeDepth <= 32 &&
-        !lastSeenAt.isAfter(now);
+        routeKnown == (routeDepth != null) &&
+        (routeDepth == null || routeDepth! >= 1 && routeDepth! <= 32) &&
+        (lastSeenAt == null || !lastSeenAt!.isAfter(now));
   }
 
   bool canOfferUpdateAt(DateTime now) {
@@ -200,11 +202,16 @@ final class MeshClientDevice {
         protocol == MeshProtocol.zigbee &&
         reachable &&
         !updating &&
-        routeDepth <= 16 &&
+        routeKnown &&
+        routeDepth != null &&
+        routeDepth! <= 16 &&
+        lastSeenAt != null &&
+        now.difference(lastSeenAt!) <= const Duration(minutes: 5) &&
+        installedVersion != null &&
         safePower &&
         offer != null &&
         offer.isUsableAt(now) &&
-        _version(offer.targetVersion) > _version(installedVersion);
+        _version(offer.targetVersion) > _version(installedVersion!);
   }
 
   int _version(String value) => value.split('.').fold<int>(0, (result, part) {
@@ -249,6 +256,7 @@ final class MeshCenterSnapshot {
     required this.health,
     required this.coordinatorOnline,
     required this.channel,
+    required this.interferenceAvailable,
     required this.recommendedChannel,
     required this.channelUtilizationPercent,
     required this.recommendedUtilizationPercent,
@@ -268,9 +276,10 @@ final class MeshCenterSnapshot {
   final MeshHealthState health;
   final bool coordinatorOnline;
   final int channel;
-  final int recommendedChannel;
-  final int channelUtilizationPercent;
-  final int recommendedUtilizationPercent;
+  final bool interferenceAvailable;
+  final int? recommendedChannel;
+  final int? channelUtilizationPercent;
+  final int? recommendedUtilizationPercent;
   final int borderRouterCount;
   final int offlineBorderRouterCount;
   final List<MeshClientDevice> devices;
@@ -288,12 +297,17 @@ final class MeshCenterSnapshot {
         now.difference(capturedAt) <= const Duration(minutes: 5) &&
         channel >= 11 &&
         channel <= 26 &&
-        recommendedChannel >= 11 &&
-        recommendedChannel <= 26 &&
-        channelUtilizationPercent >= 0 &&
-        channelUtilizationPercent <= 100 &&
-        recommendedUtilizationPercent >= 0 &&
-        recommendedUtilizationPercent <= 100 &&
+        interferenceAvailable == (recommendedChannel != null) &&
+        interferenceAvailable == (channelUtilizationPercent != null) &&
+        interferenceAvailable == (recommendedUtilizationPercent != null) &&
+        (recommendedChannel == null ||
+            recommendedChannel! >= 11 && recommendedChannel! <= 26) &&
+        (channelUtilizationPercent == null ||
+            channelUtilizationPercent! >= 0 &&
+                channelUtilizationPercent! <= 100) &&
+        (recommendedUtilizationPercent == null ||
+            recommendedUtilizationPercent! >= 0 &&
+                recommendedUtilizationPercent! <= 100) &&
         borderRouterCount >= 0 &&
         borderRouterCount <= 32 &&
         offlineBorderRouterCount >= 0 &&

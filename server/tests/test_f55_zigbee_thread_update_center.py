@@ -291,6 +291,64 @@ def test_encrypted_update_state_survives_restart_without_command_replay(tmp_path
     assert state_path.stat().st_mode & 0o777 == 0o600
 
 
+def test_restart_marks_dispatched_update_uncertain_without_replaying_it(tmp_path):
+    private, public = signing_key()
+    current_topology = topology(devices=[zigbee_device()])
+    catalog = signed_catalog(private)
+    state_path = tmp_path / "mesh-updates.state"
+    state_key = b"m" * 32
+
+    class SimulatedProcessDeath(BaseException):
+        pass
+
+    first_calls = []
+
+    def dies_after_dispatch(command):
+        first_calls.append(command)
+        raise SimulatedProcessDeath
+
+    first = update_manager(
+        current_topology,
+        catalog,
+        public,
+        dies_after_dispatch,
+        state_store=FirmwareUpdateStore(state_path, state_key),
+    )
+    preview = first.preview(
+        authority(),
+        current_topology,
+        catalog,
+        deviceId=DEVICE,
+        firmwareId=FIRMWARE,
+        requestId="e" * 32,
+    )
+    with pytest.raises(SimulatedProcessDeath):
+        first.confirm(authority(), preview, preview.confirmationToken)
+    assert len(first_calls) == 1
+
+    replay_calls = []
+    recovered = update_manager(
+        current_topology,
+        catalog,
+        public,
+        lambda command: replay_calls.append(command) or exact_readback(command),
+        state_store=FirmwareUpdateStore(state_path, state_key),
+    )
+    result = recovered.result(authority(), preview.requestId)
+    assert (result.status, result.reason, result.readbackVerified) == (
+        "uncertain",
+        "lost_ack",
+        False,
+    )
+    assert recovered.confirm(authority(), preview, preview.confirmationToken) == result
+    assert replay_calls == []
+    assert [entry.action for entry in recovered.audit] == [
+        "previewed",
+        "dispatched",
+        "uncertain",
+    ]
+
+
 def test_update_state_authentication_rejects_tamper_at_startup(tmp_path):
     private, public = signing_key()
     current_topology = topology(devices=[zigbee_device()])

@@ -30,9 +30,17 @@ final class _MeshStrings {
       : 'Firmware update was verified by readback.';
   String get empty => tr ? 'Ağ cihazı bulunamadı' : 'No network devices';
   String get reload => tr ? 'Tekrar yükle' : 'Reload';
-  String channel(MeshCenterSnapshot value) => tr
-      ? 'Kanal ${value.channel}; önerilen ${value.recommendedChannel}. Kullanım %${value.channelUtilizationPercent}; önerilen %${value.recommendedUtilizationPercent}.'
-      : 'Channel ${value.channel}; recommended ${value.recommendedChannel}. Utilization ${value.channelUtilizationPercent}%; recommended ${value.recommendedUtilizationPercent}%.';
+  String channel(MeshCenterSnapshot value) {
+    if (!value.interferenceAvailable) {
+      return tr
+          ? 'Kanal ${value.channel}; girişim taraması bu sağlayıcıda kullanılamıyor.'
+          : 'Channel ${value.channel}; interference scan is unavailable from this provider.';
+    }
+    return tr
+        ? 'Kanal ${value.channel}; önerilen ${value.recommendedChannel}. Kullanım %${value.channelUtilizationPercent}; önerilen %${value.recommendedUtilizationPercent}.'
+        : 'Channel ${value.channel}; recommended ${value.recommendedChannel}. Utilization ${value.channelUtilizationPercent}%; recommended ${value.recommendedUtilizationPercent}%.';
+  }
+
   String routers(MeshCenterSnapshot value) => tr
       ? '${value.borderRouterCount} sınır yönlendirici, ${value.offlineBorderRouterCount} çevrimdışı'
       : '${value.borderRouterCount} border routers, ${value.offlineBorderRouterCount} offline';

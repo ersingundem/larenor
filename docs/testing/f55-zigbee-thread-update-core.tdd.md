@@ -30,3 +30,38 @@ The RED commit `e5f52322` failed collection because the
 exactly three focused tests covering nested topology drift and channel advice,
 signed catalog/compatibility/power/route boundaries, and confirmed or uncertain
 OTA outcomes with idempotency, exception redaction, and audit tamper rejection.
+
+## Production provider and restart follow-up (2026-09-30)
+
+The normal Core route previously existed only when a test or embedding caller
+injected `MeshCenterProvider`. The first concrete production slice now projects
+Zigbee2MQTT retained `bridge/state`, `bridge/info`, `bridge/devices`, device
+state, and availability evidence without inventing facts the provider did not
+report. Unknown routes, last-seen time, firmware version, battery charge, and
+channel interference remain explicitly unavailable; the provider publishes an
+empty signed catalog and therefore cannot dispatch OTA until exact image bytes,
+size, digest, compatibility, and post-install readback are available.
+
+This follows the official Zigbee2MQTT contracts: bridge state and device
+inventory are retained, per-device availability is optional, request/response
+transactions can correlate explicit commands, and network-map collection is a
+manual scan that can reduce network responsiveness for 10 seconds to 2 minutes.
+It is not run during the normal read path. Home Assistant's official Thread
+documentation also describes Thread as the network protocol rather than the
+device control protocol, and says its Thread integration remains work in
+progress, so this slice does not claim Matter ownership or Thread OTA.
+
+OTA durability now persists a `dispatched` audit entry and dispatch timestamp
+before calling the irreversible worker. If Core exits after that point without
+an exact result, startup persists `lost_ack`/`uncertain`; a later confirmation
+returns that result and never calls the worker again.
+
+Focused evidence:
+
+- `server/.venv/bin/pytest -q server/tests/test_f55_zigbee2mqtt_provider.py server/tests/test_f55_zigbee_thread_update_center.py server/tests/test_f55_mesh_center_api.py server/tests/test_f55_mesh_center_runtime.py` — 15 passed.
+- `flutter test test/features/mesh_center/mesh_center_management_test.dart test/features/mesh_center/mesh_center_http_api_test.dart` — 8 passed.
+- `flutter analyze lib/features/mesh_center test/features/mesh_center` — no issues.
+
+The bounded MQTT wire reader, broker credential provisioning, and default Core
+composition remain the next software gate. No physical coordinator, border
+router, or device was mutated by this evidence run.

@@ -140,11 +140,13 @@ class MeshHealthService:
         candidates = [
             channels[channel] for channel in (11, 15, 20, 25) if channel in channels
         ]
-        if current is None or not candidates:
-            raise ApiError("mesh_interference_incomplete", 409)
-        recommended = min(
-            candidates,
-            key=lambda item: (item.utilizationPercent, item.energyDbm, item.channel),
+        recommended = (
+            None
+            if current is None or not candidates
+            else min(
+                candidates,
+                key=lambda item: (item.utilizationPercent, item.energyDbm, item.channel),
+            )
         )
         offline_devices = sorted(
             device.deviceId for device in topology.devices if not device.reachable
@@ -163,7 +165,7 @@ class MeshHealthService:
             offline_devices
             or low_battery
             or offline_routers
-            or current.utilizationPercent >= 80
+            or (current is not None and current.utilizationPercent >= 80)
         ):
             status = "degraded"
         else:
@@ -180,18 +182,23 @@ class MeshHealthService:
             lowBatteryDeviceIds=low_battery,
             threadBorderRouterCount=len(topology.borderRouters),
             offlineBorderRouterIds=offline_routers,
-            channelAdvisory=ChannelAdvisory(
-                advisory=True,
-                currentChannel=current.channel,
-                recommendedChannel=recommended.channel,
-                currentUtilizationPercent=current.utilizationPercent,
-                recommendedUtilizationPercent=recommended.utilizationPercent,
-                reason=(
-                    "current_channel_best"
-                    if current.channel == recommended.channel
-                    else "lower_interference"
-                ),
-                applied=False,
+            interferenceAvailable=recommended is not None,
+            channelAdvisory=(
+                None
+                if recommended is None or current is None
+                else ChannelAdvisory(
+                    advisory=True,
+                    currentChannel=current.channel,
+                    recommendedChannel=recommended.channel,
+                    currentUtilizationPercent=current.utilizationPercent,
+                    recommendedUtilizationPercent=recommended.utilizationPercent,
+                    reason=(
+                        "current_channel_best"
+                        if current.channel == recommended.channel
+                        else "lower_interference"
+                    ),
+                    applied=False,
+                )
             ),
         )
 
@@ -220,6 +227,7 @@ class _UpdateState:
     topology: MeshTopology
     catalog: FirmwareCatalog
     entry: FirmwareCatalogEntry
+    dispatchedAtMs: int | None = None
     result: FirmwareUpdateResult | None = None
 
 
@@ -261,12 +269,19 @@ class FirmwareUpdateManager:
                     topology=MeshTopology.model_validate(item["topology"]),
                     catalog=FirmwareCatalog.model_validate(item["catalog"]),
                     entry=FirmwareCatalogEntry.model_validate(item["entry"]),
+                    dispatchedAtMs=item.get("dispatchedAtMs"),
                     result=(
                         None
                         if item.get("result") is None
                         else FirmwareUpdateResult.model_validate(item["result"])
                     ),
                 )
+                if state.dispatchedAtMs is not None and (
+                    type(state.dispatchedAtMs) is not int
+                    or not 0 <= state.dispatchedAtMs <= 2**63 - 1
+                    or state.dispatchedAtMs >= state.preview.expiresAtMs
+                ):
+                    raise ValueError
                 if state.preview.requestId in commands:
                     raise ValueError
                 commands[state.preview.requestId] = state
@@ -276,6 +291,21 @@ class FirmwareUpdateManager:
             self._commands = commands
             self._audit = audit
             self._validate_audit()
+            recovered = False
+            for state in self._commands.values():
+                if state.dispatchedAtMs is not None and state.result is None:
+                    state.result = FirmwareUpdateResult(
+                        schemaVersion=1,
+                        requestId=state.preview.requestId,
+                        status="uncertain",
+                        reason="lost_ack",
+                        readbackVerified=False,
+                        readback=None,
+                    )
+                    self._append_audit("uncertain", state.preview)
+                    recovered = True
+            if recovered:
+                self._persist()
         except Exception:
             from ..errors import StartupError
 
@@ -293,6 +323,7 @@ class FirmwareUpdateManager:
                     "topology": state.topology.model_dump(mode="json"),
                     "catalog": state.catalog.model_dump(mode="json"),
                     "entry": state.entry.model_dump(mode="json"),
+                    "dispatchedAtMs": state.dispatchedAtMs,
                     "result": (
                         None
                         if state.result is None
@@ -346,7 +377,8 @@ class FirmwareUpdateManager:
             ]
             if (
                 entry.sequence != sequence
-                or entry.action not in {"previewed", "confirmed", "uncertain"}
+                or entry.action
+                not in {"previewed", "dispatched", "confirmed", "uncertain"}
                 or entry.previousHash != previous
                 or not secrets.compare_digest(entry.entryHash, self._entry_hash(values))
             ):
@@ -475,6 +507,7 @@ class FirmwareUpdateManager:
             device.manufacturer != entry.manufacturer
             or device.model != entry.model
             or device.hardwareRevision not in entry.compatibleHardwareRevisions
+            or device.firmwareVersion is None
             or device.firmwareVersion not in entry.sourceVersions
             or _version(entry.version) <= _version(device.firmwareVersion)
         ):
@@ -485,16 +518,19 @@ class FirmwareUpdateManager:
         )
         parents.update({item.deviceId: item.reachable for item in topology.devices})
         now = self._clock()
-        battery_safe = (
-            device.powerSource == "mains"
-            or device.batteryPercent >= entry.minimumBatteryPercent
+        battery_safe = device.powerSource == "mains" or (
+            device.batteryPercent is not None
+            and device.batteryPercent >= entry.minimumBatteryPercent
         )
         if (
             not topology.coordinator.online
             or not device.reachable
             or device.updating
+            or not device.routeKnown
             or not parents.get(device.parentId, False)
+            or device.routeDepth is None
             or device.routeDepth > 16
+            or device.lastSeenAtMs is None
             or device.lastSeenAtMs > now
             or now - device.lastSeenAtMs > MAX_SNAPSHOT_AGE_MS
             or not battery_safe
@@ -641,6 +677,14 @@ class FirmwareUpdateManager:
                 firmwareSizeBytes=entry.sizeBytes,
                 targetVersion=preview.targetVersion,
             )
+            state.dispatchedAtMs = self._clock()
+            self._append_audit("dispatched", preview)
+            try:
+                self._persist()
+            except Exception:
+                self._audit.pop()
+                state.dispatchedAtMs = None
+                raise
             try:
                 readback = FirmwareUpdateReadback.model_validate(self._worker(command))
             except Exception:

@@ -101,6 +101,7 @@ Map<String, dynamic> get _topology => {
       'batteryPercent': null,
       'reachable': true,
       'updating': false,
+      'routeKnown': true,
       'parentId': coordinator,
       'routeDepth': 1,
       'lastSeenAtMs': _now - 1000,
@@ -160,6 +161,7 @@ Map<String, dynamic> get _health => {
   'lowBatteryDeviceIds': <String>[],
   'threadBorderRouterCount': 1,
   'offlineBorderRouterIds': <String>[],
+  'interferenceAvailable': true,
   'channelAdvisory': {
     'advisory': true,
     'currentChannel': 20,

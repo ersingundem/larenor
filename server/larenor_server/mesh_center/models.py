@@ -13,12 +13,12 @@ Version = Annotated[
     Field(
         min_length=5,
         max_length=32,
-        pattern=r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$",
+        pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$",
     ),
 ]
 SafeText = Annotated[
     str,
-    Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9 ._+:/-]*$"),
+    Field(min_length=1, max_length=64),
 ]
 Signature = Annotated[
     str,
@@ -67,7 +67,7 @@ class CoordinatorNode(FrozenModel):
     providerRevision: Revision
     protocol: Literal["zigbee"]
     channel: int = Field(ge=11, le=26)
-    firmwareVersion: Version
+    firmwareVersion: Version | None
     online: bool
 
 
@@ -97,14 +97,20 @@ class MeshDevice(FrozenModel):
     batteryPercent: Percent | None
     reachable: bool
     updating: bool
-    parentId: Identity
-    routeDepth: int = Field(ge=1, le=32)
-    lastSeenAtMs: TimestampMs
+    routeKnown: bool = True
+    parentId: Identity | None
+    routeDepth: int | None = Field(default=None, ge=1, le=32)
+    lastSeenAtMs: TimestampMs | None
 
     @model_validator(mode="after")
     def coherent_power(self):
-        if (self.powerSource == "mains") != (self.batteryPercent is None):
+        for value in (self.manufacturer, self.model, self.hardwareRevision):
+            if any(ord(char) < 32 or ord(char) == 127 for char in value):
+                raise ValueError("invalid_text")
+        if self.powerSource == "mains" and self.batteryPercent is not None:
             raise ValueError("invalid_power_state")
+        if self.routeKnown != (self.parentId is not None and self.routeDepth is not None):
+            raise ValueError("invalid_route")
         if self.parentId == self.deviceId:
             raise ValueError("invalid_route")
         return self
@@ -145,7 +151,7 @@ class InterferenceSnapshot(FrozenModel):
     revision: Revision
     providerRevision: Revision
     capturedAtMs: TimestampMs
-    channels: list[ChannelObservation] = Field(min_length=1, max_length=16)
+    channels: list[ChannelObservation] = Field(max_length=16)
 
     @field_validator("channels")
     @classmethod
@@ -178,7 +184,8 @@ class MeshHealthReport(FrozenModel):
     lowBatteryDeviceIds: list[Identity]
     threadBorderRouterCount: int = Field(ge=0, le=32)
     offlineBorderRouterIds: list[Identity]
-    channelAdvisory: ChannelAdvisory
+    interferenceAvailable: bool
+    channelAdvisory: ChannelAdvisory | None
 
 
 class FirmwareCatalogEntry(FrozenModel):
@@ -212,7 +219,7 @@ class FirmwareCatalog(FrozenModel):
     generatedAtMs: TimestampMs
     expiresAtMs: TimestampMs
     signingKeyId: Identity
-    entries: list[FirmwareCatalogEntry] = Field(min_length=1, max_length=2_048)
+    entries: list[FirmwareCatalogEntry] = Field(max_length=2_048)
     signature: Signature
 
     @model_validator(mode="after")

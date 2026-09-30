@@ -215,7 +215,9 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
       final manufacturer = _text(raw['manufacturer'], 64);
       final model = _text(raw['model'], 64);
       final hardware = _text(raw['hardwareRevision'], 64);
-      final installed = _version(raw['firmwareVersion']);
+      final installed = raw['firmwareVersion'] == null
+          ? null
+          : _version(raw['firmwareVersion']);
       final candidates =
           entries.where((entry) {
             final hardwareVersions = _strings(
@@ -223,7 +225,8 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
               32,
             );
             final sourceVersions = _strings(entry['sourceVersions'], 64);
-            return protocol == MeshProtocol.zigbee &&
+            return installed != null &&
+                protocol == MeshProtocol.zigbee &&
                 entry['protocol'] == 'zigbee' &&
                 entry['manufacturer'] == manufacturer &&
                 entry['model'] == model &&
@@ -273,12 +276,23 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
             : _integer(raw['batteryPercent'], min: 0, max: 100),
         reachable: _boolean(raw['reachable']),
         updating: _boolean(raw['updating']),
-        routeDepth: _integer(raw['routeDepth'], min: 1, max: 32),
-        lastSeenAt: _time(raw['lastSeenAtMs']),
+        routeKnown: _boolean(raw['routeKnown']),
+        routeDepth: raw['routeDepth'] == null
+            ? null
+            : _integer(raw['routeDepth'], min: 1, max: 32),
+        lastSeenAt: raw['lastSeenAtMs'] == null
+            ? null
+            : _time(raw['lastSeenAtMs']),
         update: offer,
       );
     }).toList();
-    final advisory = serverObject(health['channelAdvisory']);
+    final interferenceAvailable = _boolean(health['interferenceAvailable']);
+    final advisory = health['channelAdvisory'] == null
+        ? null
+        : serverObject(health['channelAdvisory']);
+    if (interferenceAvailable != (advisory != null)) {
+      throw const LarenorServerException('invalid_response');
+    }
     final borderRouters = _objects(topology['borderRouters']);
     final offlineRouters = _strings(health['offlineBorderRouterIds'], 32);
     final snapshot = MeshCenterSnapshot(
@@ -297,21 +311,20 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
       },
       coordinatorOnline: _boolean(coordinator['online']),
       channel: _integer(coordinator['channel'], min: 11, max: 26),
-      recommendedChannel: _integer(
-        advisory['recommendedChannel'],
-        min: 11,
-        max: 26,
-      ),
-      channelUtilizationPercent: _integer(
-        advisory['currentUtilizationPercent'],
-        min: 0,
-        max: 100,
-      ),
-      recommendedUtilizationPercent: _integer(
-        advisory['recommendedUtilizationPercent'],
-        min: 0,
-        max: 100,
-      ),
+      interferenceAvailable: interferenceAvailable,
+      recommendedChannel: advisory == null
+          ? null
+          : _integer(advisory['recommendedChannel'], min: 11, max: 26),
+      channelUtilizationPercent: advisory == null
+          ? null
+          : _integer(advisory['currentUtilizationPercent'], min: 0, max: 100),
+      recommendedUtilizationPercent: advisory == null
+          ? null
+          : _integer(
+              advisory['recommendedUtilizationPercent'],
+              min: 0,
+              max: 100,
+            ),
       borderRouterCount: borderRouters.length,
       offlineBorderRouterCount: offlineRouters.length,
       coordinatorBackup: backup,
@@ -650,8 +663,7 @@ String _text(Object? value, int max) {
 
 String _version(Object? value) {
   final text = _text(value, 32);
-  if (!RegExp(r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
-      .hasMatch(text)) {
+  if (!RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+$').hasMatch(text)) {
     throw const LarenorServerException('invalid_response');
   }
   return text;

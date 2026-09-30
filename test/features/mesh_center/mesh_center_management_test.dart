@@ -36,6 +36,7 @@ MeshCenterSnapshot _snapshot({bool reachable = true}) => MeshCenterSnapshot(
   health: MeshHealthState.degraded,
   coordinatorOnline: true,
   channel: 20,
+  interferenceAvailable: true,
   recommendedChannel: 15,
   channelUtilizationPercent: 84,
   recommendedUtilizationPercent: 22,
@@ -58,6 +59,7 @@ MeshCenterSnapshot _snapshot({bool reachable = true}) => MeshCenterSnapshot(
       batteryPercent: null,
       reachable: reachable,
       updating: false,
+      routeKnown: true,
       routeDepth: 2,
       lastSeenAt: DateTime.utc(2026, 9, 21, 10),
       update: MeshFirmwareOffer(
