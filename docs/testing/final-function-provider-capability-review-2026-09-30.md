@@ -138,3 +138,22 @@ F57, F58, F59, F60, F61, F62 ve F63.
    sonucu olarak kullanılmaz.
 4. Exact-head CI başarısızsa bu araştırma `FINAL.FUNCTION` maddesini tek başına
    kapatamaz.
+
+## F30 kalıcı worker etkisi — 30 Eylül devamı
+
+Normal Core giriş noktası read/action IPC istemcilerini artık yapılandırıyor.
+Worker'a gönderilen transcode komutu kaynak ve hedef codec/bitrate, süre,
+kaynak boyutu ve tam orijinal rezervasyonunu içeriyor. Eski rolü kaybolmuş
+komutlar çalıştırılmıyor.
+
+Worker'ın `media_archive_actions/journal.py` günlüğü tam komut digestini,
+revizyonunu, etki durumunu ve doğrulanmış artifact kanıtlarını özel SQLite
+kaydı olarak saklıyor. Etkiden önce kalıcı başlangıç, eski revizyonla güncelleme
+reddi, işlem kimliği çatışması, terminal makbuzun yeniden açılması ve kayıt
+hasarı odaklı 12 kabul kontrolüyle doğrulandı. Başarı makbuzu yalnız sağlayıcı
+kabulüne dayanamaz; transcode için eşleşen orijinal kopya, doğrulanmış daha küçük
+çıktı ve kurulum kanıtı, cleanup için ayrıca cleanup kanıtı gerekir.
+
+Bu dilim packaged collector, protected file store, sağlayıcı effect handler,
+iptal/callback yaşam döngüsü veya gerçek Client→Core→worker kabulünü tek başına
+tamamlamaz; F30 aktif geliştirmede kalır.
