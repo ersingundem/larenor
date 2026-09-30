@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F62 gerçek probe hata ayrımı
+
+Exact78b28815/run36779907094 güvenli receipt beklenen class/methodun bir kez ve atlamasız çalıştığını, `inspect` certificate probe aşamasında başarısız olduğunu gösterdi. Ham XML tutulmadığı için aggregate shape bir çıkarım olarak kaldı. Public `engineUnavailable`, certificate return ve TLS/NLA/pinning korunur; dört sabit private probe sonucu ile strict tek-suite/count parser eklendi. Root 61 parser/kuyruk/progress testi ve receipt-verified AAR ile Kotlin derlemesi geçti. Gerçek packaged native kabul açık; F62 test bekliyor, CI bekliyor sayısı ve kabul sayaçları değişmedi. [Kanıt](testing/f62-probe-diagnostics-2026-10-01.md).
+
 ### 1 Ekim F61 resize bekleme sınırı
 
 Exact6b2a7577/run36781108349 güvenli teşhisi yalnız owned test satır150 ile çözünürlük değişiminden sonraki kare bekleyişini belirledi. Önceki ACKden gelen eski boyutlu ara karenin gerçek Flutter consumer gibi ACK edilmesi dar TLS regression ile doğrulandı: root 5 gerçek TLS/0skip ve54 workflow/kuyruk/progress testini geçti. Actual hosted receipt henüz başarısız. F61 test bekliyor kalır; 57 seçili/toplam66 CI bekliyor ve kabul sayaçları değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

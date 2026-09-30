@@ -42,6 +42,20 @@ PACKAGE_RECEIPT = ROOT / "android/app/freerdp/receipt.json"
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _MAX_REPORT_BYTES = 1024 * 1024
 _MAX_FRAMES = 8
+_PROBE_OUTCOMES = frozenset({
+    "timeout",
+    "connectionFailureBeforeCertificate",
+    "certificateCallbackMissingPem",
+    "certificateParseFailed",
+})
+_PROBE_OUTCOME = re.compile(
+    r"^Caused by: RdpProbeOutcome\("
+    r"(timeout|connectionFailureBeforeCertificate|"
+    r"certificateCallbackMissingPem|certificateParseFailed)"
+    r"\)$",
+    re.MULTILINE,
+)
+_REPORT_SHAPES = frozenset({"aggregate", "unsupported"})
 _FAILURE_CODES = frozenset({
     "instrumentation_launch_unavailable",
     "instrumentation_timeout",
@@ -185,12 +199,46 @@ def _failure_element_diagnostic(
         frames.append({"file": filename, "line": source_line})
         if len(frames) == _MAX_FRAMES:
             break
-    return {
+    diagnostic = {
         "code": code,
         "exceptionType": raw_type,
         "frames": frames,
         "counts": counts,
     }
+    outcomes = _PROBE_OUTCOME.findall(text)
+    if (len(outcomes) == 1
+            and any(frame["file"] == "RdpPackagedRuntime.kt" for frame in frames)):
+        diagnostic["probeOutcome"] = outcomes[0]
+    return diagnostic
+
+
+class _ReportShapeError(ValueError):
+    def __init__(self, shape: str, child_suite_count: int):
+        super().__init__()
+        self.shape = shape
+        self.child_suite_count = min(child_suite_count, 1024)
+
+
+def _report_suite(root: ET.Element) -> tuple[ET.Element, dict[str, int]]:
+    def counts(element: ET.Element) -> dict[str, int]:
+        return {
+            key: int(element.attrib[key])
+            for key in ("tests", "skipped", "failures", "errors")
+        }
+
+    if root.tag == "testsuite":
+        return root, counts(root)
+    if root.tag != "testsuites":
+        raise _ReportShapeError("unsupported", 0)
+    children = list(root)
+    child_suites = [child for child in children if child.tag == "testsuite"]
+    if len(children) != 1 or len(child_suites) != 1:
+        raise _ReportShapeError("aggregate", len(child_suites))
+    aggregate = counts(root)
+    suite = child_suites[0]
+    if counts(suite) != aggregate:
+        raise _ReportShapeError("aggregate", 1)
+    return suite, aggregate
 
 
 def failure_diagnostic(directory: Path | None = None) -> dict[str, object]:
@@ -209,18 +257,21 @@ def failure_diagnostic(directory: Path | None = None) -> dict[str, object]:
         raw = report.read_bytes()
         if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
             raise ValueError()
-        suite = ET.fromstring(raw)
-        counts = {
-            key: int(suite.attrib[key])
-            for key in ("tests", "skipped", "failures", "errors")
-        }
+        root = ET.fromstring(raw)
+        suite, counts = _report_suite(root)
+    except _ReportShapeError as error:
+        diagnostic = _static_diagnostic("instrumentation_report_malformed")
+        diagnostic["reportShape"] = error.shape
+        diagnostic["childSuiteCount"] = error.child_suite_count
+        return diagnostic
     except (OSError, ET.ParseError, KeyError, ValueError, TypeError):
+        return _static_diagnostic("instrumentation_report_malformed")
+    if suite.findall(".//testsuite"):
         return _static_diagnostic("instrumentation_report_malformed")
     cases = list(suite.iter("testcase"))
     if any(not 0 <= value <= 1024 for value in counts.values()) or len(cases) > 1024:
         return _static_diagnostic("instrumentation_report_malformed")
-    if (suite.tag != "testsuite" or counts["tests"] != 1
-            or counts["skipped"] != 0 or len(cases) != 1
+    if (counts["tests"] != 1 or counts["skipped"] != 0 or len(cases) != 1
             or cases[0].attrib.get("classname") != TEST_CLASS
             or cases[0].attrib.get("name") != TEST_NAME):
         # Initialization/device failures can have a synthetic testcase identity. Keep
@@ -234,7 +285,7 @@ def failure_diagnostic(directory: Path | None = None) -> dict[str, object]:
                     elements[0], code="instrumentation_report_identity_mismatch", counts=counts)
         diagnostic["counts"] = counts
         diagnostic["identity"] = {
-            "suiteExpected": suite.tag == "testsuite",
+            "suiteExpected": True,
             "countsExpected": counts["tests"] == 1 and counts["skipped"] == 0,
             "caseCount": len(cases),
             "classExpected": len(cases) == 1 and cases[0].attrib.get("classname") == TEST_CLASS,
@@ -267,7 +318,9 @@ def failure_receipt(
         raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
     if set(diagnostic) not in ({"code", "exceptionType", "frames"}, {
             "code", "exceptionType", "frames", "counts"}, {
-            "code", "exceptionType", "frames", "counts", "identity"}):
+            "code", "exceptionType", "frames", "counts", "identity"}, {
+            "code", "exceptionType", "frames", "counts", "probeOutcome"}, {
+            "code", "exceptionType", "frames", "reportShape", "childSuiteCount"}):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
     exception_type = diagnostic.get("exceptionType")
@@ -284,6 +337,20 @@ def failure_receipt(
             raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     counts = diagnostic.get("counts")
     identity = diagnostic.get("identity")
+    probe_outcome = diagnostic.get("probeOutcome")
+    if probe_outcome is not None and (
+            probe_outcome not in _PROBE_OUTCOMES
+            or not any(frame["file"] == "RdpPackagedRuntime.kt" for frame in frames)):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    report_shape = diagnostic.get("reportShape")
+    child_suite_count = diagnostic.get("childSuiteCount")
+    if ((report_shape is None) != (child_suite_count is None)
+            or report_shape is not None and (
+                code != "instrumentation_report_malformed"
+                or report_shape not in _REPORT_SHAPES
+                or type(child_suite_count) is not int
+                or not 0 <= child_suite_count <= 1024)):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     mismatch = code == "instrumentation_report_identity_mismatch"
     if mismatch:
         if (type(identity) is not dict or set(identity) != {
@@ -329,21 +396,20 @@ def verify_reports(directory: Path = REPORTS) -> Path:
     if len(reports) != 1:
         raise AcceptanceFailure("exact packaged RDP test report is unavailable")
     try:
-        suite = ET.parse(reports[0]).getroot()
-        counts = {key: int(suite.attrib[key]) for key in
-                  ("tests", "skipped", "failures", "errors")}
+        root = ET.parse(reports[0]).getroot()
+        suite, counts = _report_suite(root)
         cases = list(suite.iter("testcase"))
     except (OSError, ET.ParseError, KeyError, ValueError) as error:
         raise AcceptanceFailure("packaged RDP test report is malformed") from error
     if (
-        suite.tag != "testsuite"
-        or counts != {"tests": 1, "skipped": 0, "failures": 0, "errors": 0}
+        counts != {"tests": 1, "skipped": 0, "failures": 0, "errors": 0}
         or len(cases) != 1
         or cases[0].attrib.get("classname") != TEST_CLASS
         or cases[0].attrib.get("name") != TEST_NAME
         or len(suite.findall(".//skipped")) != 0
         or len(suite.findall(".//failure")) != 0
         or len(suite.findall(".//error")) != 0
+        or len(suite.findall(".//testsuite")) != 0
     ):
         raise AcceptanceFailure("packaged RDP acceptance did not execute exactly once")
     return reports[0]

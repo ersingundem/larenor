@@ -20,6 +20,13 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             f'{body}</failure></testcase></testsuite>'
         )
 
+    @staticmethod
+    def _aggregate(xml):
+        return (
+            '<testsuites tests="1" skipped="0" failures="1" errors="0">'
+            f'{xml}</testsuites>'
+        )
+
     def test_owned_host_package_versions_are_bounded_and_explicit(self):
         values = {
             "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
@@ -84,6 +91,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 valid.replace(runner.TEST_NAME, "anotherMethod"),
                 valid.replace('/></testsuite>', '><skipped/></testcase></testsuite>'),
                 valid.replace('/></testsuite>', '><failure/></testcase></testsuite>'),
+                valid.replace('</testsuite>', '<testsuite/></testsuite>'),
                 "<broken",
             ):
                 report.write_text(altered)
@@ -97,6 +105,32 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             (directory / "TEST-stale.xml").unlink()
             with self.assertRaises(runner.AcceptanceFailure):
                 runner.verify_reports(directory)
+
+    def test_single_android_aggregate_suite_preserves_exact_success_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            report = directory / "TEST-device.xml"
+            suite = (
+                '<testsuite tests="1" skipped="0" failures="0" errors="0">'
+                f'<testcase classname="{runner.TEST_CLASS}" '
+                f'name="{runner.TEST_NAME}"/></testsuite>'
+            )
+            aggregate = (
+                '<testsuites tests="1" skipped="0" failures="0" errors="0">'
+                f'{suite}</testsuites>'
+            )
+            report.write_text(aggregate)
+            self.assertEqual(runner.verify_reports(directory), report)
+
+            for invalid in (
+                aggregate.replace('tests="1"', 'tests="2"', 1),
+                aggregate.replace('</testsuites>', f'{suite}</testsuites>'),
+                aggregate.replace('<testsuite ', '<unexpected ', 1)
+                    .replace('</testsuite>', '</unexpected>', 1),
+            ):
+                report.write_text(invalid)
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.verify_reports(directory)
 
     def test_package_receipt_digest_rejects_nonregular_inputs(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -198,6 +232,95 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertNotIn("/home/runner", public)
             self.assertNotIn("Forged.kt", public)
 
+    def test_android_aggregate_failure_exposes_only_bounded_probe_outcome(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            report = directory / "TEST-device.xml"
+            secret = "private-host-and-certificate-material"
+            body = (
+                "RdpNativeFailure(engineUnavailable): " + secret + "\n"
+                " at com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime."
+                "inspect(RdpPackagedRuntime.kt:87)\n"
+                "Caused by: RdpProbeOutcome(connectionFailureBeforeCertificate)\n"
+            )
+            report.write_text(self._aggregate(self._failure_xml(body=body)))
+
+            diagnostic = runner.failure_diagnostic(directory)
+
+            self.assertEqual(diagnostic, {
+                "code": "instrumentation_test_failure",
+                "exceptionType": "java.lang.AssertionError",
+                "frames": [{"file": "RdpPackagedRuntime.kt", "line": 87}],
+                "counts": {
+                    "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+                },
+                "probeOutcome": "connectionFailureBeforeCertificate",
+            })
+            public = runner.failure_receipt(
+                {"freerdp3-shadow-x11": "3.32.0", "winpr3-utils": "3.32.0"},
+                revision="a" * 40,
+                package_digest="b" * 64,
+                diagnostic=diagnostic,
+            )
+            self.assertEqual(
+                public["diagnostic"]["probeOutcome"],
+                "connectionFailureBeforeCertificate",
+            )
+            self.assertNotIn(secret, json.dumps(public))
+
+    def test_probe_outcome_requires_one_known_marker_and_owned_runtime_frame(self):
+        self.assertEqual(runner._PROBE_OUTCOMES, {
+            "timeout",
+            "connectionFailureBeforeCertificate",
+            "certificateCallbackMissingPem",
+            "certificateParseFailed",
+        })
+        base = (
+            "java.lang.AssertionError\n"
+            " at com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime."
+            "inspect(RdpPackagedRuntime.kt:87)\n"
+        )
+        for suffix in (
+            "Caused by: RdpProbeOutcome(privateRawFailure)\n",
+            "Caused by: RdpProbeOutcome(timeout)\n"
+            "Caused by: RdpProbeOutcome(certificateParseFailed)\n",
+        ):
+            with tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                (directory / "TEST-device.xml").write_text(
+                    self._failure_xml(body=base + suffix),
+                )
+                diagnostic = runner.failure_diagnostic(directory)
+                self.assertNotIn("probeOutcome", diagnostic)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            body = (
+                "java.lang.AssertionError\n"
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                "run(RdpPackagedHostAcceptanceTest.kt:43)\n"
+                "Caused by: RdpProbeOutcome(timeout)\n"
+            )
+            (directory / "TEST-device.xml").write_text(
+                self._failure_xml(body=body),
+            )
+            self.assertNotIn(
+                "probeOutcome", runner.failure_diagnostic(directory),
+            )
+
+        for outcome in sorted(runner._PROBE_OUTCOMES):
+            with tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                (directory / "TEST-device.xml").write_text(
+                    self._failure_xml(
+                        body=base + f"Caused by: RdpProbeOutcome({outcome})\n",
+                    ),
+                )
+                self.assertEqual(
+                    runner.failure_diagnostic(directory)["probeOutcome"],
+                    outcome,
+                )
+
     def test_failure_diagnostic_maps_unknown_or_unusable_reports_to_static_codes(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()
@@ -225,6 +348,36 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 runner.failure_diagnostic(directory)["code"],
                 "instrumentation_report_ambiguous",
             )
+
+    def test_malformed_report_shape_exposes_only_bounded_structure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            report = directory / "TEST-device.xml"
+            report.write_text(
+                '<testsuites tests="1" skipped="0" failures="1" errors="0">'
+                '<privateSecret/><testsuite/><testsuite/></testsuites>',
+            )
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic, {
+                "code": "instrumentation_report_malformed",
+                "exceptionType": "unclassified",
+                "frames": [],
+                "reportShape": "aggregate",
+                "childSuiteCount": 2,
+            })
+            public = runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64,
+                diagnostic=diagnostic,
+            )
+            self.assertNotIn("privateSecret", json.dumps(public))
+
+            report.write_text(
+                '<privateSecret tests="1" skipped="0" failures="1" errors="0"/>',
+            )
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["reportShape"], "unsupported")
+            self.assertEqual(diagnostic["childSuiteCount"], 0)
+            self.assertNotIn("privateSecret", json.dumps(diagnostic))
 
     def test_packaged_production_frame_is_retained_without_message(self):
         with tempfile.TemporaryDirectory() as temporary:

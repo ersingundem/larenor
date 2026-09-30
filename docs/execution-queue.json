@@ -5295,7 +5295,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama tamamlandı, gerçek native test bekliyor: normal Core managed-profile authority kabulü geçti. Exacte3ae7cb3 run36776341714 gerçek AAR/APK buildlerini geçti, owned-host instrumentation düştü; güvenli artifact report identity mismatch verdi, adlandırılmış test kabulü yok. Failure-only diagnostic counts/identity booleans ve owned constructor/source frames ile genişletildi; 30 focused policy/runner/package testi geçti. Success receipt değişmedi; yeni exact packaged native tek method/0skip gerçek kabul kapanmadan CI bekliyor/done sayılmaz."
+      "reason": "Uygulama tamamlandı, gerçek native kabul bekliyor: normal Core managed-profile authority kapısı geçti. Exact78b28815 run36779907094 iki AAR/APK, KVM ve owned NLA hostunu geçti; safe receipt expected class/method tek case/0skip çalıştığını, inspect probe başarısızlığını gösterdi. Ham XML tutulmadığı için aggregate report shape yalnız bounded çıkarım. Public engineUnavailable/certificate return/TLS/NLA/pinning korunarak dört private probe outcome ve strict matching-count single-suite parser eklendi. Root 61 parser/kuyruk/progress testi, receipt-verified AAR ile Kotlin compile geçti. Gerçek packaged NLA/frame/input/resize/clipboard/close one-method/0skip receipt kapanmadan CI bekliyor veya done olmaz. Kanıt: docs/testing/f62-probe-diagnostics-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -5399,7 +5399,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. F22 otomatik kanal devamı, F28 deadline pause/stop, F47 history/backtest ve F60 Client pairing/native playback yazılım eksikleri yeniden çalışılıyor. F61/F62 gerçek hosted native receipt kapıları ile geniş exact HEAD CI açık; ikinci FINAL başlatılmaz."
+      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. F22 otomatik kanal devamı, F28 deadline pause/stop ve F47 history/backtest yazılım/odaklı kabulü tamamlandı, geniş exact HEAD CI bekliyor. F60 Client pairing/native playback, sahiplikli lifecycle/policy ve gerçek host capability ayrımı geliştirmede. F61/F62 gerçek hosted native receipt kapıları ile geniş exact HEAD CI açık; ikinci FINAL başlatılmaz."
     },
     {
       "id": "FINAL.UI",

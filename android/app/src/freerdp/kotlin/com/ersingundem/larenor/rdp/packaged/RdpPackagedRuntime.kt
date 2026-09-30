@@ -36,6 +36,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /** Compiled only when the exact receipted FreeRDP AAR is present. */
 class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
@@ -259,12 +260,18 @@ private class FreeRdpProbe(
     username: String,
 ) : BaseConnection(context, host, port, username) {
     @Volatile private var evidence: RdpJniSecurity? = null
+    private val failure = AtomicReference<RdpProbeOutcome?>(null)
 
     fun run(): RdpJniSecurity {
         create(baseUri(640, 480, false))
         connect()
-        if (!finished.await(20, TimeUnit.SECONDS)) unavailable()
-        return evidence ?: unavailable()
+        if (!finished.await(20, TimeUnit.SECONDS)) {
+            probeFailure(RdpProbeOutcome.TIMEOUT)
+        }
+        evidence?.let { return it }
+        probeFailure(
+            failure.get() ?: RdpProbeOutcome.CERTIFICATE_CALLBACK_MISSING_PEM,
+        )
     }
 
     override fun OnAuthenticate(username: StringBuilder, domain: StringBuilder, password: StringBuilder) = false
@@ -272,7 +279,15 @@ private class FreeRdpProbe(
         host: String, port: Long, commonName: String, subject: String, issuer: String,
         fingerprint: String, flags: Long,
     ): Int {
-        val pin = pinFromPem(fingerprint, flags) ?: return 0
+        if (flags and LibFreeRDP.VERIFY_CERT_FLAG_FP_IS_PEM == 0L) {
+            failProbe(RdpProbeOutcome.CERTIFICATE_CALLBACK_MISSING_PEM)
+            return 0
+        }
+        val pin = pinFromPem(fingerprint, flags)
+        if (pin == null) {
+            failProbe(RdpProbeOutcome.CERTIFICATE_PARSE_FAILED)
+            return 0
+        }
         evidence = RdpJniSecurity("TLSv1.2", true, pin)
         finished.countDown()
         return 0
@@ -281,6 +296,49 @@ private class FreeRdpProbe(
         host: String, port: Long, commonName: String, subject: String, issuer: String,
         fingerprint: String, oldSubject: String, oldIssuer: String, oldFingerprint: String, flags: Long,
     ) = OnVerifiyCertificateEx(host, port, commonName, subject, issuer, fingerprint, flags)
+
+    override fun failed() {
+        failProbe(RdpProbeOutcome.CONNECTION_FAILURE_BEFORE_CERTIFICATE)
+        super.failed()
+    }
+
+    override fun disconnected() {
+        failProbe(RdpProbeOutcome.CONNECTION_FAILURE_BEFORE_CERTIFICATE)
+        super.disconnected()
+    }
+
+    private fun failProbe(outcome: RdpProbeOutcome) {
+        if (evidence == null) failure.compareAndSet(null, outcome)
+        finished.countDown()
+    }
+}
+
+private enum class RdpProbeOutcome(
+    val wireValue: String,
+) {
+    TIMEOUT("timeout"),
+    CONNECTION_FAILURE_BEFORE_CERTIFICATE("connectionFailureBeforeCertificate"),
+    CERTIFICATE_CALLBACK_MISSING_PEM("certificateCallbackMissingPem"),
+    CERTIFICATE_PARSE_FAILED("certificateParseFailed"),
+}
+
+/**
+ * Private cause consumed only by the bounded hosted-acceptance diagnostic.
+ *
+ * The public bridge still catches the enclosing [RdpNativeFailure] and returns
+ * only its existing safe code. No host, certificate, exception message or
+ * platform stack is added to the production response.
+ */
+private class RdpProbeDiagnostic(
+    private val outcome: RdpProbeOutcome,
+) : RuntimeException(null, null, false, false) {
+    override fun toString() = "RdpProbeOutcome(${outcome.wireValue})"
+}
+
+private fun probeFailure(outcome: RdpProbeOutcome): Nothing {
+    val public = RdpNativeFailure("engineUnavailable")
+    public.initCause(RdpProbeDiagnostic(outcome))
+    throw public
 }
 
 private class FreeRdpOperation(
