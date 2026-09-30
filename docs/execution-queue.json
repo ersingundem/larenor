@@ -5158,10 +5158,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Owned Sunshine host setup passed, no readiness receipt, exact child cleanup succeeded"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36791861104",
+          "commit": "768a511176136c00b8fef103105602e02178e311",
+          "state": "completed",
+          "result": "passed",
+          "label": "Owned Sunshine host readiness only; streamAccepted=false; canonical receipt independently verified"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: pinned Moonlight12.2 receipted AAR, gerçek iki-ABI APK ve kapalı default build doğrulandı. Core v2 authority/one-use grants/catalog/restart ile normal Client/native v2 eşleme, kalıcı pairing/catalog/stop/revoke cleanup, PIN ve fresh clientInstanceId tamamlandı; root gerçek normal Core TCP 1/1 ve 80 araç/kuyruk/progress testini bağımsız geçti; native45/45, Flutter86+1 beklenen skip ve scoped analyze geçti. Bunlar gerçek Sunshine stream/frame/audio/input/stop/unpair kabulü değildir. Owned host runs36790356666/36790838898/36791191000 readiness receipt üretmeden düştü. Resmî Avahi desteklemediği --ipv4 ve --interface kaldırıldı; trusted default interface filtrelemesi, exact owned service ve bounded safe tanı korunur. Source/package-bound, tek-method/zero-skip production NSD discovery kapısı hazır; hosted sonuç açık. Gerçek native yayın kabulü kapanmadan CI bekliyor/done olmaz. Kanıt: docs/testing/f60-moonlight-embedded-integration-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki, kalıcı cleanup ve fresh clientInstanceId entegrasyonu odaklı kabulü geçti. Native45/45, Flutter86+1 beklenen skip, root gerçek normal Core TCP1/1 ve80 araç kapısı geçti. Exact768a5111/run36791861104 gerçek owned Sunshine X11/software/H264/TLS/API/mDNS host_ready receiptini üretti; root canonical SHA256905cee98 ve source eşitliğini doğruladı. streamAccepted=false: gerçek Android keşif/eşleme/yayın/frame/audio/input/stop/unpair kabulü değildir. Aynı exact discovery run36791864541 test başlamadan output_must_not_exist ile düştü; workflow build work dizinini önceden oluşturuyordu. Yalnız mkdir operandı kaldırıldı, absent-output regresyonu ve7 discovery testi/actionlint geçti. Yeni changed-source discovery kabulü gerekli; F60 CI bekliyor/done olmaz. Kanıt: docs/testing/f60-sunshine-owned-host-2026-10-01.md."
     },
     {
       "id": "G11",

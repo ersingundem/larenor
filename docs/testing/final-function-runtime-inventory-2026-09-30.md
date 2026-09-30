@@ -180,3 +180,11 @@ F62 latest source-bound result: exact1259f39e/run36786452264 original method/1te
 F60 owned Sunshine host hazırlığı pinned Ubuntu paket/TLS/API/Xvfb/PulseAudio/mDNS sınırlarını uygular; root47 host/policy testi geçti. Yeni hosted smoke henüz çalışmadı ve host_ready/streamAccepted=false receipt gerçek Android keşif/eşleme/yayın/girdi/stop/revoke kabulü yerine sayılmaz. F60 yeniden çalışılıyor ve sayaçlar korunur. [Owned host kanıtı](f60-sunshine-owned-host-2026-10-01.md).
 
 F60 current integration: normal Core/Client/native v2 paths, PIN/current authority, durable cleanup and fresh-screen instance identity are wired. Native45/45, Flutter86+1 expected runner-only skip, scoped analyze, verified embedded/default APKs passed; root actual normal Core TCP1/1 and80 tool/queue/progress checks independently passed. Three hosted owned-Sunshine readiness runs produced no receipt; full production NSD/pairing/stream/frame/audio/input/stop/unpair remains open. The new discovery-only workflow is strict source/package-bound and never calls this a stream acceptance. F60 stays reworking and58 selected/67 total tasks await broad CI. See [integration evidence](f60-moonlight-embedded-integration-2026-10-01.md).
+
+F60 latest host result: exact768a5111/run36791861104 passed canonical owned Sunshine
+host_ready receipt (SHA256905cee98), independently verified by root; streamAccepted=false.
+The same exact Android discovery run36791864541 never entered instrumentation:
+output_must_not_exist came from the workflow pre-created work directory. The narrow
+mkdir repair passed7 discovery regression tests/actionlint. Real production NSD and
+full pairing/stream/frame/audio/input/stop/unpair receipts remain open; F60 stays
+reworking and58 selected/67 total tasks await broad CI.

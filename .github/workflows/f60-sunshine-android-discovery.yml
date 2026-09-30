@@ -90,7 +90,7 @@ jobs:
           git -C "$RUNNER_TEMP/moonlight-source" checkout --detach b48494cb96bff23d8886c4775cc4f39a1075495d
           git -C "$RUNNER_TEMP/moonlight-source" submodule update --init --recursive
           python3 tool/moonlight_android_package.py verify-source "$RUNNER_TEMP/moonlight-source"
-          mkdir "$RUNNER_TEMP/moonlight-build" "$RUNNER_TEMP/moonlight-package" android/app/moonlight
+          mkdir "$RUNNER_TEMP/moonlight-package" android/app/moonlight
           python3 tool/moonlight_android_package.py build \
             "$RUNNER_TEMP/moonlight-source" "$RUNNER_TEMP/moonlight-build" \
             "$RUNNER_TEMP/moonlight-package/moonlight-engine.aar" \

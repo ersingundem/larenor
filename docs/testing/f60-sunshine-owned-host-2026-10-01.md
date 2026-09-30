@@ -9,9 +9,9 @@ backend, encoder, codec, or successful receipt.
 
 The executable refuses anything except an x86_64 GitHub-hosted Ubuntu 24.04
 runner. Its only CLI mode is `--readiness-only`; the emitted public object says
-`state: host_ready` and `streamAccepted: false`. The three actual hosted runs
-below failed before a readiness receipt; this document makes no Sunshine
-interoperability or streaming-success claim.
+`state: host_ready` and `streamAccepted: false`. Three earlier hosted runs failed before a readiness receipt. The later exact
+run below passed host readiness only; this document makes no Android discovery
+or streaming-success claim.
 
 `.github/workflows/f60-sunshine-owned-host.yml` is a manual, same-repository
 host smoke on `ubuntu-24.04`. It pins the reviewed checkout action, resolves and
@@ -209,3 +209,25 @@ record only a sanitized public receipt. A passing owned fixture would cover
 Ubuntu Xvfb plus software H.264 on that emulator. Physical displays, household
 Sunshine, GPU/HDR/HEVC/AV1 performance, speakers, controllers and real network
 latency remain separate manual evidence.
+
+## Actual hosted readiness and discovery build correction
+
+[Run36791861104](https://github.com/ersingundem/larenor/actions/runs/36791861104)
+at exact `768a511176136c00b8fef103105602e02178e311` passed all owned-host steps
+and cleanup. Root independently verified the canonical 741-byte public receipt,
+its exact source/package/dependency identity and SHA-256
+`905cee98d5eb0b5ef7546b86650fe47f8b07f03caab2aa46b5aee7bd33281507`.
+Artifact `11131388820`, `f60-sunshine-owned-host-36791861104`, also matched the
+GitHub artifact digest. The receipt says `host_ready`, X11/software/H264 and
+`streamAccepted: false`. No Android discovery, pairing, rendered frame, audio,
+input, stop or unpair acceptance follows from that host-only result.
+
+[Discovery run36791864541](https://github.com/ersingundem/larenor/actions/runs/36791864541)
+at the same exact source failed before instrumentation with
+`output_must_not_exist`. The workflow pre-created the work directory, contrary
+to `prepare_source()`'s exclusive absent-output boundary. Only the build-work
+operand was removed from `mkdir`; the package destination and app mount are
+still created and the builder still receives the same absent work path.
+Seven focused discovery report/workflow tests and `actionlint` passed. A new
+changed-source run must establish production NSD; the failed run has no
+discovery receipt. F60 remains reworking and the accepted counters stay unchanged.

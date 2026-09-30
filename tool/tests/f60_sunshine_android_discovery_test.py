@@ -166,6 +166,17 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             ):
                 parse_emulator_version(output)
 
+    def test_workflow_leaves_package_work_directory_absent_for_builder(self) -> None:
+        self.assertIn(
+            'mkdir "$RUNNER_TEMP/moonlight-package" android/app/moonlight',
+            WORKFLOW,
+        )
+        self.assertNotIn('mkdir "$RUNNER_TEMP/moonlight-build"', WORKFLOW)
+        self.assertIn(
+            '"$RUNNER_TEMP/moonlight-source" "$RUNNER_TEMP/moonlight-build"',
+            WORKFLOW,
+        )
+
     def test_registered_dispatcher_and_source_guard_are_exact(self) -> None:
         self.assertIn("          - f60-discovery", SERVER_WORKFLOW)
         self.assertIn(
