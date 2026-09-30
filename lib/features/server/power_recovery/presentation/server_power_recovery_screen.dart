@@ -303,7 +303,10 @@ class _ServerPowerRecoveryScreenState
                     if (_power.failure != null)
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text(l10n.serverPowerRecoveryFailed),
+                        child: Text(
+                          _failureLabel(l10n, _power.failure!),
+                          key: const ValueKey('server-power-recovery-error'),
+                        ),
                       ),
                     if (_power.value case final status?) _status(l10n, status),
                     _configuration(l10n),
@@ -318,54 +321,76 @@ class _ServerPowerRecoveryScreenState
     );
   }
 
-  Widget _status(AppLocalizations l10n, PowerRecoveryStatus status) =>
-      SettingsSection(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        header: Text(l10n.serverPowerRecoveryStatus),
-        children: [
-          _row(
-            l10n.serverPowerRecoverySourceState,
-            _sourceLabel(l10n, status.sourceState),
-          ),
-          _row(
-            l10n.serverPowerRecoveryWorkGate,
-            status.gateHeld
-                ? l10n.serverPowerRecoveryHeld
-                : l10n.serverPowerRecoveryOpen,
-          ),
-          if (status.lastObservedAt != null)
-            _row(
-              l10n.serverPowerRecoveryLastEvent,
-              DateFormat.yMd(l10n.localeName)
-                  .add_Hm()
-                  .format(status.lastObservedAt!.toLocal()),
+  Widget _status(
+    AppLocalizations l10n,
+    PowerRecoveryStatus status,
+  ) => SettingsSection(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    header: Text(l10n.serverPowerRecoveryStatus),
+    children: [
+      _row(
+        l10n.serverPowerRecoverySourceState,
+        _sourceLabel(l10n, status.sourceState),
+      ),
+      _row(
+        l10n.serverPowerRecoveryWorkGate,
+        status.gateHeld
+            ? l10n.serverPowerRecoveryHeld
+            : l10n.serverPowerRecoveryOpen,
+      ),
+      if (status.lastObservedAt != null)
+        _row(
+          l10n.serverPowerRecoveryLastEvent,
+          DateFormat.yMd(l10n.localeName)
+              .add_Hm()
+              .format(status.lastObservedAt!.toLocal()),
+        ),
+      if (status.activeRun case final run?) ...[
+        _row(l10n.serverPowerRecoveryActiveRun, _runLabel(l10n, run.state)),
+        if (run.failureCode != null)
+          _row(l10n.serverPowerRecoveryResult, run.failureCode!),
+        if (run.steps.any((step) => step.state == PowerStepState.uncertain))
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(l10n.serverPowerRecoveryUncertain),
             ),
-          if (status.activeRun case final run?) ...[
-            _row(l10n.serverPowerRecoveryActiveRun, _runLabel(l10n, run.state)),
-            if (run.failureCode != null)
-              _row(l10n.serverPowerRecoveryResult, run.failureCode!),
-            if (run.steps.any((step) => step.state == PowerStepState.uncertain))
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(l10n.serverPowerRecoveryUncertain),
-                ),
-              ),
-            if (run.state == PowerRunState.failed &&
-                !run.steps.any(
-                  (step) => step.state == PowerStepState.uncertain,
-                ))
-              CupertinoButton(
-                key: const ValueKey('server-power-recovery-retry'),
-                onPressed: !_power.busy
-                    ? () => _power.retry(current: _capture())
-                    : null,
-                child: Text(l10n.serverPowerRecoveryRetry),
-              ),
-          ],
-        ],
-      );
+          ),
+        if (run.state == PowerRunState.failed)
+          for (final step in run.steps.where(_reconcilableStep))
+            CupertinoButton(
+              key: ValueKey('server-power-recovery-reconcile-${step.stepId}'),
+              onPressed: !_power.busy
+                  ? () => _power.reconcile(step: step, current: _capture())
+                  : null,
+              child: Text(l10n.serverPowerRecoveryReconcile),
+            ),
+        if (run.state == PowerRunState.failed &&
+            !run.steps.any((step) => step.state == PowerStepState.uncertain))
+          CupertinoButton(
+            key: const ValueKey('server-power-recovery-retry'),
+            onPressed: !_power.busy
+                ? () => _power.retry(current: _capture())
+                : null,
+            child: Text(l10n.serverPowerRecoveryRetry),
+          ),
+      ],
+    ],
+  );
+
+  bool _reconcilableStep(PowerRecoveryStep step) =>
+      step.state == PowerStepState.uncertain &&
+      step.targetId != null &&
+      const {'shutdownTarget', 'startTarget'}.contains(step.action);
+
+  String _failureLabel(AppLocalizations l10n, String value) => switch (value) {
+    'power_reconciliation_required' =>
+      l10n.serverPowerRecoveryReconcileMismatch,
+    'conflict' => l10n.serverPowerRecoveryReconcileMismatch,
+    'revision_conflict' => l10n.serverPowerRecoveryReconcileChanged,
+    _ => l10n.serverPowerRecoveryFailed,
+  };
 
   Widget _configuration(AppLocalizations l10n) => SettingsSection(
     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

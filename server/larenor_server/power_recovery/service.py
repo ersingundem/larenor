@@ -632,6 +632,8 @@ class PowerRecoveryService:
                 or observation.action != effect.action
                 or observation.observedState != expected_state
                 or observation.observedAt < started_at
+                or observation.observedAt > effect.deadlineAt
+                or finished_at > effect.deadlineAt
                 or observation.observedAt > finished_at + 5
             ):
                 raise ApiError("power_reconciliation_required", 409)

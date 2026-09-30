@@ -28,6 +28,12 @@ Doğrulama: Proxmox sağlayıcısı, observation, restart, worker IPC/runtime ve
 runtime paketlerinde 61 Python testi geçti. Flutter providerRef ve yeni sonuç
 alanının roundtrip/strict parser kontrolleri ayrıca çalıştırıldı.
 
-Açık teslim işleri: Flutter'da açık admin uzlaştırma etkileşimi, normal kurulum
-yoluyla hedef seçimi ve gerçek UPS/Proxmox ortam kabulü. Fiziksel ev sistemine
-bu dilimde mutation gönderilmedi.
+Flutter admin ekranı belirsiz hedef adımı için açık güncel durum denetimi sunar.
+İstek exact run/step ve expectedUpdatedAt revisionı taşır; retry/execute çağırmaz.
+Durum uyuşmazlığı eski belirsiz adımı korur, başarıdan sonra durum yeniden okunur.
+GET ve komut tek kalan deadline bütçesini paylaşır; geç gelen uzlaştırma kanıtı
+kabul edilmez. Yeni ekran ve model kontrollerinde 4 Flutter testi geçti; ilgili
+Flutter analyze temiz. Genişletilmiş güç paketlerinde 67 Python testi geçti.
+
+Açık teslim işleri: normal kurulum yoluyla hedef seçimi ve gerçek UPS/Proxmox
+ortam kabulü. Fiziksel ev sistemine bu dilimde mutation gönderilmedi.

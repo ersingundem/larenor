@@ -59,4 +59,21 @@ final class ServerPowerRecoveryApi {
       cancellation: cancellation,
     ),
   );
+
+  Future<PowerRecoveryRun> reconcile(
+    PowerRecoveryRun run,
+    PowerRecoveryStep step,
+    LarenorTransferCancellation cancellation,
+  ) async => PowerRecoveryRun.fromJson(
+    await api.request(
+      'POST',
+      '/admin/power-recovery/runs/${run.runId}/steps/${step.stepId}/reconcile',
+      token: token,
+      body: {
+        'contractVersion': 1,
+        'expectedUpdatedAt': run.updatedAt.millisecondsSinceEpoch ~/ 1000,
+      },
+      cancellation: cancellation,
+    ),
+  );
 }

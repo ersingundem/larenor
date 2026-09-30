@@ -336,6 +336,19 @@ class ProxmoxPowerRecoveryExecutor:
             observedAt=int(observed_at),
         )
 
+    def _remaining_deadline_ms(self, deadline_at):
+        now = self.settings.clock()
+        if (
+            type(now) not in {int, float}
+            or isinstance(now, bool)
+            or not math.isfinite(now)
+        ):
+            raise ProxmoxPowerWorkerError()
+        remaining = deadline_at - now
+        if remaining < 0.5:
+            raise ProxmoxPowerWorkerError()
+        return min(30_000, max(500, int(remaining * 1000)))
+
     def execute(self, request):
         if (
             not isinstance(request, PowerEffectRequest)
@@ -345,17 +358,7 @@ class ProxmoxPowerRecoveryExecutor:
             raise ProxmoxPowerWorkerError()
         ref = request.target.providerRef
         selected = self.resolver.resolve(ref)
-        now = self.settings.clock()
-        if (
-            type(now) not in {int, float}
-            or isinstance(now, bool)
-            or not math.isfinite(now)
-        ):
-            raise ProxmoxPowerWorkerError()
-        remaining = request.deadlineAt - now
-        if remaining < 0.5:
-            raise ProxmoxPowerWorkerError()
-        deadline_ms = min(30_000, max(500, int(remaining * 1000)))
+        observation_deadline_ms = self._remaining_deadline_ms(request.deadlineAt)
 
         def guard():
             self.resolver.guard(ref, selected.addresses)
@@ -366,13 +369,14 @@ class ProxmoxPowerRecoveryExecutor:
             user_revision=ref.actorRevision,
             resource_revision=ref.resourceRevision,
             acl_revision=ref.aclRevision,
-            deadline_ms=deadline_ms,
+            deadline_ms=observation_deadline_ms,
             allowed_addresses=selected.addresses,
         )
         expected_source = "running" if request.action == "shutdown" else "stopped"
         if observation.state != expected_source:
             # A read taken after an unknown earlier effect is not causal proof.
             raise ProxmoxPowerWorkerError()
+        mutation_deadline_ms = self._remaining_deadline_ms(request.deadlineAt)
         descriptor = ProxmoxGuestDescriptor(
             resource_id=selected.descriptor.resource_id,
             binding_id=selected.descriptor.binding_id,
@@ -407,7 +411,7 @@ class ProxmoxPowerRecoveryExecutor:
             request.action,
             guard,
             preview=preview,
-            deadline_ms=deadline_ms,
+            deadline_ms=mutation_deadline_ms,
             allowed_addresses=selected.addresses,
         )
         completed = self.settings.clock()

@@ -147,6 +147,20 @@ def test_executor_observes_then_dispatches_exact_bounded_effect_and_caches_recei
     assert len(resolver.guards) == 2
 
 
+def test_executor_recomputes_one_effect_deadline_after_observation():
+    resolver = Resolver()
+    worker = Worker()
+    times = iter((100, 110, 111))
+    executor = ProxmoxPowerRecoveryExecutor(
+        resolver, worker, SimpleNamespace(clock=lambda: next(times))
+    )
+
+    executor.execute(effect())
+
+    assert worker.calls[0][2]["deadline_ms"] == 30_000
+    assert worker.calls[1][3]["deadline_ms"] == 20_000
+
+
 def test_later_matching_observation_is_never_a_terminal_effect_receipt():
     resolver = Resolver(state="stopped")
     worker = Worker(state="stopped")

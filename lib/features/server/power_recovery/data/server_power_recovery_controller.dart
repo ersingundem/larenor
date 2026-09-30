@@ -122,6 +122,49 @@ final class ServerPowerRecoveryController extends ChangeNotifier {
     });
   }
 
+  static bool _reconcilable(PowerRecoveryStep step) =>
+      step.state == PowerStepState.uncertain &&
+      step.targetId != null &&
+      const {'shutdownTarget', 'startTarget'}.contains(step.action);
+
+  bool _sameUncertainStep(PowerRecoveryRun run, PowerRecoveryStep step) {
+    final active = value?.activeRun;
+    if (active == null ||
+        active.runId != run.runId ||
+        active.updatedAt != run.updatedAt ||
+        active.state != PowerRunState.failed) {
+      return false;
+    }
+    final matches = active.steps.where((item) => item.stepId == step.stepId);
+    if (matches.length != 1) return false;
+    final current = matches.single;
+    return _reconcilable(current) &&
+        current.action == step.action &&
+        current.targetId == step.targetId;
+  }
+
+  Future<void> reconcile({
+    required PowerRecoveryStep step,
+    required bool Function() current,
+  }) async {
+    final run = value?.activeRun;
+    if (run == null ||
+        run.state != PowerRunState.failed ||
+        !_reconcilable(step) ||
+        !_sameUncertainStep(run, step)) {
+      return;
+    }
+    bool sameRun() => current() && _sameUncertainStep(run, step);
+    await _run(sameRun, (api, cancellation, stillCurrent) async {
+      final reconciled = await api.reconcile(run, step, cancellation);
+      if (reconciled.runId != run.runId) {
+        throw const LarenorServerException('invalid_response');
+      }
+      final next = await api.status(cancellation);
+      if (stillCurrent()) value = next;
+    });
+  }
+
   void invalidate() {
     _cancellation?.cancel();
     _cancellation = null;

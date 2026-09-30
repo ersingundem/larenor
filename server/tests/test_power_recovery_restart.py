@@ -324,3 +324,50 @@ def test_admin_reconcile_keeps_uncertain_when_current_state_does_not_match(tmp_p
         "state": "uncertain",
         "result_code": "reconciliation_required",
     }
+
+
+@pytest.mark.parametrize(
+    ("observed_at", "finished_at"),
+    (
+        (NOW + 32, NOW + 31),
+        (NOW + 31, NOW + 32),
+    ),
+)
+def test_admin_reconcile_rejects_evidence_outside_one_observation_deadline(
+    tmp_path,
+    observed_at,
+    finished_at,
+):
+    db, settings = database(tmp_path)
+    times = iter((NOW + 1, NOW + 1, finished_at))
+    settings = replace(settings, clock=lambda: next(times))
+    executor = Executor(
+        observation=PowerEffectObservation(
+            contractVersion=1,
+            runId=RUN,
+            stepId=STEP,
+            targetId=TARGET,
+            action="shutdown",
+            observedState="stopped",
+            observedAt=observed_at,
+        )
+    )
+    service = PowerRecoveryService(db, object(), settings, KEY, executor=executor)
+    service._assert_admin = lambda _connection, _actor: 1
+
+    with pytest.raises(ApiError) as raised:
+        service.reconcile_step(
+            SimpleNamespace(id="a" * 32),
+            RUN,
+            STEP,
+            {"contractVersion": 1, "expectedUpdatedAt": NOW + 1},
+        )
+
+    assert (raised.value.code, raised.value.status) == (
+        "power_reconciliation_required",
+        409,
+    )
+    assert rows(db)[0] == {
+        "state": "uncertain",
+        "result_code": "reconciliation_required",
+    }
