@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100`, yazılım kabul tabanı `52b30612` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. F01–F63 ile ürün işlerinin uygulamaları final fonksiyonellik geçişinde toplandı; tam Flutter paketi ve bütün platform politika paketi geçti, Server/Core tam paketi ile exact-head CI bekleniyor. `FINAL.FUNCTION` bu kanıtlar tamamlanmadan kabul edilmeyecek; `FINAL.UI` veya başka bir final maddesi başlatılmayacak. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. FINAL.FUNCTION incelemesi F30 medya arşivi yolunda paketli read/action worker ve deploy bağlantısının bulunmadığını, genel hedef listesinin keep/delete rollerini kaybettiğini ve orijinal durumunun işlemden önce doğrulanmış gösterildiğini ortaya çıkardı. F30 yeniden aktif geliştirmeye alındı; tipli hedef ve dürüst yaşam döngüsü düzeltmesi başladı. Bu üretim boşluğu kapanmadan `FINAL.FUNCTION` yeniden CI kapısına, `FINAL.UI` veya başka bir final maddesine geçmeyecek. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/126 iş (%29,4; eşit ağırlıklı sayaç)
@@ -31,10 +31,10 @@ workflow tabanı `52b30612` dahil 323 commit'i doğruladı. Ayrıntılı komut v
 [FINAL.FUNCTION kabul kaydında](testing/final-function-acceptance-2026-09-30.md)
 tutuluyor.
 
-`FINAL.FUNCTION` uygulaması tamamlandı ve **CI bekliyor**. Server/Core tam
-paketi ile Security, Server API & Storage ve Android Build aynı son belge
-commit'inde geçmeden
-kanıtla tamamlandı sayılmayacak. Bu sırada `FINAL.UI`,
+`FINAL.FUNCTION` incelemesi **F30 üretim boşluğu nedeniyle yeniden çalışılıyor**.
+Unmanic/Jellyfin resmî sözleşmesi, tipli hedefler, gerçek read/action worker,
+yeniden başlatma/iptal/uzlaştırma ve Client→Core→worker kabulü tamamlandıktan
+sonra tam paketler ile exact-head CI yeniden çalışacak. Bu sırada `FINAL.UI`,
 `FINAL.AUDIT`, `FINAL.CI`, `FINAL.GALLERY` ve `FINAL.README` bağımlılık
 bekleyecek; aynı anda ikinci final maddesi alınmayacak. Sayaçlar **37/126
 (%29,4)** ve **3/63 (%4,8)** olarak değişmedi.

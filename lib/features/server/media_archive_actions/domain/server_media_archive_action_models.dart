@@ -67,6 +67,15 @@ enum ServerMediaArchiveJobState {
   needsAttention,
 }
 
+enum ServerMediaArchiveOriginalState {
+  notApplicable,
+  pending,
+  retained,
+  notRetained,
+  removed,
+  unknown,
+}
+
 enum ServerMediaArchivePreviewOperation {
   stageTranscode,
   cleanupDuplicate,
@@ -354,7 +363,7 @@ final class ServerMediaArchiveJob {
     required this.phase,
     required this.cancelRequested,
     required this.reservedBytes,
-    required this.retainedOriginal,
+    required this.originalState,
     required this.cleanupAvailable,
     required this.errorCode,
     required this.proofDigest,
@@ -372,16 +381,15 @@ final class ServerMediaArchiveJob {
       'phase',
       'cancelRequested',
       'reservedBytes',
-      'retainedOriginal',
+      'originalState',
       'cleanupAvailable',
       'errorCode',
       'proofDigest',
       'createdAt',
       'updatedAt',
     });
-    if (map['schemaVersion'] != 1 ||
+    if (map['schemaVersion'] != 2 ||
         map['cancelRequested'] is! bool ||
-        map['retainedOriginal'] is! bool ||
         map['cleanupAvailable'] is! bool) {
       _invalid();
     }
@@ -397,6 +405,15 @@ final class ServerMediaArchiveJob {
       'failed' => ServerMediaArchiveJobState.failed,
       'cancelled' => ServerMediaArchiveJobState.cancelled,
       'needs_attention' => ServerMediaArchiveJobState.needsAttention,
+      _ => null,
+    };
+    final originalState = switch (map['originalState']) {
+      'not_applicable' => ServerMediaArchiveOriginalState.notApplicable,
+      'pending' => ServerMediaArchiveOriginalState.pending,
+      'retained' => ServerMediaArchiveOriginalState.retained,
+      'not_retained' => ServerMediaArchiveOriginalState.notRetained,
+      'removed' => ServerMediaArchiveOriginalState.removed,
+      'unknown' => ServerMediaArchiveOriginalState.unknown,
       _ => null,
     };
     final phase = map['phase'];
@@ -422,6 +439,7 @@ final class ServerMediaArchiveJob {
     };
     if (kind == null ||
         state == null ||
+        originalState == null ||
         !phases.contains(phase) ||
         error != null && !errors.contains(error) ||
         proof != null &&
@@ -450,15 +468,43 @@ final class ServerMediaArchiveJob {
         state == ServerMediaArchiveJobState.cancelled &&
             map['cancelRequested'] != true ||
         kind == ServerMediaArchiveJobKind.optimize &&
-            (map['retainedOriginal'] != true ||
+            (originalState == ServerMediaArchiveOriginalState.notApplicable ||
                 archiveActionInteger(map['reservedBytes']) <= 0) ||
         kind == ServerMediaArchiveJobKind.cleanup &&
-            (map['retainedOriginal'] != false ||
+            (originalState != ServerMediaArchiveOriginalState.notApplicable ||
                 archiveActionInteger(map['reservedBytes']) != 0) ||
+        kind == ServerMediaArchiveJobKind.optimize &&
+            {
+              ServerMediaArchiveJobState.queued,
+              ServerMediaArchiveJobState.running,
+            }.contains(state) &&
+            originalState != ServerMediaArchiveOriginalState.pending ||
+        kind == ServerMediaArchiveJobKind.optimize &&
+            state == ServerMediaArchiveJobState.succeeded &&
+            !{
+              ServerMediaArchiveOriginalState.retained,
+              ServerMediaArchiveOriginalState.removed,
+            }.contains(originalState) ||
+        kind == ServerMediaArchiveJobKind.optimize &&
+            {
+              ServerMediaArchiveJobState.failed,
+              ServerMediaArchiveJobState.cancelled,
+            }.contains(state) &&
+            !{
+              ServerMediaArchiveOriginalState.notRetained,
+              ServerMediaArchiveOriginalState.retained,
+            }.contains(originalState) ||
+        kind == ServerMediaArchiveJobKind.optimize &&
+            state == ServerMediaArchiveJobState.needsAttention &&
+            !{
+              ServerMediaArchiveOriginalState.pending,
+              ServerMediaArchiveOriginalState.retained,
+              ServerMediaArchiveOriginalState.unknown,
+            }.contains(originalState) ||
         map['cleanupAvailable'] == true &&
             (kind != ServerMediaArchiveJobKind.optimize ||
                 state != ServerMediaArchiveJobState.succeeded ||
-                map['retainedOriginal'] != true) ||
+                originalState != ServerMediaArchiveOriginalState.retained) ||
         map['cancelRequested'] == true &&
             !{
               ServerMediaArchiveJobState.running,
@@ -476,7 +522,7 @@ final class ServerMediaArchiveJob {
       phase: phase,
       cancelRequested: map['cancelRequested'] as bool,
       reservedBytes: archiveActionInteger(map['reservedBytes']),
-      retainedOriginal: map['retainedOriginal'] as bool,
+      originalState: originalState,
       cleanupAvailable: map['cleanupAvailable'] as bool,
       errorCode: error as String?,
       proofDigest: proof as String?,
@@ -489,7 +535,8 @@ final class ServerMediaArchiveJob {
   final int revision, reservedBytes;
   final ServerMediaArchiveJobKind kind;
   final ServerMediaArchiveJobState state;
-  final bool cancelRequested, retainedOriginal, cleanupAvailable;
+  final bool cancelRequested, cleanupAvailable;
+  final ServerMediaArchiveOriginalState originalState;
   final String? errorCode, proofDigest;
   final DateTime createdAt, updatedAt;
 

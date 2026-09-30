@@ -679,9 +679,32 @@ final class _JobCard extends StatelessWidget {
         ),
         _KeyValue(
           label: _t('Orijinal', 'Original'),
-          value: job.retainedOriginal
-              ? _t('Korunuyor', 'Retained')
-              : _t('Uygulanmaz', 'Not retained'),
+          value: switch (job.originalState) {
+            ServerMediaArchiveOriginalState.notApplicable => _t(
+              'Uygulanmaz',
+              'Not applicable',
+            ),
+            ServerMediaArchiveOriginalState.pending => _t(
+              'Koruma bekliyor',
+              'Retention pending',
+            ),
+            ServerMediaArchiveOriginalState.retained => _t(
+              'Doğrulandı',
+              'Verified retained',
+            ),
+            ServerMediaArchiveOriginalState.notRetained => _t(
+              'Korunmadı',
+              'Not retained',
+            ),
+            ServerMediaArchiveOriginalState.removed => _t(
+              'Ayrı onayla kaldırıldı',
+              'Removed after separate approval',
+            ),
+            ServerMediaArchiveOriginalState.unknown => _t(
+              'Uzlaştırma gerekiyor',
+              'Needs reconciliation',
+            ),
+          },
         ),
         if (job.errorCode != null)
           Text(

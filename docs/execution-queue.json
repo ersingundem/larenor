@@ -4224,7 +4224,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Medya arşivi sağlık ve yer tasarrufu",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4250,7 +4250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama commit a5f26cea: deterministik arşiv aday kimliği, exact action authority, kanıta bağlı preview/confirm, UID-private bounded Unmanic worker IPC, korunan orijinal, ortak byte kotası, durable signed job/cancel/reconcile/proof ve ayrı cleanup-confirm akışı eklendi; otomatik silme yok. Focused Flutter analyze, Python py_compile, çift migration, app import ve IPC smoke geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
+      "reason": "FINAL.FUNCTION incelemesinde a5f26cea sözleşmesinin üretim eylem ve veri toplama workerlarına bağlanmadığı; genel targetRefs sıralamasının keep/delete rollerini kaybettiği ve queued/failed işlerin orijinali doğrulanmadan retained gösterdiği bulundu. Tipli hedefler, doğrulanmış originalState ve async running receipt ilk düzeltme dilimidir; paketli read/action worker, gerçek Unmanic/Jellyfin sözleşmesi, restart/iptal/uzlaştırma ve Client→Core→worker kabulü tamamlanmadan F30 implemented sayılmaz."
     },
     {
       "id": "G07",
@@ -5331,7 +5331,7 @@
       "kind": "task",
       "parent": "FINAL",
       "title": "Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi",
-      "status": "awaiting_ci",
+      "status": "pending",
       "dependsOn": [
         "B1",
         "B2",
@@ -5371,7 +5371,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama kapısı tamamlandı: 06f5551a tabanında Flutter tam paketi 7.637 geçti/4 platform testi atlandı ve analyze temiz; 52b30612 tabanında platform politikası 442 geçti/4 atlandı, kuyruk testi 25/25 geçti ve ilerleme kapısı workflow tabanına kadar 323 commit doğruladı. Server/Core tam paketi ile aynı son belge commitindeki Security, Server API & Storage ve Android Build exact-head CI sonucu bekleniyor; bu sırada başka FINAL maddesi başlatılmaz."
+      "reason": "Tam paket doğrulaması sürerken F30 medya arşivi yolunda gerçek üretim boşluğu bulundu: read/action worker runtime ve deploy bağlantısı yoktu. FINAL.FUNCTION bu boşluk gerçek worker, lifecycle ve E2E kanıtıyla kapanmadan awaiting_ci durumuna dönmeyecek; başka FINAL maddesi başlatılmayacak."
     },
     {
       "id": "FINAL.UI",

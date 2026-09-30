@@ -237,7 +237,7 @@ class MediaArchiveActionService:
         return self._authority(current), observation
 
     def _candidate(self, authority, *, kind, title, potential, confidence,
-                   basis, observed, retained, evidence, action, refs):
+                   basis, observed, retained, evidence, action, target):
         value = {
             "kind": kind,
             "title": title,
@@ -256,9 +256,9 @@ class MediaArchiveActionService:
             "schemaVersion": 1,
             "authority": authority,
             "candidate": value,
-            "targetRefs": sorted(refs),
+            "target": target,
         })
-        return ArchiveActionCandidate(candidateId=candidate_id, **value), sorted(refs)
+        return ArchiveActionCandidate(candidateId=candidate_id, **value), target
 
     def _candidates(self, authority, observation):
         values = {"duplicate": [], "transcode": [], "retention": []}
@@ -283,7 +283,11 @@ class MediaArchiveActionService:
                 retained=retained,
                 evidence=["content_hash_match", "multiple_playable_files",
                           "largest_copy_excluded"], action="cleanup",
-                refs=[item.itemId for item in group],
+                target={
+                    "targetType": "duplicate",
+                    "keepItemId": group[0].itemId,
+                    "deleteItemIds": [item.itemId for item in group[1:]],
+                },
             ))
             used.update(item.itemId for item in group)
 
@@ -306,7 +310,11 @@ class MediaArchiveActionService:
                 evidence=["name_size_runtime_match",
                           "multiple_playable_files",
                           "largest_copy_excluded"], action="cleanup",
-                refs=[item.itemId for item in group],
+                target={
+                    "targetType": "duplicate",
+                    "keepItemId": group[0].itemId,
+                    "deleteItemIds": [item.itemId for item in group[1:]],
+                },
             ))
             used.update(item.itemId for item in group)
 
@@ -343,7 +351,11 @@ class MediaArchiveActionService:
                 retained=observed - potential,
                 evidence=["same_media_identity", "quality_profile_comparison",
                           "best_quality_excluded"], action="cleanup",
-                refs=[best.itemId] + [item.itemId for item in lower],
+                target={
+                    "targetType": "duplicate",
+                    "keepItemId": best.itemId,
+                    "deleteItemIds": [item.itemId for item in lower],
+                },
             ))
 
         for item in playable:
@@ -363,7 +375,11 @@ class MediaArchiveActionService:
                 evidence=["source_profile_verified",
                           "target_playback_verified",
                           "bounded_size_estimate"], action="optimize",
-                refs=[item.itemId, item.mediaKey],
+                target={
+                    "targetType": "transcode",
+                    "sourceItemId": item.itemId,
+                    "mediaKey": item.mediaKey,
+                },
             ))
 
         for item in observation.qbittorrent.items:
@@ -378,7 +394,11 @@ class MediaArchiveActionService:
                 retained=0,
                 evidence=["download_complete", "import_verified",
                           "retention_policy_satisfied"], action="cleanup",
-                refs=[item.torrentId, item.mediaKey],
+                target={
+                    "targetType": "retention",
+                    "torrentId": item.torrentId,
+                    "importedMediaKey": item.mediaKey,
+                },
             ))
 
         result = []
@@ -391,14 +411,14 @@ class MediaArchiveActionService:
             result.extend(lane[:256])
         return result
 
-    def _command(self, authority, candidate, refs, operation, operation_id,
+    def _command(self, authority, candidate, target, operation, operation_id,
                  source_job_id=None, source_job_revision=None):
         reserve = (max(1, candidate.comparison.estimatedRetainedBytes)
                    if operation == "stage_transcode" else 0)
         evidence = self._hash({
             "authority": authority,
             "candidate": candidate,
-            "targetRefs": refs,
+            "target": target,
             "operation": operation,
         })
         return PrivateArchiveActionCommand(
@@ -408,17 +428,78 @@ class MediaArchiveActionService:
             candidate=candidate,
             sourceJobId=source_job_id,
             sourceJobRevision=source_job_revision,
-            targetRefs=refs,
+            target=target,
             evidenceDigest=evidence,
             reservedBytes=reserve,
             retainOriginal=operation == "stage_transcode",
         )
 
+    @staticmethod
+    def _retained_original_target(source):
+        if (type(source) is not PrivateArchiveActionCommand
+                or source.operation != "stage_transcode"
+                or source.target.targetType != "transcode"):
+            raise ApiError("media_archive_action_storage_unavailable", 503)
+        return {
+            "targetType": "retained_original",
+            "sourceOperationId": source.operationId,
+        }
+
+    def _validate_cleanup_source(self, connection, actor, command):
+        if command.operation != "cleanup_retained_original":
+            return
+        raw = connection.execute(
+            "SELECT * FROM media_archive_action_jobs WHERE id=?",
+            (command.sourceJobId,),
+        ).fetchone()
+        if raw is None:
+            raise ApiError("media_archive_action_job_changed", 409)
+        row, source = self._job_row(raw)
+        if (row["actor_id"] != actor.id
+                or row["family_id"] != actor.family_id
+                or row["revision"] != command.sourceJobRevision
+                or row["kind"] != "optimize"
+                or row["state"] != "succeeded"
+                or not row["retained_original"]
+                or source.operation != "stage_transcode"
+                or command.target.targetType != "retained_original"
+                or command.target.sourceOperationId != source.operationId):
+            raise ApiError("media_archive_action_job_changed", 409)
+
     def _decode_command(self, raw):
         try:
             if type(raw) is not str or len(raw.encode("utf-8")) > 262144:
                 raise ValueError()
-            return PrivateArchiveActionCommand.model_validate_json(raw)
+            def exact_object(pairs):
+                value = {}
+                for name, item in pairs:
+                    if name in value:
+                        raise ValueError()
+                    value[name] = item
+                return value
+
+            def reject_constant(_value):
+                raise ValueError()
+
+            value = json.loads(
+                raw, object_pairs_hook=exact_object,
+                parse_constant=reject_constant,
+            )
+            if (type(value) is dict
+                    and type(value.get("schemaVersion")) is int
+                    and value["schemaVersion"] == 1
+                    and "target" not in value
+                    and type(value.get("targetRefs")) is list):
+                # v1 sorted targetRefs destroyed keep/delete and source/media
+                # roles. Keep the row readable, but never infer a destructive
+                # target or send it to a worker.
+                value = dict(value)
+                value["schemaVersion"] = 2
+                value["target"] = {
+                    "targetType": "legacy_unresolved",
+                    "targetRefs": value.pop("targetRefs"),
+                }
+            return PrivateArchiveActionCommand.model_validate(value)
         except (ValidationError, ValueError, TypeError, AttributeError,
                 RecursionError, OverflowError):
             raise ApiError("media_archive_action_storage_unavailable", 503) from None
@@ -452,7 +533,7 @@ class MediaArchiveActionService:
                 or command.sourceJobId != row["source_job_id"]
                 or command.sourceJobRevision != row["source_job_revision"]
                 or bool(row["retained_original"])
-                != (row["kind"] == "optimize")):
+                and row["kind"] != "optimize"):
             raise ApiError("media_archive_action_storage_unavailable", 503)
         return row, command
 
@@ -477,12 +558,25 @@ class MediaArchiveActionService:
                 "AND state='ready' AND expires_at>?)",
                 (row["id"], row["id"], self._now()),
             ).fetchone()[0] == 1
+        if row["kind"] == "cleanup":
+            original_state = "not_applicable"
+        elif row["state"] in {"queued", "running"}:
+            original_state = "pending"
+        elif row["state"] == "succeeded":
+            original_state = ("retained" if row["retained_original"]
+                              else "removed")
+        elif row["state"] == "needs_attention":
+            original_state = ("retained" if row["retained_original"]
+                              else "unknown")
+        else:
+            original_state = ("retained" if row["retained_original"]
+                              else "not_retained")
         return ArchiveActionJob(
             jobId=row["id"], revision=row["revision"], kind=row["kind"],
             state=row["state"], phase=row["phase"],
             cancelRequested=bool(row["cancel_requested"]),
             reservedBytes=row["reserved_bytes"],
-            retainedOriginal=bool(row["retained_original"]),
+            originalState=original_state,
             cleanupAvailable=cleanup_available,
             errorCode=row["error_code"], proofDigest=row["proof_digest"],
             createdAt=row["created_at"],
@@ -508,7 +602,7 @@ class MediaArchiveActionService:
         if type(body) is not SnapshotActionRequest:
             raise ApiError("invalid_request")
         authority, observation = self._collect(actor, body)
-        candidates = [item for item, _refs in self._candidates(
+        candidates = [item for item, _target in self._candidates(
             authority, observation)]
         now = self._now()
         with self.db.transaction() as connection:
@@ -623,7 +717,7 @@ class MediaArchiveActionService:
 
     def _find_candidate(self, actor, body, candidate_id, action_type):
         authority, observation = self._collect(actor, body)
-        matches = [(candidate, refs) for candidate, refs
+        matches = [(candidate, target) for candidate, target
                    in self._candidates(authority, observation)
                    if candidate.candidateId == candidate_id
                    and candidate.actionType == action_type]
@@ -655,6 +749,7 @@ class MediaArchiveActionService:
                 connection, actor, body, request_hash, now)
             if existing is not None:
                 return existing
+            self._validate_cleanup_source(connection, actor, command)
             if command.sourceJobId is not None:
                 used = connection.execute(
                     "SELECT 1 FROM media_archive_action_jobs "
@@ -720,17 +815,17 @@ class MediaArchiveActionService:
     def preview(self, actor, body):
         if type(body) is not PreviewArchiveActionRequest:
             raise ApiError("invalid_request")
-        authority, candidate, refs = self._find_candidate(
+        authority, candidate, target = self._find_candidate(
             actor, body, body.candidateId, "optimize")
         operation_id = uuid.uuid4().hex
         command = self._command(
-            authority, candidate, refs, "stage_transcode", operation_id)
+            authority, candidate, target, "stage_transcode", operation_id)
         self._call_preview(actor, command)
         # A late worker result never weakens the exact source authority.
-        current, current_candidate, current_refs = self._find_candidate(
+        current, current_candidate, current_target = self._find_candidate(
             actor, body, body.candidateId, "optimize")
         if (current != authority or current_candidate != candidate
-                or current_refs != refs):
+                or current_target != target):
             raise ApiError("media_archive_action_authority_changed", 409)
         saved = self._save_preview(actor, body, command, "optimize")
         return {"requestId": body.requestId, "preview": saved}
@@ -756,7 +851,7 @@ class MediaArchiveActionService:
         source_job_id = None
         source_job_revision = None
         if body.candidateId is not None:
-            authority, candidate, refs = self._find_candidate(
+            authority, candidate, target = self._find_candidate(
                 actor, body, body.candidateId, "cleanup")
             operation = ("cleanup_duplicate" if candidate.kind == "duplicate"
                          else "cleanup_retention")
@@ -767,12 +862,13 @@ class MediaArchiveActionService:
                 self._admin(connection, actor)
                 row, source = self._source_job_cleanup(
                     connection, actor, body)
-            candidate, refs = source.candidate, source.targetRefs
+            candidate = source.candidate
+            target = self._retained_original_target(source)
             source_job_id = row["id"]
             source_job_revision = row["revision"]
             operation = "cleanup_retained_original"
         command = self._command(
-            authority, candidate, refs, operation, uuid.uuid4().hex,
+            authority, candidate, target, operation, uuid.uuid4().hex,
             source_job_id, source_job_revision)
         self._call_preview(actor, command)
         current, _observation = self._collect(actor, body)
@@ -792,9 +888,17 @@ class MediaArchiveActionService:
             self._job_row(row)
         if len(rows) < MAX_JOBS:
             return
+        referenced = {row["source_job_id"] for row in rows
+                      if row["source_job_id"] is not None}
+        referenced.update(row[0] for row in connection.execute(
+            "SELECT source_job_id FROM media_archive_action_previews "
+            "WHERE source_job_id IS NOT NULL AND state='ready' "
+            "AND expires_at>?",
+            (self._now(),),
+        ).fetchall())
         deletable = [row["id"] for row in rows if row["state"] in {
             "succeeded", "failed", "cancelled"
-        }]
+        } and row["id"] not in referenced and not row["retained_original"]]
         count = min(len(deletable), len(rows) - RETAINED_JOBS)
         if count:
             connection.executemany(
@@ -830,6 +934,8 @@ class MediaArchiveActionService:
             if raw is None:
                 raise ApiError("not_found", 404)
             preview, command = self._preview_row(raw)
+            if command.target.targetType == "legacy_unresolved":
+                raise ApiError("media_archive_action_evidence_changed", 409)
             if (preview["actor_id"] != actor.id
                     or preview["family_id"] != actor.family_id
                     or preview["actor_revision"] != actor_revision
@@ -837,6 +943,7 @@ class MediaArchiveActionService:
                     or preview["state"] != "ready"
                     or preview["expires_at"] <= now):
                 raise ApiError("media_archive_action_preview_expired", 409)
+            self._validate_cleanup_source(connection, actor, command)
             if (preview["source_job_id"] is not None
                     and connection.execute(
                         "SELECT 1 FROM media_archive_action_jobs "
@@ -867,7 +974,7 @@ class MediaArchiveActionService:
                 "phase": "queued",
                 "cancel_requested": 0,
                 "reserved_bytes": preview["reserved_bytes"],
-                "retained_original": int(preview["kind"] == "optimize"),
+                "retained_original": 0,
                 "error_code": None,
                 "proof_digest": None,
                 "command_json": preview["command_json"],
@@ -927,11 +1034,12 @@ class MediaArchiveActionService:
         changed["envelope_tag"] = self._row_tag("job", changed, _JOB_FIELDS)
         connection.execute(
             "UPDATE media_archive_action_jobs SET revision=?,state=?,phase=?,"
-            "cancel_requested=?,error_code=?,proof_digest=?,updated_at=?,"
+            "cancel_requested=?,retained_original=?,error_code=?,proof_digest=?,updated_at=?,"
             "envelope_tag=? "
             "WHERE id=?",
             (changed["revision"], changed["state"], changed["phase"],
-             changed["cancel_requested"], changed["error_code"],
+             changed["cancel_requested"], changed["retained_original"],
+             changed["error_code"],
              changed["proof_digest"], changed["updated_at"],
              changed["envelope_tag"], changed["id"]),
         )
@@ -952,8 +1060,9 @@ class MediaArchiveActionService:
                     connection, row, state="cancelled", phase="cancelled",
                     cancel_requested=1, error_code=None)
             elif row["state"] == "running":
-                row = self._write_job(
-                    connection, row, cancel_requested=1)
+                if not row["cancel_requested"]:
+                    row = self._write_job(
+                        connection, row, cancel_requested=1)
             return {"requestId": body.requestId,
                     "job": self._public_job(connection, row)}
 
@@ -979,6 +1088,13 @@ class MediaArchiveActionService:
             return row is None or bool(row["cancel_requested"])
 
     def _worker_receipt(self, method, command, job_id):
+        if command.target.targetType == "legacy_unresolved":
+            return ArchiveActionWorkerReceipt(
+                operationId=command.operationId,
+                evidenceDigest=command.evidenceDigest,
+                state="needs_attention", errorCode="evidence_changed",
+                retainedOriginal=False,
+            )
         worker = self._require_worker()
         deadline = time.monotonic() + WORKER_DEADLINE_SECONDS
         try:
@@ -996,24 +1112,65 @@ class MediaArchiveActionService:
                 operationId=command.operationId,
                 evidenceDigest=command.evidenceDigest,
                 state="needs_attention", errorCode="effect_unknown",
-                retainedOriginal=command.retainOriginal,
+                retainedOriginal=False,
             )
         if (time.monotonic() >= deadline
                 or receipt.operationId != command.operationId
                 or not hmac.compare_digest(
                     receipt.evidenceDigest, command.evidenceDigest)
-                or receipt.retainedOriginal != command.retainOriginal):
+                or command.operation != "stage_transcode"
+                and receipt.retainedOriginal
+                or receipt.state == "succeeded"
+                and receipt.retainedOriginal != command.retainOriginal):
             return ArchiveActionWorkerReceipt(
                 operationId=command.operationId,
                 evidenceDigest=command.evidenceDigest,
                 state="needs_attention", errorCode="effect_unknown",
-                retainedOriginal=command.retainOriginal,
+                retainedOriginal=False,
             )
         return receipt
+
+    def _apply_worker_receipt(self, connection, row, command, receipt, *,
+                              expected_phase, allow_cancelled_success=False):
+        if (row["state"] != "running" or row["phase"] != expected_phase):
+            raise ApiError("media_archive_action_job_changed", 409)
+        if (row["cancel_requested"] and receipt.state != "cancelled"
+                and not (allow_cancelled_success
+                         and receipt.state == "succeeded")):
+            receipt = ArchiveActionWorkerReceipt(
+                operationId=command.operationId,
+                evidenceDigest=command.evidenceDigest,
+                state="needs_attention", errorCode="cancel_unknown",
+                retainedOriginal=receipt.retainedOriginal,
+            )
+        phase = {
+            "running": "executing", "succeeded": "complete",
+            "failed": "failed", "cancelled": "cancelled",
+            "needs_attention": "needs_attention",
+        }[receipt.state]
+        retained_original = (row["retained_original"]
+                             if receipt.state == "running"
+                             else int(receipt.retainedOriginal))
+        row = self._write_job(
+            connection, row, state=receipt.state, phase=phase,
+            cancel_requested=int(row["cancel_requested"]),
+            retained_original=retained_original,
+            error_code=receipt.errorCode,
+            proof_digest=receipt.proofDigest)
+        if (receipt.state == "succeeded"
+                and command.operation == "cleanup_retained_original"):
+            source, _ = self._job_row(self._find_job(
+                connection, command.sourceJobId))
+            self._write_job(connection, source, retained_original=0)
+        return row
 
     def dispatch_next(self):
         self._require_worker()
         with self.db.transaction() as connection:
+            if connection.execute(
+                    "SELECT 1 FROM media_archive_action_jobs "
+                    "WHERE state='running' LIMIT 1").fetchone() is not None:
+                return None
             raw = connection.execute(
                 "SELECT * FROM media_archive_action_jobs WHERE state='queued' "
                 "ORDER BY sequence LIMIT 1"
@@ -1030,28 +1187,12 @@ class MediaArchiveActionService:
                 connection, row, state="running", phase="preparing",
                 cancel_requested=0, error_code=None)
         receipt = self._worker_receipt("execute", command, row["id"])
-        phase = {
-            "succeeded": "complete", "failed": "failed",
-            "cancelled": "cancelled", "needs_attention": "needs_attention",
-        }[receipt.state]
         with self.db.transaction() as connection:
             current, _command = self._job_row(self._find_job(
                 connection, row["id"]))
-            if current["state"] != "running":
-                raise ApiError("media_archive_action_job_changed", 409)
-            if current["cancel_requested"] and receipt.state != "cancelled":
-                receipt = ArchiveActionWorkerReceipt(
-                    operationId=command.operationId,
-                    evidenceDigest=command.evidenceDigest,
-                    state="needs_attention", errorCode="cancel_unknown",
-                    retainedOriginal=command.retainOriginal,
-                )
-                phase = "needs_attention"
-            current = self._write_job(
-                connection, current, state=receipt.state, phase=phase,
-                cancel_requested=int(current["cancel_requested"]),
-                error_code=receipt.errorCode,
-                proof_digest=receipt.proofDigest)
+            current = self._apply_worker_receipt(
+                connection, current, command, receipt,
+                expected_phase="preparing")
             return self._public_job(connection, current)
 
     def reconcile(self, actor, body):
@@ -1070,45 +1211,62 @@ class MediaArchiveActionService:
                 connection, row, state="running", phase="verifying",
                 cancel_requested=int(row["cancel_requested"]), error_code=None)
         receipt = self._worker_receipt("reconcile", command, row["id"])
-        phase = {
-            "succeeded": "complete", "failed": "failed",
-            "cancelled": "cancelled", "needs_attention": "needs_attention",
-        }[receipt.state]
         with self.db.transaction() as connection:
             current, _command = self._job_row(self._find_job(
                 connection, row["id"]))
-            current = self._write_job(
-                connection, current, state=receipt.state, phase=phase,
-                cancel_requested=(0 if receipt.state == "succeeded"
-                                  else int(current["cancel_requested"])),
-                error_code=receipt.errorCode,
-                proof_digest=receipt.proofDigest)
+            current = self._apply_worker_receipt(
+                connection, current, command, receipt,
+                expected_phase="verifying", allow_cancelled_success=True)
             return {"requestId": body.requestId,
                     "job": self._public_job(connection, current)}
 
     def tick(self):
-        """Recover interrupted claims, then dispatch at most one queued job."""
-        stale_before = self._now() - RUNNING_STALE_SECONDS
-        with self.db.transaction() as connection:
-            rows = connection.execute(
-                "SELECT * FROM media_archive_action_jobs WHERE state='running' "
-                "AND updated_at<=? ORDER BY sequence LIMIT ?",
-                (stale_before, MAX_JOBS + 1),
-            ).fetchall()
-            if len(rows) > MAX_JOBS:
-                raise ApiError("media_archive_action_storage_unavailable", 503)
-            for raw in rows:
-                row, _command = self._job_row(raw)
-                self._write_job(
-                    connection, row, state="needs_attention",
-                    phase="needs_attention",
-                    cancel_requested=int(row["cancel_requested"]),
-                    error_code=("cancel_unknown" if row["cancel_requested"]
-                                else "effect_unknown"),
-                    proof_digest=None,
-                )
+        """Reconcile an interrupted/running effect, then dispatch one job."""
         if self.worker is None:
             return None
+        stale_before = self._now() - RUNNING_STALE_SECONDS
+        with self.db.transaction() as connection:
+            raw = connection.execute(
+                "SELECT * FROM media_archive_action_jobs WHERE state='running' "
+                "ORDER BY sequence LIMIT 1").fetchone()
+            if raw is not None:
+                row, command = self._job_row(raw)
+                if row["phase"] == "executing":
+                    row = self._write_job(
+                        connection, row, state="running", phase="verifying",
+                        cancel_requested=int(row["cancel_requested"]),
+                        error_code=None, proof_digest=None)
+                elif row["updated_at"] > stale_before:
+                    return None
+                else:
+                    row = self._write_job(
+                        connection, row, state="needs_attention",
+                        phase="needs_attention",
+                        cancel_requested=int(row["cancel_requested"]),
+                        error_code=("cancel_unknown"
+                                    if row["cancel_requested"]
+                                    else "effect_unknown"),
+                        proof_digest=None)
+                    return self._public_job(connection, row)
+        if raw is not None:
+            receipt = self._worker_receipt("reconcile", command, row["id"])
+            with self.db.transaction() as connection:
+                current, _ = self._job_row(self._find_job(
+                    connection, row["id"]))
+                cancelled_during_call = (
+                    current["revision"] == row["revision"] + 1
+                    and bool(current["cancel_requested"])
+                )
+                if (current["state"] != "running"
+                        or current["phase"] != "verifying"
+                        or (current["revision"] != row["revision"]
+                            and not cancelled_during_call)):
+                    raise ApiError("media_archive_action_job_changed", 409)
+                current = self._apply_worker_receipt(
+                    connection, current, command, receipt,
+                    expected_phase="verifying", allow_cancelled_success=True)
+                if current["state"] == "running":
+                    return self._public_job(connection, current)
         return self.dispatch_next()
 
     def validate_storage(self):

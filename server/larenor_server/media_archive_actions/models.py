@@ -1,6 +1,6 @@
 """Strict public and private contracts for F30 archive actions."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -33,6 +33,10 @@ ActionError = Literal[
 ActionOperation = Literal[
     "stage_transcode", "cleanup_duplicate", "cleanup_retention",
     "cleanup_retained_original",
+]
+OriginalState = Literal[
+    "not_applicable", "pending", "retained", "not_retained", "removed",
+    "unknown",
 ]
 
 
@@ -108,6 +112,7 @@ class ArchiveActionCandidate(StrictModel):
 
 
 class ArchiveActionJob(Versioned):
+    schemaVersion: Literal[2] = 2
     jobId: ObjectId
     revision: Revision
     kind: ActionType
@@ -115,7 +120,7 @@ class ArchiveActionJob(Versioned):
     phase: ActionPhase
     cancelRequested: bool
     reservedBytes: int = Field(ge=0, le=10 * 1024**4)
-    retainedOriginal: bool
+    originalState: OriginalState
     cleanupAvailable: bool
     errorCode: ActionError | None
     proofDigest: Digest | None = None
@@ -142,12 +147,24 @@ class ArchiveActionJob(Versioned):
                 or (self.proofDigest is not None)
                 != (self.state == "succeeded")
                 or self.kind == "optimize"
-                and (not self.retainedOriginal or self.reservedBytes <= 0)
+                and (self.originalState == "not_applicable"
+                     or self.reservedBytes <= 0)
                 or self.kind == "cleanup"
-                and (self.retainedOriginal or self.reservedBytes != 0)
+                and (self.originalState != "not_applicable"
+                     or self.reservedBytes != 0)
                 or self.cleanupAvailable
                 and (self.kind != "optimize" or self.state != "succeeded"
-                     or not self.retainedOriginal)
+                     or self.originalState != "retained")
+                or self.state in {"queued", "running"}
+                and self.kind == "optimize"
+                and self.originalState != "pending"
+                or self.state == "succeeded" and self.kind == "optimize"
+                and self.originalState not in {"retained", "removed"}
+                or self.state in {"failed", "cancelled"}
+                and self.kind == "optimize"
+                and self.originalState not in {"not_retained", "retained"}
+                or self.state == "needs_attention" and self.kind == "optimize"
+                and self.originalState not in {"pending", "retained", "unknown"}
                 or self.cancelRequested
                 and self.state not in {
                     "running", "cancelled", "needs_attention"
@@ -264,38 +281,85 @@ class ArchiveActionJobRequest(Versioned):
     expectedJobRevision: Revision
 
 
+class TranscodeActionTarget(StrictModel):
+    targetType: Literal["transcode"] = "transcode"
+    sourceItemId: ObjectId
+    mediaKey: str = Field(min_length=1, max_length=96)
+
+
+class DuplicateActionTarget(StrictModel):
+    targetType: Literal["duplicate"] = "duplicate"
+    keepItemId: ObjectId
+    deleteItemIds: list[ObjectId] = Field(min_length=1, max_length=15)
+
+    @model_validator(mode="after")
+    def exact_roles(self):
+        if (self.keepItemId in self.deleteItemIds
+                or len(set(self.deleteItemIds)) != len(self.deleteItemIds)):
+            raise ValueError("invalid_media_archive_action_targets")
+        return self
+
+
+class RetentionActionTarget(StrictModel):
+    targetType: Literal["retention"] = "retention"
+    torrentId: str = Field(pattern=r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+    importedMediaKey: str = Field(min_length=1, max_length=96)
+
+
+class RetainedOriginalActionTarget(StrictModel):
+    targetType: Literal["retained_original"] = "retained_original"
+    sourceOperationId: ObjectId
+
+
+class LegacyUnresolvedActionTarget(StrictModel):
+    """Readable marker for v1 rows whose sorted refs lost target roles."""
+
+    targetType: Literal["legacy_unresolved"] = "legacy_unresolved"
+    targetRefs: list[str] = Field(min_length=1, max_length=16)
+
+    @field_validator("targetRefs")
+    @classmethod
+    def bounded_refs(cls, value):
+        if (len(set(value)) != len(value)
+                or any(type(item) is not str or not 1 <= len(item) <= 128
+                       or any(ord(char) < 33 or ord(char) == 127
+                              for char in item)
+                       for item in value)):
+            raise ValueError("invalid_media_archive_action_targets")
+        return value
+
+
+ArchiveActionTarget = Annotated[
+    TranscodeActionTarget | DuplicateActionTarget | RetentionActionTarget
+    | RetainedOriginalActionTarget | LegacyUnresolvedActionTarget,
+    Field(discriminator="targetType"),
+]
+
+
 class ArchiveActionJobResponse(StrictModel):
     requestId: ObjectId
     job: ArchiveActionJob
 
 
 class PrivateArchiveActionCommand(Versioned):
+    schemaVersion: Literal[2] = 2
     operationId: ObjectId
     operation: ActionOperation
     authority: ArchiveActionAuthority
     candidate: ArchiveActionCandidate
     sourceJobId: ObjectId | None = None
     sourceJobRevision: Revision | None = None
-    targetRefs: list[str] = Field(min_length=1, max_length=16)
+    target: ArchiveActionTarget
     evidenceDigest: Digest
     reservedBytes: int = Field(ge=0, le=10 * 1024**4)
     retainOriginal: bool
 
     _proof = field_validator("evidenceDigest")(_digest)
 
-    @field_validator("targetRefs")
-    @classmethod
-    def safe_refs(cls, values):
-        if (len(values) != len(set(values)) or any(
-                type(value) is not str or not 1 <= len(value) <= 128
-                or any(ord(char) < 33 or ord(char) == 127 for char in value)
-                for value in values)):
-            raise ValueError("invalid_media_archive_action_targets")
-        return values
-
     @model_validator(mode="after")
     def coherent(self):
         optimize = self.operation == "stage_transcode"
+        legacy = self.target.targetType == "legacy_unresolved"
         if (optimize != self.retainOriginal
                 or optimize != (self.reservedBytes > 0)
                 or (self.operation == "stage_transcode"
@@ -305,6 +369,14 @@ class PrivateArchiveActionCommand(Versioned):
                 } and self.candidate.actionType != "cleanup"
                 or self.operation == "cleanup_retained_original"
                 and self.candidate.actionType != "optimize"
+                or not legacy and (self.operation == "stage_transcode")
+                != (self.target.targetType == "transcode")
+                or not legacy and (self.operation == "cleanup_duplicate")
+                != (self.target.targetType == "duplicate")
+                or not legacy and (self.operation == "cleanup_retention")
+                != (self.target.targetType == "retention")
+                or not legacy and (self.operation == "cleanup_retained_original")
+                != (self.target.targetType == "retained_original")
                 or (self.sourceJobId is not None)
                 != (self.sourceJobRevision is not None)
                 or (self.operation == "cleanup_retained_original")
@@ -314,6 +386,7 @@ class PrivateArchiveActionCommand(Versioned):
 
 
 class ArchiveActionWorkerPreview(Versioned):
+    schemaVersion: Literal[2] = 2
     operationId: ObjectId
     evidenceDigest: Digest
     requiredBytes: int = Field(ge=0, le=10 * 1024**4)
@@ -324,9 +397,12 @@ class ArchiveActionWorkerPreview(Versioned):
 
 
 class ArchiveActionWorkerReceipt(Versioned):
+    schemaVersion: Literal[2] = 2
     operationId: ObjectId
     evidenceDigest: Digest
-    state: Literal["succeeded", "failed", "cancelled", "needs_attention"]
+    state: Literal[
+        "running", "succeeded", "failed", "cancelled", "needs_attention",
+    ]
     errorCode: ActionError | None
     retainedOriginal: bool
     proofDigest: Digest | None = None
@@ -340,6 +416,7 @@ class ArchiveActionWorkerReceipt(Versioned):
         if ((self.errorCode is not None)
                 != (self.state in {"failed", "needs_attention"})
                 or (self.proofDigest is not None)
-                != (self.state == "succeeded")):
+                != (self.state == "succeeded")
+                or self.state == "running" and self.retainedOriginal):
             raise ValueError("invalid_media_archive_action_receipt")
         return self

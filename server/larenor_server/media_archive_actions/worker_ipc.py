@@ -20,8 +20,8 @@ from .models import (
 )
 
 
-PROTOCOL_VERSION = 1
-SCHEMA_VERSION = 1
+PROTOCOL_VERSION = 2
+SCHEMA_VERSION = 2
 MAX_FRAME_BYTES = 512 * 1024
 MAX_REPLAY_KEYS = 512
 MAX_DEADLINE_MS = 5_000
@@ -144,6 +144,13 @@ def _status(available):
     }
 
 
+def _typed_command(value):
+    command = PrivateArchiveActionCommand.model_validate(value)
+    if command.target.targetType == "legacy_unresolved":
+        raise MediaArchiveActionWorkerError("evidence_changed")
+    return command
+
+
 class MediaArchiveActionWorkerClient:
     def __init__(self, path, *, owner_uid=None, peer_uid=None):
         self.path = path
@@ -197,7 +204,7 @@ class MediaArchiveActionWorkerClient:
         return result
 
     def preview(self, command, *, deadline, gate):
-        command = PrivateArchiveActionCommand.model_validate(command)
+        command = _typed_command(command)
         if not gate():
             raise MediaArchiveActionWorkerError("authority_changed")
         result = ArchiveActionWorkerPreview.model_validate(
@@ -207,7 +214,7 @@ class MediaArchiveActionWorkerClient:
         return result
 
     def execute(self, command, *, deadline, cancelled):
-        command = PrivateArchiveActionCommand.model_validate(command)
+        command = _typed_command(command)
         if cancelled():
             raise MediaArchiveActionWorkerError("cancelled")
         result = ArchiveActionWorkerReceipt.model_validate(
@@ -217,7 +224,7 @@ class MediaArchiveActionWorkerClient:
         return result
 
     def reconcile(self, command, *, deadline, cancelled):
-        command = PrivateArchiveActionCommand.model_validate(command)
+        command = _typed_command(command)
         result = ArchiveActionWorkerReceipt.model_validate(
             self._call("reconcile", command, deadline=deadline))
         if cancelled() and result.state not in {"cancelled", "succeeded"}:
@@ -351,8 +358,7 @@ class MediaArchiveActionWorkerServer:
                     request["requestId"],
                     result=_status(getattr(self.handler, "available", True)),
                 )
-            command = PrivateArchiveActionCommand.model_validate(
-                request["command"])
+            command = _typed_command(request["command"])
             if operation == "execute":
                 execute_key = (command.operationId, command.evidenceDigest)
                 if execute_key in self._execute_keys:
