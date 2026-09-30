@@ -4781,5 +4781,7 @@
   "floorPlanEditorStaleAnchor": "Bu kayıtlı cihaz artık güncel katalogda yok.",
   "floorPlanEditorRebind": "Başka cihaz seç",
   "floorPlanEditorUnsaved": "Kaydedilmemiş değişiklikler",
-  "floorPlanEditorNeedRoom": "Kaydetmeden önce bir kat ekleyin ve doğrulanmış en az bir odayı çizin."
+  "floorPlanEditorNeedRoom": "Kaydetmeden önce bir kat ekleyin ve doğrulanmış en az bir odayı çizin.",
+  "serverImmutableBackupDownload": "Bu şifreli kurtarma noktasını kaydet",
+  "serverImmutableBackupLimit": "Korunan uzak kopyalar en fazla 64 MiB şifreli arşiv destekler. Boş Core’u sunucu kurtarma komutuyla geri yüklemek için bir kopya indirin."
 }

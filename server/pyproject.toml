@@ -25,6 +25,7 @@ larenor-proxmox-power-worker = "larenor_server.proxmox_commands.worker_runtime:m
 larenor-proxmox-power-supervisor = "larenor_server.proxmox_commands.worker_supervisor:main"
 larenor-keenetic-worker = "larenor_server.keenetic_commands.worker_runtime:main"
 larenor-component-backup-worker = "larenor_server.core_backups.component_worker_runtime:main"
+larenor-append-backup-target = "larenor_server.core_backups.append_target:main"
 larenor-media-archive-worker = "larenor_server.media_archive_actions.worker_runtime:main"
 larenor-mesh-worker = "larenor_server.mesh_center.worker_runtime:main"
 larenor-unmanic-callback-package = "larenor_server.media_archive_actions.plugin_package:main"

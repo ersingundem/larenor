@@ -22,11 +22,11 @@ from .immutable_models import (
     ImmutableRestorePoint,
     ImmutableRestorePointsResponse,
 )
-from .immutable_transport import RestAppendOnlyTransport
+from .immutable_transport import RestAppendOnlyTransport, MAX_REMOTE_ARCHIVE_BYTES
 
 
 DAY_SECONDS = 24 * 60 * 60
-MAX_PENDING_BYTES = 512 * 1024 * 1024
+MAX_PENDING_BYTES = MAX_REMOTE_ARCHIVE_BYTES
 
 
 class ImmutableBackupTargetManagement:
@@ -46,6 +46,7 @@ class ImmutableBackupTargetManagement:
         self._backup = backup_contract
         self.transport = transport or RestAppendOnlyTransport()
         self._lock = threading.Lock()
+        self._recovery_lock = threading.Lock()
         self._pending = settings.data_dir / "immutable-backup-pending"
         private_directory(self._pending)
 
@@ -190,6 +191,36 @@ class ImmutableBackupTargetManagement:
             quotaBytes=target["quota_bytes"],
         )
 
+    def recover(self, actor: Principal, object_id: str):
+        from .service import BackupPublication
+        if not self._recovery_lock.acquire(blocking=False):
+            raise ApiError("immutable_recovery_busy", 429)
+        try:
+            with self.db.connection() as connection:
+                connection.execute("BEGIN")
+                actor_revision = self._assert_admin(connection, actor)
+                target = connection.execute("SELECT * FROM immutable_backup_target WHERE id=1").fetchone()
+                point = connection.execute("SELECT * FROM immutable_backup_points WHERE object_id=?", (object_id,)).fetchone()
+                if target is None or point is None:
+                    raise ApiError("not_found", 404)
+                if point["target_revision"] != target["revision"]:
+                    raise ApiError("immutable_target_changed", 409)
+                credentials = self._secrets(target)
+            payload = self.transport.recover(endpoint=target["endpoint"], target_id=target["target_id"],
+                object_id=object_id, expected_sha256=point["sha256"],
+                expected_byte_length=point["byte_length"], recovery_token=credentials["recoveryToken"])
+            capture = self._backup.open_bundle(payload, credentials["backupPassphrase"])
+            with self.db.connection() as connection:
+                connection.execute("BEGIN")
+                if self._assert_admin(connection, actor) != actor_revision:
+                    raise ApiError("forbidden", 403)
+                current = connection.execute("SELECT revision FROM immutable_backup_target WHERE id=1").fetchone()
+                if current is None or current["revision"] != target["revision"]:
+                    raise ApiError("immutable_target_changed", 409)
+            return BackupPublication(payload=payload, capture_generation=capture.manifest.snapshotId)
+        finally:
+            self._recovery_lock.release()
+
     def configure(
         self, actor: Principal, body: ConfigureImmutableTargetRequest
     ) -> ImmutableTargetResponse:
@@ -300,6 +331,8 @@ class ImmutableBackupTargetManagement:
             self._authority(target), credentials["backupPassphrase"]
         )
         payload = publication.payload
+        if len(payload) > MAX_PENDING_BYTES:
+            raise ApiError("immutable_archive_too_large", 413)
         digest = hashlib.sha256(payload).hexdigest()
         path, temporary = self._path(job["object_id"]), self._pending / (
             ".prepare-" + uuid.uuid4().hex
@@ -312,6 +345,7 @@ class ImmutableBackupTargetManagement:
             if temporary.exists():
                 temporary.unlink()
         with self.db.transaction() as connection:
+            self._assert_job_authority(connection, job, target)
             current = connection.execute(
                 "SELECT * FROM immutable_backup_job WHERE id=1"
             ).fetchone()
@@ -331,6 +365,27 @@ class ImmutableBackupTargetManagement:
                 "SELECT * FROM immutable_backup_job WHERE id=1"
             ).fetchone()
 
+    def _assert_job_authority(self, connection, job, target):
+        current = connection.execute(
+            "SELECT revision,actor_id,actor_revision FROM immutable_backup_target WHERE id=1"
+        ).fetchone()
+        if current is None or current["revision"] != job["target_revision"]:
+            raise ApiError("immutable_target_changed", 409)
+        actor = connection.execute(
+            "SELECT revision,role,disabled,must_change_password FROM users WHERE id=?",
+            (target["actor_id"],),
+        ).fetchone()
+        if (
+            current["actor_id"] != target["actor_id"]
+            or current["actor_revision"] != target["actor_revision"]
+            or actor is None
+            or actor["revision"] != target["actor_revision"]
+            or actor["role"] != "admin"
+            or actor["disabled"]
+            or actor["must_change_password"]
+        ):
+            raise ApiError("forbidden", 403)
+
     def tick(self):
         if not self._lock.acquire(blocking=False):
             return False
@@ -344,6 +399,8 @@ class ImmutableBackupTargetManagement:
             if job["state"] == "queued":
                 job = self._prepare(job, target, credentials)
             payload = private_read(self._path(job["object_id"]), MAX_PENDING_BYTES)
+            with self.db.connection() as connection:
+                self._assert_job_authority(connection, job, target)
             receipt = self.transport.append(
                 endpoint=target["endpoint"],
                 target_id=target["target_id"],
@@ -353,7 +410,10 @@ class ImmutableBackupTargetManagement:
                 protected_until=job["protected_until"],
                 write_token=credentials["writeToken"],
             )
+            if receipt.quotaBytes != target["quota_bytes"]:
+                raise ApiError("immutable_target_receipt_mismatch", 503)
             with self.db.transaction() as connection:
+                self._assert_job_authority(connection, job, target)
                 current = connection.execute(
                     "SELECT * FROM immutable_backup_job WHERE id=1"
                 ).fetchone()

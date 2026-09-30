@@ -48,6 +48,27 @@ final class ServerCoreBackupsApi {
     );
   }
 
+  Future<CoreBackupExport> recover(
+    ImmutableRestorePoint point,
+    LarenorBinaryDestination destination,
+    LarenorTransferCancellation cancellation,
+  ) async {
+    final receipt = await api.recoverCoreBackup(
+      token: token,
+      objectId: point.objectId,
+      expectedByteLength: point.byteLength,
+      expectedSha256: point.sha256,
+      destination: destination,
+      cancellation: cancellation,
+    );
+    return CoreBackupExport(
+      destination: receipt.destination,
+      byteLength: receipt.byteLength,
+      sha256: receipt.sha256,
+      captureGeneration: receipt.captureGeneration,
+    );
+  }
+
   Future<CoreBackupCompatibility> preflight(
     CoreBackupManifest manifest,
     LarenorTransferCancellation cancellation,

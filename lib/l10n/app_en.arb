@@ -5134,5 +5134,7 @@
   "floorPlanEditorStaleAnchor": "This saved device is no longer in the current catalog.",
   "floorPlanEditorRebind": "Choose another device",
   "floorPlanEditorUnsaved": "Unsaved changes",
-  "floorPlanEditorNeedRoom": "Add a floor and draw at least one verified room before saving."
+  "floorPlanEditorNeedRoom": "Add a floor and draw at least one verified room before saving.",
+  "serverImmutableBackupDownload": "Save this encrypted restore point",
+  "serverImmutableBackupLimit": "Protected remote copies support encrypted archives up to 64 MiB. Download a copy to restore an empty Core with the server recovery command."
 }

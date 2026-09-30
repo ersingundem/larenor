@@ -138,3 +138,12 @@ def configure_immutable_target(
 )
 def list_immutable_restore_points(core: Core, actor: Admin):
     return core.core_backups.immutable_target.points(actor)
+
+
+@router.get("/immutable-target/restore-points/{object_id}/archive", response_class=Response)
+def recover_immutable_archive(object_id: ObjectId, core: Core, actor: Admin):
+    publication = core.core_backups.immutable_target.recover(actor, object_id)
+    return Response(publication.payload, media_type="application/vnd.larenor.core-backup",
+        headers={"X-Content-Type-Options": "nosniff",
+            "Content-Disposition": 'attachment; filename="larenor-core-backup.larenor-core"',
+            "X-Larenor-Capture-Generation": publication.capture_generation})

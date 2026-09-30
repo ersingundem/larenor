@@ -246,6 +246,37 @@ class _ServerCoreBackupsScreenState
     }
   }
 
+  Future<void> _recoverPoint(ImmutableRestorePoint point) async {
+    if (!_active ||
+        _backups.busy ||
+        _backups.actionBusy ||
+        _choosingDestination) {
+      return;
+    }
+    setState(() => _notice = null);
+    _choosingDestination = true;
+    try {
+      final destination = await _files.open(CoreBackupExport.filename);
+      _choosingDestination = false;
+      if (destination == null || !_active) {
+        await destination?.cancel();
+        return;
+      }
+      final current = _capture();
+      final exported = await _backups.recover(
+        point,
+        destination,
+        current: current,
+      );
+      if (exported != null && current()) {
+        setState(() => _notice = _BackupNotice.saved);
+      }
+    } catch (_) {
+      _choosingDestination = false;
+      if (mounted && _active) setState(() => _notice = _BackupNotice.failed);
+    }
+  }
+
   Future<void> _preflight(CoreBackupManifest manifest) async {
     if (!_active || _backups.busy || _backups.actionBusy) return;
     setState(() => _notice = null);
@@ -580,6 +611,10 @@ class _ServerCoreBackupsScreenState
           padding: const EdgeInsets.all(16),
           child: Text(l10n.serverImmutableBackupHint),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Text(l10n.serverImmutableBackupLimit, style: AppText.footnote),
+        ),
         if (target != null) ...[
           _row(l10n.serverImmutableBackupTarget, target.targetId),
           _row(
@@ -698,6 +733,21 @@ class _ServerCoreBackupsScreenState
                           .format(point.protectedUntil.toLocal()),
                     ),
                     style: AppText.footnote,
+                  ),
+                  CupertinoButton(
+                    key: ValueKey(
+                      'server-immutable-download-${point.objectId}',
+                    ),
+                    onPressed:
+                        _active &&
+                            !_backups.busy &&
+                            !_backups.actionBusy &&
+                            !_choosingDestination &&
+                            point.targetRevision == target?.revision &&
+                            point.byteLength <= 64 * 1024 * 1024
+                        ? () => _recoverPoint(point)
+                        : null,
+                    child: Text(l10n.serverImmutableBackupDownload),
                   ),
                 ],
               ),

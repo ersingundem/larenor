@@ -210,8 +210,49 @@ class LarenorServerApi {
     required LarenorRequestSecret passphrase,
     required LarenorBinaryDestination destination,
     required LarenorTransferCancellation cancellation,
+  }) => _transferCoreBackup(
+    token: token,
+    passphrase: passphrase,
+    destination: destination,
+    cancellation: cancellation,
+    path: '/admin/backups/export',
+  );
+
+  Future<LarenorBinaryReceipt> recoverCoreBackup({
+    required String token,
+    required String objectId,
+    required int expectedByteLength,
+    required String expectedSha256,
+    required LarenorBinaryDestination destination,
+    required LarenorTransferCancellation cancellation,
   }) async {
-    const maxBytes = maxCoreBackupBytes;
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(objectId) ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(expectedSha256) ||
+        expectedByteLength < 1 ||
+        expectedByteLength > 64 * 1024 * 1024) {
+      await destination.cancel();
+      throw const LarenorServerException('invalid_request');
+    }
+    return _transferCoreBackup(
+      token: token,
+      path: '/admin/backups/immutable-target/restore-points/$objectId/archive',
+      expectedByteLength: expectedByteLength,
+      expectedSha256: expectedSha256,
+      destination: destination,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<LarenorBinaryReceipt> _transferCoreBackup({
+    required String token,
+    required String path,
+    LarenorRequestSecret? passphrase,
+    int? expectedByteLength,
+    String? expectedSha256,
+    required LarenorBinaryDestination destination,
+    required LarenorTransferCancellation cancellation,
+  }) async {
+    final maxBytes = expectedByteLength ?? maxCoreBackupBytes;
     const mediaType = 'application/vnd.larenor.core-backup';
     const disposition =
         'attachment; filename="larenor-core-backup.larenor-core"';
@@ -239,7 +280,7 @@ class LarenorServerApi {
       1,
     ];
     if (_closed || cancellation.isCancelled) {
-      passphrase.dispose();
+      passphrase?.dispose();
       await destination.cancel();
       throw const LarenorServerException('cancelled');
     }
@@ -274,11 +315,11 @@ class LarenorServerApi {
     var streamDone = false;
     var committed = false;
     try {
-      final body = passphrase.takeJsonBody('passphrase');
+      final body = passphrase?.takeJsonBody('passphrase') ?? Uint8List(0);
       final request =
           http.AbortableRequest(
-              'POST',
-              endpoint.api('/admin/backups/export'),
+              passphrase == null ? 'GET' : 'POST',
+              endpoint.api(path),
               abortTrigger: abort.future,
             )
             ..headers['accept'] = mediaType
@@ -380,6 +421,10 @@ class LarenorServerApi {
         throw const LarenorServerException('cancelled');
       }
       final digest = digestOutput.value!.toString();
+      if (expectedByteLength != null &&
+          (received != expectedByteLength || digest != expectedSha256)) {
+        throw const LarenorServerException('invalid_response');
+      }
       final uri = await boundedPlatform(
         destination.commit(byteLength: received, sha256: digest),
       );
@@ -409,7 +454,7 @@ class LarenorServerApi {
             : 'connection_failed',
       );
     } finally {
-      passphrase.dispose();
+      passphrase?.dispose();
       Future<void> terminal(Future<void> operation) async {
         try {
           await operation.timeout(timeout);

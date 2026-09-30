@@ -34,7 +34,9 @@ class SafeBoundaryMiddleware:
             if message["type"] == "http.response.start":
                 started = True
                 message = dict(message)
-                headers = list(message.get("headers", []))
+                enforced = {b"cache-control", b"pragma", b"x-content-type-options", b"x-frame-options"}
+                headers = [(name, value) for name, value in message.get("headers", [])
+                           if name.lower() not in enforced]
                 headers.extend([(b"cache-control", b"no-store"), (b"pragma", b"no-cache"),
                                 (b"x-content-type-options", b"nosniff"), (b"x-frame-options", b"DENY")])
                 message["headers"] = headers

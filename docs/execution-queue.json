@@ -3351,7 +3351,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Yedekleri silmeye kapalı kurtarma hedefi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3374,7 +3374,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: gerçek Larenor HTTPS append-only hedefi, kalıcı kota/retention ve ayrı recovery download geliştiriliyor; özel protokol restic REST olarak sunulmuyor. Client şifreli uzak kopya indirme ve deploy kabulü tamamlanacak."
+      "reason": "Gerçek ayrı TLS append-only hedefi, kalıcı HMAC kota/retention, ayrı recovery kimliği ve Client uzak şifreli kopya indirme uygulandı. 7 Server testi normal Core günlük export→TLS hedef→download→boş Core restore/start, prepared retry erişim iptali ve kalıcı kota/tamper davranışını doğruladı; 38 Flutter, 12 boundary testi ve analyze geçti. docs/testing/f17-append-only-target-2026-09-30.md. Tam current HEAD CI, bağımsız geniş kabul ve ayrı hedef fiziksel kurulumu açık; kabul sayacı artmadı."
     },
     {
       "id": "F18",
@@ -3761,7 +3761,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: rutin/anomali girdisi Client service-health sayımı; gerçek ev gözlem sağlayıcısı ve server kaynak doğrulaması eksik."
+      "reason": "FINAL.FUNCTION: rutin/anomali girdisi Client service-health sayımı; gerçek ev gözlem sağlayıcısı ve server kaynak doğrulaması eksik. Gerçek HA history providerı FINAL.FUNCTION içinde hazırlanıyor; F08 runtime bağımlılığı kapanmadan implemented yapılmaz."
     },
     {
       "id": "F10",
@@ -3792,7 +3792,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: diagnose Client health/measurement iddialarını supported kaydedebiliyor. Core gerçek registry/provider kaynaklarını çözerek kanıtı doğrulamalı."
+      "reason": "FINAL.FUNCTION: diagnose Client health/measurement iddialarını supported kaydedebiliyor. Core gerçek registry/provider kaynaklarını çözerek kanıtı doğrulamalı. Gerçek HA history providerı FINAL.FUNCTION içinde hazırlanıyor; F08 runtime bağımlılığı kapanmadan implemented yapılmaz."
     },
     {
       "id": "G05",

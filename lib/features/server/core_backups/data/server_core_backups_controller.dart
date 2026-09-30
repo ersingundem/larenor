@@ -315,6 +315,65 @@ final class ServerCoreBackupsController extends ChangeNotifier {
     return exported;
   }
 
+  Future<CoreBackupExport?> recover(
+    ImmutableRestorePoint point,
+    LarenorBinaryDestination destination, {
+    required bool Function() current,
+  }) async {
+    if (_disposed ||
+        busy ||
+        actionBusy ||
+        sourceBusy ||
+        !_authorized ||
+        !current() ||
+        immutableTarget?.revision != point.targetRevision ||
+        immutableRestorePoints?.points.any(
+              (p) =>
+                  p.objectId == point.objectId &&
+                  p.sha256 == point.sha256 &&
+                  p.byteLength == point.byteLength,
+            ) !=
+            true) {
+      await destination.cancel();
+      return null;
+    }
+    final epoch = _generation, accountEpoch = account.generation;
+    final cancellation = LarenorTransferCancellation();
+    _exportCancellation = cancellation;
+    CoreBackupExport? exported;
+    actionBusy = true;
+    actionFailure = null;
+    _emit();
+    try {
+      await account.withSession((api, session) async {
+        if (!_current(epoch, accountEpoch, current)) {
+          throw const LarenorServerException('cancelled');
+        }
+        final value = await ServerCoreBackupsApi(
+          api,
+          session.accessToken,
+        ).recover(point, destination, cancellation);
+        if (_current(epoch, accountEpoch, current)) exported = value;
+      });
+    } catch (error) {
+      if (_current(epoch, accountEpoch, current)) {
+        actionFailure = error is LarenorServerException
+            ? error.code
+            : 'connection_failed';
+      }
+    } finally {
+      if (exported == null) await destination.cancel();
+      if (identical(_exportCancellation, cancellation)) {
+        _exportCancellation = null;
+      }
+      if (!_disposed && epoch == _generation) {
+        actionBusy = false;
+        _emit();
+      }
+    }
+    return exported;
+  }
+
   Future<void> preflight(
     CoreBackupManifest manifest, {
     required bool Function() current,

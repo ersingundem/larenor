@@ -1,0 +1,77 @@
+{
+  "name": "larenor-backup-target",
+  "services": {
+    "append-target": {
+      "build": {
+        "context": "../..",
+        "dockerfile": "server/Dockerfile",
+        "args": {
+          "LARENOR_SOURCE_REVISION": "${LARENOR_SOURCE_REVISION:?exact source revision required}"
+        }
+      },
+      "image": "ghcr.io/ersingundem/larenor-server:sha-${LARENOR_SOURCE_REVISION}",
+      "user": "10001:10001",
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "pids_limit": 32,
+      "mem_limit": "512m",
+      "cpus": "1.0",
+      "ports": [
+        "8099:8099"
+      ],
+      "tmpfs": [
+        "/tmp:rw,nosuid,nodev,noexec,size=32m,uid=10001,gid=10001,mode=700"
+      ],
+      "entrypoint": [
+        "/opt/larenor/.venv/bin/python",
+        "-m",
+        "larenor_server.core_backups.append_target"
+      ],
+      "command": [
+        "--policy",
+        "/secrets/target.json",
+        "--certfile",
+        "/secrets/tls.pem",
+        "--keyfile",
+        "/secrets/tls.key",
+        "--port",
+        "8099"
+      ],
+      "healthcheck": {
+        "disable": true
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-backup-target/data",
+          "target": "/target-data",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-backup-target/secrets",
+          "target": "/secrets",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "1m",
+          "max-file": "2"
+        }
+      }
+    }
+  }
+}

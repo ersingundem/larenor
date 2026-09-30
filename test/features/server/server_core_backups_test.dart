@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:larenor/features/server/core_backups/data/server_core_backups_controller.dart';
 import 'package:larenor/features/server/core_backups/domain/server_core_backup_models.dart';
@@ -1327,5 +1328,49 @@ void main() {
     );
     expect(controller.compatibility, isNull);
     expect(controller.actionFailure, 'invalid_response');
+  });
+  test('remote encrypted point uses exact GET and receipt before destination commit', () async {
+    final bytes = Uint8List.fromList([
+      ...utf8.encode('LARENOR-CORE-BACKUP\u0000\u0001'),
+      ...List<int>.filled(80, 9),
+    ]);
+    final digest = crypto.sha256.convert(bytes).toString();
+    final client = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        '/prefix/api/v1/admin/backups/immutable-target/restore-points/${'a' * 32}/archive',
+      );
+      expect(request.headers['authorization'], 'Bearer synthetic-access');
+      expect(request.body, isEmpty);
+      return http.Response.bytes(bytes, 200, headers: exportHeaders());
+    });
+    final api = directApi(client);
+    addTearDown(api.close);
+    final destination = BackupDestinationFixture();
+    final result = await api.recoverCoreBackup(
+      token: 'synthetic-access',
+      objectId: 'a' * 32,
+      expectedByteLength: bytes.length,
+      expectedSha256: digest,
+      destination: destination,
+      cancellation: LarenorTransferCancellation(),
+    );
+    expect(result.sha256, digest);
+    expect(destination.committed, isTrue);
+    final wrong = BackupDestinationFixture();
+    await expectLater(
+      api.recoverCoreBackup(
+        token: 'synthetic-access',
+        objectId: 'a' * 32,
+        expectedByteLength: bytes.length,
+        expectedSha256: '0' * 64,
+        destination: wrong,
+        cancellation: LarenorTransferCancellation(),
+      ),
+      throwsA(isA<LarenorServerException>()),
+    );
+    expect(wrong.committed, isFalse);
+    expect(wrong.cancelled, isTrue);
   });
 }
