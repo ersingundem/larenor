@@ -4193,7 +4193,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Parti DJ'i ve ortak şarkı oylaması",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4217,7 +4217,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek music provider worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; CI bekliyor. Normal Core ve production MusicPlaybackRuntime, gerçek owned TCP Music Assistant ile ekleme/readback, iki kişilik skip quorum, oy replay ve restart kabulünden geçti. Kayıp ACK sonrası yeniden gönderim yok; needs_attention dürüstçe korunur. 35 focused test geçti; docs/testing/f29-party-dj-production-2026-09-30.md. Exact HEAD geniş CI ve fiziksel alıcı kabulü açık; sayaç değişmedi."
     },
     {
       "id": "F30",

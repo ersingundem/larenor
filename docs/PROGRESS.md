@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F29 gerçek Parti DJ kabulü
+
+Normal Core ve production MusicPlaybackRuntime, gerçek TCP Music Assistant fixture üzerinde kuyruk ekleme/readback, iki kullanıcı oyu/skip, restart ve kayıp ACK uzlaşmasını doğruladı. 35 focused test geçti; F29 da CI bekliyor tablosuna geçti. 35 özellik geniş CI bekliyor; kabul sayaçları değişmedi. [Kanıt](testing/f29-party-dj-production-2026-09-30.md).
+
 ### 30 Eylül F08 gerçek cgroup stres kabulü
 
 Linux kabul kapısına gerçek worker üzerinden OOM, TasksMax fork reddi ve CPU throttling senaryoları eklendi. MemoryPeak'in geçici olarak limiti aşamayacağı varsayımı kaldırıldı; kernel sayaçları ve exact uygulanan limitler birlikte doğrulanır. 17 yerel test geçti, 3 Linux testi macOS'ta açıkça atlandı; 26 workflow/policy testi ve actionlint geçti. Actual Linux sonucu bekleniyor. [Kanıt](testing/f08-standalone-ai-runtime-2026-09-30.md).
