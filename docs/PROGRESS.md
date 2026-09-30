@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 55 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi gerçek kabulden geçti; F52 gerçek ikinci ekran kabulünden geçti; F53 profil composition, F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek host kabulü dört testi geçti; CI cleanup izni hatası düzeltilecek. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 55 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi gerçek kabulden geçti; F52 gerçek ikinci ekran kabulünden geçti; F53 profil composition, F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek host kabulü dört testi geçti; CI cleanup izin düzeltmesinin yeni exact sonucu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül Linux host kabulü ve cleanup düzeltmesi
+
+Exact `b23e543ee30f064ad779d37cc45f7050f7125a16` run `36760951195` dört gerçek kurulu Core/IPC/systemd testini geçti. Koşu yalnız EXIT cleanupında root-owned bytecode izniyle düştü. Taze exact disposable proof tree noninteractive sudo ve one-file-system sınırıyla temizlenir; ilk test hata kodu korunur, cleanup hatası başarı sayılmaz. Bash syntax ve workflow policy geçti; yeni exact Linux sonucu ayrıca bekleniyor. Üretim izinleri gevşetilmedi. [Host kanıtı](testing/unified-host-workers-2026-09-30.md).
 
 ### 30 Eylül F52 gerçek ikinci ekran kabulü
 

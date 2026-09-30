@@ -10,7 +10,22 @@ test "$#" -eq 1
 uv_bin="$1"
 test -x "$uv_bin"
 proof_root="$(mktemp -d /tmp/larenor-host-proof.XXXXXX)"
-trap 'rm -rf -- "$proof_root"' EXIT
+# The root/dedicated-UID proofs can create bytecode owned by root. Delete only
+# this freshly allocated disposable tree, without crossing filesystem mounts.
+case "$proof_root" in
+  /tmp/larenor-host-proof.??????) ;;
+  *) exit 2 ;;
+esac
+cleanup() {
+  local proof_status=$?
+  trap - EXIT
+  if ! sudo --non-interactive rm -rf --one-file-system -- "$proof_root"; then
+    printf '%s\n' 'host_proof_cleanup_failed' >&2
+    if test "$proof_status" -eq 0; then proof_status=1; fi
+  fi
+  exit "$proof_status"
+}
+trap cleanup EXIT
 chmod 0755 "$proof_root"
 source_revision="$(git rev-parse HEAD)"
 git archive HEAD | tar -xf - -C "$proof_root"
