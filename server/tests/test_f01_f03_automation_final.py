@@ -181,8 +181,20 @@ def test_f02_trial_spans_seven_local_days_across_dst_and_never_writes_live_adapt
     assert changed.status_code == 409
     assert changed.json()["error"]["code"] == "idempotency_conflict"
 
+    untrusted_real = client.post(
+        f"{root}/{trial['id']}/events",
+        headers=auth(admin),
+        json=_event_body(
+            datetime(2025, 10, 26, 0, 30, tzinfo=timezone.utc),
+            request_key="event-request-0000",
+            source="real",
+        ),
+    )
+    assert untrusted_real.status_code == 409
+    assert untrusted_real.json()["error"]["code"] == "automation_trial_real_source_required"
+
     events = [
-        (datetime(2025, 10, 26, 0, 30, tzinfo=timezone.utc), "real", "event-request-0001"),
+        (datetime(2025, 10, 26, 0, 30, tzinfo=timezone.utc), "synthetic", "event-request-0001"),
         (datetime(2025, 10, 26, 1, 30, tzinfo=timezone.utc), "synthetic", "event-request-0002"),
     ]
     latest = None
@@ -194,7 +206,7 @@ def test_f02_trial_spans_seven_local_days_across_dst_and_never_writes_live_adapt
         )
         assert latest.status_code == 201, latest.text
     trial = latest.json()["trial"]
-    assert [event["source"] for event in trial["events"]] == ["real", "synthetic"]
+    assert [event["source"] for event in trial["events"]] == ["synthetic", "synthetic"]
     assert [event["fold"] for event in trial["events"]] == [0, 1]
     assert [event["utcOffsetSeconds"] for event in trial["events"]] == [7200, 3600]
     assert all(event["adapterWriteCount"] == 0 for event in trial["events"])

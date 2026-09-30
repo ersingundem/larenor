@@ -62,6 +62,12 @@ class EvaluateTrialEvent(Versioned):
     occurredAtMs: Annotated[int, Field(ge=0, le=2**63 - 1)]
 
 
+class IngestHomeAssistantTrace(Versioned):
+    requestKey: RequestKey
+    expectedTrialId: Identity
+    sourceResourceId: Identity
+
+
 class ReplayTrial(Versioned):
     expectedTrialId: Identity
     requiredEventCount: Annotated[int, Field(ge=1, le=512)]

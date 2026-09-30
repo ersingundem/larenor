@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import math
+import re
 import secrets
 import socket
 import ssl
@@ -30,6 +31,8 @@ _GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_FRAME = 1024 * 1024
 MAX_REGISTRY_ENTRIES = 65_536
 MAX_THREAD_EVENTS = 128
+MAX_AUTOMATION_TRACES = 256
+_TRACE_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 
 
 class HomeAssistantWebSocketError(RuntimeError):
@@ -134,20 +137,24 @@ def _command(stream, value, deadline):
 
 
 class _ReadOnlySession:
-    def __init__(self, stream, deadline):
+    def __init__(self, stream, deadline, before_io, after_io):
         self._stream = stream
         self._deadline = deadline
         self._next_id = 1
+        self._before_io = before_io
+        self._after_io = after_io
 
-    def _request(self, command_type):
+    def _request_payload(self, payload):
         request_id = self._next_id
         self._next_id += 1
+        self._before_io()
         _command(
             self._stream,
-            {"id": request_id, "type": command_type},
+            {"id": request_id, **payload},
             self._deadline,
         )
         result = _message(self._stream, self._deadline)
+        self._after_io()
         if (
             result.get("id") != request_id
             or result.get("type") != "result"
@@ -155,6 +162,9 @@ class _ReadOnlySession:
         ):
             raise HomeAssistantWebSocketError("unsupported")
         return request_id, result.get("result")
+
+    def _request(self, command_type):
+        return self._request_payload({"type": command_type})
 
     def list_entity_registry(self):
         """Run only ``config/entity_registry/list``; no caller payload exists."""
@@ -181,6 +191,38 @@ class _ReadOnlySession:
     def list_thread_datasets(self):
         """Run only ``thread/list_datasets``."""
         _, result = self._request("thread/list_datasets")
+        if not isinstance(result, dict):
+            raise HomeAssistantWebSocketError("invalid_response")
+        return result
+
+    def list_automation_traces(self, item_id):
+        """Run the admin read-only ``trace/list`` command for one automation."""
+        if type(item_id) is not str or _TRACE_ID.fullmatch(item_id) is None:
+            raise HomeAssistantWebSocketError("invalid_response")
+        _, result = self._request_payload({
+            "type": "trace/list", "domain": "automation", "item_id": item_id,
+        })
+        if (
+            not isinstance(result, list)
+            or len(result) > MAX_AUTOMATION_TRACES
+            or any(not isinstance(item, dict) for item in result)
+        ):
+            raise HomeAssistantWebSocketError("invalid_response")
+        return tuple(result)
+
+    def get_automation_trace(self, item_id, run_id):
+        """Run the admin read-only ``trace/get`` command for one exact run."""
+        if (
+            type(item_id) is not str
+            or type(run_id) is not str
+            or _TRACE_ID.fullmatch(item_id) is None
+            or _TRACE_ID.fullmatch(run_id) is None
+        ):
+            raise HomeAssistantWebSocketError("invalid_response")
+        _, result = self._request_payload({
+            "type": "trace/get", "domain": "automation",
+            "item_id": item_id, "run_id": run_id,
+        })
         if not isinstance(result, dict):
             raise HomeAssistantWebSocketError("invalid_response")
         return result
@@ -330,7 +372,7 @@ class HomeAssistantReadOnlyWebSocket:
                 raise HomeAssistantWebSocketError("unauthorized")
             if authenticated.get("type") != "auth_ok":
                 raise HomeAssistantWebSocketError("invalid_response")
-            yield _ReadOnlySession(stream, deadline)
+            yield _ReadOnlySession(stream, deadline, before_io, after_io)
             after_io()
             _send_frame(stream, 8, b"", deadline)
         except HomeAssistantWebSocketError:

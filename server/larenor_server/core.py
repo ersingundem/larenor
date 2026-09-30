@@ -10,6 +10,7 @@ import uuid
 
 from .admin.service import AdminService
 from .automation_trials.schema import migrate_automation_trials
+from .automation_trials.home_assistant import HomeAssistantAutomationTraceObserver
 from .automation_trials.service import AutomationTrialService
 from .automation_drafts.schema import migrate_automation_drafts
 from .automation_drafts.service import AutomationDraftService
@@ -727,7 +728,8 @@ class CoreServices:
             )
             self.habit_anomalies.validate_storage()
             self.automation_trials = AutomationTrialService(
-                self.db, self.auth, settings, key, self.context
+                self.db, self.auth, settings, key, self.context,
+                lambda: self.automation_trace_observer,
             )
             self.automation_trials.validate_storage()
             self.rule_arbitration = RuleArbitrationService(
@@ -1173,6 +1175,9 @@ class CoreServices:
                 self.rule_arbitration,
             )
             self.home_assistant.validate_storage()
+            self.automation_trace_observer = HomeAssistantAutomationTraceObserver(
+                lambda: self.home_assistant, settings.clock
+            )
             self.camera_profile_sources = HomeAssistantCameraProvider(
                 self.home_assistant, self.db, key, self.context, settings.clock)
             self.camera_search_runtime = FrigateCameraSearchRuntime(

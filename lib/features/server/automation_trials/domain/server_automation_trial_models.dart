@@ -64,10 +64,12 @@ final class AutomationTrialEvent {
     required this.utcOffsetSeconds,
     required this.fold,
     required this.decisions,
+    required this.evidence,
   });
 
   factory AutomationTrialEvent.fromJson(Object? value) {
-    final json = _closed(value, const {
+    final raw = serverObject(value);
+    final keys = <String>{
       'schemaVersion',
       'source',
       'eventKey',
@@ -77,7 +79,9 @@ final class AutomationTrialEvent {
       'fold',
       'decisions',
       'adapterWriteCount',
-    });
+      if (raw.containsKey('evidence')) 'evidence',
+    };
+    final json = _closed(raw, keys);
     final occurredAt = json['occurredAtMs'];
     final offset = json['utcOffsetSeconds'];
     final fold = json['fold'];
@@ -101,12 +105,71 @@ final class AutomationTrialEvent {
       decisions: List.unmodifiable(
         _objects(json['decisions']).map(AutomationTrialDecision.fromJson),
       ),
+      evidence: json.containsKey('evidence')
+          ? AutomationTrialEvidence.fromJson(json['evidence'])
+          : null,
     );
   }
 
   final String source, eventKey, localDateTime;
   final int occurredAtMs, utcOffsetSeconds, fold;
   final List<AutomationTrialDecision> decisions;
+  final AutomationTrialEvidence? evidence;
+}
+
+final class AutomationTrialEvidence {
+  const AutomationTrialEvidence({required this.provider, required this.runId});
+
+  factory AutomationTrialEvidence.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'provider',
+      'resourceId',
+      'resourceRevision',
+      'bindingId',
+      'bindingRevision',
+      'serviceId',
+      'serviceRevision',
+      'entityId',
+      'registryUniqueId',
+      'runId',
+      'contextId',
+      'traceDigest',
+    });
+    final provider = json['provider'];
+    final runId = json['runId'];
+    final digest = json['traceDigest'];
+    if (provider != 'home_assistant_trace' ||
+        runId is! String ||
+        runId.isEmpty ||
+        runId.length > 128 ||
+        digest is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (final key in const [
+      'resourceId',
+      'bindingId',
+      'serviceId',
+      'contextId',
+    ]) {
+      serverText(json[key], max: key == 'contextId' ? 128 : 32);
+    }
+    for (final key in const [
+      'resourceRevision',
+      'bindingRevision',
+      'serviceRevision',
+    ]) {
+      final revision = json[key];
+      if (revision is! int || revision < 1) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    serverText(json['entityId'], max: 128);
+    serverText(json['registryUniqueId'], max: 128);
+    return AutomationTrialEvidence(provider: provider, runId: runId);
+  }
+
+  final String provider, runId;
 }
 
 final class AutomationTrialRule {

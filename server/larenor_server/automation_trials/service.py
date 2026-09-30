@@ -8,7 +8,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
-from .models import CreateTrial, EvaluateTrialEvent, ReplayTrial
+from .models import (
+    CreateTrial,
+    EvaluateTrialEvent,
+    IngestHomeAssistantTrace,
+    ReplayTrial,
+)
 
 
 MAX_TRIALS = 128
@@ -24,7 +29,7 @@ def _json(value):
 
 
 class AutomationTrialService:
-    def __init__(self, db, auth, settings, key, context):
+    def __init__(self, db, auth, settings, key, context, trace_observer=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.scope = HomeScope.model_validate(context.model_dump())
         self._key = hmac.new(
@@ -35,6 +40,7 @@ class AutomationTrialService:
             + self.scope.homeId.encode("ascii"),
             hashlib.sha256,
         ).digest()
+        self._trace_observer = trace_observer
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
@@ -211,7 +217,7 @@ class AutomationTrialService:
             "state": state, "reason": reason,
         }
 
-    def _evaluate(self, trial, body, proposed_rules=None):
+    def _evaluate(self, trial, body, proposed_rules=None, evidence=None):
         zone = ZoneInfo(trial["timezone"])
         rules = [
             rule for rule in (
@@ -246,7 +252,7 @@ class AutomationTrialService:
                 else:
                     decisions.append(self._decision(rule, state="suppressed", reason="lower_priority"))
         decisions.sort(key=lambda item: item["ruleId"])
-        return {
+        result = {
             "schemaVersion": 1,
             "source": body.source,
             "eventKey": body.eventKey,
@@ -257,10 +263,15 @@ class AutomationTrialService:
             "decisions": decisions,
             "adapterWriteCount": 0,
         }
+        if evidence is not None:
+            result["evidence"] = evidence
+        return result
 
     def evaluate(self, actor, core_id, home_id, trial_id, body):
         self._scope(core_id, home_id)
         body = EvaluateTrialEvent.model_validate(body)
+        if body.source != "synthetic":
+            raise ApiError("automation_trial_real_source_required", 409)
         now_ms = round(float(self.settings.clock()) * 1000)
         if body.occurredAtMs > now_ms + MAX_EVENT_FUTURE_MS:
             raise ApiError("automation_trial_event_future", 409)
@@ -294,6 +305,95 @@ class AutomationTrialService:
                 (*row.values(), self._event_tag(row)),
             )
             return {"trial": self._public_trial(trial, self._events(connection, trial_id))}
+
+    def ingest_home_assistant_trace(
+        self, actor, core_id, home_id, trial_id, body
+    ):
+        self._scope(core_id, home_id)
+        body = IngestHomeAssistantTrace.model_validate(body)
+        if body.expectedTrialId != trial_id:
+            raise ApiError("automation_trial_changed", 409)
+        with self.db.connection() as connection:
+            connection.execute("BEGIN")
+            self._actor(connection, actor)
+            self._validate(connection)
+            trial = self._stored(connection, actor, trial_id)
+            rules = json.loads(trial["rules_json"])
+            event_keys = {
+                rule["eventKey"] for rule in rules
+                if rule["deviceId"] == body.sourceResourceId
+            }
+            if len(event_keys) != 1:
+                raise ApiError("automation_trial_trace_source_changed", 409)
+        if self._trace_observer is None:
+            raise ApiError("automation_trial_trace_unavailable", 503)
+        observed = self._trace_observer().latest(
+            actor, body.sourceResourceId,
+            trial["starts_at_ms"], trial["ends_at_ms"],
+        )
+        event_key = next(iter(event_keys))
+        event = EvaluateTrialEvent(
+            schemaVersion=1,
+            requestKey=body.requestKey,
+            source="real",
+            eventKey=event_key,
+            occurredAtMs=observed.occurred_at_ms,
+        )
+        evidence = observed.evidence()
+        now_ms = round(float(self.settings.clock()) * 1000)
+        result = self._evaluate(trial, event, evidence=evidence)
+        with self.db.transaction() as connection:
+            self._actor(connection, actor)
+            self._validate(connection)
+            trial = self._stored(connection, actor, trial_id)
+            self._trace_observer().assert_current_in(connection, actor, observed)
+            existing = connection.execute(
+                "SELECT * FROM automation_trial_events WHERE account_id=? AND family_id=? "
+                "AND request_key=?", (actor.id, actor.family_id, body.requestKey)
+            ).fetchone()
+            if existing is not None:
+                existing = self._verified(existing, self._event_tag(existing))
+                if (
+                    existing["trial_id"] != trial_id
+                    or json.loads(existing["result_json"]) != result
+                ):
+                    raise ApiError("idempotency_conflict", 409)
+                return {"trial": self._public_trial(
+                    trial, self._events(connection, trial_id)
+                )}
+            for prior in self._events(connection, trial_id):
+                prior_result = json.loads(prior["result_json"])
+                prior_evidence = prior_result.get("evidence")
+                if (
+                    isinstance(prior_evidence, dict)
+                    and prior_evidence.get("provider") == "home_assistant_trace"
+                    and prior_evidence.get("serviceId") == evidence["serviceId"]
+                    and prior_evidence.get("runId") == evidence["runId"]
+                ):
+                    return {"trial": self._public_trial(
+                        trial, self._events(connection, trial_id)
+                    )}
+            if connection.execute(
+                "SELECT COUNT(*) FROM automation_trial_events"
+            ).fetchone()[0] >= MAX_EVENTS or len(
+                self._events(connection, trial_id)
+            ) >= MAX_EVENTS_PER_TRIAL:
+                raise ApiError("automation_trial_event_limit_reached", 429)
+            row = {
+                "id": uuid.uuid4().hex, "trial_id": trial_id,
+                "account_id": actor.id, "family_id": actor.family_id,
+                "request_key": body.requestKey, "source": "real",
+                "event_key": event_key,
+                "occurred_at_ms": observed.occurred_at_ms,
+                "result_json": _json(result), "created_at_ms": now_ms,
+            }
+            connection.execute(
+                "INSERT INTO automation_trial_events VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (*row.values(), self._event_tag(row)),
+            )
+            return {"trial": self._public_trial(
+                trial, self._events(connection, trial_id)
+            )}
 
     @staticmethod
     def _decision_map(result):
@@ -329,6 +429,7 @@ class AutomationTrialService:
                         "source": event["source"],
                         "eventKey": event["event_key"],
                         "occurredAtMs": event["occurred_at_ms"],
+                        "evidence": json.loads(event["result_json"]).get("evidence"),
                     }
                     for event in events
                 ],

@@ -104,9 +104,9 @@ final class _AutomationCore {
   };
 
   Map<String, Object?> get rule => {
-    'ruleId': _serviceId,
-    'eventKey': 'service_check',
-    'deviceId': _serviceId,
+    'ruleId': '4' * 32,
+    'eventKey': 'automation_triggered',
+    'deviceId': _resourceId,
     'action': 'turn_on',
     'priority': 50,
     'weekdays': [0, 1, 2, 3, 4, 5, 6],
@@ -206,6 +206,21 @@ final class _AutomationCore {
         'entries': [resource],
         'snapshot': 'c' * 64,
         'nextAfter': null,
+      });
+    }
+    if (path.endsWith(
+      '/admin/home-assistant/$_coreId/$_homeId/resources/$_resourceId/binding',
+    )) {
+      return _json(request, {
+        'binding': {
+          'schemaVersion': 1,
+          'id': '4' * 32,
+          'revision': 1,
+          'ref': {...context, 'kind': 'resource', 'id': _resourceId},
+          'serviceId': _serviceId,
+          'serviceRevision': 1,
+          'entityId': 'automation.welcome_home',
+        },
       });
     }
     if (path.endsWith(

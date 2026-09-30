@@ -3611,7 +3611,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3635,14 +3635,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: Client service health checkedAt değerini gerçek olay olarak gönderiyor; gerçek HA event/trace authority ingest eksik. Server kaynaklı olay kimliği, revizyon ve bounded geçmiş gerekli."
+      "reason": "Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F03",
       "kind": "task",
       "parent": "G04",
       "title": "Geçmişte otomasyon sınaması",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3666,7 +3666,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: replay yalnız Client gönderimli olayları kullanıyor; F02 gerçek HA olay geçmişi bağlanmadan production kabulü yok."
+      "reason": "Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F01",
