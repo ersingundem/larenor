@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül gerçek host worker paketi
+
+Müzik ve medya kurulum worker’ları host Docker kimliğini doğrular; archive/Unmanic gerçek medya UID’siyle çalışır. Core yalnız özel IPC grubuna katılır, exact peer UID korunur; offline wheel paketi hash doğrulanır ve özel politikalar olmadan etkinleşmez. 56 paket/workflow kapısı ve odaklı IPC/runtime geçti; actual Linux UID/systemd kapıları CI bekliyor. [Kanıt ve hedef kurulum sınırları](testing/unified-host-workers-2026-09-30.md). Capacity fixture eski silinen dal yerine actual checkout HEAD’i kullanır; sayaç değişmedi.
+
 ### 30 Eylül F35 gerçek belge OCR
 
 Normal Core şifreli belgeyi gerçek Poppler/Tesseract ile sınırlı yerel süreçte okur; tarih adayı confidence ve source digest taşır, kullanıcı onayı olmadan hatırlatma oluşturmaz. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. [Kanıt ve image build kapısı](testing/f35-home-document-ocr-2026-09-30.md). Geniş exact HEAD CI açık; sayaç değişmedi.

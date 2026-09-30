@@ -111,13 +111,9 @@ sudo python3 deploy/larenor-server/host_workers/install.py --activate
 
 Local focused evidence:
 
-- 48 media archive/Core runtime tests passed; the Linux UID and systemd tests
-  are intentionally skipped on macOS.
-- 13 package/workflow policy tests passed.
-- 68 of 70 broad historical unified deployment tests passed in the uncommitted tree.
-  The two capacity tests bind their bundle to a committed revision; they can
-  only become green after the integration commit SHA exists and is placed in
-  that historical acceptance fixture.
+- Focused media archive/Core IPC and runtime tests passed; three Linux-only UID/systemd cases are intentionally skipped on macOS.
+- 56 package, deployment, bundle and workflow gates passed before F08 AI packaging additions.
+- Both historical native-capacity acceptance tests passed after binding CURRENT_REVISION to the exact checked-out HEAD. This revision is available even in a shallow final-squash checkout; the historical BASE remains fixed. A deleted feature branch object is never required.
 
 The hosted `linux/amd64` and `linux/arm64` matrix now installs the server
 environment, runs the real forked UID 1000/10001 AF_UNIX + kernel peer credential

@@ -17,10 +17,12 @@ from tool.tests.unified_media_stack_managed_ci_test import FakeDriver
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_REVISION = "2f43b6cd606dab17640bb6f0a832b353b62c2313"
-# Keep the reviewed contract tree reachable from main after the feature branch
-# is deleted. The accepted source and this squash commit have the same stable
-# aggregate patch and therefore the same S09.3 contract content.
-CURRENT_REVISION = "b7a82258f11a6bd46f00d9a8561dcb2b895fb030"
+# Bind the current contract to the exact checked-out commit. A shallow CI
+# checkout always has HEAD, including the final squash after branch deletion;
+# no dangling feature-branch Git object is needed. Historical BASE stays fixed.
+CURRENT_REVISION = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+).strip()
 PLATFORMS = ("linux/amd64", "linux/arm64")
 DEPLOYMENT_SPEC = importlib.util.spec_from_file_location(
     "s093_deployment_bundle",

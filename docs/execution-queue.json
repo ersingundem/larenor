@@ -4005,7 +4005,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Jenerik ve kapanış atlama",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4029,7 +4029,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek segment worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor."
+      "reason": "Gerçek segment worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F21",
@@ -4067,7 +4067,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4091,7 +4091,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek playback worker var; FINAL.FUNCTION paket denetiminde unified runtime worker socket/env/mount ve başlatma eksik. Dağıtım bağlaması ve normal runtime kabulü gerekli."
+      "reason": "Gerçek playback worker var; FINAL.FUNCTION paket denetiminde unified runtime worker socket/env/mount ve başlatma eksik. Dağıtım bağlaması ve normal runtime kabulü gerekli. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F23",
@@ -4130,7 +4130,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4155,14 +4155,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek offline media worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor."
+      "reason": "Gerçek offline media worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F28",
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4186,14 +4186,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı."
+      "reason": "Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F29",
       "kind": "task",
       "parent": "G06",
       "title": "Parti DJ'i ve ortak şarkı oylaması",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4217,14 +4217,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek music provider worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor."
+      "reason": "Gerçek music provider worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F30",
       "kind": "task",
       "parent": "G06",
       "title": "Medya arşivi sağlık ve yer tasarrufu",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4250,7 +4250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek pinned Unmanic encoder/korunan orijinal/confirmed cleanup uygulandı; unified runtime archive read/action worker başlatma ve private catalog/socket bağlaması tamamlanacak."
+      "reason": "Gerçek pinned Unmanic encoder/korunan orijinal/confirmed cleanup uygulandı; unified runtime archive read/action worker başlatma ve private catalog/socket bağlaması tamamlanacak. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "G07",
