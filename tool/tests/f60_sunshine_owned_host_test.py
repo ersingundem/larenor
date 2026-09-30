@@ -485,20 +485,78 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
             "+;eth0;IPv4;Larenor-F60-Owned;_nvstream._tcp;local\n"
             "=;eth0;IPv4;Larenor-F60-Owned;_nvstream._tcp;local;host.local;192.0.2.5;47989;\n"
         )
-        receipt = host.verify_mdns(raw)
+        receipt = host.verify_mdns(raw, expected_name="Larenor-F60-Owned")
         self.assertEqual(receipt, {"service": "_nvstream._tcp", "port": 47989})
         self.assertNotIn("192.0.2.5", json.dumps(receipt))
-        self.assertEqual(host.verify_mdns(raw + raw), receipt)
+        self.assertEqual(
+            host.verify_mdns(raw + raw, expected_name="Larenor-F60-Owned"), receipt
+        )
         ipv6 = (
             "=;eth0;IPv6;Larenor-F60-Owned;_nvstream._tcp;local;host.local;2001:db8::5;47989;\n"
         )
-        self.assertEqual(host.verify_mdns(raw + ipv6), receipt)
+        self.assertEqual(
+            host.verify_mdns(raw + ipv6, expected_name="Larenor-F60-Owned"), receipt
+        )
         with self.assertRaises(host.HostFailure):
             host.verify_mdns(
-                raw + raw.replace("host.local", "other.local").replace("192.0.2.5", "192.0.2.6")
+                raw
+                + raw.replace("host.local", "other.local").replace(
+                    "192.0.2.5", "192.0.2.6"
+                ),
+                expected_name="Larenor-F60-Owned",
             )
         with self.assertRaises(host.HostFailure):
-            host.verify_mdns(raw.replace("47989", "47990"))
+            host.verify_mdns(
+                raw.replace("47989", "47990"),
+                expected_name="Larenor-F60-Owned",
+            )
+
+    def test_mdns_identity_matches_pinned_sunshine_hostname_algorithm(self):
+        self.assertEqual(host._sunshine_mdns_instance_name("runner-host"), "runner-host")
+        self.assertEqual(host._sunshine_mdns_instance_name("runner host"), "runner-host")
+        self.assertEqual(host._sunshine_mdns_instance_name("runner.local"), "runner")
+        self.assertEqual(host._sunshine_mdns_instance_name(".invalid"), "Sunshine")
+        self.assertEqual(host._sunshine_mdns_instance_name("a" * 70), "a" * 63)
+        with self.assertRaises(host.HostFailure):
+            host._sunshine_mdns_instance_name("rünner")
+
+    def test_mdns_observation_accepts_exact_bounded_resolution_before_avahi_timeout(self):
+        raw = (
+            "+;eth0;IPv4;runner-host;_nvstream._tcp;local\n"
+            "=;eth0;IPv4;runner-host;_nvstream._tcp;local;host.local;192.0.2.5;47989;\n"
+        )
+        timed_out = subprocess.TimeoutExpired(
+            ["/usr/bin/avahi-browse"], 10, output=raw.encode("utf-8")
+        )
+        with mock.patch.object(
+            host, "_default_interface", return_value="eth0"
+        ), mock.patch.object(
+            host.socket, "gethostname", return_value="runner-host"
+        ), mock.patch.object(
+            host.subprocess, "run", side_effect=timed_out
+        ) as run:
+            self.assertEqual(
+                host._observe_mdns(),
+                {"service": "_nvstream._tcp", "port": 47989},
+            )
+        argv = run.call_args.args[0]
+        self.assertIn("--resolve", argv)
+        self.assertIn("--terminate", argv)
+        self.assertIn("--interface=eth0", argv)
+
+    def test_mdns_timeout_without_exact_owned_resolution_fails_closed(self):
+        timed_out = subprocess.TimeoutExpired(
+            ["/usr/bin/avahi-browse"], 10, output=b""
+        )
+        with mock.patch.object(
+            host, "_default_interface", return_value="eth0"
+        ), mock.patch.object(
+            host.socket, "gethostname", return_value="runner-host"
+        ), mock.patch.object(
+            host.subprocess, "run", side_effect=timed_out
+        ):
+            with self.assertRaises(host.HostFailure):
+                host._observe_mdns()
 
     def test_default_interface_is_exact_single_up_default_route(self):
         with tempfile.TemporaryDirectory() as temporary:

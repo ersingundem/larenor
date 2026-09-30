@@ -23,6 +23,7 @@ import re
 import secrets
 import shutil
 import signal
+import socket
 import ssl
 import stat
 import subprocess
@@ -653,8 +654,40 @@ class SunshineApi:
             raise HostFailure("owned paired client is still present")
 
 
-def verify_mdns(raw: str) -> Dict[str, Any]:
+def _sunshine_mdns_instance_name(hostname: Optional[str] = None) -> str:
+    if hostname is None:
+        try:
+            hostname = socket.gethostname()
+        except OSError as error:
+            raise HostFailure("owned runner hostname is unavailable") from error
+    if not isinstance(hostname, str):
+        raise HostFailure("owned runner hostname is invalid")
+    try:
+        source = hostname.encode("ascii")[:63]
+    except UnicodeEncodeError as error:
+        raise HostFailure("owned runner hostname is invalid") from error
+    instance = bytearray()
+    for value in source:
+        if value == 0x20:
+            instance.append(0x2D)
+        elif (
+            0x30 <= value <= 0x39
+            or 0x41 <= value <= 0x5A
+            or 0x61 <= value <= 0x7A
+            or value == 0x2D
+        ):
+            instance.append(value)
+        else:
+            break
+    return instance.decode("ascii") if instance else "Sunshine"
+
+
+def verify_mdns(raw: str, *, expected_name: Optional[str] = None) -> Dict[str, Any]:
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_MDNS_BYTES:
+        raise HostFailure("Sunshine mDNS observation is invalid")
+    if expected_name is None:
+        expected_name = _sunshine_mdns_instance_name()
+    if not isinstance(expected_name, str) or not expected_name:
         raise HostFailure("Sunshine mDNS observation is invalid")
     resolved = set()
     for line in raw.splitlines():
@@ -662,7 +695,7 @@ def verify_mdns(raw: str) -> Dict[str, Any]:
         if len(fields) < 9 or fields[0] != "=":
             continue
         if (
-            fields[3] != OWNED_MDNS_NAME
+            fields[3] != expected_name
             or fields[4] != "_nvstream._tcp"
             or fields[5] != "local"
         ):
@@ -970,6 +1003,7 @@ def _wait_api(api: SunshineApi, processes: OwnedProcesses) -> None:
 
 def _observe_mdns() -> Dict[str, Any]:
     interface = _default_interface()
+    output: Any
     try:
         completed = subprocess.run(
             [
@@ -989,11 +1023,21 @@ def _observe_mdns() -> Dict[str, Any]:
             timeout=10,
             env={"LANG": "C.UTF-8", "PATH": "/usr/bin:/bin"},
         )
-    except (OSError, subprocess.TimeoutExpired) as error:
+        if completed.returncode != 0:
+            raise HostFailure("Sunshine mDNS observation is unavailable")
+        output = completed.stdout
+    except subprocess.TimeoutExpired as error:
+        output = error.stdout
+    except OSError as error:
         raise HostFailure("Sunshine mDNS observation is unavailable") from error
-    if completed.returncode != 0 or len(completed.stdout.encode("utf-8")) > MAX_MDNS_BYTES:
+    if isinstance(output, bytes):
+        try:
+            output = output.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise HostFailure("Sunshine mDNS observation is invalid") from error
+    if not isinstance(output, str) or len(output.encode("utf-8")) > MAX_MDNS_BYTES:
         raise HostFailure("Sunshine mDNS observation is unavailable")
-    return verify_mdns(completed.stdout)
+    return verify_mdns(output, expected_name=_sunshine_mdns_instance_name())
 
 
 @dataclass(repr=False)

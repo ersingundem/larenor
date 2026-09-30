@@ -126,8 +126,8 @@ last client, the full future gate must restart the same private instance before
 claiming an absence readback.
 
 The mDNS helper reads the single up default interface from `/proc/net/route`
-and invokes Avahi for IPv4 on only that interface. It accepts the fixed owned
-service name `Larenor-F60-Owned`, `_nvstream._tcp` and port 47989. Multiple
+and invokes Avahi for IPv4 on only that interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and
+port47989; `sunshine_name=Larenor-F60-Owned` is only the NvHTTP display name. Multiple
 IPv4/IPv6 or interface observations of that exact service identity are deduped;
 a second hostname or port is rejected. Addresses are validated but never
 returned or receipted. Pinned
@@ -141,7 +141,7 @@ an injected candidate cannot satisfy the gate.
 
 ```text
 python3 -m unittest tool.tests.f60_sunshine_owned_host_test
-19 tests; zero failures/errors/skips
+22 tests; zero failures/errors/skips
 ```
 
 The tests cover the pinned release constants, runner/OS refusal, private
@@ -167,9 +167,20 @@ rejected by extracted real shell guard tests. Root passed19 host/dispatcher plus
 
 ## Evidence still required
 
-The new workflow has not yet been dispatched at this source revision. This
-slice therefore
-does not yet prove Xvfb capture, CPU H.264 encoder initialization, emulator mDNS
+Run36790356666 at exactf8db9580 reached the owned host step, but failed after
+ten seconds with the safe `Sunshine mDNS observation is unavailable` code;
+no readiness receipt was produced. The dispatcher and dependency setup passed.
+Pinned Sunshine's [Linux publisher](https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/platform/linux/publish.cpp)
+uses the [hostname algorithm](https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/network.cpp),
+not `sunshine_name`, as the mDNS instance. [Avahi's resolver](https://github.com/avahi/avahi/blob/master/avahi-utils/avahi-browse.c)
+flushes resolved stdout but can remain pending until all-for-now/resolution
+counts clear. The helper now verifies exact owned hostname/port/type from
+bounded collected stdout even after subprocess.run kills and reaps a timed-out
+browser. Empty, foreign, malformed and oversized results remain rejected;
+timeout by itself is never readiness. Root22 host/dispatcher plus47 policy
+tests passed. Changed-source hosted readiness is still required.
+
+This slice does not yet prove Xvfb capture, CPU H.264 encoder initialization, emulator mDNS
 visibility, cryptographic pairing, NvHTTP catalog/launch, RTP transport,
 MediaCodec decoded frames, Android audio, causal stop, restart reconciliation,
 or owned-client absence after unpair.

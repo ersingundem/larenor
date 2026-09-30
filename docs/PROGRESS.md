@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 gerçek host keşif düzeltmesi
+
+Run36790356666 exactf8db9580 dispatcher/bağımlılık kurulumu geçti, fakat owned host mDNS gözleminde10sn sonra safe exit2 verdi; readiness receipt yok. Pinned Sunshine publisher mDNS instance için sunshine_name yerine runner hostname algoritmasını kullanıyor. Bounded Avahi stdout artık yalnız exact owned hostname/type/port resolved record ile kabul edilir; timeout tek başına başarı değildir. Root22 host/dispatcher ve47 policy testi geçti. Değişen kaynakla yeni hosted kabul gerekli; F60 yeniden çalışılıyor ve sayaçlar değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).
+
 ### 1 Ekim F60 izole gerçek Sunshine host hazırlığı
 
 Owned host harness yalnız GitHub-hosted Ubuntu24.04te pinned Sunshine paketini hash/sürüm readback ile kurar; private TLS, Xvfb/PulseAudio readiness ve exact mDNS gözlemi sağlar. Pair/unpair APIleri yalnız exact owned kimliklere sınırlıdır; gizli materyal yayımlanmaz ve owned süreçler temizlenir. Root 47 host/policy testi geçti. Yeni workflow doğrudan GitHub404 verdiği için kayıtlı server-test dispatchera ayrı f60-host same-commit çağrısı eklendi; yanlış caller/contract/ref/SHA reddedilir. Root19 host/dispatcher ve47 policy testi/actionlint geçti. Hosted smoke henüz çalışmadı; receipt açıkça host_ready/streamAccepted=false verir. Bu hazırlık gerçek Android eşleme/yayın/girdi/stop/revoke kabulü değildir: F60 yeniden çalışılıyor, 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).
