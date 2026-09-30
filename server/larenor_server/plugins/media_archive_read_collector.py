@@ -20,6 +20,9 @@ from ..services.transport import _Deadline, _remaining, _request_bytes
 from ..media_archive_actions.source_resolver import (
     AuthenticatedArchiveSourceRecord,
 )
+from ..media_archive_actions.cleanup_catalog import (
+    AuthenticatedArchiveCleanupItem, AuthenticatedArchiveTorrent,
+)
 from .arr_authenticated_readback import ArrAuthenticatedReadbackResult
 from .catalog import load_catalog
 from .jellyfin_authenticated_readback import (
@@ -199,25 +202,41 @@ def _query(path, **values):
 
 
 @dataclass(frozen=True)
+class _ArrFile:
+    media_key: str
+    service: str
+    file_id: int
+    path: str
+
+
+@dataclass(frozen=True)
 class _ArrProjection:
     records: list[dict]
-    path_keys: dict[str, str]
+    path_keys: dict[str, _ArrFile]
     imports: dict[str, str]
 
 
 class MediaArchiveReadCollector:
     """Collect four coherent service snapshots through bounded read-only APIs."""
 
-    def __init__(self, transport=None, *, clock=None, private_source_sink=None):
+    def __init__(self, transport=None, *, clock=None, private_source_sink=None,
+                 private_cleanup_sink=None, credential_sink=None):
         self.transport = transport or _LoopbackTransport()
         self.clock = clock or time.time
         self.private_source_sink = private_source_sink
+        self.private_cleanup_sink = private_cleanup_sink
+        self.credential_sink = credential_sink
         if (not callable(getattr(self.transport, 'get', None))
                 or not callable(self.clock)
                 or private_source_sink is not None
                 and not callable(getattr(
                     private_source_sink,
                     'replace_collection_authenticated', None))):
+            raise MediaArchiveReadCollectorError('invalid_media_archive_collection')
+        if (private_cleanup_sink is not None and not callable(getattr(
+                private_cleanup_sink, 'replace_collection_authenticated', None))
+                or credential_sink is not None and not callable(getattr(
+                    credential_sink, 'refresh_authenticated', None))):
             raise MediaArchiveReadCollectorError('invalid_media_archive_collection')
 
     def collect(self, private, *, deadline, gate):
@@ -245,11 +264,11 @@ class MediaArchiveReadCollector:
             sources['sonarr'], ports['sonarr'], deadline, gate)
         radarr_proof, radarr = self._radarr(
             sources['radarr'], ports['radarr'], deadline, gate)
-        qbit_proof, qbit = self._qbittorrent(
+        qbit_proof, qbit, private_torrents = self._qbittorrent(
             sources['qbittorrent'], ports['qbittorrent'],
             components['qbittorrent'], deadline, gate,
             {**sonarr.imports, **radarr.imports})
-        jellyfin, private_sources = self._jellyfin_records(
+        jellyfin, private_sources, private_cleanup = self._jellyfin_records(
             jelly_raw, {**sonarr.path_keys, **radarr.path_keys})
         now = int(self.clock())
         adapter = MediaArchiveIngestion()
@@ -278,7 +297,22 @@ class MediaArchiveReadCollector:
             except Exception:
                 raise MediaArchiveReadCollectorError(
                     'media_archive_source_unavailable') from None
-            _gate(deadline, gate)
+        if self.private_cleanup_sink is not None:
+            try:
+                self.private_cleanup_sink.replace_collection_authenticated(
+                    selected.authority, private_cleanup, private_torrents,
+                    deadline=deadline, gate=gate)
+            except Exception:
+                raise MediaArchiveReadCollectorError(
+                    'media_archive_source_unavailable') from None
+        if self.credential_sink is not None:
+            try:
+                self.credential_sink.refresh_authenticated(
+                    selected, ports, deadline=deadline, gate=gate)
+            except Exception:
+                raise MediaArchiveReadCollectorError(
+                    'media_archive_source_unavailable') from None
+        _gate(deadline, gate)
         return observation
 
     def _get(self, service, port, path, source, deadline, gate, *, text=False):
@@ -426,9 +460,12 @@ class MediaArchiveReadCollector:
                             raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
                         path = '/data' + series_path + '/' + relative
                     normalized = _path(path, '/data')
-                    if normalized in paths and paths[normalized] != key:
+                    if (normalized in paths
+                            and paths[normalized].media_key != key):
                         raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
-                    paths[normalized] = key
+                    file_id = _integer(episode_file.get('id'), 1, 2**31 - 1)
+                    paths[normalized] = _ArrFile(
+                        key, 'sonarr', file_id, path)
         imports = self._history(
             'sonarr', source, port, deadline, gate, keys)
         return proof, _ArrProjection(records, paths, imports)
@@ -466,9 +503,12 @@ class MediaArchiveReadCollector:
                         raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
                     path = '/data' + root + '/' + relative
                 normalized = _path(path, '/data')
-                if normalized in paths and paths[normalized] != key:
+                if (normalized in paths
+                        and paths[normalized].media_key != key):
                     raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
-                paths[normalized] = key
+                file_id = _integer(movie_file.get('id'), 1, 2**31 - 1)
+                paths[normalized] = _ArrFile(
+                    key, 'radarr', file_id, path)
         imports = self._history(
             'radarr', source, port, deadline, gate, keys)
         return proof, _ArrProjection(records, paths, imports)
@@ -501,7 +541,7 @@ class MediaArchiveReadCollector:
         torrents = _list(self._get(
             'qbittorrent', port, '/api/v2/torrents/info', source,
             deadline, gate))
-        records = []
+        records, private_records = [], []
         for item in torrents:
             if type(item) is not dict:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
@@ -551,7 +591,12 @@ class MediaArchiveReadCollector:
                 'state': state, 'importedConfirmed': imported,
                 'retentionPolicySatisfied': retention,
             })
-        return proof, records
+            private_records.append(AuthenticatedArchiveTorrent(
+                torrentId=identifier, importedMediaKey=media_key,
+                contentPath=item['content_path'], contentBytes=size,
+                state=state, importedConfirmed=imported,
+                retentionPolicySatisfied=retention))
+        return proof, records, private_records
 
     def _jellyfin_records(self, value, path_keys):
         if (type(value) is not dict or set(value) < {
@@ -561,7 +606,7 @@ class MediaArchiveReadCollector:
                 or value.get('TotalRecordCount') != len(value['Items'])
                 or len(value['Items']) > _MAX_ITEMS):
             raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
-        records, private_records = [], []
+        records, private_records, cleanup_records = [], [], []
         for item in value['Items']:
             if type(item) is not dict or item.get('Type') not in {'Movie', 'Episode'}:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
@@ -569,9 +614,10 @@ class MediaArchiveReadCollector:
             if type(item_id) is not str or re.fullmatch(r'[0-9a-f]{32}', item_id) is None:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
             relative_path = _path(item.get('Path'), '/media')
-            key = path_keys.get(relative_path)
-            if key is None:
+            arr = path_keys.get(relative_path)
+            if arr is None:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
+            key = arr.media_key
             sources = item.get('MediaSources')
             if type(sources) is not list or len(sources) != 1 or type(sources[0]) is not dict:
                 raise MediaArchiveReadCollectorError('media_archive_projection_invalid')
@@ -605,6 +651,10 @@ class MediaArchiveReadCollector:
                 'integrity': 'playable' if direct else 'unplayable',
                 'runtimeSeconds': runtime_seconds,
             })
+            cleanup_records.append(AuthenticatedArchiveCleanupItem(
+                itemId=item_id, mediaKey=key, sourcePath=item['Path'],
+                sourceSizeBytes=size, service=arr.service,
+                serviceFileId=arr.file_id, servicePath=arr.path))
             if codec in {'h264', 'mpeg2', 'vc1'}:
                 private_records.append(AuthenticatedArchiveSourceRecord(
                     sourceItemId=item_id,
@@ -615,4 +665,4 @@ class MediaArchiveReadCollector:
                     sourceBitrate=bitrate,
                     durationSeconds=runtime_seconds,
                 ))
-        return records, private_records
+        return records, private_records, cleanup_records

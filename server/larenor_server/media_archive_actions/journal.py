@@ -106,6 +106,9 @@ class ArchiveActionEffectEvidence(StrictModel):
     cleanupOutputBytes: int | None = Field(
         default=None, gt=0, le=2**63 - 1)
     cleanupDeleteIntent: bool = False
+    cleanupPlanDigest: str | None = None
+    cleanupIntents: list[str] = Field(default_factory=list, max_length=32)
+    cleanupCompleted: list[str] = Field(default_factory=list, max_length=32)
     cleanupVerified: bool = False
     cancelRequested: bool = False
 
@@ -113,6 +116,7 @@ class ArchiveActionEffectEvidence(StrictModel):
         "sourceDigest", "retainedDigest", "workDigest", "outputDigest",
         "cleanupSourceProofDigest", "cleanupRetainedDigest",
         "cleanupOutputDigest",
+        "cleanupPlanDigest",
     )
     @classmethod
     def digests(cls, value):
@@ -143,7 +147,17 @@ class ArchiveActionEffectEvidence(StrictModel):
                 or any(value is not None for value in cleanup_values)
                 != all(value is not None for value in cleanup_values)
                 or self.cleanupDeleteIntent
-                != all(value is not None for value in cleanup_values)):
+                != all(value is not None for value in cleanup_values)
+                or len(set(self.cleanupIntents)) != len(self.cleanupIntents)
+                or len(set(self.cleanupCompleted)) != len(self.cleanupCompleted)
+                or any(value not in self.cleanupIntents
+                       for value in self.cleanupCompleted)
+                or any(type(value) is not str or len(value) != 64
+                       or any(char not in "0123456789abcdef" for char in value)
+                       for value in (*self.cleanupIntents,
+                                     *self.cleanupCompleted))
+                or bool(self.cleanupIntents) !=
+                (self.cleanupPlanDigest is not None)):
             raise ValueError("invalid_media_archive_effect_evidence")
         return self
 
@@ -178,11 +192,16 @@ def _validate_evidence(command, evidence, receipt, state):
                  and not evidence.outputInstalled)
         if retained_cleanup:
             _require(evidence.sourceDigest is None
+                     and evidence.cleanupPlanDigest is None
+                     and not evidence.cleanupIntents
+                     and not evidence.cleanupCompleted
                      and evidence.cleanupVerified in {
                          False, evidence.cleanupDeleteIntent})
         else:
             _require(evidence.cleanupSourceProofDigest is None
-                     and not evidence.cleanupDeleteIntent)
+                     and not evidence.cleanupDeleteIntent
+                     and evidence.cleanupVerified in {
+                         False, bool(evidence.cleanupCompleted)})
     if receipt is None:
         _require(state not in TERMINAL and state != "running")
         return
@@ -429,6 +448,10 @@ class MediaArchiveActionJournal:
         previous = current.evidence.model_dump(mode="python")
         next_value = evidence.model_dump(mode="python")
         for key, value in previous.items():
+            if key in {"cleanupIntents", "cleanupCompleted"}:
+                _require(next_value[key][:len(value)] == value,
+                         "evidence_changed")
+                continue
             if value is not None and value is not False:
                 _require(next_value[key] == value, "evidence_changed")
         if receipt is not None:

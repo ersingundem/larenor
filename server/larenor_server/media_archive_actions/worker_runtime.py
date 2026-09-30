@@ -14,6 +14,8 @@ import time
 from ..plugins.media_archive_read_collector import MediaArchiveReadCollector
 from ..plugins.media_archive_worker_ipc import MediaArchiveWorkerClient, MediaArchiveWorkerServer
 from .callback_server import UnmanicCallbackServer
+from .cleanup_catalog import build_private_archive_cleanup_catalog
+from .cleanup_executor import PrivateArchiveDeleteExecutor
 from .engine import MediaArchiveActionEngine
 from .encoder_plan import SignedArchiveTranscodePlanWriter
 from .file_store import MediaArchiveFileStore
@@ -144,6 +146,13 @@ class ArchiveWorkerRuntime:
             resolver = self._resources.enter_context(build_private_media_archive_source_resolver(
                 config.resolverCatalog, authority_reader=CoreArchiveActionAuthorityReader(authority),
                 unmanic_exchange=transport))
+            cleanup_publisher = self._resources.enter_context(
+                build_private_archive_cleanup_catalog(config.resolverCatalog))
+            cleanup_catalog = self._resources.enter_context(
+                build_private_archive_cleanup_catalog(
+                    config.resolverCatalog,
+                    authority_reader=CoreArchiveActionAuthorityReader(authority)))
+            deletions = PrivateArchiveDeleteExecutor()
             # Refuse to expose ready action IPC without the actual isolated
             # library readback and working verifier binaries.
             library = resolver._unmanic(time.monotonic() + 5)
@@ -158,14 +167,18 @@ class ArchiveWorkerRuntime:
             verifier = MediaArchiveOutputVerifier(config.ffmpeg, config.ffprobe)
             engine = MediaArchiveActionEngine(journal, files, UnmanicAdapter(transport),
                 terminals, verifier, resolver,
-                plan_writer=SignedArchiveTranscodePlanWriter(catalog.workRoot, key))
+                plan_writer=SignedArchiveTranscodePlanWriter(catalog.workRoot, key),
+                cleanup_catalog=cleanup_catalog, cleanup_executor=deletions)
             self._resources.callback(engine.close)
             self.callback = UnmanicCallbackServer(terminals, config.callbackPort)
             self._resources.callback(self.callback.close)
             self.actions = MediaArchiveActionWorkerServer(config.actionSocket, engine, peer_uid=config.coreUid)
             self._resources.callback(self.actions.close)
             self.reads = MediaArchiveWorkerServer(config.readSocket,
-                _Collector(MediaArchiveReadCollector(private_source_sink=publisher), authority),
+                _Collector(MediaArchiveReadCollector(
+                    private_source_sink=publisher,
+                    private_cleanup_sink=cleanup_publisher,
+                    credential_sink=deletions), authority),
                 allowed_uid=config.coreUid)
             self._resources.callback(self.reads.close)
         except Exception:

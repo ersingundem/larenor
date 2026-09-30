@@ -10,6 +10,9 @@ from pathlib import Path
 import pytest
 
 from larenor_server.media_archive_actions.engine import MediaArchiveActionEngine, ResolvedArchiveActionSource
+from larenor_server.media_archive_actions.cleanup_executor import (
+    ResolvedDuplicateCleanup, ResolvedDuplicateCleanupItem, cleanup_effects,
+)
 from larenor_server.media_archive_actions.file_store import MediaArchiveFileStore
 from larenor_server.media_archive_actions.journal import MediaArchiveActionJournal, action_command_digest
 from larenor_server.media_archive_actions.models import PrivateArchiveActionCommand
@@ -125,6 +128,66 @@ def cleanup_command(source, *, operation_id="9" * 32):
     )
 
 
+def duplicate_command(source, *, operation_id="7" * 32):
+    return PrivateArchiveActionCommand(
+        operationId=operation_id, operation="cleanup_duplicate",
+        authority=source.authority,
+        candidate={
+            "candidateId": "7" * 64, "kind": "duplicate",
+            "title": "Duplicate", "potentialBytes": 100,
+            "confidence": "high", "comparison": {
+                "basis": "keep_largest_copy", "observedBytes": 200,
+                "estimatedRetainedBytes": 100,
+                "estimatedSavingBytes": 100,
+            },
+            "evidence": ["content_hash_match", "multiple_playable_files",
+                         "largest_copy_excluded"], "actionType": "cleanup",
+        },
+        target={"targetType": "duplicate", "keepItemId": "1" * 32,
+                "deleteItemIds": ["2" * 32]},
+        evidenceDigest="7" * 64, reservedBytes=0, retainOriginal=False)
+
+
+class CleanupCatalog:
+    def __init__(self, command):
+        self.plan = ResolvedDuplicateCleanup(
+            action_command_digest(command), "6" * 64,
+            ResolvedDuplicateCleanupItem(
+                "1" * 32, "movie:tmdb:1", "radarr", 11,
+                "/media/keep.mkv", "/data/movies/keep.mkv", 100),
+            (ResolvedDuplicateCleanupItem(
+                "2" * 32, "movie:tmdb:1", "radarr", 12,
+                "/media/delete.mkv", "/data/movies/delete.mkv", 100),))
+
+    def resolve(self, _command, *, deadline, require_delete_present=True):
+        assert time.monotonic() < deadline
+        return self.plan
+
+    def authorize(self, _command, plan, *, deadline):
+        return plan == self.plan and time.monotonic() < deadline
+
+
+class CleanupExecutor:
+    def __init__(self, plan):
+        self.present = {effect.effectId for effect in cleanup_effects(plan)}
+        self.mutations = []
+
+    def preflight(self, _command, plan, *, deadline):
+        assert self.present == {effect.effectId for effect in cleanup_effects(plan)}
+        return plan.planDigest
+
+    def observe(self, _command, _plan, effect, *, deadline):
+        return effect.effectId in self.present
+
+    def mutate(self, _command, _plan, effect, *, deadline):
+        self.mutations.append(effect.effectId)
+        self.present.remove(effect.effectId)
+        return True
+
+    def authorize(self, _command, _plan, *, deadline):
+        return time.monotonic() < deadline
+
+
 def test_async_engine_installs_real_verified_output_and_keeps_original(engine, media):
     handler, cmd, source, exchange, _resolver, _roots = engine
     assert handler.preview(cmd, deadline=time.monotonic()+5, gate=lambda: True).state == "ready"
@@ -170,6 +233,89 @@ def test_retained_cleanup_uses_source_proof_and_keeps_installed_output(
     assert record.evidence.cleanupVerified
     assert (record.evidence.cleanupSourceProofDigest
             == source_record.receipt.proofDigest)
+
+
+def test_duplicate_cleanup_records_each_intent_and_verified_absence(engine):
+    handler, source, _path, _exchange, resolver, _roots = engine
+    command = duplicate_command(source)
+    catalog = CleanupCatalog(command)
+    executor = CleanupExecutor(catalog.plan)
+    replacement = MediaArchiveActionEngine(
+        handler.journal, handler.files, handler.unmanic, handler.terminals,
+        handler.verifier, resolver, cleanup_catalog=catalog,
+        cleanup_executor=executor)
+    try:
+        assert replacement.preview(
+            command, deadline=time.monotonic()+5,
+            gate=lambda: True).state == "ready"
+        assert replacement.execute(
+            command, deadline=time.monotonic()+5,
+            cancelled=lambda: False).state == "running"
+        result = wait_result(replacement, command)
+        assert result.state == "succeeded" and result.proofDigest
+        with replacement.journal.locked():
+            evidence = replacement.journal.get(command.operationId).evidence
+        expected = [effect.effectId for effect in cleanup_effects(catalog.plan)]
+        assert evidence.cleanupIntents == expected
+        assert evidence.cleanupCompleted == expected
+        assert evidence.cleanupVerified and executor.mutations == expected
+    finally:
+        replacement.close()
+
+
+def test_duplicate_cleanup_lost_completion_record_never_claims_absence(
+        engine, monkeypatch):
+    handler, source, _path, _exchange, resolver, _roots = engine
+    command = duplicate_command(source, operation_id="6" * 32)
+    catalog = CleanupCatalog(command)
+    executor = CleanupExecutor(catalog.plan)
+    transition = handler.journal.transition
+    interrupted = False
+
+    def lose_after_upstream_delete(record, state, **kwargs):
+        nonlocal interrupted
+        evidence = kwargs.get("evidence")
+        if (not interrupted and evidence is not None
+                and evidence.cleanupCompleted):
+            interrupted = True
+            raise OSError("simulated interruption before completion record")
+        return transition(record, state, **kwargs)
+
+    monkeypatch.setattr(handler.journal, "transition", lose_after_upstream_delete)
+    first = MediaArchiveActionEngine(
+        handler.journal, handler.files, handler.unmanic, handler.terminals,
+        handler.verifier, resolver, cleanup_catalog=catalog,
+        cleanup_executor=executor)
+    try:
+        first.execute(
+            command, deadline=time.monotonic()+5,
+            cancelled=lambda: False)
+        result = wait_result(first, command)
+        assert result.state == "needs_attention"
+        assert result.errorCode == "effect_unknown"
+        assert len(executor.mutations) == 1
+        with first.journal.locked():
+            evidence = first.journal.get(command.operationId).evidence
+        assert len(evidence.cleanupIntents) == 1
+        assert evidence.cleanupCompleted == []
+    finally:
+        first.close()
+
+    monkeypatch.setattr(handler.journal, "transition", transition)
+    restarted = MediaArchiveActionEngine(
+        handler.journal, handler.files, handler.unmanic, handler.terminals,
+        handler.verifier, resolver, cleanup_catalog=catalog,
+        cleanup_executor=executor)
+    try:
+        assert restarted.reconcile(
+            command, deadline=time.monotonic()+5,
+            cancelled=lambda: False) == result
+        assert restarted.execute(
+            command, deadline=time.monotonic()+5,
+            cancelled=lambda: False) == result
+        assert len(executor.mutations) == 1
+    finally:
+        restarted.close()
 
 
 def test_cleanup_lost_delete_receipt_recovers_only_from_durable_intent(

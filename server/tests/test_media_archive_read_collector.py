@@ -85,6 +85,7 @@ def routes(*, qbit_state='stoppedUP', jelly_total=2, jelly_path=None):
             {'id': 11, 'seriesId': 10, 'seasonNumber': 1,
              'episodeNumber': 1, 'title': 'Pilot', 'monitored': True,
              'hasFile': True, 'episodeFile': {
+                 'id': 12,
                  'path': '/data/tv/Show/Season 01/Pilot.mkv'}}]),
         ('sonarr', '/api/v3/history?', {
             'records': [{'eventType': 'downloadFolderImported',
@@ -95,7 +96,8 @@ def routes(*, qbit_state='stoppedUP', jelly_total=2, jelly_path=None):
         ('radarr', '/api/v3/movie', [
             {'id': 20, 'tmdbId': 603, 'title': 'Film', 'monitored': True,
              'hasFile': True, 'path': '/data/movies/Film',
-             'movieFile': {'path': '/data/movies/Film/Film.mkv'}}]),
+             'movieFile': {'id': 21,
+                           'path': '/data/movies/Film/Film.mkv'}}]),
         ('radarr', '/api/v3/queue?', {
             'records': [], 'totalRecords': 0}),
         ('radarr', '/api/v3/history?', {
@@ -123,11 +125,13 @@ def routes(*, qbit_state='stoppedUP', jelly_total=2, jelly_path=None):
     ]
 
 
-def collect(values, *, sink=None):
+def collect(values, *, sink=None, cleanup_sink=None, credential_sink=None):
     transport = Transport(values)
     current = authority(observed=NOW - 1)
     result = MediaArchiveReadCollector(
-        transport, clock=lambda: NOW, private_source_sink=sink).collect(
+        transport, clock=lambda: NOW, private_source_sink=sink,
+        private_cleanup_sink=cleanup_sink,
+        credential_sink=credential_sink).collect(
             private(current=current), deadline=time.monotonic() + 3,
             gate=lambda: True)
     return result, transport
@@ -178,6 +182,41 @@ def test_authenticated_jellyfin_provenance_is_published_only_to_private_sink():
     assert repr(source) == 'AuthenticatedArchiveSourceRecord(<private>)'
     encoded = json.dumps(result.model_dump(mode='json'))
     assert source.sourcePath not in encoded and source.sourceCodec not in encoded
+
+
+def test_cleanup_provenance_and_credentials_stay_in_private_sinks():
+    class CleanupSink:
+        def __init__(self):
+            self.call = None
+
+        def replace_collection_authenticated(
+                self, selected, items, torrents, *, deadline, gate):
+            assert time.monotonic() < deadline and gate() is True
+            self.call = selected, items, torrents
+
+    class Credentials:
+        def __init__(self):
+            self.call = None
+
+        def refresh_authenticated(self, selected, ports, *, deadline, gate):
+            assert time.monotonic() < deadline and gate() is True
+            self.call = selected, ports
+
+    cleanup, credentials = CleanupSink(), Credentials()
+    result, _transport = collect(
+        routes(), cleanup_sink=cleanup, credential_sink=credentials)
+    selected, items, torrents = cleanup.call
+    assert selected.snapshotRevision == result.jellyfin.snapshotRevision
+    assert [(item.service, item.serviceFileId) for item in items] == [
+        ("radarr", 21), ("sonarr", 12)]
+    assert items[0].sourcePath.startswith("/media/")
+    assert torrents[0].contentPath.startswith("/data/downloads/")
+    assert credentials.call[1] == {
+        "jellyfin": 8096, "sonarr": 8989, "radarr": 7878,
+        "qbittorrent": 8080}
+    encoded = json.dumps(result.model_dump(mode="json"))
+    assert all(item.sourcePath not in encoded for item in items)
+    assert all(item.contentPath not in encoded for item in torrents)
 
 
 @pytest.mark.parametrize(('values', 'code'), [
