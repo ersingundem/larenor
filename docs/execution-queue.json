@@ -5318,7 +5318,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Android RFB 3.8 + VeNCrypt/X509Vnc TLS 1.3, explicit TOFU SPKI pin, VNC auth, bounded RAW framebuffer ACK, IME/HID/touchpad/zoom/resize ve disconnect kapanışı uygulandı; Kotlin compile, focused analyze ve diff-check geçti. Gerçek host/DeX kabulü ve tam CI bekliyor."
+      "reason": "Üretim Android RFB/VeNCrypt yolu derlendi; önceki sentetik RFB koşusu gerçek TigerVNC interoperabilitesi sayılmaz. Gerçek izole Xtigervnc X509Vnc→normal VncNativeBridge kabulü hazırlandı: SPKI/auth/nonuniform frame/input/resize/foreground retirement/no replay; XML exact 1 test ve sıfır skip/failure doğrulamadan receipt üretmez. 5 gate policy testi geçti, yerel macOS gerçek server kapısı çalışmadı. Hosted exact TigerVNC sonucu ve Core-managed source/secure-store adaptörü henüz açık; gerçek kanıt gelmeden CI bekliyor olmayacak. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
     },
     {
       "id": "FINAL",

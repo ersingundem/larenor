@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F61 gerçek VNC host kapısı
+
+Sentetik byte-server testi gerçek TigerVNC kabulü yerine kullanılmıyor. İzole Linux Xtigervnc X509Vnc karşısında normal production bridge SPKI, auth, frame, input, resize ve lifecycle/no-replay kapısı hazırlandı. Atlanmış veya Gradle cacheinden gelen test exit0 ile tamamlandı sayılmaz: exact XML bir test ve sıfır skip/failure gerektirir. 5 policy testi geçti; macOS gerçek host koşusu çalışmadı. Hosted exact sonucu ve Core-managed adaptör tamamlanmadan F61 implemented kalır; sayaçlar değişmedi. [F61 kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül F53 ve K10/K12 durum uzlaşması
 
 F53 gerçek Core profilini kayıt, revision ACK, restart ve revoke boyunca uyguladı. K07/F53 ortak profil activation sınırı geç veya eski callbacklerin başka authority profilini silmesini engeller; root dört gerçek TCP/Flutter fazını ve 7 Server testini geçti. 50 focused Flutter ve scoped analyze temiz. K10 güncel 24 Flutter/12 Android ve K12 55 Flutter kapısı bağımsız doğrulandı. Üç iş CI bekliyor tablosuna taşındı: 56 seçili özellik ve iki kiosk işi; kabul sayaçları 37/127 ve 3/63 değişmedi. Fiziksel OEM/Device Owner/long-idle kapıları açık kalır. [F53 kanıtı](testing/f53-tablet-management-acceptance-2026-09-30.md), [K10 kanıtı](testing/k10-local-sensor-tablet.tdd.md), [K12 kanıtı](testing/k12-watchdog-local-usage-foundation.tdd.md).
