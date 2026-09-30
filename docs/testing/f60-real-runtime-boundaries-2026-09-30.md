@@ -17,3 +17,5 @@ These are real usability/lifecycle fixes. They do not close F60's missing Client
 ## Focused evidence
 
 Root ran `flutter test --no-pub test/features/game_streaming/game_stream_settings_screen_test.dart`: 9 passed, zero skipped. Scoped `flutter analyze --no-pub` over the route and its tests was clean. The new regressions exercise retirement/reentry, an old reply while a successor launch is pending, and a stale already-rendered tap in TR. Existing EN/TR 600/1280 layouts and keyboard/accessibility checks remain covered. These widget tests use a controlled port and prove UI/ownership only; no external Moonlight or Sunshine interoperability is claimed.
+
+The first newly added lifecycle regression missed its refresh tap under the pinned navigation bar after a 2×-text layout change. That fixture run failed and is not acceptance evidence. The test now returns the real scroll view to its minimum extent before tapping; the final root rerun above completed all 9 tests without hit-test warnings. This correction supersedes the premature 9-pass note in the preceding documentation commit.

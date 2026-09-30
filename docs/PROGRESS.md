@@ -19,7 +19,7 @@ ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
 ### 30 Eylül F60 gerçek motor ile harici uygulama ayrımı
 
-Moonlight kurulu bilgisi artık Larenor native motoru veya doğrulanmış host eşlemesi gibi gösterilmiyor. Harici uygulamaya geçiş Larenoru pause ettikten sonra geciken yanıt bir sonraki açılışı kilitlemez; stale tap native çağrı yapmaz, eski yanıt successor busy durumunu bozmaz. Root 9 widget testi ve scoped analyze geçti. Resmî Moonlight manifest/shortcut ve Sunshine API incelemesiyle pairing/native playback açığı korunur; F60 yeniden çalışılıyor kalır, sayaç artmaz. [Kanıt ve upstream sınırı](testing/f60-real-runtime-boundaries-2026-09-30.md).
+Moonlight kurulu bilgisi artık Larenor native motoru veya doğrulanmış host eşlemesi gibi gösterilmiyor. Harici uygulamaya geçiş Larenoru pause ettikten sonra geciken yanıt bir sonraki açılışı kilitlemez; stale tap native çağrı yapmaz, eski yanıt successor busy durumunu bozmaz. Root son doğrulamada 9 widget testi ve scoped analyze geçti; ilk yeni lifecycle fixtureının navigation bar altında kalan tapı düzeltildi ve başarısız koşu kanıt sayılmadı. Resmî Moonlight manifest/shortcut ve Sunshine API incelemesiyle pairing/native playback açığı korunur; F60 yeniden çalışılıyor kalır, sayaç artmaz. [Kanıt ve upstream sınırı](testing/f60-real-runtime-boundaries-2026-09-30.md).
 
 ### 30 Eylül native hosted kabul kapılarının dar düzeltmeleri
 

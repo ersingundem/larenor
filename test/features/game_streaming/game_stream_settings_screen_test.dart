@@ -310,7 +310,9 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     final refresh = find.byKey(const ValueKey('game-stream-refresh'));
-    await Scrollable.ensureVisible(tester.element(refresh), alignment: 0.5);
+    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    scroll.position.jumpTo(scroll.position.minScrollExtent);
+    await tester.pumpAndSettle();
     await tester.tap(refresh);
     await tester.pumpAndSettle();
     await tester.ensureVisible(open);
