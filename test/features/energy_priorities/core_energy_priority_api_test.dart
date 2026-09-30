@@ -189,6 +189,8 @@ Map<String, Object?> _snapshot({String sessionFamilyId = family}) => {
     'canDischarge': true,
     'writable': true,
     'physicalAcceptance': 'manual',
+    'canSetReserve': false,
+    'controlSemantics': 'exact_power',
   },
 };
 
@@ -212,6 +214,31 @@ Map<String, Object?> _result(String requestId) => {
     'observedPowerW': 2000,
     'status': 'applied',
   },
+};
+
+Map<String, Object?> _reserveSnapshot() {
+  final value = jsonDecode(jsonEncode(_snapshot())) as Map<String, dynamic>;
+  value['inverter'] = {
+    'schemaVersion': 1,
+    'inverterId': inverter,
+    'revision': 12,
+    'canCharge': false,
+    'canDischarge': false,
+    'writable': true,
+    'physicalAcceptance': 'manual',
+    'canSetReserve': true,
+    'controlSemantics': 'reserve_percent',
+  };
+  return value;
+}
+
+Map<String, Object?> _reserveResult(String requestId) => {
+  'schemaVersion': 1,
+  'requestId': requestId,
+  'status': 'confirmed',
+  'targetReservePercent': 40,
+  'observedReservePercent': 40,
+  'bindingRevision': 4,
 };
 
 void main() {
@@ -293,4 +320,140 @@ void main() {
     await expectLater(api.load(), throwsA(isA<LarenorServerException>()));
     expect(api.boundSession, isNull);
   });
+
+  test(
+    'reserve-only adapter verifies exact percent receipt and readback',
+    () async {
+      var requestId = '';
+      final requests = <http.Request>[];
+      final account = await _account((request) async {
+        if (request.url.path.endsWith('/auth/login') ||
+            request.url.path.endsWith('/context')) {
+          return _session(request);
+        }
+        requests.add(request);
+        if (request.method == 'GET' &&
+            !request.url.path.contains('/reserve-commands/')) {
+          return _json(_reserveSnapshot());
+        }
+        if (request.url.path.endsWith('/reserve-previews')) {
+          requestId =
+              (jsonDecode(request.body) as Map<String, dynamic>)['requestId']
+                  as String;
+          return _json({
+            'schemaVersion': 1,
+            'requestId': requestId,
+            'coreId': core,
+            'homeId': home,
+            'accountId': accountId,
+            'accountRevision': 2,
+            'memberRevision': 2,
+            'sessionFamilyId': family,
+            'inverterId': inverter,
+            'inverterRevision': 12,
+            'batteryId': battery,
+            'batteryRevision': 8,
+            'batteryProviderRevision': 9,
+            'inputDigest': digest,
+            'targetReservePercent': 40,
+            'expiresAtMs': 100000,
+            'confirmationToken': 'd' * 64,
+          }, 201);
+        }
+        return _json(_reserveResult(requestId));
+      });
+      addTearDown(account.dispose);
+      final api = CoreEnergyPriorityApi(
+        account: account,
+        isCurrent: () => true,
+        random: Random(7),
+      );
+      final snapshot = await api.load();
+      expect(snapshot.canCharge, isFalse);
+      expect(snapshot.canSetReserve, isTrue);
+      expect(snapshot.batteryProviderRevision, 9);
+      final preview = await api.previewReserve(snapshot);
+      final receipt = await api.confirmReserve(preview);
+      final readback = await api.readbackReserve(preview);
+      expect(receipt.exactFor(preview), isTrue);
+      expect(readback, receipt);
+      expect(requests, hasLength(4));
+    },
+  );
+
+  test(
+    'admin binds exact authenticated HA service and battery source',
+    () async {
+      final requests = <http.Request>[];
+      final account = await _account((request) async {
+        if (request.url.path.endsWith('/auth/login') ||
+            request.url.path.endsWith('/context')) {
+          return _session(request);
+        }
+        requests.add(request);
+        if (request.url.path.endsWith('/admin/services')) {
+          return _json({
+            'services': [
+              {
+                'id': 'c' * 32,
+                'name': 'Home Assistant',
+                'kind': 'home_assistant',
+                'baseUrl': 'https://ha.invalid',
+                'revision': 4,
+                'credentialKeys': ['token'],
+                'verification': {
+                  'state': 'authenticated',
+                  'checkedAt': '2026-09-30T10:00:00Z',
+                  'version': '2026.9.2',
+                },
+              },
+            ],
+          });
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/reserve-binding')) {
+          return _json({
+            'schemaVersion': 1,
+            'serviceId': 'c' * 32,
+            'serviceRevision': 4,
+            'bindingRevision': 1,
+            'batteryId': battery,
+            'batteryProviderRevision': 9,
+            'controlSemantics': 'reserve_percent',
+            'integration': 'fronius',
+            'model': 'GEN24 Plus',
+          });
+        }
+        if (request.method == 'PUT' &&
+            request.url.path.endsWith('/reserve-binding')) {
+          return _json({'schemaVersion': 1, 'bindingRevision': 2});
+        }
+        return _json(_reserveSnapshot());
+      });
+      addTearDown(account.dispose);
+      final api = CoreEnergyPriorityApi(
+        account: account,
+        isCurrent: () => true,
+        random: Random(11),
+      );
+      final snapshot = await api.load();
+      final sources = await api.loadReserveSources(snapshot);
+      expect(sources, hasLength(1));
+      expect(sources.single.boundModel, 'GEN24 Plus');
+      await api.acceptReserveSource(
+        snapshot,
+        sources.single,
+        'number.gen24_battery_minimum_reserve',
+      );
+      final put = requests.singleWhere((request) => request.method == 'PUT');
+      expect(jsonDecode(put.body), {
+        'schemaVersion': 1,
+        'expectedServiceRevision': 4,
+        'expectedBindingRevision': 1,
+        'batteryId': battery,
+        'batteryProviderRevision': 9,
+        'reserveEntityId': 'number.gen24_battery_minimum_reserve',
+      });
+    },
+  );
 }

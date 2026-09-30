@@ -1031,6 +1031,8 @@ class EvccEnergyPriorityProvider:
             canDischarge=controllable,
             writable=False,
             physicalAcceptance="manual",
+            canSetReserve=False,
+            controlSemantics="none",
         )
         return inputs, capability
 

@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/energy_priorities/data/energy_priority_controller.dart';
 import 'package:larenor/features/energy_priorities/presentation/energy_priority_screen.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import 'energy_priority_controller_test.dart' as fixture;
 
@@ -26,7 +27,10 @@ void main() {
             CupertinoApp(
               locale: locale,
               supportedLocales: const [Locale('en'), Locale('tr')],
-              localizationsDelegates: GlobalCupertinoLocalizations.delegates,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                ...GlobalCupertinoLocalizations.delegates,
+              ],
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: const TextScaler.linear(2)),
@@ -70,4 +74,84 @@ void main() {
       );
     }
   }
+
+  testWidgets('reserve-only inverter exposes percent confirmation, not power', (
+    tester,
+  ) async {
+    final controller = EnergyPriorityController(
+      api: fixture.FakeEnergyPriorityApi(reserveOnly: true),
+      isCurrent: () => true,
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        supportedLocales: const [Locale('en'), Locale('tr')],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...GlobalCupertinoLocalizations.delegates,
+        ],
+        home: EnergyPriorityScreen(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('energy-preview-action')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('energy-preview-reserve')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('energy-preview-reserve')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('energy-confirm-reserve')),
+      findsOneWidget,
+    );
+    controller.dispose();
+  });
+
+  testWidgets('admin verifies Fronius source before reserve controls appear', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = fixture.FakeEnergyPriorityApi();
+    final controller = EnergyPriorityController(
+      api: api,
+      reserveSetupApi: fixture.FakeReserveSetupApi(api),
+      isCurrent: () => true,
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        supportedLocales: const [Locale('en'), Locale('tr')],
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          ...GlobalCupertinoLocalizations.delegates,
+        ],
+        home: EnergyPriorityScreen(controller: controller),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('energy-reserve-source-picker')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('energy-reserve-entity')),
+      'number.gen24_battery_minimum_reserve',
+    );
+    await tester.pump();
+    final bind = find.byKey(const ValueKey('energy-reserve-bind-source'));
+    await tester.ensureVisible(bind);
+    await tester.tap(bind);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('energy-preview-reserve')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('energy-reserve-source-picker')),
+      findsNothing,
+    );
+    controller.dispose();
+  });
 }

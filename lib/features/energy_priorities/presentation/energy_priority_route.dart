@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/core_energy_priority_api.dart';
@@ -97,6 +98,7 @@ class _EnergyPriorityRouteState extends ConsumerState<EnergyPriorityRoute> {
     setState(() {
       _controller = EnergyPriorityController(
         api: api,
+        reserveSetupApi: api,
         isCurrent: () => _current(generation) && identical(_api, api),
       );
     });
@@ -116,16 +118,16 @@ class _EnergyPriorityRouteState extends ConsumerState<EnergyPriorityRoute> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (controller != null) return EnergyPriorityScreen(controller: controller);
-    final tr = Localizations.localeOf(context).languageCode == 'tr';
+    final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text(tr ? 'Güneş ve batarya' : 'Solar and battery'),
+        middle: Text(l10n.energyPriorityTitle),
       ),
       child: Center(
         child: CupertinoButton(
           minimumSize: const Size(48, 48),
           onPressed: _connect,
-          child: Text(tr ? 'Core’a bağlan' : 'Connect to Core'),
+          child: Text(l10n.commonConnect),
         ),
       ),
     );

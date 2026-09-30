@@ -4639,5 +4639,44 @@
   "cameraSearchReturnToSearch": "Aramaya dön",
   "cameraSearchAllowedCameras": "Kullanılabilir kameralar",
   "cameraSearchCameraHelp": "En fazla 16 kamera seçin. Her aramada Core hesabının güncel izinleri de kontrol edilir. Anlamsal arama Frigate’ın yapılandırılmış modelini kullanır; kullanılamıyorsa kayıt metadatası aranır.",
-  "cameraSearchNoSources": "Önce Ev kaynaklarında Frigate kamera kaynaklarını bağlayın."
+  "cameraSearchNoSources": "Önce Ev kaynaklarında Frigate kamera kaynaklarını bağlayın.",
+  "energyPriorityTitle": "Güneş ve batarya",
+  "energyPriorityAdvisory": "Bu plan öneridir; invertere otomatik olarak yazmaz.",
+  "energyPriorityUnavailable": "Bu cihazda fiziksel inverter yazması doğrulanmadı.",
+  "energyPrioritySolar": "Güneş üretimi",
+  "energyPriorityLoad": "Tüketim",
+  "energyPriorityBattery": "Batarya",
+  "energyPriorityReserve": "Yedek rezerv",
+  "energyPriorityPreview": "İlk eylemi önizle",
+  "energyPriorityConfirm": "İnverter eylemini onayla",
+  "energyPriorityApplyReserve": "%{percent} yedek rezervi uygula",
+  "@energyPriorityApplyReserve": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "energyPriorityConfirmReserve": "Yedek rezervi onayla",
+  "energyPriorityReserveOnly": "Bu inverter doğrulanmış bir yedek rezerv yüzdesini destekler. Planlanan şarj ve deşarj gücü öneri olarak kalır.",
+  "energyPriorityCancel": "Vazgeç",
+  "energyPriorityRefresh": "Yenile",
+  "energyPriorityLoading": "Enerji planı yükleniyor",
+  "energyPriorityFailed": "Core enerji planı doğrulanamadı",
+  "energyPriorityStale": "Hesap, oturum veya rota değişti",
+  "energyPriorityVerified": "İnverter ayarı okuması doğrulandı",
+  "energyPriorityTimeline": "Bugünün enerji planı",
+  "energyPriorityFreshness": "Veri güncelliği",
+  "energyPriorityCharge": "Şarj et",
+  "energyPriorityDischarge": "Bataryadan kullan",
+  "energyPriorityHold": "Beklet",
+  "energyPriorityNoCurrentAction": "Şu an uygulanabilecek destekli bir inverter eylemi yok.",
+  "energyPrioritySetupTitle": "Doğrulanmış inverter kaynağı",
+  "energyPrioritySetupDescription": "Kimliği doğrulanmış bir Home Assistant bağlantısı seçip Fronius minimum rezerv number varlığını girin. Core yazmayı açmadan önce kayıt, cihaz, sınır ve canlı durumu doğrular.",
+  "energyPrioritySetupSource": "Home Assistant bağlantısı",
+  "energyPrioritySetupEntity": "Fronius rezerv varlığı (number.…)",
+  "energyPrioritySetupAccept": "Kaynağı doğrula ve bağla",
+  "energyPrioritySetupNoSource": "Kimliği doğrulanmış bir Home Assistant bağlantısı yok.",
+  "energyPrioritySetupFailed": "İnverter kaynağı doğrulanamadı. Başka bir yazma denemeden önce güncel durumu okuyun.",
+  "energyPrioritySetupRefresh": "Güncel kaynak durumunu oku"
 }

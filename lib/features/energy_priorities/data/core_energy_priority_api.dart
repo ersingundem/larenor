@@ -3,10 +3,13 @@ import 'dart:math';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
+import '../../server/services/data/server_services_api.dart';
+import '../../server/services/domain/server_service_models.dart';
 import '../domain/energy_priority_models.dart';
 import 'energy_priority_controller.dart';
 
-final class CoreEnergyPriorityApi implements EnergyPriorityApi {
+final class CoreEnergyPriorityApi
+    implements EnergyPriorityApi, EnergyReserveSetupApi {
   CoreEnergyPriorityApi({
     required this.account,
     required this.isCurrent,
@@ -17,6 +20,7 @@ final class CoreEnergyPriorityApi implements EnergyPriorityApi {
   final Random _random;
   ServerSession? _session;
   EnergyPrioritySnapshot? _boundSnapshot;
+  List<EnergyReserveSource> _reserveSources = const [];
   bool _retired = false;
 
   ServerSession? get boundSession => _session;
@@ -24,6 +28,7 @@ final class CoreEnergyPriorityApi implements EnergyPriorityApi {
     _retired = true;
     _session = null;
     _boundSnapshot = null;
+    _reserveSources = const [];
   }
 
   void _check() {
@@ -74,6 +79,7 @@ final class CoreEnergyPriorityApi implements EnergyPriorityApi {
       throw const LarenorServerException('invalid_response');
     }
     _boundSnapshot = value;
+    _reserveSources = const [];
     return value;
   });
 
@@ -136,6 +142,179 @@ final class CoreEnergyPriorityApi implements EnergyPriorityApi {
       value,
     ),
   );
+
+  @override
+  Future<EnergyReservePreview> previewReserve(EnergyPrioritySnapshot value) =>
+      _run((api, session) async {
+        if (!identical(_boundSnapshot, value) ||
+            !value.canControl ||
+            !value.canSetReserve ||
+            value.inverterId == null ||
+            value.inverterRevision == null) {
+          throw const LarenorServerException('cancelled');
+        }
+        final requestId = _requestId();
+        return _decodeReservePreview(
+          await api.request(
+            'POST',
+            '${_root(session)}/reserve-previews',
+            token: session.accessToken,
+            body: {
+              'schemaVersion': 1,
+              'requestId': requestId,
+              'inputDigest': value.inputDigest,
+              'inverterId': value.inverterId,
+              'expectedInverterRevision': value.inverterRevision,
+              'expectedAccountRevision': value.accountRevision,
+              'expectedHomeRevision': value.homeRevision,
+              'targetReservePercent': value.reservePercent,
+            },
+          ),
+          value,
+          requestId,
+        );
+      });
+
+  @override
+  Future<EnergyReserveResult> confirmReserve(EnergyReservePreview value) =>
+      _run(
+        (api, session) async => _decodeReserveResult(
+          await api.request(
+            'POST',
+            '${_root(session)}/reserve-previews/${value.requestId}/confirm',
+            token: session.accessToken,
+            body: {
+              'schemaVersion': 1,
+              'confirmationToken': value.confirmationToken,
+            },
+          ),
+          value,
+        ),
+      );
+
+  @override
+  Future<EnergyReserveResult> readbackReserve(EnergyReservePreview value) =>
+      _run(
+        (api, session) async => _decodeReserveResult(
+          await api.request(
+            'GET',
+            '${_root(session)}/reserve-commands/${value.requestId}',
+            token: session.accessToken,
+          ),
+          value,
+        ),
+      );
+
+  @override
+  Future<List<EnergyReserveSource>> loadReserveSources(
+    EnergyPrioritySnapshot snapshot,
+  ) => _run((api, session) async {
+    if (!identical(_boundSnapshot, snapshot) || !snapshot.canAdminister) {
+      throw const LarenorServerException('cancelled');
+    }
+    final services = await ServerServicesApi(api, session.accessToken).list();
+    final result = <EnergyReserveSource>[];
+    for (final service in services.where(
+      (value) =>
+          value.kind == ServerServiceKind.homeAssistant &&
+          value.verification.state ==
+              ServerServiceVerificationState.authenticated,
+    )) {
+      var bindingRevision = 0;
+      String? model;
+      try {
+        final value = _decodeReserveBinding(
+          await api.request(
+            'GET',
+            '${_root(session)}/providers/fronius/${service.id}/reserve-binding',
+            token: session.accessToken,
+          ),
+          snapshot,
+          service,
+        );
+        bindingRevision = value.$1;
+        model = value.$2;
+      } on LarenorServerException catch (error) {
+        if (error.code != 'not_found') rethrow;
+      }
+      result.add(
+        EnergyReserveSource(
+          serviceId: service.id,
+          serviceRevision: service.revision,
+          name: service.name,
+          bindingRevision: bindingRevision,
+          boundModel: model,
+        ),
+      );
+    }
+    _reserveSources = List.unmodifiable(result);
+    return _reserveSources;
+  });
+
+  @override
+  Future<void> acceptReserveSource(
+    EnergyPrioritySnapshot snapshot,
+    EnergyReserveSource source,
+    String entityId,
+  ) => _run((api, session) async {
+    if (!identical(_boundSnapshot, snapshot) ||
+        !snapshot.canAdminister ||
+        !_reserveSources.contains(source) ||
+        !RegExp(r'^number\.[a-z0-9_]{1,249}$').hasMatch(entityId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final value = await api.request(
+      'PUT',
+      '${_root(session)}/providers/fronius/${source.serviceId}/reserve-binding',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'expectedServiceRevision': source.serviceRevision,
+        'expectedBindingRevision': source.bindingRevision,
+        'batteryId': snapshot.batteryId,
+        'batteryProviderRevision': snapshot.batteryProviderRevision,
+        'reserveEntityId': entityId,
+      },
+    );
+    final record = _object(value, const {'schemaVersion', 'bindingRevision'});
+    if (record['schemaVersion'] != 1 ||
+        _integer(record['bindingRevision']) != source.bindingRevision + 1) {
+      throw _invalid;
+    }
+    _reserveSources = const [];
+  });
+}
+
+(int, String) _decodeReserveBinding(
+  Object? raw,
+  EnergyPrioritySnapshot snapshot,
+  ServerService service,
+) {
+  final value = _object(raw, const {
+    'schemaVersion',
+    'serviceId',
+    'serviceRevision',
+    'bindingRevision',
+    'batteryId',
+    'batteryProviderRevision',
+    'controlSemantics',
+    'integration',
+    'model',
+  });
+  final model = value['model'];
+  if (value['schemaVersion'] != 1 ||
+      value['serviceId'] != service.id ||
+      value['serviceRevision'] != service.revision ||
+      value['batteryId'] != snapshot.batteryId ||
+      value['batteryProviderRevision'] != snapshot.batteryProviderRevision ||
+      value['controlSemantics'] != 'reserve_percent' ||
+      value['integration'] != 'fronius' ||
+      model is! String ||
+      model.isEmpty ||
+      model.length > 128) {
+    throw _invalid;
+  }
+  return (_integer(value['bindingRevision']), model);
 }
 
 EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
@@ -166,6 +345,7 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
       authority['coreId'] != context.coreId ||
       authority['homeId'] != context.homeId ||
       authority['accountId'] != session.user.id ||
+      authority['role'] != session.user.role.name ||
       authority['active'] != true ||
       authority['canPlan'] != true ||
       authority['canControl'] is! bool) {
@@ -319,6 +499,8 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
           'canDischarge',
           'writable',
           'physicalAcceptance',
+          'canSetReserve',
+          'controlSemantics',
         });
   final canControl = authority['canControl'] as bool;
   if (inputs['schemaVersion'] != 1 ||
@@ -366,6 +548,12 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
           (inverter['schemaVersion'] != 1 ||
               inverter['canCharge'] is! bool ||
               inverter['canDischarge'] is! bool ||
+              inverter['canSetReserve'] is! bool ||
+              !const {
+                'exact_power',
+                'reserve_percent',
+                'none',
+              }.contains(inverter['controlSemantics']) ||
               inverter['physicalAcceptance'] != 'manual')) {
     throw _invalid;
   }
@@ -376,11 +564,18 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
     sessionFamilyId: _identity(authority['sessionFamilyId']),
     homeRevision: _integer(authority['homeRevision']),
     accountRevision: _integer(authority['accountRevision']),
+    canAdminister: session.user.canAdminister,
     canControl: canControl,
+    canCharge: inverter?['canCharge'] == true && inverter?['writable'] == true,
+    canDischarge:
+        inverter?['canDischarge'] == true && inverter?['writable'] == true,
+    canSetReserve:
+        inverter?['canSetReserve'] == true && inverter?['writable'] == true,
     planId: _identity(plan['planId']),
     inputDigest: _digest(plan['inputDigest']),
     batteryId: _identity(battery['resourceId']),
     batteryRevision: _integer(battery['revision']),
+    batteryProviderRevision: _integer(battery['providerRevision']),
     inverterId: inverter == null ? null : _identity(inverter['inverterId']),
     inverterRevision: inverter == null ? null : _integer(inverter['revision']),
     reservePercent: _percent(reserve['backupReservePercent']),
@@ -512,6 +707,91 @@ EnergyCommandResult _decodeResult(Object? raw, EnergyCommandPreview preview) {
     verified: true,
     targetPowerW: _signed(readback['targetPowerW']),
     observedPowerW: _signed(readback['observedPowerW']),
+  );
+}
+
+EnergyReservePreview _decodeReservePreview(
+  Object? raw,
+  EnergyPrioritySnapshot snapshot,
+  String requestId,
+) {
+  final value = _object(raw, const {
+    'schemaVersion',
+    'requestId',
+    'coreId',
+    'homeId',
+    'accountId',
+    'accountRevision',
+    'memberRevision',
+    'sessionFamilyId',
+    'inverterId',
+    'inverterRevision',
+    'batteryId',
+    'batteryRevision',
+    'batteryProviderRevision',
+    'inputDigest',
+    'targetReservePercent',
+    'expiresAtMs',
+    'confirmationToken',
+  });
+  if (value['schemaVersion'] != 1 ||
+      value['requestId'] != requestId ||
+      value['coreId'] != snapshot.coreId ||
+      value['homeId'] != snapshot.homeId ||
+      value['accountId'] != snapshot.accountId ||
+      value['accountRevision'] != snapshot.accountRevision ||
+      value['sessionFamilyId'] != snapshot.sessionFamilyId ||
+      value['inverterId'] != snapshot.inverterId ||
+      value['inverterRevision'] != snapshot.inverterRevision ||
+      value['batteryId'] != snapshot.batteryId ||
+      value['batteryRevision'] != snapshot.batteryRevision ||
+      value['batteryProviderRevision'] != snapshot.batteryProviderRevision ||
+      value['inputDigest'] != snapshot.inputDigest ||
+      value['targetReservePercent'] != snapshot.reservePercent) {
+    throw _invalid;
+  }
+  return EnergyReservePreview(
+    requestId: requestId,
+    inputDigest: snapshot.inputDigest,
+    coreId: snapshot.coreId,
+    homeId: snapshot.homeId,
+    accountId: snapshot.accountId,
+    sessionFamilyId: snapshot.sessionFamilyId,
+    inverterId: snapshot.inverterId!,
+    inverterRevision: snapshot.inverterRevision!,
+    batteryId: snapshot.batteryId,
+    batteryRevision: snapshot.batteryRevision,
+    batteryProviderRevision: snapshot.batteryProviderRevision,
+    targetReservePercent: snapshot.reservePercent,
+    confirmationToken: _digest(value['confirmationToken']),
+  );
+}
+
+EnergyReserveResult _decodeReserveResult(
+  Object? raw,
+  EnergyReservePreview preview,
+) {
+  final value = _object(raw, const {
+    'schemaVersion',
+    'requestId',
+    'status',
+    'targetReservePercent',
+    'observedReservePercent',
+    'bindingRevision',
+  });
+  if (value['schemaVersion'] != 1 ||
+      value['requestId'] != preview.requestId ||
+      value['targetReservePercent'] != preview.targetReservePercent ||
+      !const {'confirmed', 'uncertain', 'mismatch'}.contains(value['status'])) {
+    throw _invalid;
+  }
+  final observed = value['observedReservePercent'];
+  return EnergyReserveResult(
+    requestId: preview.requestId,
+    confirmed: value['status'] == 'confirmed',
+    targetReservePercent: preview.targetReservePercent,
+    observedReservePercent: observed == null ? null : _percent(observed),
+    bindingRevision: _integer(value['bindingRevision']),
   );
 }
 

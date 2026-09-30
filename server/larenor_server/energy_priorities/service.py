@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import json
+import secrets
 import threading
 
 from ..errors import ApiError
@@ -5,9 +9,16 @@ from .api_models import (
     ConfirmEnergyCommand,
     EnergyPrioritySnapshot,
     PreviewEnergyCommand,
+    PreviewReserveCommand,
 )
 from .commands import MAX_COMMANDS, InverterCommandManager
-from .models import EnergyAuthority, EnergyInputs, InverterCapability
+from .models import (
+    EnergyAuthority,
+    EnergyInputs,
+    InverterCapability,
+    ReserveCommandPreview,
+    ReserveCommandResult,
+)
 from .planner import EnergyPlanner
 
 
@@ -24,16 +35,22 @@ class EnergyPriorityService:
         provider=None,
         worker=None,
         inverter=None,
+        reserve_control=None,
     ):
         self.db, self.auth, self.settings = db, auth, settings
         self.context, self.provider, self.worker = context, provider, worker
         self.inverter = (
             None if inverter is None else InverterCapability.model_validate(inverter)
         )
+        self.reserve_control = reserve_control
+        self._command_key = hmac.new(
+            key, b"larenor:energy-reserve-confirmation:v1", hashlib.sha256
+        ).digest()
         self._lock = threading.RLock()
         self._authorities = {}
         self._plans = {}
         self._previews = {}
+        self._reserve_previews = {}
         self._commands = InverterCommandManager(
             auditKey=key,
             authorityResolver=self._resolve_authority,
@@ -70,9 +87,13 @@ class EnergyPriorityService:
             canPlan=True,
             canControl=(
                 row["role"] == "admin"
-                and self.worker is not None
                 and selected is not None
                 and selected.writable
+                and (
+                    self.worker is not None
+                    or self.reserve_control is not None
+                    and selected.canSetReserve
+                )
             ),
         )
         with self._lock:
@@ -99,6 +120,14 @@ class EnergyPriorityService:
                 raw_inputs = self.provider(authority)
                 capability = self.inverter
             inputs = EnergyInputs.model_validate(raw_inputs)
+            if (
+                self.reserve_control is not None
+                and capability is not None
+                and capability.controlSemantics == "none"
+            ):
+                capability = InverterCapability.model_validate(
+                    self.reserve_control.capability(inputs, capability)
+                )
         except ApiError:
             raise
         except Exception:  # noqa: BLE001 -- provider failures are redacted
@@ -238,3 +267,159 @@ class EnergyPriorityService:
     def result(self, actor, core_id, home_id, request_id):
         self._scope(core_id, home_id)
         return self._commands.result(self._authority(actor), request_id)
+
+    @staticmethod
+    def _reserve_values(preview):
+        return [
+            preview.requestId,
+            preview.coreId,
+            preview.homeId,
+            preview.accountId,
+            preview.accountRevision,
+            preview.memberRevision,
+            preview.sessionFamilyId,
+            preview.inverterId,
+            preview.inverterRevision,
+            preview.batteryId,
+            preview.batteryRevision,
+            preview.batteryProviderRevision,
+            preview.inputDigest,
+            preview.targetReservePercent,
+            preview.expiresAtMs,
+        ]
+
+    def _reserve_token(self, preview):
+        raw = json.dumps(
+            self._reserve_values(preview), separators=(",", ":")
+        ).encode("ascii")
+        return hmac.new(self._command_key, raw, hashlib.sha256).hexdigest()
+
+    def reserve_preview(self, actor, core_id, home_id, raw):
+        body = PreviewReserveCommand.model_validate(raw)
+        snapshot = self.snapshot(actor, core_id, home_id)
+        capability = snapshot.inverter
+        if (
+            body.inputDigest != snapshot.plan.inputDigest
+            or body.expectedAccountRevision != snapshot.authority.accountRevision
+            or body.expectedHomeRevision != snapshot.authority.homeRevision
+            or capability is None
+            or not capability.writable
+            or not capability.canSetReserve
+            or capability.controlSemantics != "reserve_percent"
+            or (body.inverterId, body.expectedInverterRevision)
+            != (capability.inverterId, capability.revision)
+            or body.targetReservePercent
+            != snapshot.inputs.reserve.backupReservePercent
+        ):
+            raise ApiError("revision_conflict", 409)
+        draft = ReserveCommandPreview(
+            schemaVersion=1,
+            requestId=body.requestId,
+            coreId=snapshot.authority.coreId,
+            homeId=snapshot.authority.homeId,
+            accountId=snapshot.authority.accountId,
+            accountRevision=snapshot.authority.accountRevision,
+            memberRevision=snapshot.authority.memberRevision,
+            sessionFamilyId=snapshot.authority.sessionFamilyId,
+            inverterId=capability.inverterId,
+            inverterRevision=capability.revision,
+            batteryId=snapshot.inputs.battery.resourceId,
+            batteryRevision=snapshot.inputs.battery.revision,
+            batteryProviderRevision=snapshot.inputs.battery.providerRevision,
+            inputDigest=snapshot.plan.inputDigest,
+            targetReservePercent=body.targetReservePercent,
+            expiresAtMs=int(self.settings.clock() * 1000) + 60_000,
+            confirmationToken="0" * 64,
+        )
+        preview = draft.model_copy(
+            update={"confirmationToken": self._reserve_token(draft)}
+        )
+        with self._lock:
+            old = self._reserve_previews.get(preview.requestId)
+            if old is not None and old != preview:
+                raise ApiError("idempotency_conflict", 409)
+            if old is None and len(self._reserve_previews) >= MAX_COMMANDS:
+                raise ApiError("rate_limited", 429)
+            self._reserve_previews[preview.requestId] = preview
+        return preview
+
+    def _reserve_context(self, actor, core_id, home_id):
+        snapshot = self.snapshot(actor, core_id, home_id)
+        if snapshot.inverter is None:
+            raise ApiError("revision_conflict", 409)
+        return (
+            snapshot.authority,
+            snapshot.inputs,
+            snapshot.plan.inputDigest,
+            snapshot.inverter,
+        )
+
+    @staticmethod
+    def _reserve_result(receipt):
+        status = {
+            "verified": "confirmed",
+            "uncertain": "uncertain",
+            "mismatch": "mismatch",
+        }[receipt.status]
+        return ReserveCommandResult(
+            schemaVersion=1,
+            requestId=receipt.request_id,
+            status=status,
+            targetReservePercent=receipt.target_reserve_percent,
+            observedReservePercent=receipt.observed_reserve_percent,
+            bindingRevision=receipt.binding_revision,
+        )
+
+    def reserve_confirm(self, actor, core_id, home_id, request_id, token):
+        self._scope(core_id, home_id)
+        with self._lock:
+            preview = self._reserve_previews.get(request_id)
+        if (
+            preview is None
+            or not isinstance(token, str)
+            or not secrets.compare_digest(token, self._reserve_token(preview))
+            or int(self.settings.clock() * 1000) >= preview.expiresAtMs
+        ):
+            raise ApiError("invalid_request")
+        authority, inputs, digest, capability = self._reserve_context(
+            actor, core_id, home_id
+        )
+        if (
+            (authority.coreId, authority.homeId, authority.accountId,
+             authority.accountRevision, authority.memberRevision,
+             authority.sessionFamilyId)
+            != (preview.coreId, preview.homeId, preview.accountId,
+                preview.accountRevision, preview.memberRevision,
+                preview.sessionFamilyId)
+            or (capability.inverterId, capability.revision)
+            != (preview.inverterId, preview.inverterRevision)
+            or (inputs.battery.resourceId, inputs.battery.revision,
+                inputs.battery.providerRevision, digest)
+            != (preview.batteryId, preview.batteryRevision,
+                preview.batteryProviderRevision, preview.inputDigest)
+        ):
+            raise ApiError("revision_conflict", 409)
+        receipt = self.reserve_control.apply(
+            authority,
+            inputs,
+            capability,
+            request_id=request_id,
+            input_digest=digest,
+            target_reserve_percent=preview.targetReservePercent,
+            guard=lambda: self._reserve_context(actor, core_id, home_id),
+        )
+        return self._reserve_result(receipt)
+
+    def reserve_result(self, actor, core_id, home_id, request_id):
+        authority, inputs, digest, capability = self._reserve_context(
+            actor, core_id, home_id
+        )
+        receipt = self.reserve_control.result(
+            authority,
+            inputs,
+            capability,
+            request_id=request_id,
+            input_digest=digest,
+            guard=lambda: self._reserve_context(actor, core_id, home_id),
+        )
+        return self._reserve_result(receipt)

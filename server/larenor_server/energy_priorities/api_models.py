@@ -39,3 +39,25 @@ class AcceptEvccBatteryBinding(FrozenModel):
     backupReservePercent: int = Field(ge=0, le=100)
     maxChargePowerW: int = Field(ge=1, le=1_000_000)
     maxDischargePowerW: int = Field(ge=1, le=1_000_000)
+
+
+class AcceptFroniusReserveBinding(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedServiceRevision: Revision
+    expectedBindingRevision: int = Field(ge=0, le=2**63 - 1)
+    batteryId: Identity
+    batteryProviderRevision: Revision
+    reserveEntityId: str = Field(
+        min_length=8, max_length=256, pattern=r"number\.[a-z0-9_]+"
+    )
+
+
+class PreviewReserveCommand(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    inputDigest: Snapshot
+    inverterId: Identity
+    expectedInverterRevision: Revision
+    expectedAccountRevision: Revision
+    expectedHomeRevision: Revision
+    targetReservePercent: int = Field(ge=0, le=100)

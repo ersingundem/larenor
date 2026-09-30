@@ -15,6 +15,8 @@ from .models import (
     ManualOverride,
     MeterInput,
     ReservePolicy,
+    ReserveCommandPreview,
+    ReserveCommandResult,
     SolarForecastInput,
     TariffInput,
 )
@@ -39,6 +41,8 @@ __all__ = [
     "ManualOverride",
     "MeterInput",
     "ReservePolicy",
+    "ReserveCommandPreview",
+    "ReserveCommandResult",
     "SolarForecastInput",
     "TariffInput",
 ]

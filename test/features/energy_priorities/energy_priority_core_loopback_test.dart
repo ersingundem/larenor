@@ -236,6 +236,8 @@ final class _EnergyCore {
       'canDischarge': true,
       'writable': true,
       'physicalAcceptance': 'manual',
+      'canSetReserve': false,
+      'controlSemantics': 'exact_power',
     },
   };
 

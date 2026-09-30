@@ -208,6 +208,10 @@ from .garden_irrigation.runtime import build_irrigation_gateway
 from .garden_irrigation.home_assistant import HomeAssistantIrrigationProvider
 from .garden_irrigation.source_schema import migrate_irrigation_source
 from .energy_priorities.service import EnergyPriorityService
+from .energy_priorities.fronius import (
+    FroniusReserveControl,
+    migrate_fronius_reserve_control,
+)
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
 from .evcc import (
@@ -544,6 +548,7 @@ class CoreServices:
                 migrate_evcc_energy_windows(connection)
                 migrate_evcc_current_control(connection)
                 migrate_evcc_battery_bindings(connection)
+                migrate_fronius_reserve_control(connection)
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
@@ -996,6 +1001,22 @@ class CoreServices:
             energy_priority_provider = self._energy_priority_provider
             if energy_priority_provider is None and evcc_runtime is not None:
                 energy_priority_provider = evcc_runtime.energy_priorities
+            self.fronius_reserve_control = FroniusReserveControl(
+                self.db,
+                audit_key=hmac.new(
+                    key,
+                    b"larenor:fronius-reserve-control:v1:audit",
+                    hashlib.sha256,
+                ).digest(),
+                clock=settings.clock,
+                services=self.services,
+                connection_resolver=lambda connection, service_id, revision: (
+                    self.services._home_assistant_connection(
+                        connection, service_id, revision
+                    )
+                ),
+            )
+            self.fronius_reserve_control.validate_storage()
             self.energy_priorities = EnergyPriorityService(
                 self.db,
                 self.auth,
@@ -1005,6 +1026,7 @@ class CoreServices:
                 energy_priority_provider,
                 self._energy_priority_inverter_worker,
                 self._energy_priority_inverter_capability,
+                self.fronius_reserve_control,
             )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(

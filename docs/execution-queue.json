@@ -4730,7 +4730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION normal kurulum incelemesinde F41 yalnız enjekte edilmiş immutable index ile çalışıyordu. Gerçek HA Frigate kamera registry eşleştirmesi, yetkili Frigate /api/events ve /api/events/search, kalıcı şifreli kaynak ayarı, gerçek kayıt revizyonu/silinen kayıt temizliği ve admin kurulum ekranı uygulanıyor. Eski sözleşme testleri normal Client→Core→Frigate kabulünün yerine geçmez; kapsamlı kabul ve CI açık."
+      "reason": "244d31c8 gerçek normal Core→HA WS→Frigate arama/kaynak kurulumu, silinen olay ve correction revizyonunu uyguladı; gerçek Flutter Client→Core→TCP provider kapısı geçti. Yetkili klip görüntüleme dilimi geliştirilecek; tam kabul ve exact HEAD CI açık."
     },
     {
       "id": "F44",
@@ -4806,7 +4806,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4830,7 +4830,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Oda konforu ve havalandırma planı gerçek HVAC/pencere worker komutları, tam geri okuma doğrulaması ve kalıcı sonuç durumlarıyla uygulandı; 10 sunucu ve 19 Flutter testi ile focused analyze geçti, tam CI bekliyor."
+      "reason": "FINAL.FUNCTION normal Core denetiminde gerçek worker/kaynak yokluğu, network sırasında SQLite lock ve crash sonrası tekrar gönderim riski bulundu. Kalıcı dispatch intent, lock dışı I/O ve gerçek HA oda/climate/cover kaynak adapteri geliştiriliyor; eski sözleşme testleri production kabulü değildir."
     },
     {
       "id": "F48",
@@ -4868,7 +4868,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4892,14 +4892,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "b1fedff0 gerçek evcc şarj kabiliyetini ve explicit admin-CAS enerji pencerelerini normal runtimea bağladı; pencereler kalıcı/HMAC korumalı, negatif tarife ve revizyon değişimi korunuyor. Şarj planı görülebilir, üretim kontrolü hâlâ kapalı. F48 kontrol bağımlılığı ile gerçek charger yürütme/makbuz/readback ve Client kabulü tamamlanacak."
+      "reason": "FINAL.FUNCTION gerçek evcc Client incelemesinde providerKind ve negatif tarife parse hataları, kayıp ACK command kimliği, dispatch öncesi taze cihaz kontrolü ve I/O sonrası yetki eksikleri bulundu. Gerçek charger yürütme/readback ve normal TCP kabulü düzeltiliyor; geniş kabul/CI açık."
     },
     {
       "id": "F47",
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "F48 gerçek manuel kontrol dilimi 69b54bbb ile uygulandı. F47 fresh evcc inverter/batarya kataloğu, gerçek SoC/kapasite ve açık kalıcı rezerv kaynak bağlantısı geliştiriliyor; statik tahminler gerçek batarya kabiliyeti sayılmıyor. Normal evcc targetPowerW limit sözleşmesi sunmadığından salt mode değişimi inverter kontrolü olarak doğrulanmayacak. Tam kabul ve exact HEAD CI açık."
+      "reason": "Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık."
     },
     {
       "id": "F49",
@@ -5001,7 +5001,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Eski cihazlar için akıllı kumanda",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5025,7 +5025,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sürümlü ve şifreli Core kumanda kataloğu, güvenli önizleme/onay/kalıcı komut makbuzu ile sağlayıcı içinde kalan IR tuş öğrenme ve durable readback tablet akışına bağlandı. Kullanıcının kararı gereği özellik testleri, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
+      "reason": "FINAL.FUNCTION normal Core denetiminde kumanda providerı yok. Gerçek HA Broadlink registry ve şifreli tuş eşleştirme ile tek remote.send_command gönderimi geliştiriliyor. Broadlink 200 ACK fiziksel IR etkisini kanıtlamaz; normal receipt belirsiz olacak ve yeniden gönderilmeyecek. Öğrenme/Zigbee yetenekleri resmi readback olmadan sunulmayacak."
     },
     {
       "id": "F57",

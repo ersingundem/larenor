@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
@@ -8,43 +9,41 @@ import '../data/energy_priority_controller.dart';
 import '../domain/energy_priority_models.dart';
 
 final class _Text {
-  const _Text(this.tr);
-  factory _Text.of(BuildContext context) =>
-      _Text(Localizations.localeOf(context).languageCode == 'tr');
-  final bool tr;
-  String get title => tr ? 'Güneş ve batarya' : 'Solar and battery';
-  String get advisory => tr
-      ? 'Bu plan öneridir; otomatik inverter yazması yapmaz.'
-      : 'This plan is advisory and never writes to the inverter automatically.';
-  String get unavailable => tr
-      ? 'Gerçek inverter yazması bu cihazda doğrulanmadı.'
-      : 'Physical inverter writes are not verified on this device.';
-  String get solar => tr ? 'Güneş üretimi' : 'Solar production';
-  String get load => tr ? 'Tüketim' : 'Consumption';
-  String get battery => tr ? 'Batarya' : 'Battery';
-  String get reserve => tr ? 'Yedek rezerv' : 'Backup reserve';
-  String get preview => tr ? 'İlk eylemi önizle' : 'Preview first action';
-  String get confirm =>
-      tr ? 'İnverter eylemini onayla' : 'Confirm inverter action';
-  String get cancel => tr ? 'Vazgeç' : 'Cancel';
-  String get refresh => tr ? 'Yenile' : 'Refresh';
-  String get loading => tr ? 'Enerji planı yükleniyor' : 'Loading energy plan';
-  String get failed => tr
-      ? 'Core enerji planı doğrulanamadı'
-      : 'Core energy plan could not be verified';
-  String get stale => tr
-      ? 'Hesap, oturum veya rota değişti'
-      : 'Account, session, or route changed';
-  String get verified =>
-      tr ? 'İnverter okuması doğrulandı' : 'Inverter readback verified';
-  String get timeline => tr ? 'Bugünün enerji planı' : 'Today’s energy plan';
-  String get freshness => tr ? 'Veri güncelliği' : 'Data freshness';
-  String get charge => tr ? 'Şarj et' : 'Charge';
-  String get discharge => tr ? 'Bataryadan kullan' : 'Use battery';
-  String get hold => tr ? 'Beklet' : 'Hold';
-  String get noCurrentAction => tr
-      ? 'Şu an uygulanabilir bir inverter eylemi yok.'
-      : 'There is no inverter action to apply right now.';
+  const _Text(this.value);
+  factory _Text.of(BuildContext context) => _Text(AppLocalizations.of(context));
+  final AppLocalizations value;
+  String get title => value.energyPriorityTitle;
+  String get advisory => value.energyPriorityAdvisory;
+  String get unavailable => value.energyPriorityUnavailable;
+  String get solar => value.energyPrioritySolar;
+  String get load => value.energyPriorityLoad;
+  String get battery => value.energyPriorityBattery;
+  String get reserve => value.energyPriorityReserve;
+  String get preview => value.energyPriorityPreview;
+  String get confirm => value.energyPriorityConfirm;
+  String applyReserve(int percent) => value.energyPriorityApplyReserve(percent);
+  String get confirmReserve => value.energyPriorityConfirmReserve;
+  String get reserveOnly => value.energyPriorityReserveOnly;
+  String get cancel => value.energyPriorityCancel;
+  String get refresh => value.energyPriorityRefresh;
+  String get loading => value.energyPriorityLoading;
+  String get failed => value.energyPriorityFailed;
+  String get stale => value.energyPriorityStale;
+  String get verified => value.energyPriorityVerified;
+  String get timeline => value.energyPriorityTimeline;
+  String get freshness => value.energyPriorityFreshness;
+  String get charge => value.energyPriorityCharge;
+  String get discharge => value.energyPriorityDischarge;
+  String get hold => value.energyPriorityHold;
+  String get noCurrentAction => value.energyPriorityNoCurrentAction;
+  String get setupTitle => value.energyPrioritySetupTitle;
+  String get setupDescription => value.energyPrioritySetupDescription;
+  String get setupSource => value.energyPrioritySetupSource;
+  String get setupEntity => value.energyPrioritySetupEntity;
+  String get setupAccept => value.energyPrioritySetupAccept;
+  String get setupNoSource => value.energyPrioritySetupNoSource;
+  String get setupFailed => value.energyPrioritySetupFailed;
+  String get setupRefresh => value.energyPrioritySetupRefresh;
 }
 
 class EnergyPriorityScreen extends StatefulWidget {
@@ -56,6 +55,7 @@ class EnergyPriorityScreen extends StatefulWidget {
 
 class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
   AppInteractionController? _interaction;
+  final _reserveEntity = TextEditingController();
   @override
   void initState() {
     super.initState();
@@ -78,7 +78,12 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
   void _interactionChanged() =>
       widget.controller.setInteractive(_interaction?.active ?? true);
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (widget.controller.snapshot?.canSetReserve == true &&
+        _reserveEntity.text.isNotEmpty) {
+      _reserveEntity.clear();
+    }
+    setState(() {});
   }
 
   @override
@@ -86,6 +91,7 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
     _interaction?.removeListener(_interactionChanged);
     widget.controller.removeListener(_changed);
     widget.controller.setInteractive(false);
+    _reserveEntity.dispose();
     super.dispose();
   }
 
@@ -111,9 +117,36 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
                   child: Text(text.unavailable),
                 ),
               if (snapshot != null &&
+                  snapshot.canAdminister &&
+                  controller.canConfigureReserve &&
+                  !snapshot.canSetReserve)
+                _ReserveSourceSetup(
+                  controller: controller,
+                  entityController: _reserveEntity,
+                  text: text,
+                  onEntityChanged: () => setState(() {}),
+                ),
+              if (snapshot?.canSetReserve == true)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(text.reserveOnly),
+                ),
+              if (snapshot != null &&
+                  snapshot.canSetReserve &&
+                  controller.pending == null &&
+                  controller.reservePending == null)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('energy-preview-reserve'),
+                  leading: const Icon(CupertinoIcons.shield_lefthalf_fill),
+                  title: Text(text.applyReserve(snapshot.reservePercent)),
+                  onTap: controller.canAct ? controller.previewReserve : null,
+                ),
+              if (snapshot != null &&
                   currentAction != null &&
+                  snapshot.supports(currentAction) &&
                   snapshot.canControl &&
-                  controller.pending == null)
+                  controller.pending == null &&
+                  controller.reservePending == null)
                 SettingsActionTile(
                   buttonKey: const ValueKey('energy-preview-action'),
                   leading: const Icon(CupertinoIcons.bolt_circle),
@@ -124,8 +157,10 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
                 ),
               if (snapshot != null &&
                   snapshot.canControl &&
+                  !snapshot.canSetReserve &&
                   currentAction == null &&
-                  controller.pending == null)
+                  controller.pending == null &&
+                  controller.reservePending == null)
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(text.noCurrentAction),
@@ -137,13 +172,22 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
                   title: Text(text.confirm),
                   onTap: controller.canAct ? controller.confirm : null,
                 ),
+              ],
+              if (controller.reservePending != null)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('energy-confirm-reserve'),
+                  leading: const Icon(CupertinoIcons.check_mark_circled),
+                  title: Text(text.confirmReserve),
+                  onTap: controller.canAct ? controller.confirmReserve : null,
+                ),
+              if (controller.pending != null ||
+                  controller.reservePending != null)
                 SettingsActionTile(
                   buttonKey: const ValueKey('energy-cancel-preview'),
                   leading: const Icon(CupertinoIcons.clear_circled),
                   title: Text(text.cancel),
                   onTap: controller.canAct ? controller.cancelPreview : null,
                 ),
-              ],
               if (controller.state == EnergyPriorityViewState.failed ||
                   controller.state == EnergyPriorityViewState.stale)
                 SettingsActionTile(
@@ -156,6 +200,96 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReserveSourceSetup extends StatelessWidget {
+  const _ReserveSourceSetup({
+    required this.controller,
+    required this.entityController,
+    required this.text,
+    required this.onEntityChanged,
+  });
+
+  final EnergyPriorityController controller;
+  final TextEditingController entityController;
+  final _Text text;
+  final VoidCallback onEntityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final sources = controller.reserveSources;
+    final validEntity = RegExp(r'^number\.[a-z0-9_]{1,249}$')
+        .hasMatch(entityController.text);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            text.setupTitle,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(text.setupDescription),
+          const SizedBox(height: 12),
+          if (controller.reserveSetupBusy)
+            const Center(child: CupertinoActivityIndicator())
+          else if (sources.isEmpty)
+            Text(text.setupNoSource)
+          else ...[
+            Semantics(
+              label: text.setupSource,
+              child: SizedBox(
+                height: (sources.length.clamp(1, 3) * 44).toDouble(),
+                child: CupertinoPicker(
+                  key: const ValueKey('energy-reserve-source-picker'),
+                  itemExtent: 44,
+                  onSelectedItemChanged: (index) =>
+                      controller.selectReserveSource(sources[index]),
+                  children: [
+                    for (final source in sources)
+                      Center(child: Text(source.name)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            CupertinoTextField(
+              key: const ValueKey('energy-reserve-entity'),
+              controller: entityController,
+              enabled: !controller.reserveSetupNeedsRefresh,
+              placeholder: text.setupEntity,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) => onEntityChanged(),
+              onSubmitted: validEntity && !controller.reserveSetupNeedsRefresh
+                  ? controller.acceptReserveSource
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            CupertinoButton.filled(
+              key: const ValueKey('energy-reserve-bind-source'),
+              onPressed: validEntity && !controller.reserveSetupNeedsRefresh
+                  ? () => controller.acceptReserveSource(entityController.text)
+                  : null,
+              child: Text(text.setupAccept),
+            ),
+          ],
+          if (controller.reserveSetupFailure != null) ...[
+            const SizedBox(height: 10),
+            Text(text.setupFailed),
+            const SizedBox(height: 6),
+            CupertinoButton(
+              key: const ValueKey('energy-reserve-setup-refresh'),
+              onPressed: controller.load,
+              child: Text(text.setupRefresh),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

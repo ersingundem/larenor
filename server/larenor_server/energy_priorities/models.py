@@ -117,6 +117,22 @@ class InverterCapability(FrozenModel):
     canDischarge: bool
     writable: bool
     physicalAcceptance: Literal["manual"]
+    canSetReserve: bool = False
+    controlSemantics: Literal["exact_power", "reserve_percent", "none"] = (
+        "exact_power"
+    )
+
+    @model_validator(mode="after")
+    def coherent_controls(self):
+        if self.controlSemantics == "reserve_percent":
+            if not self.canSetReserve or self.canCharge or self.canDischarge:
+                raise ValueError("invalid_inverter_capability")
+        elif self.controlSemantics == "none":
+            if self.writable or self.canSetReserve:
+                raise ValueError("invalid_inverter_capability")
+        elif self.canSetReserve:
+            raise ValueError("invalid_inverter_capability")
+        return self
 
 
 class ManualOverride(FrozenModel):
@@ -270,4 +286,45 @@ class InverterCommandResult(FrozenModel):
                 raise ValueError("invalid_result")
         elif self.readbackVerified or self.readback is not None or self.reason is None:
             raise ValueError("invalid_result")
+        return self
+
+
+class ReserveCommandPreview(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    coreId: Identity
+    homeId: Identity
+    accountId: Identity
+    accountRevision: Revision
+    memberRevision: Revision
+    sessionFamilyId: Identity
+    inverterId: Identity
+    inverterRevision: Revision
+    batteryId: Identity
+    batteryRevision: Revision
+    batteryProviderRevision: Revision
+    inputDigest: Snapshot
+    targetReservePercent: Annotated[int, Field(ge=0, le=100)]
+    expiresAtMs: TimestampMs
+    confirmationToken: Snapshot
+
+
+class ReserveCommandResult(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    status: Literal["confirmed", "uncertain", "mismatch"]
+    targetReservePercent: Annotated[int, Field(ge=0, le=100)]
+    observedReservePercent: Annotated[int, Field(ge=0, le=100)] | None
+    bindingRevision: Revision
+
+    @model_validator(mode="after")
+    def coherent_reserve_result(self):
+        if self.status == "confirmed":
+            if self.observedReservePercent != self.targetReservePercent:
+                raise ValueError("invalid_reserve_result")
+        elif self.status == "uncertain":
+            if self.observedReservePercent is not None:
+                raise ValueError("invalid_reserve_result")
+        elif self.observedReservePercent is None:
+            raise ValueError("invalid_reserve_result")
         return self

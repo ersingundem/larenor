@@ -4992,5 +4992,44 @@
   "cameraSearchReturnToSearch": "Return to search",
   "cameraSearchAllowedCameras": "Available cameras",
   "cameraSearchCameraHelp": "Select up to 16 cameras. Each search also checks the current Core account permissions. Semantic search uses the configured Frigate model; when unavailable, recording metadata is searched.",
-  "cameraSearchNoSources": "Bind Frigate camera resources in Home resources first."
+  "cameraSearchNoSources": "Bind Frigate camera resources in Home resources first.",
+  "energyPriorityTitle": "Solar and battery",
+  "energyPriorityAdvisory": "This plan is advisory and never writes to the inverter automatically.",
+  "energyPriorityUnavailable": "Physical inverter writes are not verified on this device.",
+  "energyPrioritySolar": "Solar production",
+  "energyPriorityLoad": "Consumption",
+  "energyPriorityBattery": "Battery",
+  "energyPriorityReserve": "Backup reserve",
+  "energyPriorityPreview": "Preview first action",
+  "energyPriorityConfirm": "Confirm inverter action",
+  "energyPriorityApplyReserve": "Apply {percent}% backup reserve",
+  "@energyPriorityApplyReserve": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "energyPriorityConfirmReserve": "Confirm backup reserve",
+  "energyPriorityReserveOnly": "This inverter supports a verified backup-reserve percentage. Planned charge and discharge power remain advisory.",
+  "energyPriorityCancel": "Cancel",
+  "energyPriorityRefresh": "Refresh",
+  "energyPriorityLoading": "Loading energy plan",
+  "energyPriorityFailed": "Core energy plan could not be verified",
+  "energyPriorityStale": "Account, session, or route changed",
+  "energyPriorityVerified": "Inverter setting readback verified",
+  "energyPriorityTimeline": "Today’s energy plan",
+  "energyPriorityFreshness": "Data freshness",
+  "energyPriorityCharge": "Charge",
+  "energyPriorityDischarge": "Use battery",
+  "energyPriorityHold": "Hold",
+  "energyPriorityNoCurrentAction": "There is no supported inverter action to apply right now.",
+  "energyPrioritySetupTitle": "Verified inverter source",
+  "energyPrioritySetupDescription": "Select an authenticated Home Assistant connection and enter the Fronius minimum-reserve number entity. Core verifies its registry, device, bounds, and live state before enabling writes.",
+  "energyPrioritySetupSource": "Home Assistant connection",
+  "energyPrioritySetupEntity": "Fronius reserve entity (number.…)",
+  "energyPrioritySetupAccept": "Verify and bind source",
+  "energyPrioritySetupNoSource": "No authenticated Home Assistant connection is available.",
+  "energyPrioritySetupFailed": "The inverter source could not be verified. Refresh before trying another write.",
+  "energyPrioritySetupRefresh": "Read current source state"
 }
