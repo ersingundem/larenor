@@ -5302,7 +5302,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "Bağımsız VNC uzak ekran",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5343,10 +5343,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact named TigerVNC test: timeout while awaiting resized framebuffer"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36783304533",
+          "commit": "f83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact original one-test/zero-skip real TigerVNC production bridge acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Uygulama tamamlandı, gerçek native test bekliyor: normal Core managed-profile authority kabulü geçti. ExtendedDesktopSize metadata/frame ve screen ID onarımı 49 native test/1 kasıtlı Linux skip, 4 gerçek TLS/0skip ile doğrulandı. Exact6b2a7577 run36781108349 güvenli owned-source teşhisinde test satır150 ile resize sonrası kareyi beklerken zaman aşımını belirledi; görüntü/girdi adımları bu sınıra ulaştı. Önceki ACK nedeniyle eski boyutlu ara kare gerçek consumer gibi ACK edilmeden beklenirse native backpressure yeni kareyi durdurabilir; dar consumer kabul düzeltmesi ve eski boyutlu ara kare regressionı 5 gerçek TLS/0skip testiyle root tarafından doğrulandı; 54 workflow/kuyruk/progress testi geçti. Actual hosted tek method/0skip receipt olmadan CI bekliyor veya done sayılmaz."
+      "reason": "Uygulama ve gerçek native odaklı kabul tamamlandı, geniş son HEAD CI bekliyor. Normal Core managed-profile authority, public/local exact cleanup/replay engeli ve Core’suz production bridge gerçek TLS/TigerVNC kapısı geçti. Run36783304533 exactf83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7 success; root strong receipt source/class/method/1test/0skip/0failure/0error eşitliğini doğruladı. TigerVNC1.13.1+dfsg-2build2 üzerinde X509Vnc/SPKI/password, gerçek frame/input, 960x720 resize ve authority retirement/no replay geçti. Root 5 gerçek TLS/0skip ara-kare ve54 workflow/kuyruk/progress testi de geçti. Geniş son HEAD CI ile fiziksel Huawei/DeX farklı VNC host capability kabulü ayrı ve açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
     },
     {
       "id": "FINAL",
@@ -5399,7 +5407,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. F22 otomatik kanal devamı, F28 deadline pause/stop ve F47 history/backtest yazılım/odaklı kabulü tamamlandı, geniş exact HEAD CI bekliyor. F60 Client pairing/native playback, sahiplikli lifecycle/policy ve gerçek host capability ayrımı geliştirmede. F61/F62 gerçek hosted native receipt kapıları ile geniş exact HEAD CI açık; ikinci FINAL başlatılmaz."
+      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. F22 otomatik kanal devamı, F28 deadline pause/stop ve F47 history/backtest yazılım/odaklı kabulü tamamlandı, geniş exact HEAD CI bekliyor. F60 Client pairing/native playback, sahiplikli lifecycle/policy ve gerçek host capability ayrımı geliştirmede. F61 gerçek hosted native receipt geçti ve geniş exact HEAD CI bekliyor; F62 gerçek packaged native receipt kapısı açık; ikinci FINAL başlatılmaz."
     },
     {
       "id": "FINAL.UI",

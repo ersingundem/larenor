@@ -300,3 +300,22 @@ the focused protocol gate. Exact class XML is archived at
 before tests because an excluded Flutter task name no longer existed; it is not
 acceptance evidence. Root also passed 54 workflow/queue/progress tests. A fresh
 source-bound real TigerVNC one-method/zero-skip run is still required.
+
+## Exact real TigerVNC acceptance passed — 1 October
+
+[Run 36783304533](https://github.com/ersingundem/larenor/actions/runs/36783304533)
+completed successfully on exact
+`f83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7`. Root independently downloaded
+and compared the entire public receipt with the canonical acceptance contract.
+It names the original `VncTigerVncAcceptanceTest` method
+`normalBridgeInteroperatesWithOwnedTigerVncAndRetiresWithoutReplay`, with
+1 executed test, 0 skips, 0 failures and 0 errors. The host receipt records
+TigerVNC 1.13.1, package `1.13.1+dfsg-2build2`.
+
+The normal production bridge passed actual X509Vnc/SPKI/password authentication,
+real framebuffer/input, 960×720 resize, and authority retirement without replay.
+The private local copy is
+`/tmp/larenor-root-f61-f83-verified-receipt/receipt.json`. This closes the failed
+native interoperability gate above; its historical failures remain recorded.
+F61 is now `awaiting_ci` for broader final-HEAD verification. Physical Huawei/DeX
+and other VNC host capability combinations remain separate manual evidence.
