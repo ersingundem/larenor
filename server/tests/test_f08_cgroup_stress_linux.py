@@ -53,7 +53,9 @@ def _flat_keyed(path):
     return values
 
 
-def _client_observe(setpriv, python, socket_path, *, kind, dispatch_id, cpu):
+def _client_call(
+    setpriv, python, socket_path, *, kind, dispatch_id, cpu, start,
+):
     source = """
 import dataclasses,json,sys,time
 from larenor_server.ai_resources.runtime import AiDispatch
@@ -63,20 +65,40 @@ dispatch=AiDispatch(
     'a'*32,sys.argv[2],sys.argv[3]+'-stress-request',sys.argv[3],64,
     int(sys.argv[4]),
 )
-value=client.start(dispatch)
-deadline=time.monotonic()+10
-while value.phase in {'starting','running'} and time.monotonic()<deadline:
-    time.sleep(.05); value=client.observe(dispatch)
+value=client.start(dispatch) if sys.argv[5] == 'start' else client.observe(dispatch)
+if sys.argv[5] == 'observe':
+    deadline=time.monotonic()+10
+    while value.phase in {'starting','running'} and time.monotonic()<deadline:
+        time.sleep(.05); value=client.observe(dispatch)
 print(json.dumps(dataclasses.asdict(value),sort_keys=True,separators=(',',':')))
 """
     result = _run_as(
         setpriv,
         CORE_UID,
-        [python, "-c", source, str(socket_path), dispatch_id, kind, str(cpu)],
+        [
+            python,
+            "-c",
+            source,
+            str(socket_path),
+            dispatch_id,
+            kind,
+            str(cpu),
+            "start" if start else "observe",
+        ],
         environment={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
+
+
+def _wait_counter(path, key):
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        values = _flat_keyed(path)
+        if values.get(key, 0) > 0:
+            return values
+        time.sleep(0.02)
+    pytest.fail(f"cgroup counter did not advance: {path}:{key}")
 
 
 def _release(setpriv, python, socket_path, kind, dispatch_id, cpu):
@@ -141,7 +163,12 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
     )
     assert {"cpu", "memory", "pids"} <= controllers
 
-    root = Path(tempfile.mkdtemp(prefix="larenor-f08-stress-", dir="/tmp"))
+    # The production provider state root is under /var/lib.  A state root in
+    # /tmp would be hidden from the worker by the deliberately enabled
+    # PrivateTmp sandbox and would test a deployment shape we never ship.
+    root = Path(
+        tempfile.mkdtemp(prefix="larenor-f08-stress-", dir="/var/lib/larenor-ai")
+    )
     socket_parent = Path(
         tempfile.mkdtemp(prefix="larenor-f08-stress-socket-", dir="/tmp")
     )
@@ -252,28 +279,36 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
         for kind, dispatch_id, cpu in cases:
             unit = f"larenor-ai-{dispatch_id}.service"
             units.append((unit, kind, dispatch_id, cpu))
-            observations[kind] = _client_observe(
+            started = _client_call(
                 setpriv,
                 sys.executable,
                 socket_path,
                 kind=kind,
                 dispatch_id=dispatch_id,
                 cpu=cpu,
+                start=True,
             )
+            assert started["phase"] in {"starting", "running"}, started
             cgroup = _control_group(setpriv, systemctl, environment, unit)
             cgroups.append((unit, cgroup))
             if kind == "vision":
-                stats[kind] = _flat_keyed(cgroup / "memory.events")
+                stats[kind] = _wait_counter(cgroup / "memory.events", "oom_kill")
             elif kind == "assistant":
-                stats[kind] = _flat_keyed(cgroup / "pids.events")
-                assert (
-                    cgroup / "pids.current"
-                ).read_text(encoding="ascii").strip() == "0"
+                stats[kind] = _wait_counter(cgroup / "pids.events", "max")
             else:
-                stats[kind] = _flat_keyed(cgroup / "cpu.stat")
                 assert (
                     cgroup / "cpu.max"
                 ).read_text(encoding="ascii").strip() == "20000 100000"
+                stats[kind] = _wait_counter(cgroup / "cpu.stat", "nr_throttled")
+            observations[kind] = _client_call(
+                setpriv,
+                sys.executable,
+                socket_path,
+                kind=kind,
+                dispatch_id=dispatch_id,
+                cpu=cpu,
+                start=False,
+            )
 
         assert observations["vision"]["phase"] == "failed"
         assert observations["vision"]["result_code"] == "resource_limit"

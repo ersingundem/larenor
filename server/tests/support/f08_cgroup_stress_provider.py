@@ -75,12 +75,22 @@ def _descriptor(path):
 
 
 def _memory_limit():
-    # Touch substantially more than the test's 64 MiB MemoryMax. The kernel
-    # decides the terminal outcome; this fixture never catches the OOM signal.
-    value = bytearray(128 * 1024 * 1024)
-    for offset in range(0, len(value), 4096):
-        value[offset] = 1
-    raise AssertionError(len(value))
+    # Keep a small parent alive long enough for the test to read memory.events
+    # from the real cgroup.  The child raises its own OOM preference and is the
+    # only process that allocates beyond MemoryMax; the parent never turns a
+    # killed allocation into a successful provider receipt.
+    child = os.fork()
+    if child == 0:
+        Path("/proc/self/oom_score_adj").write_text("1000", encoding="ascii")
+        value = bytearray(128 * 1024 * 1024)
+        for offset in range(0, len(value), 4096):
+            value[offset] = 1
+        raise AssertionError(len(value))
+    _pid, status = os.waitpid(child, 0)
+    if not os.WIFSIGNALED(status) or os.WTERMSIG(status) != signal.SIGKILL:
+        raise AssertionError(status)
+    time.sleep(2)
+    raise SystemExit(73)
 
 
 def _task_limit():
@@ -112,6 +122,9 @@ def _task_limit():
                 pass
     if not limited:
         raise AssertionError("pids limit was not enforced")
+    # Preserve the cgroup briefly after the EAGAIN so the kernel pids.events
+    # counter is observed before the unit reaches its terminal state.
+    time.sleep(2)
     raise SystemExit(73)
 
 

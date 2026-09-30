@@ -161,6 +161,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         nut_runtime = Path("/run/larenor-power-recovery")
         nut_runtime.mkdir(mode=0o770)
         os.chown(nut_runtime, 10006, 10006)
+        nut_runtime.chmod(0o770)
         nut_socket = nut_runtime / "notify.sock"
         nut_state = data_root / "host-workers/power-recovery"
         nut_proof = ROOT / "server/tests/support/f18_nut_notify_ipc.py"

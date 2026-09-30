@@ -3838,7 +3838,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Yetkili MCP kapısı",
-      "status": "awaiting_ci",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3863,7 +3863,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
+      "reason": "Yetkili araç/grant uygulaması ve focused Core kabulü mevcut; FINAL.FUNCTION gerçek MCP protokol incelemesi initialized notification / HTTP Origin / protokol sürümü sınırında açık buldu. Bu gerçek lifecycle/transport bağlantısı düzeltiliyor. Tamamlanana kadar CI bekliyor grubunda gösterilmez; sayaç değişmedi."
     },
     {
       "id": "F14",

@@ -275,7 +275,9 @@ def test_actual_uid10003_user_manager_runs_through_uid10001_ipc():
     systemd_run = shutil.which("systemd-run")
     systemctl = shutil.which("systemctl")
     assert setpriv and systemd_run and systemctl
-    root = Path(tempfile.mkdtemp(prefix="larenor-f08-ipc-", dir="/tmp"))
+    # Match production's /var/lib placement. PrivateTmp intentionally hides
+    # /tmp from the provider, including a descriptor/output located there.
+    root = Path(tempfile.mkdtemp(prefix="larenor-f08-ipc-", dir="/var/lib/larenor-ai"))
     socket_parent = Path(tempfile.mkdtemp(prefix="larenor-f08-socket-", dir="/tmp"))
     worker = None
     environment = {
@@ -343,7 +345,7 @@ value=client.start(dispatch)
 deadline=time.monotonic()+20
 while value.phase in {'starting','running'} and time.monotonic()<deadline:
     time.sleep(.1); value=client.observe(dispatch)
-assert value.phase == 'succeeded' and value.output_sha256 and value.output_bytes
+assert value.phase == 'succeeded' and value.output_sha256 and value.output_bytes, value
 assert (value.memory_peak_mb is not None
         and 0 < value.memory_peak_mb <= 2**31 - 1), value.memory_peak_mb
 assert value.cpu_millis is not None and value.cpu_millis > 0
