@@ -629,14 +629,31 @@ class SystemdAiJobRuntime:
             raise AiRuntimeError("dispatch_unknown")
         return observed
 
+    def _unit_collected(self, unit):
+        code, output = self._run([
+            str(self.config.systemctl), *self._manager(), "show", unit,
+            "--property=LoadState",
+        ])
+        return code == 0 and output.splitlines() == ["LoadState=not-found"]
+
     def release(self, dispatch):
         if type(dispatch) is not AiDispatch:
             raise AiRuntimeError("invalid_runtime_response")
+        unit = self._unit(dispatch)
         code, _output = self._run([
             str(self.config.systemctl), *self._manager(), "stop",
-            self._unit(dispatch),
+            unit,
         ])
-        if code != 0 and self.observe(dispatch).phase != "unknown":
+        if code != 0 and not self._unit_collected(unit):
+            raise AiRuntimeError()
+        # Failed transient units remain referenced (and retain their cgroup)
+        # after stop until their failed state is reset.  Reset only this exact
+        # dispatch unit; an already-collected unit is accepted only after the
+        # normal observation path confirms it is unknown.
+        code, _output = self._run([
+            str(self.config.systemctl), *self._manager(), "reset-failed", unit,
+        ])
+        if code != 0 and not self._unit_collected(unit):
             raise AiRuntimeError()
         try:
             for suffix in (".json", ".output", ".receipt"):

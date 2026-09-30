@@ -34,6 +34,30 @@ class Runner:
         return SimpleNamespace(returncode=0, stdout="")
 
 
+class ResetFailureRunner(Runner):
+    def __call__(self, arguments, timeout):
+        if "reset-failed" in arguments:
+            self.calls.append((arguments, timeout))
+            return SimpleNamespace(returncode=1, stdout="")
+        return super().__call__(arguments, timeout)
+
+
+class ResetAndShowFailureRunner(ResetFailureRunner):
+    def __call__(self, arguments, timeout):
+        if "show" in arguments and "--property=LoadState" in arguments:
+            self.calls.append((arguments, timeout))
+            return SimpleNamespace(returncode=1, stdout="")
+        return super().__call__(arguments, timeout)
+
+
+class CollectedUnitRunner(ResetFailureRunner):
+    def __call__(self, arguments, timeout):
+        if "show" in arguments and "--property=LoadState" in arguments:
+            self.calls.append((arguments, timeout))
+            return SimpleNamespace(returncode=0, stdout="LoadState=not-found\n")
+        return super().__call__(arguments, timeout)
+
+
 def _executable(path):
     path.write_text("#!/bin/sh\nexit 0\n", encoding="ascii")
     path.chmod(0o700)
@@ -216,6 +240,43 @@ def test_existing_descriptor_must_match_exact_dispatch(tmp_path):
         runtime.start(_dispatch())
 
 
+def test_release_preserves_receipt_when_failed_unit_cannot_be_reset(tmp_path):
+    source, state = _config(tmp_path)
+    descriptor = state / ("2" * 32 + ".json")
+    descriptor.write_text("{}", encoding="ascii")
+    runtime = SystemdAiJobRuntime(
+        AiRuntimeConfig.load(source), runner=ResetFailureRunner(), platform="linux",
+    )
+    with pytest.raises(AiRuntimeError):
+        runtime.release(_dispatch())
+    assert descriptor.read_text(encoding="ascii") == "{}"
+
+
+def test_release_preserves_receipt_when_reset_and_show_both_fail(tmp_path):
+    source, state = _config(tmp_path)
+    descriptor = state / ("2" * 32 + ".json")
+    descriptor.write_text("{}", encoding="ascii")
+    runtime = SystemdAiJobRuntime(
+        AiRuntimeConfig.load(source),
+        runner=ResetAndShowFailureRunner(),
+        platform="linux",
+    )
+    with pytest.raises(AiRuntimeError):
+        runtime.release(_dispatch())
+    assert descriptor.read_text(encoding="ascii") == "{}"
+
+
+def test_release_accepts_exact_confirmed_already_collected_unit(tmp_path):
+    source, state = _config(tmp_path)
+    descriptor = state / ("2" * 32 + ".json")
+    descriptor.write_text("{}", encoding="ascii")
+    runtime = SystemdAiJobRuntime(
+        AiRuntimeConfig.load(source), runner=CollectedUnitRunner(), platform="linux",
+    )
+    runtime.release(_dispatch())
+    assert not descriptor.exists()
+
+
 def test_standalone_provider_process_writes_verified_output_and_receipt(tmp_path):
     source, state = _config(tmp_path)
     provider = tmp_path / "provider"
@@ -261,6 +322,11 @@ def test_standalone_provider_process_writes_verified_output_and_receipt(tmp_path
     assert observation.output_sha256 == hashlib.sha256(output.read_bytes()).hexdigest()
     assert observation.output_bytes == output.stat().st_size
     runtime.release(_dispatch())
+    release_calls = [call for call, _timeout in runner.calls if "reset-failed" in call]
+    assert release_calls == [(
+        str(runtime.config.systemctl), "--user", "reset-failed",
+        "larenor-ai-" + "2" * 32 + ".service",
+    )]
     assert not output.exists()
     assert not (state / ("2" * 32 + ".receipt")).exists()
     assert not descriptor.exists()

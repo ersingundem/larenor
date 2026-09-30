@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül başarısız AI unit cleanup düzeltmesi
+
+Exact `6a79199d` F08 Linux koşusu gerçek ayrı UID IPC, OOM, TasksMax ve CPU throttling senaryolarını geçti; tek kalan hata failed transient unit/cgroup temizliğiydi. Production release artık yalnız exact dispatch unit üzerinde stop ardından reset-failed yapar. Hata varsa ancak başarılı bounded show ile exact LoadState=not-found kanıtı kabul edilir; bus/show hatasında descriptor/receipt silinmez. 24 odaklı test geçti, 4 hosted-Linux skip açık. Root ayrıca 14 dar testi doğruladı (1 Linux skip). Yeni exact Linux sonucu gerekir; eski kırmızı koşu tekrarlanmadı.
+
 ### 30 Eylül Unmanic paket sürümü ve gerçek Core health düzeltmesi
 
 Exact `6a79199d` host CI, doğrulanmış Unmanic arşivinde Git metadatası olmadığından UNKNOWN.VERSION ile wheel üretiminde durdu. Builder yalnız exact regular UNKNOWN placeholder'ı upstream 0.4.1 etiketi→sabit commit ilişkisinden gelen sürümle değiştirir ve bunu receipt'e kaydeder; gerçek upstream setup.py --version çıktısı 0.4.1 doğrulandı. Kurulu Core TCP yardımcısının health yolu normal `/api/v1/health` olarak düzeltildi; testi artık gerçek create_app çalıştırır. 22 odaklı test geçti, 4 hosted-Linux kapısı yerelde atlandı. Yeni exact host sonucu ayrıca beklenir.
