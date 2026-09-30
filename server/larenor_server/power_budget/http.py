@@ -68,8 +68,6 @@ class PowerBudgetHttpGateway:
             not isinstance(raw_behaviors, dict)
             or set(raw_behaviors) != load_ids
             or any(value not in allowed_behaviors for value in raw_behaviors.values())
-            or enabled
-            and any(value == "not_applicable_read_only" for value in raw_behaviors.values())
         ):
             raise ApiError("power_capability_unverified", 409)
         preview = self._service.preview(
@@ -78,6 +76,11 @@ class PowerBudgetHttpGateway:
             inputs=inputs,
             preview_id=self._preview_id(authority, inputs),
         )
+        if enabled and any(
+            raw_behaviors[action.load_id] != "hold_last_safe_limit"
+            for action in preview.actions
+        ):
+            raise ApiError("power_capability_unverified", 409)
         return authority, inputs, labels, capability, enabled, raw_behaviors, preview
 
     def snapshot(self, actor):
@@ -136,6 +139,29 @@ class PowerBudgetHttpGateway:
         }
 
     def confirm(self, actor, *, preview_id, expected_plan_hash, request_key):
+        command_id = "manual-" + hashlib.sha256(
+            f"{actor.id}\0{request_key}".encode("utf-8")
+        ).hexdigest()
+        existing = self._service.existing(
+            actor,
+            command_id=command_id,
+            preview_id=preview_id,
+            expected_plan_hash=expected_plan_hash,
+        )
+        if existing is not None:
+            receipt, prior_preview = existing
+            return {
+                "schemaVersion": 1,
+                "commandId": receipt.command_id,
+                "previewId": receipt.preview_id,
+                "planHash": receipt.plan_hash,
+                "status": receipt.status,
+                "applyCount": receipt.apply_count,
+                "communicationLossBehavior": {
+                    action.load_id: "hold_last_safe_limit"
+                    for action in prior_preview.actions
+                },
+            }
         authority, _inputs, _labels, _capability, enabled, behaviors, preview = (
             self._projection(actor)
         )
@@ -145,9 +171,6 @@ class PowerBudgetHttpGateway:
             preview.plan_hash, expected_plan_hash
         ):
             raise ApiError("power_budget_preview_changed", 409)
-        command_id = "manual-" + hashlib.sha256(
-            f"{actor.id}\0{request_key}".encode("utf-8")
-        ).hexdigest()
         receipt = self._service.confirm(
             actor,
             authority=authority,

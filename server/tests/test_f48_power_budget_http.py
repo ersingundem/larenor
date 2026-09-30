@@ -53,10 +53,10 @@ class Provider:
     def control_capability(self, actor, authority):
         return "manual_required"
 
-    def apply(self, *, plan_hash, actions):
+    def apply(self, authority, *, plan_hash, actions):
         raise AssertionError("HTTP recommendation route must never dispatch")
 
-    def readback(self):
+    def readback(self, authority, *, plan_hash, actions):
         raise AssertionError("HTTP recommendation route must never read commands")
 
 

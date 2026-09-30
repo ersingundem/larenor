@@ -17,6 +17,7 @@ MAX_LOADS = 192
 MAX_PREVIEWS = 256
 MAX_HISTORY = 1_024
 MAX_PROVIDER_AGE_SECONDS = 300
+CONTROL_HOLD_SECONDS = 300
 PROVIDERS = {"meter", "tariff"}
 
 
@@ -108,6 +109,7 @@ class LoadState:
     critical: bool
     controllable: bool
     hold_until: float
+    minimum_w: int = 0
 
 
 @dataclass(frozen=True)
@@ -162,8 +164,21 @@ class BudgetCommandReceipt:
 
 
 class PowerWorker(Protocol):
-    def apply(self, *, plan_hash: str, actions: tuple[dict, ...]) -> None: ...
-    def readback(self) -> str | None: ...
+    def apply(
+        self,
+        authority: BudgetAuthority,
+        *,
+        plan_hash: str,
+        actions: tuple[dict, ...],
+    ) -> None: ...
+
+    def readback(
+        self,
+        authority: BudgetAuthority,
+        *,
+        plan_hash: str,
+        actions: tuple[dict, ...],
+    ) -> str | None: ...
 
 
 class PowerBudgetService:
@@ -414,6 +429,8 @@ class PowerBudgetService:
                 or type(load.hold_until) not in (int, float)
                 or not math.isfinite(load.hold_until)
                 or load.hold_until < 0
+                or type(load.minimum_w) is not int
+                or not 0 <= load.minimum_w <= load.current_w
             ):
                 raise ApiError("power_inputs_unverified", 409)
             identifiers.add(load.load_id)
@@ -446,6 +463,34 @@ class PowerBudgetService:
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             raise StartupError("power_budget_preview_invalid") from None
 
+    def _control_holds(self, scope) -> dict[str, float]:
+        with self.database.connection() as connection:
+            connection.execute("BEGIN")
+            try:
+                self._verified_history(connection, scope)
+                rows = connection.execute(
+                    "SELECT e.occurred_at,p.payload FROM power_budget_events e "
+                    "JOIN power_budget_commands c ON c.command_id=e.object_id "
+                    "JOIN power_budget_previews p ON p.id=c.preview_id "
+                    "WHERE e.core_id=? AND e.home_id=? AND e.meter_id=? "
+                    "AND e.action='dispatch_reserved' ORDER BY e.sequence",
+                    scope,
+                ).fetchall()
+                result = {}
+                for row in rows:
+                    value = json.loads(row["payload"])
+                    for action in value["actions"]:
+                        load_id = action["load_id"]
+                        result[load_id] = max(
+                            result.get(load_id, 0),
+                            row["occurred_at"] + CONTROL_HOLD_SECONDS,
+                        )
+                return result
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                raise StartupError("power_budget_audit_invalid") from None
+            finally:
+                connection.rollback()
+
     def preview(
         self,
         actor: Principal,
@@ -477,6 +522,7 @@ class PowerBudgetService:
         )
         planned: list[SheddingAction] = []
         if status == "ready":
+            holds = self._control_holds(self._scope(authority))
             remaining = required_reduction_w
             ordered = sorted(
                 (
@@ -484,13 +530,15 @@ class PowerBudgetService:
                     for load in inputs.loads
                     if not load.critical
                     and load.controllable
-                    and load.hold_until <= now
+                    and max(load.hold_until, holds.get(load.load_id, 0)) <= now
                     and load.current_w > 0
                 ),
                 key=lambda load: (load.priority, load.load_id),
             )
             for load in ordered:
-                reduction = min(remaining, load.current_w)
+                reduction = min(remaining, load.current_w - load.minimum_w)
+                if reduction == 0:
+                    continue
                 planned.append(
                     SheddingAction(
                         load.load_id,
@@ -690,6 +738,7 @@ class PowerBudgetService:
             )
         try:
             self._worker.apply(
+                authority,
                 plan_hash=preview.plan_hash,
                 actions=tuple(asdict(slot) for slot in preview.actions),
             )
@@ -712,6 +761,44 @@ class PowerBudgetService:
                 "SELECT * FROM power_budget_commands WHERE command_id=?", (command_id,)
             ).fetchone()
             return self._receipt(connection, row, scope)
+
+    def existing(
+        self,
+        actor: Principal,
+        *,
+        command_id: str,
+        preview_id: str,
+        expected_plan_hash: str,
+    ) -> tuple[BudgetCommandReceipt, BudgetPreview] | None:
+        """Return an exact prior manual command without touching the provider."""
+        if not _identifier(command_id) or not _identifier(preview_id):
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            connection.execute("BEGIN")
+            try:
+                row = connection.execute(
+                    "SELECT * FROM power_budget_commands WHERE command_id=?",
+                    (command_id,),
+                ).fetchone()
+                if row is None:
+                    return None
+                scope = (row["core_id"], row["home_id"], row["meter_id"])
+                self._verified_history(connection, scope)
+                if (row["account_id"] != actor.id
+                        or row["preview_id"] != preview_id
+                        or not hmac.compare_digest(
+                            row["plan_hash"], expected_plan_hash)):
+                    raise ApiError("power_budget_command_conflict", 409)
+                preview_row = connection.execute(
+                    "SELECT * FROM power_budget_previews WHERE id=?",
+                    (row["preview_id"],),
+                ).fetchone()
+                if preview_row is None:
+                    raise StartupError("power_budget_audit_invalid")
+                return (self._receipt(connection, row, scope),
+                        self._preview_from_row(preview_row))
+            finally:
+                connection.rollback()
 
     def readback(
         self,
@@ -749,7 +836,18 @@ class PowerBudgetService:
             current = self._command_status(connection, scope, command_id)
             if current == "verified":
                 return self._receipt(connection, row, scope)
-            observed = self._worker.readback()
+            preview_row = connection.execute(
+                "SELECT * FROM power_budget_previews WHERE id=?",
+                (row["preview_id"],),
+            ).fetchone()
+            if preview_row is None:
+                raise StartupError("power_budget_audit_invalid")
+            preview = self._preview_from_row(preview_row)
+            observed = self._worker.readback(
+                authority,
+                plan_hash=row["plan_hash"],
+                actions=tuple(asdict(slot) for slot in preview.actions),
+            )
             action = (
                 "verified"
                 if observed is not None

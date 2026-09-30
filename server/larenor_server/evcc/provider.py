@@ -120,6 +120,7 @@ class EvccLoadpoint:
     charging: bool
     vehicle_soc: int | None
     vehicle_capacity_wh: int | None
+    min_current_amp: int
     max_current_amp: int
     phases_active: int
     voltage: int | None
@@ -337,7 +338,9 @@ class EvccHttpReader:
             if type(connected) is not bool or type(charging) is not bool:
                 raise EvccProviderError("provider_protocol_changed")
             max_current = _number(item.get("maxCurrent"), minimum=1, maximum=80)
-            if not max_current.is_integer():
+            min_current = _number(item.get("minCurrent"), minimum=1, maximum=80)
+            if (not max_current.is_integer() or not min_current.is_integer()
+                    or min_current > max_current):
                 raise EvccProviderError("provider_protocol_changed")
             phases = _integer_number(item.get("phasesActive"), maximum=3)
             if phases not in {0, 1, 3}:
@@ -374,6 +377,7 @@ class EvccHttpReader:
                 "vehicleSoc": vehicle_soc,
                 "vehicleCapacityWh": capacity_wh,
                 "maxCurrent": int(max_current),
+                "minCurrent": int(min_current),
                 "phasesActive": phases,
                 "voltage": voltage,
             }
@@ -389,6 +393,7 @@ class EvccHttpReader:
                     charging,
                     vehicle_soc,
                     capacity_wh,
+                    int(min_current),
                     int(max_current),
                     phases,
                     voltage,
@@ -492,8 +497,26 @@ def _actor_key(actor):
 
 
 class EvccPowerBudgetProvider:
-    def __init__(self, binding, cache):
+    def __init__(self, binding, cache, control_authority=None):
         self._binding, self._cache = binding, cache
+        self._control_authority = control_authority
+
+    def _authorized(self, observation, item):
+        checker = getattr(
+            self._control_authority, "power_budget_authorized", None)
+        if not callable(checker):
+            return False
+        try:
+            return checker(observation, item.index) is True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _minimum_w(item):
+        if (item.voltage is None or item.phases_active not in {1, 3}
+                or not item.connected or not item.charging):
+            return None
+        return item.min_current_amp * item.voltage * item.phases_active
 
     def authority(self, actor):
         self._binding.assert_current()
@@ -502,6 +525,12 @@ class EvccPowerBudgetProvider:
         if type(account_revision) is not int or account_revision < 1:
             raise EvccProviderError("provider_binding_changed")
         value = self._cache.refresh(key)
+        reducible = []
+        for item in value.loadpoints:
+            minimum = self._minimum_w(item)
+            if (minimum is not None and self._authorized(value, item)
+                    and item.charge_power_w > minimum):
+                reducible.append(item.charge_power_w - minimum)
         return BudgetAuthority(
             self._binding.core_id,
             self._binding.home_id,
@@ -519,7 +548,7 @@ class EvccPowerBudgetProvider:
             value.state_revision,
             value.physical_grid_limit_w,
             value.grid_limit_w,
-            False,
+            bool(reducible),
         )
 
     def inputs(self, actor, authority):
@@ -548,19 +577,20 @@ class EvccPowerBudgetProvider:
                 BudgetProviderState("meter", value.meter_revision, "verified", value.observed_at),
                 BudgetProviderState("tariff", value.tariff_revision, "verified", value.observed_at),
             ),
-            tuple(
-                LoadState(
-                    f"evcc-lp-{item.index}",
-                    item.revision,
-                    item.priority,
-                    item.charge_power_w,
-                    False,
-                    False,
-                    0,
-                )
-                for item in value.loadpoints
-            ),
+            tuple(self._load(value, item) for item in value.loadpoints),
             None,
+        )
+
+    def _load(self, observation, item):
+        authorized = self._authorized(observation, item)
+        minimum = self._minimum_w(item)
+        controllable = (authorized and minimum is not None
+                        and item.charge_power_w > minimum)
+        return LoadState(
+            f"evcc-lp-{item.index}", item.revision, item.priority,
+            item.charge_power_w, not controllable, controllable, 0,
+            item.charge_power_w if minimum is None else
+            min(item.charge_power_w, minimum),
         )
 
     def load_labels(self, actor, authority):
@@ -570,19 +600,37 @@ class EvccPowerBudgetProvider:
 
     @staticmethod
     def control_capability(actor, authority):
-        return "read_only"
+        return "manual_required" if authority.can_control else "read_only"
 
     @staticmethod
     def manual_control_enabled(actor, authority):
-        return False
+        return authority.can_control
 
-    @staticmethod
-    def apply(*, plan_hash, actions):
-        raise EvccProviderError("provider_read_only")
+    def communication_loss_behaviors(self, actor, authority):
+        value = self._cache.exact(_actor_key(actor), authority.plan_revision)
+        return {
+            f"evcc-lp-{item.index}": (
+                "hold_last_safe_limit"
+                if (self._authorized(value, item)
+                    and self._minimum_w(item) is not None
+                    and item.charge_power_w > self._minimum_w(item))
+                else "not_applicable_read_only")
+            for item in value.loadpoints
+        }
 
-    @staticmethod
-    def readback():
-        return None
+    def apply(self, authority, *, plan_hash, actions):
+        method = getattr(
+            self._control_authority, "apply_power_budget_authorized", None)
+        if not authority.can_control or not callable(method):
+            raise EvccProviderError("provider_read_only")
+        return method(authority, plan_hash=plan_hash, actions=actions)
+
+    def readback(self, authority, *, plan_hash, actions):
+        method = getattr(
+            self._control_authority, "readback_power_budget_authorized", None)
+        if not authority.can_control or not callable(method):
+            return None
+        return method(authority, plan_hash=plan_hash, actions=actions)
 
 
 class EvccChargeProvider:
@@ -740,7 +788,8 @@ class EvccRuntimeProviders:
             raise ValueError("invalid_evcc_runtime")
         reader = EvccHttpReader(clock, transport_factory=transport_factory)
         cache = _SnapshotCache(reader, binding.connection)
-        self.power_budget = EvccPowerBudgetProvider(binding, cache)
+        self.power_budget = EvccPowerBudgetProvider(
+            binding, cache, control_authority)
         self.ev_charging = EvccChargeProvider(
             binding, cache, energy_windows, control_authority
         )
@@ -816,13 +865,13 @@ class _ResolvedPowerBudgetProvider:
             raise EvccProviderError("provider_protocol_changed")
         return method(actor, authority)
 
-    @staticmethod
-    def apply(*, plan_hash, actions):
-        raise EvccProviderError("provider_read_only")
+    def apply(self, authority, *, plan_hash, actions):
+        return self._provider(authority).apply(
+            authority, plan_hash=plan_hash, actions=actions)
 
-    @staticmethod
-    def readback():
-        return None
+    def readback(self, authority, *, plan_hash, actions):
+        return self._provider(authority).readback(
+            authority, plan_hash=plan_hash, actions=actions)
 
 
 class EvccRuntimeResolver:

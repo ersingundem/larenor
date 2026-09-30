@@ -13,6 +13,7 @@ from .provider import EvccHttpReader, EvccProviderError
 
 
 MAX_RECORDS = 256
+_POWER_LOAD = re.compile(r"evcc-lp-([1-9]|1[0-6])\Z")
 TABLES = {
     "evcc_current_authorities": """CREATE TABLE evcc_current_authorities (
         service_id TEXT NOT NULL,
@@ -295,6 +296,32 @@ class EvccCurrentControl:
             and self._windows.is_single_current_window(observation, schedule_revision)
         )
 
+    def power_budget_authorized(self, observation, loadpoint_index):
+        """Return explicit admin authority for one electrically bounded load."""
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM evcc_current_authorities "
+                "WHERE service_id=? AND loadpoint_index=?",
+                (observation.service_id, loadpoint_index),
+            ).fetchone()
+        if row is None:
+            return False
+        self._verify_authority(row)
+        loadpoints = [
+            item for item in observation.loadpoints
+            if item.index == loadpoint_index
+        ]
+        return (
+            row["enabled"] == 1
+            and row["service_revision"] == observation.service_revision
+            and len(loadpoints) == 1
+            and loadpoints[0].connected
+            and loadpoints[0].charging
+            and loadpoints[0].phases_active in {1, 3}
+            and loadpoints[0].voltage is not None
+            and loadpoints[0].min_current_amp <= loadpoints[0].max_current_amp
+        )
+
     @staticmethod
     def _charger_id(service_id, index):
         return hashlib.sha256(f"evcc:{service_id}:{index}".encode("ascii")).hexdigest()[:32]
@@ -379,6 +406,143 @@ class EvccCurrentControl:
         if len(matches) != 1:
             raise EvccProviderError("provider_protocol_changed")
         return matches[0].max_current_amp
+
+    @staticmethod
+    def _power_authority_matches(authority, observation):
+        return (
+            authority.meter_id == observation.service_id
+            and authority.meter_revision == observation.meter_revision
+            and authority.tariff_revision == observation.tariff_revision
+            and authority.load_registry_revision == observation.load_registry_revision
+            and authority.grid_limit_revision == observation.grid_limit_revision
+            and authority.override_revision == observation.state_revision
+            and authority.plan_revision == observation.state_revision
+            and authority.max_grid_w == observation.physical_grid_limit_w
+        )
+
+    def _power_targets(self, observation, actions, *, require_revision):
+        if (not isinstance(actions, tuple) or not 1 <= len(actions) <= 16):
+            raise EvccProviderError("provider_read_only")
+        loadpoints = {item.index: item for item in observation.loadpoints}
+        result = []
+        seen = set()
+        total_reduction = 0
+        for action in actions:
+            if type(action) is not dict or set(action) != {
+                    "load_id", "load_revision", "reduction_w", "target_w",
+                    "priority"}:
+                raise EvccProviderError("provider_read_only")
+            match = _POWER_LOAD.fullmatch(action["load_id"])
+            index = int(match.group(1)) if match is not None else 0
+            item = loadpoints.get(index)
+            if (index in seen or item is None
+                    or require_revision and action["load_revision"] != item.revision
+                    or type(action["reduction_w"]) is not int
+                    or type(action["target_w"]) is not int
+                    or type(action["priority"]) is not int
+                    or action["priority"] != item.priority
+                    or action["reduction_w"] <= 0
+                    or action["target_w"] < 0
+                    or require_revision
+                    and action["reduction_w"] + action["target_w"]
+                    != item.charge_power_w
+                    or not self.power_budget_authorized(observation, index)):
+                raise EvccProviderError("provider_read_only")
+            denominator = item.voltage * item.phases_active
+            minimum_w = denominator * item.min_current_amp
+            target_current = action["target_w"] // denominator
+            if (action["target_w"] < minimum_w
+                    or target_current < item.min_current_amp
+                    or require_revision
+                    and target_current >= item.max_current_amp
+                    or not require_revision
+                    and target_current > item.max_current_amp
+                    or target_current * denominator > action["target_w"]):
+                raise EvccProviderError("provider_read_only")
+            seen.add(index)
+            total_reduction += action["reduction_w"]
+            result.append((
+                index, target_current, action["target_w"], item.revision,
+                item.voltage, item.phases_active, item.min_current_amp,
+            ))
+        return tuple(result), total_reduction
+
+    def apply_power_budget_authorized(
+            self, authority, *, plan_hash, actions):
+        if (not authority.can_control
+                or re.fullmatch(r"[0-9a-f]{64}", plan_hash or "") is None):
+            raise EvccProviderError("provider_read_only")
+        binding = self._binding()
+        observation = EvccHttpReader(
+            self._clock,
+            transport_factory=self._transport_factory or ServiceTransport,
+        ).state(binding.connection)
+        binding.assert_current()
+        if not self._power_authority_matches(authority, observation):
+            raise EvccProviderError("provider_snapshot_changed")
+        targets, total_reduction = self._power_targets(
+            observation, actions, require_revision=True)
+        if total_reduction > authority.max_shed_w:
+            raise EvccProviderError("provider_read_only")
+        for position, target_row in enumerate(targets):
+            index, target, _target_w, revision, voltage, phases, minimum = target_row
+
+            def assert_control_current(
+                    index=index, position=position, revision=revision,
+                    voltage=voltage, phases=phases, minimum=minimum):
+                binding.assert_current()
+                fresh = EvccHttpReader(
+                    self._clock,
+                    transport_factory=self._transport_factory or ServiceTransport,
+                ).state(binding.connection)
+                binding.assert_current()
+                values = {item.index: item for item in fresh.loadpoints}
+                current = values.get(index)
+                prior = targets[:position]
+                if (fresh.service_id != observation.service_id
+                        or fresh.service_revision != observation.service_revision
+                        or fresh.physical_grid_limit_w
+                        != observation.physical_grid_limit_w
+                        or current is None or current.revision != revision
+                        or (current.voltage, current.phases_active,
+                            current.min_current_amp) != (voltage, phases, minimum)
+                        or not self.power_budget_authorized(fresh, index)
+                        or any(
+                            values.get(previous_index) is None
+                            or values[previous_index].max_current_amp
+                            != previous_target
+                            or values[previous_index].charge_power_w
+                            > previous_target_w
+                            for (previous_index, previous_target,
+                                 previous_target_w, *_rest) in prior)):
+                    raise EvccProviderError("provider_read_only")
+
+            self._post(binding, index, target, assert_control_current)
+
+    def readback_power_budget_authorized(
+            self, authority, *, plan_hash, actions):
+        if re.fullmatch(r"[0-9a-f]{64}", plan_hash or "") is None:
+            return None
+        binding = self._binding()
+        observation = EvccHttpReader(
+            self._clock,
+            transport_factory=self._transport_factory or ServiceTransport,
+        ).state(binding.connection)
+        binding.assert_current()
+        if (authority.meter_id != observation.service_id
+                or authority.max_grid_w != observation.physical_grid_limit_w):
+            return None
+        try:
+            targets, _total = self._power_targets(
+                observation, actions, require_revision=False)
+        except EvccProviderError:
+            return None
+        loadpoints = {item.index: item for item in observation.loadpoints}
+        if any(loadpoints[index].max_current_amp != target
+               or loadpoints[index].charge_power_w > target_w
+               for index, target, target_w, *_rest in targets):
+            return None
+        return plan_hash
 
     def apply_authorized(self, authority, *, plan_hash, slots):
         now = self._clock()

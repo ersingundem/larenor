@@ -80,15 +80,20 @@ class FakeWorker:
         self.timeout = False
         self.observed_hash = None
         self.actions = ()
+        self.authorities = []
 
-    def apply(self, *, plan_hash: str, actions: tuple[dict, ...]) -> None:
+    def apply(self, authority, *, plan_hash: str, actions: tuple[dict, ...]) -> None:
         self.apply_calls += 1
+        self.authorities.append(authority)
         self.actions = actions
         if self.timeout:
             raise TimeoutError
         self.observed_hash = plan_hash
 
-    def readback(self) -> str | None:
+    def readback(self, authority, *, plan_hash: str,
+                 actions: tuple[dict, ...]) -> str | None:
+        assert authority == self.authorities[-1]
+        assert plan_hash and actions == self.actions
         return self.observed_hash
 
 
@@ -193,6 +198,26 @@ def test_critical_load_hold_and_manual_override_expiry_fail_closed(tmp_path):
         )
 
 
+def test_plan_never_reduces_a_load_below_its_verified_minimum(tmp_path):
+    budget = service(tmp_path / "core.sqlite3")
+    bounded = replace(
+        inputs(grid_import_w=11_000),
+        loads=(
+            LoadState("critical", 1, 100, 500, True, False, 0, 500),
+            LoadState("ev-charger", 2, 10, 3_000, False, True, 0, 1_400),
+            LoadState("dryer", 4, 20, 2_000, False, True, 0, 0),
+        ),
+    )
+    preview = budget.preview(
+        actor(), authority=authority(), inputs=bounded,
+        preview_id="preview-minimum")
+    assert [(action.load_id, action.reduction_w, action.target_w)
+            for action in preview.actions] == [
+        ("ev-charger", 1_600, 1_400),
+        ("dryer", 1_400, 600),
+    ]
+
+
 def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tamper(
     tmp_path,
 ):
@@ -241,6 +266,10 @@ def test_preview_confirm_readback_lost_ack_never_replays_and_audit_detects_tampe
         == "verified"
     )
     assert worker.apply_calls == 1
+    with pytest.raises(ApiError, match="critical_load_protection"):
+        service(path, worker).preview(
+            actor(), authority=authority(plan_revision=32), inputs=inputs(),
+            preview_id="preview-held-after-restart")
 
     with Database(path).transaction() as connection:
         connection.execute(

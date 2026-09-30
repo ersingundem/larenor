@@ -89,6 +89,12 @@ class Transport:
         if method == "POST" and "/maxcurrent/" in path:
             target = int(path.rsplit("/", 1)[1])
             self.payload["loadpoints"][0]["maxCurrent"] = target
+            voltage = self.payload["loadpoints"][0]["chargeVoltages"][0]
+            phases = self.payload["loadpoints"][0]["phasesActive"]
+            self.payload["loadpoints"][0]["chargePower"] = min(
+                self.payload["loadpoints"][0]["chargePower"],
+                target * voltage * phases,
+            )
             return ProbeResponse(
                 200,
                 (("Content-Type", "application/json; charset=utf-8"),),
@@ -261,7 +267,63 @@ def test_power_budget_projection_is_read_only_and_revision_bound():
     assert inputs.loads[0].controllable is False
     assert provider.control_capability(actor(), authority) == "read_only"
     with pytest.raises(EvccProviderError, match="provider_read_only"):
-        provider.apply(plan_hash="f" * 64, actions=())
+        provider.apply(authority, plan_hash="f" * 64, actions=())
+
+
+def test_power_budget_control_requires_explicit_authority_and_real_electrical_facts():
+    class Control:
+        enabled = False
+
+        def __init__(self):
+            self.applied = []
+
+        def power_budget_authorized(self, observation, index):
+            assert observation.service_id == SERVICE_ID and index == 1
+            return self.enabled
+
+        def apply_power_budget_authorized(
+                self, authority, *, plan_hash, actions):
+            self.applied.append((authority, plan_hash, actions))
+
+        def readback_power_budget_authorized(
+                self, authority, *, plan_hash, actions):
+            return plan_hash if self.applied == [
+                (authority, plan_hash, actions)] else None
+
+    binding = EvccBinding(
+        "core", "home", 2, 3,
+        lambda principal: 5 if principal.id == "b" * 32 else 0,
+        connection(), lambda: None)
+    control = Control()
+    provider = EvccRuntimeProviders(
+        binding, clock=lambda: NOW, control_authority=control,
+        transport_factory=Transport).power_budget
+
+    Transport.payload = state_fixture()
+    read_only = provider.authority(actor())
+    assert read_only.can_control is False
+    assert provider.inputs(actor(), read_only).loads[0].critical is True
+
+    control.enabled = True
+    authorized = provider.authority(actor())
+    load = provider.inputs(actor(), authorized).loads[0]
+    assert authorized.can_control is True
+    assert (load.critical, load.controllable, load.minimum_w) == (
+        False, True, 1_380)
+    assert provider.control_capability(actor(), authorized) == "manual_required"
+    actions = ({"load_id": load.load_id, "load_revision": load.revision,
+                "reduction_w": 2_000, "target_w": 1_680, "priority": 20},)
+    provider.apply(authorized, plan_hash="f" * 64, actions=actions)
+    assert provider.readback(
+        authorized, plan_hash="f" * 64, actions=actions) == "f" * 64
+
+    Transport.payload = state_fixture(loadpoints=[{
+        **state_fixture()["loadpoints"][0], "chargeVoltages": [],
+    }])
+    missing_voltage = provider.authority(actor())
+    missing = provider.inputs(actor(), missing_voltage).loads[0]
+    assert missing_voltage.can_control is False
+    assert missing.critical is True and not missing.controllable
 
 
 def test_negative_dynamic_tariff_is_preserved_without_clamping():
@@ -537,6 +599,34 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     assert "apiKey" not in current_control.text
     assert "baseUrl" not in current_control.text
     assert "slots" not in current_control.text
+    Transport.payload["grid"]["power"] = 9000
+    power = client.get("/api/v1/admin/power-budget", headers=auth(pair))
+    assert power.status_code == 200, power.text
+    budget = power.json()["snapshot"]
+    assert budget["commandEndpointAvailable"] is True
+    assert budget["plan"]["requiredReductionW"] == 600
+    assert [(item["loadId"], item["targetW"])
+            for item in budget["plan"]["actions"]] == [("evcc-lp-1", 3080)]
+    power_body = {
+        "schemaVersion": 1,
+        "previewId": budget["plan"]["id"],
+        "expectedPlanHash": budget["plan"]["planHash"],
+        "requestKey": "power-budget-control-1",
+    }
+    controlled = client.post(
+        "/api/v1/admin/power-budget/confirm",
+        headers=auth(pair), json=power_body)
+    assert controlled.status_code == 200, controlled.text
+    assert controlled.json()["receipt"]["status"] == "verified"
+    repeated_power = client.post(
+        "/api/v1/admin/power-budget/confirm",
+        headers=auth(pair), json=power_body)
+    assert repeated_power.status_code == 200
+    assert repeated_power.json() == controlled.json()
+    assert sum(call[1:3] == (
+        "POST", "/api/loadpoints/1/maxcurrent/13")
+        for call in Transport.calls) == 1
+    Transport.payload = state_fixture()
     Transport.payload["loadpoints"][0]["charging"] = False
     assert (
         client.get(
