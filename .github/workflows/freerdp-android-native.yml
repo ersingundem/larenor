@@ -18,7 +18,10 @@
         "test/features/remote_access/rdp/**",
         "tool/freerdp_android_package.py",
         "tool/tests/freerdp_android_package_test.py",
-        "android/app/src/freerdpAndroidTest/**"
+        "android/app/src/freerdpAndroidTest/**",
+        "tool/f62_packaged_acceptance.py",
+        "tool/tests/f62_packaged_acceptance_test.py",
+        "tool/tests/freerdp_android_workflow_test.py"
       ]
     }
   },
@@ -133,7 +136,7 @@
             "disable-animations": true,
             "disable-spellchecker": true,
             "disable-linux-hw-accel": false,
-            "script": "set -eu\ncd android\n./gradlew --no-daemon :app:connectedDebugAndroidTest \\\n  -Pandroid.testInstrumentationRunnerArguments.class=com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpHost=10.0.2.2 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPort=3390 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpUsername=larenor \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPassword=\"$RDP_ACCEPTANCE_PASSWORD\"\n"
+            "script": "python3 tool/f62_packaged_acceptance.py"
           }
         },
         {

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül FreeRDP gerçek host komut bağlamı düzeltmesi
+
+Exact b76558c4 / run 36765836443 iki paket/APK ve NLA hostu geçti; KVM düzeltmesiyle emulator 29sn boot oldu. Action her script satırını ayrı shell ile çalıştırdığı için cd android sonraki gradlew komutuna taşınmadı, exit127 geldi; instrumentation başlamadı. Tek Python runner Android cwd/argvyi kendisi bağlar ve yeni exact XMLde bir named test/sıfır skip olmadan receipt vermez. 12 policy/package/receipt testi geçti; yeni exact host sonucu bekliyor. [RDP kanıtı](testing/f62-freerdp-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül TigerVNC test penceresi kimliği düzeltmesi
 
 Exact b76558c4 / run 36765832888 font hatasını kapattı; xterm başlığına göre pencere araması production test başlamadan timeout verdi. İzole pencere artık sabit WM_CLASS üzerinden bulunur ve owned bash startup dosyaları yüklenmez; visible-window/focus sınırı 10sn ve tüm gerçek native kabul koşulları korunur. 5 policy testi geçti; F61 gerçek hosted gatei geçmeden yazılım kabulü sayılmadı. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

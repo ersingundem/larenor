@@ -28,7 +28,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertNotIn("secrets.", text)
         # 10.0.2.2 is Android Emulator's reserved host-loopback alias. It is
         # the only private address allowed here and never names a real home.
-        self.assertEqual(text.count("10.0.2.2"), 1)
+        self.assertEqual(text.count("10.0.2.2"), 0)
         self.assertNotRegex(
             text.replace("10.0.2.2", ""),
             r"192\.168\.|10\.\d+\.|172\.(?:1[6-9]|2\d|3[01])\.",
@@ -118,12 +118,15 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(client["with"]["emulator-boot-timeout"], 300)
         self.assertIs(client["with"]["disable-linux-hw-accel"], False)
         script = client["with"]["script"]
-        self.assertTrue(script.startswith("set -eu\n"))
-        self.assertNotIn("pipefail", script)
-        self.assertIn(":app:connectedDebugAndroidTest", script)
-        self.assertIn("RdpPackagedHostAcceptanceTest", script)
-        self.assertIn("rdpHost=10.0.2.2", script)
-        self.assertIn("rdpPassword=\"$RDP_ACCEPTANCE_PASSWORD\"", script)
+        self.assertEqual(script, "python3 tool/f62_packaged_acceptance.py")
+        runner = (ROOT / "tool/f62_packaged_acceptance.py").read_text()
+        self.assertIn("cwd=ROOT / \"android\"", runner)
+        self.assertIn(":app:connectedDebugAndroidTest", runner)
+        self.assertIn("RdpPackagedHostAcceptanceTest", runner)
+        self.assertIn("rdpHost=10.0.2.2", runner)
+        self.assertIn("rdpPassword={password}", runner)
+        self.assertNotIn("shell=True", runner)
+        self.assertLess(runner.index("verify_reports()"), runner.index("client-receipt.json"))
         self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
         self.assertIn("rm -f \"$RUNNER_TEMP/larenor-rdp.sam\"", cleanup["run"])
 

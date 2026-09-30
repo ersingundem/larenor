@@ -24,3 +24,28 @@ This repair does not establish a FreeRDP client connection by itself. F62
 requires a new exact workflow run to prove the packaged Android client reaches
 the owned NLA host. Physical Windows, RD Gateway, audio, IME, and DeX behavior
 remain manual device/provider evidence and no household endpoint was contacted.
+
+## Exact second host result and command-context repair
+
+[Run 36765836443](https://github.com/ersingundem/larenor/actions/runs/36765836443)
+at `b76558c4ee09b3f8e5fad4b274ac699576e71821` passed both native package/APK
+lanes, owned NLA host startup, and the new KVM preflight. The emulator booted
+in 29 seconds. Instrumentation still did not start: the action ran each script
+line in a separate `/usr/bin/sh -c`, so `cd android` did not persist for the next
+`./gradlew` line, which failed with exit 127. This is an observed command-context
+defect, not another emulator boot failure.
+
+The [pinned action source](https://github.com/ReactiveCircus/android-emulator-runner/blob/a421e43855164a8197daf9d8d40fe71c6996bb0d/src/main.ts)
+is kept unchanged. It now receives one command,
+`python3 tool/f62_packaged_acceptance.py`. That owned runner uses an argv list,
+sets the Android working directory on the subprocess itself, bounds the test to
+20 minutes and maps timeout/process-start failures to static errors without
+printing its disposable password. It deletes only old `TEST-*.xml` outputs from
+the fixed ignored report directory before launch. A receipt requires exactly one
+new report, exactly the named production class/method and one executed test with
+zero skips/failures/errors. The report and receipt are archived with the package.
+
+Twelve workflow/package/receipt policy tests passed locally. They prove the
+execution and evidence policy, not RDP interoperability. A new exact hosted run
+must execute the packaged native client and pass; no timeout was increased and
+no TLS/NLA/frame/input/retirement assertions were relaxed.
