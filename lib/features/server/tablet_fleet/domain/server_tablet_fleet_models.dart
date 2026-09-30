@@ -182,14 +182,7 @@ final class ManagedTablet {
     final rawCapabilities = json['capabilities'];
     final allowed = mode == TabletManagementMode.standard
         ? const {'notifications', 'kiosk', 'media', 'screen'}
-        : const {
-            'notifications',
-            'kiosk',
-            'media',
-            'screen',
-            'appRestart',
-            'kioskLock',
-          };
+        : const {'notifications', 'kiosk', 'media', 'screen', 'kioskLock'};
     if (rawCapabilities is! List ||
         rawCapabilities.any((item) => item is! String) ||
         rawCapabilities.toSet().length != rawCapabilities.length ||
@@ -229,9 +222,34 @@ final class ManagedTablet {
   final TabletProfileState profileState;
   final double lastSeenAt;
 
-  bool supports(TabletCommandKind command) =>
-      command.requiredMode == TabletManagementMode.standard ||
-      mode == TabletManagementMode.deviceOwner;
+  bool supports(TabletCommandKind command) => switch (command) {
+    TabletCommandKind.syncProfile => capabilities.contains('kiosk'),
+    TabletCommandKind.refreshDashboard => capabilities.contains('screen'),
+    TabletCommandKind.restartClient => capabilities.contains('appRestart'),
+    TabletCommandKind.lockKiosk => capabilities.contains('kioskLock'),
+  };
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'ref': {
+      'schemaVersion': 1,
+      'coreId': context.coreId,
+      'homeId': context.homeId,
+      'kind': 'managed_tablet',
+      'id': id,
+    },
+    'revision': revision,
+    'name': name,
+    'platform': 'android',
+    'managementMode': mode.name,
+    'capabilities': capabilities,
+    'clientVersion': clientVersion,
+    'desiredProfileRevision': desiredProfileRevision,
+    'appliedProfileRevision': appliedProfileRevision,
+    'state': state.name,
+    'profileState': profileState.name,
+    'lastSeenAt': lastSeenAt,
+  };
 
   bool sameAuthority(ManagedTablet other) =>
       context == other.context && id == other.id;
@@ -668,6 +686,20 @@ final class ManagedTabletCommand {
   final TabletCommandResult? result;
   final double createdAt;
   final double? completedAt;
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'id': id,
+    'sequence': sequence,
+    'command': kind.name,
+    'requiredMode': requiredMode.name,
+    'policyRevision': policyRevision,
+    'expiresAt': expiresAt,
+    'state': state.name,
+    'result': result?.name,
+    'createdAt': createdAt,
+    'completedAt': completedAt,
+  };
 
   bool sameReceipt(ManagedTabletCommand other) =>
       id == other.id &&

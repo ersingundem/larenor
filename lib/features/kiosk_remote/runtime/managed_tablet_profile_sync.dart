@@ -15,7 +15,11 @@ final class ManagedTabletProfileSynchronizer {
   final ServerAccountController account;
   final ManagedTabletCredentialStore credentials;
   final ManagedTabletProfileStore profiles;
-  final Future<void> Function(AppliedManagedTabletProfile? profile) activate;
+  final Future<void> Function(
+    ManagedTabletProfileAuthority authority,
+    AppliedManagedTabletProfile? profile,
+  )
+  activate;
 
   Future<void> synchronize({
     required String clientVersion,
@@ -52,12 +56,23 @@ final class ManagedTabletProfileSynchronizer {
       if (!_current(generation, binding, enrollment, isCurrent)) {
         throw const LarenorServerException('cancelled');
       }
-      final applied = await profiles.apply(
+      final authority = ManagedTabletProfileAuthority.fromEnrollment(
         enrollment,
+      );
+      final applied = await profiles.applyForAuthority(
+        authority,
         publication,
         expectedDeviceId: enrollment.deviceId,
         isCurrent: () => _current(generation, binding, enrollment, isCurrent),
-        activate: activate,
+        activate: (profile) async {
+          if (!_current(generation, binding, enrollment, isCurrent)) {
+            throw StateError('managed_tablet_action_retired');
+          }
+          await activate(authority, profile);
+          if (!_current(generation, binding, enrollment, isCurrent)) {
+            throw StateError('managed_tablet_action_retired');
+          }
+        },
       );
       if (!_current(generation, binding, enrollment, isCurrent) ||
           applied.revision != publication.revision ||

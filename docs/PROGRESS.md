@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 55 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi gerçek kabulden geçti; F52 gerçek ikinci ekran kabulünden geçti; F53 profil composition, F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek host kabulü dört testi geçti; CI cleanup izin düzeltmesinin yeni exact sonucu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 56 seçili özellik ve K10/K12 CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,14 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F53 ve K10/K12 durum uzlaşması
+
+F53 gerçek Core profilini kayıt, revision ACK, restart ve revoke boyunca uyguladı. K07/F53 ortak profil activation sınırı geç veya eski callbacklerin başka authority profilini silmesini engeller; root dört gerçek TCP/Flutter fazını ve 7 Server testini geçti. 50 focused Flutter ve scoped analyze temiz. K10 güncel 24 Flutter/12 Android ve K12 55 Flutter kapısı bağımsız doğrulandı. Üç iş CI bekliyor tablosuna taşındı: 56 seçili özellik ve iki kiosk işi; kabul sayaçları 37/127 ve 3/63 değişmedi. Fiziksel OEM/Device Owner/long-idle kapıları açık kalır. [F53 kanıtı](testing/f53-tablet-management-acceptance-2026-09-30.md), [K10 kanıtı](testing/k10-local-sensor-tablet.tdd.md), [K12 kanıtı](testing/k12-watchdog-local-usage-foundation.tdd.md).
+
+### 30 Eylül exact Linux host CI kabulü
+
+Exact `888dfd46f197808f91eaf0f85a4878e15ed27f8e` [run 36762186381](https://github.com/ersingundem/larenor/actions/runs/36762186381) yeşil tamamlandı. Gerçek production offline bundle, kurulu Core, dört cross-UID IPC/systemd kabulü ve disposable cleanup geçti. Bu named host kanıtıdır; daha sonraki branch HEADin geniş CI kabulü yerine geçmez. [Host kanıtı](testing/unified-host-workers-2026-09-30.md).
 
 ### 30 Eylül F54 kalıcı teslim iptali
 

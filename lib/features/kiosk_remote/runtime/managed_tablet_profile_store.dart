@@ -37,13 +37,114 @@ final class ManagedTabletActiveProfileController
 
   void activate(AppliedManagedTabletProfile? value) => state = value;
 
+  bool activateForAuthority(
+    ManagedTabletProfileAuthority authority,
+    AppliedManagedTabletProfile? value,
+  ) {
+    if (value == null) return clearIfAuthority(authority);
+    if (!value.belongsToAuthority(authority)) {
+      throw StateError('managed_tablet_profile_authority_changed');
+    }
+    state = value;
+    return true;
+  }
+
+  bool clearIfAuthority(ManagedTabletProfileAuthority authority) {
+    if (state?.belongsToAuthority(authority) != true) return false;
+    state = null;
+    return true;
+  }
+
   void clearIfMounted() {
     if (ref.mounted) state = null;
+  }
+
+  void clearIfMountedForAuthority(ManagedTabletProfileAuthority authority) {
+    if (ref.mounted) clearIfAuthority(authority);
   }
 }
 
 final _identity = RegExp(r'^[0-9a-f]{32}$');
 final _digest = RegExp(r'^[0-9a-f]{64}$');
+
+/// Exact authority for a profile without implying MQTT enrollment.
+///
+/// F53's authenticated tablet-fleet registration and K07's MQTT pairing are
+/// separate opt-ins. Both may install the same profile document, but their
+/// authority fingerprints remain distinct.
+final class ManagedTabletProfileAuthority {
+  ManagedTabletProfileAuthority({
+    required this.serverBaseUrl,
+    required this.coreId,
+    required this.homeId,
+    required this.accountId,
+    required this.deviceId,
+    required this.sourceId,
+  }) : _fingerprint = null {
+    final server = Uri.tryParse(serverBaseUrl);
+    if (server == null ||
+        !server.hasScheme ||
+        server.host.isEmpty ||
+        !_identity.hasMatch(coreId) ||
+        !_identity.hasMatch(homeId) ||
+        !_identity.hasMatch(deviceId) ||
+        accountId.isEmpty ||
+        accountId.length > 128 ||
+        sourceId.isEmpty ||
+        sourceId.length > 160) {
+      throw ArgumentError('invalid_managed_tablet_profile_authority');
+    }
+  }
+
+  ManagedTabletProfileAuthority._enrollment(ManagedTabletEnrollment enrollment)
+    : serverBaseUrl = enrollment.serverBaseUrl,
+      coreId = enrollment.coreId,
+      homeId = enrollment.homeId,
+      accountId = enrollment.accountId,
+      deviceId = enrollment.deviceId,
+      sourceId = 'mqtt:${enrollment.pairingId}:${enrollment.revision}',
+      _fingerprint = sha256
+          .convert(
+            utf8.encode(
+              jsonEncode([
+                1,
+                enrollment.serverBaseUrl,
+                enrollment.coreId,
+                enrollment.homeId,
+                enrollment.accountId,
+                enrollment.deviceId,
+                enrollment.pairingId,
+                enrollment.revision,
+              ]),
+            ),
+          )
+          .toString();
+
+  factory ManagedTabletProfileAuthority.fromEnrollment(
+    ManagedTabletEnrollment enrollment,
+  ) => ManagedTabletProfileAuthority._enrollment(enrollment);
+
+  final String serverBaseUrl, coreId, homeId, accountId, deviceId, sourceId;
+  final String? _fingerprint;
+
+  String get fingerprint =>
+      _fingerprint ??
+      sha256
+          .convert(
+            utf8.encode(
+              jsonEncode([
+                2,
+                serverBaseUrl,
+                coreId,
+                homeId,
+                accountId,
+                deviceId,
+                sourceId,
+              ]),
+            ),
+          )
+          .toString();
+}
 
 final class AppliedManagedTabletProfile {
   const AppliedManagedTabletProfile._({
@@ -64,15 +165,23 @@ final class AppliedManagedTabletProfile {
   factory AppliedManagedTabletProfile.fromPublication(
     ManagedTabletEnrollment enrollment,
     ManagedTabletProfilePublication publication,
+  ) => AppliedManagedTabletProfile.fromAuthority(
+    ManagedTabletProfileAuthority.fromEnrollment(enrollment),
+    publication,
+  );
+
+  factory AppliedManagedTabletProfile.fromAuthority(
+    ManagedTabletProfileAuthority authority,
+    ManagedTabletProfilePublication publication,
   ) {
     if (publication.deviceId.isEmpty) {
       throw const LarenorServerException('invalid_response');
     }
     final value = AppliedManagedTabletProfile._(
-      authorityFingerprint: _authorityFingerprint(enrollment),
+      authorityFingerprint: authority.fingerprint,
       transactionId: _transactionId(),
-      coreId: enrollment.coreId,
-      homeId: enrollment.homeId,
+      coreId: authority.coreId,
+      homeId: authority.homeId,
       deviceId: publication.deviceId,
       deviceRevision: publication.deviceRevision,
       revision: publication.revision,
@@ -153,11 +262,15 @@ final class AppliedManagedTabletProfile {
   final bool confirmed;
   final double updatedAt;
 
-  bool belongsTo(ManagedTabletEnrollment enrollment) =>
-      authorityFingerprint == _authorityFingerprint(enrollment) &&
-      coreId == enrollment.coreId &&
-      homeId == enrollment.homeId &&
-      deviceId == enrollment.deviceId;
+  bool belongsTo(ManagedTabletEnrollment enrollment) => belongsToAuthority(
+    ManagedTabletProfileAuthority.fromEnrollment(enrollment),
+  );
+
+  bool belongsToAuthority(ManagedTabletProfileAuthority authority) =>
+      authorityFingerprint == authority.fingerprint &&
+      coreId == authority.coreId &&
+      homeId == authority.homeId &&
+      deviceId == authority.deviceId;
 
   Map<String, Object> toJson() => {
     'schemaVersion': 2,
@@ -239,24 +352,6 @@ final class AppliedManagedTabletProfile {
       throw const LarenorServerException('invalid_response');
     }
   }
-
-  static String _authorityFingerprint(ManagedTabletEnrollment enrollment) =>
-      sha256
-          .convert(
-            utf8.encode(
-              jsonEncode([
-                1,
-                enrollment.serverBaseUrl,
-                enrollment.coreId,
-                enrollment.homeId,
-                enrollment.accountId,
-                enrollment.deviceId,
-                enrollment.pairingId,
-                enrollment.revision,
-              ]),
-            ),
-          )
-          .toString();
 
   static String _transactionId() {
     final random = Random.secure();
@@ -346,8 +441,29 @@ final class ManagedTabletProfileStore {
     return profile?.belongsTo(enrollment) == true ? profile : null;
   }
 
+  Future<AppliedManagedTabletProfile?> readForAuthority(
+    ManagedTabletProfileAuthority authority,
+  ) async {
+    final profile = await read();
+    return profile?.belongsToAuthority(authority) == true ? profile : null;
+  }
+
   Future<AppliedManagedTabletProfile> apply(
     ManagedTabletEnrollment enrollment,
+    ManagedTabletProfilePublication publication, {
+    required String expectedDeviceId,
+    required bool Function() isCurrent,
+    Future<void> Function(AppliedManagedTabletProfile? profile)? activate,
+  }) => applyForAuthority(
+    ManagedTabletProfileAuthority.fromEnrollment(enrollment),
+    publication,
+    expectedDeviceId: expectedDeviceId,
+    isCurrent: isCurrent,
+    activate: activate,
+  );
+
+  Future<AppliedManagedTabletProfile> applyForAuthority(
+    ManagedTabletProfileAuthority authority,
     ManagedTabletProfilePublication publication, {
     required String expectedDeviceId,
     required bool Function() isCurrent,
@@ -357,8 +473,8 @@ final class ManagedTabletProfileStore {
     if (publication.deviceId != expectedDeviceId) {
       throw StateError('managed_tablet_profile_changed');
     }
-    final next = AppliedManagedTabletProfile.fromPublication(
-      enrollment,
+    final next = AppliedManagedTabletProfile.fromAuthority(
+      authority,
       publication,
     );
     final previousRaw = await persistence.read();
@@ -370,7 +486,7 @@ final class ManagedTabletProfileStore {
     final safePrevious =
         previous?.confirmed == true &&
             previousConfirmation == previous?._confirmationToken &&
-            previous?.belongsTo(enrollment) == true
+            previous?.belongsToAuthority(authority) == true
         ? previous
         : null;
     if (safePrevious != null) {

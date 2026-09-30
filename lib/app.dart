@@ -11,6 +11,7 @@ import 'features/settings/providers/settings_providers.dart';
 import 'features/local_notifications/presentation/local_notification_runtime_scope.dart';
 import 'features/kiosk/presentation/launcher_shortcut_runtime_scope.dart';
 import 'features/kiosk_remote/runtime/managed_tablet_runtime_scope.dart';
+import 'features/server/tablet_fleet/runtime/tablet_fleet_device_runtime_scope.dart';
 import 'l10n/generated/app_localizations.dart';
 
 class LarenorApp extends ConsumerWidget {
@@ -39,9 +40,11 @@ class LarenorApp extends ConsumerWidget {
               child: LocalNotificationRuntimeScope(
                 navigate: router.go,
                 child: ManagedTabletRuntimeScope(
-                  child: LauncherShortcutRuntimeScope(
-                    navigate: router.go,
-                    child: child ?? const SizedBox.shrink(),
+                  child: TabletFleetDeviceRuntimeScope(
+                    child: LauncherShortcutRuntimeScope(
+                      navigate: router.go,
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),

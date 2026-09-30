@@ -23,3 +23,7 @@ and proves DeX/window focus and resume-authority loss each stop the owned native
 session. A denied or uncertain stop cannot keep showing private sampling as
 active. Native permission grant/revocation and OEM availability remain physical
 device-verification work.
+
+## Current branch reconciliation — 2026-09-30
+
+24 focused Flutter sensor models/screen tests, 12 Android KioskSensorPolicy/Bridge tests, and scoped analyze across 15 K10/K12 files passed. The independent production review found no remaining software blocker. The queue now records `awaiting_ci`; final exact-head CI and the separate physical `MANUAL.KIOSK` gates remain open.

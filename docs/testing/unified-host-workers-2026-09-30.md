@@ -168,3 +168,7 @@ Exact `8b0de547afcdd71cd390e41101bee76752dd21cd`, hosted run `36760057118`, pass
 ## Hosted cleanup correction
 
 Exact `b23e543ee30f064ad779d37cc45f7050f7125a16`, hosted run `36760951195`, passed all four installed-Core, cross-UID IPC and systemd acceptance tests. The job nevertheless failed in its EXIT trap because subprocesses had written root-owned bytecode beneath the runner-owned disposable source tree. Cleanup now uses noninteractive sudo only for the exact freshly allocated `/tmp/larenor-host-proof.XXXXXX` tree, with `--one-file-system`; it preserves a prior test failure status and treats cleanup failure as failure. Installer and worker permission checks are unchanged. Bash syntax and the existing workflow policy suite passed; a new exact hosted run is still required.
+
+## Exact hosted Linux acceptance result
+
+[Run 36762186381](https://github.com/ersingundem/larenor/actions/runs/36762186381) completed successfully at exact commit `888dfd46f197808f91eaf0f85a4878e15ed27f8e`. The real production offline bundle, installed Core, four cross-UID IPC/systemd acceptance tests and disposable cleanup passed. This closes the named host gate at that commit; it does not assert broad CI success for later branch commits or physical provider acceptance.

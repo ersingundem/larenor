@@ -13,6 +13,7 @@ import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_tablet_fleet_controller.dart';
 import '../domain/server_tablet_fleet_models.dart';
+import 'tablet_fleet_this_device_card.dart';
 
 class ServerTabletFleetScreen extends ConsumerStatefulWidget {
   const ServerTabletFleetScreen({super.key, required this.gateCurrent});
@@ -238,6 +239,12 @@ class _ServerTabletFleetScreenState
                 ),
               ),
             ],
+            SliverToBoxAdapter(
+              child: TabletFleetThisDeviceCard(
+                enabled: _active && !_fleet.busy && !_fleet.needsRefresh,
+                current: () => mounted && _active,
+              ),
+            ),
             if (message.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
@@ -366,7 +373,7 @@ class _ServerTabletFleetScreenState
                 )
               : null,
         ),
-        if (owner) ...[
+        if (tablet.supports(TabletCommandKind.restartClient))
           SettingsActionTile(
             buttonKey: ValueKey('tablet-restart-${tablet.id}'),
             leading: const Icon(CupertinoIcons.restart),
@@ -379,6 +386,7 @@ class _ServerTabletFleetScreenState
                   )
                 : null,
           ),
+        if (tablet.supports(TabletCommandKind.lockKiosk))
           SettingsActionTile(
             buttonKey: ValueKey('tablet-lock-${tablet.id}'),
             leading: const Icon(CupertinoIcons.lock),
@@ -391,7 +399,6 @@ class _ServerTabletFleetScreenState
                   )
                 : null,
           ),
-        ],
         SettingsActionTile(
           buttonKey: ValueKey('tablet-revoke-${tablet.id}'),
           leading: const Icon(CupertinoIcons.xmark_circle),

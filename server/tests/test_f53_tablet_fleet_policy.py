@@ -41,7 +41,8 @@ def test_registered_identity_last_seen_and_capabilities_are_read_only_state(serv
     standard = register(client, admin, path)
     owner = register(client, admin, path, mode="deviceOwner")
     assert standard["capabilities"] == ["notifications", "kiosk", "media", "screen"]
-    assert owner["capabilities"][-2:] == ["appRestart", "kioskLock"]
+    assert owner["capabilities"][-1:] == ["kioskLock"]
+    assert "appRestart" not in owner["capabilities"]
     assert standard["lastSeenAt"] == clock.now
 
     listed = client.get(path + "/devices", headers=auth(admin)).json()["tablets"]

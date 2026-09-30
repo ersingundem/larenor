@@ -28,7 +28,8 @@ final class ManagedTabletRuntimeOwner {
   LocalMqttBrokerSettings settings;
   final ManagedMqttStateStore stateStore;
   final DateTime Function() now;
-  final Future<void> Function()? onAuthorityRetired;
+  final Future<void> Function(ManagedTabletEnrollment enrollment)?
+  onAuthorityRetired;
   final void Function(String event)? logger;
 
   ManagedTabletBinding? _binding;
@@ -120,9 +121,13 @@ final class ManagedTabletRuntimeOwner {
         !_guardCurrent(routeCurrent)) {
       throw StateError('managed_tablet_enrollment_denied');
     }
+    final replaced = await store.read();
+    if (_disposed || _binding != binding || !_guardCurrent(routeCurrent)) {
+      throw StateError('managed_tablet_enrollment_denied');
+    }
     final generation = ++_generation;
     await _schedule(generation, start: false);
-    await onAuthorityRetired?.call();
+    if (replaced != null) await onAuthorityRetired?.call(replaced);
     if (!_enrollmentCurrent(generation, binding, routeCurrent)) {
       throw StateError('managed_tablet_enrollment_denied');
     }
@@ -247,8 +252,6 @@ final class ManagedTabletRuntimeOwner {
       try {
         if (enrollment != null) {
           await _clearAuthority(binding, enrollment.pairingId);
-        } else {
-          await onAuthorityRetired?.call();
         }
       } finally {
         if (_current(generation)) await _retireCurrent();
@@ -323,10 +326,20 @@ final class ManagedTabletRuntimeOwner {
     ManagedTabletBinding binding,
     String pairingId,
   ) async {
+    ManagedTabletEnrollment? retired;
+    try {
+      final candidate = await store.read();
+      if (candidate?.binding == binding && candidate?.pairingId == pairingId) {
+        retired = candidate;
+      }
+    } catch (_) {
+      // The credential clear below remains authoritative. Without an exact
+      // record, this callback must not clear another profile source.
+    }
     try {
       await store.clearIfCurrent(binding, pairingId);
     } finally {
-      await onAuthorityRetired?.call();
+      if (retired != null) await onAuthorityRetired?.call(retired);
     }
   }
 

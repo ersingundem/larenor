@@ -148,8 +148,9 @@ def test_command_delivery_is_bounded_replay_safe_and_capability_aware(server):
         "expectedPolicyRevision": 1, "expiresAt": clock.now + 60,
         "requestKey": "owner-restart-request-01", "command": "restartClient",
     })
-    assert elevated.status_code == 201
-    assert elevated.json()["command"]["requiredMode"] == "deviceOwner"
+    assert owner["capabilities"] == ["notifications", "kiosk", "media", "screen", "kioskLock"]
+    assert elevated.status_code == 409
+    assert elevated.json()["error"]["code"] == "tablet_capability_unavailable"
 
 
 def test_scope_session_role_and_revocation_fail_closed(server):

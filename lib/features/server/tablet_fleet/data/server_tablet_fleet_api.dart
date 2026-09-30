@@ -329,6 +329,23 @@ class ServerTabletFleetApi {
     required String name,
     required String clientVersion,
     required int appliedProfileRevision,
+  }) => register(
+    registrationId: registrationId,
+    name: name,
+    clientVersion: clientVersion,
+    appliedProfileRevision: appliedProfileRevision,
+    mode: TabletManagementMode.standard,
+  );
+
+  /// The management mode must come from the native kiosk snapshot. It is a
+  /// reported client capability and does not replace the local Device Owner
+  /// check performed again before a privileged command.
+  Future<ManagedTablet> register({
+    required String registrationId,
+    required String name,
+    required String clientVersion,
+    required int appliedProfileRevision,
+    required TabletManagementMode mode,
   }) => _record(
     api.request(
       'POST',
@@ -339,13 +356,13 @@ class ServerTabletFleetApi {
         'registrationId': _id(registrationId),
         'name': _name(name),
         'platform': 'android',
-        'managementMode': 'standard',
+        'managementMode': mode.name,
         'clientVersion': _version(clientVersion),
         'appliedProfileRevision': _revision(appliedProfileRevision),
       },
     ),
     expectedId: registrationId,
-    expectedMode: TabletManagementMode.standard,
+    expectedMode: mode,
   );
 
   Future<ManagedTablet> heartbeat(

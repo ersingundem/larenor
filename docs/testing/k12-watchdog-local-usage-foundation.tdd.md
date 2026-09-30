@@ -75,3 +75,7 @@ persistent explicit-recovery gate used by the maintenance surface.
 - The focused package passes **55/55** tests across watchdog persistence,
   maintenance UI, recovery-budget policy and WebPanel lifecycle behavior.
   Scoped analysis over the nine production and test files reports no issues.
+
+## Current branch reconciliation — 2026-09-30
+
+55 focused Flutter watchdog/maintenance/WebPanel policy and lifecycle tests, and scoped analyze across 15 K10/K12 files passed. The independent production review found no remaining software blocker. The queue now records `awaiting_ci`; final exact-head CI and the separate physical `MANUAL.KIOSK` gates remain open.

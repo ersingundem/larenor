@@ -31,7 +31,7 @@ from .models import (
 _IDENTITY = re.compile(r"^[0-9a-f]{32}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _STANDARD_CAPABILITIES = ("notifications", "kiosk", "media", "screen")
-_OWNER_CAPABILITIES = _STANDARD_CAPABILITIES + ("appRestart", "kioskLock")
+_OWNER_CAPABILITIES = _STANDARD_CAPABILITIES + ("kioskLock",)
 _COMMAND_MODE = {
     "syncProfile": "standard",
     "refreshDashboard": "standard",
@@ -925,6 +925,11 @@ class TabletFleetService:
                 self._expire_commands(
                     connection, actor_id=actor.id, device_id=device_id, now=now)
                 required = _COMMAND_MODE[body.command]
+                if body.command == "restartClient":
+                    # Android's DevicePolicyManager can reboot a whole device;
+                    # it cannot prove a safe in-app process restart. Keep the
+                    # legacy wire value parseable but never advertise or issue it.
+                    raise ApiError("tablet_capability_unavailable", 409)
                 if required == "deviceOwner" and device.managementMode != "deviceOwner":
                     raise ApiError("tablet_capability_unavailable", 409)
                 old = connection.execute(

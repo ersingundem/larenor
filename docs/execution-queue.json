@@ -2865,7 +2865,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Hareket, karanlık ve cihaz sensörleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B5"
       ],
@@ -2885,7 +2885,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Güncel production yolu ve named gate 30 Eylül bağımsız yeniden doğrulandı: 24 Flutter, 12 Android SensorPolicy/Bridge testi ve 15 dosyada scoped analyze geçti. Explicit ön plan local sensör gözlemi bounded 1–10sn, memory-only, HA/cihaz etkisi yok; route/focus/lifecycle kaybında kapanır. Yazılım tamamlandı; geniş exact HEAD CI bekleniyor. Fiziksel OEM sensör/izin ve 24 saat pil/termal MANUAL.KIOSKta açık. Kanıt: docs/testing/k10-local-sensor-tablet.tdd.md."
     },
     {
       "id": "K11",
@@ -2920,7 +2920,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Watchdog ve yerel kullanım ölçümü",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K03.remaining"
       ],
@@ -2940,7 +2940,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Güncel production yolu ve named gate 30 Eylül bağımsız yeniden doğrulandı: 55 Flutter watchdog/maintenance/WebPanel testi ve scoped analyze geçti. Durable 3 deneme/10dk recovery, bozuk/yazılamayan storage fail-closed, 30 günlük içeriksiz sayaç ve exhausted WebPanel bakım ekranı gerçek uygulama yolunda bağlı. Yazılım tamamlandı; geniş exact HEAD CI bekleniyor. Fiziksel Huawei/DeX process-death/long-idle MANUAL.KIOSKta açık; force-stop/OS automatic relaunch destek iddiası yok. Kanıt: docs/testing/k12-watchdog-local-usage-foundation.tdd.md."
     },
     {
       "id": "K13",
@@ -3450,7 +3450,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Evdeki tabletleri tek yerden yönetme",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3474,7 +3474,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek opt-in registration, durable journal ve exact profil publication/apply/readback/restart kapısı geçti; root normal composition içinde K07 MQTT scope callbacklerinin F53 active profileı temizleyebildiğini buldu. F53/K07 ayrı authority korunması ve gerçek uygulanan window/idle settings invalidation aktif düzeltmede. Bu composition kabulü geçmeden CI bekliyor olmayacak; fiziksel Device Owner/OEM MANUAL açık."
+      "reason": "Gerçek opt-in tablet kaydı, secure durable command/result journalı ve profil publication/apply/readback/restart tamamlandı. K07/F53 aynı authority-scoped activation yolunu kullanır; geç K07 revoke callbacki F53 profilini silemez, window/idle settings uygulanmadan ACK verilmez. Root 7 Server ve dört gerçek Flutter/normal Core TCP fazını bağımsız doğruladı; 50 focused Flutter ve scoped analyze geçti. Normal app/Device Owner capability ayrımı korunur; device reboot app restart sayılmadığı için restartClient artık advertise/issue edilmez. Geniş exact HEAD CI, F54 bağımlılığının final kabulü ve fiziksel Device Owner/OEM MANUAL açık. Kanıt: docs/testing/f53-tablet-management-acceptance-2026-09-30.md."
     },
     {
       "id": "F51",

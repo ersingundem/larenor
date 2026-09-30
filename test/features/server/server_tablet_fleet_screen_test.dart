@@ -107,7 +107,7 @@ void main() {
             expect(standardNode.rect.height, greaterThanOrEqualTo(48));
 
             final owner = find.byKey(
-              const ValueKey('tablet-restart-$ownerTabletId'),
+              const ValueKey('tablet-lock-$ownerTabletId'),
             );
             await reveal(tester, owner);
             final ownerNode = actionNode(tester, owner);

@@ -157,7 +157,7 @@ ManagedTabletRuntimeOwner _owner({
   required _Authority authority,
   required _Source source,
   required _Broker broker,
-  Future<void> Function()? onAuthorityRetired,
+  Future<void> Function(ManagedTabletEnrollment enrollment)? onAuthorityRetired,
 }) => ManagedTabletRuntimeOwner(
   store: store,
   authority: authority,
@@ -465,7 +465,7 @@ void main() {
         authority: authority,
         source: source,
         broker: broker,
-        onAuthorityRetired: () async => retiredAuthorities++,
+        onAuthorityRetired: (_) async => retiredAuthorities++,
       );
       addTearDown(owner.dispose);
 
@@ -493,7 +493,7 @@ void main() {
         authority: authority,
         source: source,
         broker: broker,
-        onAuthorityRetired: () async => retiredAuthorities++,
+        onAuthorityRetired: (_) async => retiredAuthorities++,
       );
       addTearDown(owner.dispose);
 

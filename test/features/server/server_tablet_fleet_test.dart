@@ -42,7 +42,7 @@ Map<String, dynamic> fleetTablet({
   'platform': 'android',
   'managementMode': mode,
   'capabilities': mode == 'deviceOwner'
-      ? ['notifications', 'kiosk', 'media', 'screen', 'appRestart', 'kioskLock']
+      ? ['notifications', 'kiosk', 'media', 'screen', 'kioskLock']
       : ['notifications', 'kiosk', 'media', 'screen'],
   'clientVersion': '1.2.3',
   'desiredProfileRevision': desired,
@@ -305,7 +305,7 @@ void main() {
       fleetTablet(id: ownerTabletId, mode: 'deviceOwner'),
     );
     expect(standard.supports(TabletCommandKind.restartClient), isFalse);
-    expect(owner.supports(TabletCommandKind.restartClient), isTrue);
+    expect(owner.supports(TabletCommandKind.restartClient), isFalse);
     expect(standard.toString(), isNot(contains('Kitchen tablet')));
     for (final change in <Map<String, dynamic>>[
       {'secret': 'must-not-be-accepted'},
@@ -456,7 +456,7 @@ void main() {
         account: fixture.account,
         credentials: credentials,
         profiles: ManagedTabletProfileStore(persistence),
-        activate: (profile) async {
+        activate: (_, profile) async {
           expect(profile?.revision, 2);
           activated = true;
         },
