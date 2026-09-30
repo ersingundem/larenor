@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host installer kalan sabit tanı aşamaları
+
+Exact `c5967d4ad390cf432358287918ca41e6597ba944` host `36754882780` production bundle buildini geçti ancak gerçek installer `release_invalid` verdi. Kalan root/receipt, 12 entrypoint layout ve iki gerçek plugin artifact kontrolü artık yalnız sabit allowlist aşamasını bildirir; çocuk çıktısı ve gizli değerler açılmaz. Gerçek callback/encoder ZIP üretimiyle 24 odaklı test geçti, 1 Linux kapısı yerelde skip. Davranış gevşetilmedi; yeni exact Linux sonucu beklenir, başarısız eski koşu tekrarlanmadı.
+
 ### 30 Eylül F13 gerçek egress grant/revoke kabulü
 
 Gerçek Client→normal Core iki yaşamında grant/configure/restart/revoke, owned RFC1918 HA exact iki authenticated GET/api/config ve revoke sonrası sıfır ek upstream çağrı geçti. 69 Server ve 13 focused Flutter testi, analyze temiz; runner iki ajan tarafından doğrulandı. F13 CI bekliyor tablosuna taşındı: 47 özellik broad CI bekliyor, kabul sayaçları değişmedi. [F13 kanıtı](testing/f13-normal-core-tcp-acceptance-2026-09-30.md).

@@ -10,6 +10,7 @@ import pytest
 
 from larenor_server.app import create_app
 from larenor_server.config import Settings
+from larenor_server.media_archive_actions import plugin_package
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -208,3 +209,50 @@ def test_installer_reports_only_a_fixed_phase_when_a_child_fails(monkeypatch):
 
     unknown = installer.HostWorkerPackageError("release_invalid", "secret-value")
     assert unknown.safe_message == "release_invalid"
+
+
+@pytest.mark.parametrize(
+    ("relative", "expected_phase"),
+    [(relative, layout) for relative, _help, layout in installer.ENTRYPOINTS],
+)
+def test_installer_reports_the_fixed_missing_entrypoint_layout(
+    tmp_path, monkeypatch, relative, expected_phase
+):
+    release = tmp_path / "release"
+    for candidate, _help, _layout in installer.ENTRYPOINTS:
+        if candidate == relative:
+            continue
+        path = release / candidate
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("#!/bin/sh\nexit 0\n")
+        path.chmod(0o755)
+    monkeypatch.setattr(installer, "_run", lambda *_args, **_kwargs: None)
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._validate_entrypoints(release)
+    assert captured.value.safe_message == "release_invalid:" + expected_phase
+
+
+@pytest.mark.parametrize("kind", ["callback", "encoder"])
+def test_installer_plugin_artifact_check_uses_real_package_and_fixed_phase(
+    tmp_path, kind,
+):
+    callback = tmp_path / (kind + ".zip")
+    assert plugin_package.main([
+        "--kind", kind, "--output", str(callback),
+    ]) == 0
+    assert callback.stat().st_mode & 0o777 == 0o644
+    installer._validate_plugin_artifact(
+        callback, phase=kind + "_artifact", owner=callback.stat().st_uid,
+    )
+    callback.chmod(0o600)
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._validate_plugin_artifact(
+            callback, phase=kind + "_artifact", owner=callback.stat().st_uid,
+        )
+    assert captured.value.safe_message == "release_invalid:" + kind + "_artifact"
+
+
+def test_installer_release_root_check_has_one_safe_fixed_phase(tmp_path):
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._root_directory(tmp_path)
+    assert captured.value.safe_message == "release_invalid:release_root"

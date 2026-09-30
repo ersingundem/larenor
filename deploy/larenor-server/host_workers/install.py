@@ -85,15 +85,37 @@ UNITS = (
     "larenor-proxmox-power-worker.service",
     "larenor-nut-bridge.service",
 )
+ENTRYPOINTS = (
+    ("server/bin/larenor-preflight-worker",
+     "preflight_help", "preflight_layout"),
+    ("server/bin/larenor-installation-worker",
+     "installation_help", "installation_layout"),
+    ("server/bin/larenor-component-backup-worker",
+     "component_backup_help", "component_backup_layout"),
+    ("server/bin/larenor-media-archive-worker",
+     "media_archive_help", "media_archive_layout"),
+    ("server/bin/larenor-ai-worker", "ai_help", "ai_layout"),
+    ("server/bin/larenor-mesh-worker", "mesh_help", "mesh_layout"),
+    ("server/bin/larenor-keenetic-worker", "keenetic_help", "keenetic_layout"),
+    ("server/bin/larenor-proxmox-power-worker",
+     "proxmox_power_help", "proxmox_power_layout"),
+    ("server/bin/larenor-proxmox-power-supervisor",
+     "proxmox_supervisor_help", "proxmox_supervisor_layout"),
+    ("server/bin/larenor-nut-bridge", "nut_bridge_help", "nut_bridge_layout"),
+    ("server/bin/larenor-unmanic-callback-package",
+     "callback_package_help", "callback_package_layout"),
+    ("unmanic/bin/unmanic", "unmanic_help", "unmanic_layout"),
+)
 RELEASE_PHASES = frozenset({
     "server_venv", "server_install", "server_check",
     "unmanic_venv", "unmanic_install", "unmanic_check",
-    "preflight_help", "installation_help", "component_backup_help",
-    "media_archive_help", "ai_help", "mesh_help", "keenetic_help",
-    "proxmox_power_help", "proxmox_supervisor_help", "nut_bridge_help",
-    "callback_package_help", "unmanic_help", "callback_package",
-    "encoder_package", "sysusers", "tmpfiles", "daemon_reload",
-})
+    "callback_package", "encoder_package", "callback_artifact",
+    "encoder_artifact", "release_root", "release_receipt", "sysusers",
+    "tmpfiles", "daemon_reload",
+}) | frozenset(
+    phase for _relative, help_phase, layout_phase in ENTRYPOINTS
+    for phase in (help_phase, layout_phase)
+)
 
 
 class HostWorkerPackageError(RuntimeError):
@@ -258,31 +280,30 @@ def _root_directory(path, *, mode=None):
         if mode is not None and stat.S_IMODE(path.lstat().st_mode) != mode:
             raise OSError()
     except OSError:
-        raise HostWorkerPackageError("release_invalid") from None
+        raise HostWorkerPackageError("release_invalid", "release_root") from None
 
 
 def _validate_entrypoints(release):
     # Executing the installed script catches a stale venv shebang as well as
     # missing package/dependency imports. --help must not start any service.
-    for relative, phase in (
-        ("server/bin/larenor-preflight-worker", "preflight_help"),
-        ("server/bin/larenor-installation-worker", "installation_help"),
-        ("server/bin/larenor-component-backup-worker", "component_backup_help"),
-        ("server/bin/larenor-media-archive-worker", "media_archive_help"),
-        ("server/bin/larenor-ai-worker", "ai_help"),
-        ("server/bin/larenor-mesh-worker", "mesh_help"),
-        ("server/bin/larenor-keenetic-worker", "keenetic_help"),
-        ("server/bin/larenor-proxmox-power-worker", "proxmox_power_help"),
-        ("server/bin/larenor-proxmox-power-supervisor", "proxmox_supervisor_help"),
-        ("server/bin/larenor-nut-bridge", "nut_bridge_help"),
-        ("server/bin/larenor-unmanic-callback-package", "callback_package_help"),
-        ("unmanic/bin/unmanic", "unmanic_help"),
-    ):
+    for relative, help_phase, layout_phase in ENTRYPOINTS:
         executable = release / relative
         if (not executable.is_file() or executable.is_symlink()
                 or not os.access(executable, os.X_OK)):
-            raise HostWorkerPackageError("release_invalid")
-        _run([str(executable), "--help"], phase=phase)
+            raise HostWorkerPackageError("release_invalid", layout_phase)
+        _run([str(executable), "--help"], phase=help_phase)
+
+
+def _validate_plugin_artifact(path, *, phase, owner=0):
+    try:
+        info = path.stat(follow_symlinks=False)
+        if (not stat.S_ISREG(info.st_mode) or path.is_symlink()
+                or info.st_nlink != 1 or info.st_uid != owner
+                or stat.S_IMODE(info.st_mode) != 0o644
+                or not 1 <= info.st_size <= 256 * 1024):
+            raise OSError()
+    except OSError:
+        raise HostWorkerPackageError("release_invalid", phase) from None
 
 
 def _install_environments(release, bundle, python):
@@ -303,12 +324,15 @@ def _install_release(bundle, python):
         receipt = release / "release.json"
         try:
             _root_directory(release, mode=0o755)
+        except HostWorkerPackageError:
+            raise
+        try:
             if json.loads(_read_regular(receipt, 8192, owner=0, mode=0o600)) != preview(bundle):
                 raise ValueError()
-            _validate_entrypoints(release)
-            return release
-        except Exception:
-            raise HostWorkerPackageError("release_invalid") from None
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            raise HostWorkerPackageError("release_invalid", "release_receipt") from None
+        _validate_entrypoints(release)
+        return release
     # A Python venv is not relocatable: pip's script shebangs use its absolute
     # installation path. Build at the final path while it is private and not
     # referenced by current; publish only the validated complete release.
@@ -324,11 +348,9 @@ def _install_release(bundle, python):
                 "--kind", kind, "--output", str(release / (kind + ".zip")),
             ], phase=kind + "_package")
             plugin = release / (kind + ".zip")
-            if (not plugin.is_file() or plugin.is_symlink()
-                    or plugin.stat().st_uid != 0
-                    or stat.S_IMODE(plugin.stat().st_mode) != 0o644
-                    or not 1 <= plugin.stat().st_size <= 256 * 1024):
-                raise HostWorkerPackageError("release_invalid")
+            _validate_plugin_artifact(
+                plugin, phase=kind + "_artifact",
+            )
         receipt = release / "release.json"
         receipt.write_text(_canonical(preview(bundle)))
         receipt.chmod(0o600)
