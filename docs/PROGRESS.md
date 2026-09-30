@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül uzak ekran hosted fixture düzeltmeleri
+
+F61 exact 939646c2 / run 36764619917 gerçek TigerVNCyi başlattı fakat xterm fixed Unicode fontu bulunamadığı için production test öncesi düştü; yalnız disposable fixturea xfonts-base eklendi. F62 exact 0513c841 / run 36762392915 iki AAR/APK ve NLA hostu geçti; KVM açık olmadığı için emulator bootunda instrumentation başlamadı. Established hosted char-device/access preflight ve hardware acceleration uygulanır; timeout büyütülmedi, üretim RDP gevşetilmedi. 5 VNC ve 11 FreeRDP workflow/package policy testi geçti. Yeni exact sonuçlar beklenir, iki özellik Core-managed adapter tamamlanmadan CI bekliyor yapılmadı. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md), [RDP kanıtı](testing/f62-freerdp-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül F63 yönetilen profil ve temizlik kabulü
 
 Kaynak/Core/home/account/session-family kasası ayrıldı. Root gerçek normal Core/OpenSSH iki yaşamındaki SSH/SFTP/tunnel ve drift/logout kapanışını, ayrıca üçüncü fazdaki exact DELETE/readback→yerel temizlik hata→explicit retry yolunu geçti. Sunucu silme ve SSH komutları tekrar edilmedi. Bağlantı öncesi authority hatası EN/TR görünür; root son 24 Flutter, scoped analyze ve 5 workflow policy temiz. F63 CI bekliyor tablosuna taşındı: 58 seçili özellik; Linux password/key/MFA/jump ve geniş exact CI bekliyor, fiziksel cihaz kapıları açık. Kabul sayaçları değişmedi. [F63 kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).

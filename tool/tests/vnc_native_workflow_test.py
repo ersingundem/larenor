@@ -68,6 +68,7 @@ class VncNativeWorkflowTest(unittest.TestCase):
             "dpkg-query",
             "TIGERVNC_PACKAGE_VERSION",
             "xterm",
+            "xfonts-base",
             "xdotool",
         ):
             self.assertIn(required, install)

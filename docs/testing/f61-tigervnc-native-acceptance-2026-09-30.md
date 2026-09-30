@@ -85,3 +85,14 @@ real-server verified.
 Physical tablet/DeX focus, IME, keyboard layout, long-session performance and
 real household network behavior remain manual gates even after the hosted
 TigerVNC receipt passes.
+
+## Exact hosted fixture result and repair
+
+[Run 36764619917](https://github.com/ersingundem/larenor/actions/runs/36764619917)
+at `939646c25f44c5f80750cb1c5f157f39b919d92a` started TigerVNC 1.13.1
+but failed before the production bridge test. The bounded xterm log reports
+that its fixed Unicode font could not be loaded; the window-focus readiness
+step then timed out. The workflow used `--no-install-recommends` without an
+X core-font package. The owned fixture now explicitly installs `xfonts-base`.
+This bootstrap repair does not establish VNC interoperability: the exact
+one-test/no-skip XML gate still must run and pass on a new revision.

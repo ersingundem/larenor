@@ -5284,7 +5284,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Receipted FreeRDP Android motoru; TLS/NLA/SPKI güveni, hedef/domain/gateway ayarları, şifreli kimlik bilgisi, BGRA ekran, touchpad/klavye/IME, dinamik çözünürlük/DPI/DeX ve açık pano politikası ürün ekranına bağlı. Güncel kaynak statik analizden geçti; özellik testleri, izole gerçek Windows hostu, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
+      "reason": "Receipted FreeRDP Android gerçek motoru iki ABI AAR/APK gateini exact 0513c841/run36762392915 üzerinde geçti; owned NLA host başladı fakat KVM kapalı emulator bootunda instrumentation başlamadı. Dar hosted char-device/access preflight ve acceleration düzeltildi, timeout değişmedi. Yeni gerçek packaged Android→NLA gate ve Core-managed source/secure-store adapter açık; uygulanmış olarak kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX fiziksel MANUAL açık. Kanıt: docs/testing/f62-freerdp-native-acceptance-2026-09-30.md."
     },
     {
       "id": "F61",
@@ -5318,7 +5318,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Üretim Android RFB/VeNCrypt yolu derlendi; önceki sentetik RFB koşusu gerçek TigerVNC interoperabilitesi sayılmaz. Gerçek izole Xtigervnc X509Vnc→normal VncNativeBridge kabulü hazırlandı: SPKI/auth/nonuniform frame/input/resize/foreground retirement/no replay; XML exact 1 test ve sıfır skip/failure doğrulamadan receipt üretmez. 5 gate policy testi geçti, yerel macOS gerçek server kapısı çalışmadı. Hosted exact TigerVNC sonucu ve Core-managed source/secure-store adaptörü henüz açık; gerçek kanıt gelmeden CI bekliyor olmayacak. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
+      "reason": "Üretim Android RFB/VeNCrypt kodu var; exact 939646c2/run36764619917 TigerVNCyi başlattı fakat eksik xterm fixed Unicode fontu nedeniyle bridge testi başlamadı. Disposable fixture xfonts-base ile düzeltildi; atlama/cache exit0 kabul edilmez, XML exact 1 non-skipped test gerekir. Yeni gerçek hosted sonuç ve Core-managed source/secure-store adapter tamamlanmadan CI bekliyor olmayacak. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
     },
     {
       "id": "FINAL",

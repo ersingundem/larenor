@@ -91,10 +91,20 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         steps = self.workflow["jobs"]["package"]["steps"]
         host = next(step for step in steps if step.get("name") ==
                     "Start an owned NLA FreeRDP shadow host")
+        kvm = next(step for step in steps if step.get("name") ==
+                   "Enable hosted KVM for packaged acceptance")
         client = next(step for step in steps if step.get("name") ==
                       "Exercise the packaged Android client against the NLA host")
         cleanup = next(step for step in steps if step.get("name") ==
                        "Stop the owned RDP host")
+        self.assertEqual(kvm["if"], "matrix.abi == 'x86_64'")
+        self.assertLess(steps.index(kvm), steps.index(client))
+        for required in (
+            "set -euo pipefail", "[ ! -c /dev/kvm ]",
+            "sudo chmod 0666 /dev/kvm", "[ ! -r /dev/kvm ]",
+            "[ ! -w /dev/kvm ]",
+        ):
+            self.assertIn(required, kvm["run"])
         self.assertEqual(host["if"], "matrix.abi == 'x86_64'")
         self.assertIn("x11-utils", host["run"])
         for required in (
@@ -105,7 +115,8 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(client["if"], "matrix.abi == 'x86_64'")
         self.assertRegex(client["uses"],
                          r"^ReactiveCircus/android-emulator-runner@[0-9a-f]{40}$")
-        self.assertIs(client["with"]["disable-linux-hw-accel"], True)
+        self.assertEqual(client["with"]["emulator-boot-timeout"], 300)
+        self.assertIs(client["with"]["disable-linux-hw-accel"], False)
         script = client["with"]["script"]
         self.assertTrue(script.startswith("set -eu\n"))
         self.assertNotIn("pipefail", script)

@@ -68,7 +68,7 @@
         },
         {
           "name": "Install the recorded TigerVNC fixture",
-          "run": "set -euo pipefail\nsudo apt-get update -qq\ntigervnc_version=\"$(apt-cache policy tigervnc-standalone-server | awk '/Candidate:/ {print $2}')\"\ntools_version=\"$(apt-cache policy tigervnc-tools | awk '/Candidate:/ {print $2}')\"\ntest -n \"$tigervnc_version\" && test \"$tigervnc_version\" != '(none)'\ntest -n \"$tools_version\" && test \"$tools_version\" != '(none)'\nsudo apt-get install --yes --no-install-recommends \\\n  \"tigervnc-standalone-server=$tigervnc_version\" \\\n  \"tigervnc-tools=$tools_version\" \\\n  iproute2 openssl x11-utils x11-xserver-utils xdotool xterm\ntest \"$(dpkg-query -W -f='${Version}' tigervnc-standalone-server)\" = \"$tigervnc_version\"\necho \"TIGERVNC_PACKAGE_VERSION=$tigervnc_version\" >> \"$GITHUB_ENV\"\n"
+          "run": "set -euo pipefail\nsudo apt-get update -qq\ntigervnc_version=\"$(apt-cache policy tigervnc-standalone-server | awk '/Candidate:/ {print $2}')\"\ntools_version=\"$(apt-cache policy tigervnc-tools | awk '/Candidate:/ {print $2}')\"\ntest -n \"$tigervnc_version\" && test \"$tigervnc_version\" != '(none)'\ntest -n \"$tools_version\" && test \"$tools_version\" != '(none)'\nsudo apt-get install --yes --no-install-recommends \\\n  \"tigervnc-standalone-server=$tigervnc_version\" \\\n  \"tigervnc-tools=$tools_version\" \\\n  iproute2 openssl x11-utils x11-xserver-utils xdotool xterm xfonts-base\ntest \"$(dpkg-query -W -f='${Version}' tigervnc-standalone-server)\" = \"$tigervnc_version\"\necho \"TIGERVNC_PACKAGE_VERSION=$tigervnc_version\" >> \"$GITHUB_ENV\"\n"
         },
         {
           "name": "Resolve Flutter packages",

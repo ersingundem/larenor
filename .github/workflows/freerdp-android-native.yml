@@ -106,6 +106,11 @@
           "run": "set -euo pipefail\nmkdir -p android/app/freerdp\ncp \"$RUNNER_TEMP/freerdp-package/freeRDPCore-${ABI}.aar\" android/app/freerdp/freeRDPCore.aar\ncp \"$RUNNER_TEMP/freerdp-package/receipt.json\" android/app/freerdp/receipt.json\nflutter pub get\ndart run build_runner build --delete-conflicting-outputs\nif test \"$ABI\" = arm64-v8a; then target=android-arm64; else target=android-x64; fi\nflutter build apk --debug --target-platform \"$target\"\npython3 tool/freerdp_android_package.py verify-apk build/app/outputs/flutter-apk/app-debug.apk android/app/freerdp/receipt.json\n"
         },
         {
+          "name": "Enable hosted KVM for packaged acceptance",
+          "if": "matrix.abi == 'x86_64'",
+          "run": "set -euo pipefail\nif [ ! -c /dev/kvm ]; then\n  echo '::error::The hosted runner has no KVM character device.'\n  exit 1\nfi\nsudo chmod 0666 /dev/kvm\nif [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then\n  ls -l /dev/kvm\n  echo '::error::The runner cannot access KVM after permission setup.'\n  exit 1\nfi\n"
+        },
+        {
           "name": "Start an owned NLA FreeRDP shadow host",
           "if": "matrix.abi == 'x86_64'",
           "run": "set -euo pipefail\nsudo apt-get update -qq\nsudo apt-get install -y --no-install-recommends freerdp3-shadow-x11 winpr3-utils xvfb x11-apps x11-utils x11-xserver-utils\nfixture_password=\"$(openssl rand -base64 36 | tr -d '=+/\\n' | cut -c1-32)\"\necho \"::add-mask::$fixture_password\"\necho \"RDP_ACCEPTANCE_PASSWORD=$fixture_password\" >> \"$GITHUB_ENV\"\nmkdir -p \"$RUNNER_TEMP/freerdp-package/acceptance\"\nwinpr-hash3 -u larenor -p \"$fixture_password\" -d LARENOR -f sam -v 1 > \"$RUNNER_TEMP/larenor-rdp.sam\"\nenv -u RUNNER_TRACKING_ID DISPLAY=:99 nohup Xvfb :99 -screen 0 1280x800x24 -ac > \"$RUNNER_TEMP/freerdp-package/acceptance/xvfb.log\" 2>&1 &\necho $! > \"$RUNNER_TEMP/xvfb.pid\"\nfor attempt in $(seq 1 30); do DISPLAY=:99 xdpyinfo >/dev/null 2>&1 && break; sleep 1; done\nDISPLAY=:99 xdpyinfo >/dev/null\nDISPLAY=:99 xsetroot -solid '#315a9c'\nenv -u RUNNER_TRACKING_ID DISPLAY=:99 nohup xmessage -geometry 460x180+80+80 'Larenor owned NLA RDP acceptance host' > \"$RUNNER_TEMP/freerdp-package/acceptance/xmessage.log\" 2>&1 &\necho $! > \"$RUNNER_TEMP/xmessage.pid\"\nenv -u RUNNER_TRACKING_ID DISPLAY=:99 WLOG_LEVEL=INFO nohup freerdp-shadow-cli3 /port:3390 /sec:nla /sam-file:\"$RUNNER_TEMP/larenor-rdp.sam\" > \"$RUNNER_TEMP/freerdp-package/acceptance/shadow.log\" 2>&1 &\necho $! > \"$RUNNER_TEMP/shadow.pid\"\nfor attempt in $(seq 1 30); do\n  if (echo > /dev/tcp/127.0.0.1/3390) >/dev/null 2>&1; then break; fi\n  sleep 1\ndone\n(echo > /dev/tcp/127.0.0.1/3390) >/dev/null 2>&1\n"
@@ -127,7 +132,7 @@
             "emulator-options": "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none",
             "disable-animations": true,
             "disable-spellchecker": true,
-            "disable-linux-hw-accel": true,
+            "disable-linux-hw-accel": false,
             "script": "set -eu\ncd android\n./gradlew --no-daemon :app:connectedDebugAndroidTest \\\n  -Pandroid.testInstrumentationRunnerArguments.class=com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpHost=10.0.2.2 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPort=3390 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpUsername=larenor \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPassword=\"$RDP_ACCEPTANCE_PASSWORD\"\n"
           }
         },
