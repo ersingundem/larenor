@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F09 doğru hafıza kaynağı ve gerçek Client kabulü
+
+Public API yalnız manual kaynak yazabilir; hesap kimliği ve restore provenance mutasyon öncesinde doğrulanır. Client snapshot parserı düzeltildi, geçmiş non-manual kaynaklar önceki beyan olarak görünür ve doğrulanmış AI receipt sayılmaz. 10 Server ve 2 gerçek Flutter→normal Core TCP kabulü geçti; analyze temiz. [Kanıt](testing/f09-ai-memory-provenance-2026-09-30.md). Geniş CI açık; sayaç değişmedi.
+
 ### 30 Eylül F01 gerçek yerel ses ve açık taslak hedefi
 
 Android yerel EN/TR STT ve offline TTS gerçek platform providerına bağlandı. İzin/kayıt ayrı gesture, açık HA hedefi, düzenleme/iptal, boş veri ve Retry tamamlandı. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; analyze temiz. [Kanıt ve model/cihaz sınırı](testing/f01-local-speech-drafts-2026-09-30.md). Actual AOSP emulator speech/TTS provider taşımıyor; MANUAL modeli ve geniş CI açık, sayaç değişmedi.

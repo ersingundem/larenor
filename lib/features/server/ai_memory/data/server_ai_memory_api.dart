@@ -85,6 +85,53 @@ final class ServerAiMemoryApi {
     }
   }
 
+  Future<List<AiMemoryRecord>> search(String query, {int limit = 20}) async {
+    final json = serverObject(
+      await api.request(
+        'POST',
+        '$_root/search',
+        token: token,
+        body: {'schemaVersion': 1, 'query': query, 'limit': limit},
+      ),
+    );
+    if (json.length != 2 ||
+        json['schemaVersion'] != 1 ||
+        json['memories'] is! List) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final memories = (json['memories'] as List)
+        .map(AiMemoryRecord.fromJson)
+        .toList();
+    if (memories.length > limit ||
+        memories.map((value) => value.id).toSet().length != memories.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return List.unmodifiable(memories);
+  }
+
+  Future<AiMemoryBackup> exportBackup() async => AiMemoryBackup.fromJson(
+    await api.request('GET', '$_root/backup', token: token),
+  );
+
+  Future<AiMemoryRestoreResult> restoreBackup(
+    AiMemoryBackup backup, {
+    required String requestKey,
+  }) => api
+      .request(
+        'POST',
+        '$_root/backup/restore',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'requestKey': requestKey,
+          'records': backup.records.map((value) => value.toJson()).toList(),
+          'tombstones': backup.tombstones
+              .map((value) => value.toJson())
+              .toList(),
+        },
+      )
+      .then(AiMemoryRestoreResult.fromJson);
+
   Future<AiMemorySnapshot> _snapshot(Future<Object?> pending) async {
     final value = AiMemorySnapshot.fromJson(await pending);
     if (value.context != context || value.accountId != accountId) {

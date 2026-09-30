@@ -5443,5 +5443,20 @@
   "serverAutomationDraftSpeechNoMatch": "Kullanılabilir bir konuşma tanınmadı. Tekrar dene veya taslağı yaz.",
   "serverAutomationDraftSpeechTimeout": "Konuşma zaman aşımına uğradı. Yeni deneme için tekrar dokun.",
   "serverAutomationDraftSelectTarget": "Hedefi seç",
-  "serverAutomationDraftTargetHint": "Doğrulanmış Home Assistant anahtarlarını yükle, ardından hedefi seç."
+  "serverAutomationDraftTargetHint": "Doğrulanmış Home Assistant anahtarlarını yükle, ardından hedefi seç.",
+  "serverAiMemorySourceManual": "Elle girildi",
+  "serverAiMemorySourceAssistant": "Önceden beyan edilen asistan kaynağı",
+  "serverAiMemorySourceAutomation": "Önceden beyan edilen otomasyon kaynağı",
+  "serverAiMemorySourceIntegration": "Önceden beyan edilen entegrasyon kaynağı",
+  "serverAiMemorySourceLabel": "{kind}: {description}",
+  "@serverAiMemorySourceLabel": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  }
 }

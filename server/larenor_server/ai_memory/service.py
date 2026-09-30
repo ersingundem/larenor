@@ -351,7 +351,7 @@ class AiMemoryService:
                 "home_id": self.context.homeId,
                 "account_id": actor.id,
                 "revision": 1,
-                "source_kind": body.source.kind,
+                "source_kind": "manual",
                 "source_description": body.source.description,
                 "content": body.content,
                 "learned_by": actor.username,
@@ -404,7 +404,7 @@ class AiMemoryService:
             row = dict(old)
             row.update(
                 revision=old["revision"] + 1,
-                source_kind=body.source.kind,
+                source_kind="manual",
                 source_description=body.source.description,
                 content=body.content,
                 learned_by=actor.username,
@@ -601,6 +601,11 @@ class AiMemoryService:
 
     def restore_backup(self, actor, core_id, home_id, body):
         self._scope(core_id, home_id)
+        if any(
+            item.source.kind != "manual" or item.learnedBy != actor.username
+            for item in body.records
+        ):
+            raise ApiError("invalid_request", 400)
         now = float(self.settings.clock())
         request_hash = self._request_hash("restore", body)
         with self.db.transaction() as connection:
@@ -688,7 +693,7 @@ class AiMemoryService:
                     "source_kind": item.source.kind,
                     "source_description": item.source.description,
                     "content": item.content,
-                    "learned_by": item.learnedBy,
+                    "learned_by": actor.username,
                     "created_at": item.createdAt,
                     "updated_at": item.updatedAt,
                     "expires_at": item.expiresAt,

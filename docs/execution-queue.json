@@ -3706,7 +3706,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Görülebilir, süreli AI hafızası",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3730,7 +3730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Hesap/ev yalıtımlı süreli hafıza, kaynak/kullanıcı/süre görünürlüğü, düzeltme/unutma, indeks/önbellek temizliği ve tombstone korumalı yedek restore Core ve Client akışına bağlandı (e1a85bde, 9f60e2e9). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor. Yeniden açılan gerçek production bağımlılığı bekleniyor: F08."
+      "reason": "Güncel Core public write yalnız manual provenance kabul eder; learnedBy authenticated actor’dan türetilir, restore forged source/actor’ı tombstone mutasyonu öncesi reddeder. Client strict account/context snapshot parserı, typed search/export/restore ve kaynak türünü gösteren UI bağlandı; eski non-manual kaynaklar önceki beyan olarak görünür, receipt kanıtı sayılmaz ve sessizce relabel edilmez. 10 Server + 2 gerçek Flutter→normal Core TCP kabulü ve focused analyze geçti. Geniş exact HEAD CI açık, sayaç artmadı. docs/testing/f09-ai-memory-provenance-2026-09-30.md."
     },
     {
       "id": "F07",

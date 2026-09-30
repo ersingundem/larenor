@@ -5802,5 +5802,20 @@
   "serverAutomationDraftSpeechNoMatch": "No usable speech was recognized. Try again or type your draft.",
   "serverAutomationDraftSpeechTimeout": "Speech timed out. Tap again to start a new attempt.",
   "serverAutomationDraftSelectTarget": "Choose the target",
-  "serverAutomationDraftTargetHint": "Load verified Home Assistant switches, then choose one explicitly."
+  "serverAutomationDraftTargetHint": "Load verified Home Assistant switches, then choose one explicitly.",
+  "serverAiMemorySourceManual": "Entered manually",
+  "serverAiMemorySourceAssistant": "Previously declared assistant source",
+  "serverAiMemorySourceAutomation": "Previously declared automation source",
+  "serverAiMemorySourceIntegration": "Previously declared integration source",
+  "serverAiMemorySourceLabel": "{kind}: {description}",
+  "@serverAiMemorySourceLabel": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "description": {
+        "type": "String"
+      }
+    }
+  }
 }

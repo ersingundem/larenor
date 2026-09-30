@@ -53,6 +53,12 @@ class RememberMemory(Versioned):
             raise ValueError("invalid_memory_content")
         return value
 
+    @model_validator(mode="after")
+    def public_source_is_manual(self):
+        if self.source.kind != "manual":
+            raise ValueError("untrusted_memory_source")
+        return self
+
 
 class CorrectMemory(RememberMemory):
     expectedRevision: Revision

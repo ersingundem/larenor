@@ -13,6 +13,18 @@ import '../../providers/server_providers.dart';
 import '../data/server_ai_memory_controller.dart';
 import '../domain/server_ai_memory_models.dart';
 
+@visibleForTesting
+String serverAiMemorySourceLabel(AppLocalizations l10n, AiMemorySource source) {
+  final kind = switch (source.kind) {
+    'manual' => l10n.serverAiMemorySourceManual,
+    'assistant' => l10n.serverAiMemorySourceAssistant,
+    'automation' => l10n.serverAiMemorySourceAutomation,
+    'integration' => l10n.serverAiMemorySourceIntegration,
+    _ => throw StateError('Unsupported AI memory source kind'),
+  };
+  return l10n.serverAiMemorySourceLabel(kind, source.description);
+}
+
 class ServerAiMemoryScreen extends ConsumerStatefulWidget {
   const ServerAiMemoryScreen({super.key, required this.gateCurrent});
   final bool Function() gateCurrent;
@@ -283,7 +295,7 @@ class _ServerAiMemoryScreenState
                         title: Text(item.content),
                         subtitle: Text(
                           l10n.serverAiMemoryDetails(
-                            item.source.description,
+                            serverAiMemorySourceLabel(l10n, item.source),
                             item.learnedBy,
                             _expiry(item.retention.expiresAt),
                           ),
