@@ -54,6 +54,10 @@ void main() {
         final page = await api.search(query: 'red parcel', filter: filter);
         expect(page.mode, CameraSearchMode.semanticAssisted);
         expect(page.results.length, 2);
+        final clip = await api.clip(page.results.first.evidence);
+        expect(clip.length, greaterThan(1000));
+        expect(String.fromCharCodes(clip.sublist(4, 8)), 'ftyp');
+        clip.fillRange(0, clip.length, 0);
         await api.reportIncorrect(
           query: 'red parcel',
           expectedIndexRevision: context.indexRevision,

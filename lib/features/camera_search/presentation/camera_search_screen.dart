@@ -31,6 +31,7 @@ final class CameraSearchStrings {
     required this.reportReasons,
     this.entrySubtitle = '',
     this.requiredMessage = '',
+    this.share = 'Share privately',
   });
 
   final String title, hint, search, prompt, loading, empty, unavailable;
@@ -40,11 +41,13 @@ final class CameraSearchStrings {
   final String reportIncorrect, reportTitle, reportCancel;
   final Map<CameraSearchFeedbackReason, String> reportReasons;
   final String entrySubtitle, requiredMessage;
+  final String share;
 
   factory CameraSearchStrings.fromLocalizations(AppLocalizations l) {
     final tr = l.localeName.startsWith('tr');
     return CameraSearchStrings(
       title: l.cameraSearchTitle,
+      share: l.privateEventShareTitle,
       entrySubtitle: l.cameraSearchEntrySubtitle,
       hint: l.cameraSearchHint,
       search: l.cameraSearchAction,
@@ -109,6 +112,7 @@ final class CameraSearchStrings {
 
   static const tr = CameraSearchStrings(
     title: 'Kamera kaydı arama',
+    share: 'Gizli paylaş',
     hint: 'Bir olayı, nesneyi veya yeri anlatın',
     search: 'Kayıtlarda ara',
     prompt: 'Yalnız bu hesabın erişebildiği kamera metadatasında arama yapın.',
@@ -144,6 +148,7 @@ class CameraSearchScreen extends StatefulWidget {
     required this.cameraNames,
     required this.onShare,
     this.onSources,
+    this.onView,
   });
 
   final CameraSearchController controller;
@@ -152,6 +157,7 @@ class CameraSearchScreen extends StatefulWidget {
   final Map<String, String> cameraNames;
   final ValueChanged<CameraSearchEvidence>? onShare;
   final VoidCallback? onSources;
+  final ValueChanged<CameraSearchEvidence>? onView;
 
   @override
   State<CameraSearchScreen> createState() => _CameraSearchScreenState();
@@ -399,6 +405,9 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
                           widget.strings.camera,
                       strings: widget.strings,
                       onReport: controller.busy ? null : () => _report(result),
+                      onView: controller.busy || widget.onView == null
+                          ? null
+                          : () => widget.onView!(result.evidence),
                       onShare: controller.busy || widget.onShare == null
                           ? null
                           : () => widget.onShare!(result.evidence),
@@ -465,12 +474,14 @@ class _ResultCard extends StatelessWidget {
     required this.strings,
     required this.onReport,
     required this.onShare,
+    required this.onView,
   });
   final CameraSearchMatch result;
   final String cameraName;
   final CameraSearchStrings strings;
   final VoidCallback? onReport;
   final VoidCallback? onShare;
+  final VoidCallback? onView;
 
   String _time(DateTime value) {
     final local = value.toLocal();
@@ -527,13 +538,20 @@ class _ResultCard extends StatelessWidget {
             spacing: 16,
             runSpacing: 8,
             children: [
+              if (onView != null)
+                CupertinoButton.filled(
+                  key: ValueKey('camera-watch-${result.evidence.clipId}'),
+                  minimumSize: const Size(48, 48),
+                  onPressed: onView,
+                  child: Text(
+                    AppLocalizations.of(context).cameraSearchClipWatch,
+                  ),
+                ),
               CupertinoButton(
                 key: ValueKey('camera-share-${result.evidence.clipId}'),
                 padding: EdgeInsets.zero,
                 onPressed: onShare,
-                child: Text(
-                  AppLocalizations.of(context).privateEventShareTitle,
-                ),
+                child: Text(strings.share),
               ),
               CupertinoButton(
                 key: ValueKey('camera-report-${result.evidence.clipId}'),

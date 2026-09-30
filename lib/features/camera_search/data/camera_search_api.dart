@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import '../../server/data/larenor_server_api.dart';
 import '../../server/domain/server_models.dart';
@@ -20,6 +21,7 @@ final class CameraSearchApi
   final bool Function() _isCurrent;
   final Map<String, String> _pendingFeedbackIds = {};
   bool _retired = false;
+  final Set<LarenorTransferCancellation> _clips = {};
 
   ServerContext get _context => _session.context!;
 
@@ -187,9 +189,58 @@ final class CameraSearchApi
     _pendingFeedbackIds.remove(feedbackKey);
   }
 
+  Future<Uint8List> clip(CameraSearchEvidence evidence) async {
+    _check();
+    final context = _context;
+    if (evidence.coreId != context.coreId ||
+        evidence.homeId != context.homeId) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final cancellation = LarenorTransferCancellation();
+    _clips.add(cancellation);
+    try {
+      final bytes = await _api.requestCameraClip(
+        token: _session.accessToken,
+        coreId: context.coreId,
+        homeId: context.homeId,
+        cancellation: cancellation,
+        evidence: {
+          'schemaVersion': 1,
+          'kind': 'camera_evidence',
+          'coreId': evidence.coreId,
+          'homeId': evidence.homeId,
+          'cameraId': evidence.cameraId,
+          'clipId': evidence.clipId,
+          'eventId': evidence.eventId,
+          'captureRevision': evidence.captureRevision,
+          'indexRevision': evidence.indexRevision,
+          'capturedAtMs': evidence.capturedAt.toUtc().millisecondsSinceEpoch,
+        },
+      );
+      try {
+        _check();
+      } catch (_) {
+        bytes.fillRange(0, bytes.length, 0);
+        rethrow;
+      }
+      return bytes;
+    } finally {
+      _clips.remove(cancellation);
+      cancellation.cancel();
+    }
+  }
+
+  void cancelClips() {
+    for (final clip in _clips) {
+      clip.cancel();
+    }
+    _clips.clear();
+  }
+
   @override
   void retire() {
     _retired = true;
+    cancelClips();
     _pendingFeedbackIds.clear();
   }
 }

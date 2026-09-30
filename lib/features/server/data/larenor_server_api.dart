@@ -869,6 +869,107 @@ class LarenorServerApi {
     }
   }
 
+  /// Fixed, scoped camera endpoint. No provider URL or credential reaches playback.
+  Future<Uint8List> requestCameraClip({
+    required String token,
+    required String coreId,
+    required String homeId,
+    required Map<String, dynamic> evidence,
+    required LarenorTransferCancellation cancellation,
+  }) async {
+    if (_closed ||
+        cancellation.isCancelled ||
+        token.isEmpty ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(coreId) ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(homeId) ||
+        evidence.length != 10 ||
+        evidence['coreId'] != coreId ||
+        evidence['homeId'] != homeId ||
+        evidence.keys.toSet().difference({
+          'schemaVersion',
+          'kind',
+          'coreId',
+          'homeId',
+          'cameraId',
+          'clipId',
+          'eventId',
+          'captureRevision',
+          'indexRevision',
+          'capturedAtMs',
+        }).isNotEmpty) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final abort = Completer<void>();
+    _pending.add(abort);
+    void cancel() {
+      if (!abort.isCompleted) abort.complete();
+    }
+
+    unawaited(cancellation.future.then((_) => cancel()));
+    final timer = Timer(timeout, cancel);
+    try {
+      final request =
+          http.AbortableRequest(
+              'POST',
+              endpoint.api('/camera-search/$coreId/$homeId/clip'),
+              abortTrigger: abort.future,
+            )
+            ..headers['accept'] = 'video/mp4'
+            ..headers['authorization'] = 'Bearer $token'
+            ..headers['content-type'] = 'application/json'
+            ..bodyBytes = utf8.encode(jsonEncode(evidence));
+      final response = await _client.send(request).timeout(timeout);
+      final success = response.statusCode == 200;
+      final maximum = success ? 64 * 1024 * 1024 : 8192;
+      if ((response.contentLength ?? 0) > maximum) {
+        unawaited(response.stream.listen((_) {}).cancel());
+        throw const LarenorServerException('invalid_response');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.stream) {
+        if (abort.isCompleted || _closed || cancellation.isCancelled) {
+          throw const LarenorServerException('cancelled');
+        }
+        if (bytes.length + chunk.length > maximum) {
+          throw const LarenorServerException('invalid_response');
+        }
+        bytes.add(chunk);
+      }
+      final value = bytes.takeBytes();
+      if (!success) {
+        throw LarenorServerException(_errorCode(response.statusCode, value));
+      }
+      if (abort.isCompleted || _closed || cancellation.isCancelled) {
+        throw const LarenorServerException('cancelled');
+      }
+      if (value.length < 24 ||
+          String.fromCharCodes(value.sublist(4, 8)) != 'ftyp' ||
+          response.headers['content-type']?.split(';').first.trim() !=
+              'video/mp4' ||
+          response.headers['x-larenor-clip-id'] != evidence['clipId'] ||
+          response.headers['x-larenor-content-sha256'] !=
+              sha256.convert(value).toString()) {
+        value.fillRange(0, value.length, 0);
+        throw const LarenorServerException('invalid_response');
+      }
+      return value;
+    } on LarenorServerException {
+      rethrow;
+    } on TimeoutException {
+      throw const LarenorServerException('timeout');
+    } on http.RequestAbortedException {
+      throw LarenorServerException(
+        cancellation.isCancelled || _closed ? 'cancelled' : 'timeout',
+      );
+    } catch (_) {
+      throw const LarenorServerException('connection_failed');
+    } finally {
+      timer.cancel();
+      cancel();
+      _pending.remove(abort);
+    }
+  }
+
   Future<Map<String, dynamic>?> _read(
     http.BaseRequest request,
     bool allowEmpty,

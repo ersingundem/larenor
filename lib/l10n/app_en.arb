@@ -5062,5 +5062,13 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cameraSearchClipTitle": "Event recording",
+  "cameraSearchClipWatch": "Watch recording",
+  "cameraSearchClipBack": "Results",
+  "cameraSearchClipPlay": "Play",
+  "cameraSearchClipPause": "Pause",
+  "cameraSearchClipSeek": "Recording position",
+  "cameraSearchClipUnavailable": "This recording is no longer available. Return to results and search again.",
+  "cameraSearchClipPrivate": "This recording stays in your current session and is removed when you close it."
 }

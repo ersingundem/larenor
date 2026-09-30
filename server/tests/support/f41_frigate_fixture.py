@@ -3,6 +3,7 @@ import base64
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from pathlib import Path
 import struct
 import threading
 from urllib.parse import urlsplit, parse_qs
@@ -10,6 +11,9 @@ from urllib.parse import urlsplit, parse_qs
 
 class FrigateFixture:
     def __init__(self):
+        self.clip_bytes = (Path(__file__).parent / 'assets/f41_clip.mp4').read_bytes()
+        self.clip_content_type = 'video/mp4'
+        self.on_clip = None
         self.calls = []
         self.errors = []
         self.semantic = True
@@ -75,6 +79,13 @@ class FrigateFixture:
                         if path.endswith('/search'):
                             assert owner.semantic and query['search_type'] == ['thumbnail,description']
                         self.reply(selected if owner.invalid_events is None else owner.invalid_events); return
+                    if path.startswith('/api/events/') and path.endswith('/clip.mp4'):
+                        native = path.removeprefix('/api/events/').removesuffix('/clip.mp4')
+                        if not any(event['id'] == native and event['has_clip'] for event in owner.events):
+                            self.reply({}, status=404); return
+                        if owner.on_clip is not None:
+                            owner.on_clip()
+                        self.reply(owner.clip_bytes, owner.clip_content_type); return
                     if path.startswith('/api/events/'):
                         item = next((event for event in owner.events if event['id'] == path.removeprefix('/api/events/')), None)
                         self.reply(item or {}, status=200 if item else 404); return

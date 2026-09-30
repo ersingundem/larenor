@@ -155,3 +155,7 @@ class CameraSearchRuntime:
             cameraIds=authority.accessibleCameraIds,
             maxWindowDays=31,
         )
+
+    def clip(self, core, actor, core_id, home_id, evidence):
+        # The immutable metadata index has no media source. Never fabricate video.
+        raise ApiError('camera_search_source_unavailable', 503)

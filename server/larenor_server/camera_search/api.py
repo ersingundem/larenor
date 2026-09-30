@@ -2,7 +2,9 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+import hashlib
+
+from fastapi import APIRouter, Depends, Request, Response
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -10,6 +12,7 @@ from ..dependencies import get_core, require_ready_user, require_admin
 from ..errors import ApiError
 from ..models import ErrorResponse
 from .models import (
+    CameraEvidenceLink,
     CameraSearchContextResponse,
     CameraSearchFeedbackRequest,
     CameraSearchFeedbackResponse,
@@ -111,3 +114,14 @@ def report_camera_search_result(
     runtime: Runtime,
 ):
     return runtime.feedback(core, actor, core_id, home_id, body)
+
+
+@router.post('/camera-search/{core_id}/{home_id}/clip')
+def read_camera_clip(core_id: Identity, home_id: Identity, body: CameraEvidenceLink,
+        actor: Ready, core: Core, runtime: Runtime):
+    content = runtime.clip(core, actor, core_id, home_id, body)
+    return Response(content, media_type='video/mp4', headers={
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+        'X-Larenor-Content-Sha256': hashlib.sha256(content).hexdigest(),
+        'X-Larenor-Clip-Id': body.clipId,
+    })

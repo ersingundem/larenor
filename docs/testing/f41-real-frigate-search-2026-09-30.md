@@ -51,8 +51,8 @@ four new source tests; the real Flutter runner passed its one TCP acceptance.
 Password login and first-setup route regressions were added afterwards and
 are verified in this commit. Full combined acceptance and exact-head CI remain
 open. Physical camera, Turkish model quality, recordings playback and protected
-sharing are not established by this metadata fixture. F41 remains active for
-the actual authorized clip-view path; F42 owns protected sharing.
+sharing are not established by this metadata fixture. That first slice left the authorized clip-view path open; the second slice
+below implements it. F42 owns protected sharing.
 
 ## Verified primary contracts
 
@@ -63,3 +63,41 @@ the actual authorized clip-view path; F42 owns protected sharing.
 These official implementations were read on 2026-09-30; no home-device write
 was performed. Fixture output is software contract evidence, not a physical
 installation or semantic-model accuracy claim.
+
+## Authorized recording view — second slice
+
+The fixed Core POST `/camera-search/{core}/{home}/clip` accepts only exact recent
+opaque search evidence from the same account/session. It re-reads the event,
+fetches the actual Frigate `/api/events/{id}/clip.mp4`, and revalidates current
+provider permissions, camera registry, local ACL/source/service and event content
+before releasing video bytes. Binary reads are bounded at 64 MiB; the generic
+service JSON transport retains its prior 16 MiB hard ceiling. Core sends no
+provider URL, cookie or provider credential. Content is no-store, scoped by clip
+ID and protected by a SHA-256 receipt verified by Client. Capture hash revisions
+use a JavaScript-exact 52-bit projection; persisted source revision counters are
+unchanged and search evidence must be renewed after restart.
+
+The inline recording view keeps the parent route current. Production playback
+uses the existing media_kit native/browser player. Cupertino transport controls
+provide play/pause, seek, elapsed/total time and Space/Escape keys. At 200% text
+the screen stays scrollable. Closing, foreground or authority retirement removes
+the surface, disposes the player, cancels download and deletes the owned native
+file or revokes the browser Blob URL. Bytes received after retirement are wiped.
+Native cache uses an app-owned temporary namespace; crash remnants are cleaned
+on the next first open.
+
+Validation: focused F41 plus transport set passed 122 Server tests. The 29
+Flutter tests passed (one explicit normal-Core test is skipped in default runs);
+the isolated runner then passed that real Client→normal Core→TCP Frigate test
+with genuine MP4 bytes. The checked-in test pattern is FFmpeg-generated H.264,
+160×90, two seconds, verified using ffprobe. It is only an external service
+fixture, not production dummy media. Native media_kit decode and rendered video
+on the target platform are still part of the final device/UI gate; widget tests
+substitute only the player rendering boundary. Full combined tests, exact HEAD
+CI, physical cameras and protected F42 sharing remain open.
+
+- [Frigate official media API](https://github.com/blakeblackshear/frigate/blob/dev/frigate/api/media.py)
+- [Apple video interaction guidance](https://developer.apple.com/design/human-interface-guidelines/playing-video)
+
+F41 is implementation-complete awaiting named final validation; it is not added
+to the accepted-feature counter by this slice.

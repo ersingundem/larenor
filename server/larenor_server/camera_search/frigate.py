@@ -36,6 +36,11 @@ _EVENT = re.compile(r'^[A-Za-z0-9_.-]{1,128}$')
 _JWT = re.compile(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$')
 
 
+class _ClipTransport(ServiceTransport):
+    # Only instantiated below for the fixed, freshly authorized Frigate clip path.
+    max_response_bytes = 64 * 1024 * 1024
+
+
 class FrigateSearchBinding(FrozenModel):
     schemaVersion: Literal[1]
     expectedRevision: int = Field(ge=0, lt=2**63 - 1)
@@ -167,7 +172,7 @@ class FrigateCameraSearchRuntime(CameraSearchRuntime):
             raise ApiError('revision_conflict', 409)
         return result, provenance
 
-    def _request(self, service, method, path, guard, *, token=None, query=None, body=None):
+    def _request(self, service, method, path, guard, *, token=None, query=None, body=None, max_bytes=2 * 1024 * 1024):
         guard()
         headers = {'Accept': 'application/json'}
         if token is not None:
@@ -178,7 +183,8 @@ class FrigateCameraSearchRuntime(CameraSearchRuntime):
             headers['Content-Type'] = 'application/json'
         transport = None
         try:
-            transport = ServiceTransport(service.base_url, timeout=self._timeout(), max_bytes=2 * 1024 * 1024)
+            factory = _ClipTransport if path.endswith('/clip.mp4') and method == 'GET' else ServiceTransport
+            transport = factory(service.base_url, timeout=self._timeout(), max_bytes=max_bytes)
             response = transport.request(method, path, headers=headers, query_parameters=query,
                 body=None if body is None else json.dumps(body).encode(), before_send=guard)
             guard()
@@ -396,7 +402,7 @@ class FrigateCameraSearchRuntime(CameraSearchRuntime):
             event = self._opaque('event', service.id + ':' + native)
             clip = self._opaque('clip', service.id + ':' + native)
             canonical = [camera, native, start_ms, end_ms, label, description, item['has_clip']]
-            capture_revision = int(hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode()).hexdigest()[:15], 16) + 1
+            capture_revision = int(hashlib.sha256(json.dumps(canonical, ensure_ascii=False).encode()).hexdigest()[:13], 16) + 1
             evidence = CameraEvidenceLink(schemaVersion=1, kind='camera_evidence', coreId=authority.coreId,
                 homeId=authority.homeId, cameraId=inverse[camera], clipId=clip, eventId=event,
                 captureRevision=capture_revision, indexRevision=revision, capturedAtMs=start_ms)
@@ -480,3 +486,42 @@ class FrigateCameraSearchRuntime(CameraSearchRuntime):
             result = core.camera_search_feedback.record(actor, body)
             guard()
             return result
+
+    def clip(self, core, actor, core_id, home_id, evidence):
+        """Read only the exact recently searched event, with fresh authority."""
+        core.auth.rate_limit([('camera_search_clip', actor.id, 30)])
+        with self._budget():
+            raw, service, authority, mapping, token, _, guard = self._prepare(actor, core_id, home_id)
+            with self._lock:
+                saved = self._evidence.get((actor.id, actor.family_id, evidence.eventId))
+            if (saved is None or saved[0] != service.id or saved[1] != raw['revision']
+                    or saved[3] != evidence or saved[4] < self.clock()
+                    or evidence.cameraId not in authority.accessibleCameraIds):
+                raise ApiError('revision_conflict', 409)
+            from .models import CameraSearchRequest
+            request = CameraSearchRequest(schemaVersion=1, query=saved[5],
+                expectedIndexRevision=raw['revision'], startMs=evidence.capturedAtMs,
+                endMs=evidence.capturedAtMs + 86400000, cameraIds=[evidence.cameraId], pageSize=1)
+            def verify_event():
+                current = self._get(service, '/api/events/' + saved[2], guard, token)
+                if type(current) is not dict or current.get('id') != saved[2]:
+                    raise ApiError('revision_conflict', 409)
+                matches, _ = self._matches([current], mapping, authority, raw['revision'], request, True, service)
+                if len(matches) != 1 or matches[0].evidence != evidence:
+                    raise ApiError('revision_conflict', 409)
+            verify_event()
+            response = self._request(service, 'GET', '/api/events/' + saved[2] + '/clip.mp4',
+                guard, token=token, max_bytes=64 * 1024 * 1024)
+            headers = {name.lower(): value for name, value in response.headers}
+            if (headers.get('content-type', '').split(';')[0].strip().lower() != 'video/mp4'
+                    or len(response.body) < 24 or response.body[4:8] != b'ftyp'
+                    or not 16 <= int.from_bytes(response.body[:4], 'big') <= len(response.body)):
+                raise ApiError('camera_search_source_unavailable', 503)
+            # Metadata and provider permissions can change while Frigate builds the clip.
+            fresh, fresh_service, fresh_authority, fresh_mapping, _, _, fresh_guard = self._prepare(actor, core_id, home_id)
+            if (fresh['revision'] != raw['revision'] or fresh_authority != authority
+                    or fresh_mapping != mapping or self._service_digest(fresh_service) != self._service_digest(service)):
+                raise ApiError('revision_conflict', 409)
+            verify_event()
+            fresh_guard()
+            return response.body

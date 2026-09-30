@@ -4709,5 +4709,13 @@
         "type": "String"
       }
     }
-  }
+  },
+  "cameraSearchClipTitle": "Olay kaydı",
+  "cameraSearchClipWatch": "Kaydı izle",
+  "cameraSearchClipBack": "Sonuçlar",
+  "cameraSearchClipPlay": "Oynat",
+  "cameraSearchClipPause": "Duraklat",
+  "cameraSearchClipSeek": "Kayıt konumu",
+  "cameraSearchClipUnavailable": "Bu kayıt artık kullanılamıyor. Sonuçlara dönüp yeniden arayın.",
+  "cameraSearchClipPrivate": "Bu kayıt geçerli oturumunuzda kalır ve kapattığınızda kaldırılır."
 }

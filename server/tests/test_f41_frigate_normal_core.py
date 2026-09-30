@@ -124,3 +124,47 @@ def test_sealed_source_inventory_deletion_fails_restart(server, frigate):
         connection.execute("DELETE FROM camera_provider_records WHERE id='search-configuration'")
     with pytest.raises(StartupError, match='camera_profile_storage_invalid'):
         create_app(settings)
+
+
+def test_real_authorized_clip_is_exact_mp4_with_digest_and_no_provider_url(server, frigate):
+    import hashlib
+    app, client, _, _ = server; actor = ready(server)
+    root, _, _, cameras, _ = provision(client, app.state.core, actor, frigate)
+    evidence = search(client, actor, root, cameras).json()['results'][0]['evidence']
+    result = client.post(root + '/clip', headers=auth(actor), json=evidence)
+    assert result.status_code == 200
+    assert result.content == frigate.clip_bytes and result.content[4:8] == b'ftyp'
+    assert result.headers['x-larenor-content-sha256'] == hashlib.sha256(result.content).hexdigest()
+    assert result.headers['x-larenor-clip-id'] == evidence['clipId']
+    assert set(result.headers['cache-control'].split(', ')) == {'no-store'}
+    assert 2**31 < evidence['captureRevision'] <= 2**53 - 1
+    assert 'location' not in result.headers and 'set-cookie' not in result.headers
+    forged = {**evidence, 'eventId': 'f' * 32}
+    assert client.post(root + '/clip', headers=auth(actor), json=forged).status_code == 409
+    assert sum(path.endswith('/clip.mp4') for _, path in frigate.calls) == 1
+
+
+@pytest.mark.parametrize('change', ['deleted', 'metadata', 'permissions', 'mime', 'container'])
+def test_clip_change_during_download_never_releases_media(server, frigate, change):
+    app, client, _, _ = server; actor = ready(server)
+    root, _, _, cameras, _ = provision(client, app.state.core, actor, frigate)
+    evidence = search(client, actor, root, cameras).json()['results'][0]['evidence']
+    if change == 'deleted': frigate.on_clip = lambda: frigate.events.clear()
+    elif change == 'metadata': frigate.on_clip = lambda: frigate.events[0]['data'].update(description='Changed')
+    elif change == 'permissions': frigate.on_clip = lambda: frigate.allowed.clear()
+    elif change == 'mime': frigate.clip_content_type = 'text/html'
+    else: frigate.clip_bytes = b'<html>not a clip</html>'
+    response = client.post(root + '/clip', headers=auth(actor), json=evidence)
+    assert response.status_code in [409, 503], response.status_code
+    assert response.headers['content-type'] == 'application/json'
+
+
+def test_old_search_clip_expires_and_does_not_survive_restart(server, frigate):
+    app, client, settings, clock = server; actor = ready(server)
+    root, _, _, cameras, _ = provision(client, app.state.core, actor, frigate)
+    evidence = search(client, actor, root, cameras).json()['results'][0]['evidence']
+    with TestClient(create_app(settings)) as restarted:
+        assert restarted.post(root + '/clip', headers=auth(actor), json=evidence).status_code == 409
+    clock.now += 121
+    assert client.post(root + '/clip', headers=auth(actor), json=evidence).status_code == 409
+    assert not any(path.endswith('/clip.mp4') for _, path in frigate.calls)

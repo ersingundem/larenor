@@ -16,6 +16,7 @@ import '../data/camera_search_api.dart';
 import '../data/camera_search_controller.dart';
 import '../domain/camera_search_models.dart';
 import 'camera_search_screen.dart';
+import 'camera_clip_screen.dart';
 import 'camera_search_sources_screen.dart';
 
 /// Route-owned F41 binding. Results cannot outlive the exact Core account,
@@ -40,6 +41,7 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   CameraSearchController? _controller;
   CameraSearchContext? _context;
   bool _sources = false;
+  CameraSearchEvidence? _clip;
   int _sourceEpoch = 0;
   bool _loading = false,
       _scheduled = false,
@@ -123,6 +125,7 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   void _retireRuntime() {
     _sourceEpoch++;
     _sources = false;
+    _clip = null;
     _api?.retire();
     _controller?.retire();
     _api = null;
@@ -338,6 +341,15 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
       AppLocalizations.of(context),
     );
     final controller = _controller, filter = _filter, searchContext = _context;
+    if (_clip case final evidence? when _api != null && _current) {
+      return CameraClipScreen(
+        evidence: evidence,
+        load: () => _api!.clip(evidence),
+        isCurrent: () => _current,
+        onRetire: () => _api?.cancelClips(),
+        onClose: () => setState(() => _clip = null),
+      );
+    }
     if (_sources && _api != null && _current) {
       return CameraSearchSourcesScreen(api: _api!, onDone: _returnToSearch);
     }
@@ -352,6 +364,9 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
         cameraNames: {
           for (var index = 0; index < searchContext.cameraIds.length; index++)
             searchContext.cameraIds[index]: '${strings.camera} ${index + 1}',
+        },
+        onView: (evidence) {
+          if (_current) setState(() => _clip = evidence);
         },
         onShare: _share,
         onSources: _session?.user.canAdminister == true ? _openSources : null,

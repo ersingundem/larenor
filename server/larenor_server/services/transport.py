@@ -401,11 +401,13 @@ def _request_bytes(method, path, authority, headers, body, *, allow_delete=False
 
 
 class ServiceTransport:
+    max_response_bytes = _MAX_BODY
+
     def __init__(self, base_url, *, timeout=8.0, max_bytes=1024 * 1024,
                  resolver=None, connector=None, address_guard=None):
         if (not isinstance(timeout, (float, int)) or isinstance(timeout, bool)
                 or not math.isfinite(timeout) or not 0 < timeout <= 60
-                or type(max_bytes) is not int or not 1 <= max_bytes <= _MAX_BODY):
+                or type(max_bytes) is not int or not 1 <= max_bytes <= self.max_response_bytes):
             raise ProbeTransportError("invalid_limits")
         if address_guard is not None and not callable(address_guard):
             raise ProbeTransportError("invalid_request")

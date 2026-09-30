@@ -4706,7 +4706,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4730,7 +4730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "244d31c8 gerçek normal Core→HA WS→Frigate arama/kaynak kurulumu, silinen olay ve correction revizyonunu uyguladı; gerçek Flutter Client→Core→TCP provider kapısı geçti. Yetkili klip görüntüleme dilimi geliştirilecek; tam kabul ve exact HEAD CI açık."
+      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak."
     },
     {
       "id": "F44",
