@@ -2531,7 +2531,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Kişisel sağlık ve tartı sağlayıcı yazılım sınırı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B5"
       ],
@@ -2551,7 +2551,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Health Connect salt okunur yolu, açık HA tartı eşlemesi, PIN/özel pencere, izin iptali, account/foreground/geç yanıt sınırları ve Huawei için provider-registration-required görünürlüğü tamamlandı. Flutter wellbeing 99/99 ve Android wellbeing 21/21 odaklı testleri geçti; bağımsız inceleme, exact-head CI ve gerçek Huawei/Apple sağlayıcı onayı MANUAL.HEALTH kapısında bekliyor."
+      "reason": "Salt okunur Health Connect ve açık HA tartı eşlemesi üretim girişinden bağımsız incelendi; 100 Flutter ve 21 Android wellbeing testi sıfır atlama/hata ile geçti, analyze temiz. İzin onayı otomatik okuma yapmaz; private-view/account/foreground/revoke/geç yanıt sınırları ve ölçümlerin yalnız bellekte tutulması doğrulandı. Huawei providerRegistrationRequired ve Android Apple Health unsupportedPlatform açıktır. Exact HEAD CI bekliyor; fiziksel cihaz/GMS/OEM ve gerçek sağlayıcı onayı MANUAL.HEALTH içinde açık. Kanıt: docs/testing/product-health-software-acceptance-2026-09-30.md."
     },
     {
       "id": "PRODUCT.CAMERA",
