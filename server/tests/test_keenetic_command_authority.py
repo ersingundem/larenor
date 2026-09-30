@@ -159,17 +159,26 @@ def test_cancel_consumes_preview_without_effect_or_later_confirmation():
     assert harness.effects == []
 
 
-def test_wan_reconnect_needs_a_distinct_second_confirmation():
+def test_wan_reconnect_needs_second_confirmation_and_causal_receipt():
     current = state(kind="wan", value="online", target="wan0")
     harness = Harness(current)
-    command = authority(harness)
+
+    def reconnect_with_unrelated_aggregate_change(command, guard):
+        guard()
+        harness.effects.append(command.action)
+        # The aggregate revision changed, but the only WAN fact is still the
+        # same online value. This cannot prove that reconnect happened.
+        harness.current = harness.current.model_copy(update={"stateRevision": 99})
+
+    command = authority(harness, effect=reconnect_with_unrelated_aggregate_change)
     preview = command.preview(Actor(), request("wan_reconnect", current=current))["preview"]
     challenge = command.confirm(Actor(), preview["id"], preview["confirmToken"])["confirmation"]
     assert challenge["risk"] == "high"
     assert challenge["token"] != preview["confirmToken"]
     assert harness.effects == []
     receipt = command.confirm(Actor(), preview["id"], challenge["token"])["receipt"]
-    assert receipt["status"] == "succeeded"
+    assert receipt["status"] == "unknown"
+    assert receipt["code"] == "keenetic_result_unknown"
     assert harness.effects == ["wan_reconnect"]
 
 
@@ -375,4 +384,23 @@ def test_authorization_loss_after_dispatch_returns_unknown_without_replay():
     receipt = command.confirm(Actor(), preview["id"], preview["confirmToken"])["receipt"]
     assert receipt["status"] == "unknown"
     assert receipt["code"] == "keenetic_result_unknown"
+    assert harness.effects == ["guest_wifi_enable"]
+
+
+def test_fresh_provider_accepts_changed_unordered_state_fingerprint():
+    harness = Harness()
+
+    def effect(command, guard):
+        guard()
+        harness.effects.append(command.action)
+        harness.current = harness.current.model_copy(
+            update={"value": "enabled", "stateRevision": 2}
+        )
+
+    command = authority(harness, effect=effect)
+    preview = command.preview(Actor(), request())["preview"]
+    receipt = command.confirm(
+        Actor(), preview["id"], preview["confirmToken"]
+    )["receipt"]
+    assert receipt["status"] == "succeeded"
     assert harness.effects == ["guest_wifi_enable"]

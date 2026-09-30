@@ -292,9 +292,15 @@ class KeeneticCommandAuthority:
                     or observed.firmwareRevision != pending.body.target.firmwareRevision
                     or observed.targetKind != pending.body.target.targetKind
                     or observed.targetId != pending.body.target.targetId
-                    or observed.stateRevision <= pending.body.target.stateRevision
+                    or observed.stateRevision == pending.body.target.stateRevision
                     or observed.value != RESULT[pending.body.action]
                 ):
+                    raise KeeneticEffectError("keenetic_result_unknown", uncertain=True)
+                if pending.body.action == "wan_reconnect":
+                    # The public status surface reports the WAN as online both
+                    # before and after reconnect. An aggregate fingerprint may
+                    # change for an unrelated router update, so it is not a
+                    # causal reconnect receipt.
                     raise KeeneticEffectError("keenetic_result_unknown", uncertain=True)
                 if self._journal is not None:
                     self._journal.transition(actor, pending.body, "succeeded", "succeeded")

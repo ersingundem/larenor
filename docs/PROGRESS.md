@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül Keenetic gerçek RCI revizyon ve WAN kanıtı
+
+Gerçek RCI version/readback sözleşmesinde olmayan sentetik revision alanları kaldırıldı. Firmware kimliği gerçek release/model/hardware/manufacturer verisinden aynı BLAKE2 fingerprint ile doğrulanır; fingerprint sıralı sayaç gibi karşılaştırılmaz. Misafir ağı/istemci işlemlerinde son başarı ayrıca güncel normal provider okumasını ve istenen değeri gerektirir. WAN yeniden bağlamada online→online veya ilgisiz aggregate değişimi nedensel kanıt olmadığı için sonuç dürüstçe unknown kalır ve tekrar gönderilmez. 190 Keenetic testi geçti; gerçek bağlantı session/event kanıtı ve fiziksel router kabulü açık. [Kanıt ve sınır](testing/keenetic-host-worker-2026-09-30.md).
+
 ### 30 Eylül kurulu host paketinden gerçek Core kabulü
 
 Hosted Linux kapısı artık exact commitin Server wheel'ini ve hash/revision sabitlenmiş gerçek Unmanic wheel'ini üretim offline bundle builder/installer yoluyla kurar. Sahte executable ve source sanal ortamına symlink kaldırıldı. Mesh/Keenetic kabulü kurulu release içinden normal Core'u gerçek Uvicorn TCP üzerinden başlatır; dev TestClient/httpx bağımlılığı gerekmez ve module yolu kurulu release altında doğrulanır. Bundle receipt exact kaynak SHA, platform ve wheel/manifest digestlerini kaydeder. 21 odaklı test ve 16 workflow/shard politika testi geçti; actual Linux kurulum, ayrı UID ve servis kapıları CI sonucunu bekliyor. Fiziksel Docker/Btrfs/media önkoşulları olmayan ortamda activation kabulü iddia edilmez.

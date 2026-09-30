@@ -17,7 +17,15 @@ live worker instance over authenticated Unix IPC. It does not trust the host
 PID number from the Docker PID namespace. Before an RCI mutation, Core repeats
 current authority and sends the sealed lease to the exact worker instance.
 Afterward, success requires a fresh provider read with unchanged identity and a
-strictly newer state revision containing the requested value.
+different content fingerprint containing the requested value. Firmware and
+state revisions are stable BLAKE2 projections, so Core never orders them as if
+they were router counters.
+
+WAN reconnect remains a one-shot, high-risk command, but its receipt is
+`unknown` after dispatch. The bounded readback reports the WAN as `online`
+before and after reconnect, and an aggregate status revision can change for an
+unrelated router update. Larenor does not claim success until the provider can
+return a causal connection-session or reconnect-event identity.
 
 `server/tests/test_keenetic_host_normal_core.py` starts the production worker
 runtime, normal Core, a real Unix socket and an owned TCP RCI fixture. DNS and
@@ -25,6 +33,13 @@ peer pinning still expose an RFC1918 router identity; a trusted test connector
 maps that identity to the owned loopback listener. The fixture accepts only the
 fixed guest-network batch, returns causal RCI readback and records no credential
 value. No household router is contacted.
+
+The command readback accepts no synthetic `revision` field. It recomputes the
+same firmware identity fingerprint as the read provider from release, model,
+hardware ID and manufacturer, then fingerprints the exact target/value
+readback. Final success still requires a separate fresh normal-provider read;
+an unchanged provider state fingerprint remains `keenetic_result_unknown` and
+the command is never replayed.
 
 Software evidence does not replace target-host proof. Installation must still
 verify UID/GID ownership, private `0600` policy/key files, the separate
@@ -40,7 +55,7 @@ documentation. Keenetic's official command reference documents its authenticated
 HTTP command interface; packaged Larenor support remains limited to the reviewed
 RCI allowlist and supported firmware matrix.
 
-Focused acceptance: 141 Keenetic tests and 9 package tests passed. This includes
+Focused acceptance: 193 Keenetic tests passed. This includes
 normal Core, actual Unix IPC and owned TCP RCI causal success, replay without a
 second POST, unchanged authoritative readback becoming unknown, and authority
 revocation after dispatch becoming unknown without replay. Two production

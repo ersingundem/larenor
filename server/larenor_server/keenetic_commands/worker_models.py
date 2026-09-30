@@ -88,7 +88,7 @@ class KeeneticWorkerResult(FrozenModel):
             if (
                 observed.model_dump(exclude={"stateRevision", "value"})
                 != old.model_dump(exclude={"stateRevision", "value"})
-                or observed.stateRevision <= old.stateRevision
+                or observed.stateRevision == old.stateRevision
                 or observed.value != RESULT[command.action]
             ):
                 raise KeeneticEffectError("keenetic_result_unknown", uncertain=True)

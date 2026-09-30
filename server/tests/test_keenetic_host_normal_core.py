@@ -18,6 +18,7 @@ from larenor_server.keenetic_commands.rci_transport import (
     LeasedKeeneticRciTransport,
 )
 from larenor_server.keenetic_commands.worker_runtime import run_worker_once
+from larenor_server.keenetic_resources.transport import _revision
 
 from conftest import Clock, auth, ready
 from test_component_egress import grant_body, policy_url
@@ -28,6 +29,12 @@ from test_keenetic_command_worker_ipc import socket_directory
 ROUTER_ADDRESS = "192.168.1.1"
 ROUTER_HOST = "router.fixture.test"
 ROUTER_PASSWORD = "Synthetic-Keenetic-secret-only"
+ROUTER_VERSION = {
+    "release": "4.3.6",
+    "model": "Ultra (KN-1811)",
+    "hardware": "KN-1811",
+    "manufacturer": None,
+}
 
 
 class _AliasedPeer:
@@ -93,12 +100,15 @@ def _owned_rci_origin(mutation):
             result = json.dumps([
                 {"status": "ok"},
                 {"status": "ok"},
-                {"version": {"release": "4.3.6", "revision": 44}},
+                {"version": {
+                    "release": ROUTER_VERSION["release"],
+                    "model": ROUTER_VERSION["model"],
+                    "hw_id": ROUTER_VERSION["hardware"],
+                }},
                 {"interface": {"WifiMaster0/AccessPoint1": {
                     "id": "WifiMaster0/AccessPoint1",
                     "up": "yes" if desired == "up" else "no",
                     "connected": None,
-                    "revision": 71 + posts,
                 }}},
             ], separators=(",", ":")).encode("ascii")
             self.request.sendall(
@@ -211,6 +221,7 @@ def _install_router(client, app, admin, port, mutation):
     def read(_connection, guard):
         guard()
         value = command_snapshot()["telemetry"]
+        value["status"]["firmwareRevision"] = _revision(ROUTER_VERSION)
         if mutation.is_set():
             value["status"]["statusRevision"] = 72
             for interface in value["interfaces"]:

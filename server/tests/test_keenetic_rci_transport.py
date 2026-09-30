@@ -18,14 +18,29 @@ from larenor_server.keenetic_commands.rci_transport import (
 )
 from larenor_server.keenetic_commands.service import KeeneticEffectError
 from larenor_server.keenetic_commands.worker_models import KeeneticWorkerCommand
+from larenor_server.keenetic_resources.transport import _revision
 from larenor_server.services.service import ServiceConnection
 from larenor_server.services.transport import ProbeResponse, ProbeTransportError
 
 from conftest import auth, ready
-from test_keenetic_command_authority import Actor, request, state
+from test_keenetic_command_authority import Actor, request, state as authority_state
 
 
 SECRET = "Synthetic-router-secret-not-for-production"
+_VERSION_IDENTITY = {
+    "model": "Ultra (KN-1811)",
+    "hardware": "KN-1811",
+    "manufacturer": None,
+}
+
+
+def state(**kwargs):
+    value = authority_state(**kwargs)
+    firmware = {
+        "release": value.firmwareVersion,
+        **_VERSION_IDENTITY,
+    }
+    return value.model_copy(update={"firmwareRevision": _revision(firmware)})
 
 
 def command(action="guest_wifi_enable", *, target=None):
@@ -46,21 +61,20 @@ def successful_body(current, value):
         observed = {"ip": {"hotspot": {"host": [{
             "mac": current.targetId,
             "access": "deny" if value == "paused" else "permit",
-            "revision": current.stateRevision + 1,
         }]}}}
     else:
         observed = {"interface": {current.targetId: {
             "id": current.targetId,
             "up": "yes" if value in {"enabled", "online"} else "no",
             "connected": "yes" if value == "online" else None,
-            "revision": current.stateRevision + 1,
         }}}
     return json.dumps([
         {"status": "ok"},
         {"status": "ok"},
         {"version": {
             "release": current.firmwareVersion,
-            "revision": current.firmwareRevision,
+            "model": _VERSION_IDENTITY["model"],
+            "hw_id": _VERSION_IDENTITY["hardware"],
         }},
         observed,
     ], separators=(",", ":")).encode()
@@ -148,7 +162,11 @@ def test_binding_is_loaded_at_dispatch_and_basic_secret_never_crosses_models():
     observed = run(services, factory, rci)
 
     assert services.calls == [(Actor().id, current.serviceId, current.serviceRevision)]
-    assert observed == current.model_copy(update={"value": "enabled", "stateRevision": 12})
+    assert observed.value == "enabled"
+    assert observed.stateRevision != current.stateRevision
+    assert observed.model_dump(exclude={"value", "stateRevision"}) == current.model_dump(
+        exclude={"value", "stateRevision"}
+    )
     post = [entry for entry in factory.calls if entry[0] == "POST"]
     assert len(post) == 1
     expected = "Basic " + base64.b64encode(f"fixture-admin:{SECRET}".encode()).decode()
@@ -331,17 +349,26 @@ def test_redirect_bad_auth_oversize_and_timeout_are_fail_closed_without_retry(re
     assert len(requests) == 1
 
 
-def test_firmware_or_state_revision_drift_after_dispatch_is_unknown_and_redacted():
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("release", "5.0.5"),
+        ("model", "Hero (KN-1012)"),
+        ("hw_id", "KN-1012"),
+    ],
+)
+def test_firmware_identity_drift_after_dispatch_is_unknown_and_redacted(
+    field, value
+):
     current = state(target="WifiMaster0/AccessPoint1")
-    for body in (
-        successful_body(current.model_copy(update={"firmwareVersion": "5.0.5"}), "enabled"),
-        successful_body(current.model_copy(update={"stateRevision": 12}), "enabled"),
-    ):
-        factory = ScriptFactory([challenge(), ProbeResponse(200, (), body)])
-        with pytest.raises(KeeneticEffectError, match="^keenetic_result_unknown$") as caught:
-            run(Services(binding()), factory, command(target=current))
-        assert caught.value.uncertain is True
-        assert SECRET not in str(caught.value)
+    decoded = json.loads(successful_body(current, "enabled"))
+    decoded[2]["version"][field] = value
+    body = json.dumps(decoded, separators=(",", ":")).encode()
+    factory = ScriptFactory([challenge(), ProbeResponse(200, (), body)])
+    with pytest.raises(KeeneticEffectError, match="^keenetic_result_unknown$") as caught:
+        run(Services(binding()), factory, command(target=current))
+    assert caught.value.uncertain is True
+    assert SECRET not in str(caught.value)
 
 
 @contextmanager

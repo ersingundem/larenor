@@ -32,7 +32,6 @@ from test_keenetic_command_authority import (
     Harness,
     authority,
     request,
-    state,
 )
 from test_keenetic_command_worker_ipc import socket_directory
 from test_keenetic_rci_transport import (
@@ -42,6 +41,7 @@ from test_keenetic_rci_transport import (
     binding,
     challenge,
     ok,
+    state,
 )
 
 

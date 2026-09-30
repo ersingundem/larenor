@@ -43,6 +43,37 @@ _AUTH_PARAMETER = re.compile(
 _MAX_RESPONSE = 128 * 1024
 
 
+def _fingerprint(value):
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("ascii")
+    result = int.from_bytes(
+        hashlib.blake2b(encoded, digest_size=8).digest(), "big"
+    )
+    return (result & (2**63 - 1)) or 1
+
+
+def _identity_text(value):
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= 128
+        or any(
+            ord(char) < 32
+            or 127 <= ord(char) <= 159
+            or 0xD800 <= ord(char) <= 0xDFFF
+            or 0x202A <= ord(char) <= 0x202E
+            or 0x2066 <= ord(char) <= 0x2069
+            or ord(char) == 0xFEFF
+            for char in value
+        )
+    ):
+        raise ValueError
+    return value
+
+
 def keenetic_lan_address(value, *, allow_loopback_fixture=False):
     """Reject everything outside explicit RFC1918/ULA ranges.
 
@@ -256,11 +287,35 @@ def _observed(command, body):
     _command_result(decoded[0])
     _command_result(decoded[1])
     version = _unwrap(decoded[2], "version")
+    release = version.get("release") or version.get("title") if isinstance(
+        version, dict
+    ) else None
     if (
         not isinstance(version, dict)
-        or version.get("release") != expected.firmwareVersion
-        or version.get("revision") != expected.firmwareRevision
+        or release != expected.firmwareVersion
+        or version.get("release") is not None
+        and version.get("title") is not None
+        and version["release"] != version["title"]
     ):
+        raise ValueError
+    model = _identity_text(version.get("model"))
+    hardware = version.get("hw_id")
+    manufacturer = version.get("manufacturer")
+    if not (
+        isinstance(hardware, str)
+        and re.fullmatch(r"KN-[0-9]{4}", hardware)
+        or manufacturer == "Keenetic Ltd."
+    ):
+        raise ValueError
+    if manufacturer is not None:
+        manufacturer = _identity_text(manufacturer)
+    firmware_revision = _fingerprint({
+        "release": release,
+        "model": model,
+        "hardware": hardware,
+        "manufacturer": manufacturer,
+    })
+    if firmware_revision != expected.firmwareRevision:
         raise ValueError
     readback = decoded[3]
     if expected.targetKind == "client":
@@ -284,8 +339,6 @@ def _observed(command, body):
             value = {"yes": "enabled", "no": "disabled", True: "enabled", False: "disabled"}.get(record.get("up"))
         else:
             value = {"yes": "online", "no": "offline", True: "online", False: "offline"}.get(record.get("connected"))
-    if record.get("revision") != expected.stateRevision + 1:
-        raise ValueError
     action = {
         "guest_wifi_enable": "guest_wifi_enable",
         "guest_wifi_disable": "guest_wifi_disable",
@@ -295,8 +348,16 @@ def _observed(command, body):
     }[command.operation]
     if value != RESULT[action]:
         raise ValueError
+    state_revision = _fingerprint({
+        "firmwareRevision": firmware_revision,
+        "targetKind": expected.targetKind,
+        "targetId": expected.targetId,
+        "value": value,
+    })
+    if state_revision == expected.stateRevision:
+        raise ValueError
     return expected.model_copy(
-        update={"value": value, "stateRevision": expected.stateRevision + 1}
+        update={"value": value, "stateRevision": state_revision}
     )
 
 
