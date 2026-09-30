@@ -79,10 +79,12 @@ FamilyBoardSnapshot snap({int revision = 1, String text = 'Film gecesi'}) =>
 final class FakeBoardGateway implements FamilyBoardGateway {
   FamilyBoardSnapshot current = snap();
   Object? failure;
+  int mutationAcknowledgementsToDrop = 0;
   String? deltaHeadOverride;
   Completer<FamilyBoardSnapshot>? delayedRead;
   int reads = 0, deltas = 0, mutations = 0;
   final commands = <FamilyBoardCommand>[];
+  final receipts = <String, FamilyBoardReceipt>{};
 
   @override
   Future<FamilyBoardSnapshot> read(FamilyBoardBinding authority) async {
@@ -140,13 +142,21 @@ final class FakeBoardGateway implements FamilyBoardGateway {
     mutations++;
     commands.add(command);
     if (failure != null) throw failure!;
+    final replay = receipts[command.requestId];
+    if (replay != null) {
+      if (mutationAcknowledgementsToDrop > 0) {
+        mutationAcknowledgementsToDrop--;
+        throw const FamilyBoardException('request_timeout');
+      }
+      return replay;
+    }
     current = snap(
       revision: current.boardRevision + 1,
       text: command.element is BoardCard
           ? (command.element! as BoardCard).text
           : 'Film gecesi',
     );
-    return FamilyBoardReceipt.fromJson({
+    final receipt = FamilyBoardReceipt.fromJson({
       'schemaVersion': 1,
       'requestId': command.requestId,
       'boardId': boardId,
@@ -155,11 +165,18 @@ final class FakeBoardGateway implements FamilyBoardGateway {
       'action': command.action.name,
       'elementId': command.element?.id ?? command.elementId,
     }, command);
+    receipts[command.requestId] = receipt;
+    if (mutationAcknowledgementsToDrop > 0) {
+      mutationAcknowledgementsToDrop--;
+      throw const FamilyBoardException('request_timeout');
+    }
+    return receipt;
   }
 }
 
 final class MemoryBoardCache implements FamilyBoardCache {
   FamilyBoardSnapshot? value;
+  FamilyBoardCommand? pending;
   @override
   Future<FamilyBoardSnapshot?> read(
     FamilyBoardBinding authority, {
@@ -171,6 +188,33 @@ final class MemoryBoardCache implements FamilyBoardCache {
     required bool Function() isCurrent,
   }) async {
     if (isCurrent()) value = snapshot;
+  }
+
+  @override
+  Future<FamilyBoardCommand?> readPending(
+    FamilyBoardBinding authority, {
+    required bool Function() isCurrent,
+  }) async => isCurrent() ? pending : null;
+
+  @override
+  Future<void> writePending(
+    FamilyBoardBinding authority,
+    FamilyBoardCommand command, {
+    required bool Function() isCurrent,
+  }) async {
+    if (isCurrent()) pending = command;
+  }
+
+  @override
+  Future<void> clearPending(
+    FamilyBoardBinding authority,
+    String requestId, {
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent() || pending?.requestId != requestId) {
+      throw const FamilyBoardException('invalid_cache');
+    }
+    pending = null;
   }
 }
 
@@ -307,6 +351,71 @@ void main() {
     expect(gateway.mutations, 1);
     expect(controller.snapshot!.boardRevision, 2);
   });
+
+  test(
+    'lost acknowledgement retries only the exact idempotent command',
+    () async {
+      final gateway = FakeBoardGateway()..mutationAcknowledgementsToDrop = 1;
+      final controller = FamilyBoardController(
+        gateway: gateway,
+        cache: MemoryBoardCache(),
+        binding: binding(),
+        isCurrent: (_) => true,
+        idFactory: (() {
+          var n = 8;
+          return () => (n++).toRadixString(16).padLeft(32, '0');
+        })(),
+      );
+      await controller.load();
+
+      await controller.createCard('Tek etkili kart');
+
+      expect(gateway.mutations, 2);
+      expect(gateway.commands, hasLength(2));
+      expect(gateway.commands[1], same(gateway.commands[0]));
+      expect(gateway.commands[1].requestId, gateway.commands[0].requestId);
+      expect(controller.snapshot?.boardRevision, 2);
+      expect(controller.failure, isNull);
+    },
+  );
+
+  test(
+    'two uncertain acknowledgements retain and reconcile one command',
+    () async {
+      final gateway = FakeBoardGateway()..mutationAcknowledgementsToDrop = 2;
+      final cache = MemoryBoardCache();
+      final controller = FamilyBoardController(
+        gateway: gateway,
+        cache: cache,
+        binding: binding(),
+        isCurrent: (_) => true,
+        idFactory: (() {
+          var n = 8;
+          return () => (n++).toRadixString(16).padLeft(32, '0');
+        })(),
+      );
+      await controller.load();
+
+      await controller.createCard('Belirsiz kart');
+
+      expect(gateway.mutations, 2);
+      expect(controller.pendingCommand, same(cache.pending));
+      expect(controller.canMutate, isFalse);
+      await controller.createCard('İkinci etki engelli');
+      expect(gateway.mutations, 2);
+
+      await controller.refreshDelta();
+      expect(gateway.mutations, 3);
+      expect(
+        gateway.commands.map((value) => value.requestId).toSet(),
+        hasLength(1),
+      );
+      expect(cache.pending, isNull);
+      expect(controller.pendingCommand, isNull);
+      expect(controller.snapshot?.boardRevision, 2);
+      expect(controller.canMutate, isTrue);
+    },
+  );
 
   test(
     'offline cache is read only and delta refresh reconciles one snapshot',

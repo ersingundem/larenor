@@ -25,6 +25,20 @@ abstract interface class FamilyBoardCache {
     FamilyBoardSnapshot snapshot, {
     required bool Function() isCurrent,
   });
+  Future<FamilyBoardCommand?> readPending(
+    FamilyBoardBinding authority, {
+    required bool Function() isCurrent,
+  });
+  Future<void> writePending(
+    FamilyBoardBinding authority,
+    FamilyBoardCommand command, {
+    required bool Function() isCurrent,
+  });
+  Future<void> clearPending(
+    FamilyBoardBinding authority,
+    String requestId, {
+    required bool Function() isCurrent,
+  });
 }
 
 enum BoardFailure { offline, conflict, stale, invalidResponse }
@@ -46,6 +60,7 @@ final class FamilyBoardController extends ChangeNotifier {
   List<FamilyBoardAuditEvent> history = const [];
   BoardFailure? failure;
   bool busy = false, offline = false, _retired = false;
+  FamilyBoardCommand? pendingCommand;
   int _epoch = 0;
 
   static String _secureIdentity() {
@@ -72,6 +87,7 @@ final class FamilyBoardController extends ChangeNotifier {
       !offline &&
       failure != BoardFailure.conflict &&
       binding.canWrite &&
+      pendingCommand == null &&
       _current(_epoch) &&
       snapshot != null;
 
@@ -93,7 +109,8 @@ final class FamilyBoardController extends ChangeNotifier {
     offline = false;
     notifyListeners();
     try {
-      final value = await gateway.read(binding);
+      final recovered = await _reconcilePending(operation);
+      final value = recovered ?? await gateway.read(binding);
       if (!_current(operation) || value.binding != binding) {
         return _stale(operation);
       }
@@ -107,6 +124,7 @@ final class FamilyBoardController extends ChangeNotifier {
       if (const {
         'connection_failed',
         'timeout',
+        'request_timeout',
         'server_unavailable',
       }.contains(error.code)) {
         FamilyBoardSnapshot? retained;
@@ -124,6 +142,8 @@ final class FamilyBoardController extends ChangeNotifier {
         history = const [];
         offline = retained != null;
         failure = retained == null ? BoardFailure.offline : null;
+      } else if (error.code == 'revision_conflict') {
+        failure = BoardFailure.conflict;
       } else {
         snapshot = null;
         failure = BoardFailure.invalidResponse;
@@ -247,14 +267,38 @@ final class FamilyBoardController extends ChangeNotifier {
     failure = null;
     notifyListeners();
     try {
-      final receipt = await gateway.mutate(binding, command);
+      await cache.writePending(
+        binding,
+        command,
+        isCurrent: () => _current(operation),
+      );
+      if (!_current(operation)) return _stale(operation);
+      pendingCommand = command;
+      late FamilyBoardReceipt receipt;
+      try {
+        receipt = await gateway.mutate(binding, command);
+      } on FamilyBoardException catch (error) {
+        if (!_current(operation) ||
+            !const {
+              'connection_failed',
+              'timeout',
+              'request_timeout',
+              'server_unavailable',
+            }.contains(error.code)) {
+          rethrow;
+        }
+        // The first request may have committed before its acknowledgement was
+        // lost. Reuse the exact request id/body once; Core's scoped receipt
+        // makes this a readback of that effect rather than a second mutation.
+        receipt = await gateway.mutate(binding, command);
+      }
       if (!_current(operation) || receipt.boardId != binding.boardId) {
         return _stale(operation);
       }
       final readback = await gateway.read(binding);
       if (!_current(operation) ||
           readback.binding != binding ||
-          readback.boardRevision != receipt.boardRevision) {
+          readback.boardRevision < receipt.boardRevision) {
         return _stale(operation);
       }
       snapshot = readback;
@@ -262,13 +306,28 @@ final class FamilyBoardController extends ChangeNotifier {
       if (!_current(operation)) return _stale(operation);
       await cache.write(readback, isCurrent: () => _current(operation));
       if (!_current(operation)) return _stale(operation);
+      await cache.clearPending(
+        binding,
+        command.requestId,
+        isCurrent: () => _current(operation),
+      );
+      if (!_current(operation)) return _stale(operation);
+      pendingCommand = null;
     } on FamilyBoardException catch (error) {
       if (!_current(operation)) return _stale(operation);
       if (error.code == 'revision_conflict') {
+        await cache.clearPending(
+          binding,
+          command.requestId,
+          isCurrent: () => _current(operation),
+        );
+        if (!_current(operation)) return _stale(operation);
+        pendingCommand = null;
         failure = BoardFailure.conflict;
       } else if (const {
         'connection_failed',
         'timeout',
+        'request_timeout',
         'server_unavailable',
       }.contains(error.code)) {
         offline = snapshot != null;
@@ -296,6 +355,15 @@ final class FamilyBoardController extends ChangeNotifier {
     failure = null;
     notifyListeners();
     try {
+      if (pendingCommand != null) {
+        final value = await _reconcilePending(operation);
+        if (value == null || !_current(operation)) return _stale(operation);
+        snapshot = value;
+        history = await _readHistory(value, operation);
+        if (!_current(operation)) return _stale(operation);
+        offline = false;
+        return;
+      }
       final delta = await gateway.delta(
         binding,
         afterSequence: base.boardRevision,
@@ -326,6 +394,7 @@ final class FamilyBoardController extends ChangeNotifier {
       if (const {
         'connection_failed',
         'timeout',
+        'request_timeout',
         'server_unavailable',
       }.contains(error.code)) {
         offline = true;
@@ -341,6 +410,47 @@ final class FamilyBoardController extends ChangeNotifier {
         busy = false;
         notifyListeners();
       }
+    }
+  }
+
+  Future<FamilyBoardSnapshot?> _reconcilePending(int operation) async {
+    final command =
+        pendingCommand ??
+        await cache.readPending(binding, isCurrent: () => _current(operation));
+    if (!_current(operation)) return null;
+    if (command == null) return null;
+    pendingCommand = command;
+    try {
+      final receipt = await gateway.mutate(binding, command);
+      if (!_current(operation) || receipt.boardId != binding.boardId) {
+        return null;
+      }
+      final readback = await gateway.read(binding);
+      if (!_current(operation) ||
+          readback.binding != binding ||
+          readback.boardRevision < receipt.boardRevision) {
+        return null;
+      }
+      await cache.write(readback, isCurrent: () => _current(operation));
+      if (!_current(operation)) return null;
+      await cache.clearPending(
+        binding,
+        command.requestId,
+        isCurrent: () => _current(operation),
+      );
+      if (!_current(operation)) return null;
+      pendingCommand = null;
+      return readback;
+    } on FamilyBoardException catch (error) {
+      if (error.code == 'revision_conflict' && _current(operation)) {
+        await cache.clearPending(
+          binding,
+          command.requestId,
+          isCurrent: () => _current(operation),
+        );
+        if (_current(operation)) pendingCommand = null;
+      }
+      rethrow;
     }
   }
 
@@ -367,6 +477,7 @@ final class FamilyBoardController extends ChangeNotifier {
     history = const [];
     busy = false;
     offline = false;
+    pendingCommand = null;
     failure = BoardFailure.stale;
     notifyListeners();
   }

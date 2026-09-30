@@ -642,6 +642,36 @@ final class FamilyBoardCommand {
     null,
     _id(elementId),
   );
+  factory FamilyBoardCommand.fromJson(Object? raw) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'requestId',
+      'expectedBoardRevision',
+      'action',
+      'element',
+      'elementId',
+    });
+    if (value['schemaVersion'] != 1) _invalid();
+    final requestId = _id(value['requestId']);
+    final revision = _revision(value['expectedBoardRevision']);
+    return switch (value['action']) {
+      'append' when value['element'] != null && value['elementId'] == null =>
+        FamilyBoardCommand.append(
+          requestId,
+          revision,
+          BoardElement.fromJson(value['element']),
+        ),
+      'update' when value['element'] != null && value['elementId'] == null =>
+        FamilyBoardCommand.update(
+          requestId,
+          revision,
+          BoardElement.fromJson(value['element']),
+        ),
+      'delete' when value['element'] == null && value['elementId'] != null =>
+        FamilyBoardCommand.delete(requestId, revision, _id(value['elementId'])),
+      _ => _invalid(),
+    };
+  }
   final String requestId;
   final int expectedBoardRevision;
   final BoardAction action;

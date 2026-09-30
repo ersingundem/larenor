@@ -4576,7 +4576,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Canlı aile panosu ve beyaz tahta",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4599,7 +4599,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama commit 94d08d66: farklı öğelerde güvenli eşzamanlı revision merge, aynı öğede açık conflict, öğe sahibi/admin düzenleme yetkisi, exact permission sözleşmesi ve son 20 audit hareketinin Cupertino görünümü tamamlandı. Focused py_compile, Flutter analyze ve iki üyeli concurrency/permission smoke geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
+      "reason": "Gerçek Flutter controller/secure cache→normal Core TCP iki yaşamı kayıp iki success ACK sonrası exact aynı immutable commandı receipt olarak uzlaştırdı; restart boyunca tek encrypted olay kaldı. Pending yazı durable ve yeni mutation kapalı; stale disjoint merge, aynı öğe conflict/no retry, private delete cache purge, route/logout retirement doğrulandı. Root 11 Server, 26 focused Flutter+runner-only skip ve iki actual TCP fazını geçti; geniş exact HEAD CI açık. Kanıt: docs/testing/f39-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "F40",

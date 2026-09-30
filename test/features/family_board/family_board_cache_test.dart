@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/family_board/data/family_board_cache.dart';
+import 'package:larenor/features/family_board/domain/family_board_models.dart';
 
 import 'family_board_controller_test.dart';
 
@@ -55,6 +56,116 @@ void main() {
     expect(await cache.read(binding(), isCurrent: () => true), isNull);
     expect(backend.values, isEmpty);
   });
+
+  test(
+    'pending command is exact scoped durable and cleared by request id',
+    () async {
+      final backend = MemoryBackend();
+      final cache = SecureFamilyBoardCache(backend: backend);
+      final command = FamilyBoardCommand.append(
+        '8' * 32,
+        1,
+        BoardCard(
+          id: '7' * 32,
+          text: 'Pending private card',
+          x: 1,
+          y: 2,
+          color: 'yellow',
+        ),
+      );
+
+      await cache.writePending(binding(), command, isCurrent: () => true);
+      final restored = await cache.readPending(
+        binding(),
+        isCurrent: () => true,
+      );
+      expect(restored?.toJson(), command.toJson());
+      await expectLater(
+        cache.clearPending(binding(), '9' * 32, isCurrent: () => true),
+        throwsA(isA<FamilyBoardException>()),
+      );
+      expect(
+        await cache.readPending(binding(), isCurrent: () => true),
+        isNotNull,
+      );
+      await cache.clearPending(
+        binding(),
+        command.requestId,
+        isCurrent: () => true,
+      );
+      expect(await cache.readPending(binding(), isCurrent: () => true), isNull);
+    },
+  );
+
+  test(
+    'invalid pending journal fails closed without deleting evidence',
+    () async {
+      final backend = MemoryBackend();
+      final cache = SecureFamilyBoardCache(backend: backend);
+      await cache.writePending(
+        binding(),
+        FamilyBoardCommand.append(
+          '8' * 32,
+          1,
+          BoardCard(
+            id: '7' * 32,
+            text: 'Pending private card',
+            x: 1,
+            y: 2,
+            color: 'yellow',
+          ),
+        ),
+        isCurrent: () => true,
+      );
+      final key = backend.values.keys.single;
+      backend.values[key] = '{corrupt';
+
+      await expectLater(
+        cache.readPending(binding(), isCurrent: () => true),
+        throwsA(
+          isA<FamilyBoardException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_cache',
+          ),
+        ),
+      );
+      expect(backend.values[key], '{corrupt');
+    },
+  );
+
+  test(
+    'pending effect blocks changed authority without changing evidence',
+    () async {
+      final backend = MemoryBackend();
+      final cache = SecureFamilyBoardCache(backend: backend);
+      final command = FamilyBoardCommand.append(
+        '8' * 32,
+        1,
+        BoardCard(
+          id: '7' * 32,
+          text: 'Authority-bound pending card',
+          x: 1,
+          y: 2,
+          color: 'yellow',
+        ),
+      );
+      await cache.writePending(binding(), command, isCurrent: () => true);
+      final evidence = Map<String, String>.from(backend.values);
+
+      await expectLater(
+        cache.readPending(binding(memberRevision: 2), isCurrent: () => true),
+        throwsA(
+          isA<FamilyBoardException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_cache',
+          ),
+        ),
+      );
+      expect(backend.values, evidence);
+    },
+  );
 
   test('route or lifecycle retirement rejects late cache completion', () async {
     final backend = MemoryBackend();
