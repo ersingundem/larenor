@@ -304,7 +304,7 @@ def test_actual_uid10003_user_manager_runs_through_uid10001_ipc():
             "maxTasks": 8,
             "providers": [{
                 "kind": "vision",
-                "providerId": "f08-ipc-fixture-v1",
+                "providerId": "f08-boundary-fixture-v1",
                 "executionMode": "standalone",
                 "executable": str(provider),
                 "executableSha256": hashlib.sha256(provider.read_bytes()).hexdigest(),
@@ -337,7 +337,7 @@ import os,sys,time
 from larenor_server.ai_resources.runtime import AiDispatch
 from larenor_server.ai_resources.worker_ipc import AiWorkerClient
 client=AiWorkerClient(sys.argv[1],owner_uid=10003,peer_uid=10003,socket_gid=10002)
-assert client.available() and client.provider('vision') == 'f08-ipc-fixture-v1'
+assert client.available() and client.provider('vision') == 'f08-boundary-fixture-v1'
 dispatch=AiDispatch('a'*32,'b'*32,'ipc-user-manager-0001','vision',64,30)
 value=client.start(dispatch)
 deadline=time.monotonic()+20
