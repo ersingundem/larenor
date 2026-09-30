@@ -1565,7 +1565,7 @@
   "haMediaTransportDisplayVideo": "Ekran videosu",
   "haMediaTransportAppleTvVideo": "Apple TV video",
   "haMediaVideoOutputRequired": "Video için TV veya projektör çıkışı gerekir.",
-  "haMediaAppleTvUnsupported": "Bu kaynağın MP4 medya sözleşmesi eksik veya uyumluluğu doğrulanamadığı için Apple TV video kapalıdır. Şifreli ya da belirsiz oynatma gönderilmez.",
+  "haMediaAppleTvUnsupported": "Bu kaynak MP4 video olarak tanımlanmadığı için Apple TV video kapalıdır. MP4 kaynaklarında da kodek, DRM ve fiziksel oynatma uyumluluğu burada doğrulanamadığından açık onay gerekir.",
   "haMediaRegistryRequired": "Cihaz kimliği okunamadı. Oynatmadan önce yenile.",
   "haMediaServiceMissing": "Medya oynatma işlemi kullanılamıyor.",
   "haMediaChangeSource": "Başka içerik seç",

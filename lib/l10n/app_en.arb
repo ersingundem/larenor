@@ -1896,7 +1896,7 @@
   "haMediaTransportDisplayVideo": "Display video",
   "haMediaTransportAppleTvVideo": "Apple TV video",
   "haMediaVideoOutputRequired": "Video requires a TV or projector output.",
-  "haMediaAppleTvUnsupported": "Apple TV video is disabled for this source because its MP4 media contract is missing or compatibility cannot be verified. Encrypted or unknown playback is not sent.",
+  "haMediaAppleTvUnsupported": "Apple TV video is disabled because this source is not described as an MP4 video. MP4 sources still require explicit confirmation because codec, DRM, and physical playback compatibility cannot be verified here.",
   "haMediaRegistryRequired": "Device identity could not be read. Refresh before playing.",
   "haMediaServiceMissing": "The media playback action is not available.",
   "haMediaChangeSource": "Choose different media",

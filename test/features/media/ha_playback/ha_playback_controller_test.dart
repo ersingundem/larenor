@@ -171,6 +171,33 @@ void main() {
     );
     expect(api.commands, hasLength(1));
   });
+  test(
+    'authority loss after accepted response is uncertain and never replayed',
+    () async {
+      final prepared = await intent();
+      api.playAcceptedGate = () async {
+        current = false;
+      };
+      await expectLater(
+        controller.play(prepared),
+        throwsA(
+          isA<HaPlaybackException>()
+              .having(
+                (error) => error.failure,
+                'failure',
+                HaPlaybackFailure.invalidIntent,
+              )
+              .having((error) => error.outcomeUnknown, 'outcome', isTrue),
+        ),
+      );
+      expect(api.commands, hasLength(1));
+      await expectLater(
+        controller.play(prepared),
+        failure(HaPlaybackFailure.invalidIntent),
+      );
+      expect(api.commands, hasLength(1));
+    },
+  );
   test('refresh failure clears retained selectable results rather than empty success', () async {
     api.inventoryError = const HaPlaybackException(
       HaPlaybackFailure.permission,

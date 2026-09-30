@@ -199,6 +199,10 @@ class _HaPlaybackScreenState extends MediaSessionState<HaPlaybackScreen> {
                 '${l10n.haMediaTransport}: '
                 '${haPlaybackTransportLabel(l10n, intent.transport)}',
               ),
+              if (intent.transport == HaPlaybackTransport.appleTvVideo) ...[
+                const SizedBox(height: 12),
+                Text(l10n.haMediaAppleLimit),
+              ],
               const SizedBox(height: 12),
               Text(l10n.haMediaReplace),
             ],

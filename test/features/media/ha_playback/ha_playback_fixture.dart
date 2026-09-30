@@ -96,7 +96,10 @@ class FakeHaPlaybackApi extends HaPlaybackApi {
       >[];
   final browseIds = <String?>[];
   int inventoryReads = 0;
-  Future<void> Function()? inventoryGate, browseGate, playGate;
+  Future<void> Function()? inventoryGate,
+      browseGate,
+      playGate,
+      playAcceptedGate;
   Object? inventoryError, browseError, playError;
   final connections = StreamController<bool>.broadcast();
   @override
@@ -133,6 +136,7 @@ class FakeHaPlaybackApi extends HaPlaybackApi {
       throw const HaPlaybackException(HaPlaybackFailure.invalidIntent);
     }
     commands.add((entityId: entityId, source: source, transport: transport));
+    await playAcceptedGate?.call();
     if (playError != null) throw playError!;
   }
 

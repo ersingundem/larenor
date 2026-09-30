@@ -297,6 +297,7 @@ class HaPlaybackController {
     _stopObservation();
     _publish(_copy(busy: true, clearReceipt: true));
     var dispatched = false;
+    var accepted = false;
     try {
       final fresh = await _preflight(
         generation,
@@ -327,6 +328,7 @@ class HaPlaybackController {
             isCurrent: canSend,
           )
           .timeout(const Duration(seconds: 30));
+      accepted = true;
       _check(generation);
       final receipt = HaPlaybackReceipt(
         status: HaPlaybackReceiptStatus.accepted,
@@ -343,13 +345,14 @@ class HaPlaybackController {
     } catch (error) {
       final failure = haPlaybackFailure(error);
       final unknown =
-          dispatched &&
-          !{
-            HaPlaybackFailure.authentication,
-            HaPlaybackFailure.permission,
-            HaPlaybackFailure.invalidIntent,
-            HaPlaybackFailure.expiredIntent,
-          }.contains(failure);
+          accepted ||
+          (dispatched &&
+              !{
+                HaPlaybackFailure.authentication,
+                HaPlaybackFailure.permission,
+                HaPlaybackFailure.invalidIntent,
+                HaPlaybackFailure.expiredIntent,
+              }.contains(failure));
       if (_active && generation == _generation) {
         _publish(_copy(busy: false, failure: failure, outcomeUnknown: unknown));
       }

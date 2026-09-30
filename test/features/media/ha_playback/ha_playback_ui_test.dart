@@ -251,6 +251,35 @@ void main() {
       await h.unmount(tester);
     },
   );
+  testWidgets(
+    'Apple TV confirmation names unverified codec DRM and physical playback',
+    (tester) async {
+      final h = _Harness();
+      h.api.currentInventory = inventory(
+        state: stateRaw(deviceClass: 'tv'),
+        registry: registryRaw(platform: 'apple_tv'),
+      );
+      h.api.pages['media-source://'] = parseHaMediaBrowse(
+        browseRaw(
+          children: [
+            browseNode(
+              id: 'media-source://media_source/local/test.mp4',
+              title: 'Test video',
+              type: 'video/mp4',
+            )..['media_class'] = 'video',
+          ],
+        ),
+        playbackNow,
+      );
+      await h.mount(tester);
+      await h.source(tester);
+      await h.target(tester);
+      await h.finishDialog(tester);
+      expect(find.text(h.labels(tester).haMediaAppleLimit), findsWidgets);
+      expect(h.api.commands, isEmpty);
+      await h.unmount(tester);
+    },
+  );
   testWidgets('folder ancestry back and root navigate by fresh browse only', (
     tester,
   ) async {

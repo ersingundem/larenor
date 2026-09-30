@@ -2475,7 +2475,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Apple TV video ve medya hedefleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B2",
         "S08.8"
@@ -2485,9 +2485,10 @@
         "docs/product-implementation-plan-2026-09-05.md",
         "docs/PROGRESS.md"
       ],
-      "scope": "Gerçek alıcı desteği manuel kabul edilene dek test edilmedi kalır.",
+      "scope": "Yazılım teslim kapısı; gerçek Apple TV/tvOS/alıcı uygulaması, kodek ve DRM kabulü MANUAL.MEDIA içinde ayrıca izlenir. MP4 adayının fiziksel uyumluluğu garanti edilmez.",
       "acceptance": [
-        "Cast/Apple ses ile Apple TV video ayrılır; desteklenen taşıma/kimlik/hedef seçimi, reddedilen codec/DRM ve iptal/kopuş durumları fixture/native E2E ile sınanır."
+        "Cast/Apple ses ile Apple TV video ayrılır; exact registry/device/config kimliği, güncel capability/service ve kaynak seçimi doğrulanır. Apple TV için video/mp4 video/movie/episode adayları açık kodek/DRM uyarısıyla onaylanır; diğer kaynak sözleşmeleri reddedilir.",
+        "Gerçek authenticated HA TCP üzerinden tek entity-scoped gönderim ve nedensel HA state readback; iptal/kopuş/authority drift, belirsiz sonuç ve no-replay doğrulanır. Fiziksel decoder/DRM/HDMI kabulü MANUAL.MEDIA kapısıdır."
       ],
       "requiredEvidence": [
         "test",
@@ -2496,7 +2497,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Apple TV video, Cast video ve Apple/AirPlay ses yolları ayrı taşıma kimlikleriyle bağlandı; Apple TV hedefi exact registry/device/config identity, açık video/mp4 ve video/movie/episode medya sözleşmesi olmadan fail-closed kalıyor. Hedef seçimi ve onay makbuzu yolu gösteriyor; uygun olmayan kaynak/hedef nedeni görünür. İptal, yaşam döngüsü ve bağlantı değişimi gönderim kiralamasını geçersizleştiriyor. Testler, bağımsız inceleme, exact-head CI ve gerçek alıcıda kodek/DRM/kopuş kabulü son doğrulama kapısında bekliyor."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Root 67 Flutter testi, gerçek HaWebSocketClient→WsHaPlaybackApi→HaPlaybackController owned HA TCP kapısı ve temiz scoped analyze doğruladı. Exact Apple TV identity/capability/service yeniden okunur; tek gönderim ve newer last_updated/exact media-source receipt yalnız HA raporudur. Post-ACK authority kaybı unknown kalır, replay yok. MP4 etiketi kodek/DRM garantisi sayılmaz; EN/TR açık onay uyarısı var. Gerçek Apple TV/tvOS/codec/DRM/kopuş MANUAL.MEDIA açık. docs/testing/product-appletv-software-acceptance-2026-09-30.md."
     },
     {
       "id": "PRODUCT.PROVIDERS",
