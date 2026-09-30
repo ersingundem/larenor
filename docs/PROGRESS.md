@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F51 birleşik Client/Core/HA kabulü
+
+Gerçek Flutter Client normal Uvicorn Core üzerinden registry/CAS editörünü, canlı HA switch projectionını, tek authorized mutation ve idempotent replayi çalıştırdı. Registry değişimi eski save isteğini reddetti, katalog onarımı geçti; ayrı ikinci Core ve Client süreci restart sonrası layout/rotation/vector verisini okudu. 9 Server ve 13 Flutter testi, iki gerçek Client fazı geçti; CI bekleme etiketi ve sayaçlar değişmedi. [Adlandırılmış kabul](testing/f51-normal-core-tcp-acceptance-2026-09-30.md).
+
 ### 30 Eylül başarısız AI unit cleanup düzeltmesi
 
 Exact `6a79199d` F08 Linux koşusu gerçek ayrı UID IPC, OOM, TasksMax ve CPU throttling senaryolarını geçti; tek kalan hata failed transient unit/cgroup temizliğiydi. Production release artık yalnız exact dispatch unit üzerinde stop ardından reset-failed yapar. Hata varsa ancak başarılı bounded show ile exact LoadState=not-found kanıtı kabul edilir; bus/show hatasında descriptor/receipt silinmez. 24 odaklı test geçti, 4 hosted-Linux skip açık. Root ayrıca 14 dar testi doğruladı (1 Linux skip). Yeni exact Linux sonucu gerekir; eski kırmızı koşu tekrarlanmadı.

@@ -22,7 +22,7 @@ F01–F21 ve F22–F44 iki bağımsız ajan tarafından salt okunur incelendi.
 | F24 | Kapanmış: legacy ve aktif player route tek AES-GCM kişi deposunu kullanıyor; authenticated migration atomik | 10 Server + 8 Flutter + 1 gerçek Flutter→normal Core TCP geçti; gerçek track/rendering manuel |
 | F28 | Kapanmış: ready ev üyesi discovery, refresh, catalog ve playback/longform yollarına admin olmadan erişiyor | 35 Server + 24 Flutter + 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant geçti; provider/receiver manuel |
 | F35 | Kapanmış: encrypted blob→bounded Poppler/Tesseract OCR, source/confidence binding ve ayrı kullanıcı onayı var | 24 Server + 14 Flutter + 1 gerçek Flutter→normal Core→actual OCR + 21 container policy geçti; image/exact-head ve fiziksel belge açık |
-| F51 | Kapanmış implementation: admin gerçek catalog/four-revision CAS ve erişilebilir inline floor/room/device editor var | 6 Server + 13 Flutter geçti; birleşik Client→normal Core kapısı ve exact-head CI açık, fiziksel ölçüm manuel |
+| F51 | Kapanmış implementation: admin gerçek catalog/four-revision CAS ve erişilebilir inline floor/room/device editor var | 9 Server + 13 Flutter ve iki gerçek Client→normal Core→TCP HA fazı geçti: tek mutation/replay, CAS repair ve restart; exact-head CI ve fiziksel ölçüm açık |
 
 F04–F06, F09, F13–F16 ve F19–F21'de bu tarama yeni dummy/ölü normal
 production yolu bulmadı. Bu gözlem kapsamlı CI veya fiziksel cihaz kabulünün

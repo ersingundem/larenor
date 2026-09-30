@@ -3504,7 +3504,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Core registry catalog, admin dört-revizyon CAS ve inline Client kat/oda/cihaz yerleştirme/onarım editörü uygulandı. Odaklı Server ve Flutter testleri geçti; docs/testing/f51-floor-plan-editor-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor; fiziksel ev ölçümü ayrı."
+      "reason": "Uygulama ve gerçek Client→normal Core→TCP HA odaklı kabulü tamamlandı; geniş exact HEAD CI bekleniyor. 9 Server/13 Flutter ve iki gerçek Client fazı catalog/CAS/save, canlı durum, tek authorized HA mutation/replay, revizyon onarımı, route retirement ve Core restart sonrası geometriyi doğruladı; docs/testing/f51-normal-core-tcp-acceptance-2026-09-30.md. Fiziksel ölçüm/tablet/household HA manuel; kabul sayaçları değişmedi."
     },
     {
       "id": "F52",
