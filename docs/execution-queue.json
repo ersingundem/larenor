@@ -3282,7 +3282,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Uzun süren ev iş akışları",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3307,7 +3307,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Server ve Client üretim akışı tek dalda tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
+      "reason": "Gerçek Flutter HomeWorkflowAccountApi→normal TCP Core→owned HA iki yaşamında explicit approval ve causal provider readback completed oldu; exact create/approval replay ve ayrı pre-dispatch cancel restart boyunca yalnız bir HA POST yaptı. İki independent gerçek runner, 7 F05 Server, focused Flutter 2+runner-only skip ve analyze geçti; root F05/F36/F21/F54/Core context toplam 80 Server testini doğruladı. Process-loss/unknown physical outcome, late/cancel/revocation/corruption/limits focused kapıları korunur. Geniş exact HEAD CI ve gerçek household partial-effect MANUAL açık. Kanıt: docs/testing/f05-normal-core-home-workflow-2026-09-30.md."
     },
     {
       "id": "G02",
@@ -3418,7 +3418,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Google servislerinden bağımsız bildirim",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3443,14 +3443,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Google servislerinden bağımsız yerel bildirim kutusu, kullanıcı onaylı Android arka plan teslim kirası, Keystore korumalı credential, görünür foreground service, boot/recovery, kayıp/tekrar dedupe ve fail-closed lease yenileme/iptal akışları Server/Client/native katmanlarında tamamlandı; testler, bağımsız son kabul, exact-head CI ve gerçek Huawei/OEM pil davranışı son doğrulama kapısında bekliyor."
+      "reason": "FINAL.FUNCTION canlı incelemesi normal bundled HTTP Core ile HTTPS-only native background lease arasında gerçek boşluk buldu. Aktif geliştirme: named HTTP background-unavailable nedeni, doğrudan normal Core TLS listener/opsiyonel compose TLS boundary ve gerçek owned TLS transport/notification permission/reconnect/dedupe/private lock-screen/safe-target kabulü. Trusted certificate provisioning ve fiziksel OEM/Doze MANUAL açık; permissive production trust yok."
     },
     {
       "id": "F53",
       "kind": "task",
       "parent": "G03",
       "title": "Evdeki tabletleri tek yerden yönetme",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3474,7 +3474,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core/ev/oturum ailesi yetkili kayıt, iptal, heartbeat, sürümlü profil, süreli-idempotent komut/makbuz ve imzalı dağıtım önizlemesi; Client yönetim ekranı, belirsiz sonuç uzlaştırması, cihaz profil senkronizasyonu, güvenli credential ve native kiosk durum kaynağıyla tamamlandı. Güncel uygulama eski codex/f53-tablet-fleet-client dalını aşıyor; Python compile ve odaklı Flutter analyze temiz. Özellik testleri, gerçek Client→izole Core E2E, bağımsız inceleme, exact-head CI ve Huawei/OEM/DPC fiziksel kabulü final doğrulama kapısında bekliyor."
+      "reason": "FINAL.FUNCTION canlı incelemesi gerçek boşluk buldu: F53 device session/controller production caller olmadan memory-only kalmış; normal Client register/heartbeat/poll/complete çalıştırmıyor. Aktif geliştirme: açık opt-in enrollment, kalıcı Core/home/account scoped identity+journal, observed native kiosk capability, normal composition heartbeat/command receipt/revoke ve gerçek iki yaşam kabulü. App restart desteklenmeden advertised capability sayılmaz; normal app/DeviceOwner ve manuel donanım kapıları ayrılır."
     },
     {
       "id": "F51",
@@ -3511,7 +3511,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "DeX'te iki ekrana farklı görev",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3534,7 +3534,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Aynı Android uygulamasında bounded native topoloji ve görev yöneticisi; ayrı, eklentisiz ve oturumdan yalıtılmış dış Flutter renderer; genel dashboard/şimdi çalıyor rolleri; ana ekranda odak/oynatıcı sahipliği ve event-driven hot-plug/yön/resize emekliliği tamamlandı. Testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı; bağımsız inceleme, exact-head CI ve fiziksel DeX/OEM kabulü henüz tamamlanmadı."
+      "reason": "FINAL.FUNCTION canlı incelemesi dual-display route authority içinde generation/route=1/random family ürettiğini ve pre-present topology tazelemediğini buldu. Aktif geliştirme: normal Core current account/home/session authority endpoint, pre/post drift kontrolü, gerçek DisplayManager hotplug/resize ve secondary public current-content/empty-state kapısı. Secondary player/private token aktarımı yok; fiziksel DeX/receiver MANUAL açık."
     },
     {
       "id": "G04",

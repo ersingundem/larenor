@@ -14,12 +14,12 @@ MAX_BYTES = 1024 * 1024
 MAX_NODES = 512
 FEATURES = frozenset('F%02d' % n for n in range(1, 64))
 DEFAULT_FILE = Path(__file__).resolve().parents[1] / 'docs/execution-queue.json'
-STATUSES = ('pending', 'in_progress', 'implemented', 'awaiting_ci', 'needs_user', 'done')
-LABELS = dict(zip(STATUSES, ('Bekliyor', 'Çalışılıyor',
+STATUSES = ('pending', 'in_progress', 'reworking', 'implemented', 'awaiting_ci', 'needs_user', 'done')
+LABELS = dict(zip(STATUSES, ('Bekliyor', 'Çalışılıyor', 'Yeniden çalışılıyor',
                              'Uygulama tamamlandı · test bekliyor', 'CI bekliyor',
                              'Kullanıcı gerekiyor', 'Kanıtla tamamlandı')))
 DISPLAY_ORDER = {status: index for index, status in enumerate(
-    ('done', 'implemented', 'in_progress', 'awaiting_ci', 'pending', 'needs_user'))}
+    ('done', 'implemented', 'in_progress', 'reworking', 'awaiting_ci', 'pending', 'needs_user'))}
 EVIDENCE_KINDS = {'test', 'review', 'ci', 'manual'}
 ID = re.compile(r'[A-Z][A-Za-z0-9]*(?:[.-][A-Za-z0-9]+)*\Z')
 SHA = re.compile(r'[0-9a-f]{40}\Z')
@@ -189,7 +189,9 @@ def validate_queue(data):
     for identifier, node in nodes.items():
         if node['kind'] == 'group':
             continue
-        if node['status'] in ('in_progress', 'implemented', 'awaiting_ci', 'done'):
+        if node['status'] == 'reworking':
+            require(node['reason'] is not None, 'rework_reason_required')
+        if node['status'] in ('in_progress', 'reworking', 'implemented', 'awaiting_ci', 'done'):
             require(not model.blockers(identifier, finishing=node['status'] == 'done'),
                     'dependencies_unfinished')
     return model
@@ -254,7 +256,10 @@ class Queue:
             self._implemented[identifier] = (
                 all(self.is_implemented(i) for i in self.children[identifier])
                 if node['kind'] == 'group'
-                else node['status'] in ('implemented', 'awaiting_ci', 'done')
+                # A reopened implementation keeps its baseline interface available;
+                # it is active repair, never accepted completion. Finish gates
+                # still require every dependency to be done with exact evidence.
+                else node['status'] in ('reworking', 'implemented', 'awaiting_ci', 'done')
             )
         return self._implemented[identifier]
 
@@ -302,7 +307,7 @@ class Queue:
                          finishBlockers=self.blockers(n['id'], finishing=True))
                     for n in tasks if n['status'] == status]
         # Waiting rows are never silently hidden behind a ready-work limit.
-        return {'active': select('in_progress'), 'implemented': select('implemented'),
+        return {'active': select('in_progress') + select('reworking'), 'implemented': select('implemented'),
                 'awaitingCi': select('awaiting_ci'),
                 'needsUser': select('needs_user'),
                 'ready': [n for n in select('pending') if not n['blockers']][:limit]}
@@ -334,11 +339,11 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
         c = node['counts']
         lines.append('| %s — %s | %d | %d | %d | %d | %d | %d |' %
                      (node['id'], escape(node['title']), c['total'], c['done'],
-                      c['implemented'], c['in_progress'], c['awaiting_ci'],
+                      c['implemented'], c['in_progress'] + c['reworking'], c['awaiting_ci'],
                       c['needs_user']))
     if not summary_only:
         tasks = model.tasks(group)
-        current = [node for node in tasks if node['status'] == 'in_progress']
+        current = [node for node in tasks if node['status'] in ('in_progress', 'reworking')]
         pending = [node for node in tasks if node['status'] == 'pending']
         ready = [node for node in pending if not model.blockers(node['id'])]
         blocked = [node for node in pending if model.blockers(node['id'])]

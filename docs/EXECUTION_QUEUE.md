@@ -11,9 +11,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
-| G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 1 | 0 | 3 | 0 |
+| G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
-| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 1 | 0 |
+| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 3 | 1 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
@@ -29,6 +29,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
+| F54 | Google servislerinden bağımsız bildirim | Yeniden çalışılıyor | — |
+| F53 | Evdeki tabletleri tek yerden yönetme | Yeniden çalışılıyor | — |
+| F52 | DeX'te iki ekrana farklı görev | Yeniden çalışılıyor | — |
 | F37 | Ortak ev masrafları | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -114,10 +117,6 @@ Tamamlanan ve test/CI bekleyen işler
 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | Uygulama tamamlandı · test bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | Uygulama tamamlandı · test bekliyor | — |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | Uygulama tamamlandı · test bekliyor | — |
-| F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
-| F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
-| F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
-| F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
@@ -126,6 +125,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F13 | Bileşen bazında internet izinleri | CI bekliyor | — |
 | F15 | Doğrulanabilir bileşen güncellemeleri | CI bekliyor | — |
 | F20 | Değiştirilmesi fark edilen işlem günlüğü | CI bekliyor | — |
+| F05 | Uzun süren ev iş akışları | CI bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | CI bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | CI bekliyor | — |
 | F18 | Elektrik kesintisinde düzenli kapanış | CI bekliyor | — |

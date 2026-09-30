@@ -141,6 +141,22 @@ class ValidationTest(unittest.TestCase):
             if status == 'done': complete(node)
             self.invalid(data, 'dependencies_unfinished')
 
+    def test_reopened_work_stays_active_without_accepting_its_dependents(self):
+        data = fixture()
+        first, second = data['nodes'][2:4]
+        first.update(status='reworking', reason='Normal runtime gap reopened.')
+        second.update(status='awaiting_ci', dependsOn=['F01'])
+        model = queue.validate_queue(data)
+        self.assertEqual(model.next_actions()['active'][0]['id'], 'F01')
+        self.assertEqual(model.counts()['done'], 0)
+        self.assertEqual(model.counts()['featuresDone'], 0)
+        rendered = queue.render(model)
+        self.assertIn('| F01 | F01 kabul işi | Yeniden çalışılıyor |', rendered)
+        complete(second)
+        self.invalid(data, 'dependencies_unfinished')
+        first['reason'] = None
+        self.invalid(data, 'rework_reason_required')
+
     def test_coreless_work_may_start_before_managed_profile_gate_but_not_finish(self):
         data = fixture(); node = data['nodes'][2]
         node.update(finishDependsOn=['F02'], status='in_progress')
