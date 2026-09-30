@@ -643,9 +643,8 @@ class LarenorServerApi {
           );
       final coreAuditVerification =
           method == 'GET' &&
-          RegExp(
-            r'^/admin/core-audit/[0-9a-f]{32}/[0-9a-f]{32}/verification$',
-          ).hasMatch(path) &&
+          RegExp(r'^/admin/core-audit/[0-9a-f]{32}/[0-9a-f]{32}/verification$')
+              .hasMatch(path) &&
           queryParameters.length == 1 &&
           queryParameters.entries.every(
             (entry) =>
@@ -759,6 +758,17 @@ class LarenorServerApi {
               .hasMatch(path) &&
           queryParameters.length == 1 &&
           canonicalRevision(revision);
+      final coreRemoteProfileDeleteQuery =
+          method == 'DELETE' &&
+          RegExp(
+            r'^/core-remote-profiles/[0-9a-f]{32}/[0-9a-f]{32}/[0-9a-f]{32}$',
+          ).hasMatch(path) &&
+          queryParameters.length == 4 &&
+          RegExp(r'^[0-9a-f]{32}$')
+              .hasMatch(queryParameters['requestId'] ?? '') &&
+          canonicalRevision(queryParameters['expectedRevision']) &&
+          canonicalRevision(queryParameters['expectedAccountRevision']) &&
+          canonicalRevision(queryParameters['expectedCollectionRevision']);
       final kioskRemoteDeleteQuery =
           method == 'DELETE' &&
           RegExp(
@@ -769,6 +779,7 @@ class LarenorServerApi {
       if (!readQuery &&
           !forgetQuery &&
           !personalProfileDeleteQuery &&
+          !coreRemoteProfileDeleteQuery &&
           !kioskRemoteDeleteQuery &&
           !jobsQuery &&
           !mediaQuery &&

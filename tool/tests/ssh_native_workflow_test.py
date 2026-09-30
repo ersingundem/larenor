@@ -42,7 +42,7 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             'sudo useradd --create-home --shell /bin/bash "$fixture_user"',
             self.raw,
         )
-        self.assertIn('sudo passwd -d "$fixture_user"', self.raw)
+        self.assertIn('sudo chpasswd', self.raw)
         self.assertIn('runner_group="$(id -gn)"', self.raw)
         self.assertIn(
             'sftp_root="/tmp/larenor-ssh-native-sftp-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
@@ -60,8 +60,16 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         self.assertIn('sudo rm -rf -- "$sftp_root"', self.raw)
         self.assertNotIn("LARENOR_SFTP_FIXTURE_ROOT=$fixture/sftp", self.raw)
         self.assertNotIn('passwd -d "$USER"', self.raw)
-        self.assertIn("PasswordAuthentication no", self.raw)
-        self.assertIn("AuthenticationMethods publickey", self.raw)
+        self.assertIn("AuthenticationMethods publickey password", self.raw)
+        self.assertIn("AuthenticationMethods password", self.raw)
+        self.assertIn(
+            "AuthenticationMethods publickey,keyboard-interactive:pam",
+            self.raw,
+        )
+        self.assertIn("KbdInteractiveAuthentication yes", self.raw)
+        self.assertIn("UsePAM yes", self.raw)
+        self.assertIn("LARENOR_SSH_JUMP_HOST_KEY_FINGERPRINT", self.raw)
+        self.assertIn("LARENOR_SSH_MFA_HOST_KEY_FINGERPRINT", self.raw)
         self.assertIn("PermitRootLogin no", self.raw)
         self.assertIn("AllowTcpForwarding local", self.raw)
         self.assertIn("MaxSessions 4", self.raw)
@@ -70,6 +78,8 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
         self.assertIn("ssh_terminal_panel_test.dart", self.raw)
         self.assertIn("sftp_browser_panel_test.dart", self.raw)
         self.assertIn("ssh_tunnel_panel_test.dart", self.raw)
+        self.assertIn("f63_flutter_acceptance.py", self.raw)
+        self.assertIn("LARENOR_F63_COMMAND_LOG", self.raw)
         self.assertNotRegex(self.raw, r"\$\{\{\s*secrets\.")
         self.assertNotIn("0.0.0.0", self.raw)
 

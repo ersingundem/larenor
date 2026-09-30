@@ -13,6 +13,7 @@ import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
 import 'ssh_terminal_panel.dart' show sshSecurityStoreProvider;
+import 'ssh_security_store.dart';
 import 'ssh_tunnel_controller.dart';
 import 'ssh_tunnel_engine.dart';
 import 'ssh_tunnel_models.dart';
@@ -27,10 +28,12 @@ class SshTunnelPanel extends ConsumerStatefulWidget {
     required this.profile,
     required this.isCurrent,
     required this.onBack,
+    this.securityStore,
   });
   final RemoteProfile profile;
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final SshSecurityStore? securityStore;
   @override
   ConsumerState<SshTunnelPanel> createState() => _SshTunnelPanelState();
 }
@@ -155,7 +158,8 @@ class _SshTunnelPanelState extends ConsumerState<SshTunnelPanel>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final store = ref.watch(sshSecurityStoreProvider);
+    final defaultStore = ref.watch(sshSecurityStoreProvider);
+    final store = widget.securityStore ?? defaultStore;
     final factory = ref.watch(sshTunnelEngineFactoryProvider);
     _controller ??= SshTunnelController(
       profile: widget.profile,

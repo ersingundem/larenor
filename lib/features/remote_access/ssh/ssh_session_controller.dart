@@ -286,6 +286,7 @@ class SshSessionController extends ChangeNotifier {
     void listen(Stream<List<int>> stream) {
       _subscriptions.add(
         stream
+            .cast<List<int>>()
             .transform(const Utf8Decoder(allowMalformed: false))
             .listen(
               (chunk) {

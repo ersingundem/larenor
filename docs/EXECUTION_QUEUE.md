@@ -21,7 +21,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 1 | 0 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 1 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -30,7 +30,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | Yeniden çalışılıyor | — |
-| F63 | SSH terminal, SFTP ve güvenli tüneller | Yeniden çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -173,3 +172,4 @@ Tamamlanan ve test/CI bekleyen işler
 | F58 | E-paper mini ev ekranları | CI bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | CI bekliyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | CI bekliyor | — |
+| F63 | SSH terminal, SFTP ve güvenli tüneller | CI bekliyor | — |

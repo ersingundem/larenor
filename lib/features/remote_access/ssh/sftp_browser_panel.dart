@@ -18,6 +18,7 @@ import 'sftp_engine.dart';
 import 'sftp_file_access.dart';
 import 'sftp_models.dart';
 import 'ssh_terminal_panel.dart' show sshSecurityStoreProvider;
+import 'ssh_security_store.dart';
 
 final sftpEngineFactoryProvider = Provider<SftpEngine Function()>(
   (_) => DartSftpEngine.new,
@@ -32,11 +33,13 @@ class SftpBrowserPanel extends ConsumerStatefulWidget {
     required this.profile,
     required this.isCurrent,
     required this.onBack,
+    this.securityStore,
   });
 
   final RemoteProfile profile;
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final SshSecurityStore? securityStore;
 
   @override
   ConsumerState<SftpBrowserPanel> createState() => _SftpBrowserPanelState();
@@ -67,7 +70,10 @@ class _SftpBrowserPanelState extends ConsumerState<SftpBrowserPanel>
         return false;
       }
       if (_controller != null &&
-          (!identical(_storeIdentity, ref.read(sshSecurityStoreProvider)) ||
+          (!identical(
+                _storeIdentity,
+                widget.securityStore ?? ref.read(sshSecurityStoreProvider),
+              ) ||
               !identical(
                 _engineIdentity,
                 ref.read(sftpEngineFactoryProvider),
@@ -167,7 +173,8 @@ class _SftpBrowserPanelState extends ConsumerState<SftpBrowserPanel>
   @override
   Widget build(BuildContext context) {
     final localization = AppLocalizations.of(context);
-    final store = ref.watch(sshSecurityStoreProvider);
+    final defaultStore = ref.watch(sshSecurityStoreProvider);
+    final store = widget.securityStore ?? defaultStore;
     final engineFactory = ref.watch(sftpEngineFactoryProvider);
     final fileAccess = ref.watch(sftpFileAccessProvider);
     if (_controller == null) {

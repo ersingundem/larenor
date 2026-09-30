@@ -7,6 +7,71 @@ import '../../../core/configuration_writes.dart';
 import '../data/remote_profiles.dart';
 import 'ssh_tunnel_models.dart';
 
+typedef SshProfileValidator = Future<void> Function(
+  RemoteProfile profile,
+  void Function() check,
+);
+
+/// Non-secret ownership namespace for device-secure SSH records.
+///
+/// Local profiles deliberately use a namespace distinct from profiles issued
+/// by a Core. Core-managed records additionally bind the normalized endpoint,
+/// Core, home, account and token family. The profile digest is appended to this
+/// namespace for every key and repeated inside the sealed payload.
+final class SshSecurityNamespace {
+  SshSecurityNamespace._(this.digest, {required this.allowsLegacyLocal});
+
+  factory SshSecurityNamespace.local() => SshSecurityNamespace._(
+    sha256
+        .convert(utf8.encode('{"schemaVersion":1,"source":"local"}'))
+        .toString(),
+    allowsLegacyLocal: true,
+  );
+
+  factory SshSecurityNamespace.coreManaged({
+    required String endpoint,
+    required String coreId,
+    required String homeId,
+    required String accountId,
+    required String sessionFamilyId,
+  }) {
+    final uri = Uri.tryParse(endpoint);
+    final identity = RegExp(r'^[0-9a-f]{32}$');
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        endpoint != uri.toString() ||
+        !identity.hasMatch(coreId) ||
+        !identity.hasMatch(homeId) ||
+        !identity.hasMatch(accountId) ||
+        !identity.hasMatch(sessionFamilyId)) {
+      throw const SshFailure('invalid_namespace');
+    }
+    final encoded = jsonEncode({
+      'schemaVersion': 1,
+      'source': 'coreManaged',
+      'endpoint': endpoint,
+      'coreId': coreId,
+      'homeId': homeId,
+      'accountId': accountId,
+      'sessionFamilyId': sessionFamilyId,
+    });
+    return SshSecurityNamespace._(
+      sha256.convert(utf8.encode(encoded)).toString(),
+      allowsLegacyLocal: false,
+    );
+  }
+
+  final String digest;
+  final bool allowsLegacyLocal;
+
+  @override
+  String toString() => 'SshSecurityNamespace(redacted)';
+}
+
 class SshFailure implements Exception {
   const SshFailure(this.code);
   final String code;
@@ -33,10 +98,15 @@ class SshSecurityStore {
   SshSecurityStore({
     FlutterSecureStorage? storage,
     RemoteProfilesStore? profiles,
+    SshSecurityNamespace? namespace,
+    this.profileValidator,
   }) : _storage = storage ?? const FlutterSecureStorage(),
-       _profiles = profiles ?? RemoteProfilesStore();
+       _profiles = profiles ?? RemoteProfilesStore(),
+       _namespace = namespace ?? SshSecurityNamespace.local();
   final FlutterSecureStorage _storage;
   final RemoteProfilesStore _profiles;
+  final SshSecurityNamespace _namespace;
+  final SshProfileValidator? profileValidator;
   String reference(RemoteProfile profile) =>
       sha256.convert(utf8.encode(jsonEncode(profile.toJson()))).toString();
   void Function() _guard(bool Function() current) {
@@ -51,6 +121,11 @@ class SshSecurityStore {
   }
 
   Future<void> _profile(RemoteProfile p, void Function() check) async {
+    if (profileValidator case final validator?) {
+      await validator(p, check);
+      check();
+      return;
+    }
     check();
     final snapshot = await _profiles.read(
       isCurrent: () {
@@ -98,21 +173,33 @@ class SshSecurityStore {
     void Function() check,
   ) async {
     check();
-    final raw = await _storage.read(key: 'ssh_${kind}_v1_${reference(p)}');
+    final target = reference(p);
+    var raw = await _storage.read(key: _key(kind, target));
     check();
+    var legacy = false;
+    if (raw == null && _namespace.allowsLegacyLocal) {
+      raw = await _storage.read(key: _legacyKey(kind, target));
+      check();
+      legacy = raw != null;
+    }
     if (raw == null) return null;
     if (raw.length > 49152 || utf8.encode(raw).length > 49152) {
       throw const SshFailure('invalid_record');
     }
     final v = jsonDecode(raw);
     if (v is! Map ||
-        v['version'] != 1 ||
+        v['version'] != (legacy ? 1 : 2) ||
         v['version'] is! int ||
-        v['target'] != reference(p)) {
+        v['target'] != target ||
+        (!legacy && v['namespace'] != _namespace.digest)) {
       throw const SshFailure('invalid_record');
     }
     return Map<String, dynamic>.from(v);
   }
+
+  String _key(String kind, String target) =>
+      'ssh_${kind}_v2_${_namespace.digest}_$target';
+  String _legacyKey(String kind, String target) => 'ssh_${kind}_v1_$target';
 
   Future<void> _write(
     RemoteProfile p,
@@ -120,10 +207,16 @@ class SshSecurityStore {
     Map<String, dynamic>? value,
     void Function() check,
   ) async {
-    final key = 'ssh_${kind}_v1_${reference(p)}';
+    final target = reference(p);
+    final key = _key(kind, target);
     final raw = value == null
         ? null
-        : jsonEncode({'version': 1, 'target': reference(p), ...value});
+        : jsonEncode({
+            'version': 2,
+            'namespace': _namespace.digest,
+            'target': target,
+            ...value,
+          });
     check();
     if (raw == null) {
       await _storage.delete(key: key);
@@ -134,6 +227,15 @@ class SshSecurityStore {
     final after = await _storage.read(key: key);
     check();
     if (after != raw) throw const SshFailure('storage_failed');
+    if (_namespace.allowsLegacyLocal) {
+      final legacyKey = _legacyKey(kind, target);
+      await _storage.delete(key: legacyKey);
+      check();
+      if (await _storage.read(key: legacyKey) != null) {
+        throw const SshFailure('storage_failed');
+      }
+      check();
+    }
   }
 
   static void _credential(SshCredential v) {
@@ -175,7 +277,7 @@ class SshSecurityStore {
     }, check);
   });
   SshCredential _decodeCredential(Map<String, dynamic> v) {
-    if (v.length != 5 ||
+    if ((v.length != 5 && v.length != 6) ||
         !SshCredentialKind.values.any((k) => k.name == v['kind']) ||
         v['secret'] is! String ||
         v['passphrase'] is! String) {
@@ -202,13 +304,51 @@ class SshSecurityStore {
     required bool Function() isCurrent,
   }) => _run(p, isCurrent, (check) => _write(p, 'credential', null, check));
 
+  /// Deletes every device-secure record for this exact source namespace and
+  /// exact public profile. It intentionally does not re-read a profile
+  /// registry: callers use it only after an authoritative profile deletion,
+  /// when such a read must no longer find the profile.
+  Future<void> forgetProfileRecords(
+    RemoteProfile p, {
+    required bool Function() isCurrent,
+  }) {
+    final check = _guard(isCurrent);
+    final target = reference(p);
+    return ConfigurationWrites.run(() async {
+      try {
+        for (final kind in const ['credential', 'pin', 'tunnel']) {
+          check();
+          final keys = [
+            _key(kind, target),
+            if (_namespace.allowsLegacyLocal) _legacyKey(kind, target),
+          ];
+          for (final key in keys) {
+            await _storage.delete(key: key);
+            check();
+            if (await _storage.read(key: key) != null) {
+              throw const SshFailure('storage_failed');
+            }
+            check();
+          }
+        }
+      } on SshFailure {
+        rethrow;
+      } catch (_) {
+        check();
+        throw const SshFailure('storage_failed');
+      }
+    });
+  }
+
   Future<SshTunnelProfile?> readTunnel(
     RemoteProfile p, {
     required bool Function() isCurrent,
   }) => _run(p, isCurrent, (check) async {
     final value = await _read(p, 'tunnel', check);
     if (value == null) return null;
-    if (value.length != 6) throw const SshFailure('invalid_record');
+    if (value.length != 6 && value.length != 7) {
+      throw const SshFailure('invalid_record');
+    }
     return SshTunnelProfile.fromJson(value);
   });
 
@@ -222,7 +362,9 @@ class SshSecurityStore {
     await _write(p, 'tunnel', value.toJson(), check);
   });
   SshHostPin _decodePin(Map<String, dynamic> v) {
-    if (v.length != 4 || v['type'] is! String || v['fingerprint'] is! String) {
+    if ((v.length != 4 && v.length != 5) ||
+        v['type'] is! String ||
+        v['fingerprint'] is! String) {
       throw const SshFailure('invalid_record');
     }
     final p = SshHostPin(v['type'], v['fingerprint']);

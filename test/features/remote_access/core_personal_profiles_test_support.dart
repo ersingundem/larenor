@@ -71,8 +71,8 @@ class CoreProfilesFixture extends AdminFixture {
 
   late Map<String, dynamic> record;
   bool offline = false, conflict = false;
-  bool losePatchResponse = false;
-  int patchCalls = 0;
+  bool losePatchResponse = false, deleted = false;
+  int patchCalls = 0, deleteCalls = 0;
   int? collectionRevisionOverride;
   int? storedCollectionRevision;
   String familyId = profileFamilyId;
@@ -98,14 +98,12 @@ class CoreProfilesFixture extends AdminFixture {
       final held = holdNextList;
       holdNextList = null;
       if (held != null) await held.future;
-      return json(
-        listJson(
-          record,
-          collectionRevision: collectionRevisionOverride ?? collectionRevision,
-          family: familyId,
-          accountRevision: accountRevision,
+      return json({
+        'authority': authority(
+          collectionRevisionOverride ?? collectionRevision,
         ),
-      );
+        'profiles': deleted ? <Object>[] : [record],
+      });
     }
     final body = request.body.isEmpty
         ? <String, dynamic>{}
@@ -142,7 +140,10 @@ class CoreProfilesFixture extends AdminFixture {
     }
     final priorCollection = collectionRevision;
     if (request.method == 'DELETE') {
+      deleteCalls++;
       final previous = record['revision'] as int;
+      deleted = true;
+      storedCollectionRevision = priorCollection + 1;
       return json({
         'authority': authority(priorCollection + 1),
         'deletion': {'ref': record['ref'], 'deletedRevision': previous},

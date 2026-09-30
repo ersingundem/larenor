@@ -33,11 +33,13 @@ class SshTerminalPanel extends ConsumerStatefulWidget {
     this.availableProfiles = const [],
     required this.isCurrent,
     required this.onBack,
+    this.securityStore,
   });
   final RemoteProfile profile;
   final List<RemoteProfile> availableProfiles;
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final SshSecurityStore? securityStore;
   @override
   ConsumerState<SshTerminalPanel> createState() => _SshTerminalPanelState();
 }
@@ -80,7 +82,10 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
         return false;
       }
       if (_initialized &&
-          (!identical(_store, ref.read(sshSecurityStoreProvider)) ||
+          (!identical(
+                _store,
+                widget.securityStore ?? ref.read(sshSecurityStoreProvider),
+              ) ||
               !identical(_factory, ref.read(sshEngineFactoryProvider)))) {
         return false;
       }
@@ -291,7 +296,8 @@ class _SshTerminalPanelState extends ConsumerState<SshTerminalPanel>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final store = ref.watch(sshSecurityStoreProvider),
+    final defaultStore = ref.watch(sshSecurityStoreProvider),
+        store = widget.securityStore ?? defaultStore,
         factory = ref.watch(sshEngineFactoryProvider);
     if (!_initialized) {
       _store = store;

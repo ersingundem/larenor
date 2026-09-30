@@ -25,8 +25,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 Finder key(String id) => find.byKey(ValueKey(id));
 Future<void> press(WidgetTester t, String id) async {
   if (key(id).evaluate().isEmpty) {
+    final root = key('core-profiles-scroll').evaluate().isNotEmpty
+        ? key('core-profiles-scroll')
+        : key('remote-scroll');
     final scrollable = find.descendant(
-      of: key('remote-scroll'),
+      of: root,
       matching: find.byType(Scrollable),
     );
     await t.scrollUntilVisible(key(id), 240, scrollable: scrollable.first);
@@ -52,7 +55,7 @@ class RemoteUi {
   final boundary = GlobalKey();
   final windows = StreamController<WindowPolicySnapshot>.broadcast(sync: true);
   String? clipboard;
-  bool failWrite = false;
+  bool failWrite = false, failSshDelete = false;
   Future<void> Function(String key)? afterRead;
   int get writes =>
       calls.where((c) => c == 'write:${RemoteProfilesStore.storageKey}').length;
@@ -90,6 +93,9 @@ class RemoteUi {
                 }
                 return null;
               case 'delete':
+                if (failSshDelete && k?.startsWith('ssh_') == true) {
+                  throw PlatformException(code: 'private');
+                }
                 values.remove(k);
                 return null;
               case 'containsKey':

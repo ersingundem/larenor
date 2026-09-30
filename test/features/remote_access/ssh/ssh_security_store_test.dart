@@ -115,6 +115,141 @@ void main() {
     );
     expect(store.reference(profile()), isNot(contains('nas.example')));
   });
+  test(
+    'Core, account, endpoint, family and local sources have isolated records',
+    () async {
+      SshSecurityStore managed({
+        String endpoint = 'https://core.example/',
+        String? coreId,
+        String? accountId,
+        String? familyId,
+      }) => SshSecurityStore(
+        namespace: SshSecurityNamespace.coreManaged(
+          endpoint: endpoint,
+          coreId: coreId ?? '1' * 32,
+          homeId: '2' * 32,
+          accountId: accountId ?? '3' * 32,
+          sessionFamilyId: familyId ?? '4' * 32,
+        ),
+        profileValidator: (_, check) async => check(),
+      );
+
+      final owner = managed();
+      await owner.saveCredential(profile(), password, isCurrent: () => true);
+      expect(
+        (await owner.readCredential(profile(), isCurrent: () => true))!.secret,
+        password.secret,
+      );
+      for (final stranger in [
+        managed(endpoint: 'https://other.example/'),
+        managed(coreId: '5' * 32),
+        managed(accountId: '6' * 32),
+        managed(familyId: '7' * 32),
+        store,
+      ]) {
+        expect(
+          await stranger.readCredential(profile(), isCurrent: () => true),
+          isNull,
+        );
+      }
+      final sealed = jsonDecode(
+        disk.entries.singleWhere((entry) => entry.key.contains('_v2_')).value,
+      ) as Map<String, dynamic>;
+      expect(sealed['version'], 2);
+      expect(
+        sealed['namespace'],
+        isA<String>().having((v) => v.length, 'length', 64),
+      );
+      expect(sealed['target'], owner.reference(profile()));
+      expect(jsonEncode(sealed), isNot(contains('core.example')));
+      expect(jsonEncode(sealed), isNot(contains('33333333')));
+    },
+  );
+  test(
+    'legacy v1 is readable and retired only by the local namespace',
+    () async {
+      final target = store.reference(profile());
+      final legacyKey = 'ssh_credential_v1_$target';
+      disk[legacyKey] = jsonEncode({
+        'version': 1,
+        'target': target,
+        'kind': password.kind.name,
+        'secret': password.secret,
+        'passphrase': password.passphrase,
+      });
+      final managed = SshSecurityStore(
+        namespace: SshSecurityNamespace.coreManaged(
+          endpoint: 'https://core.example/',
+          coreId: '1' * 32,
+          homeId: '2' * 32,
+          accountId: '3' * 32,
+          sessionFamilyId: '4' * 32,
+        ),
+        profileValidator: (_, check) async => check(),
+      );
+      expect(
+        await managed.readCredential(profile(), isCurrent: () => true),
+        isNull,
+      );
+      expect(
+        (await store.readCredential(profile(), isCurrent: () => true))!.secret,
+        password.secret,
+      );
+
+      await store.saveCredential(profile(), password, isCurrent: () => true);
+      expect(disk, isNot(contains(legacyKey)));
+      expect(disk.keys.where((key) => key.contains('_v2_')), hasLength(1));
+    },
+  );
+  test('profile cleanup deletes only the exact namespace records', () async {
+    SshSecurityStore managed(String accountId) => SshSecurityStore(
+      namespace: SshSecurityNamespace.coreManaged(
+        endpoint: 'https://core.example/',
+        coreId: '1' * 32,
+        homeId: '2' * 32,
+        accountId: accountId,
+        sessionFamilyId: '4' * 32,
+      ),
+      profileValidator: (_, check) async => check(),
+    );
+    final first = managed('3' * 32), second = managed('5' * 32);
+    await first.saveCredential(profile(), password, isCurrent: () => true);
+    await second.saveCredential(
+      profile(),
+      const SshCredential(SshCredentialKind.password, 'second-private'),
+      isCurrent: () => true,
+    );
+    await first.trust(profile(), pin, isCurrent: () => true);
+    await second.trust(profile(), pin, isCurrent: () => true);
+    final tunnel = SshTunnelProfile.parse(
+      name: 'Scoped tunnel',
+      localPort: '18096',
+      targetHost: '127.0.0.1',
+      targetPort: '8096',
+    );
+    await first.saveTunnel(profile(), tunnel, isCurrent: () => true);
+    await second.saveTunnel(profile(), tunnel, isCurrent: () => true);
+
+    await first.forgetProfileRecords(profile(), isCurrent: () => true);
+    expect(
+      await first.readCredential(profile(), isCurrent: () => true),
+      isNull,
+    );
+    expect(await first.readPin(profile(), isCurrent: () => true), isNull);
+    expect(await first.readTunnel(profile(), isCurrent: () => true), isNull);
+    expect(
+      (await second.readCredential(profile(), isCurrent: () => true))!.secret,
+      'second-private',
+    );
+    expect(
+      (await second.readPin(profile(), isCurrent: () => true))!.fingerprint,
+      pin.fingerprint,
+    );
+    expect(
+      (await second.readTunnel(profile(), isCurrent: () => true))!.toJson(),
+      tunnel.toJson(),
+    );
+  });
   test('first trust persists while changed key is never replaced', () async {
     await store.trust(profile(), pin, isCurrent: () => current);
     expect(
@@ -248,7 +383,7 @@ void main() {
       expect(disk[RemoteProfilesStore.storageKey], profileRecord);
       expect(profileRecord, isNot(contains('Media tunnel')));
       expect(
-        disk.keys.where((key) => key.contains('tunnel_v1_')),
+        disk.keys.where((key) => key.contains('tunnel_v2_')),
         hasLength(1),
       );
     },

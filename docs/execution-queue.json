@@ -5225,7 +5225,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "SSH terminal, SFTP ve güvenli tüneller",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5251,7 +5251,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Core-managed SSH terminali ve iki normal Core/OpenSSH yaşamı geçti; root bağımsız inceleme identical public profileın farklı Core/account/local source ile aynı secure credential namespaceini paylaştığını buldu. Exact authority/source digest namespace, cross-owner regression ve gerçek Core-managed SFTP/tunnel retirement kapısı aktif düzeltmede. Linux password/key/MFA/jump exact HEAD CI ve fiziksel Huawei/DeX MANUAL açık."
+      "reason": "Gerçek normal Core/OpenSSH iki yaşamında SSH/SFTP/tunnel, drift/logout retirement ve exact iki non-replayed komut geçti; üçüncü gerçek Core fazında DELETE/readback sonrası typed local cleanup hatası ve explicit exact namespace retry geçti, sunucu DELETE bir kez. Source/Core/home/account/family+public profile digest v2 kasası local/Core sahiplerini ayırır; local-only legacy migration korunur. Root son 24 Flutter, scoped analyze ve 5 workflow policy geçti. Bağlantı authority hatası EN/TR görünür. Exact HEAD Linux password/key/MFA/jump CI bekliyor; fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f63-normal-core-openssh-2026-09-30.md."
     },
     {
       "id": "F62",

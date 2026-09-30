@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/cupertino.dart';
@@ -11,7 +12,28 @@ import '../../../shared/widgets/settings_section.dart';
 import '../../server/providers/server_providers.dart';
 import '../core/core_personal_profiles.dart';
 import '../core/core_personal_profiles_controller.dart';
+import '../core/core_managed_profile_authority.dart';
 import '../data/remote_profiles.dart';
+import '../ssh/sftp_browser_panel.dart';
+import '../ssh/ssh_security_store.dart';
+import '../ssh/ssh_terminal_panel.dart';
+import '../ssh/ssh_tunnel_panel.dart';
+import 'personal_session_boundary.dart';
+
+enum _LocalCleanupPhase { retrying, failed }
+
+final class _PendingLocalCleanup {
+  _PendingLocalCleanup({
+    required this.authority,
+    required this.store,
+    required this.profile,
+  });
+
+  final CoreManagedProfileAuthority authority;
+  final SshSecurityStore store;
+  final RemoteProfile profile;
+  _LocalCleanupPhase phase = _LocalCleanupPhase.retrying;
+}
 
 class CorePersonalProfilesScreen extends ConsumerStatefulWidget {
   const CorePersonalProfilesScreen({
@@ -36,9 +58,14 @@ class _CorePersonalProfilesScreenState
       _user = TextEditingController();
   CorePersonalProfilesController? _controller;
   CorePersonalProfile? _editing;
+  CoreManagedProfileAuthority? _sessionAuthority;
+  SshSecurityStore? _sessionStore;
+  _PendingLocalCleanup? _localCleanup;
+  PersonalSessionResource? _sessionResource;
   String? _conflictedId;
   RemoteProtocol _protocol = RemoteProtocol.ssh;
-  bool _creating = false, _deleteConfirm = false;
+  bool _creating = false, _deleteConfirm = false, _opening = false;
+  bool _sessionOpenFailed = false;
 
   bool _current() {
     try {
@@ -85,7 +112,80 @@ class _CorePersonalProfilesScreenState
             CoreProfileMutationOutcome.deleted) {
       _closeEditor();
     }
+    final authority = _sessionAuthority;
+    if (authority != null &&
+        (controller?.evidence.isFreshVerified != true ||
+            !controller!.profiles.any(
+              (value) =>
+                  value.id == authority.profile.id &&
+                  value.revision == authority.profile.revision,
+            ))) {
+      authority.retire();
+    }
     setState(() {});
+  }
+
+  void _authorityChanged() {
+    if (_sessionAuthority?.isCurrent != true) {
+      scheduleMicrotask(() {
+        if (mounted && _sessionAuthority?.isCurrent != true) _closeSession();
+      });
+    }
+  }
+
+  bool _sessionCurrent() => _current() && _sessionAuthority?.isCurrent == true;
+
+  void _closeSession() {
+    final authority = _sessionAuthority;
+    _sessionAuthority = null;
+    _sessionStore = null;
+    _sessionResource = null;
+    authority?.removeListener(_authorityChanged);
+    authority?.dispose();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _openSession(
+    CorePersonalProfile profile,
+    PersonalSessionResource resource,
+  ) async {
+    final controller = _controller;
+    final snapshot = controller?.snapshot;
+    if (_opening ||
+        !_current() ||
+        controller?.evidence.isFreshVerified != true ||
+        snapshot == null ||
+        profile.profile.protocol != RemoteProtocol.ssh ||
+        profile.profile.username.isEmpty ||
+        !PersonalSessionPolicy.allows(profile.profile.protocol, resource)) {
+      return;
+    }
+    _opening = true;
+    _sessionOpenFailed = false;
+    if (mounted) setState(() {});
+    final authority = CoreManagedProfileAuthority(
+      account: controller!.account,
+      profile: profile,
+      authority: snapshot.authority,
+      ownerCurrent: _current,
+    )..addListener(_authorityChanged);
+    try {
+      await authority.start();
+      if (!_current() || !authority.isCurrent) {
+        authority.dispose();
+        return;
+      }
+      _sessionAuthority = authority;
+      _sessionStore = authority.createSecurityStore();
+      _sessionResource = resource;
+      if (mounted) setState(() {});
+    } catch (_) {
+      authority.dispose();
+      if (_current()) _sessionOpenFailed = true;
+    } finally {
+      _opening = false;
+      if (mounted) setState(() {});
+    }
   }
 
   void _edit(CorePersonalProfile? profile) {
@@ -146,8 +246,72 @@ class _CorePersonalProfilesScreenState
     }
   }
 
+  Future<void> _deleteProfile(CorePersonalProfile target) async {
+    final controller = _controller;
+    final snapshot = controller?.snapshot;
+    if (controller == null ||
+        snapshot == null ||
+        controller.busy ||
+        _localCleanup != null ||
+        !_current()) {
+      return;
+    }
+    final cleanupAuthority = CoreManagedProfileAuthority(
+      account: controller.account,
+      profile: target,
+      authority: snapshot.authority,
+      ownerCurrent: _current,
+    );
+    var retainedForRetry = false;
+    try {
+      final cleanup = cleanupAuthority.createSecurityStore();
+      await controller.delete(target, ownerCurrent: _current);
+      if (_current() &&
+          controller.mutationOutcome == CoreProfileMutationOutcome.deleted &&
+          !controller.profiles.any((profile) => profile.id == target.id)) {
+        final pending = _PendingLocalCleanup(
+          authority: cleanupAuthority,
+          store: cleanup,
+          profile: target.profile,
+        );
+        _localCleanup = pending;
+        retainedForRetry = true;
+        await _retryLocalCleanup(pending);
+      }
+    } finally {
+      if (!retainedForRetry) cleanupAuthority.dispose();
+    }
+  }
+
+  Future<void> _retryLocalCleanup(_PendingLocalCleanup pending) async {
+    if (!identical(_localCleanup, pending) || !_current()) return;
+    pending.phase = _LocalCleanupPhase.retrying;
+    if (mounted) setState(() {});
+    try {
+      await pending.store.forgetProfileRecords(
+        pending.profile,
+        isCurrent: () =>
+            identical(_localCleanup, pending) &&
+            pending.authority.isCurrent &&
+            _current(),
+      );
+      if (!identical(_localCleanup, pending)) return;
+      _localCleanup = null;
+      pending.authority.dispose();
+    } on SshFailure {
+      if (!identical(_localCleanup, pending)) return;
+      pending.phase = _LocalCleanupPhase.failed;
+    }
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    final authority = _sessionAuthority;
+    authority?.removeListener(_authorityChanged);
+    authority?.dispose();
+    _localCleanup?.authority.dispose();
+    _localCleanup = null;
     _controller?.removeListener(_changed);
     _controller?.setVisible(false);
     _controller?.dispose();
@@ -162,6 +326,35 @@ class _CorePersonalProfilesScreenState
     ref.watch(serverAccountControllerProvider);
     final l = AppLocalizations.of(context);
     final controller = _controller!;
+    final sessionProfile = _sessionAuthority?.profile.profile;
+    final sessionStore = _sessionStore;
+    if (sessionProfile != null && sessionStore != null) {
+      final close = _closeSession;
+      return switch (_sessionResource) {
+        PersonalSessionResource.sshTerminal => SshTerminalPanel(
+          key: ValueKey('core-ssh-${sessionProfile.id}'),
+          profile: sessionProfile,
+          securityStore: sessionStore,
+          isCurrent: _sessionCurrent,
+          onBack: close,
+        ),
+        PersonalSessionResource.sftpFiles => SftpBrowserPanel(
+          key: ValueKey('core-sftp-${sessionProfile.id}'),
+          profile: sessionProfile,
+          securityStore: sessionStore,
+          isCurrent: _sessionCurrent,
+          onBack: close,
+        ),
+        PersonalSessionResource.sshTunnel => SshTunnelPanel(
+          key: ValueKey('core-tunnel-${sessionProfile.id}'),
+          profile: sessionProfile,
+          securityStore: sessionStore,
+          isCurrent: _sessionCurrent,
+          onBack: close,
+        ),
+        _ => const SizedBox.shrink(),
+      };
+    }
     Widget action(String key, String title, VoidCallback? onTap) =>
         SettingsActionTile(
           key: ValueKey(key),
@@ -246,8 +439,17 @@ class _CorePersonalProfilesScreenState
                     ),
                   ),
                 ),
-                if (controller.busy)
+                if (controller.busy || _opening)
                   const Center(child: CupertinoActivityIndicator()),
+                if (_sessionOpenFailed)
+                  Padding(
+                    key: const ValueKey('core-profile-session-open-failed'),
+                    padding: const EdgeInsets.all(20),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(l.remoteAccessCoreUnavailable),
+                    ),
+                  ),
                 if (conflict)
                   Padding(
                     padding: const EdgeInsets.all(20),
@@ -323,7 +525,7 @@ class _CorePersonalProfilesScreenState
                           padding: const EdgeInsets.all(20),
                           child: Text(l.remoteAccessCoreEmpty),
                         ),
-                      for (final item in controller.profiles)
+                      for (final item in controller.profiles) ...[
                         SettingsActionTile(
                           key: ValueKey('core-profile-${item.id}'),
                           title: Text(item.profile.name),
@@ -334,6 +536,53 @@ class _CorePersonalProfilesScreenState
                               ? () => _edit(item)
                               : null,
                         ),
+                        if (item.profile.protocol == RemoteProtocol.ssh &&
+                            item.profile.username.isNotEmpty) ...[
+                          action(
+                            'core-profile-ssh-open-${item.id}',
+                            l.sshTitle,
+                            () => _openSession(
+                              item,
+                              PersonalSessionResource.sshTerminal,
+                            ),
+                          ),
+                          action(
+                            'core-profile-sftp-open-${item.id}',
+                            l.sftpTitle,
+                            () => _openSession(
+                              item,
+                              PersonalSessionResource.sftpFiles,
+                            ),
+                          ),
+                          action(
+                            'core-profile-tunnel-open-${item.id}',
+                            l.sshTunnelTitle,
+                            () => _openSession(
+                              item,
+                              PersonalSessionResource.sshTunnel,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                if (_localCleanup case final cleanup?)
+                  SettingsSection(
+                    children: [
+                      Padding(
+                        key: const ValueKey(
+                          'core-profile-local-cleanup-failed',
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        child: Text(l.sshStorageFailed),
+                      ),
+                      action(
+                        'core-profile-local-cleanup-retry',
+                        l.commonRetry,
+                        cleanup.phase == _LocalCleanupPhase.failed
+                            ? () => unawaited(_retryLocalCleanup(cleanup))
+                            : null,
+                      ),
                     ],
                   ),
                 if (_editing != null && !_creating)
@@ -349,12 +598,7 @@ class _CorePersonalProfilesScreenState
                         action(
                           'core-profile-delete-confirm',
                           l.commonDelete,
-                          () {
-                            controller.delete(
-                              _editing!,
-                              ownerCurrent: _current,
-                            );
-                          },
+                          () => unawaited(_deleteProfile(_editing!)),
                         ),
                       ] else
                         action('core-profile-delete', l.commonDelete, () {

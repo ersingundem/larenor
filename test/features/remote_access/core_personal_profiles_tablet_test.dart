@@ -8,6 +8,45 @@ import 'remote_profiles_ui_fixture.dart';
 
 void main() {
   for (final locale in ['en', 'tr']) {
+    testWidgets('Core session authority failure is visible in $locale', (
+      tester,
+    ) async {
+      final fixture = CoreProfilesFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        locale: locale,
+        serverAccount: fixture.account,
+      );
+      await press(tester, 'remote-source-core-managed');
+      expect(key('core-profile-ssh-open-$profileId'), findsOneWidget);
+      fixture.offline = true;
+      await press(tester, 'core-profile-ssh-open-$profileId');
+      await tester.scrollUntilVisible(
+        key('core-profile-session-open-failed'),
+        -240,
+        scrollable: find
+            .descendant(
+              of: key('core-profiles-scroll'),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      final l = AppLocalizations.of(
+        tester.element(key('core-profile-session-open-failed')),
+      );
+      expect(find.text(l.remoteAccessCoreUnavailable), findsOneWidget);
+      expect(find.textContaining('offline-marker'), findsNothing);
+      expect(find.textContaining('synthetic_admin_access'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets(
         '$locale ${width.toInt()} 2x exposes local/Core sources and keyboard Core flow',
@@ -37,6 +76,9 @@ void main() {
           await press(tester, 'remote-source-core-managed');
           await tester.pumpAndSettle();
           expect(key('core-profile-$profileId'), findsOneWidget);
+          expect(key('core-profile-ssh-open-$profileId'), findsOneWidget);
+          expect(key('core-profile-sftp-open-$profileId'), findsOneWidget);
+          expect(key('core-profile-tunnel-open-$profileId'), findsOneWidget);
           expect(find.textContaining('synthetic_admin_access'), findsNothing);
           expect(find.textContaining('private-user'), findsNothing);
 
@@ -100,6 +142,71 @@ void main() {
       expect(fixture.record['label'], 'My reviewed edit');
       expect(fixture.record['revision'], 3);
       expect(key('core-profile-name'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Core delete exposes exact local cleanup failure and retries no server mutation',
+    (tester) async {
+      final fixture = CoreProfilesFixture()..familyId = 'd' * 32;
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final ui = RemoteUi()..failSshDelete = true;
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await press(tester, 'core-profile-delete');
+      expect(
+        tester
+            .widget<CupertinoButton>(
+              find.descendant(
+                of: key('core-profile-delete-confirm'),
+                matching: find.byType(CupertinoButton),
+              ),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      await press(tester, 'core-profile-delete-confirm');
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(
+        fixture.deleteCalls,
+        1,
+        reason: fixture.calls
+            .map((call) => '${call.method} ${call.url.path}')
+            .join('\n'),
+      );
+      expect(key('core-profile-$profileId'), findsNothing);
+      await tester.scrollUntilVisible(
+        key('core-profile-local-cleanup-retry'),
+        240,
+        scrollable: find
+            .descendant(
+              of: key('core-profiles-scroll'),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(key('core-profile-local-cleanup-failed'), findsOneWidget);
+      expect(key('core-profile-local-cleanup-retry'), findsOneWidget);
+
+      ui.failSshDelete = false;
+      await press(tester, 'core-profile-local-cleanup-retry');
+
+      expect(fixture.deleteCalls, 1);
+      expect(key('core-profile-local-cleanup-failed'), findsNothing);
+      expect(
+        ui.calls.where((call) => call.startsWith('delete:ssh_')).length,
+        4,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 }

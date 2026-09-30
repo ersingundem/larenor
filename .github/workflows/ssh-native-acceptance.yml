@@ -6,6 +6,9 @@ on:
       - ".github/workflows/ssh-native-acceptance.yml"
       - "lib/features/remote_access/ssh/**"
       - "test/features/remote_access/ssh/**"
+      - "lib/features/remote_access/core/**"
+      - "lib/features/remote_access/presentation/core_personal_profiles_screen.dart"
+      - "server/tests/support/f63_flutter_acceptance.py"
       - "tool/tests/ssh_native_workflow_test.py"
       - "android/app/src/main/AndroidManifest.xml"
       - "pubspec.lock"
@@ -26,6 +29,7 @@ jobs:
     env:
       OPENSSH_PACKAGE: "1:9.6p1-3ubuntu13.19"
       LARENOR_SSH_KEY_PASSPHRASE: "ssh-native-fixture-passphrase"
+      LARENOR_SSH_FIXTURE_PASSWORD: "ssh-native-fixture-password"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,12 +57,16 @@ jobs:
           printf 'Larenor tunnel fixture\n' > "$fixture/http/index.html"
 
           ssh-keygen -q -t ed25519 -N '' -f "$fixture/host-key"
+          ssh-keygen -q -t ed25519 -N '' -f "$fixture/jump-host-key"
+          ssh-keygen -q -t ed25519 -N '' -f "$fixture/mfa-host-key"
           ssh-keygen -q -t ed25519 -N "$LARENOR_SSH_KEY_PASSPHRASE" -f "$fixture/client-key"
-          chmod 0600 "$fixture/host-key" "$fixture/client-key"
+          chmod 0600 "$fixture/host-key" "$fixture/jump-host-key" \
+            "$fixture/mfa-host-key" "$fixture/client-key"
 
           fixture_user="larenor-fixture"
           sudo useradd --create-home --shell /bin/bash "$fixture_user"
-          sudo passwd -d "$fixture_user"
+          printf '%s:%s\n' "$fixture_user" "$LARENOR_SSH_FIXTURE_PASSWORD" | \
+            sudo chpasswd
           fixture_group="$(id -gn "$fixture_user")"
           runner_group="$(id -gn)"
           sftp_root="/tmp/larenor-ssh-native-sftp-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -73,11 +81,11 @@ jobs:
             "$fixture/client-key.pub" "/home/$fixture_user/.ssh/authorized_keys"
           chmod 0711 "$fixture"
 
-          read -r ssh_port tunnel_port target_port < <(python3 - <<'PY'
+          read -r ssh_port jump_port mfa_port tunnel_port target_port < <(python3 - <<'PY'
           import socket
           sockets = []
           try:
-              for _ in range(3):
+              for _ in range(5):
                   value = socket.socket()
                   value.bind(('127.0.0.1', 0))
                   sockets.append(value)
@@ -93,9 +101,9 @@ jobs:
           HostKey $fixture/host-key
           PidFile $fixture/sshd.pid
           AuthorizedKeysFile .ssh/authorized_keys
-          AuthenticationMethods publickey
+          AuthenticationMethods publickey password
           PubkeyAuthentication yes
-          PasswordAuthentication no
+          PasswordAuthentication yes
           KbdInteractiveAuthentication no
           ChallengeResponseAuthentication no
           UsePAM no
@@ -113,31 +121,98 @@ jobs:
           Subsystem sftp internal-sftp
           LogLevel VERBOSE
           CONFIG
+          cat > "$fixture/jump_sshd_config" <<CONFIG
+          Port $jump_port
+          ListenAddress 127.0.0.1
+          HostKey $fixture/jump-host-key
+          PidFile $fixture/jump-sshd.pid
+          AuthorizedKeysFile .ssh/authorized_keys
+          AuthenticationMethods password
+          PubkeyAuthentication no
+          PasswordAuthentication yes
+          KbdInteractiveAuthentication no
+          ChallengeResponseAuthentication no
+          UsePAM no
+          PermitRootLogin no
+          PermitTTY yes
+          StrictModes no
+          AllowUsers $fixture_user
+          AllowTcpForwarding local
+          GatewayPorts no
+          X11Forwarding no
+          AllowAgentForwarding no
+          PermitTunnel no
+          MaxSessions 4
+          MaxStartups 4:30:4
+          Subsystem sftp internal-sftp
+          LogLevel VERBOSE
+          CONFIG
+          cat > "$fixture/mfa_sshd_config" <<CONFIG
+          Port $mfa_port
+          ListenAddress 127.0.0.1
+          HostKey $fixture/mfa-host-key
+          PidFile $fixture/mfa-sshd.pid
+          AuthorizedKeysFile .ssh/authorized_keys
+          AuthenticationMethods publickey,keyboard-interactive:pam
+          PubkeyAuthentication yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication yes
+          ChallengeResponseAuthentication yes
+          UsePAM yes
+          PermitRootLogin no
+          PermitTTY yes
+          StrictModes no
+          AllowUsers $fixture_user
+          AllowTcpForwarding no
+          GatewayPorts no
+          X11Forwarding no
+          AllowAgentForwarding no
+          PermitTunnel no
+          MaxSessions 4
+          MaxStartups 4:30:4
+          Subsystem sftp internal-sftp
+          LogLevel VERBOSE
+          CONFIG
           sudo install -d -m 0755 /run/sshd
           sudo /usr/sbin/sshd -f "$fixture/sshd_config" -E "$fixture/sshd.log"
+          sudo /usr/sbin/sshd -f "$fixture/jump_sshd_config" -E "$fixture/jump-sshd.log"
+          sudo /usr/sbin/sshd -f "$fixture/mfa_sshd_config" -E "$fixture/mfa-sshd.log"
           python3 -m http.server "$target_port" --bind 127.0.0.1 \
             --directory "$fixture/http" >"$fixture/http.log" 2>&1 &
           echo "$!" > "$fixture/http.pid"
 
           for _ in $(seq 1 30); do
             if ssh-keyscan -T 1 -p "$ssh_port" 127.0.0.1 >/dev/null 2>&1 && \
+               ssh-keyscan -T 1 -p "$jump_port" 127.0.0.1 >/dev/null 2>&1 && \
+               ssh-keyscan -T 1 -p "$mfa_port" 127.0.0.1 >/dev/null 2>&1 && \
                curl --fail --silent "http://127.0.0.1:$target_port/" >/dev/null; then
               break
             fi
             sleep 0.2
           done
           ssh-keyscan -T 2 -p "$ssh_port" 127.0.0.1 >/dev/null
+          ssh-keyscan -T 2 -p "$jump_port" 127.0.0.1 >/dev/null
+          ssh-keyscan -T 2 -p "$mfa_port" 127.0.0.1 >/dev/null
           curl --fail --silent "http://127.0.0.1:$target_port/" >/dev/null
           fingerprint="$(ssh-keygen -lf "$fixture/host-key.pub" -E sha256 | awk '{print $2}')"
+          jump_fingerprint="$(ssh-keygen -lf "$fixture/jump-host-key.pub" -E sha256 | awk '{print $2}')"
+          mfa_fingerprint="$(ssh-keygen -lf "$fixture/mfa-host-key.pub" -E sha256 | awk '{print $2}')"
           cat >> "$GITHUB_ENV" <<ENV
           LARENOR_SSH_FIXTURE_PORT=$ssh_port
+          LARENOR_SSH_JUMP_PORT=$jump_port
+          LARENOR_SSH_MFA_PORT=$mfa_port
           LARENOR_SSH_TUNNEL_PORT=$tunnel_port
           LARENOR_SSH_TARGET_PORT=$target_port
           LARENOR_SSH_FIXTURE_USER=$fixture_user
           LARENOR_SSH_PRIVATE_KEY=$fixture/client-key
           LARENOR_SSH_HOST_KEY_TYPE=ssh-ed25519
           LARENOR_SSH_HOST_KEY_FINGERPRINT=$fingerprint
+          LARENOR_SSH_JUMP_HOST_KEY_TYPE=ssh-ed25519
+          LARENOR_SSH_JUMP_HOST_KEY_FINGERPRINT=$jump_fingerprint
+          LARENOR_SSH_MFA_HOST_KEY_TYPE=ssh-ed25519
+          LARENOR_SSH_MFA_HOST_KEY_FINGERPRINT=$mfa_fingerprint
           LARENOR_SFTP_FIXTURE_ROOT=$sftp_root
+          LARENOR_F63_COMMAND_LOG=$sftp_root/commands.log
           LARENOR_SSH_FIXTURE_DIR=$fixture
           ENV
       - name: Validate workflow policy
@@ -152,6 +227,8 @@ jobs:
             test/features/remote_access/ssh/sftp_browser_panel_test.dart \
             test/features/remote_access/ssh/ssh_tunnel_controller_test.dart \
             test/features/remote_access/ssh/ssh_tunnel_panel_test.dart
+      - name: Run normal Core authority and no-replay acceptance
+        run: uv run --project server --locked python server/tests/support/f63_flutter_acceptance.py
       - name: Analyze native acceptance boundary
         run: |
           flutter analyze \
@@ -181,6 +258,12 @@ jobs:
           if [ -n "$fixture" ] && [ -f "$fixture/sshd.pid" ]; then
             sudo kill "$(cat "$fixture/sshd.pid")" 2>/dev/null || true
           fi
+          if [ -n "$fixture" ] && [ -f "$fixture/jump-sshd.pid" ]; then
+            sudo kill "$(cat "$fixture/jump-sshd.pid")" 2>/dev/null || true
+          fi
+          if [ -n "$fixture" ] && [ -f "$fixture/mfa-sshd.pid" ]; then
+            sudo kill "$(cat "$fixture/mfa-sshd.pid")" 2>/dev/null || true
+          fi
           if [ -n "$fixture" ] && [ -f "$fixture/http.pid" ]; then
             kill "$(cat "$fixture/http.pid")" 2>/dev/null || true
           fi
@@ -190,4 +273,6 @@ jobs:
           fi
           if [ "${{ job.status }}" != "success" ] && [ -f "$fixture/sshd.log" ]; then
             sudo tail -80 "$fixture/sshd.log"
+            sudo tail -80 "$fixture/jump-sshd.log" 2>/dev/null || true
+            sudo tail -80 "$fixture/mfa-sshd.log" 2>/dev/null || true
           fi

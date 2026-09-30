@@ -23,6 +23,13 @@ class _Fixture {
     required this.root,
     required this.tunnelPort,
     required this.targetPort,
+    required this.password,
+    required this.jumpPort,
+    required this.jumpHostKeyType,
+    required this.jumpHostKeyFingerprint,
+    required this.mfaPort,
+    required this.mfaHostKeyType,
+    required this.mfaHostKeyFingerprint,
   });
 
   final int port;
@@ -34,6 +41,13 @@ class _Fixture {
   final String root;
   final int tunnelPort;
   final int targetPort;
+  final String password;
+  final int jumpPort;
+  final String jumpHostKeyType;
+  final String jumpHostKeyFingerprint;
+  final int mfaPort;
+  final String mfaHostKeyType;
+  final String mfaHostKeyFingerprint;
 
   static _Fixture? fromEnvironment() {
     final environment = Platform.environment;
@@ -41,6 +55,8 @@ class _Fixture {
     final port = integer('LARENOR_SSH_FIXTURE_PORT');
     final tunnelPort = integer('LARENOR_SSH_TUNNEL_PORT');
     final targetPort = integer('LARENOR_SSH_TARGET_PORT');
+    final jumpPort = integer('LARENOR_SSH_JUMP_PORT');
+    final mfaPort = integer('LARENOR_SSH_MFA_PORT');
     final required = <String>[
       'LARENOR_SSH_FIXTURE_USER',
       'LARENOR_SSH_PRIVATE_KEY',
@@ -48,10 +64,17 @@ class _Fixture {
       'LARENOR_SSH_HOST_KEY_TYPE',
       'LARENOR_SSH_HOST_KEY_FINGERPRINT',
       'LARENOR_SFTP_FIXTURE_ROOT',
+      'LARENOR_SSH_FIXTURE_PASSWORD',
+      'LARENOR_SSH_JUMP_HOST_KEY_TYPE',
+      'LARENOR_SSH_JUMP_HOST_KEY_FINGERPRINT',
+      'LARENOR_SSH_MFA_HOST_KEY_TYPE',
+      'LARENOR_SSH_MFA_HOST_KEY_FINGERPRINT',
     ];
     if (port == null ||
         tunnelPort == null ||
         targetPort == null ||
+        jumpPort == null ||
+        mfaPort == null ||
         required.any((name) => (environment[name] ?? '').isEmpty)) {
       return null;
     }
@@ -65,6 +88,15 @@ class _Fixture {
       root: environment['LARENOR_SFTP_FIXTURE_ROOT']!,
       tunnelPort: tunnelPort,
       targetPort: targetPort,
+      password: environment['LARENOR_SSH_FIXTURE_PASSWORD']!,
+      jumpPort: jumpPort,
+      jumpHostKeyType: environment['LARENOR_SSH_JUMP_HOST_KEY_TYPE']!,
+      jumpHostKeyFingerprint:
+          environment['LARENOR_SSH_JUMP_HOST_KEY_FINGERPRINT']!,
+      mfaPort: mfaPort,
+      mfaHostKeyType: environment['LARENOR_SSH_MFA_HOST_KEY_TYPE']!,
+      mfaHostKeyFingerprint:
+          environment['LARENOR_SSH_MFA_HOST_KEY_FINGERPRINT']!,
     );
   }
 
@@ -74,6 +106,15 @@ class _Fixture {
     protocol: RemoteProtocol.ssh,
     host: '127.0.0.1',
     port: port,
+    username: user,
+  );
+
+  RemoteProfile profileAt(int value, String name) => RemoteProfile(
+    id: value.toRadixString(16).padLeft(32, '0'),
+    name: name,
+    protocol: RemoteProtocol.ssh,
+    host: '127.0.0.1',
+    port: value,
     username: user,
   );
 
@@ -95,6 +136,97 @@ void main() {
   final nativeSkip = fixture == null
       ? 'Set the isolated OpenSSH fixture environment to run this test.'
       : false;
+
+  test(
+    'password, keyboard-interactive MFA and jump host are real protocol paths',
+    () async {
+      final passwordEngine = DartSshEngine();
+      addTearDown(passwordEngine.close);
+      final passwordChannel = await passwordEngine.open(
+        fixture!.profile,
+        SshCredential(SshCredentialKind.password, fixture.password),
+        verifyHost: fixture.verify,
+        isCurrent: () => true,
+        answerChallenge: (_, _) async => null,
+      );
+      final passwordOutput = BytesBuilder(copy: false);
+      final passwordSubscription = passwordChannel.stdout.listen(
+        passwordOutput.add,
+      );
+      passwordChannel.write(
+        Uint8List.fromList(utf8.encode("printf 'password-ok\\n'; exit\n")),
+      );
+      await passwordChannel.done.timeout(const Duration(seconds: 15));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await passwordSubscription.cancel();
+      expect(utf8.decode(passwordOutput.takeBytes()), contains('password-ok'));
+
+      final mfaEngine = DartSshEngine();
+      addTearDown(mfaEngine.close);
+      var mfaChallenges = 0;
+      final mfaProfile = fixture.profileAt(fixture.mfaPort, 'MFA target');
+      final mfaChannel = await mfaEngine.open(
+        mfaProfile,
+        fixture.credential(),
+        verifyHost: (pin) async {
+          expect(pin.type, fixture.mfaHostKeyType);
+          expect(pin.fingerprint, fixture.mfaHostKeyFingerprint);
+          return true;
+        },
+        isCurrent: () => true,
+        answerChallenge: (hop, challenge) async {
+          expect(hop, SshHop.target);
+          expect(challenge.prompts, hasLength(1));
+          mfaChallenges++;
+          return [fixture.password];
+        },
+      );
+      final mfaOutput = BytesBuilder(copy: false);
+      final mfaSubscription = mfaChannel.stdout.listen(mfaOutput.add);
+      mfaChannel.write(
+        Uint8List.fromList(utf8.encode("printf 'mfa-ok\\n'; exit\n")),
+      );
+      await mfaChannel.done.timeout(const Duration(seconds: 15));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await mfaSubscription.cancel();
+      expect(mfaChallenges, 1);
+      expect(utf8.decode(mfaOutput.takeBytes()), contains('mfa-ok'));
+
+      final jumpEngine = DartSshEngine();
+      addTearDown(jumpEngine.close);
+      final jumpProfile = fixture.profileAt(fixture.jumpPort, 'Jump host');
+      final jumpChannel = await jumpEngine.open(
+        fixture.profile,
+        fixture.credential(),
+        jump: SshJumpConnection(
+          profile: jumpProfile,
+          credential: SshCredential(
+            SshCredentialKind.password,
+            fixture.password,
+          ),
+        ),
+        verifyJumpHost: (pin) async {
+          expect(pin.type, fixture.jumpHostKeyType);
+          expect(pin.fingerprint, fixture.jumpHostKeyFingerprint);
+          return true;
+        },
+        verifyHost: fixture.verify,
+        isCurrent: () => true,
+        answerChallenge: (_, _) async => null,
+      );
+      final jumpOutput = BytesBuilder(copy: false);
+      final jumpSubscription = jumpChannel.stdout.listen(jumpOutput.add);
+      jumpChannel.write(
+        Uint8List.fromList(utf8.encode("printf 'jump-ok\\n'; exit\n")),
+      );
+      await jumpChannel.done.timeout(const Duration(seconds: 15));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await jumpSubscription.cancel();
+      expect(utf8.decode(jumpOutput.takeBytes()), contains('jump-ok'));
+    },
+    skip: nativeSkip,
+    timeout: const Timeout(Duration(seconds: 60)),
+  );
 
   test(
     'encrypted key, pinned host and PTY preserve UTF-8 and terminal size',

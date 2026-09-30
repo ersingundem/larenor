@@ -79,6 +79,35 @@ final class CorePersonalProfilesApi {
     );
   });
 
+  /// Revalidates one exact record and its account/session/collection authority.
+  /// This is the read boundary used by live Core-managed remote sessions.
+  Future<void> verify(
+    CorePersonalProfile target,
+    CorePersonalProfileAuthority authority,
+  ) => _operation(() async {
+    if (target.context != _context ||
+        target.accountId != _accountId ||
+        authority.context != _context ||
+        authority.accountId != _accountId) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final body = await _api.request('GET', _path, token: _token);
+    final observed = CorePersonalProfilesSnapshot.fromJson(
+      body,
+      expectedContext: _context,
+      expectedAccountId: _accountId,
+      expectedSessionFamilyId: authority.sessionFamilyId,
+      expectedAccountRevision: authority.accountRevision,
+    );
+    final matches = observed.profiles.where((value) => value.id == target.id);
+    if (observed.collectionRevision != authority.collectionRevision ||
+        matches.length != 1 ||
+        matches.single.revision != target.revision ||
+        !_sameFields(matches.single.profile, target.profile)) {
+      throw const LarenorServerException('invalid_response');
+    }
+  });
+
   Future<CorePersonalProfileMutation> create(
     RemoteProfile desired,
     CorePersonalProfilesSnapshot before,
