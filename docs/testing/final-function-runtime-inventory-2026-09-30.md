@@ -76,7 +76,8 @@ F33 adlandırılmış gerçek Flutter→normal Core TCP ve ayrı Core/Client res
 
 F46 adlandırılmış gerçek Flutter→normal Core→owned evcc TCP ve ayrı Core/Client restart kapısını geçti. 26 Server, 11 Flutter ve iki gerçek Client fazı tek upstream POST/lost ACK/readback davranışını doğruladı; F46 `awaiting_ci` durumundadır.
 
-F40, F48 ve F59 henüz bu sınıflandırmayı karşılamaz.
-F40'ın Core ve Flutter kapıları ayrı seamlerdir. F48'in kendi kanıt
+F40 adlandırılmış gerçek Client→normal Core ve ayrı restart kapısında tek catalog/create/cancel journal etkisini ve stale transport receipt uzlaşmasını doğruladı; `awaiting_ci` durumundadır.
+
+F48 ve F59 henüz bu sınıflandırmayı karşılamaz. F48'in kendi kanıt
 dokümanı tam Client→normal Core→servis kabulünü açık bırakır. F59'un kullanılabilir Client kayıt/servis seçme akışı eksiktir ve aktif geliştirmeye alınmıştır; birleşik Client→Core→provider kabulü de açık kalır. Bunları
 sırf test sayısı veya dosya varlığı nedeniyle ilerletmek doğru olmaz.

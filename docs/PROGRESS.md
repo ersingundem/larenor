@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 40 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 41 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F40 gerçek rezervasyon Client/Core kabulü
+
+Gerçek Flutter→normal Core TCP create/restart kapısı catalog replay, reservation create/cancel, stale ikinci transport üzerinden receipt uzlaşması, kalıcı history/export ve authority retirementi geçti. Durable DB exact catalog created=1, reservation created=1/cancelled=1 olarak doğrulandı. Root 10 Server testi ve iki gerçek Client fazını bağımsız doğruladı. F40 CI bekliyor tablosuna taşındı: 41 özellik geniş CI bekliyor; accepted sayaç değişmedi. [F40 kanıtı](testing/f40-normal-core-acceptance-2026-09-30.md).
 
 ### 30 Eylül host wheelhouse kabulündeki gerçek marker düzeltmesi
 

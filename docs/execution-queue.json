@@ -4606,7 +4606,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ortak kaynak rezervasyonu",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4630,7 +4630,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama 27f6f307 ile tamamlandı: deterministik bounded takvim görünümü, exact revision/idempotent makbuzlar, authority yeniden bağlama, conflict/offline kurtarma, güvenli iptal ve tekrar görünümü hazır; focused 10 server ve 15 Flutter testi geçti, tam CI/son kabul bekliyor."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Adlandırılmış gerçek Flutter Client→normal Uvicorn Core create/restart kapısı catalog create replay, reservation create/cancel, stale ikinci transport ile receipt uzlaşması, kalıcı history/export ve authority retirementi doğruladı. DBde exact catalog created=1, reservation created=1/cancelled=1; mutation retry yok. 10 Server ve iki gerçek Client fazı geçti; root birleşik runnerı ve Server paketini bağımsız doğruladı. Fiziksel tablet/yer erişimi MANUAL kayıtlarında açık; sayaç artmadı. docs/testing/f40-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "G08",
