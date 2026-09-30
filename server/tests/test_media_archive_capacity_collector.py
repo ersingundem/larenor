@@ -58,9 +58,14 @@ class CapacityReader:
 
 
 class ArchiveCollector:
-    def __init__(self, result):
+    def __init__(self, result, authority):
         self.result = result
+        self.authority = authority
         self.calls = []
+
+    def current(self, installation_id):
+        assert installation_id == self.authority.installationId
+        return self.authority
 
     def collect(self, private, *, deadline, gate):
         assert time.monotonic() < deadline and gate() is True
@@ -188,10 +193,10 @@ def test_deadline_cancel_and_bad_result_fail_closed_without_retry(server):
 
 def test_private_worker_ipc_enriches_one_read_and_core_writes_one_snapshot(
         server):
-    pair, body, _private, observation = private_and_observation(server)
+    pair, body, private, observation = private_and_observation(server)
     reader = CapacityReader()
     collector = CapacityEnrichedMediaArchiveCollector(
-        ArchiveCollector(observation),
+        ArchiveCollector(observation, private.authority),
         MediaArchiveCapacityCollector(Proofs([proof()]), reader),
     )
     parent = Path('/private/tmp') if Path('/private/tmp').is_dir() else Path('/tmp')
@@ -205,7 +210,9 @@ def test_private_worker_ipc_enriches_one_read_and_core_writes_one_snapshot(
         client = MediaArchiveWorkerClient(
             socket_path, owner_uid=os.getuid(),
             peer_uid=lambda _connection: os.getuid(), timeout=1)
+        server[0].state.core.media_archive_health.binding_reader = client
         server[0].state.core.media_archive_health.backend = client
+        assert client.status()['state'] == 'ready'
         response = server[1].post(BASE, headers=auth(pair), json=body)
     finally:
         runtime.close()
@@ -236,7 +243,7 @@ def test_enricher_rejects_late_cancel_and_never_returns_partial_result(server):
 
     reader = CapacityReader(change=retire)
     collector = CapacityEnrichedMediaArchiveCollector(
-        ArchiveCollector(observation),
+        ArchiveCollector(observation, private.authority),
         MediaArchiveCapacityCollector(Proofs([proof()]), reader),
     )
     with pytest.raises(MediaArchiveCapacityCollectorError):

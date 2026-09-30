@@ -254,7 +254,8 @@ class CapacityEnrichedMediaArchiveCollector:
 
     def __init__(self, archive, capacity):
         try:
-            valid = (callable(getattr(archive, 'collect', None))
+            valid = (callable(getattr(archive, 'current', None))
+                     and callable(getattr(archive, 'collect', None))
                      and type(capacity) is MediaArchiveCapacityCollector)
         except Exception:
             valid = False
@@ -262,6 +263,16 @@ class CapacityEnrichedMediaArchiveCollector:
             raise MediaArchiveCapacityCollectorError()
         self._archive = archive
         self._capacity = capacity
+
+    def current(self, installation_id):
+        try:
+            value = self._archive.current(installation_id)
+            return value
+        except MediaArchiveCapacityCollectorError:
+            raise
+        except Exception:
+            raise MediaArchiveCapacityCollectorError(
+                'capacity_binding_unavailable') from None
 
     def open(self, deadline):
         opening = getattr(self._archive, 'open', None)

@@ -285,6 +285,19 @@ class TranscodeActionTarget(StrictModel):
     targetType: Literal["transcode"] = "transcode"
     sourceItemId: ObjectId
     mediaKey: str = Field(min_length=1, max_length=96)
+    sourceCodec: Literal["h264", "mpeg2", "vc1"]
+    targetCodec: Literal["hevc", "av1"]
+    sourceBitrate: int = Field(gt=0, le=1_000_000_000)
+    targetBitrate: int = Field(gt=0, le=1_000_000_000)
+    durationSeconds: int = Field(gt=0, le=604_800)
+    sourceSizeBytes: int = Field(gt=0, le=2**63 - 1)
+    targetPlaybackVerified: Literal[True]
+
+    @model_validator(mode="after")
+    def exact_plan(self):
+        if self.targetBitrate >= self.sourceBitrate:
+            raise ValueError("invalid_media_archive_transcode_plan")
+        return self
 
 
 class DuplicateActionTarget(StrictModel):
@@ -342,7 +355,7 @@ class ArchiveActionJobResponse(StrictModel):
 
 
 class PrivateArchiveActionCommand(Versioned):
-    schemaVersion: Literal[2] = 2
+    schemaVersion: Literal[3] = 3
     operationId: ObjectId
     operation: ActionOperation
     authority: ArchiveActionAuthority
@@ -360,8 +373,20 @@ class PrivateArchiveActionCommand(Versioned):
     def coherent(self):
         optimize = self.operation == "stage_transcode"
         legacy = self.target.targetType == "legacy_unresolved"
+        exact_transcode = optimize and self.target.targetType == "transcode"
         if (optimize != self.retainOriginal
                 or optimize != (self.reservedBytes > 0)
+                or exact_transcode
+                and self.reservedBytes != self.target.sourceSizeBytes
+                or exact_transcode
+                and self.candidate.comparison.observedBytes
+                != self.target.sourceSizeBytes
+                or exact_transcode
+                and self.candidate.potentialBytes != min(
+                    self.target.sourceSizeBytes,
+                    ((self.target.sourceBitrate - self.target.targetBitrate)
+                     * self.target.durationSeconds) // 8,
+                )
                 or (self.operation == "stage_transcode"
                     and self.candidate.actionType != "optimize")
                 or self.operation in {
@@ -386,7 +411,7 @@ class PrivateArchiveActionCommand(Versioned):
 
 
 class ArchiveActionWorkerPreview(Versioned):
-    schemaVersion: Literal[2] = 2
+    schemaVersion: Literal[3] = 3
     operationId: ObjectId
     evidenceDigest: Digest
     requiredBytes: int = Field(ge=0, le=10 * 1024**4)
@@ -397,7 +422,7 @@ class ArchiveActionWorkerPreview(Versioned):
 
 
 class ArchiveActionWorkerReceipt(Versioned):
-    schemaVersion: Literal[2] = 2
+    schemaVersion: Literal[3] = 3
     operationId: ObjectId
     evidenceDigest: Digest
     state: Literal[

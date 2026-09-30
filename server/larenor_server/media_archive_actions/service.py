@@ -379,6 +379,13 @@ class MediaArchiveActionService:
                     "targetType": "transcode",
                     "sourceItemId": item.itemId,
                     "mediaKey": item.mediaKey,
+                    "sourceCodec": proof.sourceCodec,
+                    "targetCodec": proof.targetCodec,
+                    "sourceBitrate": proof.sourceBitrate,
+                    "targetBitrate": proof.targetBitrate,
+                    "durationSeconds": proof.durationSeconds,
+                    "sourceSizeBytes": item.sizeBytes,
+                    "targetPlaybackVerified": proof.targetPlaybackVerified,
                 },
             ))
 
@@ -413,7 +420,7 @@ class MediaArchiveActionService:
 
     def _command(self, authority, candidate, target, operation, operation_id,
                  source_job_id=None, source_job_revision=None):
-        reserve = (max(1, candidate.comparison.estimatedRetainedBytes)
+        reserve = (candidate.comparison.observedBytes
                    if operation == "stage_transcode" else 0)
         evidence = self._hash({
             "authority": authority,
@@ -494,11 +501,27 @@ class MediaArchiveActionService:
                 # roles. Keep the row readable, but never infer a destructive
                 # target or send it to a worker.
                 value = dict(value)
-                value["schemaVersion"] = 2
+                value["schemaVersion"] = 3
                 value["target"] = {
                     "targetType": "legacy_unresolved",
                     "targetRefs": value.pop("targetRefs"),
                 }
+            elif (type(value) is dict
+                  and type(value.get("schemaVersion")) is int
+                  and value["schemaVersion"] == 2):
+                value = dict(value)
+                value["schemaVersion"] = 3
+                target = value.get("target")
+                if (value.get("operation") == "stage_transcode"
+                        and type(target) is dict
+                        and target.get("targetType") == "transcode"):
+                    value["target"] = {
+                        "targetType": "legacy_unresolved",
+                        "targetRefs": sorted([
+                            target.get("sourceItemId", ""),
+                            target.get("mediaKey", ""),
+                        ]),
+                    }
             return PrivateArchiveActionCommand.model_validate(value)
         except (ValidationError, ValueError, TypeError, AttributeError,
                 RecursionError, OverflowError):

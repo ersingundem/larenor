@@ -67,26 +67,53 @@ def _candidate(action="optimize"):
     )
 
 
+def _transcode_target():
+    return {
+        "targetType": "transcode",
+        "sourceItemId": "3" * 32,
+        "mediaKey": "movie:tmdb:42",
+        "sourceCodec": "h264",
+        "targetCodec": "hevc",
+        "sourceBitrate": 12_288,
+        "targetBitrate": 4_096,
+        "durationSeconds": 1,
+        "sourceSizeBytes": 4096,
+        "targetPlaybackVerified": True,
+    }
+
+
 def test_transcode_target_preserves_item_and_media_roles():
     command = PrivateArchiveActionCommand(
         operationId=OID,
         operation="stage_transcode",
         authority=_authority(),
         candidate=_candidate(),
-        target={
-            "targetType": "transcode",
-            "sourceItemId": "3" * 32,
-            "mediaKey": "movie:tmdb:42",
-        },
+        target=_transcode_target(),
         evidenceDigest=DIGEST,
-        reservedBytes=3072,
+        reservedBytes=4096,
         retainOriginal=True,
     )
 
     assert command.target.targetType == "transcode"
     assert command.target.sourceItemId == "3" * 32
     assert command.target.mediaKey == "movie:tmdb:42"
+    assert (command.target.sourceCodec, command.target.targetCodec) == (
+        "h264", "hevc"
+    )
+    assert command.target.sourceSizeBytes == command.reservedBytes == 4096
     assert "targetRefs" not in command.model_dump(mode="json")
+
+
+def test_transcode_command_reserves_the_complete_original():
+    service = object.__new__(MediaArchiveActionService)
+
+    command = service._command(
+        _authority(), _candidate(), _transcode_target(),
+        "stage_transcode", OID,
+    )
+
+    assert command.reservedBytes == command.candidate.comparison.observedBytes
+    assert command.reservedBytes > command.candidate.comparison.estimatedRetainedBytes
 
 
 def test_duplicate_target_rejects_keep_item_in_delete_set():
@@ -120,7 +147,7 @@ def test_operation_rejects_target_from_another_effect_domain():
                 "importedMediaKey": "movie:tmdb:42",
             },
             evidenceDigest=DIGEST,
-            reservedBytes=3072,
+            reservedBytes=4096,
             retainOriginal=True,
         )
 
@@ -178,7 +205,7 @@ def test_public_job_distinguishes_pending_retained_and_unknown_originals():
 
 
 def test_worker_protocol_revision_rejects_legacy_untyped_commands():
-    assert (PROTOCOL_VERSION, SCHEMA_VERSION) == (2, 2)
+    assert (PROTOCOL_VERSION, SCHEMA_VERSION) == (3, 3)
 
 
 def _transcode_command(operation_id=OID):
@@ -187,13 +214,9 @@ def _transcode_command(operation_id=OID):
         operation="stage_transcode",
         authority=_authority(),
         candidate=_candidate(),
-        target={
-            "targetType": "transcode",
-            "sourceItemId": "3" * 32,
-            "mediaKey": "movie:tmdb:42",
-        },
+        target=_transcode_target(),
         evidenceDigest=DIGEST,
-        reservedBytes=3072,
+        reservedBytes=4096,
         retainOriginal=True,
     )
 
@@ -213,6 +236,24 @@ def test_v1_sorted_refs_remain_readable_but_are_quarantined():
     receipt = service._worker_receipt("execute", command, OID)
     assert (receipt.state, receipt.errorCode) == (
         "needs_attention", "evidence_changed")
+    with pytest.raises(MediaArchiveActionWorkerError) as rejected:
+        _typed_command(command)
+    assert rejected.value.code == "evidence_changed"
+
+
+def test_v2_transcode_without_exact_plan_is_readable_but_quarantined():
+    service = object.__new__(MediaArchiveActionService)
+    value = _transcode_command().model_dump(mode="json")
+    value["schemaVersion"] = 2
+    value["target"] = {
+        "targetType": "transcode",
+        "sourceItemId": value["target"]["sourceItemId"],
+        "mediaKey": value["target"]["mediaKey"],
+    }
+
+    command = service._decode_command(json.dumps(value))
+
+    assert command.target.targetType == "legacy_unresolved"
     with pytest.raises(MediaArchiveActionWorkerError) as rejected:
         _typed_command(command)
     assert rejected.value.code == "evidence_changed"
@@ -317,7 +358,7 @@ class _RunningThenSucceededWorker:
         self.calls.append(command.operationId)
         state = "running" if len(self.calls) == 1 else "succeeded"
         return {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "operationId": command.operationId,
             "evidenceDigest": command.evidenceDigest,
             "state": state,
