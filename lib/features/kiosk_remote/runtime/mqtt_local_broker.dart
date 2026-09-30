@@ -142,7 +142,9 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
   StreamSubscription<MqttPublishMessage>? _publishedAcks;
   final Map<String, Completer<void>> _pendingSubscriptions = {};
   final Map<int, Completer<void>> _pendingPublications = {};
+  Completer<void>? _connectRetirement;
   bool _closing = false;
+  int _generation = 0;
 
   @override
   Future<void> connect({
@@ -157,6 +159,7 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       throw StateError('mqtt_broker_disabled_or_insecure');
     }
     await disconnect();
+    final generation = _generation;
     _closing = false;
     final client = MqttServerClient.withPort(
       settings.host,
@@ -171,15 +174,56 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       ..keepAlivePeriod = 30
       ..autoReconnect = false
       ..logging(on: false, logPayloads: false)
-      ..onSubscribed = _completeSubscription
-      ..onSubscribeFail = _rejectSubscription
+      ..onSubscribed = (topic) {
+        if (_generation == generation) _completeSubscription(topic);
+      }
+      ..onSubscribeFail = (topic) {
+        if (_generation == generation) _rejectSubscription(topic);
+      }
       ..onDisconnected = () {
+        if (_generation != generation) return;
         _rejectPendingSubscriptions('mqtt_disconnected');
         _rejectPendingPublications('mqtt_disconnected');
         if (!_closing) onDisconnected();
       };
     _client = client;
-    final status = await client.connect(username, password);
+    final retirement = Completer<void>();
+    _connectRetirement = retirement;
+    MqttClientConnectionStatus? status;
+    try {
+      final attempt = client.connect(username, password);
+      unawaited(
+        attempt.then<void>(
+          (_) {
+            if (!_owns(generation, client)) client.disconnect();
+          },
+          onError: (Object _, StackTrace _) {
+            if (!_owns(generation, client)) client.disconnect();
+          },
+        ),
+      );
+      status = await Future.any<MqttClientConnectionStatus?>([
+        attempt,
+        retirement.future.then<MqttClientConnectionStatus?>((_) {
+          throw StateError('mqtt_connect_retired');
+        }),
+      ]);
+    } catch (_) {
+      if (!_owns(generation, client)) {
+        client.disconnect();
+        throw StateError('mqtt_connect_retired');
+      }
+      await disconnect();
+      rethrow;
+    } finally {
+      if (identical(_connectRetirement, retirement)) {
+        _connectRetirement = null;
+      }
+    }
+    if (!_owns(generation, client)) {
+      client.disconnect();
+      throw StateError('mqtt_connect_retired');
+    }
     if (status?.state != MqttConnectionState.connected ||
         status?.returnCode != MqttConnectReturnCode.connectionAccepted) {
       await disconnect();
@@ -196,11 +240,13 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       throw StateError('mqtt_publish_receipts_unavailable');
     }
     _publishedAcks = published.listen((message) {
+      if (_generation != generation) return;
       final id = message.variableHeader?.messageIdentifier;
       final pending = id == null ? null : _pendingPublications.remove(id);
       if (pending != null && !pending.isCompleted) pending.complete();
     });
     _updates = updates.listen((batch) {
+      if (_generation != generation) return;
       for (final received in batch) {
         final message = received.payload;
         if (message is! MqttPublishMessage) continue;
@@ -217,6 +263,9 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
       }
     });
   }
+
+  bool _owns(int generation, MqttServerClient client) =>
+      _generation == generation && identical(_client, client);
 
   MqttServerClient get _connected {
     final client = _client;
@@ -313,15 +362,37 @@ final class MqttClientLocalBroker implements LocalMqttBroker {
 
   @override
   Future<void> disconnect() async {
+    _generation += 1;
     _closing = true;
+    final connectRetirement = _connectRetirement;
+    _connectRetirement = null;
+    if (connectRetirement != null && !connectRetirement.isCompleted) {
+      connectRetirement.complete();
+    }
     _rejectPendingSubscriptions('mqtt_disconnected');
     _rejectPendingPublications('mqtt_disconnected');
-    await _updates?.cancel();
+    final updates = _updates;
     _updates = null;
-    await _publishedAcks?.cancel();
+    final publishedAcks = _publishedAcks;
     _publishedAcks = null;
-    _client?.disconnect();
+    final client = _client;
     _client = null;
+    // Close the transport before detaching stream listeners. A peer that
+    // disappears during lifecycle retirement must not let plugin stream
+    // cleanup hold the retired authority open.
+    client?.disconnect();
+    unawaited(_cancelBounded(updates));
+    unawaited(_cancelBounded(publishedAcks));
+  }
+
+  static Future<void> _cancelBounded<T>(StreamSubscription<T>? value) async {
+    if (value == null) return;
+    try {
+      await value.cancel().timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Transport ownership was already retired above. A late plugin stream
+      // cannot keep the old broker generation alive or authorize a replay.
+    }
   }
 
   @override

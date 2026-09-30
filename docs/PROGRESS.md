@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 54 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 63 iş CI bekliyor tablosunda. F22 otomatik kanal devamı, F28 gerçek uyku deadline duruşu, F47 history/backtest ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact 1dd8ca98 gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül tamamlanan yazılım ile gerçek açıkların ayrımı
+
+K09 root tarafından gerçek normal Core/TLS MQTT, delayed-CONNACK/successor retirement ve 25 focused testle doğrulandı; tam Flutter analyze temiz. CI bekliyor tablosuna taşındı. Bağımsız kabul kapsamı denetimi F22, F28, F47 ve F60 için gerçek eksik yazılım davranışları buldu; mevcut alt dilim kanıtları korunarak dört iş yeniden çalışılıyor bölümüne alındı. Böylece 54 seçili özellik ve dokuz ek iş, toplam 63 iş geniş CI bekliyor. Kabul sayaçları değişmedi; FINAL.FUNCTION tek aktif FINAL olarak görünür. [K09 kanıtı](testing/k09-controlled-view-normal-core-2026-09-30.md), [açıkların kaynakları](testing/final-function-runtime-inventory-2026-09-30.md).
 
 ### 30 Eylül F61/F62 ortak hosted launcher ve host provenance
 

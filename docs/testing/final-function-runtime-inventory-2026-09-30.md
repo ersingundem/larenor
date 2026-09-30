@@ -26,7 +26,7 @@ başına geniş latest-HEAD CI yerine geçmez.
 | F29 | Kapanmış: Party DJ gerçek `MusicPlaybackRuntime` ile normal Core'dan owned TCP Music Assistant fixture'ına gidiyor | 35 testlik adlandırılmış kapı restart, duplicate vote, quorum, lost-ACK no-replay ve `needs_attention` davranışını geçti; gerçek receiver eşzamanlılığı manuel |
 | F23 | Kapanmış: normal Core gerçek Jellyfin guide/timer provider/recorderını ve inline admin source setup'ı kuruyor | 8 Server + 1 gerçek Flutter→normal Core TCP→Jellyfin geçti; tuner/storage ve exact-head CI açık |
 | F24 | Kapanmış: legacy ve aktif player route tek AES-GCM kişi deposunu kullanıyor; authenticated migration atomik | 10 Server + 8 Flutter + 1 gerçek Flutter→normal Core TCP geçti; gerçek track/rendering manuel |
-| F28 | Kapanmış: ready ev üyesi discovery, refresh, catalog ve playback/longform yollarına admin olmadan erişiyor | 35 Server + 24 Flutter + 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant geçti; provider/receiver manuel |
+| F28 | Catalog/member/playback alt dilimi kapandı; deadline pause/stop yazılımı açık | 35 Server + 24 Flutter + gerçek normal Core/provider gate catalog/resume kanıtıdır; sleep enforcement ve restart/arka plan uygulanmadan F28 kapanmaz |
 | F35 | Kapanmış: encrypted blob→bounded Poppler/Tesseract OCR, source/confidence binding ve ayrı kullanıcı onayı var | 24 Server + 14 Flutter + 1 gerçek Flutter→normal Core→actual OCR + 21 container policy geçti; image/exact-head ve fiziksel belge açık |
 | F51 | Kapanmış implementation: admin gerçek catalog/four-revision CAS ve erişilebilir inline floor/room/device editor var | 9 Server + 13 Flutter ve iki gerçek Client→normal Core→TCP HA fazı geçti: tek mutation/replay, CAS repair ve restart; exact-head CI ve fiziksel ölçüm açık |
 
@@ -122,7 +122,7 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
   stale resource revisionda sıfır ek write doğrulandı.
 - PRODUCT.APPLETV root tarafından 67 focused testle geçti. PRODUCT.CAMERA root
   kapısı 30 test ve scoped analyze geçti. K09 gerçek normal-Core/TLS-MQTT
-  kapısı bir kez geçti, root tekrarı bekliyor.
+  kapısını root bağımsız tekrarladı; delayed-CONNACK/successor incelemesi, 25 focused test ve tam Flutter analyze temiz.
 - F61/F62 managed-profile normal Core authority kapısı root tarafından geçti;
   shared focused subset 34 testti. Hosted native durum hâlâ kırmızı/pending:
   F61 runs `36764619917` ve `36765832888` production bridge testinden önce;
@@ -132,21 +132,14 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
   ulaştı ancak `uv` bulunmadığı için normal-Core kabulünden önce durdu. Pinned
   setup sonrası yeni exact hosted receipt gerekir.
 
-## Kalan somut yazılım kanıt boşlukları
+## Kalan somut yazılım ve kanıt boşlukları
 
-1. F61: `.github/workflows/vnc-native-acceptance.yml` ve
-   `tool/f61_tigervnc_acceptance.py` için production bridge'e ulaşan yeni
-   one-test/no-skip hosted XML receipt yok.
-2. F62: `.github/workflows/freerdp-android-native.yml` ve
-   `tool/f62_packaged_acceptance.py` için packaged FreeRDP instrumentation'a
-   ulaşan yeni exact receipt yok.
-3. F63: `.github/workflows/ssh-native-acceptance.yml` pinned `uv` setupından
-   sonra `server/tests/support/f63_flutter_acceptance.py` dahil gerçek Linux
-   password/key/MFA/jump kapısının yeni exact hosted sonucu yok.
-4. K09 için root bağımsız tekrarı ve delayed-CONNACK authority incelemesi bekliyor. PRODUCT.CAMERA root bağımsız 30 test/analysis kapısı kapandı. Bunlar bilinen
-   dummy/provider composition açıkları değil, bağımsız software evidence
-   boşluklarıdır.
+1. **F22 — yeniden çalışılıyor:** `personal_channels/service.py` yalnız programme resolve, Client route tek playback isteği yapıyor. Otomatik sonraki programme yürütücüsü ve gerçek Client→normal Core→provider kesintisiz kanal kabulü eksik. Mevcut worker/package kanıtı bu davranışı kanıtlamaz.
+2. **F28 — yeniden çalışılıyor:** `longform_sessions/service.py` `sleepTimerEndsAt` değerini doğrular ve saklar; sürede yetkili pause/stop, restart ve arka plan kapanışı yok. Fiziksel receiver kontrolü bu eksik yazılım yerine sayılamaz.
+3. **F47 — yeniden çalışılıyor:** normal reserve/source/authority akışı gerçek iki yaşamda geçti. Ancak kuyruktaki geçmiş/backtest minimum rezerv kabulü için API/UI yok; alt dilim kanıtı korunur.
+4. **F60 — yeniden çalışılıyor:** Sunshine Core host API var, Client kayıt/eşleme UI yok; `MoonlightAppGameStreamEngine.kt` handoffOnly/zero-intent/unsupported durumda. Native playback/input hazır sayılmaz.
+5. **F61 — native kanıt bekliyor:** run `36769953343` exact `f1713f65` fresh Gradle launcherı geçti ancak generated Flutter outputs olmadan normal app derlemesi native testten önce durdu. Kilitli pub→l10n→build_runner önkoşulları ve exact class/method bir test/sıfır skip receipt uygulanır; yeni gerçek hosted sonuç gerekir.
+6. **F62 — native kanıt bekliyor:** run `36768544534` exact `ebf00c06` her iki AAR/APKyi oluşturdu, NLA host/emulator başladı. Android test runtime classpath `androidx.test:runner` 1.7.0 ile app strict 1.3.0 çatışması instrumentationdan önce durdurdu. Dar dependency fix ve yeni exact packaged one-test/no-skip receipt gerekli.
+7. **F63 — named eski exact CI geçti:** run `36769844212`, exact `1dd8ca98a3c22ba66b30c57c632ba0cfea423636`, gerçek Linux SSH/SFTP/tunnel, normal Core/no-replay, Android APK ve kontrat adımlarını yeşil bitirdi. Daha güçlü yedi named test/sıfır skip/sourceRevision receipt ve geniş sonraki HEAD CI ayrıca doğrulanacak.
 
-Bu hosted receipts fiziksel cihaz kanıtı değildir. VNC/RDP/SSH hedef hostları,
-DeX/IME, kamera donanımı, MQTT broker deploymentı ve household ağ davranışı
-ilgili `MANUAL.*` kapılarında ayrıca kalır.
+K09 ve PRODUCT.CAMERA root bağımsız software kapıları kapandı; CI bekliyor tablosundalar. Bu hosted receipts fiziksel cihaz kanıtı değildir. VNC/RDP/SSH hedef hostları, DeX/IME, kamera donanımı, MQTT broker deploymentı ve household ağ davranışı ilgili `MANUAL.*` kapılarında ayrıca kalır. FINAL.FUNCTION yalnız gerçek yazılım açıkları kapanınca ilerler; ikinci FINAL aktif değildir.

@@ -13,5 +13,7 @@ void main() {
   if (roundTrip != expected) {
     throw StateError('f49_revision_roundtrip_not_exact');
   }
+  // Portable console receipt for this standalone VM/JavaScript acceptance tool.
+  // ignore: avoid_print
   print('f49-js-revision-exact:$roundTrip');
 }

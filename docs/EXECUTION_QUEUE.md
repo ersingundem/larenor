@@ -9,27 +9,31 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 11 | 0 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
-| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 1 | 0 | 8 | 0 |
+| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 0 | 0 | 9 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 0 | 2 | 8 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 1 | 4 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 1 | 0 |
-| FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
+| FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
 Şu anda çalışılanlar
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F22 | Kendi televizyon kanalların | Yeniden çalışılıyor | — |
+| F28 | Sesli kitap ve podcast merkezi | Yeniden çalışılıyor | — |
+| F47 | Güneş ve ev bataryası öncelikleri | Yeniden çalışılıyor | — |
+| F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
+| FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,13 +41,12 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Başlanabilir | — |
-| 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 5 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 6 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 7 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 1 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 2 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 3 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 4 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 5 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 6 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -105,13 +108,13 @@ Tamamlanan ve test/CI bekleyen işler
 | F31 | Haftalık menü ve tarif merkezi | Kanıtla tamamlandı | — |
 | F34 | QR etiketli ev envanteri | Kanıtla tamamlandı | — |
 | REMOTE.COMMON | Uzak erişim ortak profil/güven ve oturum temeli | Kanıtla tamamlandı | — |
-| K09 | Cihaz bilgisi ve kontrollü uzaktan görünüm | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
 | PRODUCT.APPLETV | Apple TV video ve medya hedefleri | CI bekliyor | — |
 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | CI bekliyor | — |
 | PRODUCT.HEALTH | Kişisel sağlık ve tartı sağlayıcı yazılım sınırı | CI bekliyor | — |
 | PRODUCT.CAMERA | İsteğe bağlı yaklaşma ve kişisel kamera görünümü | CI bekliyor | — |
+| K09 | Cihaz bilgisi ve kontrollü uzaktan görünüm | CI bekliyor | — |
 | K10 | Hareket, karanlık ve cihaz sensörleri | CI bekliyor | — |
 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | CI bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | CI bekliyor | — |
@@ -143,10 +146,8 @@ Tamamlanan ve test/CI bekleyen işler
 | F26 | Oynatma kalitesi danışmanı | CI bekliyor | — |
 | F25 | Jenerik ve kapanış atlama | CI bekliyor | — |
 | F21 | Birlikte senkron film izleme | CI bekliyor | — |
-| F22 | Kendi televizyon kanalların | CI bekliyor | — |
 | F23 | Canlı TV ve kayıt merkezi | CI bekliyor | — |
 | F27 | Seyahat için çevrimdışı medya | CI bekliyor | — |
-| F28 | Sesli kitap ve podcast merkezi | CI bekliyor | — |
 | F29 | Parti DJ'i ve ortak şarkı oylaması | CI bekliyor | — |
 | F30 | Medya arşivi sağlık ve yer tasarrufu | CI bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | CI bekliyor | — |
@@ -165,12 +166,10 @@ Tamamlanan ve test/CI bekleyen işler
 | F50 | Oda konforu ve havalandırma planı | CI bekliyor | — |
 | F48 | Ev güç bütçesi | CI bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | CI bekliyor | — |
-| F47 | Güneş ve ev bataryası öncelikleri | CI bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | CI bekliyor | — |
 | F58 | E-paper mini ev ekranları | CI bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | CI bekliyor | — |
-| F60 | Tablette ev bilgisayarından oyun yayını | CI bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | CI bekliyor | — |

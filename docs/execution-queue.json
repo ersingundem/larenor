@@ -2840,7 +2840,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Cihaz bilgisi ve kontrollü uzaktan görünüm",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K07"
       ],
@@ -2860,7 +2860,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sınırlı Android cihaz ölçümü eşleştirilmiş MQTT telemetrisiyle yayımlanıyor. Yerel kullanıcı onaylı uygulama görünümü yalnız hassas olmayan cihaz bilgisi RepaintBoundary yüzeyini, saniyede en fazla bir kalıcı olmayan ve boyutu sınırlı PNG kare olarak güncel eşleştirmeye gönderiyor; route, uygulama yaşam döngüsü veya eşleştirme yetkisi değişince yayın fail-closed duruyor. PIN, kimlik bilgisi, iletişim kutusu ve gizli ekranlar yakalama yüzeyinin dışında; tam cihaz MediaProjection ayrı ve desteklenmeyen bir yetenek olarak açıkça gösteriliyor. Gerçek broker/tablet ve son test/CI kanıtı bekliyor."
+      "reason": "Root bağımsız gerçek KioskScreen→normal Core TCP→exact pairing authority→owned TLS MQTT kabulü 1/1, focused 25/25 ve tam Flutter analyze temiz. Explicit onaylı hassas olmayan uygulama görünümü en fazla 1FPS ve 393216 byte non-retained PNG; matching active/retired receipt, route/lifecycle duruşu ve sıfır policy write doğrulandı. Delayed CONNACK retirement eski kanalı successor bağlantıdan ayırır, pending QoS1 ACK retirementta reddedilir ve replay yoktur. Exact HEAD geniş CI bekliyor; fiziksel tablet/OEM ve deployed broker MANUAL ayrı, tam cihaz MediaProjection açıkça desteklenmiyor. Kanıt: docs/testing/k09-controlled-view-normal-core-2026-09-30.md."
     },
     {
       "id": "K10",
@@ -4069,7 +4069,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4093,7 +4093,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core, MediaPlaybackWorkerProvider(installation_backend) üzerinden paketlenmiş Jellyfin playback runtimeını PersonalChannelServicee bağlıyor; ayrı F22 daemon/socket gerekli değil. Named F22 API/playback kapıları ile exact 888dfd46 host run36762186381 production offline bundle/kurulu Core/systemd kapısı geçti. Gerçek Jellyfin kütüphanesi, kesintisiz yayın/EPG zamanlaması ve alıcı MANUAL.MEDIA açık; ErsatzTV/tuner iddiası yok. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: Core programme resolve ve tek playback isteği var; kesintisiz kişisel kanal için otomatik sonraki programme/schedule yürütücüsü ve gerçek Client→normal Core kabulü eksik. Linux worker bileşimi geçti fakat bu yazılım davranışı MANUAL alıcı kapısı diye kapatılamaz."
     },
     {
       "id": "F23",
@@ -4164,7 +4164,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4188,7 +4188,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Ready üye navigasyonu, kurulum görünümü, manager refresh, catalog/playback ve longform yolları normal Coreda bağlıdır. 35 Server, 24 Flutter ve gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant geçti. Exact888dfd46 run36762186381 host package/systemd kapısı geçti. Gerçek provider chapter metadata, receiver ve sleep interruption MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: normal Core/provider/member katalog ve playback yolu geçti. sleepTimerEndsAt yalnız doğrulanıp saklanıyor; deadline dolunca yetkili gerçek pause/stop yürütme, restart/arka plan/MediaSession kapanışı eksik. Fiziksel receiver doğrulaması bu yazılım açığını kapatmaz."
     },
     {
       "id": "F29",
@@ -4901,7 +4901,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4925,7 +4925,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Flutter service wire modeline eksik evcc türü ve Core ile aynı API-key auth formu eklendi. Root gerçek Flutter account→normal Uvicorn Core→owned evcc HTTP/HA REST-WebSocket iki yaşamını doğruladı: kalıcı Fronius binding, tek 40% reserve gönderimi ve causal readback; Core/Client restart sonrası binding okunur, gerçek Home Resource revizyonu driftinden sonra stale preview provider I/O yapmadan reddedilir. Toplam HA POST=1. 14 Server, 14 Flutter ve temiz scoped analyze geçti. Watt/direction kontrolü desteklenmiş sayılmaz; gerçek inverter/batarya/forecast MANUAL.FEATURES açık. docs/testing/f47-normal-core-tcp-acceptance-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: root normal Client→Core→evcc/HA reserve/restart/authority kabulü geçti; minimum rezerv politikasını geçmişte sınama/history-backtest yazılım yolu kabul kriterinde var ancak API/UI henüz yok. Mevcut tek gönderim/causal readback kanıtı korunur, gerçek inverter MANUAL ayrı."
     },
     {
       "id": "F49",
@@ -5128,7 +5128,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5152,7 +5152,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Kurulu Moonlight için gerçek Android capability/launch, exact provider-revision receipt, Core Sunshine host görünümü ve foreground/late-response kapıları uygulandı; Flutter 17/17, focused analyze, Android üretim derlemesi ve F60 Kotlin testi geçti. Fiziksel yayın/giriş/gecikme/kopuş ile tam CI bekliyor."
+      "reason": "Yeniden çalışılıyor: Sunshine Core host API ve Moonlight capability/foreground sınırı var; Client host kayıt/eşleme UI yolu eksik ve native engine handoffOnly/zero-intent/unsupported kaldığı için Android playback/input kabulü kapanmadı. Bu gerçek yazılım açığı CI veya fiziksel gecikme ölçümü diye kapatılmaz."
     },
     {
       "id": "G11",
@@ -5333,7 +5333,7 @@
       "kind": "task",
       "parent": "FINAL",
       "title": "Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B1",
         "B2",
@@ -5373,7 +5373,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "F01–F63 bağımsız production envanterinde yeni gerçek provider/worker/Client giriş eksikleri bulundu. Düzeltmeler bu tek FINAL maddesinde yürütülüyor; tam gerçek işlev envanteri, Client→Core→servis ve exact HEAD geniş CI olmadan ikinci FINAL başlatılmayacak."
+      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. F22 otomatik kanal devamı, F28 deadline pause/stop, F47 history/backtest ve F60 Client pairing/native playback yazılım eksikleri yeniden çalışılıyor. F61/F62 gerçek hosted native receipt kapıları ile geniş exact HEAD CI açık; ikinci FINAL başlatılmaz."
     },
     {
       "id": "FINAL.UI",

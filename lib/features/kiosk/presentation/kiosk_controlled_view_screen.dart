@@ -41,6 +41,7 @@ class _KioskControlledViewScreenState
   bool _working = false;
   bool _active = false;
   bool _capturing = false;
+  bool _leaving = false;
   int _authorityEpoch = 1;
   int _captureTicks = 0;
 
@@ -294,6 +295,19 @@ class _KioskControlledViewScreenState
     if (updateState && mounted) setState(() {});
   }
 
+  Future<void> _retireThenPop() async {
+    if (_leaving || !mounted) return;
+    setState(() => _leaving = true);
+    try {
+      await _retire(updateState: mounted);
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        Navigator.of(context).pop();
+      }
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -305,102 +319,107 @@ class _KioskControlledViewScreenState
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return AppPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(
-          l.kioskControlledViewTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return PopScope<void>(
+      canPop: !_active && !_working && !_leaving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_retireThenPop());
+      },
+      child: AppPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          middle: Text(
+            l.kioskControlledViewTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 740),
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                  child: Text(l.kioskControlledViewHint, style: AppText.body),
-                ),
-                RepaintBoundary(
-                  key: _boundaryKey,
-                  child: ColoredBox(
-                    color: CupertinoColors.systemGroupedBackground.resolveFrom(
-                      context,
-                    ),
-                    child: SettingsSection(
-                      header: Text(l.kioskControlledViewPanelTitle),
-                      footer: Text(l.kioskControlledViewPrivacy),
-                      children: _telemetry == null
-                          ? [
-                              const Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Center(
-                                  child: CupertinoActivityIndicator(),
-                                ),
-                              ),
-                            ]
-                          : _deviceRows(l, _telemetry!),
-                    ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 740),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Text(l.kioskControlledViewHint, style: AppText.body),
                   ),
-                ),
-                SettingsSection(
-                  header: Text(l.kioskControlledViewFullProjectionTitle),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        l.kioskControlledViewFullProjectionUnavailable,
-                        style: AppText.body,
+                  RepaintBoundary(
+                    key: _boundaryKey,
+                    child: ColoredBox(
+                      color: CupertinoColors.systemGroupedBackground
+                          .resolveFrom(context),
+                      child: SettingsSection(
+                        header: Text(l.kioskControlledViewPanelTitle),
+                        footer: Text(l.kioskControlledViewPrivacy),
+                        children: _telemetry == null
+                            ? [
+                                const Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: Center(
+                                    child: CupertinoActivityIndicator(),
+                                  ),
+                                ),
+                              ]
+                            : _deviceRows(l, _telemetry!),
                       ),
                     ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    _active
-                        ? l.kioskControlledViewActive
-                        : l.kioskControlledViewInactive,
-                    textAlign: TextAlign.center,
-                    style: AppText.headline,
                   ),
-                ),
-                if (_error != null)
+                  SettingsSection(
+                    header: Text(l.kioskControlledViewFullProjectionTitle),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          l.kioskControlledViewFullProjectionUnavailable,
+                          style: AppText.body,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      _active
+                          ? l.kioskControlledViewActive
+                          : l.kioskControlledViewInactive,
+                      textAlign: TextAlign.center,
+                      style: AppText.headline,
+                    ),
+                  ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: CupertinoColors.systemRed.resolveFrom(context),
+                        ),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    child: Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: CupertinoColors.systemRed.resolveFrom(context),
-                      ),
+                    child: CupertinoButton.filled(
+                      onPressed: _working || _loading || !_foreground
+                          ? null
+                          : _active
+                          ? () => _retire(updateState: true)
+                          : _start,
+                      child: _working || _loading
+                          ? const CupertinoActivityIndicator()
+                          : Text(
+                              _active
+                                  ? l.kioskControlledViewStop
+                                  : l.kioskControlledViewStart,
+                            ),
                     ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: CupertinoButton.filled(
-                    onPressed: _working || _loading || !_foreground
-                        ? null
-                        : _active
-                        ? () => _retire(updateState: true)
-                        : _start,
-                    child: _working || _loading
-                        ? const CupertinoActivityIndicator()
-                        : Text(
-                            _active
-                                ? l.kioskControlledViewStop
-                                : l.kioskControlledViewStart,
-                          ),
+                  CupertinoButton(
+                    onPressed: _working || _active ? null : _load,
+                    child: Text(l.commonRefresh),
                   ),
-                ),
-                CupertinoButton(
-                  onPressed: _working || _active ? null : _load,
-                  child: Text(l.commonRefresh),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
