@@ -697,14 +697,15 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.local_notifications.validate_storage()
-            self.jellyfin_track_preferences = JellyfinTrackPreferenceService(
-                self.db, self.auth, settings, key, self.context
-            )
-            self.jellyfin_track_preferences.validate_storage()
             self.media_language_preferences = MediaLanguagePreferenceService(
                 self.db, self.auth, settings, key, self.context
             )
             self.media_language_preferences.validate_storage()
+            self.jellyfin_track_preferences = JellyfinTrackPreferenceService(
+                self.db, self.auth, settings, key, self.context,
+                self.media_language_preferences,
+            )
+            self.jellyfin_track_preferences.validate_storage()
             self.playback_quality = PlaybackQualityService(
                 self.db, self.auth, settings, self.context
             )

@@ -107,10 +107,10 @@ def test_malformed_or_corrupt_preferences_fail_closed(server):
     assert _put(client, pair, root, audio="en", subtitle=None).status_code == 200
     with app.state.core.db.transaction() as connection:
         connection.execute(
-            "UPDATE jellyfin_track_preferences SET audio_language='tr'"
+            "UPDATE media_language_preferences SET ciphertext=zeroblob(length(ciphertext))"
         )
     corrupt = client.get(root, headers=auth(pair))
     assert (corrupt.status_code, corrupt.json()["error"]["code"]) == (
         503,
-        "media_preference_storage_unavailable",
+        "server_unavailable",
     )

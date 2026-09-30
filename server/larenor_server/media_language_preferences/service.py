@@ -306,3 +306,40 @@ class MediaLanguagePreferenceService:
             raise StartupError(
                 "media_language_preference_storage_invalid"
             ) from None
+
+    def import_legacy(self, legacy):
+        """Atomically authenticate and move old preferences into the player store."""
+        try:
+            with self.db.transaction() as connection:
+                rows = connection.execute(
+                    "SELECT * FROM jellyfin_track_preferences LIMIT 257"
+                ).fetchall()
+                if len(rows) > schema.MAX_RECORDS:
+                    raise ValueError("too_many_records")
+                for row in rows:
+                    self._identity(row["owner_id"])
+                    body = legacy._validate(row)
+                    current = connection.execute(
+                        "SELECT * FROM media_language_preferences WHERE owner_id=?",
+                        (row["owner_id"],),
+                    ).fetchone()
+                    if current is not None:
+                        # Explicit writes through the current player path win.
+                        self._decode(current)
+                        continue
+                    if connection.execute("SELECT COUNT(*) FROM media_language_preferences").fetchone()[0] >= schema.MAX_RECORDS:
+                        raise ValueError("too_many_records")
+                    preference = StoredMediaLanguagePreference(
+                        audioLanguage=body.audioLanguage,
+                        subtitleLanguage=body.subtitleLanguage,
+                    )
+                    nonce = secrets.token_bytes(12)
+                    encrypted = self._cipher.encrypt(
+                        nonce, preference.model_dump_json().encode(),
+                        self._record_aad(row["owner_id"], row["revision"]),
+                    )
+                    connection.execute("INSERT INTO media_language_preferences VALUES(?,?,?,?)",
+                        (row["owner_id"], row["revision"], nonce, encrypted))
+                connection.execute("DELETE FROM jellyfin_track_preferences")
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise StartupError("media_language_preference_storage_invalid") from None

@@ -3942,7 +3942,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Akıllı altyazı ve dil tercihleri",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3966,7 +3966,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: aktif player /media/language-preferences kullanıyor; ikinci Jellyfin preference store/route bağlantısız. Tek gerçek tercih deposuna birleştirilecek."
+      "reason": "Eski Jellyfin preference endpointi ve aktif oynatıcı tek AES-GCM kişi deposuna bağlandı; authenticated eski kayıtlar startup transaction ile taşınır, mevcut oynatıcı tercihleri korunur. 10 Server, 8 Flutter ve 1 gerçek Flutter→normal Core TCP kabulü geçti, analyze temiz. docs/testing/f24-shared-player-preferences-2026-09-30.md. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
     },
     {
       "id": "F26",

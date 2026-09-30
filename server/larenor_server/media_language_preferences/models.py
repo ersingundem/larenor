@@ -7,7 +7,7 @@ from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
 
 
 PreferenceRevision = Annotated[int, Field(ge=0, le=2**63 - 1)]
-Language = Annotated[str, Field(min_length=2, max_length=7)]
+Language = Annotated[str, Field(min_length=2, max_length=32)]
 
 
 def language(value, *, allow_off=False):
@@ -17,7 +17,7 @@ def language(value, *, allow_off=False):
         raise ValueError("invalid_language")
     if allow_off and value == "off":
         return value
-    if re.fullmatch(r"[a-z]{2,3}(?:-[a-z]{2}|-[0-9]{3})?", value) is None:
+    if re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8}){0,2}", value) is None:
         raise ValueError("invalid_language")
     return value
 

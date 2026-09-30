@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F24 tek oynatıcı dil tercihi deposu
+
+Eski Jellyfin endpointi aktif oynatıcıyla aynı şifreli kaydı kullanır; mevcut eski tercihlerin güvenli startup aktarımı ve revizyon çatışması korunur. 10 Server, 8 Flutter ve 1 gerçek Flutter→normal Core TCP kabulü geçti; analyze temiz. [Kanıt](testing/f24-shared-player-preferences-2026-09-30.md). Exact HEAD CI/geniş kabul bekliyor; sayaçlar değişmedi.
+
 ### 30 Eylül F23 gerçek Jellyfin kayıt yönetimi
 
 Normal Core gerçek Jellyfin guide/timer kurulumu, kayıt/iptal/restart ve Client admin kaynak seçimine bağlandı. Tüm upstream kayıtların byte hesabı, bilinmeyen boyut ve kalıcı otomatik quota-stop düzeltildi. 8 Server ve 1 gerçek Flutter→Core TCP→Jellyfin kabulü geçti, analyze temiz. [Kanıt ve disk politikası sınırları](testing/f23-jellyfin-live-tv-provider-2026-09-30.md). Tam exact HEAD CI ve fiziksel tuner/sert filesystem kotası manuel kapıda; sayaçlar değişmedi.

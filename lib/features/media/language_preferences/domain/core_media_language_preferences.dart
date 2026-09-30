@@ -137,7 +137,8 @@ String? coreMediaLanguage(Object? value, {bool allowOff = false}) {
   if (value == null) return null;
   if (value is! String) throw _invalid;
   if (allowOff && value == 'off') return value;
-  if (!RegExp(r'^[a-z]{2,3}(?:-[a-z]{2}|-[0-9]{3})?$').hasMatch(value)) {
+  if (value.length > 32 ||
+      !RegExp(r'^[a-z]{2,3}(?:-[a-z0-9]{2,8}){0,2}$').hasMatch(value)) {
     throw _invalid;
   }
   return value;
