@@ -4768,7 +4768,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4793,7 +4793,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION incelemesinde normal Core gerçek ses classifier/event providerının olmadığı bulundu. Gerçek Frigate/HA ses kaynak ve izin kontrollü olay akışı resmi sözleşmelerle bağlanıyor; sessiz veri gelmemesi sessizlik kanıtı sayılmayacak. Eski metadata testleri production kabulü değildir."
+      "reason": "Normal Core gerçek Frigate audio-enabled review/exact-review GET akışı, per-account oda/kamera/rıza/etiket/saklama kaynağı ve inline EN/TR kurulum uygular. Offline lokal CAS rıza iptali, kamera/oda/current ACL pre-read kontrolü, atomik idempotent metadata batch, restart/expiry ve sessizlik iddiası olmayan durumlar var. 12 Server, 14 Flutter, gerçek Client→normal Core→TCP HA/Frigate 1 kabulü ve analyze geçti (docs/testing/f45-frigate-sound-events-2026-09-30.md). Gerçek kamera/audio accuracy ve exact HEAD geniş CI açık."
     },
     {
       "id": "G09",
@@ -5063,7 +5063,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5088,7 +5088,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "E-paper capability, piksel/renk, pil, son temas ve çevrimdışı son görüntü tutma uyarısı uygulandı; server 6/6, Flutter 13/13, analyze ve compile geçti. Fiziksel etiket/köprü kabulü ve tam CI bekliyor."
+      "reason": "FINAL.FUNCTION incelemesinde mevcut e-paper yolu yalnız canonical JSON üretiyor; gerçek etiket görüntüsü/köprü providerı yok. OpenEPaperLink HA drawcustom resmi kontratı, gerçek inventory/capability ve görüntü/teslim sonucu araştırılıyor. Önceki metadata testleri production kabulü sayılmaz."
     },
     {
       "id": "F59",

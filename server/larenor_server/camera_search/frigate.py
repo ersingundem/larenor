@@ -352,6 +352,25 @@ class FrigateCameraSearchRuntime(FrigatePrivateEventBindings, CameraSearchRuntim
             raise ApiError('revision_conflict', 409)
         return raw, service, authority, mapping, token, semantic, guard
 
+    def authorized_read(self, actor, core_id, home_id):
+        """Create a short-lived read lease without releasing private connection data."""
+        from .authorized_read import FrigateAuthorizedRead
+
+        with self._budget():
+            raw, service, authority, mapping, token, _semantic, guard = self._prepare(
+                actor, core_id, home_id
+            )
+            guard()
+            return FrigateAuthorizedRead(
+                self,
+                source_revision=raw["revision"],
+                authority=authority,
+                camera_mapping=mapping,
+                service=service,
+                token=token,
+                guard=guard,
+            )
+
     def context(self, core, actor, core_id, home_id):
         core.auth.rate_limit([('camera_search_read', actor.id, 120)])
         with self._budget():

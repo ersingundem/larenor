@@ -1,6 +1,8 @@
 from typing import Annotated, Literal
+import threading
 
-from fastapi import APIRouter, Depends, Query
+import anyio
+from fastapi import APIRouter, Depends, Query, Request
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -16,6 +18,11 @@ from .models import (
     SoundEventPolicyRequest,
     SoundEventSnapshot,
 )
+from .source_models import (
+    FrigateSoundSourceInput,
+    SoundSourceRefresh,
+    SoundSourceSetup,
+)
 
 Core = Annotated[CoreServices, Depends(get_core)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
@@ -29,6 +36,60 @@ router = APIRouter(
     },
 )
 ROOT = "/sound-events/{core_id}/{home_id}"
+
+
+@router.get(ROOT + "/source", response_model=SoundSourceSetup)
+def source(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
+    core.auth.rate_limit([("sound_source_read", actor.id, 60)])
+    return core.sound_event_source.setup(actor, core_id, home_id)
+
+
+@router.put(ROOT + "/source", response_model=SoundSourceSetup)
+def configure_source(
+    core_id: Identity,
+    home_id: Identity,
+    body: FrigateSoundSourceInput,
+    actor: Ready,
+    core: Core,
+):
+    core.auth.rate_limit([("sound_source_configuration", actor.id, 20)])
+    core.sound_event_source.configure(actor, core_id, home_id, body)
+    return core.sound_event_source.setup(actor, core_id, home_id)
+
+
+@router.post(ROOT + "/source/refresh", response_model=SoundSourceRefresh)
+async def refresh_source(
+    request: Request,
+    core_id: Identity,
+    home_id: Identity,
+    actor: Ready,
+    core: Core,
+):
+    core.auth.rate_limit([("sound_source_refresh", actor.id, 30)])
+    cancelled, done = threading.Event(), threading.Event()
+
+    async def watch_disconnect():
+        while not done.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await anyio.sleep(0.02)
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(watch_disconnect)
+        try:
+            return await anyio.to_thread.run_sync(
+                lambda: core.sound_event_source.refresh(
+                    actor, core_id, home_id, cancelled=cancelled.is_set
+                ),
+                abandon_on_cancel=True,
+            )
+        except BaseException:
+            cancelled.set()
+            raise
+        finally:
+            done.set()
+            tasks.cancel_scope.cancel()
 
 
 @router.get(ROOT, response_model=SoundEventSnapshot)

@@ -4,9 +4,27 @@ import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/sound_event_models.dart';
+import '../domain/sound_event_source_models.dart';
 import 'sound_event_controller.dart';
 
-final class CoreSoundEventApi implements SoundEventControlApi {
+abstract interface class SoundSourceConfigurationApi {
+  Future<SoundSourceSetup> loadSourceSetup();
+  Future<SoundSourceSetup> configureSource({
+    required SoundSourceSetup current,
+    required SoundSourceChoice camera,
+    required SoundSourceChoice room,
+    required List<String> barkLabels,
+    required List<String> noiseLabels,
+    required bool consentGranted,
+    required int retentionSeconds,
+  });
+}
+
+final class CoreSoundEventApi
+    implements
+        SoundEventControlApi,
+        SoundEventSourceApi,
+        SoundSourceConfigurationApi {
   CoreSoundEventApi({
     required this.account,
     required this.isCurrent,
@@ -59,6 +77,92 @@ final class CoreSoundEventApi implements SoundEventControlApi {
     _check();
     return result;
   }
+
+  @override
+  Future<SoundSourceSetup> loadSourceSetup() => _bound((api, session) async {
+    return _decodeSourceSetup(
+      await api.request(
+        'GET',
+        '${_root(session.context!)}/source',
+        token: session.accessToken,
+      ),
+      session.user.id,
+    );
+  });
+
+  @override
+  Future<SoundSourceSetup> configureSource({
+    required SoundSourceSetup current,
+    required SoundSourceChoice camera,
+    required SoundSourceChoice room,
+    required List<String> barkLabels,
+    required List<String> noiseLabels,
+    required bool consentGranted,
+    required int retentionSeconds,
+  }) => _bound((api, session) async {
+    final value = _decodeSourceSetup(
+      await api.request(
+        'PUT',
+        '${_root(session.context!)}/source',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'expectedRevision': current.configuration?.revision,
+          'cameraResourceId': camera.id,
+          'expectedCameraRevision': camera.revision,
+          'roomId': room.id,
+          'expectedRoomRevision': room.revision,
+          'labels': {'bark': barkLabels, 'noise': noiseLabels},
+          'consentGranted': consentGranted,
+          'retentionSeconds': retentionSeconds,
+        },
+      ),
+      session.user.id,
+    );
+    if (value.revision != (current.configuration?.revision ?? 0) + 1 ||
+        value.configuration?.cameraResourceId != camera.id ||
+        value.configuration?.roomId != room.id ||
+        value.configuration?.consentGranted != consentGranted) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return value;
+  });
+
+  @override
+  Future<SoundEventSnapshot> refreshSource() => _bound((api, session) async {
+    final receipt = _map(
+      await api.request(
+        'POST',
+        '${_root(session.context!)}/source/refresh',
+        token: session.accessToken,
+      ),
+      const {
+        'schemaVersion',
+        'configurationRevision',
+        'importedEvents',
+        'reviewedRecords',
+      },
+    );
+    if (_integer(receipt['schemaVersion']) != 1 ||
+        _integer(receipt['configurationRevision']) < 1 ||
+        _bounded(receipt['importedEvents'], 0, 256) < 0 ||
+        _bounded(receipt['reviewedRecords'], 0, 256) < 0) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final snapshot = _decodeSnapshot(
+      await api.request(
+        'GET',
+        _root(session.context!),
+        token: session.accessToken,
+      ),
+      session,
+    );
+    if (snapshot.sourceStatus.capabilityRevision !=
+        _integer(receipt['configurationRevision'])) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return snapshot;
+  });
 
   Future<T> _bound<T>(
     Future<T> Function(LarenorServerApi api, ServerSession session) action,
@@ -498,6 +602,131 @@ final class CoreSoundEventApi implements SoundEventControlApi {
     }
     return result;
   }
+
+  SoundSourceSetup _decodeSourceSetup(Object? raw, String expectedOwner) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'revision',
+      'configuration',
+      'cameras',
+      'rooms',
+    });
+    if (_integer(value['schemaVersion']) != 1) {
+      throw const LarenorServerException('invalid_response');
+    }
+    List<SoundSourceChoice> choices(Object? raw, int limit) {
+      if (raw is! List || raw.length > limit) {
+        throw const LarenorServerException('invalid_response');
+      }
+      final ids = <String>{};
+      return raw
+          .map((item) {
+            final choice = _map(item, const {
+              'id',
+              'revision',
+              'label',
+              'audioLabels',
+            });
+            final labels = choice['audioLabels'];
+            if (choice['label'] is! String ||
+                (choice['label'] as String).isEmpty ||
+                (choice['label'] as String).length > 80 ||
+                labels is! List ||
+                labels.length > 256 ||
+                labels.any(
+                  (label) =>
+                      label is! String || label.isEmpty || label.length > 64,
+                )) {
+              throw const LarenorServerException('invalid_response');
+            }
+            final id = _identity(choice['id']);
+            if (!ids.add(id)) {
+              throw const LarenorServerException('invalid_response');
+            }
+            return SoundSourceChoice(
+              id: id,
+              revision: _integer(choice['revision']),
+              label: choice['label'] as String,
+              audioLabels: List<String>.unmodifiable(labels.cast<String>()),
+            );
+          })
+          .toList(growable: false);
+    }
+
+    final cameras = choices(value['cameras'], 16);
+    final rooms = choices(value['rooms'], 128);
+    final configuration = value['configuration'] == null
+        ? null
+        : _decodeSourceConfiguration(value['configuration'], expectedOwner);
+    final revision = _bounded(value['revision'], 0, 0x7fffffffffffffff);
+    if (revision != (configuration?.revision ?? 0)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return SoundSourceSetup(
+      revision: revision,
+      configuration: configuration,
+      cameras: cameras,
+      rooms: rooms,
+    );
+  }
+
+  SoundSourceConfiguration _decodeSourceConfiguration(
+    Object? raw,
+    String expectedOwner,
+  ) {
+    final value = _map(raw, const {
+      'schemaVersion',
+      'revision',
+      'ownerId',
+      'cameraResourceId',
+      'cameraRevision',
+      'roomId',
+      'roomRevision',
+      'frigateCamera',
+      'providerRevision',
+      'labels',
+      'consentGranted',
+      'consentRevision',
+      'retentionSeconds',
+      'configuredAtMs',
+    });
+    final labels = _map(value['labels'], const {'bark', 'noise'});
+    List<String> labelList(String key, int limit) {
+      final raw = labels[key];
+      if (raw is! List ||
+          raw.length > limit ||
+          raw.any(
+            (item) => item is! String || item.isEmpty || item.length > 64,
+          )) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return List<String>.unmodifiable(raw.cast<String>());
+    }
+
+    final bark = labelList('bark', 8), noise = labelList('noise', 16);
+    if (_integer(value['schemaVersion']) != 1 ||
+        value['consentGranted'] is! bool ||
+        value['frigateCamera'] is! String ||
+        bark.toSet().intersection(noise.toSet()).isNotEmpty) {
+      throw const LarenorServerException('invalid_response');
+    }
+    if (_identity(value['ownerId']) != expectedOwner) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _integer(value['providerRevision']);
+    _integer(value['consentRevision']);
+    _time(value['configuredAtMs']);
+    return SoundSourceConfiguration(
+      revision: _integer(value['revision']),
+      cameraResourceId: _identity(value['cameraResourceId']),
+      cameraRevision: _integer(value['cameraRevision']),
+      roomId: _identity(value['roomId']),
+      roomRevision: _integer(value['roomRevision']),
+      labels: Map.unmodifiable({'bark': bark, 'noise': noise}),
+      consentGranted: value['consentGranted'] as bool,
+      retentionSeconds: _bounded(value['retentionSeconds'], 60, 604800),
+    );
+  }
 }
 
 Map<String, dynamic> _map(Object? value, Set<String> keys) {
@@ -517,6 +746,13 @@ String _identity(Object? value) {
 
 int _integer(Object? value) {
   if (value is! int || value < 1 || value > 0x7fffffffffffffff) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return value;
+}
+
+int _bounded(Object? value, int minimum, int maximum) {
+  if (value is! int || value < minimum || value > maximum) {
     throw const LarenorServerException('invalid_response');
   }
   return value;

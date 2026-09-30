@@ -27,6 +27,10 @@ final class _Strings {
   String get verified =>
       tr ? 'Okundu bilgisi doğrulandı' : 'Acknowledgement verified';
   String get refresh => tr ? 'Yenile' : 'Refresh';
+  String get refreshSource =>
+      tr ? 'Frigate olaylarını yenile' : 'Refresh Frigate events';
+  String get configureSource =>
+      tr ? 'Ses kaynağı ayarları' : 'Sound source settings';
   String get acknowledge => tr ? 'Okundu olarak işaretle' : 'Mark as reviewed';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Onayla' : 'Confirm';
@@ -58,6 +62,10 @@ final class _Strings {
       : 'Source sound clips are never retained.';
   String get falseAlarm => tr ? 'Yanlış alarm' : 'False alarm';
   String get confirmedEvent => tr ? 'Doğrulandı' : 'Confirmed';
+  String get providerEvent => tr ? 'Sağlayıcı olayı' : 'Provider event';
+  String get automationNotVerified => tr
+      ? 'Otomasyon teslimi doğrulanmadı'
+      : 'Automation delivery not verified';
   String get notificationEligible =>
       tr ? 'Bildirim için uygun' : 'Eligible for notification';
   String get notificationSuppressed =>
@@ -68,8 +76,17 @@ final class _Strings {
 }
 
 class SoundEventScreen extends StatefulWidget {
-  const SoundEventScreen({super.key, required this.controller});
+  const SoundEventScreen({
+    super.key,
+    required this.controller,
+    this.onRefreshSource,
+    this.onConfigureSource,
+    this.sourceSetupFailed = false,
+  });
   final SoundEventController controller;
+  final Future<void> Function()? onRefreshSource;
+  final VoidCallback? onConfigureSource;
+  final bool sourceSetupFailed;
   @override
   State<SoundEventScreen> createState() => _SoundEventScreenState();
 }
@@ -161,6 +178,27 @@ class _SoundEventScreenState extends State<SoundEventScreen> {
               _LiveStatus(controller: controller, strings: strings),
               if (controller.snapshot case final snapshot?)
                 _SourceStatus(status: snapshot.sourceStatus, strings: strings),
+              if (widget.onRefreshSource case final refresh?)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('sound-event-source-refresh'),
+                  leading: const Icon(CupertinoIcons.refresh),
+                  title: Text(strings.refreshSource),
+                  onTap: controller.canAct ? refresh : null,
+                ),
+              if (widget.onConfigureSource case final configure?)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('sound-event-source-settings'),
+                  leading: const Icon(CupertinoIcons.settings),
+                  title: Text(strings.configureSource),
+                  additionalInfo: widget.sourceSetupFailed
+                      ? Text(
+                          strings.tr
+                              ? 'Kaynak ayarları yüklenemedi. Yeniden denemek için dokunun.'
+                              : 'Source settings could not be loaded. Tap to retry.',
+                        )
+                      : null,
+                  onTap: controller.canAct ? configure : null,
+                ),
               _Filters(controller: controller, strings: strings),
               if (controller.state == SoundEventViewState.failed ||
                   controller.state == SoundEventViewState.stale)
@@ -493,11 +531,13 @@ class _EventCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '${(event.confidence * 100).round()}% · ${strings.duration(event.duration)} · ${event.roomId.substring(0, 8)}',
+                '${event.confidence == 1 && !event.automationVerified ? strings.providerEvent : '${(event.confidence * 100).round()}%'} · ${strings.duration(event.duration)} · ${event.roomId.substring(0, 8)}',
               ),
               const SizedBox(height: 8),
               Text(
-                event.automationVerified ? strings.verified : strings.failed,
+                event.automationVerified
+                    ? strings.verified
+                    : strings.automationNotVerified,
               ),
               const SizedBox(height: 8),
               Text(

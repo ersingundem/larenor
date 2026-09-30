@@ -31,6 +31,10 @@ abstract interface class SoundEventControlApi implements SoundEventApi {
   );
 }
 
+abstract interface class SoundEventSourceApi implements SoundEventApi {
+  Future<SoundEventSnapshot> refreshSource();
+}
+
 enum SoundEventViewState { idle, loading, ready, busy, verified, failed, stale }
 
 final class SoundEventController extends ChangeNotifier {
@@ -216,6 +220,38 @@ final class SoundEventController extends ChangeNotifier {
             value.policy.noiseEnabled == noiseEnabled &&
             value.policy.mutedUntil == normalizedMute;
       });
+    } catch (_) {
+      if (!_operationCurrent(operation)) return _stale();
+      snapshot = null;
+      state = SoundEventViewState.failed;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> refreshSource() async {
+    final control = api;
+    final before = authority;
+    if (!canAct || control is! SoundEventSourceApi) return;
+    final operation = ++_epoch;
+    state = SoundEventViewState.busy;
+    notifyListeners();
+    try {
+      final response = await control.refreshSource();
+      if (!_operationCurrent(operation)) return _stale();
+      final next = response.authority;
+      if (next.coreId != before.coreId ||
+          next.homeId != before.homeId ||
+          next.accountId != before.accountId ||
+          next.sessionFamilyId != before.sessionFamilyId ||
+          next.accountRevision != before.accountRevision ||
+          !response.coherentFor(next, _clock().toUtc())) {
+        snapshot = null;
+        state = SoundEventViewState.failed;
+      } else {
+        authority = next;
+        snapshot = response;
+        state = SoundEventViewState.verified;
+      }
     } catch (_) {
       if (!_operationCurrent(operation)) return _stale();
       snapshot = null;

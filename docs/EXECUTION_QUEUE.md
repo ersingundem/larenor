@@ -18,9 +18,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 3 | 2 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 4 | 1 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 5 | 0 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 4 | 2 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -30,8 +30,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | F42 | Mahremiyet korumalı olay paylaşımı | Çalışılıyor | — |
-| F45 | Havlama ve gürültü olayları | Çalışılıyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | Çalışılıyor | — |
+| F58 | E-paper mini ev ekranları | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -159,6 +159,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F41 | Kamera kayıtlarında doğal dille arama | Uygulama tamamlandı · test bekliyor | — |
 | F44 | Kameradan görsel sensörler | Uygulama tamamlandı · test bekliyor | — |
+| F45 | Havlama ve gürültü olayları | Uygulama tamamlandı · test bekliyor | — |
 | F50 | Oda konforu ve havalandırma planı | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
@@ -166,7 +167,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F49 | Bahçe sulama ve su bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |
-| F58 | E-paper mini ev ekranları | Uygulama tamamlandı · test bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |

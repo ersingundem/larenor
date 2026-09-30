@@ -36,7 +36,7 @@ class SoundEventRepository:
 
     def __init__(
         self, path, key, primary_db, auth, context, clock,
-        source_status_provider=None,
+        source_status_provider=None, source_access_provider=None,
     ):
         if not isinstance(key, bytes) or len(key) != 32:
             raise ValueError("invalid_key")
@@ -50,6 +50,9 @@ class SoundEventRepository:
         if source_status_provider is not None and not callable(source_status_provider):
             raise ValueError("invalid_source_status_provider")
         self._source_status_provider = source_status_provider
+        if source_access_provider is not None and not callable(source_access_provider):
+            raise ValueError("invalid_source_access_provider")
+        self._source_access_provider = source_access_provider
         try:
             self._migrate()
             os.chmod(self.path, 0o600)
@@ -225,6 +228,11 @@ class SoundEventRepository:
     def _event_tag(self, row):
         return self._tag(b"event", self._event_values(row))
 
+    @staticmethod
+    def _same_ingress(row, values):
+        mutable = {"event_revision", "acknowledged", "feedback"}
+        return all(row[key] == value for key, value in values.items() if key not in mutable)
+
     def _receipt_tag(self, owner, family, request, digest, receipt_json, created):
         return self._tag(
             b"receipt", [owner, family, request, digest, receipt_json, created]
@@ -300,8 +308,23 @@ class SoundEventRepository:
             return SoundSourceStatus.model_validate(
                 self._source_status_provider(actor)
             )
+        except ApiError:
+            raise
         except Exception:
             return self._unavailable_source()
+
+    def _source_access(self, actor):
+        if self._source_access_provider is None:
+            return None
+        value = self._source_access_provider(actor)
+        if value not in (None, False, True):
+            raise ValueError("invalid_source_access")
+        return value
+
+    def _require_source_access(self, actor):
+        if self._source_access(actor) is False:
+            raise ApiError("forbidden", 403)
+        return self._source_status(actor)
 
     @staticmethod
     def _foreign_request(connection, request_id, own_table):
@@ -376,16 +399,23 @@ class SoundEventRepository:
 
     def record(self, authority, raw_event):
         """Trusted local classifier ingress. It never accepts raw audio."""
+        return bool(self.record_batch(authority, [raw_event]))
+
+    def record_batch(self, authority, raw_events, *, cancelled=lambda: False):
+        """Atomically store a bounded provider batch after its full read completes."""
         authority = SoundEventAuthority.model_validate(authority)
-        event = SoundEvent.model_validate(raw_event)
+        if (not callable(cancelled) or type(raw_events) is not list
+                or not 1 <= len(raw_events) <= 256):
+            raise ApiError("invalid_request")
+        events = [SoundEvent.model_validate(raw) for raw in raw_events]
+        if len({event.eventId for event in events}) != len(events):
+            raise ApiError("invalid_request")
         self._context_current(authority.coreId, authority.homeId)
-        if (
-            (event.coreId, event.homeId) != (authority.coreId, authority.homeId)
-            or event.roomId not in authority.accessibleRoomIds
-            or event.deviceId not in authority.accessibleDeviceIds
-            or not authority.active
-            or not authority.canObserve
-        ):
+        if (not authority.active or not authority.canObserve or any(
+                (event.coreId, event.homeId) != (authority.coreId, authority.homeId)
+                or event.roomId not in authority.accessibleRoomIds
+                or event.deviceId not in authority.accessibleDeviceIds
+                for event in events)):
             raise ApiError("forbidden", 403)
         with self._primary.connection() as primary:
             user = primary.execute(
@@ -404,57 +434,85 @@ class SoundEventRepository:
             or family["expires_at"] <= self._clock()
         ):
             raise ApiError("revision_conflict", 409)
-        values = {
-            "event_id": event.eventId,
-            "core_id": event.coreId,
-            "home_id": event.homeId,
-            "owner_id": authority.accountId,
-            "room_id": event.roomId,
-            "room_revision": event.roomRevision,
-            "device_id": event.deviceId,
-            "device_revision": event.deviceRevision,
-            "model_id": event.modelId,
-            "model_revision": event.modelRevision,
+        values_list = [{
+            "event_id": event.eventId, "core_id": event.coreId,
+            "home_id": event.homeId, "owner_id": authority.accountId,
+            "room_id": event.roomId, "room_revision": event.roomRevision,
+            "device_id": event.deviceId, "device_revision": event.deviceRevision,
+            "model_id": event.modelId, "model_revision": event.modelRevision,
             "provider_revision": event.providerRevision,
             "policy_revision": event.policyRevision,
             "consent_revision": event.consentRevision,
-            "class_name": event.className,
-            "confidence": event.confidence,
-            "duration_ms": event.durationMs,
-            "observed_at_ms": event.observedAtMs,
+            "class_name": event.className, "confidence": event.confidence,
+            "duration_ms": event.durationMs, "observed_at_ms": event.observedAtMs,
             "evidence_digest": event.evidenceDigest,
             "retention_expires_at_ms": event.retentionExpiresAtMs,
             "automation_verified": int(event.automationVerified),
-            "event_revision": 1,
-            "acknowledged": 0,
-            "feedback": None,
-        }
-        tag = self._event_tag(values)
+            "event_revision": 1, "acknowledged": 0, "feedback": None,
+        } for event in events]
+        try:
+            if cancelled():
+                raise ApiError("revision_conflict", 409)
+            with self._connection(write=True) as connection:
+                state = self._state(connection)
+                inserted = 0
+                for values in values_list:
+                    old = connection.execute(
+                        "SELECT * FROM sound_events WHERE event_id=?", (values["event_id"],)
+                    ).fetchone()
+                    if old is not None:
+                        if not secrets.compare_digest(old["authentication_tag"], self._event_tag(old)):
+                            raise ValueError("invalid_event")
+                        if not self._same_ingress(old, values):
+                            raise ApiError("invalid_request")
+                        continue
+                    if state["event_count"] + inserted >= MAX_EVENTS:
+                        raise ApiError("rate_limited", 429)
+                    columns = ",".join(values)
+                    placeholders = ",".join("?" for _ in values)
+                    connection.execute(
+                        f"INSERT INTO sound_events({columns},authentication_tag) VALUES({placeholders},?)",
+                        (*values.values(), self._event_tag(values)),
+                    )
+                    inserted += 1
+                if cancelled():
+                    raise ApiError("revision_conflict", 409)
+                if inserted:
+                    self._set_state(
+                        connection, state["revision"] + 1,
+                        state["event_count"] + inserted,
+                    )
+                return inserted
+        except ApiError:
+            raise
+        except (sqlite3.Error, TypeError, ValueError, OverflowError):
+            raise ApiError("sound_event_integrity_failed", 503) from None
+
+    def purge_expired(self, actor, now_ms):
+        """Delete only this actor's expired metadata and preserve sealed state."""
+        self._actor(actor)
+        if type(now_ms) is not int or not 0 <= now_ms <= 2**63 - 1:
+            raise ApiError("invalid_request")
         try:
             with self._connection(write=True) as connection:
                 state = self._state(connection)
-                old = connection.execute(
-                    "SELECT * FROM sound_events WHERE event_id=?", (event.eventId,)
-                ).fetchone()
-                if old is not None:
-                    if not secrets.compare_digest(
-                        old["authentication_tag"], self._event_tag(old)
-                    ):
-                        raise ValueError("invalid_event")
-                    if self._event_values(old) != self._event_values(values):
-                        raise ApiError("invalid_request")
-                    return
-                if state["event_count"] >= MAX_EVENTS:
-                    raise ApiError("rate_limited", 429)
-                columns = ",".join(values)
-                placeholders = ",".join("?" for _ in values)
-                connection.execute(
-                    f"INSERT INTO sound_events({columns},authentication_tag) VALUES({placeholders},?)",
-                    (*values.values(), tag),
-                )
-                self._set_state(
-                    connection, state["revision"] + 1, state["event_count"] + 1
-                )
+                rows = connection.execute(
+                    "SELECT * FROM sound_events WHERE owner_id=? AND retention_expires_at_ms<=?",
+                    (actor.id, now_ms),
+                ).fetchall()
+                for row in rows:
+                    self._record(row)
+                if rows:
+                    connection.executemany(
+                        "DELETE FROM sound_events WHERE event_id=?",
+                        [(row["event_id"],) for row in rows],
+                    )
+                    self._set_state(
+                        connection,
+                        state["revision"] + 1,
+                        state["event_count"] - len(rows),
+                    )
+                return len(rows)
         except ApiError:
             raise
         except (sqlite3.Error, TypeError, ValueError, OverflowError):
@@ -505,6 +563,8 @@ class SoundEventRepository:
         limit=100,
     ):
         self._context_current(core_id, home_id)
+        source_access = self._source_access(actor)
+        source_status = self._source_status(actor)
         try:
             with self._connection() as connection:
                 state = self._state(connection)
@@ -519,6 +579,8 @@ class SoundEventRepository:
                 now_ms = int(self._clock() * 1000)
                 events = []
                 for row in rows:
+                    if source_access is False:
+                        break
                     value = self._record(row, policy, now_ms)
                     if value.retentionExpiresAtMs <= now_ms:
                         continue
@@ -536,7 +598,7 @@ class SoundEventRepository:
                     authority=authority,
                     repositoryRevision=state["revision"],
                     policy=policy,
-                    sourceStatus=self._source_status(actor),
+                    sourceStatus=source_status,
                     events=events,
                 )
         except ApiError:
@@ -546,6 +608,7 @@ class SoundEventRepository:
 
     def acknowledge(self, actor, core_id, home_id, event_id, raw_request):
         self._context_current(core_id, home_id)
+        self._require_source_access(actor)
         request = SoundEventAcknowledgementRequest.model_validate(raw_request)
         self._actor(actor)
         digest = hashlib.sha256(
@@ -758,6 +821,7 @@ class SoundEventRepository:
 
     def feedback(self, actor, core_id, home_id, event_id, raw_request):
         self._context_current(core_id, home_id)
+        self._require_source_access(actor)
         request = SoundEventFeedbackRequest.model_validate(raw_request)
         self._actor(actor)
         digest = hashlib.sha256(

@@ -8,6 +8,31 @@ import 'package:larenor/features/sound_events/presentation/sound_event_screen.da
 import 'sound_event_controller_test.dart' as fixture;
 
 void main() {
+  testWidgets('source setup failure is visible and retry remains available', (
+    tester,
+  ) async {
+    final controller = SoundEventController(
+      api: _ReadyApi(),
+      authority: fixture.authority(),
+      isCurrent: () => true,
+    );
+    var retries = 0;
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: SoundEventScreen(
+          controller: controller,
+          sourceSetupFailed: true,
+          onConfigureSource: () => retries++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Source settings could not be loaded'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('sound-event-source-settings')));
+    expect(retries, 1);
+    controller.dispose();
+  });
+
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1280.0]) {
       testWidgets(

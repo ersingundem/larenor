@@ -184,6 +184,8 @@ from .services.probe_runner import ServiceProbeRunner
 from .services.schema import migrate_services
 from .services.service import ServiceManagement
 from .sound_events.repository import SoundEventRepository
+from .sound_events.frigate import FrigateSoundEventRuntime
+from .sound_events.source_store import SoundSourceStore
 from .tablet_fleet.schema import migrate_tablet_fleet
 from .tablet_fleet.service import TabletFleetService
 from .capability_evidence.service import CapabilityEvidenceService
@@ -777,6 +779,14 @@ class CoreServices:
                     self._private_event_share_artifact_reader or unavailable
                 ),
             )
+            self.sound_event_source_store = SoundSourceStore(
+                settings.data_dir / "sound-event-source.db",
+                key,
+                self.db,
+                self.auth,
+                settings.clock,
+            )
+            self.sound_event_source = None
             self.sound_events = SoundEventRepository(
                 settings.data_dir / "sound-events.db",
                 key,
@@ -784,6 +794,8 @@ class CoreServices:
                 self.auth,
                 self.context,
                 settings.clock,
+                source_status_provider=lambda actor: self.sound_event_source.status(actor),
+                source_access_provider=lambda actor: self.sound_event_source.access(actor),
             )
             mesh_center_provider = self._mesh_center_provider
             if mesh_center_provider is None and self._mesh_center_observer is not None:
@@ -1137,6 +1149,15 @@ class CoreServices:
                 self.context, key, settings.clock)
             self.camera_visual_sensors.provider = FrigateVisualSensorProvider(
                 self.camera_search_runtime, self.camera_visual_sensors, settings.clock)
+            self.sound_event_source = FrigateSoundEventRuntime(
+                self.camera_search_runtime,
+                self.home_resources,
+                self.sound_events,
+                self.sound_event_source_store,
+                key,
+                self.context,
+                settings.clock,
+            )
             if self._camera_profile_provider is None:
                 self.camera_profiles = build_camera_profile_gateway(
                     self.camera_profile_sources, master_key=key, clock=settings.clock)
