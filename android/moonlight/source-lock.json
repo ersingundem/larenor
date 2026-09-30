@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "engineRevision": "moonlight-android-12.2-larenor-embed-v1",
+  "upstream": {
+    "name": "Moonlight Android",
+    "version": "12.2",
+    "url": "https://github.com/moonlight-stream/moonlight-android.git",
+    "commit": "b48494cb96bff23d8886c4775cc4f39a1075495d",
+    "tree": "a47121faa2f8d7b13a31225cac7900b9c3644892",
+    "license": "GPL-3.0-only",
+    "licensePath": "LICENSE.txt",
+    "licenseSha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+  },
+  "submodules": [
+    {
+      "path": "app/src/main/jni/moonlight-core/moonlight-common-c",
+      "url": "https://github.com/moonlight-stream/moonlight-common-c.git",
+      "commit": "874ac9548f1bd6f095ef2b435c42cdde460e7821",
+      "tree": "9d3ff6702e1e841ae2105fe130d9d4b1ffdf14dd",
+      "license": "GPL-3.0-only",
+      "licensePath": "LICENSE.txt",
+      "licenseSha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2"
+    },
+    {
+      "path": "app/src/main/jni/moonlight-core/moonlight-common-c/enet",
+      "url": "https://github.com/cgutman/enet.git",
+      "commit": "aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1",
+      "tree": "0995d597d91e071eb1e673d93bee797246a00c76",
+      "license": "MIT",
+      "licensePath": "LICENSE",
+      "licenseSha256": "77f94e3be39938801163844b8bf9a4f12badcc0da136e9886e7da14a816d74d3"
+    },
+    {
+      "path": "app/src/main/jni/moonlight-core/moonlight-common-c/nanors",
+      "url": "https://github.com/sleepybishop/nanors.git",
+      "commit": "b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a",
+      "tree": "b06686f843269415217ebeb90c8975be297f0d30",
+      "license": "MIT",
+      "licensePath": "LICENSE",
+      "licenseSha256": "3fdda5f011d8490331950398e86427d67dfae05e048681476c2c6b8c34bdd033"
+    }
+  ],
+  "patches": [
+    {
+      "path": "android/moonlight/patches/0001-embed-library.patch",
+      "sha256": "afff28d9001796590a156d46e7f084f7de4710b81276d6ec91a702d9ef3443f1"
+    }
+  ],
+  "reviewedFiles": {
+    "app/build.gradle": "c9cc3e47ac3bf92be15af67385828ec0d0d770f0",
+    "app/proguard-rules.pro": "d43398660ee5e15e7958c254e06728fd3844a2c2",
+    "app/src/main/AndroidManifest.xml": "d916899e6bb498cdeba8987ffa9d4ff85bc4a366",
+    "app/src/main/java/com/limelight/Game.java": "8d369b3eabf662c67f047311cad8b6337e1d68af",
+    "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java": "dc25cc891205ccb102b9d1f1bb21c611d5e5e3be",
+    "app/src/main/java/com/limelight/binding/input/ControllerHandler.java": "0fffe5d0d9a13a679de6c11129a486038828f5fb",
+    "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java": "5d4e44ecfbb34c8150b419dd07ce76429c432985",
+    "app/src/main/java/com/limelight/computers/ComputerDatabaseManager.java": "692c433f39cfb8ea2b45888651d7fef4457eb756",
+    "app/src/main/java/com/limelight/nvstream/NvConnection.java": "f29563f1c112bbc271045b6e0a9d8306788d2ef7",
+    "app/src/main/java/com/limelight/nvstream/http/PairingManager.java": "65994b61ca9c2cf49a66f9054ce6bac7eb6b6d34",
+    "app/src/main/jni/moonlight-core/Android.mk": "f32fc9dc4b71b5e7320254c495151944b7cfabcc",
+    "app/src/main/jni/moonlight-core/simplejni.c": "eef1c5e72fae56eef58c283390449b6015849bde"
+  },
+  "toolchain": {
+    "java": "17",
+    "androidGradlePlugin": "9.4.0",
+    "gradle": "9.7.1",
+    "compileSdk": "37.0",
+    "targetSdk": 36,
+    "minSdk": 21,
+    "ndk": "29.0.14206865"
+  },
+  "variant": "nonRootRelease",
+  "supportedAbis": [
+    "arm64-v8a",
+    "x86_64"
+  ],
+  "mavenDependencies": [
+    "com.android.tools:desugar_jdk_libs:2.1.5",
+    "com.github.cgutman:ShieldControllerExtensions:1.0.1",
+    "com.squareup.okhttp3:okhttp:5.5.0",
+    "org.bouncycastle:bcpkix-jdk18on:1.85",
+    "org.bouncycastle:bcprov-jdk18on:1.85.2",
+    "org.jcodec:jcodec:0.2.5",
+    "org.jmdns:jmdns:3.6.3"
+  ],
+  "bundledNativeArchives": [
+    {
+      "name": "OpenSSL libcrypto",
+      "reportedVersion": "4.0.2",
+      "license": "Apache-2.0",
+      "sourceUrl": "https://github.com/openssl/openssl",
+      "artifacts": {
+        "app/src/main/jni/moonlight-core/openssl/arm64-v8a/libcrypto.a": "d593ba8f576db9ff20d058bee7f0f154b4e000b447548533bc8f16eb95290b54",
+        "app/src/main/jni/moonlight-core/openssl/x86_64/libcrypto.a": "8502529fe9992e4f67962a5c5d98139ec37cd9ccacac341622500bf399ad52ca"
+      }
+    },
+    {
+      "name": "libopus",
+      "reportedVersion": "unknown-upstream-prebuilt",
+      "license": "BSD-3-Clause",
+      "sourceUrl": "https://gitlab.xiph.org/xiph/opus",
+      "artifacts": {
+        "app/src/main/jni/moonlight-core/opus/arm64-v8a/libopus.a": "d6c39b9135017ab76a42e364569f18622e6e3df691ac2d1d9d36ee4a02eb2e13",
+        "app/src/main/jni/moonlight-core/opus/x86_64/libopus.a": "7d8214860fdab5a8bf0d15125a2ae7baf80169dc4e6ee1ffa2633bb2e7de7a8b"
+      }
+    }
+  ],
+  "engineContracts": [
+    "pairing",
+    "credentialStore",
+    "video",
+    "audio",
+    "input",
+    "stream"
+  ],
+  "requiredSources": [
+    "app/src/main/java/com/limelight/Game.java",
+    "app/src/main/java/com/limelight/PcView.java",
+    "app/src/main/java/com/limelight/AppView.java",
+    "app/src/main/java/com/limelight/nvstream/http/PairingManager.java",
+    "app/src/main/java/com/limelight/computers/ComputerDatabaseManager.java",
+    "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java",
+    "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java",
+    "app/src/main/java/com/limelight/binding/input/ControllerHandler.java",
+    "app/src/main/java/com/limelight/nvstream/NvConnection.java",
+    "app/src/main/java/com/limelight/nvstream/http/NvHTTP.java",
+    "app/src/main/java/com/limelight/nvstream/jni/MoonBridge.java",
+    "app/src/main/jni/moonlight-core/simplejni.c"
+  ],
+  "requiredClasses": [
+    "com/limelight/Game.class",
+    "com/limelight/PcView.class",
+    "com/limelight/AppView.class",
+    "com/limelight/nvstream/http/PairingManager.class",
+    "com/limelight/computers/ComputerDatabaseManager.class",
+    "com/limelight/binding/video/MediaCodecDecoderRenderer.class",
+    "com/limelight/binding/audio/AndroidAudioRenderer.class",
+    "com/limelight/binding/input/ControllerHandler.class",
+    "com/limelight/nvstream/NvConnection.class",
+    "com/limelight/nvstream/http/NvHTTP.class",
+    "com/limelight/nvstream/jni/MoonBridge.class"
+  ],
+  "requiredLibraries": [
+    "libmoonlight-core.so"
+  ]
+}

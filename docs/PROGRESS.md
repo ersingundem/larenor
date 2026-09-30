@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 gerçek gömülü Moonlight paket kanıtı
+
+Exact Moonlight12.2 ve recursive kaynaklardan iki temiz AAR aynı SHA-256 üretti; root doğru AAR/receipt çiftini, kaynak lockunu ve izole gerçek APK içindeki DEX/iki ABI native eşleşmesini bağımsız doğruladı. 6 odaklı paket testi geçti. Bu paket/link kanıtı F60'ı CI bekliyor yapmaz: üretim eşleme/katalog, Core/native yetki ve oynatma/stop/revoke entegrasyonu geliştirmede. 57 seçili özellik/toplam66 CI bekliyor ve 37/127,3/63 kabul sayaçları değişmedi. [Paket kanıtı](testing/f60-moonlight-android-package-2026-09-30.md).
+
 ### 1 Ekim F28 kalıcı uyku timerı kabulü
 
 Deadline pause artık normal Core scheduler→production Unix IPC→taze Music Assistant player/queue readback yolunda yürür. Root gerçek Flutter/Core iki yaşamını tekrar geçti; tek pause ve restartta no replay doğrulandı. 57 F28/music, ortak 46 Server ve 37 Flutter testi geçti; analiz temiz. Effect ile receipt arasında takeover public409 üretir; success veya kayıp ACK unknown sonucu korunur. F28 CI bekliyor tablosuna taşındı: 57 seçili özellik, toplam 66 iş. F60 geliştirmede, F61/F62 gerçek native kabul bekler; 37/127 ve 3/63 kabul sayaçları değişmedi. [Kabul kanıtı](testing/f28-sleep-timer-2026-09-30.md).
