@@ -9,7 +9,7 @@ backend, encoder, codec, or successful receipt.
 
 The executable refuses anything except an x86_64 GitHub-hosted Ubuntu 24.04
 runner. Its only CLI mode is `--readiness-only`; the emitted public object says
-`state: host_ready` and `streamAccepted: false`. The two actual hosted runs
+`state: host_ready` and `streamAccepted: false`. The three actual hosted runs
 below failed before a readiness receipt; this document makes no Sunshine
 interoperability or streaming-success claim.
 
@@ -126,7 +126,7 @@ last client, the full future gate must restart the same private instance before
 claiming an absence readback.
 
 The mDNS helper reads the single up default interface from `/proc/net/route`
-and invokes Avahi on only that interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and
+and filters Avahi resolved records to that exact interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and
 port47989; `sunshine_name=Larenor-F60-Owned` is only the NvHTTP display name. Multiple
 IPv4/IPv6 or interface observations of that exact service identity are deduped;
 a second hostname or port is rejected. Addresses are validated but never
@@ -189,6 +189,15 @@ stdout and owned name/type/domain/hostname/port checks remain; multiple address
 families of the same service are deduplicated without publishing addresses.
 The focused argv regression now rejects reintroducing this argument. Root22
 host/dispatcher tests passed. Changed-source hosted readiness is still required.
+
+Run36791191000 at exact47909b66b also failed before receipt, with successful
+setup and cleanup. The official Avahi option table also has no `--interface`.
+The helper now uses only the supported complete argv and filters parsable
+resolved records against the trusted default interface instead. Wrong-interface
+only, foreign instance/hostname and wrong port cannot satisfy readiness.
+Browser nonzero and empty-timeout now have distinct fixed safe diagnostics;
+provider stderr, addresses and logs remain private. Root24 host tests passed.
+No changed-source hosted success is claimed.
 
 This slice does not yet prove Xvfb capture, CPU H.264 encoder initialization, emulator mDNS
 visibility, cryptographic pairing, NvHTTP catalog/launch, RTP transport,

@@ -31,6 +31,10 @@ certificate/key handling, computer database, MediaCodec video, audio,
 controller/input, stream protocol, resources, and native engine. It removes
 the standalone launcher intent and exported Moonlight entry points so the
 Larenor application remains the sole authenticated product surface.
+The patch also adds a protected causal-stop hook immediately after the actual
+`NvConnection.stop()` call returns. This is necessary because the pinned
+moonlight-common-c intentionally suppresses `connectionTerminated` for a local
+`LiStopConnection`; the hook does not treat Activity destruction as a stop.
 
 The complete corresponding source is the exact recursive checkout named by
 `source-lock.json`, plus `patches/0001-embed-library.patch`. The packaging tool

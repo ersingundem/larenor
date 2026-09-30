@@ -1,14 +1,19 @@
 package com.ersingundem.larenor.game
 
+import android.app.Activity
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.function.Consumer
 
 class GameStreamNativeBridge(
     messenger: BinaryMessenger,
     engine: GameStreamNativeEngine? = null,
+    activity: Activity? = null,
+    private val embeddedHost: GameStreamEmbeddedHost? = activity?.let(MoonlightEmbeddedHostLoader::load),
 ) : MethodChannel.MethodCallHandler {
     private val main = Handler(Looper.getMainLooper())
     private val methods = MethodChannel(messenger, CHANNEL)
@@ -16,6 +21,7 @@ class GameStreamNativeBridge(
     private var resumed = false
     private var focused = true
     private var disposed = false
+    private val v2Mode = activity != null || embeddedHost != null
 
     init {
         methods.setMethodCallHandler(this)
@@ -24,16 +30,19 @@ class GameStreamNativeBridge(
     fun setResumed(value: Boolean) {
         if (disposed) return
         resumed = value
-        if (!value) retireForBoundary()
+        embeddedHost?.setResumed(value)
+        if (!value && !v2Mode) retireForBoundary()
     }
 
     fun setWindowFocused(value: Boolean) {
         if (disposed) return
         focused = value
-        if (!value) retireForBoundary()
+        embeddedHost?.setWindowFocused(value)
+        if (!value && !v2Mode) retireForBoundary()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (v2Mode) return embeddedCall(call, result)
         if (disposed) return error(result, "engineUnavailable")
         try {
             when (call.method) {
@@ -67,6 +76,36 @@ class GameStreamNativeBridge(
         } catch (_: Exception) {
             error(result, "unknownEffect")
         }
+    }
+
+    private fun embeddedCall(call: MethodCall, result: MethodChannel.Result) {
+        if (disposed || embeddedHost == null) return embeddedError(result, "engine_unavailable")
+        // Stop/reconcile/retire remain usable for the exact private Game lease.
+        // The native host checks their session/authority and never grants a new transfer.
+        if (call.method in FOREGROUND_V2_METHODS && !foreground()) {
+            return embeddedError(result, "foreground_required")
+        }
+        val completed = AtomicBoolean(false)
+        val success = Consumer<Any?> { value ->
+            if (completed.compareAndSet(false, true)) main.post {
+                if (disposed) embeddedError(result, "authority_changed") else result.success(value)
+            }
+        }
+        val error = Consumer<String> { code ->
+            if (completed.compareAndSet(false, true)) main.post { embeddedError(result, code) }
+        }
+        try {
+            if (!embeddedHost.handle(call.method, call.arguments, success, error)) {
+                error.accept("engine_unavailable")
+            }
+        } catch (_: Exception) {
+            error.accept("unknown_effect")
+        }
+    }
+
+    private fun embeddedError(result: MethodChannel.Result, code: String) {
+        val safe = if (code in V2_ERROR_CODES) code else "unknown_effect"
+        result.error(safe, null, mapOf("schemaVersion" to 2, "code" to safe))
     }
 
     private fun execute(raw: Any?, result: MethodChannel.Result) {
@@ -106,6 +145,7 @@ class GameStreamNativeBridge(
         if (disposed) return
         disposed = true
         retireForBoundary()
+        embeddedHost?.dispose()
         methods.setMethodCallHandler(null)
     }
 
@@ -120,5 +160,18 @@ class GameStreamNativeBridge(
 
     companion object {
         const val CHANNEL = "com.ersingundem.larenor/game-stream-native"
+        private val FOREGROUND_V2_METHODS = setOf(
+            "beginPairingV2", "pairHostV2", "commitRegistrationV2", "resolveHostBindingV2",
+            "resolveBindingV2", "configureStreamPolicyV2", "readCatalogV2", "sessionCapabilitiesV2",
+            "bindSessionV2", "revokePairingV2",
+        )
+        private val V2_ERROR_CODES = setOf(
+            "authority_changed", "busy", "cancelled", "engine_unavailable", "foreground_required",
+            "invalid_account_id", "invalid_authority_id", "invalid_candidate", "invalid_candidate_revision",
+            "invalid_core_id", "invalid_family_id", "invalid_home_id", "invalid_pairing_revision",
+            "invalid_request_id", "invalid_revision", "invalid_session_id", "invalid_timeout",
+            "invalid_receipt", "pin_required", "provider_unavailable", "quarantined", "stale_candidate", "stale_pairing",
+            "unknown_effect", "unsupported",
+        )
     }
 }

@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 from conftest import auth, ready
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
-from larenor_server.game_streaming.schema import LEGACY_TABLES
+from larenor_server.game_streaming import service as game_stream_service
+from larenor_server.game_streaming.schema import LEGACY_TABLES, V2_TABLES
 
 CONTRACT = Path(__file__).parents[2] / "docs/contracts/f60-game-streaming-v2.json"
 
@@ -49,8 +50,7 @@ def _pair(client, headers, root, account_revision, now=1788609600.0):
                    "engineRevision": "moonlight-12.2-b48494cb",
                    "provider": "moonlight-nvhttp", "state": "paired",
                    "hostObservationId": "5" * 32, "name": "Owned fixture",
-                   "codecs": ["h264", "hevc"], "maxWidth": 3840,
-                   "maxHeight": 2160, "maxFps": 120,
+                   "codecs": ["h264", "hevc"],
                    "catalogRevision": 1, "catalogDigest": digest, "apps": apps}
     body = {"schemaVersion": 2, "expectedPairingRevision": 1,
             "pairingGrant": pairing["pairingGrant"], "observation": observation}
@@ -67,7 +67,7 @@ def _quality(**changes):
             "policyId": "c" * 32, "policyRevision": 8,
             "widthPixels": 1920, "heightPixels": 1080,
             "framesPerSecond": 60, "bitrateKbps": 20000,
-            "frameQueueDepth": 2, "inputQueueDepth": 8,
+            "frameQueueDepth": 2, "inputQueueDepth": 1,
             "secureSurface": True, **changes}
 
 
@@ -177,8 +177,7 @@ def test_successful_pairing_can_publish_an_empty_native_catalog(server):
                 "engineRevision": "moonlight-empty-catalog",
                 "provider": "moonlight-nvhttp", "state": "paired",
                 "hostObservationId": "5" * 32, "name": "Empty fixture",
-                "codecs": ["h264"], "maxWidth": 1920, "maxHeight": 1080,
-                "maxFps": 60, "catalogRevision": 1,
+                "codecs": ["h264"], "catalogRevision": 1,
                 "catalogDigest": _catalog_digest([]), "apps": []}})
     assert completed.status_code == 200, completed.text
     result = completed.json()
@@ -206,8 +205,7 @@ def test_pairing_grant_scope_expiry_and_catalog_digest_fail_closed(server):
         "nativeBindingId": "4" * 32, "bindingRevision": 1,
         "engineRevision": "moonlight-fixture", "provider": "moonlight-nvhttp",
         "state": "paired", "hostObservationId": "5" * 32, "name": "Fixture",
-        "codecs": ["h264"], "maxWidth": 1920, "maxHeight": 1080,
-        "maxFps": 60, "catalogRevision": 1, "catalogDigest": "0" * 64,
+        "codecs": ["h264"], "catalogRevision": 1, "catalogDigest": "0" * 64,
         "apps": apps}
     other = client.post("/api/v1/auth/login", json={
         "username": "admin", "password": "Synthetic new password 2026",
@@ -221,6 +219,12 @@ def test_pairing_grant_scope_expiry_and_catalog_digest_fail_closed(server):
     assert independent.status_code == 201
     assert independent.json()["id"] != pairing["id"]
     assert independent.json()["pairingGrant"] not in {None, pairing["pairingGrant"]}
+    caller_declared_ceiling = client.post(
+        root + f"/pairings/{pairing['id']}/complete", headers=headers,
+        json={"schemaVersion": 2, "expectedPairingRevision": 1,
+            "pairingGrant": pairing["pairingGrant"], "observation": {
+                **observation, "catalogDigest": _catalog()[1], "maxWidth": 1920}})
+    assert caller_declared_ceiling.status_code == 400
     invalid = client.post(root + f"/pairings/{pairing['id']}/complete",
         headers=headers, json={"schemaVersion": 2, "expectedPairingRevision": 1,
             "pairingGrant": pairing["pairingGrant"], "observation": observation})
@@ -235,11 +239,19 @@ def test_pairing_grant_scope_expiry_and_catalog_digest_fail_closed(server):
 
 def test_session_binds_catalog_app_client_and_selected_quality(server):
     app, client, clock, actor, headers, root, revision, _pairing, registration, _ = _setup(server)
-    too_large = _open(client, headers, root, registration, revision, clock.now,
-                      selectedQuality=_quality(widthPixels=4096))
-    assert too_large.status_code == 409
+    client_observed = _open(client, headers, root, registration, revision, clock.now,
+        requestKey="session-client-observed-quality",
+        selectedQuality=_quality(widthPixels=4096, heightPixels=2160,
+                                 framesPerSecond=120))
+    assert client_observed.status_code == 201, client_observed.text
+    assert client_observed.json()["selectedQuality"]["widthPixels"] == 4096
+    unsupported_codec = _open(client, headers, root, registration, revision, clock.now,
+        requestKey="session-unsupported-host-codec",
+        selectedQuality=_quality(codec="av1"))
+    assert unsupported_codec.status_code == 409
     mismatch = _open(client, headers, root, registration, revision, clock.now,
-                     selectedQuality=_quality(displayRevision=9))
+        requestKey="session-mismatched-display-revision",
+        selectedQuality=_quality(displayRevision=9))
     assert mismatch.status_code == 400
     opened = _open(client, headers, root, registration, revision, clock.now)
     assert opened.status_code == 201, opened.text
@@ -322,6 +334,25 @@ def test_native_catalog_refresh_is_two_phase_preserves_ids_and_retires_old_sessi
         assert connection.execute(
             "SELECT state FROM game_stream_commands WHERE id=?",
             (issued["command"]["id"],)).fetchone()[0] == "unknown"
+    retired = client.get(root + f"/sessions/{session['id']}", headers=headers)
+    assert retired.status_code == 200, retired.text
+    assert retired.json()["state"] == "retired"
+    assert retired.json()["revision"] == 2
+    read_command = client.get(
+        root + f"/sessions/{session['id']}/commands/{issued['command']['id']}",
+        headers=headers)
+    assert read_command.status_code == 200
+    assert read_command.json()["state"] == "unknown"
+    cleanup = client.post(root + f"/sessions/{session['id']}/retire",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "catalog-drift-cleanup",
+            "expectedSessionRevision": 1})
+    assert cleanup.status_code == 200
+    assert cleanup.json()["state"] == "retired"
+    assert client.post(root + f"/sessions/{session['id']}/commands",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "catalog-drift-stop",
+            "expectedSessionRevision": 2, "intent": "stop"}).status_code == 409
 
     # A later native catalog can remove an app while preserving the remaining ID.
     second_intent = client.post(intent_url, headers=headers, json={
@@ -435,10 +466,150 @@ def test_restart_marks_issued_command_unknown_and_never_regrants(server):
         assert replay.json()["command"]["state"] == "unknown"
 
 
+def test_expired_known_terminal_session_is_pruned_after_grace(server, monkeypatch):
+    app, client, settings, clock = server
+    monkeypatch.setattr(game_stream_service, "MAX_SESSIONS", 1)
+    actor = ready(server)
+    headers = auth(actor)
+    root = _root(app)
+    revision = _revision(app, actor["user"]["id"])
+    _pairing, registration, _ = _pair(client, headers, root, revision, clock.now)
+    opened_at = clock.now
+    session = _open(
+        client, headers, root, registration, revision, clock.now,
+        expiresAt=clock.now + 1.0).json()
+    commands = root + f"/sessions/{session['id']}/commands"
+    issued = client.post(commands, headers=headers, json={
+        "schemaVersion": 2, "requestKey": "terminal-prune-command",
+        "expectedSessionRevision": 1, "intent": "stop"}).json()
+    assert client.post(commands + f"/{issued['command']['id']}/complete",
+        headers=headers, json={
+            "schemaVersion": 2, "expectedSessionRevision": 1,
+            "dispatchGrant": issued["dispatchGrant"], "state": "native_observed",
+            "result": "stopped", "observationKind": "connectionStopped",
+            "readbackRevision": 1, "nativeReceiptDigest": "b" * 64}).status_code == 200
+    assert client.post(root + f"/sessions/{session['id']}/retire",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "terminal-prune-retire",
+            "expectedSessionRevision": 1}).status_code == 200
+    clock.now += game_stream_service.SESSION_RETENTION_GRACE + 2
+    expired_replay = _open(
+        client, headers, root, registration, revision, opened_at,
+        expiresAt=opened_at + 1.0)
+    assert expired_replay.status_code == 400
+    replacement = _open(
+        client, headers, root, registration, revision, clock.now,
+        requestKey="session-request-0002", expiresAt=clock.now + 60.0)
+    assert replacement.status_code == 201, replacement.text
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM game_stream_sessions").fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM game_stream_commands WHERE session_id=?",
+            (session["id"],)).fetchone()[0] == 0
+    with TestClient(create_app(settings)):
+        pass
+
+
+def test_unknown_session_is_never_pruned_or_reopened(server, monkeypatch):
+    app, client, settings, clock = server
+    monkeypatch.setattr(game_stream_service, "MAX_SESSIONS", 1)
+    actor = ready(server)
+    headers = auth(actor)
+    root = _root(app)
+    revision = _revision(app, actor["user"]["id"])
+    _pairing, registration, _ = _pair(client, headers, root, revision, clock.now)
+    session = _open(
+        client, headers, root, registration, revision, clock.now,
+        expiresAt=clock.now + 1.0).json()
+    commands = root + f"/sessions/{session['id']}/commands"
+    issued = client.post(commands, headers=headers, json={
+        "schemaVersion": 2, "requestKey": "unknown-prune-command",
+        "expectedSessionRevision": 1, "intent": "stream"}).json()
+    assert issued["dispatchGrant"] is not None
+    assert client.post(root + f"/sessions/{session['id']}/retire",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "unknown-prune-retire",
+            "expectedSessionRevision": 1}).status_code == 200
+    clock.now += game_stream_service.SESSION_RETENTION_GRACE + 2
+    replacement = _open(
+        client, headers, root, registration, revision, clock.now,
+        requestKey="session-request-0002", expiresAt=clock.now + 60.0)
+    assert replacement.status_code == 409
+    with app.state.core.db.connection() as connection:
+        command = connection.execute(
+            "SELECT state FROM game_stream_commands WHERE session_id=?",
+            (session["id"],)).fetchone()
+        assert command["state"] == "unknown"
+    with TestClient(create_app(settings)):
+        pass
+
+
+def test_oldest_unknown_does_not_starve_later_terminal_pruning(server, monkeypatch):
+    app, client, _settings, clock = server
+    monkeypatch.setattr(game_stream_service, "MAX_SESSIONS", 2)
+    actor = ready(server)
+    headers = auth(actor)
+    root = _root(app)
+    revision = _revision(app, actor["user"]["id"])
+    _pairing, registration, _ = _pair(client, headers, root, revision, clock.now)
+
+    unknown = _open(
+        client, headers, root, registration, revision, clock.now,
+        requestKey="session-oldest-unknown", expiresAt=clock.now + 1.0).json()
+    unknown_commands = root + f"/sessions/{unknown['id']}/commands"
+    client.post(unknown_commands, headers=headers, json={
+        "schemaVersion": 2, "requestKey": "oldest-unknown-command",
+        "expectedSessionRevision": 1, "intent": "stream"})
+    client.post(root + f"/sessions/{unknown['id']}/retire", headers=headers, json={
+        "schemaVersion": 2, "requestKey": "oldest-unknown-retire",
+        "expectedSessionRevision": 1})
+
+    terminal = _open(
+        client, headers, root, registration, revision, clock.now,
+        requestKey="session-later-terminal", expiresAt=clock.now + 1.0).json()
+    terminal_commands = root + f"/sessions/{terminal['id']}/commands"
+    issued = client.post(terminal_commands, headers=headers, json={
+        "schemaVersion": 2, "requestKey": "later-terminal-command",
+        "expectedSessionRevision": 1, "intent": "stop"}).json()
+    client.post(terminal_commands + f"/{issued['command']['id']}/complete",
+        headers=headers, json={
+            "schemaVersion": 2, "expectedSessionRevision": 1,
+            "dispatchGrant": issued["dispatchGrant"], "state": "native_observed",
+            "result": "stopped", "observationKind": "connectionTerminated",
+            "readbackRevision": 1, "nativeReceiptDigest": "a" * 64})
+    client.post(root + f"/sessions/{terminal['id']}/retire", headers=headers, json={
+        "schemaVersion": 2, "requestKey": "later-terminal-retire",
+        "expectedSessionRevision": 1})
+
+    clock.now += game_stream_service.SESSION_RETENTION_GRACE + 2
+    replacement = _open(
+        client, headers, root, registration, revision, clock.now,
+        requestKey="session-after-pruning", expiresAt=clock.now + 60.0)
+    assert replacement.status_code == 201, replacement.text
+    with app.state.core.db.connection() as connection:
+        ids = {row["id"] for row in connection.execute(
+            "SELECT id FROM game_stream_sessions").fetchall()}
+        assert unknown["id"] in ids
+        assert terminal["id"] not in ids
+        assert replacement.json()["id"] in ids
+
+
 def test_revoke_retires_sessions_and_reports_local_cleanup_truthfully(server):
     app, client, clock, actor, headers, root, revision, _pairing, registration, _ = _setup(server)
     host = registration["host"]
     session = _open(client, headers, root, registration, revision, clock.now).json()
+    commands = root + f"/sessions/{session['id']}/commands"
+    command = client.post(commands, headers=headers, json={
+        "schemaVersion": 2, "requestKey": "revoke-readback-command",
+        "expectedSessionRevision": 1, "intent": "stop"}).json()
+    command_receipt = client.post(
+        commands + f"/{command['command']['id']}/complete", headers=headers, json={
+            "schemaVersion": 2, "expectedSessionRevision": 1,
+            "dispatchGrant": command["dispatchGrant"], "state": "native_observed",
+            "result": "stopped", "observationKind": "connectionTerminated",
+            "readbackRevision": 12, "nativeReceiptDigest": "c" * 64})
+    assert command_receipt.status_code == 200, command_receipt.text
     revoke_body = {
         "schemaVersion": 2, "requestKey": "revoke-request-0001",
         "expectedHostRevision": host["revision"],
@@ -453,14 +624,63 @@ def test_revoke_retires_sessions_and_reports_local_cleanup_truthfully(server):
                              headers=headers, json=revoke_body)
     assert revocation.status_code == 201, revocation.text
     assert revocation.json()["state"] == "core_retired"
-    assert client.get(root + f"/sessions/{session['id']}", headers=headers).status_code == 409
+    assert revocation.json()["readbackRevision"] is None
+    assert revocation.json()["nativeReceiptDigest"] is None
+    retired_session = client.get(
+        root + f"/sessions/{session['id']}", headers=headers)
+    assert retired_session.status_code == 200
+    assert retired_session.json()["state"] == "retired"
     final_url = (root + f"/hosts/{host['id']}/revocations/"
                  f"{revocation.json()['id']}/complete")
-    unknown = client.post(final_url, headers=headers, json={
-        "schemaVersion": 2, "state": "unknown"})
-    assert unknown.json()["state"] == "unknown"
     assert client.post(final_url, headers=headers, json={
-        "schemaVersion": 2, "state": "local_cleared"}).status_code == 409
+        "schemaVersion": 2, "state": "local_cleared",
+        "readbackRevision": 12,
+        "nativeReceiptDigest": "d" * 64}).status_code == 409
+    assert client.post(final_url, headers=headers, json={
+        "schemaVersion": 2, "state": "local_cleared",
+        "readbackRevision": 13}).status_code == 400
+    body = {"schemaVersion": 2, "state": "local_cleared",
+            "readbackRevision": 13, "nativeReceiptDigest": "d" * 64}
+    cleared = client.post(final_url, headers=headers, json=body)
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["state"] == "local_cleared"
+    assert cleared.json()["readbackRevision"] == 13
+    assert cleared.json()["nativeReceiptDigest"] == "d" * 64
+    assert client.post(final_url, headers=headers, json=body).json() == cleared.json()
+    assert client.post(final_url, headers=headers, json={
+        **body, "nativeReceiptDigest": "e" * 64}).status_code == 409
+
+
+def test_revoke_unknown_requires_absent_evidence_and_survives_restart(server):
+    app, client, settings, clock = server
+    actor = ready(server)
+    headers = auth(actor)
+    root = _root(app)
+    revision = _revision(app, actor["user"]["id"])
+    _pairing, registration, _ = _pair(
+        client, headers, root, revision, clock.now)
+    host = registration["host"]
+    revocation = client.post(root + f"/hosts/{host['id']}/revoke",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "revoke-request-unknown",
+            "expectedHostRevision": host["revision"],
+            "expectedPairingRevision": host["pairingRevision"],
+            "expectedCatalogRevision": host["catalogRevision"]}).json()
+    final_url = (root + f"/hosts/{host['id']}/revocations/"
+                 f"{revocation['id']}/complete")
+    assert client.post(final_url, headers=headers, json={
+        "schemaVersion": 2, "state": "unknown",
+        "readbackRevision": 14,
+        "nativeReceiptDigest": "d" * 64}).status_code == 400
+    body = {"schemaVersion": 2, "state": "unknown",
+            "readbackRevision": None, "nativeReceiptDigest": None}
+    unknown = client.post(final_url, headers=headers, json=body)
+    assert unknown.status_code == 200, unknown.text
+    assert unknown.json()["state"] == "unknown"
+    assert unknown.json()["readbackRevision"] is None
+    assert unknown.json()["nativeReceiptDigest"] is None
+    with TestClient(create_app(settings)) as restarted:
+        assert restarted.post(final_url, headers=headers, json=body).json() == unknown.json()
 
 
 def test_v1_caller_declared_registry_is_retired_not_promoted(server):
@@ -477,7 +697,51 @@ def test_v1_caller_declared_registry_is_retired_not_promoted(server):
     with restarted.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM game_stream_hosts").fetchone()[0] == 0
         assert connection.execute(
-            "SELECT value FROM metadata WHERE key='game_stream_schema'").fetchone()[0] == "2"
+            "SELECT value FROM metadata WHERE key='game_stream_schema'").fetchone()[0] == "3"
+
+
+def test_v2_revocation_claim_migrates_to_sealed_unknown(server):
+    app, client, settings, clock = server
+    actor = ready(server)
+    headers = auth(actor)
+    root = _root(app)
+    revision = _revision(app, actor["user"]["id"])
+    _pairing, registration, _ = _pair(client, headers, root, revision, clock.now)
+    host = registration["host"]
+    revocation = client.post(root + f"/hosts/{host['id']}/revoke",
+        headers=headers, json={
+            "schemaVersion": 2, "requestKey": "v2-migration-revoke",
+            "expectedHostRevision": host["revision"],
+            "expectedPairingRevision": host["pairingRevision"],
+            "expectedCatalogRevision": host["catalogRevision"]}).json()
+    with app.state.core.db.transaction() as connection:
+        current = dict(connection.execute(
+            "SELECT * FROM game_stream_revocations WHERE id=?",
+            (revocation["id"],)).fetchone())
+        legacy = {name: current[name]
+                  for name in game_stream_service.V2_REVOCATION_FIELDS}
+        legacy.update({"state": "local_cleared", "completed_at": clock.now,
+                       "completion_hash": "a" * 64})
+        legacy["envelope_tag"] = app.state.core.game_streaming._v2_revocation_tag(legacy)
+        connection.execute("DROP TABLE game_stream_revocations")
+        connection.execute(V2_TABLES["game_stream_revocations"])
+        connection.execute(
+            "INSERT INTO game_stream_revocations ("
+            + ",".join(legacy) + ") VALUES ("
+            + ",".join("?" for _ in legacy) + ")",
+            tuple(legacy.values()))
+        connection.execute(
+            "UPDATE metadata SET value='2' WHERE key='game_stream_schema'")
+    with TestClient(create_app(settings)) as restarted:
+        with restarted.app.state.core.db.connection() as connection:
+            migrated = connection.execute(
+                "SELECT * FROM game_stream_revocations WHERE id=?",
+                (revocation["id"],)).fetchone()
+            assert migrated["state"] == "unknown"
+            assert migrated["readback_revision"] is None
+            assert migrated["native_receipt_digest"] is None
+            assert connection.execute(
+                "SELECT value FROM metadata WHERE key='game_stream_schema'").fetchone()[0] == "3"
 
 
 def test_storage_tamper_fails_closed_on_restart(server):

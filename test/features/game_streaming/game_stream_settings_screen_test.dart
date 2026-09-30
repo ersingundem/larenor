@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/game_streaming/data/android_game_stream_port.dart';
+import 'package:larenor/features/game_streaming/data/android_game_stream_v2_port.dart';
 import 'package:larenor/features/game_streaming/domain/game_stream_session.dart';
 import 'package:larenor/features/game_streaming/presentation/game_stream_settings_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
@@ -113,6 +114,127 @@ Future<AppInteractionController> _mount(
 }
 
 void main() {
+  testWidgets('each recreated game screen owns a fresh stable authority id', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSettingsScreen(
+        key: const ValueKey('first-game-screen'),
+        port: _CapabilitiesPort(),
+      ),
+    );
+    final firstState =
+        tester.state(find.byType(GameStreamSettingsScreen)) as dynamic;
+    final first = firstState.clientInstanceIdForTesting as String;
+    expect(first, matches(RegExp(r'^[0-9a-f]{32}$')));
+    expect(firstState.clientInstanceIdForTesting, first);
+
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSettingsScreen(
+        key: const ValueKey('second-game-screen'),
+        port: _CapabilitiesPort(),
+      ),
+    );
+    final secondState =
+        tester.state(find.byType(GameStreamSettingsScreen)) as dynamic;
+    final second = secondState.clientInstanceIdForTesting as String;
+    expect(second, matches(RegExp(r'^[0-9a-f]{32}$')));
+    expect(second, isNot(first));
+  });
+
+  testWidgets('exact pairing prompt alone survives the focus event chain', (
+    tester,
+  ) async {
+    final guard = GameStreamForegroundCoverageGuard();
+    final owner = Object();
+    var coverage = AndroidGameStreamForegroundCoverage.pairingPrompt;
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSettingsScreen(
+        port: _CapabilitiesPort(),
+        gateCurrent: () => true,
+        foregroundCoverageGuard: guard,
+      ),
+    );
+    guard.attach(owner, () async => coverage);
+    addTearDown(() => guard.detach(owner));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(GameStreamSettingsScreen)),
+    );
+    expect(find.text(l10n.gameStreamingUnavailable), findsOneWidget);
+
+    tester.binding.handleViewFocusChanged(
+      ui.ViewFocusEvent(
+        viewId: tester.view.viewId,
+        state: ui.ViewFocusState.unfocused,
+        direction: ui.ViewFocusDirection.forward,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.gameStreamingUnavailable), findsOneWidget);
+
+    coverage = AndroidGameStreamForegroundCoverage.unavailable;
+    tester.binding.handleViewFocusChanged(
+      ui.ViewFocusEvent(
+        viewId: tester.view.viewId,
+        state: ui.ViewFocusState.focused,
+        direction: ui.ViewFocusDirection.backward,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.gameStreamingUnavailable), findsOneWidget);
+
+    tester.binding.handleViewFocusChanged(
+      ui.ViewFocusEvent(
+        viewId: tester.view.viewId,
+        state: ui.ViewFocusState.unfocused,
+        direction: ui.ViewFocusDirection.forward,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.gameStreamingNotChecked), findsOneWidget);
+  });
+
+  testWidgets('owned Game transfer survives cover and retires on return', (
+    tester,
+  ) async {
+    final guard = GameStreamForegroundCoverageGuard();
+    final owner = Object();
+    var coverage = AndroidGameStreamForegroundCoverage.game;
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSettingsScreen(
+        port: _CapabilitiesPort(),
+        gateCurrent: () => true,
+        foregroundCoverageGuard: guard,
+      ),
+    );
+    guard.attach(owner, () async => coverage);
+    addTearDown(() => guard.detach(owner));
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(GameStreamSettingsScreen)),
+    );
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.gameStreamingUnavailable), findsOneWidget);
+
+    coverage = AndroidGameStreamForegroundCoverage.unavailable;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.gameStreamingNotChecked), findsOneWidget);
+  });
+
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1280.0]) {
       testWidgets(

@@ -7,6 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/features/kiosk/presentation/kiosk_screen.dart';
+import 'package:larenor/features/game_streaming/data/android_game_stream_v2_port.dart';
+import 'package:larenor/features/game_streaming/presentation/game_stream_settings_screen.dart';
 import 'package:larenor/features/settings/data/pin_lock_store.dart';
 import 'package:larenor/features/settings/presentation/settings_gate_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
@@ -52,6 +54,7 @@ Future<void> showGate(
   double scale = 1,
   String language = 'en',
   SettingsGateDestination destination = SettingsGateDestination.settings,
+  GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard,
 }) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({'settings_pin': ?initialPin});
@@ -90,7 +93,11 @@ Future<void> showGate(
                   ),
                 ),
               )
-            : SettingsGateScreen(initialDestination: destination),
+            : SettingsGateScreen(
+                initialDestination: destination,
+                gameStreamForegroundCoverageGuard:
+                    gameStreamForegroundCoverageGuard,
+              ),
       ),
     ),
   );
@@ -111,6 +118,110 @@ class PendingSaveStore extends PinLockStore {
 }
 
 void main() {
+  testWidgets(
+    'game streaming authority never treats an absent PIN as unlocked',
+    (tester) async {
+      await showGate(tester, initialPin: null);
+      final split = tester.widget<SettingsSplitScreen>(
+        find.byType(SettingsSplitScreen),
+      );
+
+      final authority = split.gameStreamGateAuthority?.call();
+      expect(authority, isNotNull);
+      expect(authority!.pinConfigured, isFalse);
+      expect(authority.pinUnlocked, isFalse);
+    },
+  );
+
+  testWidgets('game streaming PIN assurance expires with the settings gate', (
+    tester,
+  ) async {
+    await showGate(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-pin-field')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-pin-submit')));
+    await tester.pumpAndSettle();
+    final split = tester.widget<SettingsSplitScreen>(
+      find.byType(SettingsSplitScreen),
+    );
+    final authority = split.gameStreamGateAuthority;
+    expect(authority?.call()?.pinConfigured, isTrue);
+    expect(authority?.call()?.pinUnlocked, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+
+    expect(authority?.call(), isNull);
+  });
+
+  testWidgets(
+    'exact owned game coverage preserves settings then missing return coverage relocks',
+    (tester) async {
+      final guard = GameStreamForegroundCoverageGuard();
+      final owner = Object();
+      var coverage = AndroidGameStreamForegroundCoverage.game;
+      guard.attach(owner, () async => coverage);
+      addTearDown(() => guard.detach(owner));
+      await showGate(tester, gameStreamForegroundCoverageGuard: guard);
+      await tester.enterText(
+        find.byKey(const ValueKey('settings-pin-field')),
+        '1234',
+      );
+      await tester.tap(find.byKey(const ValueKey('settings-pin-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsSplitScreen), findsOneWidget);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsSplitScreen), findsOneWidget);
+      expect(find.text('Unlock'), findsNothing);
+
+      coverage = AndroidGameStreamForegroundCoverage.unavailable;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Unlock'), findsOneWidget);
+      expect(find.byType(SettingsSplitScreen), findsNothing);
+    },
+  );
+
+  testWidgets('exact pairing prompt preserves the PIN gate across focus loss', (
+    tester,
+  ) async {
+    final interaction = AppInteractionController();
+    addTearDown(interaction.dispose);
+    final guard = GameStreamForegroundCoverageGuard();
+    final owner = Object();
+    var coverage = AndroidGameStreamForegroundCoverage.pairingPrompt;
+    guard.attach(owner, () async => coverage);
+    addTearDown(() => guard.detach(owner));
+    await showGate(
+      tester,
+      interaction: interaction,
+      gameStreamForegroundCoverageGuard: guard,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-pin-field')),
+      '1234',
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-pin-submit')));
+    await tester.pumpAndSettle();
+
+    interaction.setActive(false);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsSplitScreen), findsOneWidget);
+    coverage = AndroidGameStreamForegroundCoverage.unavailable;
+    interaction.setActive(true);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsSplitScreen), findsOneWidget);
+
+    interaction.setActive(false);
+    await tester.pumpAndSettle();
+    expect(find.text('Unlock'), findsOneWidget);
+    expect(find.byType(SettingsSplitScreen), findsNothing);
+  });
+
   testWidgets('PIN storage failure can be retried explicitly', (tester) async {
     final store = RecoveringReadStore();
     await showGate(tester, store: store);

@@ -30,9 +30,17 @@ contains no branch or floating tag.
 
 The build uses Java 17, Android Gradle Plugin 9.4.0, Gradle 9.7.1,
 compile SDK 37.0, and NDK 29.0.14206865. The transform patch SHA-256 is
-`afff28d9001796590a156d46e7f084f7de4710b81276d6ec91a702d9ef3443f1`.
+`06cc81c69805eb92fed2becd14a1c3f38f30e80ac150ace1a9abca88de39b347`.
 The linker emits the exact Moonlight commit as the ELF build ID, which removed
 the only varying bytes seen in two otherwise identical clean native builds.
+
+The v2 transform also adds one protected callback immediately after the actual
+`NvConnection.stop()` call returns. This is a causal local-stop observation,
+not an Activity lifecycle shortcut. It is required because the pinned
+moonlight-common-c sets `alreadyTerminated` in `LiStopConnection()` and
+therefore deliberately suppresses the ordinary `connectionTerminated`
+callback for a local stop. The packaging verifier rejects a transformed source
+tree that omits either the call site or the protected hook.
 
 Moonlight's tree contains prebuilt OpenSSL and libopus archives. The lock binds
 each selected ABI archive by SHA-256. OpenSSL identifies itself as 4.0.2. The
@@ -44,7 +52,7 @@ listed in `android/moonlight/NOTICE.md`.
 ## Actual build evidence
 
 The exact recursive checkout was made under
-`/tmp/larenor-f60-moonlight-source-20260930a`. The package tool verified the
+`/tmp/larenor-f60-upstream-stop`. The package tool verified the
 parent commit/tree, all three recursive submodule commit/tree pairs, clean Git
 state, reviewed source blob IDs, license digests, and prebuilt archive digests
 before applying the locked patch.
@@ -52,27 +60,28 @@ before applying the locked patch.
 ```text
 ANDROID_HOME=/opt/homebrew/share/android-commandlinetools \
   python3 tool/moonlight_android_package.py build \
-  /tmp/larenor-f60-moonlight-source-20260930a \
-  /tmp/larenor-f60-build-20260930f \
-  /tmp/larenor-f60-f.aar \
-  /tmp/larenor-f60-f.json
+  /tmp/larenor-f60-upstream-stop \
+  /tmp/larenor-f60-stop-build-v2b \
+  /tmp/larenor-f60-stop-v2b.aar \
+  /tmp/larenor-f60-stop-v2b-receipt.json
 
-BUILD SUCCESSFUL in 11s
+BUILD SUCCESSFUL in 12s
 33 actionable tasks: 33 executed
 ```
 
-The same command in the independent
-`/tmp/larenor-f60-build-20260930g` directory produced a byte-identical AAR.
-
 | Artifact or payload | SHA-256 / result |
 | --- | --- |
-| first clean AAR | `5c94690a9e8a14fe25000fdc7b916cd6711109a8762fb6d3998d9b84473190da` |
-| second clean AAR | `5c94690a9e8a14fe25000fdc7b916cd6711109a8762fb6d3998d9b84473190da` |
-| `classes.jar` | `6a4d143bce9f68058c5c95417363047f61348c33ae7963e875532169065d5f74` |
+| clean v2 AAR | `15881010a5fd3fb4831e3ab17ce32cfc41721ef190b887438982b402a882f646` |
+| `classes.jar` | `7daa5a4d799e71f0f72e9f5ada9e2ac224bdcc13883e28e228eadab0e64990a8` |
 | arm64-v8a `libmoonlight-core.so` | `a55e143da4f20a47e8ec4e7b4c3026f76d2de43bc92a712ddcb394595119d17b` |
 | x86_64 `libmoonlight-core.so` | `dcd9452d4a766c656f57fcf5697ba3ffdb6065a5951ee1f02127026f664c0202` |
-| receipt | `eaf1ce0617c43160ed35976f79bd0f56e25ad450aae353c4fea1b9640fd01574` |
-| complete corresponding-source bundle | `5e01d890ccdcd1536d7be29b1c7e5cdc166059aa778b87f32053be5dba610c50` |
+| receipt | `6df3dd13f7ccd83fd556993990a89474a8eaa6b30d4e925e2c8e0a477497c6b7` |
+
+The earlier embed-v1 byte-identical build proved deterministic packaging but
+predated the causal local-stop hook. It is superseded and is not production
+input. The hosted immutable pipeline creates the corresponding-source bundle
+from this v2 lock and patch; no older source-bundle hash is evidence for this
+artifact.
 
 The receipt verifier opened the AAR rather than trusting its filename. It found
 the exact two ABIs, ELF machine IDs, native hashes, and these concrete engine
@@ -86,27 +95,24 @@ classes in `classes.jar`:
 
 ## Actual APK link evidence
 
-An isolated Android application under `/tmp/larenor-f60-host-20260930a`
-consumed the produced AAR plus the seven exact Maven dependencies listed in the
-lock. It did not use a companion app or an intent handoff.
+The normal Larenor Android application consumed the produced AAR plus the seven
+exact Maven dependencies listed in the lock. It did not use a companion app or
+an intent handoff.
 
 ```text
-ANDROID_HOME=/opt/homebrew/share/android-commandlinetools \
-  /tmp/larenor-f60-host-20260930a/gradlew \
-  -p /tmp/larenor-f60-host-20260930a --no-daemon \
-  :app:clean :app:assembleDebug
+flutter build apk --debug
 
-BUILD SUCCESSFUL in 10s
-37 actionable tasks: 37 executed
+Running Gradle task 'assembleDebug'... 18.7s
+Built build/app/outputs/flutter-apk/app-debug.apk
 
 python3 tool/moonlight_android_package.py verify-apk \
-  /tmp/larenor-f60-host-20260930a/app/build/outputs/apk/debug/app-debug.apk \
-  /tmp/larenor-f60-final-receipt.json
+  /tmp/larenor-f60-embedded-stop-v2-final.apk \
+  /tmp/larenor-f60-stop-v2-local-package-20261001/receipt.json
 ```
 
 The resulting APK SHA-256 was
-`42847c448a290792f34987447dcb2e5d2356c4849ffb7151db3031364d85c2a8`.
-Verification read all six DEX files, required every engine descriptor, and
+`26d5f24680df169232edb5a344600dcd43dd42da12f749526c7ddb6d9209f9a5`.
+Verification read all 32 DEX files, required every engine descriptor, and
 matched both packaged native libraries to the AAR receipt. This is build/link
 proof, not a physical Sunshine stream proof.
 
@@ -124,16 +130,18 @@ git diff --check -- android/moonlight \
   tool/tests/moonlight_android_package_test.py
 ```
 
-The focused tests cover exact source/submodule identity, dirty-source refusal,
+The latest rerun completed all six tests with no failures. The focused tests
+cover exact source/submodule identity, dirty-source refusal,
 patch and manifest invariants, retention of all six engine contracts, complete
 class/native receipts, extra-ABI refusal, receipt tampering, DEX presence, and
 APK native hash mismatch.
 
-## Required production integration API
+## Production integration contract
 
-The next F60 slice should add a Larenor-owned, non-exported MethodChannel/native
-adapter around the embedded code. The adapter must use Moonlight's own objects,
-not a parallel client implementation:
+The following contract is implemented by the Larenor-owned, non-exported
+MethodChannel/native adapter documented in
+`f60-moonlight-embedded-integration-2026-10-01.md`. The adapter uses
+Moonlight's own objects rather than a parallel client implementation:
 
 1. `PairingManager` with `AndroidCryptoProvider` starts and completes pairing,
    returns the exact server certificate/fingerprint and pair result, and never

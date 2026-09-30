@@ -6,6 +6,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+repositories {
+    // Moonlight's pinned Shield controller extension is published by its
+    // upstream GitHub project through JitPack rather than Maven Central.
+    maven(url = "https://jitpack.io")
+}
+
 val freeRdpAar = file("freerdp/freeRDPCore.aar")
 val freeRdpReceipt = file("freerdp/receipt.json")
 if (freeRdpAar.exists() != freeRdpReceipt.exists()) {
@@ -18,6 +24,21 @@ val verifyFreeRdpPackage by tasks.registering(Exec::class) {
     commandLine(
         "python3", "tool/freerdp_android_package.py", "verify-install",
         freeRdpAar.absolutePath, freeRdpReceipt.absolutePath,
+    )
+}
+
+val moonlightAar = file("moonlight/moonlight-engine.aar")
+val moonlightReceipt = file("moonlight/receipt.json")
+if (moonlightAar.exists() != moonlightReceipt.exists()) {
+    throw GradleException("Moonlight AAR and receipt must be installed together")
+}
+val hasMoonlight = moonlightAar.isFile && moonlightReceipt.isFile
+val verifyMoonlightPackage by tasks.registering(Exec::class) {
+    onlyIf { hasMoonlight }
+    workingDir(rootProject.projectDir.parentFile)
+    commandLine(
+        "python3", "tool/moonlight_android_package.py", "verify-install",
+        moonlightAar.absolutePath, moonlightReceipt.absolutePath,
     )
 }
 
@@ -40,7 +61,10 @@ tasks.configureEach {
     // AGP's host-test resource package consumes Flutter's merged assets too.
     // Declare the producer so Gradle 9 validates the real dependency graph.
     if (name == "packageDebugUnitTestForUnitTest") dependsOn("copyFlutterAssetsDebug")
-    if (name == "preBuild") dependsOn(verifyFreeRdpPackage)
+    if (name == "preBuild") {
+        dependsOn(verifyFreeRdpPackage)
+        dependsOn(verifyMoonlightPackage)
+    }
 }
 
 android {
@@ -53,10 +77,24 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = hasMoonlight
+    }
+
+    if (hasMoonlight) {
+        // Bouncy Castle's pinned modules carry the same Markdown license
+        // resource. The project NOTICE/source lock retains the dependency
+        // notices; duplicate JAR metadata cannot be merged into one APK path.
+        packaging.resources.excludes += "/META-INF/*.md"
     }
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.systemProperty(
+                "larenor.f60.contract",
+                rootProject.projectDir.parentFile.resolve("docs/contracts/f60-game-streaming-v2.json").canonicalPath,
+            )
+        }
     }
 
     defaultConfig {
@@ -73,6 +111,8 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["moonlightEnabled"] = hasMoonlight.toString()
+        manifestPlaceholders["moonlightTheme"] = if (hasMoonlight) "@style/StreamTheme" else "@style/LaunchTheme"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -96,6 +136,11 @@ android {
     if (hasFreeRdp) {
         sourceSets.getByName("main").java.srcDir("src/freerdp/kotlin")
         sourceSets.getByName("androidTest").java.srcDir("src/freerdpAndroidTest/kotlin")
+    }
+    if (hasMoonlight) {
+        sourceSets.getByName("main").java.srcDir("src/moonlight/kotlin")
+        sourceSets.getByName("test").java.srcDir("src/moonlightTest/kotlin")
+        sourceSets.getByName("androidTest").java.srcDir("src/moonlightAndroidTest/kotlin")
     }
 }
 
@@ -132,6 +177,17 @@ dependencies {
         implementation("androidx.room:room-runtime:2.8.5")
         implementation("net.zetetic:sqlcipher-android:4.19.0@aar")
         implementation("androidx.sqlite:sqlite:2.7.0")
+    }
+    if (hasMoonlight) {
+        implementation(files(moonlightAar))
+        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+        implementation("com.github.cgutman:ShieldControllerExtensions:1.0.1")
+        implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
+        implementation("org.bouncycastle:bcprov-jdk18on:1.85.2")
+        implementation("org.jcodec:jcodec:0.2.5")
+        implementation("org.jmdns:jmdns:3.6.3")
+    }
+    if (hasFreeRdp || hasMoonlight) {
         androidTestImplementation("androidx.test:core:1.7.0")
         androidTestImplementation("androidx.test:runner:1.7.0")
         androidTestImplementation("androidx.test.ext:junit:1.3.0")

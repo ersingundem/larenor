@@ -14,6 +14,7 @@ on:
           - f08
           - host
           - f60-host
+          - f60-discovery
 
 permissions:
   contents: read
@@ -108,6 +109,15 @@ jobs:
     uses: ./.github/workflows/f60-sunshine-owned-host.yml
     with:
       caller_contract: f60-owned-host-v1
+
+  f60-sunshine-android-discovery:
+    name: f60-sunshine-android-discovery
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-discovery'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/f60-sunshine-android-discovery.yml
+    with:
+      caller_contract: f60-owned-discovery-v1
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}

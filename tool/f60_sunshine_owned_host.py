@@ -682,18 +682,35 @@ def _sunshine_mdns_instance_name(hostname: Optional[str] = None) -> str:
     return instance.decode("ascii") if instance else "Sunshine"
 
 
-def verify_mdns(raw: str, *, expected_name: Optional[str] = None) -> Dict[str, Any]:
+def verify_mdns(
+    raw: str,
+    *,
+    expected_name: Optional[str] = None,
+    expected_interface: Optional[str] = None,
+) -> Dict[str, Any]:
     if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_MDNS_BYTES:
         raise HostFailure("Sunshine mDNS observation is invalid")
     if expected_name is None:
         expected_name = _sunshine_mdns_instance_name()
     if not isinstance(expected_name, str) or not expected_name:
         raise HostFailure("Sunshine mDNS observation is invalid")
+    if expected_interface is not None and re.fullmatch(
+        r"[A-Za-z0-9_.-]{1,15}", expected_interface
+    ) is None:
+        raise HostFailure("Sunshine mDNS observation is invalid")
     resolved = set()
     for line in raw.splitlines():
         fields = line.split(";")
         if len(fields) < 9 or fields[0] != "=":
             continue
+        if expected_interface is not None and fields[1] != expected_interface:
+            continue
+        if (
+            fields[4] == "_nvstream._tcp"
+            and fields[5] == "local"
+            and fields[3] != expected_name
+        ):
+            raise HostFailure("Sunshine mDNS observation is invalid")
         if (
             fields[3] != expected_name
             or fields[4] != "_nvstream._tcp"
@@ -1012,7 +1029,6 @@ def _observe_mdns() -> Dict[str, Any]:
                 "--resolve",
                 "--terminate",
                 "--no-db-lookup",
-                "--interface=" + interface,
                 "_nvstream._tcp",
             ],
             stdin=subprocess.DEVNULL,
@@ -1023,7 +1039,7 @@ def _observe_mdns() -> Dict[str, Any]:
             env={"LANG": "C.UTF-8", "PATH": "/usr/bin:/bin"},
         )
         if completed.returncode != 0:
-            raise HostFailure("Sunshine mDNS observation is unavailable")
+            raise HostFailure("Sunshine mDNS browser failed")
         output = completed.stdout
     except subprocess.TimeoutExpired as error:
         output = error.stdout
@@ -1036,7 +1052,13 @@ def _observe_mdns() -> Dict[str, Any]:
             raise HostFailure("Sunshine mDNS observation is invalid") from error
     if not isinstance(output, str) or len(output.encode("utf-8")) > MAX_MDNS_BYTES:
         raise HostFailure("Sunshine mDNS observation is unavailable")
-    return verify_mdns(output, expected_name=_sunshine_mdns_instance_name())
+    if not output:
+        raise HostFailure("Sunshine mDNS observation is empty")
+    return verify_mdns(
+        output,
+        expected_name=_sunshine_mdns_instance_name(),
+        expected_interface=interface,
+    )
 
 
 @dataclass(repr=False)

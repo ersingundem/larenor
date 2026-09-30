@@ -68,6 +68,9 @@ class SettingsSplitScreen extends StatefulWidget {
     this.comfortGateCurrent,
     this.evChargingGateCurrent,
     this.gameStreamPort,
+    this.gameStreamGateAuthority,
+    this.gameStreamCoverageCurrent,
+    this.gameStreamForegroundCoverageGuard,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
   });
@@ -81,6 +84,9 @@ class SettingsSplitScreen extends StatefulWidget {
   final bool Function()? comfortGateCurrent;
   final bool Function()? evChargingGateCurrent;
   final GameStreamCapabilityPort? gameStreamPort;
+  final GameStreamGateAuthority? Function()? gameStreamGateAuthority;
+  final bool Function()? gameStreamCoverageCurrent;
+  final GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
 
@@ -176,6 +182,11 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                       comfortGateCurrent: widget.comfortGateCurrent,
                       evChargingGateCurrent: widget.evChargingGateCurrent,
                       gameStreamPort: widget.gameStreamPort,
+                      gameStreamGateAuthority: widget.gameStreamGateAuthority,
+                      gameStreamCoverageCurrent:
+                          widget.gameStreamCoverageCurrent,
+                      gameStreamForegroundCoverageGuard:
+                          widget.gameStreamForegroundCoverageGuard,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
                     ),
@@ -205,6 +216,10 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
             comfortGateCurrent: widget.comfortGateCurrent,
             evChargingGateCurrent: widget.evChargingGateCurrent,
             gameStreamPort: widget.gameStreamPort,
+            gameStreamGateAuthority: widget.gameStreamGateAuthority,
+            gameStreamCoverageCurrent: widget.gameStreamCoverageCurrent,
+            gameStreamForegroundCoverageGuard:
+                widget.gameStreamForegroundCoverageGuard,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
           ),
@@ -250,6 +265,9 @@ Widget paneFor(
   bool Function()? comfortGateCurrent,
   bool Function()? evChargingGateCurrent,
   GameStreamCapabilityPort? gameStreamPort,
+  GameStreamGateAuthority? Function()? gameStreamGateAuthority,
+  bool Function()? gameStreamCoverageCurrent,
+  GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
 }) {
@@ -266,6 +284,9 @@ Widget paneFor(
       return GameStreamSettingsScreen(
         port: gameStreamPort,
         gateCurrent: remoteGateCurrent ?? () => false,
+        gateAuthority: gameStreamGateAuthority,
+        coverageGateCurrent: gameStreamCoverageCurrent,
+        foregroundCoverageGuard: gameStreamForegroundCoverageGuard,
       );
     case SettingsCategory.legacyRemote:
       return LegacyRemoteRoute(gateCurrent: remoteGateCurrent ?? () => false);

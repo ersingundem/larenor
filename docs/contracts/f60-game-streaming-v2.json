@@ -47,9 +47,6 @@
             "h264",
             "hevc"
           ],
-          "maxWidth": 3840,
-          "maxHeight": 2160,
-          "maxFps": 120,
           "catalogRevision": 1,
           "catalogDigest": "4eaae18527a9abd5af0dbb06fed83156f9772e2340fb1a08065b2129248bf81f",
           "apps": [
@@ -75,10 +72,7 @@
           "codecs": [
             "h264",
             "hevc"
-          ],
-          "maxWidth": 3840,
-          "maxHeight": 2160,
-          "maxFps": 120
+          ]
         },
         "apps": [
           {
@@ -250,7 +244,7 @@
           "framesPerSecond": 60,
           "bitrateKbps": 20000,
           "frameQueueDepth": 2,
-          "inputQueueDepth": 8,
+          "inputQueueDepth": 1,
           "secureSurface": true
         }
       },
@@ -283,7 +277,7 @@
             "framesPerSecond": 60,
             "bitrateKbps": 20000,
             "frameQueueDepth": 2,
-            "inputQueueDepth": 8,
+            "inputQueueDepth": 1,
             "secureSurface": true
           }
         },
@@ -302,7 +296,7 @@
           "framesPerSecond": 60,
           "bitrateKbps": 20000,
           "frameQueueDepth": 2,
-          "inputQueueDepth": 8,
+          "inputQueueDepth": 1,
           "secureSurface": true
         },
         "clientAuthority": {
@@ -346,7 +340,7 @@
             "framesPerSecond": 60,
             "bitrateKbps": 20000,
             "frameQueueDepth": 2,
-            "inputQueueDepth": 8,
+            "inputQueueDepth": 1,
             "secureSurface": true
           }
         },
@@ -365,7 +359,7 @@
           "framesPerSecond": 60,
           "bitrateKbps": 20000,
           "frameQueueDepth": 2,
-          "inputQueueDepth": 8,
+          "inputQueueDepth": 1,
           "secureSurface": true
         },
         "clientAuthority": {
@@ -414,7 +408,7 @@
             "framesPerSecond": 60,
             "bitrateKbps": 20000,
             "frameQueueDepth": 2,
-            "inputQueueDepth": 8,
+            "inputQueueDepth": 1,
             "secureSurface": true
           }
         },
@@ -433,7 +427,7 @@
           "framesPerSecond": 60,
           "bitrateKbps": 20000,
           "frameQueueDepth": 2,
-          "inputQueueDepth": 8,
+          "inputQueueDepth": 1,
           "secureSurface": true
         },
         "clientAuthority": {
@@ -519,9 +513,10 @@
       "wake": "serverInfoOnline",
       "launch": "currentGameMatched",
       "stream": "connectionStarted",
-      "stop": "connectionTerminated",
+      "stop": "connectionStopped",
       "rejected": "nativeRejected",
-      "unknown": "unknown"
+      "unknown": "unknown",
+      "remoteStop": "connectionTerminated"
     }
   },
   "revocation": {
@@ -542,7 +537,9 @@
         "hostRevision": 2,
         "state": "core_retired",
         "createdAt": 1788609603.0,
-        "completedAt": null
+        "completedAt": null,
+        "readbackRevision": null,
+        "nativeReceiptDigest": null
       }
     },
     "complete": {
@@ -550,7 +547,9 @@
       "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/revocations/{revocationId}/complete",
       "request": {
         "schemaVersion": 2,
-        "state": "local_cleared"
+        "state": "local_cleared",
+        "readbackRevision": 13,
+        "nativeReceiptDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       },
       "response": {
         "schemaVersion": 2,
@@ -559,7 +558,9 @@
         "hostRevision": 2,
         "state": "local_cleared",
         "createdAt": 1788609603.0,
-        "completedAt": 1788609604.0
+        "completedAt": 1788609604.0,
+        "readbackRevision": 13,
+        "nativeReceiptDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
       }
     }
   },

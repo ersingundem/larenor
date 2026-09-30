@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 58 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 67 iş CI bekliyor tablosunda. F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61 exactf83deee7 gerçek TigerVNC/1test/0skip receipt geçti; F62 gerçek packaged native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 58 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 67 iş CI bekliyor tablosunda. F60 normal Core/Client/native v2 entegrasyonu doğrulandı; gerçek Sunshine eşleme/yayın/girdi kabulü hâlâ açık ve yeniden çalışılıyor. Bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61 exactf83deee7 gerçek TigerVNC/1test/0skip receipt geçti; F62 gerçek packaged native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 1 Ekim F60 normal Client/native entegrasyonu
+
+Normal Core v2 grant/authority yolu gerçek Client eşleme, katalog, dispatch, causal stop ve revoke akışına bağlandı. Kalıcı cleanup storage hatasında bile native oturumu kapatır; yeni ekran clientInstanceId ile eski retirement kaydından ayrılır. Native45/45, Flutter86+1 beklenen skip, scoped analyze ve root gerçek normal Core TCP1/1 geçti. Receipted iki-ABI embedded APK ve motorsuz kapalı default APK doğrulandı; root80 host/paket/kuyruk/progress kapısını geçti. Owned Sunshine run36791191000 yine readiness receipt vermedi; resmî Avahi `--interface` de desteklemediği için seçenek kaldırılıp trusted interface parsable kayıtta filtrelendi. Root24 host testi geçti. Source/package-bound ve strict single-method/zero-skip production NSD gate hazır, fakat gerçek discovery/pairing/stream/frame/audio/input/stop/unpair receipt açık. F60 yeniden çalışılıyor kalır; 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Entegrasyon kanıtı](testing/f60-moonlight-embedded-integration-2026-10-01.md), [Client](testing/f60-game-streaming-client-v2-2026-10-01.md), [owned host](testing/f60-sunshine-owned-host-2026-10-01.md).
 
 ### 1 Ekim F60 Avahi komut uyumluluğu
 

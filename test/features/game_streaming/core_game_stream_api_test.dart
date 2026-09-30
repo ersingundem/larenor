@@ -19,10 +19,11 @@ final fixtureSession = ServerSession(
   refreshToken: 'y' * 43,
   expiresAt: DateTime.utc(2026, 10),
   context: fixtureContext,
+  sessionFamilyId: 'f' * 32,
   user: ServerUser(
     id: 'c' * 32,
     username: 'fixture',
-    role: ServerRole.member,
+    role: ServerRole.admin,
     mustChangePassword: false,
   ),
 );
@@ -34,98 +35,294 @@ http.Response response(Object value, [int status = 200]) => http.Response(
 );
 
 Map<String, Object?> host() => {
-  'schemaVersion': 1,
-  'ref': {
-    ...fixtureContext.toJson(),
-    'kind': 'game_stream_host',
-    'id': 'd' * 32,
-  },
-  'revision': 2,
-  'name': 'Gaming PC',
-  'pairingRevision': 3,
+  'schemaVersion': 2,
+  'id': '7' * 32,
+  'revision': 1,
+  'pairingRevision': 1,
+  'catalogRevision': 1,
+  'name': 'Owned Sunshine fixture',
+  'assurance': 'native_observed',
   'active': true,
   'codecs': ['h264', 'hevc'],
-  'maxWidth': 3840,
-  'maxHeight': 2160,
-  'maxFps': 120,
 };
 
-Map<String, int> authority() => {
-  'expectedHostRevision': 2,
-  'expectedPairingRevision': 3,
-  'accountRevision': 4,
-  'routeRevision': 5,
-  'lifecycleRevision': 6,
-  'displayRevision': 7,
-  'networkRevision': 8,
-  'policyRevision': 9,
-};
-
-Map<String, Object?> lease() => {
-  'schemaVersion': 1,
-  'id': 'e' * 32,
-  'hostId': 'd' * 32,
+Map<String, Object?> app() => {
+  'schemaVersion': 2,
+  'id': '8' * 32,
+  'hostId': '7' * 32,
   'revision': 1,
-  'state': 'open',
-  'expiresAt': 1790812800.0,
-  'authority': authority(),
+  'name': 'Desktop',
+  'active': true,
 };
 
-Map<String, Object?> command({String state = 'authorized', int? readback}) => {
-  'schemaVersion': 1,
-  'id': 'f' * 32,
-  'sessionId': 'e' * 32,
+Map<String, Object> quality() => {
+  'codec': 'hevc',
+  'codecId': 'a' * 32,
+  'codecRevision': 1,
+  'displayId': 0,
+  'displayRevision': 6,
+  'networkId': 'b' * 32,
+  'networkRevision': 7,
+  'policyId': 'c' * 32,
+  'policyRevision': 8,
+  'widthPixels': 1920,
+  'heightPixels': 1080,
+  'framesPerSecond': 60,
+  'bitrateKbps': 20000,
+  'frameQueueDepth': 2,
+  'inputQueueDepth': 1,
+  'secureSurface': true,
+};
+
+Map<String, Object> clientAuthority() => {
+  'routeRevision': 4,
+  'lifecycleRevision': 5,
+  'displayRevision': 6,
+  'networkRevision': 7,
+  'policyRevision': 8,
+};
+
+Map<String, Object?> session({String state = 'open', int revision = 1}) => {
+  'schemaVersion': 2,
+  'id': 'b' * 32,
+  'hostId': '7' * 32,
+  'appId': '8' * 32,
+  'revision': revision,
+  'state': state,
+  'expiresAt': 1788610200.0,
+  'coreAuthority': {
+    'accountRevision': 7,
+    'hostRevision': 1,
+    'pairingRevision': 1,
+    'catalogRevision': 1,
+    'appRevision': 1,
+    'selectedQuality': quality(),
+  },
+  'selectedQuality': quality(),
+  'clientAuthority': clientAuthority(),
+};
+
+Map<String, Object?> command({
+  String state = 'authorized',
+  String? result,
+  String? observation,
+  int? readback,
+}) => {
+  'schemaVersion': 2,
+  'id': '9' * 32,
+  'sessionId': 'b' * 32,
   'intent': 'stream',
   'state': state,
-  'result': state == 'verified' ? 'streaming' : null,
+  'result': result,
+  'observationKind': observation,
   'readbackRevision': readback,
-  'createdAt': 1788609600.0,
-  'completedAt': state == 'verified' ? 1788609601.0 : null,
+  'createdAt': 1788609601.0,
+  'completedAt': state == 'authorized' ? null : 1788609602.0,
 };
 
-void main() {
-  test('Core command parser rejects a verified result for another intent', () {
-    final parsedHost = CoreGameStreamHost.fromJson(
-      host(),
-      context: fixtureContext,
-    );
-    final parsedLease = CoreGameStreamLease.fromJson(
-      lease(),
-      host: parsedHost,
-      expectedAuthority: authority(),
-    );
-    expect(
-      () => CoreGameStreamCommand.fromJson(
-        {...command(state: 'verified', readback: 10), 'result': 'stopped'},
-        lease: parsedLease,
-        intent: 'stream',
-      ),
-      throwsA(isA<LarenorServerException>()),
-    );
-  });
+Map<String, Object?> revocation({
+  String state = 'core_retired',
+  int? readbackRevision,
+  String? nativeReceiptDigest,
+}) => {
+  'schemaVersion': 2,
+  'id': 'e' * 32,
+  'hostId': '7' * 32,
+  'hostRevision': 2,
+  'state': state,
+  'readbackRevision': readbackRevision,
+  'nativeReceiptDigest': nativeReceiptDigest,
+  'createdAt': 1788609603.0,
+  'completedAt': state == 'core_retired' ? null : 1788609604.0,
+};
 
-  test('host lease and command receipts stay exact and secret free', () async {
-    final requests = <http.Request>[];
+CoreNativePairingObservation observation() => CoreNativePairingObservation(
+  receiptId: '3' * 32,
+  nativeBindingId: '4' * 32,
+  bindingRevision: 1,
+  engineRevision: 'moonlight-12.2-b48494cb',
+  hostObservationId: '5' * 32,
+  name: 'Owned Sunshine fixture',
+  codecs: const ['h264', 'hevc'],
+  catalogRevision: 1,
+  catalogDigest: 'a' * 64,
+  apps: [
+    CoreNativeAppObservation(
+      observationId: '6' * 32,
+      revision: 1,
+      name: 'Desktop',
+    ),
+  ],
+);
+
+void main() {
+  test(
+    'pairing intent precedes observation and maps only opaque Core ids',
+    () async {
+      final requests = <http.Request>[];
+      final transport = LarenorServerApi(
+        endpoint: fixtureSession.endpoint,
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.url.path.endsWith('/pairings')) {
+            return response({
+              'schemaVersion': 2,
+              'id': '1' * 32,
+              'revision': 1,
+              'state': 'pending',
+              'pairingGrant': '2' * 32,
+              'expiresAt': 1788610200.0,
+            }, 201);
+          }
+          return response({
+            'schemaVersion': 2,
+            'host': host(),
+            'apps': [app()],
+            'registrationMapping': {
+              'nativeReceiptId': '3' * 32,
+              'hostId': '7' * 32,
+              'apps': [
+                {'entryIndex': 0, 'appId': '8' * 32},
+              ],
+            },
+          });
+        }),
+      );
+      addTearDown(transport.close);
+      final api = CoreGameStreamApi(
+        transport,
+        fixtureSession,
+        isCurrent: () => true,
+      );
+      final intent = await api.createPairing(
+        requestKey: 'pairing-request-0001',
+        accountRevision: 7,
+        expiresAt: DateTime.fromMillisecondsSinceEpoch(
+          1788610200000,
+          isUtc: true,
+        ),
+      );
+      final registered = await api.completePairing(intent, observation());
+      expect(registered.host.id, '7' * 32);
+      expect(registered.mapping.single.entryIndex, 0);
+      expect(requests, hasLength(2));
+      expect(requests.first.body, isNot(contains('observation')));
+      expect(requests.last.body, isNot(contains('address')));
+      expect(requests.last.body, isNot(contains('privateKey')));
+    },
+  );
+
+  test(
+    'catalog session dispatch and native-observed completion stay exact',
+    () async {
+      final requests = <http.Request>[];
+      final transport = LarenorServerApi(
+        endpoint: fixtureSession.endpoint,
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'GET' && request.url.path.endsWith('/hosts')) {
+            return response({
+              'schemaVersion': 2,
+              'scope': fixtureContext.toJson(),
+              'accountRevision': 7,
+              'hosts': [host()],
+            });
+          }
+          if (request.method == 'GET' && request.url.path.endsWith('/apps')) {
+            return response({
+              'schemaVersion': 2,
+              'hostRevision': 1,
+              'pairingRevision': 1,
+              'catalogRevision': 1,
+              'apps': [app()],
+            });
+          }
+          if (request.url.path.endsWith('/sessions')) {
+            return response(session(), 201);
+          }
+          if (request.url.path.endsWith('/commands')) {
+            return response({
+              'schemaVersion': 2,
+              'command': command(),
+              'dispatchGrant': 'c' * 32,
+            }, 201);
+          }
+          return response(
+            command(
+              state: 'native_observed',
+              result: 'streaming',
+              observation: 'connectionStarted',
+              readback: 12,
+            ),
+          );
+        }),
+      );
+      addTearDown(transport.close);
+      final api = CoreGameStreamApi(
+        transport,
+        fixtureSession,
+        isCurrent: () => true,
+      );
+      final hosts = await api.hosts();
+      final catalog = await api.apps(hosts.hosts.single);
+      final selected = CoreGameStreamSelectedQuality.fromJson(quality());
+      final opened = await api.open(
+        host: catalog.host,
+        app: catalog.apps.single,
+        accountRevision: hosts.accountRevision,
+        clientAuthority: const CoreGameStreamClientAuthority(
+          routeRevision: 4,
+          lifecycleRevision: 5,
+          displayRevision: 6,
+          networkRevision: 7,
+          policyRevision: 8,
+        ),
+        selectedQuality: selected,
+        requestKey: 'session-request-0001',
+        expiresAt: DateTime.fromMillisecondsSinceEpoch(
+          1788610200000,
+          isUtc: true,
+        ),
+      );
+      final authorized = await api.authorize(
+        opened,
+        requestKey: 'command-request-0001',
+        intent: 'stream',
+      );
+      final completed = await api.complete(
+        opened,
+        authorized,
+        state: 'native_observed',
+        result: 'streaming',
+        observationKind: 'connectionStarted',
+        readbackRevision: 12,
+        nativeReceiptDigest: 'd' * 64,
+      );
+      expect(completed.state, 'native_observed');
+      expect(requests, hasLength(5));
+      final openBody = jsonDecode(requests[2].body) as Map<String, dynamic>;
+      expect(openBody['selectedQuality'], quality());
+      expect(openBody['clientAuthority'], clientAuthority());
+    },
+  );
+
+  test('replayed authorization without a grant cannot be completed', () async {
+    final parsedSession = CoreGameStreamSession.fromJson(session());
     final transport = LarenorServerApi(
       endpoint: fixtureSession.endpoint,
       client: MockClient((request) async {
-        requests.add(request);
-        expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
-        if (request.method == 'GET') {
+        if (request.url.path.endsWith('/commands')) {
           return response({
-            'schemaVersion': 1,
-            'scope': fixtureContext.toJson(),
-            'accountRevision': 4,
-            'hosts': [host()],
+            'schemaVersion': 2,
+            'command': command(
+              state: 'unknown',
+              result: 'unknown',
+              observation: 'unknown',
+            ),
+            'dispatchGrant': null,
           });
         }
-        if (request.url.path.endsWith('/sessions')) {
-          return response(lease(), 201);
-        }
-        if (request.url.path.endsWith('/complete')) {
-          return response(command(state: 'verified', readback: 10));
-        }
-        return response(command(), 201);
+        fail('unexpected request');
       }),
     );
     addTearDown(transport.close);
@@ -134,98 +331,135 @@ void main() {
       fixtureSession,
       isCurrent: () => true,
     );
-    final hosts = await api.hosts();
-    final opened = await api.open(
-      host: hosts.hosts.single,
-      accountRevision: hosts.accountRevision,
-      routeRevision: 5,
-      lifecycleRevision: 6,
-      displayRevision: 7,
-      networkRevision: 8,
-      policyRevision: 9,
-      requestKey: 'session-request-0001',
-      expiresAt: DateTime.fromMillisecondsSinceEpoch(
-        1790812800000,
-        isUtc: true,
-      ),
-    );
-    final authorized = await api.authorize(
-      opened,
+    final replay = await api.authorize(
+      parsedSession,
       requestKey: 'command-request-0001',
       intent: 'stream',
     );
-    final verified = await api.complete(
-      opened,
-      authorized,
-      state: 'verified',
-      result: 'streaming',
-      readbackRevision: 10,
-    );
-    expect(verified.readbackRevision, 10);
-    expect(requests, hasLength(4));
-    expect(
-      requests.every((item) => !item.body.toLowerCase().contains('credential')),
-      isTrue,
+    expect(replay.dispatchGrant, isNull);
+    await expectLater(
+      api.complete(
+        parsedSession,
+        replay,
+        state: 'unknown',
+        result: 'unknown',
+        observationKind: 'unknown',
+      ),
+      throwsA(isA<LarenorServerException>()),
     );
   });
 
-  test('foreign scope and malformed capability response fail closed', () async {
-    final transport = LarenorServerApi(
-      endpoint: fixtureSession.endpoint,
-      client: MockClient(
-        (_) async => response({
-          'schemaVersion': 1,
-          'scope': {...fixtureContext.toJson(), 'homeId': '0' * 32},
-          'accountRevision': 4,
-          'hosts': [host()],
-        }),
+  test('native rejection requires the causal readback accepted by Core', () {
+    final observed = command(
+      state: 'rejected',
+      result: 'rejected',
+      observation: 'nativeRejected',
+      readback: 17,
+    );
+    expect(
+      CoreGameStreamCommand.fromJson(
+        observed,
+        sessionId: 'b' * 32,
+        expectedIntent: 'stream',
+      ).readbackRevision,
+      17,
+    );
+    observed['readbackRevision'] = null;
+    expect(
+      () => CoreGameStreamCommand.fromJson(
+        observed,
+        sessionId: 'b' * 32,
+        expectedIntent: 'stream',
       ),
+      throwsA(isA<LarenorServerException>()),
     );
-    addTearDown(transport.close);
-    final api = CoreGameStreamApi(
-      transport,
-      fixtureSession,
-      isCurrent: () => true,
-    );
-    await expectLater(api.hosts(), throwsA(isA<LarenorServerException>()));
   });
 
   test(
-    'late HTTP completion is cancelled when route authority retires',
+    'revocation completion sends and requires causal native evidence',
     () async {
-      var current = true;
-      final pending = Completer<http.Response>();
+      final requests = <http.Request>[];
       final transport = LarenorServerApi(
         endpoint: fixtureSession.endpoint,
-        client: MockClient((_) => pending.future),
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.url.path.endsWith('/revoke')) {
+            return response(revocation(), 201);
+          }
+          if (request.url.path.endsWith('/complete')) {
+            return response(
+              revocation(
+                state: 'local_cleared',
+                readbackRevision: 13,
+                nativeReceiptDigest: 'd' * 64,
+              ),
+            );
+          }
+          fail('unexpected request');
+        }),
       );
       addTearDown(transport.close);
       final api = CoreGameStreamApi(
         transport,
         fixtureSession,
-        isCurrent: () => current,
+        isCurrent: () => true,
       );
-      final future = api.hosts();
-      await Future<void>.delayed(Duration.zero);
-      current = false;
-      pending.complete(
-        response({
-          'schemaVersion': 1,
-          'scope': fixtureContext.toJson(),
-          'accountRevision': 4,
-          'hosts': [host()],
-        }),
+      final parsedHost = CoreGameStreamHost.fromJson(host());
+      final retired = await api.revoke(
+        parsedHost,
+        requestKey: 'revoke-request-0001',
       );
+      final cleared = await api.completeRevocation(
+        retired,
+        state: 'local_cleared',
+        readbackRevision: 13,
+        nativeReceiptDigest: 'd' * 64,
+      );
+      expect(cleared.readbackRevision, 13);
+      expect(cleared.nativeReceiptDigest, 'd' * 64);
+      expect(jsonDecode(requests.last.body), {
+        'schemaVersion': 2,
+        'state': 'local_cleared',
+        'readbackRevision': 13,
+        'nativeReceiptDigest': 'd' * 64,
+      });
       await expectLater(
-        future,
-        throwsA(
-          isA<LarenorServerException>().having(
-            (error) => error.code,
-            'code',
-            'cancelled',
-          ),
+        api.completeRevocation(
+          retired,
+          state: 'unknown',
+          readbackRevision: 14,
+          nativeReceiptDigest: 'e' * 64,
         ),
+        throwsA(isA<LarenorServerException>()),
       );
+      expect(requests, hasLength(2));
     },
   );
+
+  test('unsafe revision and late response fail closed', () async {
+    var current = true;
+    final pending = Completer<http.Response>();
+    final transport = LarenorServerApi(
+      endpoint: fixtureSession.endpoint,
+      client: MockClient((_) => pending.future),
+    );
+    addTearDown(transport.close);
+    final api = CoreGameStreamApi(
+      transport,
+      fixtureSession,
+      isCurrent: () => current,
+    );
+    final future = api.hosts();
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    pending.complete(
+      response({
+        'schemaVersion': 2,
+        'scope': fixtureContext.toJson(),
+        'accountRevision': gameStreamMaxSafeInteger + 1,
+        'hosts': <Object>[],
+      }),
+    );
+    await expectLater(future, throwsA(isA<LarenorServerException>()));
+  });
 }

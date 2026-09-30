@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,6 +19,8 @@ import '../../core_proxmox/presentation/core_proxmox_screen.dart';
 import '../../kiosk/presentation/kiosk_screen.dart';
 import '../../proxmox/core_power/proxmox_power_models.dart';
 import '../../legacy_remote/presentation/legacy_remote_route.dart';
+import '../../game_streaming/presentation/game_stream_settings_screen.dart';
+import '../../game_streaming/data/android_game_stream_v2_port.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../providers/settings_providers.dart';
@@ -47,6 +51,7 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
     this.transferParentCurrent,
     this.proxmoxPowerTarget,
     this.proxmoxCanWrite = false,
+    this.gameStreamForegroundCoverageGuard,
   }) : assert(
          initialDestination != SettingsGateDestination.proxmoxPower ||
              proxmoxPowerTarget != null,
@@ -58,6 +63,7 @@ class SettingsGateScreen extends ConsumerStatefulWidget {
   final bool Function()? transferParentCurrent;
   final ProxmoxPowerTarget? proxmoxPowerTarget;
   final bool proxmoxCanWrite;
+  final GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard;
 
   @override
   ConsumerState<SettingsGateScreen> createState() => _SettingsGateScreenState();
@@ -76,6 +82,12 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   Route<bool>? _reauthRoute;
   AppInteractionController? _interaction;
   int _interactionEpoch = 0;
+  int _gameStreamPinRevision = 1;
+  int _gameStreamCoverageEpoch = 0;
+  bool _gameStreamCoveragePending = false;
+  AndroidGameStreamForegroundCoverage _gameStreamCoverage =
+      AndroidGameStreamForegroundCoverage.unavailable;
+  late final GameStreamForegroundCoverageGuard _gameStreamCoverageGuard;
   bool get _interactive => _interaction?.active ?? true;
 
   @override
@@ -94,28 +106,78 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     final epoch = _interaction?.epoch ?? 0;
     if (epoch != _interactionEpoch) {
       _interactionEpoch = epoch;
-      _lockSettings();
+      if (_interactive) {
+        unawaited(_revalidateGameStreamCoverage());
+      } else {
+        unawaited(_lockUnlessGameStreamCovered());
+      }
     }
   }
 
   @override
   void initState() {
     super.initState();
+    _gameStreamCoverageGuard =
+        widget.gameStreamForegroundCoverageGuard ??
+        GameStreamForegroundCoverageGuard();
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.paused &&
-        state != AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_revalidateGameStreamCoverage());
       return;
     }
-    _lockSettings();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      unawaited(_lockUnlessGameStreamCovered());
+    }
+  }
+
+  Future<void> _lockUnlessGameStreamCovered() async {
+    final epoch = ++_gameStreamCoverageEpoch;
+    final coverage = await _gameStreamCoverageGuard.query();
+    if (!mounted || epoch != _gameStreamCoverageEpoch) return;
+    if (coverage == AndroidGameStreamForegroundCoverage.unavailable) {
+      _lockSettings();
+      return;
+    }
+    _gameStreamCoverage = coverage;
+  }
+
+  Future<void> _revalidateGameStreamCoverage() async {
+    final prior = _gameStreamCoverage;
+    if (prior == AndroidGameStreamForegroundCoverage.unavailable) {
+      return;
+    }
+    final epoch = ++_gameStreamCoverageEpoch;
+    setState(() => _gameStreamCoveragePending = true);
+    final coverage = await _gameStreamCoverageGuard.query();
+    if (!mounted || epoch != _gameStreamCoverageEpoch) return;
+    if (coverage == AndroidGameStreamForegroundCoverage.unavailable) {
+      if (prior == AndroidGameStreamForegroundCoverage.pairingPrompt) {
+        setState(() {
+          _gameStreamCoverage = coverage;
+          _gameStreamCoveragePending = false;
+        });
+        return;
+      }
+      _lockSettings();
+      return;
+    }
+    setState(() {
+      _gameStreamCoverage = coverage;
+      _gameStreamCoveragePending = false;
+    });
   }
 
   void _lockSettings() {
     // Invalidate a pending verification as well as an already unlocked session.
     _generation++;
+    _gameStreamCoverageEpoch++;
+    _gameStreamCoveragePending = false;
+    _gameStreamCoverage = AndroidGameStreamForegroundCoverage.unavailable;
     _controller.clear();
     final reauth = _reauthRoute;
     _reauthRoute = null;
@@ -148,6 +210,15 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen(pinLockProvider, (previous, next) {
+      if (previous != null &&
+          (previous.isLoading != next.isLoading ||
+              previous.hasError != next.hasError ||
+              previous.hasValue != next.hasValue ||
+              (previous.hasValue &&
+                  next.hasValue &&
+                  previous.value != next.value))) {
+        _gameStreamPinRevision += 1;
+      }
       if (widget.initialDestination == SettingsGateDestination.tabletFleet &&
           (next.isLoading ||
               next.hasError ||
@@ -219,13 +290,16 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
         );
       },
       data: (pin) {
-        final unlocked = pin == null || _unlocked;
+        final unlocked =
+            (pin == null || _unlocked) && !_gameStreamCoveragePending;
         final resourceGeneration = _generation;
         final archiveNavigator = _settingsNavigator;
         if (unlocked) _settingsOpened = true;
         return Stack(
           children: [
-            if (unlocked || (_fileDialogActive && _settingsOpened))
+            if (unlocked ||
+                (_gameStreamCoveragePending && _settingsOpened) ||
+                (_fileDialogActive && _settingsOpened))
               Offstage(
                 offstage: !unlocked,
                 child: TickerMode(
@@ -439,6 +513,44 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 },
                               )
                             : SettingsSplitScreen(
+                                gameStreamForegroundCoverageGuard:
+                                    _gameStreamCoverageGuard,
+                                gameStreamCoverageCurrent: () {
+                                  if (!mounted ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return false;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  return !value.isLoading &&
+                                      !value.hasError &&
+                                      value.hasValue &&
+                                      value.value == pin &&
+                                      (pin == null || _unlocked);
+                                },
+                                gameStreamGateAuthority: () {
+                                  if (!mounted ||
+                                      !_interactive ||
+                                      resourceGeneration != _generation ||
+                                      ModalRoute.of(context)?.isCurrent !=
+                                          true) {
+                                    return null;
+                                  }
+                                  final value = ref.read(pinLockProvider);
+                                  if (value.isLoading ||
+                                      value.hasError ||
+                                      !value.hasValue ||
+                                      value.value != pin ||
+                                      (pin != null && !_unlocked)) {
+                                    return null;
+                                  }
+                                  return GameStreamGateAuthority(
+                                    pinRevision: _gameStreamPinRevision,
+                                    pinConfigured: pin != null,
+                                    pinUnlocked: pin != null && _unlocked,
+                                  );
+                                },
                                 evChargingGateCurrent: () {
                                   if (!mounted ||
                                       !_interactive ||

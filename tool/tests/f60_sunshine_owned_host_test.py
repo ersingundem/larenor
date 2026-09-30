@@ -94,9 +94,10 @@ class _Process:
 
 
 class _Completed:
-    def __init__(self, returncode=0, stdout=""):
+    def __init__(self, returncode=0, stdout="", stderr=""):
         self.returncode = returncode
         self.stdout = stdout
+        self.stderr = stderr
 
 
 class F60SunshineOwnedHostTest(unittest.TestCase):
@@ -511,6 +512,34 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 expected_name="Larenor-F60-Owned",
             )
 
+    def test_mdns_parser_filters_to_default_interface_and_rejects_foreign_instance(self):
+        owned = (
+            "=;eth0;IPv4;runner-host;_nvstream._tcp;local;host.local;192.0.2.5;47989;\n"
+        )
+        loopback = owned.replace(";eth0;", ";lo;").replace(
+            "192.0.2.5", "127.0.0.1"
+        )
+        self.assertEqual(
+            host.verify_mdns(
+                loopback + owned,
+                expected_name="runner-host",
+                expected_interface="eth0",
+            ),
+            {"service": "_nvstream._tcp", "port": 47989},
+        )
+        with self.assertRaises(host.HostFailure):
+            host.verify_mdns(
+                loopback,
+                expected_name="runner-host",
+                expected_interface="eth0",
+            )
+        with self.assertRaises(host.HostFailure):
+            host.verify_mdns(
+                owned.replace("runner-host", "foreign-host"),
+                expected_name="runner-host",
+                expected_interface="eth0",
+            )
+
     def test_mdns_identity_matches_pinned_sunshine_hostname_algorithm(self):
         self.assertEqual(host._sunshine_mdns_instance_name("runner-host"), "runner-host")
         self.assertEqual(host._sunshine_mdns_instance_name("runner host"), "runner-host")
@@ -539,11 +568,17 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 host._observe_mdns(),
                 {"service": "_nvstream._tcp", "port": 47989},
             )
-        argv = run.call_args.args[0]
-        self.assertIn("--resolve", argv)
-        self.assertIn("--terminate", argv)
-        self.assertIn("--interface=eth0", argv)
-        self.assertNotIn("--ipv4", argv)
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "/usr/bin/avahi-browse",
+                "--parsable",
+                "--resolve",
+                "--terminate",
+                "--no-db-lookup",
+                "_nvstream._tcp",
+            ],
+        )
 
     def test_mdns_timeout_without_exact_owned_resolution_fails_closed(self):
         timed_out = subprocess.TimeoutExpired(
@@ -556,8 +591,19 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
         ), mock.patch.object(
             host.subprocess, "run", side_effect=timed_out
         ):
-            with self.assertRaises(host.HostFailure):
+            with self.assertRaisesRegex(host.HostFailure, "observation is empty"):
                 host._observe_mdns()
+
+    def test_mdns_nonzero_browser_exit_has_bounded_safe_failure(self):
+        completed = _Completed(returncode=2, stdout="", stderr="private stderr")
+        with mock.patch.object(
+            host, "_default_interface", return_value="eth0"
+        ), mock.patch.object(
+            host.subprocess, "run", return_value=completed
+        ):
+            with self.assertRaisesRegex(host.HostFailure, "mDNS browser failed") as failure:
+                host._observe_mdns()
+        self.assertNotIn("private", str(failure.exception))
 
     def test_default_interface_is_exact_single_up_default_route(self):
         with tempfile.TemporaryDirectory() as temporary:

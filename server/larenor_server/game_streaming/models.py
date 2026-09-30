@@ -64,9 +64,6 @@ class NativePairingObservation(FrozenModel):
     name: str = Field(min_length=1, max_length=80)
     codecs: list[Literal["h264", "hevc", "av1"]] = Field(
         min_length=1, max_length=3)
-    maxWidth: int = Field(ge=320, le=8192)
-    maxHeight: int = Field(ge=320, le=8192)
-    maxFps: int = Field(ge=30, le=240)
     catalogRevision: SafeRevision
     catalogDigest: Digest
     apps: list[NativeAppObservation] = Field(max_length=256)
@@ -222,7 +219,7 @@ class CompleteGameStreamIntent(Versioned):
         "unknown"]
     observationKind: Literal[
         "serverInfoOnline", "currentGameMatched", "connectionStarted",
-        "connectionTerminated", "nativeRejected", "unknown"]
+        "connectionStopped", "connectionTerminated", "nativeRejected", "unknown"]
     readbackRevision: SafeRevision | None = None
     nativeReceiptDigest: Digest | None = None
 
@@ -236,3 +233,16 @@ class RevokeGameStreamHost(Versioned):
 
 class CompleteGameStreamRevocation(Versioned):
     state: Literal["local_cleared", "unknown"]
+    readbackRevision: SafeRevision | None = None
+    nativeReceiptDigest: Digest | None = None
+
+    @model_validator(mode="after")
+    def evidence_matches_state(self):
+        observed = self.state == "local_cleared"
+        if observed != (self.readbackRevision is not None
+                        and self.nativeReceiptDigest is not None):
+            raise ValueError("revocation_evidence_mismatch")
+        if not observed and (self.readbackRevision is not None
+                             or self.nativeReceiptDigest is not None):
+            raise ValueError("revocation_evidence_mismatch")
+        return self

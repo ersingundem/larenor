@@ -88,7 +88,7 @@ def load_lock(path=LOCK_PATH):
     )
     _require(
         value["schemaVersion"] == 1
-        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v1",
+        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v2",
         "invalid_lock",
     )
     upstream = value["upstream"]
@@ -131,7 +131,7 @@ def load_lock(path=LOCK_PATH):
     _require(value["requiredLibraries"] == ["libmoonlight-core.so"], "invalid_lock")
     _require(
         value["engineContracts"]
-        == ["pairing", "credentialStore", "video", "audio", "input", "stream"],
+        == ["pairing", "credentialStore", "video", "audio", "input", "stream", "causalStop"],
         "invalid_lock",
     )
     for key in ("mavenDependencies", "requiredSources", "requiredClasses"):
@@ -279,13 +279,13 @@ def prepare_source(source, output, lock):
         shutil.copytree(source, output, symlinks=True)
         for item in lock["patches"]:
             subprocess.run(
-                ["git", "-C", str(output), "apply", "--check", str(ROOT / item["path"])],
+                ["git", "-C", str(output), "apply", "--unidiff-zero", "--check", str(ROOT / item["path"])],
                 check=True,
                 capture_output=True,
                 timeout=30,
             )
             subprocess.run(
-                ["git", "-C", str(output), "apply", str(ROOT / item["path"])],
+                ["git", "-C", str(output), "apply", "--unidiff-zero", str(ROOT / item["path"])],
                 check=True,
                 capture_output=True,
                 timeout=30,
@@ -345,6 +345,14 @@ def verify_transformed_tree(root, lock):
     for relative in lock["requiredSources"]:
         path = root / relative
         _require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 4 * 1024 * 1024, "engine_source_missing")
+    game = _bounded_text(root / "app/src/main/java/com/limelight/Game.java", 4 * 1024 * 1024)
+    _require(
+        "onConnectionStopStarted();\n            new Thread()" in game
+        and "conn.stop();\n                    onConnectionStopCompleted();" in game
+        and "protected void onConnectionStopStarted()" in game
+        and "protected void onConnectionStopCompleted()" in game,
+        "causal_stop_hook_missing",
+    )
 
 
 def _bounded_text(path, maximum):

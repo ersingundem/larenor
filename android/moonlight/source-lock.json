@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "moonlight-android-12.2-larenor-embed-v1",
+  "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
   "upstream": {
     "name": "Moonlight Android",
     "version": "12.2",
@@ -43,7 +43,7 @@
   "patches": [
     {
       "path": "android/moonlight/patches/0001-embed-library.patch",
-      "sha256": "afff28d9001796590a156d46e7f084f7de4710b81276d6ec91a702d9ef3443f1"
+      "sha256": "06cc81c69805eb92fed2becd14a1c3f38f30e80ac150ace1a9abca88de39b347"
     }
   ],
   "reviewedFiles": {
@@ -111,7 +111,8 @@
     "video",
     "audio",
     "input",
-    "stream"
+    "stream",
+    "causalStop"
   ],
   "requiredSources": [
     "app/src/main/java/com/limelight/Game.java",

@@ -52,7 +52,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         self.assertEqual(lock["variant"], "nonRootRelease")
         self.assertEqual(
             set(lock["engineContracts"]),
-            {"pairing", "credentialStore", "video", "audio", "input", "stream"},
+            {"pairing", "credentialStore", "video", "audio", "input", "stream", "causalStop"},
         )
         self.assertEqual(
             [item["reportedVersion"] for item in lock["bundledNativeArchives"]],
@@ -186,6 +186,14 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             target = root / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text("retained upstream engine source\n")
+        (root / "app/src/main/java/com/limelight/Game.java").write_text(
+            "onConnectionStopStarted();\n"
+            "            new Thread() {}\n"
+            "conn.stop();\n"
+            "                    onConnectionStopCompleted();\n"
+            "protected void onConnectionStopStarted() {}\n"
+            "protected void onConnectionStopCompleted() {}\n"
+        )
 
     def _aar(self, path, lock, extra_abi=None):
         classes = io.BytesIO()

@@ -14,6 +14,8 @@ MAX_SESSIONS = 2048
 MAX_COMMANDS = 8192
 MAX_PAIRING_TTL = 300
 MAX_SESSION_TTL = 3600
+SESSION_RETENTION_GRACE = 300
+SESSION_PRUNE_BATCH = MAX_SESSIONS
 MAX_SAFE_INTEGER = 2**53 - 1
 
 FIELDS = {
@@ -40,8 +42,15 @@ FIELDS = {
                 "grant_digest", "completion_hash", "created_at", "completed_at"),
     "revocation": ("id", "host_id", "owner_id", "family_id", "request_key",
                    "request_hash", "host_revision", "binding_digest", "state",
-                   "completion_hash", "created_at", "completed_at"),
+                   "completion_hash", "created_at", "completed_at",
+                   "readback_revision", "native_receipt_digest"),
 }
+
+V2_REVOCATION_FIELDS = (
+    "id", "host_id", "owner_id", "family_id", "request_key", "request_hash",
+    "host_revision", "binding_digest", "state", "completion_hash", "created_at",
+    "completed_at",
+)
 
 
 class GameStreamAuthorityService:
@@ -63,6 +72,14 @@ class GameStreamAuthorityService:
         return hmac.new(
             self._key, b"larenor-game-stream-v2-private\0" + domain.encode()
             + b"\0" + value.encode("ascii"), hashlib.sha256).hexdigest()
+
+    def _v2_revocation_tag(self, row):
+        payload = json.dumps(
+            {name: row[name] for name in V2_REVOCATION_FIELDS},
+            separators=(",", ":"), sort_keys=True).encode("utf-8")
+        return hmac.new(
+            self._key, b"larenor-game-stream-v2\0revocation\0" + payload,
+            hashlib.sha256).hexdigest()
 
     @staticmethod
     def _canonical(value):
@@ -132,6 +149,25 @@ class GameStreamAuthorityService:
                     if len(rows) > limit:
                         raise ValueError("limit")
                     for row in rows:
+                        if (kind == "revocation"
+                                and not hmac.compare_digest(
+                                    row["envelope_tag"], self._tag(kind, row))):
+                            if (row["readback_revision"] is not None
+                                    or row["native_receipt_digest"] is not None
+                                    or not hmac.compare_digest(
+                                        row["envelope_tag"], self._v2_revocation_tag(row))):
+                                raise ValueError("tag")
+                            # v2 accepted a caller-declared local cleanup state.
+                            # Preserve the audit row but retire that unsupported
+                            # claim to unknown while sealing the new evidence fields.
+                            changed = {
+                                "readback_revision": None,
+                                "native_receipt_digest": None,
+                            }
+                            if row["state"] == "local_cleared":
+                                changed.update({"state": "unknown", "completion_hash": None})
+                            row = self._update(
+                                connection, table, kind, row, changed)
                         self._checked(kind, row)
                         for field in ("revision", "actor_revision", "pairing_revision",
                                       "catalog_revision", "readback_revision",
@@ -179,10 +215,7 @@ class GameStreamAuthorityService:
                 "pairingRevision": row["pairing_revision"],
                 "catalogRevision": row["catalog_revision"], "name": row["name"],
                 "assurance": row["assurance"], "active": bool(row["active"]),
-                "codecs": capabilities["codecs"],
-                "maxWidth": capabilities["maxWidth"],
-                "maxHeight": capabilities["maxHeight"],
-                "maxFps": capabilities["maxFps"]}
+                "codecs": capabilities["codecs"]}
 
     @staticmethod
     def _public_app(row):
@@ -211,6 +244,8 @@ class GameStreamAuthorityService:
     def _public_revocation(row):
         return {"schemaVersion": 2, "id": row["id"], "hostId": row["host_id"],
                 "hostRevision": row["host_revision"], "state": row["state"],
+                "readbackRevision": row["readback_revision"],
+                "nativeReceiptDigest": row["native_receipt_digest"],
                 "createdAt": row["created_at"], "completedAt": row["completed_at"]}
 
     def create_pairing(self, actor, core_id, home_id, body):
@@ -284,8 +319,7 @@ class GameStreamAuthorityService:
                     "host_observation_digest": self._digest(
                         "host-observation", observation.hostObservationId),
                     "capabilities": self._json({"codecs": observation.codecs,
-                        "maxWidth": observation.maxWidth, "maxHeight": observation.maxHeight,
-                        "maxFps": observation.maxFps, "engineRevision": observation.engineRevision,
+                        "engineRevision": observation.engineRevision,
                         "provider": observation.provider}),
                     "catalog_revision": observation.catalogRevision,
                     "catalog_digest": observation.catalogDigest,
@@ -544,11 +578,9 @@ class GameStreamAuthorityService:
                     host["catalog_revision"], app["revision"]) !=
                     (body.expectedHostRevision, body.expectedPairingRevision,
                      body.expectedCatalogRevision, body.expectedAppRevision)
-                    or quality["codec"] not in capabilities["codecs"]
-                    or quality["widthPixels"] > capabilities["maxWidth"]
-                    or quality["heightPixels"] > capabilities["maxHeight"]
-                    or quality["framesPerSecond"] > capabilities["maxFps"]):
+                    or quality["codec"] not in capabilities["codecs"]):
                 raise ApiError("game_stream_authority_changed", 409)
+            self._prune_expired_terminal_sessions(connection, now)
             if connection.execute("SELECT COUNT(*) FROM game_stream_sessions").fetchone()[0] >= MAX_SESSIONS:
                 raise ApiError("game_stream_limit_reached", 409)
             row = {"id": uuid.uuid4().hex, "owner_id": actor.id, "family_id": actor.family_id,
@@ -565,12 +597,7 @@ class GameStreamAuthorityService:
             return self._public_session(row)
 
     def _owned_session(self, connection, actor, session_id, expected=None, *, require_open=True):
-        row = self._checked("session", connection.execute(
-            "SELECT * FROM game_stream_sessions WHERE id=?", (session_id,)).fetchone())
-        if row["owner_id"] != actor.id or row["family_id"] != actor.family_id:
-            raise ApiError("not_found", 404)
-        if expected is not None and row["revision"] != expected:
-            raise ApiError("game_stream_authority_changed", 409)
+        row = self._owned_session_record(connection, actor, session_id, expected)
         if require_open and (row["state"] != "open" or self.settings.clock() >= row["expires_at"]):
             raise ApiError("game_stream_authority_changed", 409)
         authority = json.loads(row["core_authority"])
@@ -587,11 +614,20 @@ class GameStreamAuthorityService:
             raise ApiError("game_stream_authority_changed", 409)
         return row, host
 
+    def _owned_session_record(self, connection, actor, session_id, expected=None):
+        row = self._checked("session", connection.execute(
+            "SELECT * FROM game_stream_sessions WHERE id=?", (session_id,)).fetchone())
+        if row["owner_id"] != actor.id or row["family_id"] != actor.family_id:
+            raise ApiError("not_found", 404)
+        if expected is not None and row["revision"] != expected:
+            raise ApiError("game_stream_authority_changed", 409)
+        return row
+
     def session(self, actor, core_id, home_id, session_id):
         self._scope(core_id, home_id)
         with self.db.connection() as connection:
             self._actor(connection, actor)
-            row, _ = self._owned_session(connection, actor, session_id, require_open=False)
+            row = self._owned_session_record(connection, actor, session_id)
             return self._public_session(row)
 
     def retire(self, actor, core_id, home_id, session_id, body):
@@ -599,12 +635,9 @@ class GameStreamAuthorityService:
         request_hash = self._hash(body)
         with self.db.transaction() as connection:
             self._actor(connection, actor)
-            row, _ = self._owned_session(
-                connection, actor, session_id, require_open=False)
+            row = self._owned_session_record(connection, actor, session_id)
             if row["state"] == "retired":
-                if row["last_request_key"] == body.requestKey and row["last_request_hash"] == request_hash:
-                    return self._public_session(row)
-                raise ApiError("game_stream_authority_changed", 409)
+                return self._public_session(row)
             if row["revision"] != body.expectedSessionRevision:
                 raise ApiError("game_stream_authority_changed", 409)
             self._retire_commands(connection, session_id)
@@ -622,6 +655,30 @@ class GameStreamAuthorityService:
             self._update(connection, "game_stream_commands", "command", command, {
                 "state": "unknown", "result": "unknown", "observation_kind": "unknown",
                 "grant_digest": None, "completed_at": self.settings.clock()})
+
+    def _prune_expired_terminal_sessions(self, connection, now):
+        expired = connection.execute(
+            "SELECT * FROM game_stream_sessions WHERE expires_at<=? "
+            "ORDER BY expires_at,id LIMIT ?", (now, SESSION_PRUNE_BATCH)).fetchall()
+        for session in expired:
+            session = self._checked("session", session)
+            if session["state"] == "open":
+                self._retire_commands(connection, session["id"])
+                session = self._update(
+                    connection, "game_stream_sessions", "session", session, {
+                        "revision": session["revision"] + 1,
+                        "state": "retired", "updated_at": now})
+            commands = [self._checked("command", row) for row in connection.execute(
+                "SELECT * FROM game_stream_commands WHERE session_id=? ORDER BY id",
+                (session["id"],)).fetchall()]
+            if (session["expires_at"] + SESSION_RETENTION_GRACE > now
+                    or any(command["state"] not in ("native_observed", "rejected")
+                           for command in commands)):
+                continue
+            connection.execute(
+                "DELETE FROM game_stream_commands WHERE session_id=?", (session["id"],))
+            connection.execute(
+                "DELETE FROM game_stream_sessions WHERE id=?", (session["id"],))
 
     def authorize(self, actor, core_id, home_id, session_id, body):
         self._scope(core_id, home_id)
@@ -668,7 +725,7 @@ class GameStreamAuthorityService:
         self._scope(core_id, home_id)
         with self.db.connection() as connection:
             self._actor(connection, actor)
-            self._owned_session(connection, actor, session_id, require_open=False)
+            self._owned_session_record(connection, actor, session_id)
             row = self._checked("command", connection.execute(
                 "SELECT * FROM game_stream_commands WHERE id=? AND session_id=?",
                 (command_id, session_id)).fetchone())
@@ -676,10 +733,11 @@ class GameStreamAuthorityService:
 
     def complete(self, actor, core_id, home_id, session_id, command_id, body):
         self._scope(core_id, home_id)
-        expected = {"wake": ("hostAwake", "serverInfoOnline"),
-                    "launch": ("appRunning", "currentGameMatched"),
-                    "stream": ("streaming", "connectionStarted"),
-                    "stop": ("stopped", "connectionTerminated")}
+        expected = {"wake": {("hostAwake", "serverInfoOnline")},
+                    "launch": {("appRunning", "currentGameMatched")},
+                    "stream": {("streaming", "connectionStarted")},
+                    "stop": {("stopped", "connectionStopped"),
+                             ("stopped", "connectionTerminated")}}
         completion_hash = self._hash(body)
         with self.db.transaction() as connection:
             self._actor(connection, actor)
@@ -695,7 +753,7 @@ class GameStreamAuthorityService:
             if command["grant_digest"] != self._digest("dispatch-grant", body.dispatchGrant):
                 raise ApiError("game_stream_authority_changed", 409)
             observed = body.state == "native_observed" and (
-                body.result, body.observationKind) == expected[command["intent"]]
+                body.result, body.observationKind) in expected[command["intent"]]
             rejected = body.state == "rejected" and (
                 body.result, body.observationKind) == ("rejected", "nativeRejected")
             unknown = body.state == "unknown" and (
@@ -757,7 +815,8 @@ class GameStreamAuthorityService:
                    "request_key": body.requestKey, "request_hash": request_hash,
                    "host_revision": host["revision"], "binding_digest": host["binding_digest"],
                    "state": "core_retired", "completion_hash": None,
-                   "created_at": now, "completed_at": None}
+                   "created_at": now, "completed_at": None,
+                   "readback_revision": None, "native_receipt_digest": None}
             self._write(connection, "game_stream_revocations", "revocation", row)
             return self._public_revocation(row)
 
@@ -771,11 +830,24 @@ class GameStreamAuthorityService:
                 (revocation_id, host_id)).fetchone())
             if row["owner_id"] != actor.id or row["family_id"] != actor.family_id:
                 raise ApiError("not_found", 404)
+            host = self._owned_host(connection, actor, host_id, active=False)
+            if (host["active"] or host["revision"] != row["host_revision"]
+                    or host["binding_digest"] != row["binding_digest"]):
+                raise ApiError("game_stream_authority_changed", 409)
             if row["state"] != "core_retired":
                 if row["completion_hash"] == completion_hash:
                     return self._public_revocation(row)
                 raise ApiError("game_stream_authority_changed", 409)
+            if body.readbackRevision is not None:
+                prior = host["last_readback_revision"]
+                if prior is not None and body.readbackRevision <= prior:
+                    raise ApiError("game_stream_authority_changed", 409)
+                self._update(connection, "game_stream_hosts", "host", host, {
+                    "last_readback_revision": body.readbackRevision,
+                    "updated_at": self.settings.clock()})
             row = self._update(connection, "game_stream_revocations", "revocation", row, {
                 "state": body.state, "completion_hash": completion_hash,
+                "readback_revision": body.readbackRevision,
+                "native_receipt_digest": body.nativeReceiptDigest,
                 "completed_at": self.settings.clock()})
             return self._public_revocation(row)

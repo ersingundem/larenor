@@ -31,7 +31,7 @@ LEGACY_TABLES = {
         FOREIGN KEY(session_id) REFERENCES game_stream_sessions(id) ON DELETE RESTRICT)""",
 }
 
-TABLES = {
+V2_TABLES = {
     "game_stream_pairings": """CREATE TABLE game_stream_pairings (
         id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, family_id TEXT NOT NULL,
         actor_revision INTEGER NOT NULL CHECK(actor_revision > 0),
@@ -106,6 +106,21 @@ TABLES = {
         FOREIGN KEY(host_id) REFERENCES game_stream_hosts(id) ON DELETE RESTRICT)""",
 }
 
+TABLES = {
+    **V2_TABLES,
+    "game_stream_revocations": """CREATE TABLE game_stream_revocations (
+        id TEXT PRIMARY KEY, host_id TEXT NOT NULL, owner_id TEXT NOT NULL,
+        family_id TEXT NOT NULL,
+        request_key TEXT NOT NULL, request_hash TEXT NOT NULL,
+        host_revision INTEGER NOT NULL CHECK(host_revision > 0),
+        binding_digest TEXT NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('core_retired','local_cleared','unknown')),
+        completion_hash TEXT, created_at REAL NOT NULL, completed_at REAL,
+        envelope_tag TEXT NOT NULL, readback_revision INTEGER,
+        native_receipt_digest TEXT, UNIQUE(owner_id,family_id,request_key),
+        FOREIGN KEY(host_id) REFERENCES game_stream_hosts(id) ON DELETE RESTRICT)""",
+}
+
 
 def _exact(actual, expected):
     return set(actual) == set(expected) and all(
@@ -129,7 +144,7 @@ def migrate_game_streaming(connection: sqlite3.Connection) -> None:
                 raise ValueError("unmarked_game_stream_storage")
             for statement in TABLES.values():
                 connection.execute(statement)
-            connection.execute("INSERT INTO metadata VALUES('game_stream_schema','2')")
+            connection.execute("INSERT INTO metadata VALUES('game_stream_schema','3')")
             return
         if marker["value"] == "1" and _exact(actual, LEGACY_TABLES):
             # v1 rows were based on caller declarations. Retire rather than promote them.
@@ -138,9 +153,20 @@ def migrate_game_streaming(connection: sqlite3.Connection) -> None:
             for statement in TABLES.values():
                 connection.execute(statement)
             connection.execute(
-                "UPDATE metadata SET value='2' WHERE key='game_stream_schema'")
+                "UPDATE metadata SET value='3' WHERE key='game_stream_schema'")
             return
-        if marker["value"] != "2" or not _exact(actual, TABLES):
+        if marker["value"] == "2" and _exact(actual, V2_TABLES):
+            connection.execute(
+                "ALTER TABLE game_stream_revocations ADD COLUMN readback_revision INTEGER")
+            connection.execute(
+                "ALTER TABLE game_stream_revocations ADD COLUMN native_receipt_digest TEXT")
+            connection.execute(
+                "UPDATE metadata SET value='3' WHERE key='game_stream_schema'")
+            rows = connection.execute(
+                "SELECT name,type,sql FROM sqlite_master WHERE name GLOB 'game_stream_*'"
+            ).fetchall()
+            actual = {row["name"]: row for row in rows if row["sql"] is not None}
+        if marker["value"] not in ("2", "3") or not _exact(actual, TABLES):
             raise ValueError("invalid_game_stream_storage")
     except (sqlite3.Error, TypeError, ValueError):
         raise StartupError("game_stream_storage_invalid") from None
