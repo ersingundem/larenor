@@ -96,6 +96,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         cleanup = next(step for step in steps if step.get("name") ==
                        "Stop the owned RDP host")
         self.assertEqual(host["if"], "matrix.abi == 'x86_64'")
+        self.assertIn("x11-utils", host["run"])
         for required in (
             "openssl rand", "::add-mask::", "winpr-hash3", "/sec:nla",
             "/sam-file:", "freerdp-shadow-cli3", "Xvfb",
