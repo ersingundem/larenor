@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül TigerVNC test penceresi kimliği düzeltmesi
+
+Exact b76558c4 / run 36765832888 font hatasını kapattı; xterm başlığına göre pencere araması production test başlamadan timeout verdi. İzole pencere artık sabit WM_CLASS üzerinden bulunur ve owned bash startup dosyaları yüklenmez; visible-window/focus sınırı 10sn ve tüm gerçek native kabul koşulları korunur. 5 policy testi geçti; F61 gerçek hosted gatei geçmeden yazılım kabulü sayılmadı. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül K11 kabulü ve F47 kanıt ayrımı
 
 K11 explicit native retirement, sticky belirsiz ACK fence ve eski async yanıt epoch sınırlarını root 19 Flutter/6 Android sıfır skip ile doğruladı; analyze temiz. K11 CI bekliyor tablosuna taşındı, fiziksel cihaz kapıları MANUAL kaldı. F47nin declared gerçek Flutter→normal Core→TCP provider birleşik gatei henüz yok; ayrı Python/Flutter testlerini o kanıt yerine saymamak için F47 yeniden çalışılıyor. Böylece 57 seçili özellik ve altı ek iş (K10/K11/K12/K13, HEALTH/PROVIDERS) CI bekliyor; kabul sayaçları değişmedi. [K11 kanıtı](testing/k11-production-input-retirement-2026-09-30.md).

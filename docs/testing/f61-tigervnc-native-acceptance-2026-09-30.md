@@ -96,3 +96,21 @@ step then timed out. The workflow used `--no-install-recommends` without an
 X core-font package. The owned fixture now explicitly installs `xfonts-base`.
 This bootstrap repair does not establish VNC interoperability: the exact
 one-test/no-skip XML gate still must run and pass on a new revision.
+
+[Run 36765832888](https://github.com/ersingundem/larenor/actions/runs/36765832888)
+at `b76558c4ee09b3f8e5fad4b274ac699576e71821` installed the fonts and no longer
+reported that error, but timed out waiting for the xterm title. No production
+bridge test executed. The fixture now uses a unique immutable X resource class
+(`LarenorF61Fixture`) and `xdotool --class` instead of a mutable window title.
+Its owned shell explicitly uses `bash --noprofile --norc`, so runner shell startup
+configuration cannot rename the test window. Title mutation is a suspected cause
+of the earlier timeout, not an observed protocol failure.
+
+The [xterm manual](https://manpages.ubuntu.com/manpages/noble/man1/xterm.1.html)
+documents `-class` and `-e`; the
+[xdotool manual](https://manpages.ubuntu.com/manpages/noble/man1/xdotool.1.html)
+defines `--class` against WM_CLASS. The visible-window/focus readiness check still
+has a ten-second bound; none of the real SPKI/auth/frame/input/resize assertions
+or the exact one-test/no-skip XML receipt gate were relaxed. Five VNC workflow
+policy tests passed locally. A new exact hosted gate must verify this bootstrap
+repair and then execute the actual bridge acceptance.

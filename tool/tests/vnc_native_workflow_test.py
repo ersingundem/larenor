@@ -91,6 +91,10 @@ class VncNativeWorkflowTest(unittest.TestCase):
             '"-SendCutText"',
             '"-AcceptCutText"',
             '"-UseBlacklist=0"',
+            '"-class",\n                        "LarenorF61Fixture"',
+            '"--class",\n                    "^LarenorF61Fixture$"',
+            '"--noprofile"',
+            '"--norc"',
             '"LARENOR_F61_TIGERVNC_ACCEPTANCE": "1"',
             "VncTigerVncAcceptanceTest",
             "TemporaryDirectory",
@@ -106,6 +110,7 @@ class VncNativeWorkflowTest(unittest.TestCase):
             r"192\.168\.|10\.\d+\.|172\.(?:1[6-9]|2\d|3[01])\.",
         )
         self.assertNotIn("shell=True", self.runner)
+        self.assertNotIn('"--name"', self.runner)
 
     def test_only_f61_paths_trigger_the_workflow(self):
         paths = self.workflow["on"]["pull_request"]["paths"]
