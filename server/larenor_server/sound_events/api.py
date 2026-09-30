@@ -44,6 +44,12 @@ def source(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
     return core.sound_event_source.setup(actor, core_id, home_id)
 
 
+@router.post(ROOT + "/source/discovery", response_model=SoundSourceSetup)
+def discover_source(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
+    core.auth.rate_limit([("sound_source_discovery", actor.id, 20)])
+    return core.sound_event_source.discover(actor, core_id, home_id)
+
+
 @router.put(ROOT + "/source", response_model=SoundSourceSetup)
 def configure_source(
     core_id: Identity,

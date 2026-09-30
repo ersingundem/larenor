@@ -24,24 +24,55 @@ class SoundEventSourceScreen extends StatefulWidget {
 }
 
 class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
+  late SoundSourceSetup _setup;
   SoundSourceChoice? _camera, _room;
   bool _consent = false, _busy = false, _failed = false;
+  bool _discoveryBusy = false, _discoveryFailed = false;
 
   bool get _tr => Localizations.localeOf(context).languageCode == 'tr';
 
   @override
   void initState() {
     super.initState();
-    final config = widget.setup.configuration;
-    _camera = widget.setup.cameras.cast<SoundSourceChoice?>().firstWhere(
+    _setup = widget.setup;
+    _selectBoundChoices();
+    _consent = _setup.configuration?.consentGranted ?? false;
+    if (!_setup.discoveryVerified) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _discover());
+    }
+  }
+
+  void _selectBoundChoices() {
+    final config = _setup.configuration;
+    _camera = _setup.cameras.cast<SoundSourceChoice?>().firstWhere(
       (item) => item?.id == config?.cameraResourceId,
-      orElse: () => widget.setup.cameras.firstOrNull,
+      orElse: () => _setup.cameras.firstOrNull,
     );
-    _room = widget.setup.rooms.cast<SoundSourceChoice?>().firstWhere(
+    _room = _setup.rooms.cast<SoundSourceChoice?>().firstWhere(
       (item) => item?.id == config?.roomId,
-      orElse: () => widget.setup.rooms.firstOrNull,
+      orElse: () => _setup.rooms.firstOrNull,
     );
-    _consent = config?.consentGranted ?? false;
+  }
+
+  Future<void> _discover() async {
+    if (_busy || _discoveryBusy) return;
+    setState(() {
+      _discoveryBusy = true;
+      _discoveryFailed = false;
+    });
+    try {
+      final value = await widget.api.discoverSourceSetup();
+      if (!value.discoveryVerified) throw StateError('unverified_discovery');
+      if (!mounted) return;
+      setState(() {
+        _setup = value;
+        _selectBoundChoices();
+      });
+    } catch (_) {
+      if (mounted) setState(() => _discoveryFailed = true);
+    } finally {
+      if (mounted) setState(() => _discoveryBusy = false);
+    }
   }
 
   Future<void> _pick(List<SoundSourceChoice> choices, bool camera) async {
@@ -75,7 +106,11 @@ class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
   Future<void> _save() async {
     final camera = _camera, room = _room;
     if (_busy || camera == null || room == null) return;
-    final existing = widget.setup.configuration;
+    final existing = _setup.configuration;
+    if (_consent && !_setup.discoveryVerified) {
+      setState(() => _discoveryFailed = true);
+      return;
+    }
     final bark = _consent
         ? (camera.audioLabels.contains('bark') ? ['bark'] : <String>[])
         : (existing?.labels['bark'] ?? const <String>[]);
@@ -102,7 +137,7 @@ class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
     });
     try {
       final result = await widget.api.configureSource(
-        current: widget.setup,
+        current: _setup,
         camera: camera,
         room: room,
         barkLabels: bark,
@@ -132,13 +167,32 @@ class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
           ),
           children: [
             SettingsActionTile(
+              buttonKey: const ValueKey('sound-source-discover'),
+              leading: _discoveryBusy
+                  ? const CupertinoActivityIndicator()
+                  : const Icon(CupertinoIcons.refresh),
+              title: Text(
+                _setup.discoveryVerified
+                    ? (_tr ? 'Kaynaklar doğrulandı' : 'Sources verified')
+                    : (_tr ? 'Kaynakları doğrula' : 'Verify sources'),
+              ),
+              additionalInfo: _discoveryFailed
+                  ? Text(
+                      _tr
+                          ? 'Frigate veya kaynak izinleri doğrulanamadı. Çevrimdışıyken izni yine geri çekebilirsiniz.'
+                          : 'Frigate or source permissions could not be verified. You can still revoke consent while offline.',
+                    )
+                  : null,
+              onTap: _busy || _discoveryBusy ? null : _discover,
+            ),
+            SettingsActionTile(
               buttonKey: const ValueKey('sound-source-camera'),
               leading: const Icon(CupertinoIcons.video_camera),
               title: Text(_tr ? 'Kamera' : 'Camera'),
               additionalInfo: Text(
                 _camera?.label ?? (_tr ? 'Seçilmedi' : 'Not selected'),
               ),
-              onTap: _busy ? null : () => _pick(widget.setup.cameras, true),
+              onTap: _busy ? null : () => _pick(_setup.cameras, true),
             ),
             SettingsActionTile(
               buttonKey: const ValueKey('sound-source-room'),
@@ -147,7 +201,7 @@ class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
               additionalInfo: Text(
                 _room?.label ?? (_tr ? 'Seçilmedi' : 'Not selected'),
               ),
-              onTap: _busy ? null : () => _pick(widget.setup.rooms, false),
+              onTap: _busy ? null : () => _pick(_setup.rooms, false),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -191,7 +245,7 @@ class _SoundEventSourceScreenState extends State<SoundEventSourceScreen> {
                           : 'Verify and save source')
                     : (_tr ? 'İzni geri çek' : 'Revoke consent'),
               ),
-              onTap: _busy || (!_consent && widget.setup.configuration == null)
+              onTap: _busy || (!_consent && _setup.configuration == null)
                   ? null
                   : _save,
             ),

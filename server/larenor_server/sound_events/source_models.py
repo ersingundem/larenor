@@ -72,6 +72,7 @@ class SoundSourceChoice(FrozenModel):
 class SoundSourceSetup(FrozenModel):
     schemaVersion: Literal[1]
     revision: int = Field(ge=0, le=2**63 - 1)
+    discoveryVerified: bool
     configuration: FrigateSoundSource | None
     cameras: list[SoundSourceChoice] = Field(max_length=16)
     rooms: list[SoundSourceChoice] = Field(max_length=128)

@@ -32,7 +32,11 @@ void main() {
       addTearDown(api.retire);
       final initial = await api.bootstrap();
       expect(initial.sourceStatus.state, 'unavailable');
-      final setup = await api.loadSourceSetup();
+      final local = await api.loadSourceSetup();
+      expect(local.discoveryVerified, isFalse);
+      expect(local.cameras, isEmpty);
+      final setup = await api.discoverSourceSetup();
+      expect(setup.discoveryVerified, isTrue);
       final camera = setup.cameras.firstWhere(
         (item) => item.label == 'Front door',
       );

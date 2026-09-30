@@ -78,13 +78,38 @@ class FrigateSoundEventRuntime:
     def setup(self, actor, core_id, home_id):
         self._scope(core_id, home_id)
         source = self._store.get(actor)
-        # Revocation is intentionally local. It remains readable while Frigate is
-        # offline so the client can verify the exact persisted consent revision.
-        if source is not None and not source.consentGranted:
-            return SoundSourceSetup(
-                schemaVersion=1, revision=source.revision, configuration=source,
-                cameras=[], rooms=[],
-            )
+        cameras, rooms = [], []
+        if source is not None:
+            camera_label, room_label = "Configured camera", "Configured room"
+            try:
+                camera = self._record(actor, source.cameraResourceId, "resource")
+                if camera["revision"] == source.cameraRevision:
+                    camera_label = camera["label"]
+            except ApiError:
+                pass
+            try:
+                room = self._record(actor, source.roomId, "room")
+                if room["revision"] == source.roomRevision:
+                    room_label = room["label"]
+            except ApiError:
+                pass
+            cameras = [SoundSourceChoice(
+                id=source.cameraResourceId, revision=source.cameraRevision,
+                label=camera_label,
+                audioLabels=sorted(set(source.labels.bark) | set(source.labels.noise)),
+            )]
+            rooms = [SoundSourceChoice(
+                id=source.roomId, revision=source.roomRevision, label=room_label,
+            )]
+        return SoundSourceSetup(
+            schemaVersion=1, revision=0 if source is None else source.revision,
+            discoveryVerified=False, configuration=source,
+            cameras=cameras, rooms=rooms,
+        )
+
+    def discover(self, actor, core_id, home_id):
+        self._scope(core_id, home_id)
+        source = self._store.get(actor)
         lease = self._prepared(actor)
         authority, mapping = lease.authority, lease.camera_mapping
         config = self._config(lease)
@@ -117,6 +142,7 @@ class FrigateSoundEventRuntime:
         return SoundSourceSetup(
             schemaVersion=1,
             revision=0 if source is None else source.revision,
+            discoveryVerified=True,
             configuration=source,
             cameras=sorted(cameras, key=lambda item: (item.label, item.id)),
             rooms=sorted(rooms, key=lambda item: (item.label, item.id)),
@@ -344,7 +370,11 @@ class FrigateSoundEventRuntime:
         )
 
     def status(self, actor):
-        if self._authorized_source(actor) is None:
+        try:
+            source = self._authorized_source(actor)
+        except ApiError:
+            return self._unavailable_status()
+        if source is None:
             return self._unavailable_status()
         value = self._store.status(actor)
         if value is None:

@@ -29,9 +29,10 @@ def configured(server, frigate):
         json={"kind": "room", "label": "Entry", "order": 0},
     ).json()["record"]
     root = f"/api/v1/sound-events/{scope.coreId}/{scope.homeId}"
-    setup = client.get(root + "/source", headers=auth(actor))
+    setup = client.post(root + "/source/discovery", headers=auth(actor))
     assert setup.status_code == 200, setup.text
     value = setup.json()
+    assert value["discoveryVerified"] is True
     front = next(item for item in value["cameras"] if item["label"] == "Front door")
     body = {
         "schemaVersion": 1,
@@ -108,18 +109,37 @@ def test_offline_consent_revoke_is_local_cas_and_hides_retained_history(server, 
 
     frigate.available = False
     calls = len(frigate.calls)
+    local = client.get(root + "/source", headers=auth(actor))
+    assert local.status_code == 200, local.text
+    assert local.json()["discoveryVerified"] is False
+    assert len(local.json()["cameras"]) == len(local.json()["rooms"]) == 1
+    assert len(frigate.calls) == calls
     revoked = client.put(root + "/source", headers=auth(actor), json={
         **body, "expectedRevision": 1, "consentGranted": False,
     })
     assert revoked.status_code == 200, revoked.text
     assert revoked.json()["configuration"]["revision"] == 2
     assert revoked.json()["configuration"]["consentGranted"] is False
-    assert revoked.json()["cameras"] == revoked.json()["rooms"] == []
+    assert revoked.json()["discoveryVerified"] is False
+    assert len(revoked.json()["cameras"]) == len(revoked.json()["rooms"]) == 1
+    assert len(frigate.calls) == calls
     snapshot = client.get(root, headers=auth(actor))
     assert snapshot.status_code == 200, snapshot.text
     assert snapshot.json()["events"] == []
     assert snapshot.json()["sourceStatus"]["state"] == "unavailable"
-    assert len(frigate.calls) == calls
+
+    unavailable = client.post(root + "/source/discovery", headers=auth(actor))
+    assert unavailable.status_code == 503, unavailable.text
+    frigate.available = True
+    discovered = client.post(root + "/source/discovery", headers=auth(actor))
+    assert discovered.status_code == 200, discovered.text
+    assert discovered.json()["discoveryVerified"] is True
+    enabled = client.put(root + "/source", headers=auth(actor), json={
+        **body, "expectedRevision": 2, "consentGranted": True,
+    })
+    assert enabled.status_code == 200, enabled.text
+    assert enabled.json()["configuration"]["revision"] == 3
+    assert enabled.json()["configuration"]["consentGranted"] is True
 
 
 def test_history_fails_closed_after_camera_permission_or_room_revision_drift(server, frigate):
@@ -129,7 +149,9 @@ def test_history_fails_closed_after_camera_permission_or_room_revision_drift(ser
 
     frigate.allowed = ["back"]
     denied = client.get(root, headers=auth(actor))
-    assert (denied.status_code, denied.json()["error"]["code"]) == (409, "revision_conflict")
+    assert denied.status_code == 200, denied.text
+    assert denied.json()["events"] == []
+    assert denied.json()["sourceStatus"]["state"] == "unavailable"
 
     frigate.allowed = ["front", "back"]
     scope = app.state.core.context
@@ -141,7 +163,9 @@ def test_history_fails_closed_after_camera_permission_or_room_revision_drift(ser
     )
     assert changed.status_code == 200, changed.text
     stale = client.get(root, headers=auth(actor))
-    assert (stale.status_code, stale.json()["error"]["code"]) == (409, "revision_conflict")
+    assert stale.status_code == 200, stale.text
+    assert stale.json()["events"] == []
+    assert stale.json()["sourceStatus"]["state"] == "unavailable"
 
 
 def test_audio_capability_consent_cancel_and_session_drift_fail_closed(server, frigate):
@@ -155,7 +179,7 @@ def test_audio_capability_consent_cancel_and_session_drift_fail_closed(server, f
         json={"kind": "room", "label": "Entry", "order": 0},
     ).json()["record"]
     root = f"/api/v1/sound-events/{scope.coreId}/{scope.homeId}"
-    setup = client.get(root + "/source", headers=auth(actor)).json()
+    setup = client.post(root + "/source/discovery", headers=auth(actor)).json()
     camera = next(item for item in setup["cameras"] if item["label"] == "Front door")
     body = {"schemaVersion": 1, "expectedRevision": None,
             "cameraResourceId": camera["id"], "expectedCameraRevision": camera["revision"],

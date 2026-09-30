@@ -9,6 +9,7 @@ import 'sound_event_controller.dart';
 
 abstract interface class SoundSourceConfigurationApi {
   Future<SoundSourceSetup> loadSourceSetup();
+  Future<SoundSourceSetup> discoverSourceSetup();
   Future<SoundSourceSetup> configureSource({
     required SoundSourceSetup current,
     required SoundSourceChoice camera,
@@ -89,6 +90,19 @@ final class CoreSoundEventApi
       session.user.id,
     );
   });
+
+  @override
+  Future<SoundSourceSetup> discoverSourceSetup() =>
+      _bound((api, session) async {
+        return _decodeSourceSetup(
+          await api.request(
+            'POST',
+            '${_root(session.context!)}/source/discovery',
+            token: session.accessToken,
+          ),
+          session.user.id,
+        );
+      });
 
   @override
   Future<SoundSourceSetup> configureSource({
@@ -607,11 +621,13 @@ final class CoreSoundEventApi
     final value = _map(raw, const {
       'schemaVersion',
       'revision',
+      'discoveryVerified',
       'configuration',
       'cameras',
       'rooms',
     });
-    if (_integer(value['schemaVersion']) != 1) {
+    if (_integer(value['schemaVersion']) != 1 ||
+        value['discoveryVerified'] is! bool) {
       throw const LarenorServerException('invalid_response');
     }
     List<SoundSourceChoice> choices(Object? raw, int limit) {
@@ -664,6 +680,7 @@ final class CoreSoundEventApi
     }
     return SoundSourceSetup(
       revision: revision,
+      discoveryVerified: value['discoveryVerified'] as bool,
       configuration: configuration,
       cameras: cameras,
       rooms: rooms,

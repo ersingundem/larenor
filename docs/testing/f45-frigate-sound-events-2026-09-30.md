@@ -37,6 +37,11 @@
   Frigate availability, advances the persisted consent revision, clears source
   status and immediately hides retained event metadata from history. Re-enabling
   still requires a fresh verified provider read.
+- `GET /source` is a local-only metadata read. It returns the persisted camera,
+  room, labels and exact CAS revision so an administrator can revoke consent
+  after a cold restart while Frigate is offline. `POST /source/discovery` is the
+  separate bounded provider read used for initial setup and re-enabling; the
+  Flutter form cannot grant consent from the local metadata projection.
 - Every status/history read with active consent revalidates the current account,
   F41 source permission and revision, exact camera mapping, room/camera resource
   revisions and current Frigate audio configuration. Revoked access or drift

@@ -35,11 +35,13 @@ final class SoundSourceConfiguration {
 final class SoundSourceSetup {
   const SoundSourceSetup({
     required this.revision,
+    required this.discoveryVerified,
     required this.configuration,
     required this.cameras,
     required this.rooms,
   });
   final int revision;
+  final bool discoveryVerified;
   final SoundSourceConfiguration? configuration;
   final List<SoundSourceChoice> cameras, rooms;
 }

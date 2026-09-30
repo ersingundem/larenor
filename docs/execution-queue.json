@@ -4793,7 +4793,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate audio-enabled review/exact-review GET akışı, per-account oda/kamera/rıza/etiket/saklama kaynağı ve inline EN/TR kurulum uygular. Offline lokal CAS rıza iptali, kamera/oda/current ACL pre-read kontrolü, atomik idempotent metadata batch, restart/expiry ve sessizlik iddiası olmayan durumlar var. 12 Server, 14 Flutter, gerçek Client→normal Core→TCP HA/Frigate 1 kabulü ve analyze geçti (docs/testing/f45-frigate-sound-events-2026-09-30.md). Gerçek kamera/audio accuracy ve exact HEAD geniş CI açık."
+      "reason": "Gerçek Frigate ses review akışı ve doğrulanmış discovery ayrı. Yerel kaynak metadata GET upstream erişim istemeden kayıtlı camera/room + exact revision verir; soğuk başlangıçta çevrimdışı izin geri alınır. Yeniden izin öncesi authenticated Frigate config/profile + güncel camera/room yetkisi discovery zorunlu; erişim değişiminde eski history boş/unavailable. 12 Server, 15 Flutter + 1 gerçek Client→normal Core→TCP kabulü ve analyze geçti. Geniş kabul/exact CI ve fiziksel ses matrisi açık; sessizlik veya gerçek alarm doğrulandığı iddia edilmez."
     },
     {
       "id": "G09",

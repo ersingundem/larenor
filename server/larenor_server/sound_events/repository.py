@@ -322,9 +322,13 @@ class SoundEventRepository:
         return value
 
     def _require_source_access(self, actor):
-        if self._source_access(actor) is False:
+        access = self._source_access(actor)
+        if access is False:
             raise ApiError("forbidden", 403)
-        return self._source_status(actor)
+        status = self._source_status(actor)
+        if access is not None and status.state == "unavailable":
+            raise ApiError("forbidden", 403)
+        return status
 
     @staticmethod
     def _foreign_request(connection, request_id, own_table):
@@ -579,7 +583,8 @@ class SoundEventRepository:
                 now_ms = int(self._clock() * 1000)
                 events = []
                 for row in rows:
-                    if source_access is False:
+                    if (source_access is False
+                            or source_access is not None and source_status.state == "unavailable"):
                         break
                     value = self._record(row, policy, now_ms)
                     if value.retentionExpiresAtMs <= now_ms:
