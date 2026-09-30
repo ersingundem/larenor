@@ -391,7 +391,7 @@ class PowerBudgetService:
             or type(inputs.grid_import_w) is not int
             or not 0 <= inputs.grid_import_w <= 1_000_000
             or type(inputs.tariff_micros_per_kwh) is not int
-            or not 0 <= inputs.tariff_micros_per_kwh <= 10_000_000
+            or not -10_000_000 <= inputs.tariff_micros_per_kwh <= 10_000_000
         ):
             raise ApiError("power_safety_limit", 400)
         if (

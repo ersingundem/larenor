@@ -26,3 +26,24 @@ class ConfirmCharge(FrozenModel):
     expectedPlanHash: Digest
     expectedChargerRevision: Revision
     expectedScheduleRevision: Revision
+
+
+class AcceptedEnergyWindowSlot(FrozenModel):
+    startAtMs: TimestampMs
+    endAtMs: TimestampMs
+    tariffMicrosPerKwh: int = Field(ge=-10_000_000, le=10_000_000)
+    solarSurplusW: int = Field(ge=0, le=100_000)
+    homeBudgetW: int = Field(ge=0, le=100_000)
+
+
+class AcceptEnergyWindows(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedServiceRevision: Revision
+    expectedAcceptedRevision: int = Field(ge=0, le=2**63 - 1)
+    tariffRevision: Revision
+    solarRevision: Revision
+    powerBudgetRevision: Revision
+    overrideRevision: Revision
+    observedAtMs: TimestampMs
+    expiresAtMs: TimestampMs
+    slots: list[AcceptedEnergyWindowSlot] = Field(min_length=1, max_length=192)

@@ -181,7 +181,6 @@ def test_service_probe_is_reachable_but_does_not_claim_authentication():
     [
         {**state_fixture(), "grid": {"power": float("nan")}},
         {**state_fixture(), "tariffGrid": "0.2"},
-        {**state_fixture(), "tariffGrid": -0.05},
         {**state_fixture(), "circuits": {}},
         {**state_fixture(), "loadpoints": []},
     ],
@@ -254,6 +253,14 @@ def test_power_budget_projection_is_read_only_and_revision_bound():
         provider.apply(plan_hash="f" * 64, actions=())
 
 
+def test_negative_dynamic_tariff_is_preserved_without_clamping():
+    Transport.payload = state_fixture(tariffGrid=-0.05)
+    provider = providers().power_budget
+    authority = provider.authority(actor())
+    inputs = provider.inputs(actor(), authority)
+    assert inputs.tariff_micros_per_kwh == -50_000
+
+
 def test_service_binding_drift_fails_before_another_upstream_read():
     current = {"valid": True}
 
@@ -312,9 +319,14 @@ def test_no_vehicle_capacity_means_no_plannable_charger():
     Transport.payload = state_fixture()
 
 
-def test_verified_single_evcc_service_is_wired_on_normal_restart(server):
-    app, client, settings, _clock = server
+def test_verified_single_evcc_service_is_discovered_without_restart(server, monkeypatch):
+    app, client, settings, clock = server
     pair = ready(server)
+    monkeypatch.setattr("larenor_server.evcc.provider.ServiceTransport", Transport)
+    assert (
+        client.get("/api/v1/admin/power-budget", headers=auth(pair)).status_code
+        == 503
+    )
     created = client.post(
         "/api/v1/admin/services",
         headers=auth(pair),
@@ -335,11 +347,155 @@ def test_verified_single_evcc_service_is_wired_on_normal_restart(server):
         state="reachable",
         version="0.214.1",
     )
+    core = app.state.core
+    assert core.power_budget is not None
+    assert core.ev_charging.provider.__class__.__name__ == "_ResolvedChargeProvider"
+    response = client.get("/api/v1/admin/power-budget", headers=auth(pair))
+    assert response.status_code == 200, response.text
+    assert response.json()["snapshot"]["measurement"]["gridLimitW"] == 8400
+    capability = core.ev_charging.provider.capability()
+    assert capability.provider_kind == "evcc"
+    assert capability.can_plan is False
+    assert capability.can_control is False
+
+    context = core.context
+    accepted = client.put(
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/providers/evcc/"
+        f"{service['id']}/energy-windows",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedServiceRevision": service["revision"],
+            "expectedAcceptedRevision": 0,
+            "tariffRevision": 41,
+            "solarRevision": 43,
+            "powerBudgetRevision": 47,
+            "overrideRevision": 53,
+            "observedAtMs": round(clock.now * 1000),
+            "expiresAtMs": round((clock.now + 3600) * 1000),
+            "slots": [
+                {
+                    "startAtMs": round(clock.now * 1000),
+                    "endAtMs": round((clock.now + 3600) * 1000),
+                    "tariffMicrosPerKwh": -50_000,
+                    "solarSurplusW": 0,
+                    "homeBudgetW": 3680,
+                }
+            ],
+        },
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["acceptedRevision"] == 1
+    conflict_body = json.loads(accepted.request.content)
+    conflict_body["expectedAcceptedRevision"] = 0
+    conflict = client.put(
+        accepted.request.url.path,
+        headers=auth(pair),
+        json=conflict_body,
+    )
+    assert conflict.status_code == 409
+    metadata = client.get(accepted.request.url.path, headers=auth(pair))
+    assert metadata.status_code == 200, metadata.text
+    assert metadata.json() == {
+        "schemaVersion": 1,
+        "acceptedRevision": 1,
+        "acceptedServiceRevision": 1,
+        "currentServiceRevision": 1,
+        "status": "current",
+    }
+    assert "slots" not in metadata.text
+    assert "-50000" not in metadata.text
+    updated = client.patch(
+        f"/api/v1/admin/services/{service['id']}",
+        headers=auth(pair),
+        json={
+            "expectedRevision": 1,
+            "name": "Renamed home energy",
+            "baseUrl": service["baseUrl"],
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["service"]["revision"] == 2
+    drifted = client.get(accepted.request.url.path, headers=auth(pair))
+    assert drifted.json() == {
+        "schemaVersion": 1,
+        "acceptedRevision": 1,
+        "acceptedServiceRevision": 1,
+        "currentServiceRevision": 2,
+        "status": "service_revision_changed",
+    }
+    replacement_body = {
+        **conflict_body,
+        "expectedServiceRevision": 2,
+        "expectedAcceptedRevision": 1,
+    }
+    replaced = client.put(
+        accepted.request.url.path,
+        headers=auth(pair),
+        json=replacement_body,
+    )
+    assert replaced.status_code == 200, replaced.text
+    assert replaced.json()["acceptedRevision"] == 2
+    capability = client.get(
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/capability",
+        headers=auth(pair),
+    ).json()
+    assert capability["canPlan"] is True
+    assert capability["canControl"] is False
+    charger = capability["chargers"][0]
+    preview = client.post(
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/chargers/"
+        f"{charger['chargerId']}/previews",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "previewId": "e" * 32,
+            "expectedChargerRevision": charger["chargerRevision"],
+            "expectedScheduleRevision": 2,
+            "expectedTariffRevision": 41,
+            "expectedPowerBudgetRevision": 47,
+            "departureAtMs": round((clock.now + 3600) * 1000),
+            "targetSoc": 42,
+        },
+    )
+    assert preview.status_code == 201, preview.text
+    assert preview.json()["preview"]["slots"][0]["tariffMicrosPerKwh"] == -50_000
     with TestClient(create_app(settings)) as restarted:
-        core = restarted.app.state.core
-        assert core.power_budget is not None
-        assert core.ev_charging.provider.__class__.__name__ == "EvccChargeProvider"
-        capability = core.ev_charging.provider.capability()
-        assert capability.provider_kind == "evcc"
-        assert capability.can_plan is False
-        assert capability.can_control is False
+        persisted = restarted.app.state.core.ev_charging.provider.capability()
+        assert persisted.can_plan is True
+        assert persisted.can_control is False
+
+
+def test_second_verified_evcc_service_retires_unique_runtime_binding(server, monkeypatch):
+    app, client, _settings, _clock = server
+    pair = ready(server)
+    monkeypatch.setattr("larenor_server.evcc.provider.ServiceTransport", Transport)
+    principal = app.state.core.auth.authenticate(pair["accessToken"])
+
+    def create_verified(name):
+        created = client.post(
+            "/api/v1/admin/services",
+            headers=auth(pair),
+            json={
+                "name": name,
+                "kind": "evcc",
+                "baseUrl": f"https://{name.lower()}.fixture.invalid",
+                "credentials": {"apiKey": "evcc_fixture-key"},
+            },
+        ).json()["service"]
+        app.state.core.services.record_verification(
+            principal,
+            created["id"],
+            created["revision"],
+            state="reachable",
+            version="0.214.1",
+        )
+        return created
+
+    create_verified("First")
+    assert client.get("/api/v1/admin/power-budget", headers=auth(pair)).status_code == 200
+    create_verified("Second")
+    assert client.get("/api/v1/admin/power-budget", headers=auth(pair)).status_code == 503
+    capability = app.state.core.ev_charging.provider.capability()
+    assert capability.state == "unavailable"
+    assert capability.reason == "provider_not_configured"

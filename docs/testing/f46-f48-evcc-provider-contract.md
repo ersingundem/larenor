@@ -48,18 +48,21 @@ corresponding observed facts change.
 
 An observed import or EV load may already exceed the effective HEMS limit; that
 overage remains a real F48 input instead of being relabeled as a protocol
-failure. A load above the physical root ceiling still fails closed. Negative
-dynamic prices also fail closed because the current F48 tariff model is
-unsigned; they are never clamped or rewritten.
+failure. A load above the physical root ceiling still fails closed. Dynamic
+prices are preserved as signed integer micro-units/kWh in both F46 and F48;
+negative prices are never clamped or rewritten.
 
-The normal Core composition selects exactly one stored `evcc` service whose
+The normal Core composition resolves exactly one stored `evcc` service whose
 encrypted record has passed the fixed read-only identity probe. Zero, multiple,
 unverified, or malformed evcc records leave the feature unconfigured. The
 selected service id/revision and the authenticated Larenor user's live account
 and session-family revisions are checked on each projection. Core and home use
 the authenticated immutable context schema revision. F48 is then installed as
 the normal read-only power-budget provider without exposing the private URL or
-API key in `repr`.
+API key in `repr`. Selection occurs at each request boundary, so a newly
+verified service is available without a process restart. Each request uses a
+new immutable binding; endpoint/revision drift and a second verified evcc
+record both fail closed before another provider effect.
 
 ## Authentication and permissions
 
@@ -113,20 +116,33 @@ and loadpoint index, and record each fresh upstream setpoint readback. Until
 that scheduler exists, Core supplies no charger gateway and never returns a
 verified F46 command receipt.
 
-The delivered F46 projection is therefore planning-only and read-only. Charger
-facts come from evcc, while tariff, solar-surplus, home-budget windows, their
-revisions, and the schedule revision must be supplied by an injected trusted
-`EnergyWindowSource`. The provider does not derive future home headroom from a
-single current meter reading and does not turn PV production into invented
-solar surplus. It advertises `providerKind: evcc`, `canPlan: true`,
-`canControl: false`, and `reason: charger_read_only` only when both the real
-charger facts and the external verified energy windows exist.
+The delivered F46 projection is planning-only and read-only. Charger facts come
+from evcc. Future tariff, solar-surplus, and F48 home-budget facts enter normal
+Core through the admin-only
+`PUT /api/v1/ev-charging/{core}/{home}/providers/evcc/{service}/energy-windows`
+acceptance route. The request binds the exact selected service revision, uses
+CAS on `expectedAcceptedRevision`, carries signed tariff values and the three
+source revisions, and is limited to 192 ordered slots and a 48-hour horizon.
+Records are HMAC authenticated in private SQLite storage and checked during
+startup reload. Source observations older than five minutes and expired records
+are unavailable rather than silently refreshed.
 
-Normal Core composition installs the evcc charge provider without a charger
-gateway or energy-window source because this repository currently has no
-durable accepted tariff/solar/F48 future-window store. Its F46 capability is
-therefore explicitly `unavailable`, with both `canPlan` and `canControl` false.
-This is the honest production surface until accepted future inputs exist. A
-successful evcc POST, the current meter reading repeated into future slots, PV
-production mislabeled as solar surplus, or a locally echoed plan hash are not
-used to make the capability appear complete.
+The admin-only `GET` on the same route returns only the accepted revision, its
+bound service revision, the current selected service revision, and one of
+`missing`, `current`, `stale`, `expired`, or `service_revision_changed`. This
+allows CAS replacement after service-revision drift without returning future
+slot contents, prices, headroom, or credentials.
+
+This explicit acceptance step is required because neither upstream offers a
+generic future household-load or headroom contract. Home Assistant's official
+`energy/solar_forecast` command returns solar production as `wh_hours`
+([websocket handler](https://github.com/home-assistant/core/blob/ef2bc757e639324e3e106c125016a0542fd1d9a9/homeassistant/components/energy/websocket_api.py#L185-L235),
+[type](https://github.com/home-assistant/core/blob/ef2bc757e639324e3e106c125016a0542fd1d9a9/homeassistant/components/energy/types.py#L9-L16)).
+Energy preferences identify current power and price statistics
+([energy data types](https://github.com/home-assistant/core/blob/ef2bc757e639324e3e106c125016a0542fd1d9a9/homeassistant/components/energy/data.py#L28-L179)),
+while `recorder/statistics_during_period` returns recorded aggregate periods
+([recorder command](https://github.com/home-assistant/core/blob/ef2bc757e639324e3e106c125016a0542fd1d9a9/homeassistant/components/recorder/websocket_api.py#L217-L311)).
+Past consumption is not relabeled as future load, solar production is not
+relabeled as surplus, and the current meter value is not repeated into future
+slots. With a fresh accepted record, F46 advertises `canPlan: true` and
+`canControl: false`; without one, it stays unavailable.

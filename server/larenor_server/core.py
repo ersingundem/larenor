@@ -206,7 +206,13 @@ from .garden_irrigation.runtime import build_irrigation_gateway
 from .energy_priorities.service import EnergyPriorityService
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
-from .evcc import EvccBinding, EvccConnection, EvccRuntimeProviders
+from .evcc import (
+    EvccBinding,
+    EvccConnection,
+    EvccEnergyWindowStore,
+    EvccRuntimeResolver,
+    migrate_evcc_energy_windows,
+)
 from .epaper_snapshots.schema import migrate_epaper_snapshots
 from .epaper_snapshots.management import EpaperManagement
 from .room_presence.schema import migrate_room_presence
@@ -529,6 +535,7 @@ class CoreServices:
                 migrate_capability_evidence(connection)
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
+                migrate_evcc_energy_windows(connection)
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
@@ -861,54 +868,72 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.services.validate_storage()
+            self.evcc_energy_windows = EvccEnergyWindowStore(
+                self.db,
+                audit_key=hmac.new(
+                    key,
+                    b"larenor:evcc-energy-windows:v1:audit",
+                    hashlib.sha256,
+                ).digest(),
+                clock=settings.clock,
+                services=self.services,
+            )
+            self.evcc_energy_windows.validate_storage()
             evcc_runtime = None
             if (
                 self._ev_charge_provider is None
                 or self._power_budget_provider is None
             ):
-                evcc_service = self.services._configured_evcc_connection()
-                if evcc_service is not None:
-                    api_key = evcc_service.credentials.get("apiKey")
+                def evcc_account_revision(actor):
+                    with self.db.connection() as connection:
+                        row = connection.execute(
+                            "SELECT u.revision,u.disabled,u.must_change_password,"
+                            "f.revoked_at,f.expires_at FROM users u "
+                            "JOIN session_families f ON f.user_id=u.id "
+                            "WHERE u.id=? AND f.id=?",
+                            (actor.id, actor.family_id),
+                        ).fetchone()
+                    now = settings.clock()
+                    if (
+                        row is None
+                        or row["disabled"]
+                        or row["must_change_password"]
+                        or row["revoked_at"] is not None
+                        or now >= row["expires_at"]
+                    ):
+                        raise ValueError("evcc_actor_changed")
+                    return row["revision"]
 
-                    def evcc_account_revision(actor):
-                        with self.db.connection() as connection:
-                            row = connection.execute(
-                                "SELECT u.revision,u.disabled,u.must_change_password,"
-                                "f.revoked_at,f.expires_at FROM users u "
-                                "JOIN session_families f ON f.user_id=u.id "
-                                "WHERE u.id=? AND f.id=?",
-                                (actor.id, actor.family_id),
-                            ).fetchone()
-                        now = settings.clock()
-                        if (
-                            row is None
-                            or row["disabled"]
-                            or row["must_change_password"]
-                            or row["revoked_at"] is not None
-                            or now >= row["expires_at"]
-                        ):
-                            raise ValueError("evcc_actor_changed")
-                        return row["revision"]
-
-                    evcc_runtime = EvccRuntimeProviders(
-                        EvccBinding(
-                            core_id=self.context.coreId,
-                            home_id=self.context.homeId,
-                            core_revision=self.context.schemaVersion,
-                            home_revision=self.context.schemaVersion,
-                            account_revision=evcc_account_revision,
-                            connection=EvccConnection(
-                                service_id=evcc_service.id,
-                                revision=evcc_service.revision,
-                                base_url=evcc_service.base_url,
-                                api_key=api_key,
-                            ),
-                            validate_connection=lambda: self.services._evcc_connection(
-                                evcc_service.id, evcc_service.revision
-                            ),
-                        ),
-                        clock=settings.clock,
+                def evcc_binding():
+                    evcc_service = self.services._configured_evcc_connection()
+                    if evcc_service is None:
+                        return None
+                    service_id, service_revision = (
+                        evcc_service.id,
+                        evcc_service.revision,
                     )
+                    return EvccBinding(
+                        core_id=self.context.coreId,
+                        home_id=self.context.homeId,
+                        core_revision=self.context.schemaVersion,
+                        home_revision=self.context.schemaVersion,
+                        account_revision=evcc_account_revision,
+                        connection=EvccConnection(
+                            service_id=service_id,
+                            revision=service_revision,
+                            base_url=evcc_service.base_url,
+                            api_key=evcc_service.credentials.get("apiKey"),
+                        ),
+                        validate_connection=lambda: self.services._evcc_connection(
+                            service_id, service_revision
+                        ),
+                    )
+
+                evcc_runtime = EvccRuntimeResolver(
+                    evcc_binding,
+                    clock=settings.clock,
+                    energy_windows=self.evcc_energy_windows,
+                )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(
                     self.db,

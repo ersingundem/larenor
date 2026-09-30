@@ -411,7 +411,7 @@ class EvccHttpReader:
             raise EvccProviderError("provider_protocol_changed")
         grid_power = _number(grid.get("power"))
         grid_import = max(0, round(grid_power))
-        price = _number(state.get("tariffGrid"), minimum=0, maximum=10)
+        price = _number(state.get("tariffGrid"), minimum=-10, maximum=10)
         price_micros = round(price * 1_000_000)
         physical_limit, effective_limit = self._grid_limit(state)
         loads = self._loadpoints(state)
@@ -720,3 +720,121 @@ class EvccRuntimeProviders:
         cache = _SnapshotCache(reader, binding.connection)
         self.power_budget = EvccPowerBudgetProvider(binding, cache)
         self.ev_charging = EvccChargeProvider(binding, cache, energy_windows)
+
+
+class _ResolvedChargeProvider:
+    def __init__(self, owner):
+        self._owner = owner
+
+    def capability(self):
+        runtime = self._owner._runtime()
+        if runtime is None:
+            return ChargeProviderCapability(
+                "unavailable", "none", False, False, "provider_not_configured"
+            )
+        return runtime.ev_charging.capability()
+
+    def snapshot(self, *, actor_id, session_family_id, charger_id):
+        runtime = self._owner._runtime()
+        if runtime is None:
+            raise EvccProviderError("provider_unavailable")
+        return runtime.ev_charging.snapshot(
+            actor_id=actor_id,
+            session_family_id=session_family_id,
+            charger_id=charger_id,
+        )
+
+
+class _ResolvedPowerBudgetProvider:
+    def __init__(self, owner):
+        self._owner = owner
+        self._lock = threading.RLock()
+        self._providers = OrderedDict()
+
+    def authority(self, actor):
+        runtime = self._owner._runtime()
+        if runtime is None:
+            raise EvccProviderError("provider_unavailable")
+        provider = runtime.power_budget
+        authority = provider.authority(actor)
+        with self._lock:
+            self._providers[authority] = provider
+            self._providers.move_to_end(authority)
+            while len(self._providers) > _CACHE_SIZE:
+                self._providers.popitem(last=False)
+        return authority
+
+    def _provider(self, authority):
+        with self._lock:
+            provider = self._providers.get(authority)
+            if provider is not None:
+                self._providers.move_to_end(authority)
+        if provider is None:
+            raise EvccProviderError("provider_snapshot_changed")
+        return provider
+
+    def inputs(self, actor, authority):
+        return self._provider(authority).inputs(actor, authority)
+
+    def load_labels(self, actor, authority):
+        return self._provider(authority).load_labels(actor, authority)
+
+    def control_capability(self, actor, authority):
+        return self._provider(authority).control_capability(actor, authority)
+
+    def manual_control_enabled(self, actor, authority):
+        return self._provider(authority).manual_control_enabled(actor, authority)
+
+    def communication_loss_behaviors(self, actor, authority):
+        provider = self._provider(authority)
+        method = getattr(provider, "communication_loss_behaviors", None)
+        if not callable(method):
+            raise EvccProviderError("provider_protocol_changed")
+        return method(actor, authority)
+
+    @staticmethod
+    def apply(*, plan_hash, actions):
+        raise EvccProviderError("provider_read_only")
+
+    @staticmethod
+    def readback():
+        return None
+
+
+class EvccRuntimeResolver:
+    """Resolve one immutable evcc binding at each request boundary.
+
+    The selected provider instance is never mutated or rebound.  A later
+    service change therefore produces a new instance, while every operation on
+    an existing instance continues to enforce its exact id/revision guard.
+    """
+
+    def __init__(
+        self,
+        binding_resolver,
+        *,
+        clock,
+        energy_windows: EnergyWindowSource | None = None,
+        transport_factory=None,
+    ):
+        if not callable(binding_resolver):
+            raise ValueError("invalid_evcc_runtime_resolver")
+        self._binding_resolver = binding_resolver
+        self._clock = clock
+        self._energy_windows = energy_windows
+        self._transport_factory = transport_factory
+        self.ev_charging = _ResolvedChargeProvider(self)
+        self.power_budget = _ResolvedPowerBudgetProvider(self)
+
+    def _runtime(self):
+        binding = self._binding_resolver()
+        if binding is None:
+            return None
+        if not isinstance(binding, EvccBinding):
+            raise EvccProviderError("provider_binding_changed")
+        return EvccRuntimeProviders(
+            binding,
+            clock=self._clock,
+            energy_windows=self._energy_windows,
+            transport_factory=self._transport_factory,
+        )

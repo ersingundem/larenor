@@ -418,7 +418,7 @@ class ChargePlanner:
         for slot in inputs.slots:
             if (
                 type(slot.tariff_micros_per_kwh) is not int
-                or not 0 <= slot.tariff_micros_per_kwh <= 10_000_000
+                or not -10_000_000 <= slot.tariff_micros_per_kwh <= 10_000_000
                 or type(slot.solar_surplus_w) is not int
                 or not 0 <= slot.solar_surplus_w <= 100_000
                 or type(slot.home_budget_w) is not int

@@ -224,30 +224,39 @@ class ServiceManagement:
         )
 
     def _configured_evcc_connection(self) -> ServiceConnection | None:
-        """Select one verified private evcc service during Core composition."""
+        """Select exactly one currently verified private evcc service."""
         with self.db.connection() as connection:
-            rows = connection.execute(
-                "SELECT * FROM service_connections ORDER BY id LIMIT ?",
-                (MAX_SERVICES + 1,),
-            ).fetchall()
-            if len(rows) > MAX_SERVICES:
-                raise ApiError("service_unavailable", 503)
-            matches = []
-            for row in rows:
-                record = self._decode(row)
-                if record["kind"] == "evcc":
-                    if not self._valid_evcc_record(record):
-                        continue
-                    matches.append(self._private(row, record))
-            return matches[0] if len(matches) == 1 else None
+            return self._select_evcc_connection(connection)
+
+    def _select_evcc_connection(self, connection) -> ServiceConnection | None:
+        rows = connection.execute(
+            "SELECT * FROM service_connections ORDER BY id LIMIT ?",
+            (MAX_SERVICES + 1,),
+        ).fetchall()
+        if len(rows) > MAX_SERVICES:
+            raise ApiError("service_unavailable", 503)
+        matches = []
+        for row in rows:
+            record = self._decode(row)
+            if record["kind"] == "evcc" and self._valid_evcc_record(record):
+                matches.append(self._private(row, record))
+        return matches[0] if len(matches) == 1 else None
 
     def _evcc_connection(self, service_id: str, revision: int) -> ServiceConnection:
-        """Revalidate the exact startup-selected evcc record and revision."""
+        """Revalidate that the immutable binding is still the unique selection."""
         with self.db.connection() as connection:
-            row, record = self._record(connection, service_id, revision)
-            if not self._valid_evcc_record(record):
-                raise ApiError("evcc_binding_changed", 409)
-            return self._private(row, record)
+            return self._evcc_connection_in(connection, service_id, revision)
+
+    def _evcc_connection_in(
+        self, connection, service_id: str, revision: int
+    ) -> ServiceConnection:
+        selected = self._select_evcc_connection(connection)
+        if selected is None or (selected.id, selected.revision) != (
+            service_id,
+            revision,
+        ):
+            raise ApiError("evcc_binding_changed", 409)
+        return selected
 
     def list(self, actor: Principal) -> dict:
         with self._read(actor) as connection:

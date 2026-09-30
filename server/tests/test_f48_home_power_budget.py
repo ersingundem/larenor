@@ -122,6 +122,14 @@ def test_revision_bound_verified_inputs_make_deterministic_bounded_shedding_plan
     assert all(action.load_id != "medical-fridge" for action in preview.actions)
     assert preview.provider_status == {"meter": "verified", "tariff": "verified"}
 
+    negative = budget.preview(
+        actor(),
+        authority=authority(plan_revision=32),
+        inputs=replace(inputs(), tariff_micros_per_kwh=-250_000),
+        preview_id="preview-negative-tariff",
+    )
+    assert negative.status == "ready"
+
     stale = replace(
         inputs(),
         provider_states=(
