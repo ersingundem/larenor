@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 37 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 gerçek MCP lifecycle/transport kabulü geçti; F11 CPU/bellek izolasyonu geliştirmede. F08/host Linux koşularındaki gerçek başlangıç hataları ayrıca çözülüyor; bu koşular yeşil sayılmaz. Diğer test/review eksikleri ayrı tabloda. Actual Linux UID/systemd/cgroup ve exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 37 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 gerçek MCP lifecycle/transport kabulü geçti; F11 CPU/bellek izolasyonu geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül exact F08 Linux kabulü ve Unmanic frontend kaynağı
+
+Exact `09a912b4002f062757583df24f499731f507432c` için [F08 Linux CI 36750577813](https://github.com/ersingundem/larenor/actions/runs/36750577813) başarılıdır: gerçek ayrı UID IPC, OOM/resource_limit, TasksMax reddi, CPU throttling ve failed unit/cgroup temizliği geçti. Bu kapsam geniş Server/Android CI veya gerçek model kabulü değildir. Aynı exact host koşusu `36750580028`, upstream source arşivinin eksik git submodule dizininde durdu. Builder artık parent'ın exact frontend gitlink commitini ve arşiv/package-lock hashlerini doğrular, gerçek Node/npm engine sürümünü receipt'e kaydeder. Gerçek upstream wheel yerel izole source build ile üretildi; root 12 dar testi doğruladı. Düzeltilmiş exact host koşusu ayrıca gereklidir; eski kırmızı koşu tekrarlanmadı.
 
 ### 30 Eylül F51 birleşik Client/Core/HA kabulü
 

@@ -77,6 +77,51 @@ def test_unmanic_archive_extraction_requires_exact_regular_pinned_tree(tmp_path,
         package._extract_archive(unsafe, tmp_path / "unsafe")
 
 
+def test_frontend_submodule_requires_exact_regular_pinned_tree(tmp_path, monkeypatch):
+    prefix = "unmanic-frontend-" + package.UNMANIC_FRONTEND_REVISION
+    lock = b'{"lockfileVersion":3}\n'
+    monkeypatch.setattr(
+        package,
+        "UNMANIC_FRONTEND_PACKAGE_LOCK_SHA256",
+        hashlib.sha256(lock).hexdigest(),
+    )
+    archive = tmp_path / "frontend.tar.gz"
+    _archive(archive, [
+        (prefix, b"", "directory"),
+        (prefix + "/package-lock.json", lock, "file"),
+    ])
+    destination = tmp_path / "frontend-source"
+    destination.mkdir()
+    source = tmp_path / "parent"
+    (source / "unmanic/webserver/frontend").mkdir(parents=True)
+    package._extract_frontend_archive(archive, destination, source)
+    assert (source / "unmanic/webserver/frontend/package-lock.json").read_bytes() == lock
+
+    unsafe = tmp_path / "unsafe-frontend.tar.gz"
+    _archive(unsafe, [(prefix + "/link", b"../../etc/passwd", "symlink")])
+    with pytest.raises(RuntimeError, match="unmanic_source_invalid"):
+        package._extract_frontend_archive(
+            unsafe, tmp_path / "unsafe-frontend", source,
+        )
+
+
+def test_frontend_build_tool_versions_match_upstream_engines(monkeypatch):
+    versions = {"node": "v20.19.4\n", "npm": "10.8.2\n"}
+
+    def run(command, **_arguments):
+        return type("Completed", (), {
+            "returncode": 0,
+            "stdout": versions[Path(command[0]).name],
+        })()
+
+    monkeypatch.setattr(package.shutil, "which", lambda value: "/usr/bin/" + value)
+    monkeypatch.setattr(package.subprocess, "run", run)
+    assert package._frontend_tool_versions() == ("v20.19.4", "10.8.2")
+    versions["node"] = "v26.0.0\n"
+    with pytest.raises(RuntimeError, match="unmanic_frontend_tool_unsupported"):
+        package._frontend_tool_versions()
+
+
 def test_committed_unmanic_lock_pins_every_upstream_runtime_dependency_with_hashes():
     lock = (
         ROOT / "deploy/larenor-server/host_workers/unmanic-requirements.lock"
