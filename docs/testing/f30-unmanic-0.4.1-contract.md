@@ -134,3 +134,28 @@ kalıcı olmalıdır. Cleanup da kurulmuş çıktıyı tekrar okuyup doğrular.
 - Bunlar gerçek geçici dosyalarla yerel kanıttır. Tam worker runtime, paketli
   callback outbox, gerçek codec/decode doğrulaması ve deploy kabulü henüz
   tamamlanmadığı için F30 kapatılmamıştır.
+# Real HTTP and durable callback delivery — 2026-09-30
+
+The worker now has a concrete one-attempt loopback TCP transport for the pinned
+Unmanic routes, including DELETE requests with their required JSON bodies and
+the two read-only library discovery routes. It does not use a caller URL,
+proxy, redirect, ambient authentication or retry. The socket has one absolute
+deadline and responses have a bounded body. 23 focused transport/adapter tests
+passed using an actual local HTTP server, including timeout, redirect,
+duplicate Content-Type, oversized response and exact request-body cases.
+
+The standalone Unmanic event plugin durably enqueues the strict real
+`emit_postprocessor_complete` projection before returning. It excludes upstream
+logs, restricts paths to the configured private work root, and stores signed
+rows in an owned 0600 SQLite outbox. Retries use fresh timestamp/nonces. The
+private receiver admits callbacks into the durable terminal store and returns
+an authenticated acknowledgement bound to the exact digest and delivery nonce.
+Only that acknowledgement removes the outbox row. A restart retries existing
+rows when the explicit plugin configuration environment variable is installed.
+
+10 focused delivery tests passed through actual loopback TCP and SQLite,
+including receiver downtime, process restart without a new event, lost ACK,
+forged ACK, conflicting terminal event, path rejection and persisted tampering.
+This verifies the packaged protocol boundary; running an actual pinned Unmanic
+container with the plugin and normal worker configuration remains a separate
+deployment gate. No home media or real device was modified by these tests.
