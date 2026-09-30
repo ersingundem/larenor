@@ -55,6 +55,8 @@ class RdpPackagedHostAcceptanceTest {
         val inspected = runtime.inspect(host, port, username)
         assertTrue(inspected.nla)
         assertEquals("TLSv1.2", inspected.minimumTlsProtocol)
+        assertEquals(50, inspected.certificateFingerprint.length)
+        assertTrue(Regex("SHA256:[A-Za-z0-9+/]{43}").matches(inspected.certificateFingerprint))
 
         val request = RdpNativeRequest.parse(
             mapOf(

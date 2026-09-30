@@ -174,3 +174,5 @@ AAR receipt and compiled production/instrumentation Kotlin (279 tasks); this
 does not replace the new owned-host native receipt. F62 stays test pending;
 58 selected features/67 total tasks await broad CI and counters are unchanged.
 See [URI parser evidence](f62-freerdp-uri-parser-contract-2026-10-01.md).
+
+F62 latest source-bound result: exact1259f39e/run36786452264 original method/1test/0skip/1failure/0error passed actual JNI URI checks and real TLS certificate inspection. Strict request validation then rejected a padded SPKI fingerprint. The production encoder now removes trailing Base64 padding, and the original instrumentation explicitly checks the unchanged canonical 50-character pin contract. Root receipted-AAR production/instrumentation compile (315 tasks) and7 NativeContract tests/zero skips/failures/errors passed. Real changed-source owned-host NLA/frame/input/resize/clipboard/close acceptance remains open; F62 stays implementation-complete/test pending and58 selected/67 total tasks await broad CI. See [canonical SPKI evidence](f62-canonical-spki-pin-2026-10-01.md).

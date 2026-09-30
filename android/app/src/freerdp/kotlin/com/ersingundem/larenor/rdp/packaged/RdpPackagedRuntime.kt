@@ -236,7 +236,7 @@ private abstract class BaseConnection(
                 .generateCertificate(ByteArrayInputStream(fingerprint.toByteArray(StandardCharsets.US_ASCII)))
             "SHA256:" + Base64.encodeToString(
                 MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded),
-                Base64.NO_WRAP,
+                Base64.NO_WRAP or Base64.NO_PADDING,
             )
         } catch (_: Exception) { null }
     }

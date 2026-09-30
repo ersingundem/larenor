@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F62 canonical SPKI düzeltmesi
+
+Exact1259f39e/run36786452264 safe receipt original method/1test/0skip/1failure/0error ile JNI URI ve gerçek TLS sertifika inspect adımlarının geçtiğini, strict request SPKI biçiminde düştüğünü gösterdi. Encoderın trailing `=` dolgusu kaldırıldı; değişmeyen 50-karakter contract original instrumentationda da kontrol edilir. Root receipted AAR ile production/instrumentation Kotlin compile (315 task) ve7 NativeContract testi/0skip/0failure/0error geçti. Yeni exact gerçek NLA/frame/input/resize/clipboard/close kabulü açık: F62 test bekliyor, 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Kanıt](testing/f62-canonical-spki-pin-2026-10-01.md).
+
 ### 1 Ekim F61 gerçek TigerVNC kabulü
 
 Run36783304533 exactf83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7 yeşil tamamlandı. Root canonical receipt source/class/method/1test/0skip/0failure/0error eşitliğini doğruladı: gerçek X509Vnc/SPKI/password, frame/input, 960×720 resize ve authority retirement/no replay geçti. F61 CI bekliyor tablosuna taşındı: 58 seçili özellik ve toplam67 iş geniş son HEAD CI bekliyor. 37/127 ve3/63 tam kabul sayaçları değişmedi; fiziksel Huawei/DeX ayrı. [Kabul kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

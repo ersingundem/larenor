@@ -5293,9 +5293,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36786452264",
+          "commit": "1259f39e7c734a3eaaa0a96cd0f032318295bf46",
+          "state": "completed",
+          "result": "failed",
+          "label": "Original one-test/zero-skip run passed URI/TLS inspect, rejected padded SPKI in strict request"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama tamamlandı, gerçek native kabul bekliyor: normal Core managed-profile authority kapısı geçti. Exactbc65ac5a/run36784045011 safe receipt original class/method tek case/0skip/1failure ve connectionFailureBeforeCertificate gösterdi. Pinned gerçek FreeRDP URI converter/cmdline incelemesiyle geçersiz key=- redirection seçenekleri kaldırıldı; setConnectionInfo false sonucu cleanup/engineUnavailable, yalnız başarılı parse sonrası native connect. TLS/NLA/SPKI ve explicit clipboard korunur. Original tek instrumentation methodu iki disposable JNI parser kontrolünü ve değişmeyen owned-host kabulünü kapsar. Root receipt-verified AAR ile production/instrumentation Kotlin compile (279 task) geçti; gerçek native NLA/frame/input/resize/clipboard/close one-method/0skip receipt kapanmadan CI bekliyor veya done olmaz. Kanıt: docs/testing/f62-freerdp-uri-parser-contract-2026-10-01.md."
+      "reason": "Uygulama tamamlandı, gerçek native kabul bekliyor: normal Core managed-profile authority kapısı geçti. Exact1259f39e/run36786452264 safe original-method receipt 1test/0skip/1failure/0error; actual JNI URI kontrolleri ve owned TLS certificate inspect geçti, ardından strict request SPKI biçimini reddetti. PEM encoder trailing = dolgusu üretiyordu; Base64.NO_PADDING ile değişmeyen 50-karakter canonical contract sağlandı. Original native method bu biçimi açıkça doğrular. Root receipt-verified AAR ile production/instrumentation Kotlin compile (315 task) ve 7/7 RdpNativeContract/0skip/0failure/0error geçti. TLS/NLA/SPKI ve gerçek frame/input/resize/clipboard/close koşulları korunur; yeni exact hosted one-method/0skip receipt kapanmadan CI bekliyor veya done olmaz. Kanıt: docs/testing/f62-canonical-spki-pin-2026-10-01.md."
     },
     {
       "id": "F61",
