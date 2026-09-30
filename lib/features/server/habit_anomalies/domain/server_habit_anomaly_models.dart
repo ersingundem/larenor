@@ -13,6 +13,8 @@ final class HabitAnomalyCurrent {
     required this.observationId,
     required this.value,
     required this.observedAtMs,
+    required this.source,
+    required this.evidence,
     required this.feedback,
   });
 
@@ -21,18 +23,26 @@ final class HabitAnomalyCurrent {
       'observationId',
       'value',
       'observedAtMs',
+      'source',
+      'evidence',
       'feedback',
     });
     final id = json['observationId'];
     final metricValue = json['value'];
     final observedAtMs = json['observedAtMs'];
     final feedback = json['feedback'];
+    final source = json['source'];
+    final evidence = json['evidence'] == null
+        ? null
+        : HabitAnomalyEvidence.fromJson(json['evidence']);
     if (id is! String ||
         !RegExp(r'^[0-9a-f]{32}$').hasMatch(id) ||
         metricValue is! num ||
         !metricValue.isFinite ||
         observedAtMs is! int ||
         observedAtMs < 0 ||
+        !{'synthetic', 'real'}.contains(source) ||
+        (source == 'real') != (evidence != null) ||
         (feedback != null &&
             feedback != 'normal' &&
             feedback != 'false_positive')) {
@@ -42,6 +52,8 @@ final class HabitAnomalyCurrent {
       observationId: id,
       value: metricValue.toDouble(),
       observedAtMs: observedAtMs,
+      source: source as String,
+      evidence: evidence,
       feedback: feedback as String?,
     );
   }
@@ -49,7 +61,84 @@ final class HabitAnomalyCurrent {
   final String observationId;
   final double value;
   final int observedAtMs;
+  final String source;
+  final HabitAnomalyEvidence? evidence;
   final String? feedback;
+}
+
+final class HabitAnomalyEvidence {
+  const HabitAnomalyEvidence({required this.provider, required this.entityId});
+
+  factory HabitAnomalyEvidence.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'provider',
+      'resourceId',
+      'resourceRevision',
+      'bindingId',
+      'bindingRevision',
+      'serviceId',
+      'serviceRevision',
+      'entityId',
+      'registryDigest',
+      'historyDigest',
+      'sampleCount',
+      'startsAtMs',
+      'capturedAtMs',
+      'bucketStartsAtMs',
+      'bucketEndsAtMs',
+      'derivedMetric',
+    });
+    if (json['provider'] != 'home_assistant_history' ||
+        json['derivedMetric'] != 'state_change_count') {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (final key in const ['resourceId', 'bindingId', 'serviceId']) {
+      final item = json[key];
+      if (item is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(item)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    for (final key in const ['registryDigest', 'historyDigest']) {
+      final item = json[key];
+      if (item is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(item)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    for (final key in const [
+      'resourceRevision',
+      'bindingRevision',
+      'serviceRevision',
+      'sampleCount',
+      'startsAtMs',
+      'capturedAtMs',
+      'bucketStartsAtMs',
+      'bucketEndsAtMs',
+    ]) {
+      final item = json[key];
+      if (item is! int || item < (key.endsWith('Revision') ? 1 : 0)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    final sampleCount = json['sampleCount'] as int;
+    final startsAt = json['startsAtMs'] as int;
+    final capturedAt = json['capturedAtMs'] as int;
+    final bucketStartsAt = json['bucketStartsAtMs'] as int;
+    final bucketEndsAt = json['bucketEndsAtMs'] as int;
+    if (sampleCount < 1 ||
+        sampleCount > 256 ||
+        startsAt > bucketStartsAt ||
+        bucketStartsAt >= bucketEndsAt ||
+        bucketEndsAt > capturedAt) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final entityId = serverText(json['entityId'], max: 256);
+    return HabitAnomalyEvidence(
+      provider: 'home_assistant_history',
+      entityId: entityId,
+    );
+  }
+
+  final String provider, entityId;
 }
 
 final class HabitAnomalyBaseline {

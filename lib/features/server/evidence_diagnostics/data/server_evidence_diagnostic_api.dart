@@ -2,8 +2,6 @@ import 'dart:math';
 
 import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
-import '../../services/data/server_services_api.dart';
-import '../../services/domain/server_service_models.dart';
 import '../domain/server_evidence_diagnostic_models.dart';
 
 final class ServerEvidenceDiagnosticApi {
@@ -16,37 +14,19 @@ final class ServerEvidenceDiagnosticApi {
       '/evidence-diagnostics/${context.coreId}/${context.homeId}';
 
   Future<EvidenceDiagnosis> diagnoseServices(String requestKey) async {
-    final serviceApi = ServerServicesApi(api, token);
-    final configured = (await serviceApi.list()).take(32).toList();
-    if (configured.isEmpty) {
+    final sourceResourceId = await _historySource();
+    if (sourceResourceId == null) {
       throw const LarenorServerException('diagnostic_sources_empty');
     }
-    final checked = <ServerService>[];
-    for (final service in configured) {
-      checked.add(await serviceApi.check(service));
-    }
-    final sources = [
-      for (final service in checked)
-        {
-          'sourceId': 'service:${service.id}',
-          'sourceType': 'health',
-          'revision': service.revision,
-          'capturedAtMs': _capturedAt(service),
-          'state': _state(service.verification.state),
-          'detail': '${service.kind.wireName}:${service.name}',
-          'measurements': const [],
-          'events': const [],
-        },
-    ];
     final json = serverObject(
       await api.request(
         'POST',
-        '$_root/diagnoses',
+        '$_root/home-assistant-history-diagnoses',
         token: token,
         body: {
           'schemaVersion': 1,
           'requestKey': requestKey,
-          'sources': sources,
+          'sourceResourceId': sourceResourceId,
         },
       ),
     );
@@ -54,6 +34,43 @@ final class ServerEvidenceDiagnosticApi {
       throw const LarenorServerException('invalid_response');
     }
     return EvidenceDiagnosis.fromJson(json['diagnosis']);
+  }
+
+  Future<String?> _historySource() async {
+    final listed = serverObject(
+      await api.request(
+        'GET',
+        '/home-resources/${context.coreId}/${context.homeId}',
+        token: token,
+        queryParameters: const {'limit': '100'},
+      ),
+    );
+    final entries = listed['entries'];
+    if (entries is! List || entries.length > 100) {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (final raw in entries) {
+      final entry = serverObject(raw);
+      final ref = serverObject(entry['ref']);
+      if (ref['kind'] != 'resource') continue;
+      final resourceId = serverText(ref['id'], max: 32);
+      try {
+        final response = serverObject(
+          await api.request(
+            'GET',
+            '/admin/home-assistant/${context.coreId}/${context.homeId}'
+                '/resources/$resourceId/binding',
+            token: token,
+          ),
+        );
+        final binding = serverObject(response['binding']);
+        serverText(binding['entityId'], max: 256);
+        return resourceId;
+      } on LarenorServerException catch (error) {
+        if (error.code != 'not_found') rethrow;
+      }
+    }
+    return null;
   }
 
   Future<DiagnosticRepairPreview> preview(
@@ -80,23 +97,6 @@ final class ServerEvidenceDiagnosticApi {
       throw const LarenorServerException('invalid_response');
     }
     return preview;
-  }
-
-  static String _state(ServerServiceVerificationState state) => switch (state) {
-    ServerServiceVerificationState.authenticated ||
-    ServerServiceVerificationState.reachable => 'healthy',
-    ServerServiceVerificationState.unavailable => 'unavailable',
-    ServerServiceVerificationState.unauthorized => 'critical',
-    ServerServiceVerificationState.unsupported ||
-    ServerServiceVerificationState.never => 'unknown',
-  };
-
-  static int _capturedAt(ServerService service) {
-    final value = service.verification.checkedAt;
-    if (value == null) {
-      throw const LarenorServerException('invalid_response');
-    }
-    return value.millisecondsSinceEpoch;
   }
 
   static String requestKey(String prefix) {

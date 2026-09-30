@@ -3737,7 +3737,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Evin alışılmış düzeninden sapmalar",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3761,14 +3761,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: rutin/anomali girdisi Client service-health sayımı; gerçek ev gözlem sağlayıcısı ve server kaynak doğrulaması eksik. Gerçek HA history providerı FINAL.FUNCTION içinde hazırlanıyor; F08 runtime bağımlılığı kapanmadan implemented yapılmaz."
+      "reason": "Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
     },
     {
       "id": "F10",
       "kind": "task",
       "parent": "G04",
       "title": "Kanıta dayalı arıza yardımcısı",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3792,7 +3792,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: diagnose Client health/measurement iddialarını supported kaydedebiliyor. Core gerçek registry/provider kaynaklarını çözerek kanıtı doğrulamalı. Gerçek HA history providerı FINAL.FUNCTION içinde hazırlanıyor; F08 runtime bağımlılığı kapanmadan implemented yapılmaz."
+      "reason": "Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
     },
     {
       "id": "G05",

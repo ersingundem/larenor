@@ -20,6 +20,7 @@ final _jobId = '2' * 32;
 final _memoryId = '3' * 32;
 final _diagnosisId = '4' * 32;
 final _pluginId = '5' * 32;
+final _diagnosticResourceId = '9' * 32;
 const _token = 'ai_final_loopback_token';
 
 final class _AiCore {
@@ -127,19 +128,35 @@ final class _AiCore {
     'revision': 1,
     'createdAtMs': 1790755200000,
     'status': 'fault',
-    'certainty': 'supported',
+    'certainty': 'limited',
     'readOnly': true,
     'applied': false,
     'sources': [
       {
-        'sourceId': 'service:${'6' * 32}',
+        'sourceId': 'ha-resource:$_diagnosticResourceId',
         'sourceType': 'health',
         'revision': 1,
         'capturedAtMs': 1790755200000,
         'state': 'unavailable',
-        'detailRedacted': true,
+        'detailRedacted': false,
         'measurements': <Object?>[],
         'events': <Object?>[],
+        'provenance': 'home_assistant_history',
+        'evidence': {
+          'provider': 'home_assistant_history',
+          'resourceId': _diagnosticResourceId,
+          'resourceRevision': 1,
+          'bindingId': '8' * 32,
+          'bindingRevision': 1,
+          'serviceId': '6' * 32,
+          'serviceRevision': 1,
+          'entityId': 'binary_sensor.hall_motion',
+          'registryDigest': 'a' * 64,
+          'historyDigest': 'b' * 64,
+          'sampleCount': 16,
+          'startsAtMs': 1790753400000,
+          'capturedAtMs': 1790755200000,
+        },
       },
     ],
     'findings': [
@@ -232,15 +249,42 @@ final class _AiCore {
         'memories': [memory()],
       });
     }
-    if (path.endsWith('/admin/services') && request.method == 'GET') {
+    if (path.endsWith('/home-resources/$_coreId/$_homeId')) {
       return _json(request, {
-        'services': [_service('never')],
+        'scope': scope,
+        'userRevision': 1,
+        'entries': [
+          {
+            'ref': {...scope, 'kind': 'resource', 'id': _diagnosticResourceId},
+            'label': 'Hall motion',
+            'order': 0,
+            'revision': 1,
+            'aclRevision': 1,
+            'permissions': {'read': true, 'write': true},
+          },
+        ],
+        'snapshot': 'c' * 64,
+        'nextAfter': null,
       });
     }
-    if (path.endsWith('/admin/services/${'6' * 32}/check')) {
-      return _json(request, {'service': _service('unavailable')});
+    if (path.endsWith(
+      '/admin/home-assistant/$_coreId/$_homeId/resources/'
+      '$_diagnosticResourceId/binding',
+    )) {
+      return _json(request, {
+        'binding': {
+          'schemaVersion': 1,
+          'id': '8' * 32,
+          'revision': 1,
+          'ref': {...scope, 'kind': 'resource', 'id': _diagnosticResourceId},
+          'serviceId': '6' * 32,
+          'serviceRevision': 1,
+          'entityId': 'binary_sensor.hall_motion',
+        },
+      });
     }
-    if (path.endsWith('$diagnostics/diagnoses') && request.method == 'POST') {
+    if (path.endsWith('$diagnostics/home-assistant-history-diagnoses') &&
+        request.method == 'POST') {
       return _json(request, {
         'diagnosis': {...diagnosis, if (malformed == 'F10') 'secret': true},
       }, status: 201);
@@ -320,20 +364,6 @@ final class _AiCore {
       'error': {'code': 'not_found'},
     });
   }
-
-  Map<String, Object?> _service(String state) => {
-    'id': '6' * 32,
-    'name': 'Synthetic Home Assistant',
-    'kind': 'home_assistant',
-    'baseUrl': 'https://service.invalid',
-    'revision': 1,
-    'credentialKeys': ['token'],
-    'verification': {
-      'state': state,
-      'checkedAt': state == 'never' ? null : '2026-09-30T08:00:00Z',
-      'version': null,
-    },
-  };
 
   Future<void> _json(
     HttpRequest request,
@@ -428,12 +458,14 @@ void main() {
   );
 
   test(
-    'F10 diagnostic client checks service and gets preview-only repair',
+    'F10 diagnostic client reads HA history and gets preview-only repair',
     () => _withCore((core, transport, context) async {
       final api = ServerEvidenceDiagnosticApi(transport, _token, context);
       final diagnosis = await api.diagnoseServices('diagnosis-create-key-0001');
       expect(diagnosis.findingCodes, ['source_unavailable']);
-      expect(diagnosis.sources.single.detailRedacted, isTrue);
+      expect(diagnosis.sources.single.detailRedacted, isFalse);
+      expect(diagnosis.sources.single.provenance, 'home_assistant_history');
+      expect(diagnosis.sources.single.entityId, 'binary_sensor.hall_motion');
       final preview = await api.preview(
         diagnosis,
         'diagnosis-preview-key-0002',

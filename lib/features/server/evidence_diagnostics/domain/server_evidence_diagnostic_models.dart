@@ -21,6 +21,8 @@ final class DiagnosticEvidenceSource {
     required this.type,
     required this.revision,
     required this.state,
+    required this.provenance,
+    required this.entityId,
     required this.detailRedacted,
     required this.measurementCount,
     required this.eventCount,
@@ -36,11 +38,14 @@ final class DiagnosticEvidenceSource {
       'detailRedacted',
       'measurements',
       'events',
+      'provenance',
+      'evidence',
     });
     final revision = json['revision'];
     final capturedAt = json['capturedAtMs'];
     final type = json['sourceType'];
     final state = json['state'];
+    final provenance = json['provenance'];
     if (revision is! int ||
         revision < 1 ||
         capturedAt is! int ||
@@ -54,21 +59,93 @@ final class DiagnosticEvidenceSource {
           'unavailable',
           'unknown',
         }.contains(state) ||
+        !{'synthetic', 'home_assistant_history'}.contains(provenance) ||
         json['detailRedacted'] is! bool) {
       throw const LarenorServerException('invalid_response');
     }
+    final id = serverText(json['sourceId'], max: 96);
+    final evidence = _evidence(json['evidence'], provenance);
+    if (evidence != null && id != 'ha-resource:${evidence.resourceId}') {
+      throw const LarenorServerException('invalid_response');
+    }
     return DiagnosticEvidenceSource(
-      id: serverText(json['sourceId'], max: 96),
+      id: id,
       type: type as String,
       revision: revision,
       state: state as String,
+      provenance: provenance as String,
+      entityId: evidence?.entityId,
       detailRedacted: json['detailRedacted'] as bool,
       measurementCount: _objects(json['measurements'], max: 32).length,
       eventCount: _objects(json['events'], max: 32).length,
     );
   }
 
-  final String id, type, state;
+  static ({String resourceId, String entityId})? _evidence(
+    Object? value,
+    String provenance,
+  ) {
+    if (provenance == 'synthetic') {
+      if (value != null) throw const LarenorServerException('invalid_response');
+      return null;
+    }
+    final json = _closed(value, const {
+      'provider',
+      'resourceId',
+      'resourceRevision',
+      'bindingId',
+      'bindingRevision',
+      'serviceId',
+      'serviceRevision',
+      'entityId',
+      'registryDigest',
+      'historyDigest',
+      'sampleCount',
+      'startsAtMs',
+      'capturedAtMs',
+    });
+    if (json['provider'] != 'home_assistant_history') {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (final key in const ['registryDigest', 'historyDigest']) {
+      final item = json[key];
+      if (item is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(item)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    for (final key in const ['resourceId', 'bindingId', 'serviceId']) {
+      final item = json[key];
+      if (item is! String || !RegExp(r'^[0-9a-f]{32}$').hasMatch(item)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    for (final key in const [
+      'resourceRevision',
+      'bindingRevision',
+      'serviceRevision',
+      'sampleCount',
+      'startsAtMs',
+      'capturedAtMs',
+    ]) {
+      final item = json[key];
+      if (item is! int || item < (key.endsWith('Revision') ? 1 : 0)) {
+        throw const LarenorServerException('invalid_response');
+      }
+    }
+    final sampleCount = json['sampleCount'] as int;
+    final startsAt = json['startsAtMs'] as int;
+    final capturedAt = json['capturedAtMs'] as int;
+    if (sampleCount < 1 || sampleCount > 256 || startsAt > capturedAt) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return (
+      resourceId: json['resourceId'] as String,
+      entityId: serverText(json['entityId'], max: 256),
+    );
+  }
+
+  final String id, type, state, provenance;
+  final String? entityId;
   final int revision, measurementCount, eventCount;
   final bool detailRedacted;
 }

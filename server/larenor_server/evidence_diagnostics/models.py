@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from ..home_resources.models import FrozenModel, Revision
+from ..home_resources.models import FrozenModel, Identity, Revision
 
 
 TimestampMs = Annotated[int, Field(ge=0, le=2**63 - 1)]
@@ -115,6 +115,11 @@ class CreateDiagnosis(Versioned):
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("duplicate_diagnostic_source")
         return value
+
+
+class CreateHomeAssistantDiagnosis(Versioned):
+    requestKey: RequestKey
+    sourceResourceId: Identity
 
 
 class CreateRepairPreview(Versioned):

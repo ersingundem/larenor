@@ -25,13 +25,14 @@ def _canonical(value) -> bytes:
 class EvidenceDiagnosticService:
     """Persist deterministic diagnoses and authorization-bound repair previews."""
 
-    def __init__(self, db, auth, settings, key, context):
+    def __init__(self, db, auth, settings, key, context, history_observer=None):
         if not isinstance(key, bytes) or len(key) < 32:
             raise ValueError("invalid_diagnostic_key")
         self.db, self.auth, self.settings, self.context = db, auth, settings, context
         self._key = hmac.new(
             key, b"larenor-evidence-diagnostic-v1", hashlib.sha256
         ).digest()
+        self._history_observer = history_observer
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.context.coreId, self.context.homeId):
@@ -102,7 +103,7 @@ class EvidenceDiagnosticService:
             for row in previews:
                 self._verified_preview(row)
 
-    def _normalize_sources(self, sources):
+    def _normalize_sources(self, sources, *, provenance="synthetic", evidence=None):
         normalized = []
         redactions = []
         for source in sorted(sources, key=lambda item: item.sourceId):
@@ -121,6 +122,8 @@ class EvidenceDiagnosticService:
                 "detailRedacted": source.detail is not None,
                 "measurements": [item.model_dump(mode="json") for item in source.measurements],
                 "events": [item.model_dump(mode="json") for item in source.events],
+                "provenance": provenance,
+                "evidence": evidence,
             })
         return normalized, redactions
 
@@ -141,6 +144,11 @@ class EvidenceDiagnosticService:
         findings, unknowns = [], []
         for source in sources:
             source_ref = {"sourceId": source["sourceId"], "sourceRevision": source["revision"]}
+            if source["provenance"] == "synthetic":
+                unknowns.append({
+                    "code": "synthetic_source_unverified",
+                    "evidenceRefs": [source_ref],
+                })
             if source["state"] in {"attention", "degraded", "critical", "unavailable"}:
                 findings.append({
                     "findingId": f"source:{source['sourceId']}",
@@ -240,16 +248,54 @@ class EvidenceDiagnosticService:
 
     def diagnose(self, actor, core_id, home_id, body):
         self._scope(core_id, home_id)
+        sources, redactions = self._normalize_sources(
+            body.sources, provenance="synthetic", evidence=None
+        )
+        return self._diagnose_normalized(
+            actor, body.requestKey, sources, redactions
+        )
+
+    def diagnose_home_assistant_history(self, actor, core_id, home_id, body):
+        self._scope(core_id, home_id)
+        if self._history_observer is None:
+            raise ApiError("server_unavailable", 503)
+        observer = self._history_observer()
+        observation = observer.observe(actor, body.sourceResourceId)
+        latest_state = observation.states[-1][1]
+        state = latest_state if latest_state in {"unavailable", "unknown"} else "unknown"
+        sources = [{
+            "sourceId": "ha-resource:" + observation.resource_id,
+            "sourceType": "health",
+            "revision": observation.resource_revision,
+            "capturedAtMs": observation.captured_at_ms,
+            "state": state,
+            "detailRedacted": False,
+            "measurements": [],
+            "events": [],
+            "provenance": "home_assistant_history",
+            "evidence": observation.evidence(),
+        }]
+        return self._diagnose_normalized(
+            actor, body.requestKey, sources, [],
+            authority_guard=lambda connection: observer.assert_current_in(
+                connection, actor, observation
+            ),
+        )
+
+    def _diagnose_normalized(
+        self, actor, request_key, sources, redactions, authority_guard=None,
+    ):
         now_ms = round(float(self.settings.clock()) * 1000)
-        sources, redactions = self._normalize_sources(body.sources)
         request = {"schemaVersion": 1, "sources": sources}
         fingerprint = hashlib.sha256(_canonical(request)).hexdigest()
         with self.db.transaction() as connection:
             self.auth.assert_current(connection, actor)
+            if authority_guard is not None:
+                authority_guard(connection)
             old = connection.execute(
                 "SELECT * FROM evidence_diagnostics "
                 "WHERE owner_id=? AND family_id=? AND request_key=?",
-                (actor.id, actor.family_id, body.requestKey),
+                (actor.id, actor.family_id, request_key),
             ).fetchone()
             if old is not None:
                 result = self._verified_diagnosis(old)
@@ -289,7 +335,7 @@ class EvidenceDiagnosticService:
                 "id": diagnosis_id,
                 "owner_id": actor.id,
                 "family_id": actor.family_id,
-                "request_key": body.requestKey,
+                "request_key": request_key,
                 "revision": 1,
                 "request_fingerprint": fingerprint,
                 "created_at_ms": now_ms,

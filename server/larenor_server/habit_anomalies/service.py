@@ -20,6 +20,7 @@ MIN_BASELINE_SAMPLES = 12
 MIN_BASELINE_SPAN_MS = 11 * 60 * 1000
 MAX_SAMPLE_AGE_MS = 5 * 60 * 1000
 MAX_FUTURE_SKEW_MS = 30 * 1000
+HISTORY_BUCKET_MS = 2 * 60 * 1000
 
 
 def _canonical(value):
@@ -29,7 +30,7 @@ def _canonical(value):
 
 
 class HabitAnomalyService:
-    def __init__(self, db, auth, settings, key, context):
+    def __init__(self, db, auth, settings, key, context, history_observer=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.scope = HomeScope.model_validate(context.model_dump())
         self._key = hmac.new(
@@ -38,6 +39,7 @@ class HabitAnomalyService:
             + b"\0" + self.scope.homeId.encode("ascii"),
             hashlib.sha256,
         ).digest()
+        self._history_observer = history_observer
 
     def _scope(self, core_id, home_id):
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
@@ -58,6 +60,32 @@ class HabitAnomalyService:
             "label", "created_at_ms",
         )])
 
+    def _evidence_tag(self, row):
+        return self._tag(b"evidence", [
+            row["id"], row["source"], row["evidence_json"],
+        ])
+
+    def _evidence(self, row):
+        if row["source"] == "synthetic":
+            if row["evidence_json"] is not None or row["evidence_tag"] is not None:
+                raise StartupError("habit_anomaly_storage_invalid")
+            return None
+        try:
+            if (
+                row["source"] != "real"
+                or len(row["evidence_json"].encode("utf-8")) > 4096
+                or not hmac.compare_digest(
+                    row["evidence_tag"], self._evidence_tag(row)
+                )
+            ):
+                raise ValueError
+            value = json.loads(row["evidence_json"])
+            if not isinstance(value, dict) or value.get("provider") != "home_assistant_history":
+                raise ValueError
+            return value
+        except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+            raise StartupError("habit_anomaly_storage_invalid") from None
+
     @staticmethod
     def _verified(row, expected):
         if row is None:
@@ -75,6 +103,7 @@ class HabitAnomalyService:
             raise StartupError("habit_anomaly_storage_invalid")
         for row in observations:
             self._verified(row, self._observation_tag(row))
+            self._evidence(row)
             if not math.isfinite(row["value"]):
                 raise StartupError("habit_anomaly_storage_invalid")
         feedback = connection.execute(
@@ -152,6 +181,8 @@ class HabitAnomalyService:
                 "observationId": current["id"],
                 "value": current["value"],
                 "observedAtMs": current["observed_at_ms"],
+                "source": current["source"],
+                "evidence": self._evidence(current),
                 "feedback": self._feedback(connection, actor, current["id"]),
             },
             "baseline": None if center is None else {
@@ -202,9 +233,11 @@ class HabitAnomalyService:
                 "series_id": body.seriesId, "metric": body.metric,
                 "unit": body.unit, "value": body.value,
                 "observed_at_ms": body.observedAtMs, "created_at_ms": now_ms,
+                "source": "synthetic", "evidence_json": None,
+                "evidence_tag": None,
             }
             connection.execute(
-                "INSERT INTO habit_anomaly_observations VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO habit_anomaly_observations VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (*row.values(), self._observation_tag(row)),
             )
             connection.execute(
@@ -216,6 +249,113 @@ class HabitAnomalyService:
             return {"report": self._report(
                 connection, actor, self._rows(connection, actor, body.seriesId), now_ms
             )}
+
+    def ingest_home_assistant_history(self, actor, core_id, home_id, body):
+        self._scope(core_id, home_id)
+        if self._history_observer is None:
+            raise ApiError("server_unavailable", 503)
+        observer = self._history_observer()
+        observation = observer.observe(actor, body.sourceResourceId)
+        # Only completed two-minute buckets are retained. The first HA state is
+        # the period's initial state; later actual state changes populate buckets.
+        last_end = observation.captured_at_ms // HISTORY_BUCKET_MS * HISTORY_BUCKET_MS
+        first_start = (
+            (observation.starts_at_ms + HISTORY_BUCKET_MS - 1)
+            // HISTORY_BUCKET_MS * HISTORY_BUCKET_MS
+        )
+        first_end = first_start + HISTORY_BUCKET_MS
+        ends = list(range(first_end, last_end + 1, HISTORY_BUCKET_MS))
+        changes = []
+        unsupported = []
+        prior = None
+        for index, (occurred_at_ms, state) in enumerate(observation.states):
+            interval_start = max(occurred_at_ms, observation.starts_at_ms)
+            interval_end = (
+                observation.states[index + 1][0]
+                if index + 1 < len(observation.states)
+                else observation.captured_at_ms
+            )
+            if state in {"unavailable", "unknown"}:
+                if interval_start < interval_end:
+                    unsupported.append((interval_start, interval_end))
+                prior = None
+                continue
+            if prior is not None and state != prior:
+                changes.append(occurred_at_ms)
+            prior = state
+        ends = [
+            end for end in ends
+            if not any(
+                interval_start < end and end - HISTORY_BUCKET_MS < interval_end
+                for interval_start, interval_end in unsupported
+            )
+        ]
+        if len(ends) < MIN_BASELINE_SAMPLES + 1:
+            raise ApiError("server_unavailable", 503)
+        series_id = "ha_state_change_count." + body.sourceResourceId
+        now_ms = round(float(self.settings.clock()) * 1000)
+        with self.db.transaction() as connection:
+            self._actor(connection, actor)
+            self._validate(connection)
+            observer.assert_current_in(connection, actor, observation)
+            for end in ends[-(MAX_PER_SERIES // 2):]:
+                start = end - HISTORY_BUCKET_MS
+                value = float(sum(start <= occurred < end for occurred in changes))
+                request_key = "ha:" + hashlib.sha256(_canonical([
+                    actor.id, actor.family_id, body.sourceResourceId, end,
+                ])).hexdigest()
+                existing = connection.execute(
+                    "SELECT * FROM habit_anomaly_observations WHERE account_id=? "
+                    "AND family_id=? AND request_key=?",
+                    (actor.id, actor.family_id, request_key),
+                ).fetchone()
+                if existing is not None:
+                    existing = self._verified(existing, self._observation_tag(existing))
+                    self._evidence(existing)
+                    if (
+                        existing["series_id"] != series_id
+                        or existing["metric"] != "ha_state_change_count"
+                        or existing["unit"] != "count"
+                        or existing["value"] != value
+                        or existing["observed_at_ms"] != end
+                        or existing["source"] != "real"
+                    ):
+                        raise ApiError("habit_series_changed", 409)
+                    continue
+                if connection.execute(
+                    "SELECT COUNT(*) FROM habit_anomaly_observations"
+                ).fetchone()[0] >= MAX_OBSERVATIONS:
+                    raise ApiError("habit_anomaly_limit_reached", 429)
+                evidence = {
+                    **observation.evidence(),
+                    "bucketStartsAtMs": start,
+                    "bucketEndsAtMs": end,
+                    "derivedMetric": "state_change_count",
+                }
+                row = {
+                    "id": uuid.uuid4().hex, "account_id": actor.id,
+                    "family_id": actor.family_id, "request_key": request_key,
+                    "series_id": series_id, "metric": "ha_state_change_count",
+                    "unit": "count", "value": value,
+                    "observed_at_ms": end, "created_at_ms": now_ms,
+                    "source": "real",
+                    "evidence_json": _canonical(evidence).decode("ascii"),
+                    "evidence_tag": None,
+                }
+                row["evidence_tag"] = self._evidence_tag(row)
+                connection.execute(
+                    "INSERT INTO habit_anomaly_observations "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (*row.values(), self._observation_tag(row)),
+                )
+            connection.execute(
+                "DELETE FROM habit_anomaly_observations WHERE id IN (SELECT id FROM "
+                "habit_anomaly_observations WHERE account_id=? AND family_id=? AND "
+                "series_id=? ORDER BY observed_at_ms DESC,id DESC LIMIT -1 OFFSET ?)",
+                (actor.id, actor.family_id, series_id, MAX_PER_SERIES),
+            )
+            rows = self._rows(connection, actor, series_id)
+            return {"report": self._report(connection, actor, rows, now_ms)}
 
     def mark(self, actor, core_id, home_id, observation_id, body):
         self._scope(core_id, home_id)

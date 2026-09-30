@@ -9,7 +9,11 @@ from ..core import CoreServices
 from ..dependencies import get_core, require_admin, require_ready_user
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .models import CreateDiagnosis, CreateRepairPreview
+from .models import (
+    CreateDiagnosis,
+    CreateHomeAssistantDiagnosis,
+    CreateRepairPreview,
+)
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -26,6 +30,16 @@ ROOT = "/evidence-diagnostics/{core_id}/{home_id}"
 def diagnose(core_id: Identity, home_id: Identity, body: CreateDiagnosis,
              actor: Ready, core: Core):
     return core.evidence_diagnostics.diagnose(actor, core_id, home_id, body)
+
+
+@router.post(ROOT + "/home-assistant-history-diagnoses", status_code=201)
+def diagnose_home_assistant_history(
+    core_id: Identity, home_id: Identity, body: CreateHomeAssistantDiagnosis,
+    actor: Admin, core: Core,
+):
+    return core.evidence_diagnostics.diagnose_home_assistant_history(
+        actor, core_id, home_id, body
+    )
 
 
 @router.get(ROOT + "/diagnoses/{diagnosis_id}")

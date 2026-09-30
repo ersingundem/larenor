@@ -2,8 +2,6 @@ import 'dart:math';
 
 import '../../data/larenor_server_api.dart';
 import '../../domain/server_models.dart';
-import '../../services/data/server_services_api.dart';
-import '../../services/domain/server_service_models.dart';
 import '../domain/server_habit_anomaly_models.dart';
 
 final class ServerHabitAnomalyApi {
@@ -25,53 +23,64 @@ final class ServerHabitAnomalyApi {
     if (reports is! List || reports.length > 64) {
       throw const LarenorServerException('invalid_response');
     }
-    final parsed = reports
-        .map(HabitAnomalyReport.fromJson)
-        .where((report) => report.seriesId == 'service_unavailable_count');
-    return parsed.firstOrNull;
+    return reports.map(HabitAnomalyReport.fromJson).firstOrNull;
   }
 
   Future<HabitAnomalyReport> observeServices(String requestKey) async {
-    final services = (await ServerServicesApi(api, token).list()).take(32);
-    if (services.isEmpty) {
+    final sourceResourceId = await _historySource();
+    if (sourceResourceId == null) {
       throw const LarenorServerException('habit_services_empty');
     }
-    final checked = <ServerService>[];
-    for (final service in services) {
-      checked.add(await ServerServicesApi(api, token).check(service));
-    }
-    final times = checked
-        .map((service) => service.verification.checkedAt)
-        .whereType<DateTime>()
-        .toList();
-    if (times.length != checked.length) {
-      throw const LarenorServerException('invalid_response');
-    }
-    final unavailable = checked.where((service) {
-      return switch (service.verification.state) {
-        ServerServiceVerificationState.authenticated ||
-        ServerServiceVerificationState.reachable => false,
-        _ => true,
-      };
-    }).length;
-    final observedAt = times.reduce((a, b) => a.isAfter(b) ? a : b);
     final json = serverObject(
       await api.request(
         'POST',
-        '$_root/observations',
+        '$_root/home-assistant-history',
         token: token,
         body: {
           'schemaVersion': 1,
           'requestKey': requestKey,
-          'seriesId': 'service_unavailable_count',
-          'metric': 'service_unavailable_count',
-          'unit': 'count',
-          'value': unavailable,
-          'observedAtMs': observedAt.millisecondsSinceEpoch,
+          'sourceResourceId': sourceResourceId,
         },
       ),
     );
     return _report(json);
+  }
+
+  Future<String?> _historySource() async {
+    final listed = serverObject(
+      await api.request(
+        'GET',
+        '/home-resources/${context.coreId}/${context.homeId}',
+        token: token,
+        queryParameters: const {'limit': '100'},
+      ),
+    );
+    final entries = listed['entries'];
+    if (entries is! List || entries.length > 100) {
+      throw const LarenorServerException('invalid_response');
+    }
+    for (final raw in entries) {
+      final entry = serverObject(raw);
+      final ref = serverObject(entry['ref']);
+      if (ref['kind'] != 'resource') continue;
+      final resourceId = serverText(ref['id'], max: 32);
+      try {
+        final response = serverObject(
+          await api.request(
+            'GET',
+            '/admin/home-assistant/${context.coreId}/${context.homeId}'
+                '/resources/$resourceId/binding',
+            token: token,
+          ),
+        );
+        final binding = serverObject(response['binding']);
+        serverText(binding['entityId'], max: 256);
+        return resourceId;
+      } on LarenorServerException catch (error) {
+        if (error.code != 'not_found') rethrow;
+      }
+    }
+    return null;
   }
 
   Future<HabitAnomalyReport> mark(

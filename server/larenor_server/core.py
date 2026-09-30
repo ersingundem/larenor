@@ -62,6 +62,7 @@ from .home_assistant.rule_schema import migrate as migrate_automation_rules
 from .home_assistant.rules import HomeAssistantRules
 from .home_assistant.schema import migrate_home_assistant
 from .home_assistant.service import HomeAssistantAdapter
+from .home_assistant.state_history import HomeAssistantStateHistoryObserver
 from .home_people.schema import migrate_home_people
 from .home_people.service import HomePeopleRegistry
 from .home_resources.schema import migrate_home_resources
@@ -724,11 +725,13 @@ class CoreServices:
             )
             self.ai_memory.validate_storage()
             self.evidence_diagnostics = EvidenceDiagnosticService(
-                self.db, self.auth, settings, key, self.context
+                self.db, self.auth, settings, key, self.context,
+                lambda: self.home_assistant_state_history,
             )
             self.evidence_diagnostics.validate_storage()
             self.habit_anomalies = HabitAnomalyService(
-                self.db, self.auth, settings, key, self.context
+                self.db, self.auth, settings, key, self.context,
+                lambda: self.home_assistant_state_history,
             )
             self.habit_anomalies.validate_storage()
             self.automation_trials = AutomationTrialService(
@@ -1180,6 +1183,9 @@ class CoreServices:
             )
             self.home_assistant.validate_storage()
             self.automation_trace_observer = HomeAssistantAutomationTraceObserver(
+                lambda: self.home_assistant, settings.clock
+            )
+            self.home_assistant_state_history = HomeAssistantStateHistoryObserver(
                 lambda: self.home_assistant, settings.clock
             )
             self.camera_profile_sources = HomeAssistantCameraProvider(

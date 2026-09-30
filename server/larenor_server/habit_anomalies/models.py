@@ -45,6 +45,11 @@ class RecordHabitObservation(Versioned):
         return float(value)
 
 
+class IngestHomeAssistantHistory(Versioned):
+    requestKey: RequestKey
+    sourceResourceId: Identity
+
+
 class MarkHabitObservation(Versioned):
     requestKey: RequestKey
     expectedObservationId: Identity

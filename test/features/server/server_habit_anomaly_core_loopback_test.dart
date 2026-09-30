@@ -12,6 +12,7 @@ import '../../../integration_test/support/synthetic_ha_server.dart';
 final _coreId = 'a' * 32;
 final _homeId = 'b' * 32;
 final _observationId = '7' * 32;
+final _resourceId = '8' * 32;
 const _token = 'habit_loopback_access_token';
 
 final class _HabitCore {
@@ -31,24 +32,10 @@ final class _HabitCore {
 
   String get baseUrl => 'http://127.0.0.1:${server.port}/prefix';
 
-  Map<String, Object?> service(String id, String state) => {
-    'id': id,
-    'name': 'Synthetic service',
-    'kind': 'home_assistant',
-    'baseUrl': 'https://service.invalid',
-    'revision': 1,
-    'credentialKeys': ['token'],
-    'verification': {
-      'state': state,
-      'checkedAt': state == 'never' ? null : '2026-09-30T08:00:00Z',
-      'version': null,
-    },
-  };
-
   Map<String, Object?> report({String? feedback}) => {
     'schemaVersion': 1,
-    'seriesId': 'service_unavailable_count',
-    'metric': 'service_unavailable_count',
+    'seriesId': 'ha_state_change_count.$_resourceId',
+    'metric': 'ha_state_change_count',
     'unit': 'count',
     'modelVersion': 'robust-mad-v1',
     'classification': 'anomaly',
@@ -59,6 +46,25 @@ final class _HabitCore {
       'observationId': _observationId,
       'value': 1,
       'observedAtMs': 1790755200000,
+      'source': 'real',
+      'evidence': {
+        'provider': 'home_assistant_history',
+        'resourceId': _resourceId,
+        'resourceRevision': 1,
+        'bindingId': '9' * 32,
+        'bindingRevision': 1,
+        'serviceId': '3' * 32,
+        'serviceRevision': 1,
+        'entityId': 'binary_sensor.hall_motion',
+        'registryDigest': 'a' * 64,
+        'historyDigest': 'b' * 64,
+        'sampleCount': 16,
+        'startsAtMs': 1790753400000,
+        'capturedAtMs': 1790755200000,
+        'bucketStartsAtMs': 1790755080000,
+        'bucketEndsAtMs': 1790755200000,
+        'derivedMetric': 'state_change_count',
+      },
       'feedback': feedback,
     },
     'baseline': {'sampleCount': 12, 'center': 0, 'tolerance': 0.001},
@@ -73,19 +79,53 @@ final class _HabitCore {
       final text = await utf8.decoder.bind(request).join();
       if (text.isNotEmpty) body = jsonDecode(text);
     }
-    if (path.endsWith('/admin/services') && request.method == 'GET') {
+    if (path.endsWith('/home-resources/$_coreId/$_homeId')) {
       return _json(request, {
-        'services': [service('3' * 32, 'never'), service('4' * 32, 'never')],
+        'scope': {'schemaVersion': 1, 'coreId': _coreId, 'homeId': _homeId},
+        'userRevision': 1,
+        'entries': [
+          {
+            'ref': {
+              'schemaVersion': 1,
+              'coreId': _coreId,
+              'homeId': _homeId,
+              'kind': 'resource',
+              'id': _resourceId,
+            },
+            'label': 'Hall motion',
+            'order': 0,
+            'revision': 1,
+            'aclRevision': 1,
+            'permissions': {'read': true, 'write': true},
+          },
+        ],
+        'snapshot': 'c' * 64,
+        'nextAfter': null,
       });
     }
-    if (path.endsWith('/admin/services/${'3' * 32}/check')) {
-      return _json(request, {'service': service('3' * 32, 'reachable')});
-    }
-    if (path.endsWith('/admin/services/${'4' * 32}/check')) {
-      return _json(request, {'service': service('4' * 32, 'unavailable')});
+    if (path.endsWith(
+      '/admin/home-assistant/$_coreId/$_homeId/resources/$_resourceId/binding',
+    )) {
+      return _json(request, {
+        'binding': {
+          'schemaVersion': 1,
+          'id': '9' * 32,
+          'revision': 1,
+          'ref': {
+            'schemaVersion': 1,
+            'coreId': _coreId,
+            'homeId': _homeId,
+            'kind': 'resource',
+            'id': _resourceId,
+          },
+          'serviceId': '3' * 32,
+          'serviceRevision': 1,
+          'entityId': 'binary_sensor.hall_motion',
+        },
+      });
     }
     final root = '/habit-anomalies/$_coreId/$_homeId';
-    if (path.endsWith('$root/observations')) {
+    if (path.endsWith('$root/home-assistant-history')) {
       observationBody = body as Map;
       return _json(request, {'report': report()}, status: 201);
     }
@@ -124,7 +164,7 @@ final class _HabitCore {
 
 void main() {
   test(
-    'F07 production client observes services and marks anomaly over loopback',
+    'F07 production client observes bound HA history and marks anomaly',
     () async {
       final core = await _HabitCore.start();
       final transport = LarenorServerApi(
@@ -149,8 +189,9 @@ void main() {
       );
       final observed = await api.observeServices('habit-observe-key-0001');
       expect(observed.classification, 'anomaly');
-      expect(core.observationBody!['value'], 1);
-      expect(core.observationBody!['observedAtMs'], 1790755200000);
+      expect(core.observationBody!['sourceResourceId'], _resourceId);
+      expect(observed.current.source, 'real');
+      expect(observed.current.evidence?.provider, 'home_assistant_history');
       final marked = await api.mark(
         observed,
         'false_positive',

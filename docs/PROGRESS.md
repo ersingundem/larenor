@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Bağımsız gerçek runtime denetiminde F01/F02/F03/F07/F08/F10/F17/F18 ve medya worker/Live TV/OCR/kat planı yollarında eksikler bulundu; kuyrukta yeniden uygulama işi olarak izleniyor. F08 gerçek kalıcı systemd worker uygulandı, actual Linux CI bekliyor; F23 gerçek Jellyfin kaynak/kayıt ve kalıcı quota-stop uygulandı, geniş kabul/CI bekliyor; F07/F10 gerçek HA history providerı hazırlanıyor ve F08 bağımlılığını bekliyor; F17 ayrı gerçek TLS hedef ve uzak kurtarma indirmesi uygulandı, geniş kabul/CI bekliyor; F02/F03 gerçek HA trace gözlemi uygulandı ve geniş kabul/CI bekliyor; F51 gerçek oda/cihaz yerleştirme editörü uygulandı ve geniş kabul/CI bekliyor; F58 gerçek OpenEPaperLink yolu 10 Server, 13 Flutter ve 1 gerçek Client TCP/WS kabulüyle uygulandı; diğer tamamlanmış dilimler geniş kabul/CI tablosunda. F57 gerçek Flutter→normal Core→HA TCP/WS ve offline rıza iptali geçti. Tüm FINAL maddelerinden sonra kullanıcı tarafından istenen CORE.WEB işi eklendi; fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Bağımsız gerçek runtime denetiminde F01/F02/F03/F07/F08/F10/F17/F18 ve medya worker/Live TV/OCR/kat planı yollarında eksikler bulundu; kuyrukta yeniden uygulama işi olarak izleniyor. F08 gerçek kalıcı systemd worker uygulandı, actual Linux CI bekliyor; F23 gerçek Jellyfin kaynak/kayıt ve kalıcı quota-stop uygulandı, geniş kabul/CI bekliyor; F07/F10 gerçek HA history providerı uygulandı, geniş kabul/CI bekliyor; F17 ayrı gerçek TLS hedef ve uzak kurtarma indirmesi uygulandı, geniş kabul/CI bekliyor; F02/F03 gerçek HA trace gözlemi uygulandı ve geniş kabul/CI bekliyor; F51 gerçek oda/cihaz yerleştirme editörü uygulandı ve geniş kabul/CI bekliyor; F58 gerçek OpenEPaperLink yolu 10 Server, 13 Flutter ve 1 gerçek Client TCP/WS kabulüyle uygulandı; diğer tamamlanmış dilimler geniş kabul/CI tablosunda. F57 gerçek Flutter→normal Core→HA TCP/WS ve offline rıza iptali geçti. Tüm FINAL maddelerinden sonra kullanıcı tarafından istenen CORE.WEB işi eklendi; fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F07/F10 gerçek Home Assistant history kanıtı
+
+Alışkanlık ve tanılama Client’ları görünür, bağlı ev kaynağını seçer; Core gerçek entity registry ve history okur. Eksik baseline uydurulmaz, eski/client kaynaklı kanıt sentetik etiketlidir; tanılama otomatik repair effect uygulamaz. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü, odaklı Flutter/analyze geçti. [Kanıt](testing/f07-f10-ha-history-evidence-2026-09-30.md). Exact HEAD CI/geniş kabul açık; sayaç değişmedi.
 
 ### 30 Eylül F08 gerçek yerel iş yürütücüsü
 
