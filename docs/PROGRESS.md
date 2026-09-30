@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. FINAL.FUNCTION incelemesi F30 medya arşivi yolunda paketli read/action worker ve deploy bağlantısının bulunmadığını, genel hedef listesinin keep/delete rollerini kaybettiğini ve orijinal durumunun işlemden önce doğrulanmış gösterildiğini ortaya çıkardı. F30, F18 ve F59 yeniden aktif geliştirmeye alındı. F30 kalıcı worker günlüğü ve tipli hedefleri uygulandı; F18 kesilmiş etki uzlaştırması ile F59 gerçek yazıcı yolu tamamlanıyor. F46/F48/F55 üretim provider eksikleri ve F47’nin F48 bağımlılığı kuyrukta açık uygulama işi olarak düzeltildi. Bu üretim boşluğu kapanmadan `FINAL.FUNCTION` yeniden CI kapısına, `FINAL.UI` veya başka bir final maddesine geçmeyecek. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. FINAL.FUNCTION içinde bulunan production boşlukları kapatılıyor. F18 gerçek Proxmox executor, kalıcı uzlaştırma ve admin hedef seçimi uygulandı; aktif geliştirmeden doğrulama tablosuna taşındı. F30 gerçek read/action worker, mount resolver ve korunmuş orijinal temizliği çalışıyor; per-command Unmanic encoder ve çift/retention temizliği tamamlanıyor. F48 gerçek evcc okumaları ve F46 kalıcı explicit enerji pencereleri normal Core runtimeında; kontrol/readback ve F55 gerçek broker bağlantısı aktif geliştirmede. F59 gerçek yazıcı okumaları bağlı, onaylı pause/cancel kabulü açık. Bu yolların Client→Core→servis kabulü ve tam HEAD CI kanıtı tamamlanmadan başka FINAL maddesi başlatılmayacak. Fiziksel cihaz ve hesap kapıları MANUAL kayıtlarında açık kalıyor.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/126 iş (%29,4; eşit ağırlıklı sayaç)
@@ -38,6 +38,10 @@ sonra tam paketler ile exact-head CI yeniden çalışacak. Bu sırada `FINAL.UI`
 `FINAL.AUDIT`, `FINAL.CI`, `FINAL.GALLERY` ve `FINAL.README` bağımlılık
 bekleyecek; aynı anda ikinci final maddesi alınmayacak. Sayaçlar **37/126
 (%29,4)** ve **3/63 (%4,8)** olarak değişmedi.
+
+### 30 Eylül gerçek sağlayıcı düzeltmeleri — kabul sayaçları değişmedi
+
+`61fa2835` doğrulanmış Proxmox VM/LXC hedefini admin ekranından seçip recovery politikasına kaydeder; 14 Flutter testi geçti. `b1fedff0` evcc bağlantısını her istekte güncel doğrulanmış servisten kurar ve negatif tarifeleri explicit, kalıcı enerji pencerelerinde korur; admin metadata GET revizyon değişiminden sonra CAS yenilemeyi sağlar. `d8daf8f7` gerçek Zigbee envanterinin bilinmeyen alanlarını uydurmadan gösterir ve kesilmiş OTA gönderimini belirsiz makbuzla durdurur. `97ddbf19` korunmuş orijinali yalnız başarılı dönüşüm kanıtı, güncel yetki ve kalıcı silme niyetiyle temizler; 126 odaklı Server regresyonu geçti. Bu commitler tek çalışma dalına gönderildi; kapsamlı yazılım kabulü ve exact HEAD CI açık olduğundan **37/126** ile **3/63** sayaçları artmadı.
 
 ### 27 Eylül F08 yapay zekâ kaynak yöneticisi — uygulama tamamlandı, test bekliyor
 

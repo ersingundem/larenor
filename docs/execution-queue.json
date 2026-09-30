@@ -3381,7 +3381,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3405,7 +3405,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül production incelemesi, normal runtime executor bağlamadığını ve kesilmiş executing hedef adımlarını startup sırasında queued yaparak dış etkiyi yeniden gönderebildiğini buldu. Kalıcı belirsiz sonuç/uzlaştırma ve gerçek executor composition aktif düzeltiliyor; fiziksel UPS/host kabulü MANUAL kapısında."
+      "reason": "Gerçek Proxmox VM/LXC executor, tek gönderim, kalıcı kesilmiş-etki uzlaştırması, normal Core composition ve admin hedef seçimi uygulandı. 61fa2835 diliminde 14 Flutter testi geçti; daha geniş Server ve Client→Core kabulü ile tam HEAD CI kapanışı bekleniyor. Gerçek UPS/host kapanışı MANUAL kapısında; aktif özellik geliştirmesi değil doğrulama bekleyişidir."
     },
     {
       "id": "G03",
@@ -4250,7 +4250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION incelemesinde a5f26cea sözleşmesinin üretim eylem ve veri toplama workerlarına bağlanmadığı; genel targetRefs sıralamasının keep/delete rollerini kaybettiği ve queued/failed işlerin orijinali doğrulanmadan retained gösterdiği bulundu. Tipli hedefler, doğrulanmış originalState ve async running receipt ilk düzeltme dilimidir; paketli read/action worker, gerçek Unmanic/Jellyfin sözleşmesi, restart/iptal/uzlaştırma ve Client→Core→worker kabulü tamamlanmadan F30 implemented sayılmaz."
+      "reason": "Paketli authenticated read/action worker, live Core authority, onaylı mount resolver, gerçek Unmanic HTTP ve kalıcı callback hattı uygulandı. 97ddbf19 retained-original temizliği yalnız exact başarılı source proof, installed-output hash, özgün inode ve kalıcı delete intent ile çalışıyor; 126 odaklı regresyon geçti. Gerçek Unmanic per-command encoder/pinned provider kabulü ve çift/retention dosya temizleme executorları geliştiriliyor; Client→Core→worker ve tam CI kapanışı açık."
     },
     {
       "id": "G07",
@@ -4837,7 +4837,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4861,7 +4861,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Plan, önizleme, tek gönderim ve readback sözleşmeleri hazır; 30 Eylül incelemesi normal runtime güç bütçesi sağlayıcısının None olduğunu doğruladı. Gerçek evcc/sayaç/yük adapteri ve üretim composition uygulama eksiğidir; bu boşluk yalnız test/CI bekleyişi değildir."
+      "reason": "Gerçek evcc /api/state üzerinden taze sayaç ve yük okuma normal Core runtimeına bağlı. b1fedff0 exact-one servis seçimini her istekte yeniliyor; revizyon değişimi ve ikinci servis belirsizliği kontrolü kapatıyor. Negatif tarifeler korunuyor, gerçek gelecekteki headroom uydurulmuyor. Yük azaltma/manuel kontrol, nedensel readback, iletişim kaybı ve tam kabul/CI kapıları geliştiriliyor."
     },
     {
       "id": "F46",
@@ -4892,7 +4892,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Şarj planı ve kullanıcı onayı sözleşmeleri hazır; 30 Eylül incelemesi normal runtime evcc state provider ve charger adapterinin bulunmadığını doğruladı. F48 gerçek güç bütçesi kaynağından sonra production şarj adapteri/composition ve izole E2E tamamlanacak."
+      "reason": "b1fedff0 gerçek evcc şarj kabiliyetini ve explicit admin-CAS enerji pencerelerini normal runtimea bağladı; pencereler kalıcı/HMAC korumalı, negatif tarife ve revizyon değişimi korunuyor. Şarj planı görülebilir, üretim kontrolü hâlâ kapalı. F48 kontrol bağımlılığı ile gerçek charger yürütme/makbuz/readback ve Client kabulü tamamlanacak."
     },
     {
       "id": "F47",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Güneş/batarya planlama ve kullanıcı akışı önceki commitlerde hazır. 30 Eylül incelemesinde F48 production kaynak adapteri eksik bulundu; F48 uygulama bağımlılığı tamamlanmadan F47 uygulama/entegrasyon kabulü kapanamaz."
+      "reason": "Güneş/batarya planlama ve kullanıcı akışı hazır. F48 gerçek sayaç okuması uygulandı ancak kontrol ve nedensel kabul hâlâ aktif; F47 inverter/batarya actual capability ve rezerv kaynak bağlantısı bu uygulama bağımlılığı sonrası kapanacak. Görünen tahminler doğrulanmış fiziksel batarya kabiliyeti sayılmaz."
     },
     {
       "id": "F49",
@@ -4968,7 +4968,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4994,7 +4994,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Mesh topology/catalog/update gateway sözleşmeleri hazır; 30 Eylül incelemesi normal runtime için concrete ZHA/Zigbee2MQTT sağlayıcısının bulunmadığını doğruladı. Gerçek snapshot/OTA adapteri ve production composition tamamlanmadan uygulama tamamlandı sayılmaz."
+      "reason": "d8daf8f7 gerçek Zigbee2MQTT retained inventory/state parserını ve yeniden başlatılan OTA belirsizliğinin tekrar gönderilmesini engelleyen kalıcı dispatch intentini uyguladı. Bilinmeyen rota/interference/firmware açıkça eksik gösteriliyor. Gerçek bounded MQTT reader, normal Core/broker provisioning, desteklenen OTA ve ayrı Thread teşhisi geliştiriliyor; tam kabul/CI ve fiziksel ağ kapıları açık."
     },
     {
       "id": "F56",
@@ -5119,7 +5119,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül production incelemesi sağlayıcı None iken onayın notDispatched kaydedildiğini buldu. Sağlayıcısız preview/confirm artık 503, kullanılabilir işlem listesi boş; tek gönderim ve exact readback için 5 focused Server testi geçti. Gerçek OctoPrint/Moonraker durum/komut adapteri ve normal runtime composition tamamlanmadan uygulama tamamlandı sayılmaz."
+      "reason": "Gerçek OctoPrint/Moonraker read-only durum/iş/sıcaklık adapteri normal runtimea bağlı; sağlayıcısız onay artık başarılı gösterilmiyor. Tek gönderimli confirmed pause/cancel, exact readback, yeniden başlatma/iptal ve Client→Core kabulü tamamlanacak. Keyfi G-code veya baskı başlatma ilk kapsamda yok; gerçek yazıcı doğrulaması MANUAL kapısında."
     },
     {
       "id": "F60",
@@ -5371,7 +5371,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tam paket doğrulaması sürerken F30 medya arşivi yolunda gerçek üretim boşluğu bulundu: read/action worker runtime ve deploy bağlantısı yoktu. FINAL.FUNCTION bu boşluk gerçek worker, lifecycle ve E2E kanıtıyla kapanmadan awaiting_ci durumuna dönmeyecek; başka FINAL maddesi başlatılmayacak."
+      "reason": "30 Eylül kapsamlı incelemesindeki F18 production executor/hedef seçimi uygulandı ve doğrulama tablosuna taşındı. F30 gerçek encoder/cleanup, F48/F46 kontrol, F55 gerçek broker ve F59 confirmed provider yolları kapanıyor. Bu eksikler, gerçek Client→Core→servis kabulü ve exact HEAD CI tamamlanmadan bu kapı awaiting_ci/done olmayacak; ikinci FINAL maddesi başlatılmayacak."
     },
     {
       "id": "FINAL.UI",

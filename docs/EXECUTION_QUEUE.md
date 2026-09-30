@@ -12,15 +12,15 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 1 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 9 | 1 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 5 | 0 | 0 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 4 | 1 | 0 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 1 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 4 | 2 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -29,8 +29,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F18 | Elektrik kesintisinde düzenli kapanış | Çalışılıyor | — |
 | F30 | Medya arşivi sağlık ve yer tasarrufu | Çalışılıyor | — |
+| F48 | Ev güç bütçesi | Çalışılıyor | — |
+| F55 | Zigbee/Thread ağ ve güncelleme merkezi | Çalışılıyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -39,16 +40,14 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F48 | Ev güç bütçesi | Başlanabilir | — |
-| 2 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Başlanabilir | — |
-| 3 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
-| 4 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48 |
-| 5 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G06, G09, G10 |
-| 6 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 7 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 8 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 9 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 10 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
+| 2 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48 |
+| 3 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G06, G09, G10 |
+| 4 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 5 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 6 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 7 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 8 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -125,6 +124,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | Uygulama tamamlandı · test bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Uygulama tamamlandı · test bekliyor | — |
+| F18 | Elektrik kesintisinde düzenli kapanış | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
