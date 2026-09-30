@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -20,6 +21,10 @@ from support.f41_frigate_fixture import FrigateFixture, provision
 
 
 def main():
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if ffmpeg is None or ffprobe is None:
+        raise RuntimeError("ffmpeg_and_ffprobe_are_required")
     with tempfile.TemporaryDirectory(prefix="larenor-f42-client-") as root:
         path = Path(root).resolve()
         clock = Clock(time.time())
@@ -30,8 +35,8 @@ def main():
             login_ip_limit=100,
             login_account_limit=100,
             login_global_limit=100,
-            private_event_ffmpeg=Path("/opt/homebrew/bin/ffmpeg"),
-            private_event_ffprobe=Path("/opt/homebrew/bin/ffprobe"),
+            private_event_ffmpeg=Path(ffmpeg),
+            private_event_ffprobe=Path(ffprobe),
         )
         app = create_app(settings)
         provider = FrigateFixture()

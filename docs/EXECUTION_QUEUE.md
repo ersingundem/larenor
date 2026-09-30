@@ -1,4 +1,4 @@
-F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **37/126 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **37/127 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
@@ -12,14 +12,14 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 3 | 0 | 0 | 0 |
-| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 1 | 0 | 0 | 0 |
+| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 1 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 5 | 0 | 0 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 5 | 0 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 2 | 1 | 0 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 2 | 0 | 0 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -29,6 +29,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
+| F51 | Etkileşimli ev kat planı | Çalışılıyor | — |
+| F23 | Canlı TV ve kayıt merkezi | Çalışılıyor | — |
 | F58 | E-paper mini ev ekranları | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -37,12 +39,35 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G10 |
-| 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 5 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 6 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 1 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Başlanabilir | — |
+| 2 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
+| 3 | F08 | Yapay zekâ kaynak yöneticisi | Başlanabilir | — |
+| 4 | F02 | Otomasyonun deneme haftası | Başlanabilir | — |
+| 5 | F24 | Akıllı altyazı ve dil tercihleri | Başlanabilir | — |
+| 6 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
+| 7 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 8 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
+| 9 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
+| 10 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 11 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
+| 12 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03 |
+| 13 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08 |
+| 14 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
+| 15 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
+| 16 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F08 |
+| 17 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F08 |
+| 18 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08 |
+| 19 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F08 |
+| 20 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F08 |
+| 21 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F08 |
+| 22 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F03 |
+| 23 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G03, G04, G06, G07, G08, G09, G10 |
+| 24 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 25 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 26 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 27 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 28 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 29 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -118,51 +143,27 @@ Tamamlanan ve test/CI bekleyen işler
 | F20 | Değiştirilmesi fark edilen işlem günlüğü | Uygulama tamamlandı · test bekliyor | — |
 | F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | Uygulama tamamlandı · test bekliyor | — |
-| F17 | Yedekleri silmeye kapalı kurtarma hedefi | Uygulama tamamlandı · test bekliyor | — |
-| F18 | Elektrik kesintisinde düzenli kapanış | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
-| F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
-| F08 | Yapay zekâ kaynak yöneticisi | Uygulama tamamlandı · test bekliyor | — |
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
-| F02 | Otomasyonun deneme haftası | Uygulama tamamlandı · test bekliyor | — |
-| F03 | Geçmişte otomasyon sınaması | Uygulama tamamlandı · test bekliyor | — |
-| F01 | Konuşarak otomasyon taslağı | Uygulama tamamlandı · test bekliyor | — |
-| F09 | Görülebilir, süreli AI hafızası | Uygulama tamamlandı · test bekliyor | — |
-| F07 | Evin alışılmış düzeninden sapmalar | Uygulama tamamlandı · test bekliyor | — |
-| F10 | Kanıta dayalı arıza yardımcısı | Uygulama tamamlandı · test bekliyor | — |
 | F11 | Sınırlı yetkili mini eklentiler | Uygulama tamamlandı · test bekliyor | — |
 | F12 | Yetkili MCP kapısı | Uygulama tamamlandı · test bekliyor | — |
 | F14 | Süreli destek oturumu | Uygulama tamamlandı · test bekliyor | — |
 | F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
-| F24 | Akıllı altyazı ve dil tercihleri | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
-| F25 | Jenerik ve kapanış atlama | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
-| F22 | Kendi televizyon kanalların | Uygulama tamamlandı · test bekliyor | — |
-| F23 | Canlı TV ve kayıt merkezi | Uygulama tamamlandı · test bekliyor | — |
-| F27 | Seyahat için çevrimdışı medya | Uygulama tamamlandı · test bekliyor | — |
-| F28 | Sesli kitap ve podcast merkezi | Uygulama tamamlandı · test bekliyor | — |
-| F29 | Parti DJ'i ve ortak şarkı oylaması | Uygulama tamamlandı · test bekliyor | — |
-| F30 | Medya arşivi sağlık ve yer tasarrufu | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | Uygulama tamamlandı · test bekliyor | — |
-| F35 | Ev belgeleri ve garanti hatırlatmaları | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
-| F38 | Aile anıları ve fotoğraf araması | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F42 | Mahremiyet korumalı olay paylaşımı | Uygulama tamamlandı · test bekliyor | — |
-| F41 | Kamera kayıtlarında doğal dille arama | Uygulama tamamlandı · test bekliyor | — |
-| F44 | Kameradan görsel sensörler | Uygulama tamamlandı · test bekliyor | — |
-| F45 | Havlama ve gürültü olayları | Uygulama tamamlandı · test bekliyor | — |
 | F50 | Oda konforu ve havalandırma planı | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
-| F47 | Güneş ve ev bataryası öncelikleri | Uygulama tamamlandı · test bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |

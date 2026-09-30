@@ -159,3 +159,11 @@ configures policy and consent, reads the fixture MP4, transforms and fully verif
 with local FFmpeg/ffprobe, creates the encrypted share, and downloads the transformed
 MP4. No Core F42 callback is replaced. `flutter gen-l10n` was run once; generated
 localization sources remain intentionally ignored by the repository.
+
+## Taşınabilir gerçek Client kabul koşucusu
+
+`server/tests/support/f42_flutter_acceptance.py` FFmpeg ve FFprobe yollarını
+`PATH` üzerinden çözer. İki araçtan biri yoksa açık hata verir; sessiz skip veya
+makineye özel Homebrew yolu yoktur. Bu değişiklikle gerçek Flutter → normal
+Core → TCP Frigate → FFmpeg kabul koşusu yeniden 1/1 geçti. Kapsamlı exact
+commit CI kapısı bu odaklı koşudan ayrıca izlenir.
