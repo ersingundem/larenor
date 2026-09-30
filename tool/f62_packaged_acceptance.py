@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import shutil
+import stat
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -17,10 +18,18 @@ if __package__:
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
     )
+    from .native_acceptance_receipt import (
+        NativeAcceptanceReceiptError,
+        source_revision,
+    )
 else:
     from android_acceptance_gradle import (
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
+    )
+    from native_acceptance_receipt import (
+        NativeAcceptanceReceiptError,
+        source_revision,
     )
 
 
@@ -28,6 +37,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TEST_CLASS = "com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest"
 TEST_NAME = "nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose"
 REPORTS = ROOT / "build/app/outputs/androidTest-results/connected/debug"
+PACKAGE_RECEIPT = ROOT / "android/app/freerdp/receipt.json"
+_DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
 class AcceptanceFailure(RuntimeError):
@@ -49,9 +60,37 @@ def fixture_package_versions() -> dict[str, str]:
     return values
 
 
-def acceptance_receipt(package_versions: dict[str, str]) -> dict[str, object]:
+def package_receipt_digest(path: Path = PACKAGE_RECEIPT) -> str:
+    try:
+        metadata = path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or not 1 <= metadata.st_size <= 1024 * 1024
+        ):
+            raise AcceptanceFailure("packaged RDP receipt is unavailable")
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        raise AcceptanceFailure("packaged RDP receipt is unavailable") from error
+    return digest.hexdigest()
+
+
+def acceptance_receipt(
+    package_versions: dict[str, str],
+    *,
+    revision: str,
+    package_digest: str,
+) -> dict[str, object]:
+    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise AcceptanceFailure("packaged RDP source revision is unavailable")
+    if _DIGEST.fullmatch(package_digest) is None:
+        raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
     return {
         "schemaVersion": 1,
+        "sourceRevision": revision,
+        "packageReceiptSha256": package_digest,
         "testClass": TEST_CLASS,
         "testName": TEST_NAME,
         "ownedHostPackages": package_versions,
@@ -63,7 +102,7 @@ def acceptance_receipt(package_versions: dict[str, str]) -> dict[str, object]:
     }
 
 
-def verify_reports(directory: Path = REPORTS) -> None:
+def verify_reports(directory: Path = REPORTS) -> Path:
     reports = list(directory.rglob("TEST-*.xml"))
     if len(reports) != 1:
         raise AcceptanceFailure("exact packaged RDP test report is unavailable")
@@ -85,6 +124,55 @@ def verify_reports(directory: Path = REPORTS) -> None:
         or len(suite.findall(".//error")) != 0
     ):
         raise AcceptanceFailure("packaged RDP acceptance did not execute exactly once")
+    return reports[0]
+
+
+def write_public_receipt(path: Path, receipt: dict[str, object]) -> None:
+    payload = json.dumps(
+        receipt,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ) + "\n"
+    try:
+        with path.open("x", encoding="utf-8") as output:
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        path.chmod(0o600)
+    except OSError as error:
+        raise AcceptanceFailure("packaged RDP public receipt could not be written") from error
+
+
+def publish_public_receipt(
+    report: Path,
+    runner_temp: Path,
+    package_versions: dict[str, str],
+) -> Path:
+    try:
+        revision = source_revision(ROOT)
+    except NativeAcceptanceReceiptError:
+        raise AcceptanceFailure("packaged RDP source revision is unavailable") from None
+    receipt = acceptance_receipt(
+        package_versions,
+        revision=revision,
+        package_digest=package_receipt_digest(),
+    )
+    output = runner_temp / "freerdp-public-acceptance"
+    try:
+        output.mkdir(mode=0o700)
+        output.chmod(0o700)
+    except OSError as error:
+        raise AcceptanceFailure(
+            "packaged RDP public receipt directory could not be created"
+        ) from error
+    destination = output / "receipt.json"
+    write_public_receipt(destination, receipt)
+    try:
+        report.unlink()
+    except OSError as error:
+        raise AcceptanceFailure("packaged RDP raw report could not be removed") from error
+    return destination
 
 
 def main() -> int:
@@ -122,13 +210,8 @@ def main() -> int:
         raise AcceptanceFailure("packaged RDP instrumentation could not complete") from None
     if result.returncode:
         raise AcceptanceFailure("packaged RDP instrumentation failed")
-    verify_reports()
-    output = runner_temp / "freerdp-package/acceptance"
-    output.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(next(REPORTS.rglob("TEST-*.xml")), output / "client-report.xml")
-    (output / "client-receipt.json").write_text(
-        json.dumps(acceptance_receipt(package_versions), indent=2) + "\n"
-    )
+    report = verify_reports()
+    publish_public_receipt(report, runner_temp, package_versions)
     return 0
 
 

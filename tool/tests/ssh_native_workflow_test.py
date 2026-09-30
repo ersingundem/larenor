@@ -64,6 +64,7 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             "test/features/remote_access/ssh/ssh_native_fixture_test.dart \\",
             self.raw,
         )
+        self.assertIn('- "tool/native_acceptance_receipt.py"', self.raw)
 
     def test_only_nonsecret_native_receipt_is_uploaded(self):
         upload = (

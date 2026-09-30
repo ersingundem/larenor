@@ -110,6 +110,17 @@ flutter {
 }
 
 dependencies {
+    constraints {
+        if (hasFreeRdp) {
+            // The Flutter integration_test plugin contributes runner 1.3.0 to
+            // debugRuntimeClasspath. AGP requires the instrumented-test runtime
+            // to use the same version as that app runtime, so align the existing
+            // transitive dependency with the stable runner used by androidTest.
+            debugRuntimeOnly("androidx.test:runner:1.7.0") {
+                because("the packaged RDP instrumentation runtime must resolve consistently with the debug app runtime")
+            }
+        }
+    }
     if (hasFreeRdp) {
         implementation(files(freeRdpAar))
         implementation("androidx.appcompat:appcompat:1.8.0")

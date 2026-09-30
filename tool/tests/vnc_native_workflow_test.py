@@ -1,10 +1,14 @@
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from tool import f61_tigervnc_acceptance as runner
+from tool import native_acceptance_receipt as receipt
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,6 +19,7 @@ class VncNativeWorkflowTest(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow_path = ROOT / ".github/workflows/vnc-native-acceptance.yml"
         cls.workflow = json.loads(cls.workflow_path.read_text())
+        cls.workflow_text = cls.workflow_path.read_text()
         cls.runner = (ROOT / "tool/f61_tigervnc_acceptance.py").read_text()
 
     def test_closed_reviewed_execution_and_commit_pinned_actions(self):
@@ -81,6 +86,20 @@ class VncNativeWorkflowTest(unittest.TestCase):
         self.assertEqual(upload["with"]["if-no-files-found"], "error")
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
 
+    def test_workflow_generates_locked_flutter_sources_before_native_gate(self):
+        required = (
+            "flutter pub get --enforce-lockfile",
+            "flutter gen-l10n",
+            "dart run build_runner build --delete-conflicting-outputs",
+            "python3 tool/f61_tigervnc_acceptance.py",
+        )
+        for value in required:
+            self.assertEqual(self.workflow_text.count(value), 1, value)
+        self.assertEqual(
+            sorted(self.workflow_text.index(value) for value in required),
+            [self.workflow_text.index(value) for value in required],
+        )
+
     def test_runner_uses_ephemeral_non_loopback_x509vnc_and_cleans_up(self):
         for required in (
             '"-SecurityTypes",\n                        "X509Vnc"',
@@ -118,25 +137,56 @@ class VncNativeWorkflowTest(unittest.TestCase):
         self.assertTrue(all(
             "vnc" in path.lower()
             or "f61" in path.lower()
-            or path == "tool/android_acceptance_gradle.py"
+            or path in {
+                "tool/android_acceptance_gradle.py",
+                "tool/native_acceptance_receipt.py",
+            }
             for path in paths
         ))
 
     def test_runner_requires_one_executed_non_skipped_test_before_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
             report = Path(temporary) / "report.xml"
-            report.write_text(
+            valid = (
                 '<testsuite name="com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest" '
-                'tests="1" skipped="0" failures="0" errors="0" />'
+                'tests="1" skipped="0" failures="0" errors="0">'
+                '<testcase '
+                'classname="com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest" '
+                'name="normalBridgeInteroperatesWithOwnedTigerVncAndRetiresWithoutReplay"/>'
+                '</testsuite>'
             )
+            report.write_text(valid)
             runner.verify_report(report)
-            for changed in (
-                'tests="0"', 'skipped="1"', 'failures="1"', 'errors="1"',
-            ):
-                report.write_text(
-                    '<testsuite name="com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest" '
-                    f'tests="1" skipped="0" failures="0" errors="0" {changed}/>'
-                )
+            invalid = (
+                valid.replace('tests="1"', 'tests="0"'),
+                valid.replace('skipped="0"', 'skipped="1"'),
+                valid.replace('failures="0"', 'failures="1"'),
+                valid.replace('errors="0"', 'errors="1"'),
+                valid.replace(
+                    f'classname="{runner.TEST_CLASS}"', 'classname="Other"'
+                ),
+                valid.replace(runner.TEST_NAME, "anotherMethod"),
+                valid.replace(
+                    "<testcase ", "<testcase><skipped/></testcase><testcase ", 1
+                ),
+                valid.replace(
+                    "<testcase ", "<testcase><failure/></testcase><testcase ", 1
+                ),
+                valid.replace(
+                    "<testcase ", "<testcase><error/></testcase><testcase ", 1
+                ),
+                valid.replace(
+                    valid[valid.index("<testcase") : valid.index("</testsuite>")],
+                    "",
+                ),
+                valid.replace(
+                    "</testsuite>",
+                    valid[valid.index("<testcase") : valid.index("</testsuite>")]
+                    + "</testsuite>",
+                ),
+            )
+            for changed in invalid:
+                report.write_text(changed)
                 with self.assertRaises(runner.AcceptanceFailure):
                     runner.verify_report(report)
 
@@ -148,6 +198,37 @@ class VncNativeWorkflowTest(unittest.TestCase):
         self.assertIn("AndroidAcceptanceGradleError", self.runner)
         self.assertNotIn('ROOT / "android" / "gradlew"', self.runner)
         self.assertNotIn("def gradle_wrapper_command", self.runner)
+
+    def test_receipt_source_revision_is_real_head_and_host_bound(self):
+        expected = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--verify", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertRegex(expected, r"^[0-9a-f]{40}$")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("GITHUB_SHA", None)
+            self.assertEqual(receipt.source_revision(ROOT), expected)
+        with mock.patch.dict(os.environ, {"GITHUB_SHA": expected}, clear=False):
+            self.assertEqual(receipt.source_revision(ROOT), expected)
+        public = runner.acceptance_receipt(
+            provider_version="Xvnc 1.13.1",
+            package_version="1.13.1+dfsg-2build2",
+            revision=expected,
+        )
+        self.assertEqual(public["sourceRevision"], expected)
+        self.assertEqual(public["testClass"], runner.TEST_CLASS)
+        self.assertEqual(public["testName"], runner.TEST_NAME)
+        self.assertEqual(
+            {key: public[key] for key in ("tests", "skipped", "failures", "errors")},
+            {"tests": 1, "skipped": 0, "failures": 0, "errors": 0},
+        )
+        self.assertNotIn("password", json.dumps(public).lower())
+        with mock.patch.dict(os.environ, {"GITHUB_SHA": "0" * 40}, clear=False):
+            with self.assertRaises(receipt.NativeAcceptanceReceiptError) as caught:
+                receipt.source_revision(ROOT)
+        self.assertNotIn(expected, str(caught.exception))
 
 
 if __name__ == "__main__":

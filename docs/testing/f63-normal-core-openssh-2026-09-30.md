@@ -169,3 +169,41 @@ analysis and diff validation. The parser also rejected the actual JSON emitted
 by a local missing-environment Flutter run because all seven named tests were
 marked skipped. The hosted Temurin/Python setup and strict receipt still require
 a new exact-head workflow result.
+
+## Machine report identity and provenance closure
+
+[Run 36769844212](https://github.com/ersingundem/larenor/actions/runs/36769844212)
+at `1dd8ca98` completed the real OpenSSH native fixture, normal-Core acceptance
+and Android APK contract successfully. That named result is the first hosted
+interoperability proof after the RFC 4256 and prerequisite repairs. It predates
+the stricter receipt provenance and event-order parser below, so it is retained
+as protocol/provider evidence rather than presented as a pass of the stronger
+receipt gate.
+
+The strict report reader now treats the Flutter machine stream as an ordered
+protocol. It permits exactly one real hidden `loading <test file>`
+start/completion pair
+and the runner's `start`, `allSuites`, `group` and `print` events. It rejects a
+second matching suite event even when the suite id is repeated, Boolean values
+masquerading as integer suite/test ids, an unexpected non-loading test start,
+any started suite test without one completion, and every event after the single
+successful `done`. Duplicate JSON keys and duplicate starts/completions remain
+invalid.
+
+The uploaded receipt now binds the result to the exact lowercase 40-hex Git
+`HEAD`; on GitHub Actions it must also equal `GITHUB_SHA`. A fixed-argument,
+bounded `dpkg-query` readback must equal the pinned `openssh-server` package
+version. The receipt records that public version and the direct, jump and MFA
+Ed25519 SHA-256 host-key fingerprints. It never records the private key,
+passphrase, password, raw machine report or daemon logs.
+
+The current Flutter runner produced the expected one hidden loading flow and
+seven explicitly skipped tests when fixture environment was absent; the parser
+rejected that exit-zero report. The modeled successful form of the same machine
+event flow and all negative protocol cases pass locally. F63 runner/workflow
+policy evidence is now 20/20 tests. This hardening adds no new hosted
+interoperability claim; an exact-head Linux workflow result is still required.
+
+### Root hosted entrypoint verification
+
+Root found that the direct workflow command `python3 tool/f63_openssh_acceptance.py` could not import the shared helper without an ambient PYTHONPATH. The runner now selects package-relative or direct sibling imports as appropriate. A real child process with `-E`, no fixture variables and no PYTHONPATH reaches the expected static missing-fixture rejection (exit 2), without a traceback or provider I/O. Root's combined VNC/RDP/SSH readiness gate passed 43 tests; Python compilation and scoped diff checks were clean. This does not substitute for the new exact hosted native run.

@@ -22,7 +22,8 @@
         "tool/f62_packaged_acceptance.py",
         "tool/tests/f62_packaged_acceptance_test.py",
         "tool/tests/freerdp_android_workflow_test.py",
-        "tool/android_acceptance_gradle.py"
+        "tool/android_acceptance_gradle.py",
+        "tool/native_acceptance_receipt.py"
       ]
     }
   },
@@ -147,10 +148,10 @@
         },
         {
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-          "if": "always()",
+          "if": "matrix.abi == 'x86_64'",
           "with": {
-            "name": "freerdp-3.31.1-${{ github.sha }}-${{ matrix.abi }}",
-            "path": "${{ runner.temp }}/freerdp-package/",
+            "name": "freerdp-3.31.1-${{ github.sha }}-acceptance",
+            "path": "${{ runner.temp }}/freerdp-public-acceptance/receipt.json",
             "if-no-files-found": "error",
             "retention-days": 14
           }

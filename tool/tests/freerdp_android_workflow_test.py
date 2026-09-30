@@ -90,6 +90,12 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         upload = next(step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@"))
         self.assertEqual(upload["with"]["if-no-files-found"], "error")
         self.assertIn("${{ github.sha }}", upload["with"]["name"])
+        self.assertEqual(upload["if"], "matrix.abi == 'x86_64'")
+        self.assertEqual(
+            upload["with"]["path"],
+            "${{ runner.temp }}/freerdp-public-acceptance/receipt.json",
+        )
+        self.assertNotIn("client-report.xml", json.dumps(upload))
 
     def test_x86_package_runs_real_owned_nla_host_acceptance(self):
         steps = self.workflow["jobs"]["package"]["steps"]
@@ -139,30 +145,42 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn("rdpHost=10.0.2.2", runner)
         self.assertIn("rdpPassword={password}", runner)
         self.assertIn('"ownedHostPackages": package_versions', runner)
+        self.assertIn('"sourceRevision": revision', runner)
+        self.assertIn('"packageReceiptSha256": package_digest', runner)
+        self.assertIn("source_revision(ROOT)", runner)
+        self.assertIn("package_receipt_digest()", runner)
+        self.assertNotIn("client-report.xml", runner)
         self.assertNotIn("shell=True", runner)
-        self.assertLess(runner.index("verify_reports()"), runner.index("client-receipt.json"))
+        self.assertLess(
+            runner.index("report = verify_reports()"),
+            runner.index("publish_public_receipt(report"),
+        )
         self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
         self.assertIn("rm -f \"$RUNNER_TEMP/larenor-rdp.sam\"", cleanup["run"])
 
     def test_shared_launcher_materializes_pinned_flutter_wrapper_and_fails_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             android = root / "android"
             properties = android / "gradle/wrapper/gradle-wrapper.properties"
             properties.parent.mkdir(parents=True)
             properties.write_text("distributionUrl=https\\://example.invalid/gradle.zip\n")
             flutter = root / "flutter/bin/flutter"
+            java = root / "java"
             wrapper = (
                 root
                 / "flutter/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
             )
             flutter.parent.mkdir(parents=True)
             flutter.write_text("fixture")
+            flutter.chmod(0o700)
+            java.write_text("fixture")
+            java.chmod(0o700)
             wrapper.parent.mkdir(parents=True)
             wrapper.write_bytes(b"pinned-flutter-wrapper")
 
             def resolved(name):
-                return str(flutter if name == "flutter" else root / "java")
+                return str(flutter if name == "flutter" else java)
 
             with mock.patch.object(
                 acceptance_gradle, "_executable", side_effect=resolved
@@ -181,6 +199,13 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
                     (materialized / name).stat().st_mode & 0o777,
                     0o600,
                 )
+            for directory in (
+                root / "launcher",
+                root / "launcher/gradle",
+                materialized,
+            ):
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(command[0], str(java.resolve()))
 
             wrapper.unlink()
             with mock.patch.object(
@@ -200,6 +225,79 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
                     acceptance_gradle.materialized_gradle_command(
                         root / "symlink", project_android=android
                     )
+
+    def test_shared_launcher_rejects_relative_and_symlinked_boundaries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            real = root / "real"
+            android = real / "android"
+            properties = android / "gradle/wrapper/gradle-wrapper.properties"
+            properties.parent.mkdir(parents=True)
+            properties.write_text("distributionUrl=https\\://example.invalid/gradle.zip\n")
+            flutter = root / "flutter/bin/flutter"
+            wrapper = (
+                root
+                / "flutter/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
+            )
+            java = root / "java"
+            flutter.parent.mkdir(parents=True)
+            flutter.write_text("fixture")
+            flutter.chmod(0o700)
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_bytes(b"wrapper")
+            java.write_text("fixture")
+            java.chmod(0o700)
+
+            def resolved(name):
+                return str(flutter if name == "flutter" else java)
+
+            with mock.patch.object(
+                acceptance_gradle, "_executable", side_effect=resolved
+            ):
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        Path("relative-launcher"), project_android=android
+                    )
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        root / "relative-project-launcher",
+                        project_android=Path("android"),
+                    )
+
+                project_alias = root / "project-alias"
+                project_alias.symlink_to(real, target_is_directory=True)
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        root / "symlink-project-launcher",
+                        project_android=project_alias / "android",
+                    )
+
+                launcher_parent = root / "launcher-parent"
+                launcher_parent.mkdir()
+                launcher_alias = root / "launcher-alias"
+                launcher_alias.symlink_to(launcher_parent, target_is_directory=True)
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        launcher_alias / "launcher", project_android=android
+                    )
+
+                occupied = root / "occupied"
+                occupied.mkdir()
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        occupied, project_android=android
+                    )
+
+    def test_shared_launcher_destination_files_are_created_exclusively(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "source"
+            destination = root / "destination"
+            source.write_bytes(b"trusted")
+            destination.write_bytes(b"attacker")
+            with self.assertRaises(FileExistsError):
+                acceptance_gradle._exclusive_copy(source, destination)
+            self.assertEqual(destination.read_bytes(), b"attacker")
 
 
 if __name__ == "__main__":

@@ -135,3 +135,20 @@ symlinked project properties fail closed. Six workflow-policy tests, an actual
 materialized Gradle 9.7.1 launch, and the 46-test native VNC batch passed
 locally; the one real TigerVNC test remains the intentional non-Linux skip. A
 new exact hosted run is still required for the one-test/no-skip receipt.
+
+[Run 36769953343](https://github.com/ersingundem/larenor/actions/runs/36769953343)
+at `f1713f654bc6bc2fac0bb2d35a8f63a423e12415` again started the owned
+TigerVNC fixture and materialized Gradle successfully. Gradle then compiled the
+application before running the selected test and failed because localization,
+Freezed and provider outputs were absent from the fresh checkout. The workflow
+now runs lockfile-enforced `flutter pub get`, `flutter gen-l10n`, and
+`build_runner` in that order before launching the production bridge.
+
+The public receipt is now bound to the real 40-character Git `HEAD` and, on a
+hosted run, requires exact equality with `GITHUB_SHA`. Its XML verifier requires
+one testcase with the exact production acceptance class and method plus zero
+skip, failure or error elements; a summary-only suite can no longer create a
+passing receipt. Eight workflow/parser/provenance policy tests pass locally.
+No raw fixture or Gradle logs are included in the public receipt. A new hosted
+run must still execute that exact test successfully before F61 can claim native
+TigerVNC interoperability.

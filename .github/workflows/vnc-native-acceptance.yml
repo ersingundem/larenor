@@ -18,7 +18,8 @@
         "test/features/remote_access/vnc_framebuffer_surface_test.dart",
         "tool/f61_tigervnc_acceptance.py",
         "tool/tests/vnc_native_workflow_test.py",
-        "tool/android_acceptance_gradle.py"
+        "tool/android_acceptance_gradle.py",
+        "tool/native_acceptance_receipt.py"
       ]
     }
   },
@@ -73,7 +74,15 @@
         },
         {
           "name": "Resolve Flutter packages",
-          "run": "set -euo pipefail\nflutter pub get\n"
+          "run": "set -euo pipefail\nflutter pub get --enforce-lockfile\n"
+        },
+        {
+          "name": "Generate localizations for the application build",
+          "run": "flutter gen-l10n"
+        },
+        {
+          "name": "Generate model and provider outputs for the application build",
+          "run": "dart run build_runner build --delete-conflicting-outputs"
         },
         {
           "name": "Run production bridge against owned X509Vnc host",

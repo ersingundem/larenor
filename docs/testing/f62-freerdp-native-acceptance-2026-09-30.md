@@ -77,3 +77,29 @@ materialized launcher started real Gradle 9.7.1, and the native RDP unit batch
 passed 14 tests with zero skips, failures or errors. These local gates still do
 not establish emulator-to-NLA interoperability; only a new terminal hosted run
 with the strict instrumentation XML and receipt can do that.
+
+## Private launcher and canonical public receipt boundary
+
+The acceptance launcher now requires the Android project to be an absolute,
+existing directory whose resolved path is byte-for-byte the supplied path. Its
+temporary workspace must be an absolute absent child of a direct real
+directory. The launcher resolves the Java and Flutter executables, rejects
+symlinked project, executable, wrapper and properties boundaries, creates each
+private workspace directory with mode `0700`, and creates the copied wrapper
+files exclusively with mode `0600`. Existing destination files and symlinked
+destination parents fail closed.
+
+The x86_64 lane is the only artifact-producing lane. After exactly one fresh
+named instrumentation XML reports one executed test and no skip, failure or
+error, the runner writes one canonical JSON receipt. It binds the real Git HEAD
+(and the exact `GITHUB_SHA` when present), SHA-256 of the immutable packaged
+FreeRDP receipt, and the exact owned shadow-host package versions. The private
+raw JUnit file is removed before the workflow uploads only that public receipt;
+the native package, disposable credential and device report are not artifacts.
+
+Thirteen focused launcher/workflow/receipt policy tests pass for this boundary,
+including relative paths, symlinked project ancestors, symlinked destination
+parents, exclusive destination creation, canonical receipt serialization and
+raw-report removal. This policy evidence does not claim native RDP
+interoperability. A terminal hosted run must still execute and receipt the real
+instrumentation test.

@@ -9,6 +9,7 @@ on:
       - "lib/features/remote_access/core/**"
       - "lib/features/remote_access/presentation/core_personal_profiles_screen.dart"
       - "server/tests/support/f63_flutter_acceptance.py"
+      - "tool/native_acceptance_receipt.py"
       - "tool/f63_openssh_acceptance.py"
       - "tool/tests/f63_openssh_acceptance_test.py"
       - "tool/tests/ssh_native_workflow_test.py"

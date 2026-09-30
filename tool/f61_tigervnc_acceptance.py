@@ -21,15 +21,24 @@ if __package__:
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
     )
+    from .native_acceptance_receipt import (
+        NativeAcceptanceReceiptError,
+        source_revision,
+    )
 else:
     from android_acceptance_gradle import (
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
     )
+    from native_acceptance_receipt import (
+        NativeAcceptanceReceiptError,
+        source_revision,
+    )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_CLASS = "com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest"
+TEST_NAME = "normalBridgeInteroperatesWithOwnedTigerVncAndRetiresWithoutReplay"
 OUTPUT = ROOT / "build" / "f61-tigervnc-acceptance"
 REPORT = (
     ROOT
@@ -156,19 +165,50 @@ def verify_report(path: Path = REPORT) -> None:
             key: int(suite.attrib[key])
             for key in ("tests", "skipped", "failures", "errors")
         }
+        cases = list(suite.iter("testcase"))
     except (OSError, ET.ParseError, KeyError, TypeError, ValueError) as error:
         raise AcceptanceFailure("TigerVNC acceptance report is unavailable") from error
     if (
         suite.tag != "testsuite"
         or suite.attrib.get("name") != TEST_CLASS
         or exact != {"tests": 1, "skipped": 0, "failures": 0, "errors": 0}
+        or len(cases) != 1
+        or cases[0].attrib.get("classname") != TEST_CLASS
+        or cases[0].attrib.get("name") != TEST_NAME
+        or len(suite.findall(".//skipped")) != 0
+        or len(suite.findall(".//failure")) != 0
+        or len(suite.findall(".//error")) != 0
     ):
         raise AcceptanceFailure("TigerVNC acceptance did not execute exactly once")
+
+
+def acceptance_receipt(
+    *, provider_version: str, package_version: str, revision: str
+) -> dict[str, object]:
+    return {
+        "schemaVersion": 1,
+        "provider": "TigerVNC",
+        "providerVersion": provider_version,
+        "packageVersion": package_version,
+        "securityType": "X509Vnc",
+        "sourceRevision": revision,
+        "testClass": TEST_CLASS,
+        "testName": TEST_NAME,
+        "result": "passed",
+        "tests": 1,
+        "skipped": 0,
+        "failures": 0,
+        "errors": 0,
+    }
 
 
 def main() -> int:
     if sys.platform != "linux":
         raise AcceptanceFailure("real TigerVNC acceptance requires an isolated Linux host")
+    try:
+        revision = source_revision(ROOT)
+    except NativeAcceptanceReceiptError as error:
+        raise AcceptanceFailure(str(error)) from None
     xvnc = executable("Xtigervnc", "Xvnc")
     vncpasswd = executable("tigervncpasswd", "vncpasswd")
     openssl = executable("openssl")
@@ -346,15 +386,13 @@ def main() -> int:
             OUTPUT.mkdir(parents=True, exist_ok=True)
             (OUTPUT / "receipt.json").write_text(
                 json.dumps(
-                    {
-                        "schemaVersion": 1,
-                        "provider": "TigerVNC",
-                        "providerVersion": tiger_version(xvnc),
-                        "packageVersion": os.environ.get("TIGERVNC_PACKAGE_VERSION", "unrecorded"),
-                        "securityType": "X509Vnc",
-                        "testClass": TEST_CLASS,
-                        "result": "passed",
-                    },
+                    acceptance_receipt(
+                        provider_version=tiger_version(xvnc),
+                        package_version=os.environ.get(
+                            "TIGERVNC_PACKAGE_VERSION", "unrecorded"
+                        ),
+                        revision=revision,
+                    ),
                     indent=2,
                     sort_keys=True,
                 )

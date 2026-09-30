@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül native hosted kabul kapılarının dar düzeltmeleri
+
+VNC generated Flutter önkoşullarını kurar ve exact bir class/method/sıfır skip JUnit receipt ister. RDP gerçek dependencyInsight ile app/test runner sürümünü yalnız receipted debug buildde hizalar; kabul artifacti yalnız sourceRevision, paket digest ve host sürümlerini içerir. SSH exact yedi test, loading/completion lifecycle ve observed host kimliklerini doğrular; root doğrudan workflow entrypointindeki PYTHONPATH bağımlılığını da düzeltti. Üç ajan diliminde root 43 focused Python testini ve py_compile/diff-checki geçti. Yeni exact hosted koşular gerekli; sayaçlar artırılmadı. [RDP bağımlılık kanıtı](testing/f62-android-test-resolution-2026-09-30.md), [SSH receipt](testing/f63-normal-core-openssh-2026-09-30.md), [VNC receipt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül tamamlanan yazılım ile gerçek açıkların ayrımı
 
 K09 root tarafından gerçek normal Core/TLS MQTT, delayed-CONNACK/successor retirement ve 25 focused testle doğrulandı; tam Flutter analyze temiz. CI bekliyor tablosuna taşındı. Bağımsız kabul kapsamı denetimi F22, F28, F47 ve F60 için gerçek eksik yazılım davranışları buldu; mevcut alt dilim kanıtları korunarak dört iş yeniden çalışılıyor bölümüne alındı. Böylece 54 seçili özellik ve dokuz ek iş, toplam 63 iş geniş CI bekliyor. Kabul sayaçları değişmedi; FINAL.FUNCTION tek aktif FINAL olarak görünür. [K09 kanıtı](testing/k09-controlled-view-normal-core-2026-09-30.md), [açıkların kaynakları](testing/final-function-runtime-inventory-2026-09-30.md).
