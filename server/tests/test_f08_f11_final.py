@@ -178,10 +178,16 @@ def test_f11_catalog_enforces_capabilities_limits_scope_and_stop(server):
     root = _root(app, "mini-plugins")
     catalog = client.get(root + "/catalog", headers=auth(admin))
     assert catalog.status_code == 200
+    assert catalog.json()["schemaVersion"] == 2
+    assert catalog.json()["catalogVersion"] == "mini-plugin-catalog-v2"
     template = catalog.json()["templates"][0]
+    assert template["schemaVersion"] == 2
+    assert template["executionClass"] == "builtin_metadata_v2"
     assert template["capabilities"] == ["home.resource_count.read"]
+    assert set(template["limits"]) == {"network", "filesystem", "output"}
     assert template["limits"]["network"] == {"mode": "deny_all", "allowedDestinations": []}
     assert template["limits"]["filesystem"]["hostPathsAvailable"] is False
+    assert template["limits"]["output"] == {"maxBytesPerInvocation": 1024}
     assert template["denials"] == {
         "crossHomeAccess": False, "secretsAvailable": False,
         "hostManagementAvailable": False, "arbitraryCodeAvailable": False,
@@ -192,12 +198,15 @@ def test_f11_catalog_enforces_capabilities_limits_scope_and_stop(server):
     created = client.post(root, headers=auth(admin), json=create)
     assert created.status_code == 201, created.text
     instance = created.json()["instance"]
+    assert instance["schemaVersion"] == 2
+    assert instance["executionClass"] == "builtin_metadata_v2"
     assert client.post(root, headers=auth(admin), json=create).json() == created.json()
     render = client.post(f"{root}/{instance['id']}/render", headers=auth(admin), json={
         "schemaVersion": 1, "expectedRevision": 1,
     })
     assert render.status_code == 200
     result = render.json()["result"]
+    assert result["schemaVersion"] == 2
     assert result["networkRequests"] == result["filesystemBytes"] == 0
     assert result["secretReads"] == result["hostOperations"] == 0
     assert result["outputBytesMaximum"] == 1024

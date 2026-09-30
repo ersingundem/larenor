@@ -28,6 +28,7 @@ final class _AiCore {
   final HttpServer server;
   final requests = <String>[];
   String? malformed;
+  bool legacyMiniPluginContract = false;
 
   static Future<_AiCore> start() async {
     final value = _AiCore._(
@@ -177,8 +178,6 @@ final class _AiCore {
       'hostPathsAvailable': false,
     },
     'network': {'mode': 'deny_all', 'allowedDestinations': <Object?>[]},
-    'cpu': {'maxMillisPerInvocation': 50},
-    'memory': {'maxBytesPerInvocation': 1048576},
     'output': {'maxBytesPerInvocation': 1024},
   };
   Map<String, Object?> get denials => {
@@ -188,13 +187,13 @@ final class _AiCore {
     'arbitraryCodeAvailable': false,
   };
   Map<String, Object?> plugin({bool stopped = false}) => {
-    'schemaVersion': 1,
+    'schemaVersion': 2,
     'id': _pluginId,
     'revision': stopped ? 2 : 1,
     'templateId': 'home-resource-count',
     'displayName': 'Resource count',
     'state': stopped ? 'stopped' : 'running',
-    'executionClass': 'builtin_bounded_v1',
+    'executionClass': 'builtin_metadata_v2',
     'capabilities': ['home.resource_count.read'],
     'limits': limits,
     'denials': denials,
@@ -311,16 +310,26 @@ final class _AiCore {
     }
     if (path.endsWith('$plugins/catalog')) {
       return _json(request, {
-        'schemaVersion': 1,
-        'catalogVersion': 'mini-plugin-catalog-v1',
+        'schemaVersion': legacyMiniPluginContract ? 1 : 2,
+        'catalogVersion': legacyMiniPluginContract
+            ? 'mini-plugin-catalog-v1'
+            : 'mini-plugin-catalog-v2',
         'templates': [
           {
-            'schemaVersion': 1,
+            'schemaVersion': legacyMiniPluginContract ? 1 : 2,
             'id': 'home-resource-count',
             'displayName': 'Home resource count',
-            'executionClass': 'builtin_bounded_v1',
+            'executionClass': legacyMiniPluginContract
+                ? 'builtin_bounded_v1'
+                : 'builtin_metadata_v2',
             'capabilities': ['home.resource_count.read'],
-            'limits': limits,
+            'limits': legacyMiniPluginContract
+                ? {
+                    ...limits,
+                    'cpu': {'maxMillisPerInvocation': 50},
+                    'memory': {'maxBytesPerInvocation': 1048576},
+                  }
+                : limits,
             'denials': denials,
             'operations': ['render', 'stop'],
             if (malformed == 'F11') 'secret': true,
@@ -331,7 +340,7 @@ final class _AiCore {
     if (path.endsWith('$plugins/$_pluginId/render')) {
       return _json(request, {
         'result': {
-          'schemaVersion': 1,
+          'schemaVersion': 2,
           'pluginId': _pluginId,
           'pluginRevision': 1,
           'capability': 'home.resource_count.read',
@@ -353,7 +362,7 @@ final class _AiCore {
     }
     if (path.endsWith(plugins)) {
       return _json(request, {
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'instances': [plugin()],
         'maximumInstances': 64,
         'maximumRunning': 8,
@@ -489,6 +498,9 @@ void main() {
       expect(snapshot.resourceCount, 3);
       expect((await api.stop(instance)).running, isFalse);
       core.malformed = 'F11';
+      await expectLater(api.catalog(), _invalidResponse());
+      core.malformed = null;
+      core.legacyMiniPluginContract = true;
       await expectLater(api.catalog(), _invalidResponse());
     }),
   );

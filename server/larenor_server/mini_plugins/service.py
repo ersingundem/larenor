@@ -21,8 +21,6 @@ LIMITS = {
         "mode": "deny_all",
         "allowedDestinations": [],
     },
-    "cpu": {"maxMillisPerInvocation": 50},
-    "memory": {"maxBytesPerInvocation": 1_048_576},
     "output": {"maxBytesPerInvocation": 1024},
 }
 DENIALS = {
@@ -106,14 +104,14 @@ class MiniPluginService:
     @staticmethod
     def catalog():
         return {
-            "schemaVersion": 1,
-            "catalogVersion": "mini-plugin-catalog-v1",
+            "schemaVersion": 2,
+            "catalogVersion": "mini-plugin-catalog-v2",
             "templates": [
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
                     "id": "home-resource-count",
                     "displayName": "Home resource count",
-                    "executionClass": "builtin_bounded_v1",
+                    "executionClass": "builtin_metadata_v2",
                     "capabilities": CAPABILITIES,
                     "limits": LIMITS,
                     "denials": DENIALS,
@@ -125,13 +123,13 @@ class MiniPluginService:
     @staticmethod
     def _public(row):
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "id": row["id"],
             "revision": row["revision"],
             "templateId": row["template_id"],
             "displayName": row["display_name"],
             "state": row["state"],
-            "executionClass": "builtin_bounded_v1",
+            "executionClass": "builtin_metadata_v2",
             "capabilities": CAPABILITIES,
             "limits": LIMITS,
             "denials": DENIALS,
@@ -146,7 +144,7 @@ class MiniPluginService:
         ):
             rows = self._validate(connection)
             return {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "instances": [self._public(row) for row in rows],
                 "maximumInstances": MAX_INSTANCES,
                 "maximumRunning": MAX_RUNNING,
@@ -250,7 +248,7 @@ class MiniPluginService:
                 raise ApiError("mini_plugin_stopped", 409)
             state = self.resources._state(connection)
             result = {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "pluginId": row["id"],
                 "pluginRevision": row["revision"],
                 "capability": "home.resource_count.read",

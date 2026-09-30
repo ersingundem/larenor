@@ -26,21 +26,13 @@ int _revision(Object? value) {
 }
 
 void _policy(Object? limits, Object? denials) {
-  final value = _object(limits, {
-    'filesystem',
-    'network',
-    'cpu',
-    'memory',
-    'output',
-  });
+  final value = _object(limits, {'filesystem', 'network', 'output'});
   final filesystem = _object(value['filesystem'], {
     'mode',
     'scratchBytes',
     'hostPathsAvailable',
   });
   final network = _object(value['network'], {'mode', 'allowedDestinations'});
-  final cpu = _object(value['cpu'], {'maxMillisPerInvocation'});
-  final memory = _object(value['memory'], {'maxBytesPerInvocation'});
   final output = _object(value['output'], {'maxBytesPerInvocation'});
   final denied = _object(denials, {
     'crossHomeAccess',
@@ -54,8 +46,6 @@ void _policy(Object? limits, Object? denials) {
       network['mode'] != 'deny_all' ||
       network['allowedDestinations'] is! List ||
       (network['allowedDestinations'] as List).isNotEmpty ||
-      cpu['maxMillisPerInvocation'] != 50 ||
-      memory['maxBytesPerInvocation'] != 1048576 ||
       output['maxBytesPerInvocation'] != 1024 ||
       denied.values.any((value) => value != false)) {
     _invalid();
@@ -80,8 +70,8 @@ final class ServerMiniPluginCatalog {
       'templates',
     });
     final templates = value['templates'];
-    if (value['schemaVersion'] != 1 ||
-        value['catalogVersion'] != 'mini-plugin-catalog-v1' ||
+    if (value['schemaVersion'] != 2 ||
+        value['catalogVersion'] != 'mini-plugin-catalog-v2' ||
         templates is! List ||
         templates.length != 1) {
       _invalid();
@@ -97,10 +87,10 @@ final class ServerMiniPluginCatalog {
       'operations',
     });
     final operations = template['operations'];
-    if (template['schemaVersion'] != 1 ||
+    if (template['schemaVersion'] != 2 ||
         template['id'] != 'home-resource-count' ||
         template['displayName'] != 'Home resource count' ||
-        template['executionClass'] != 'builtin_bounded_v1' ||
+        template['executionClass'] != 'builtin_metadata_v2' ||
         operations is! List ||
         operations.length != 2 ||
         operations[0] != 'render' ||
@@ -138,9 +128,9 @@ final class ServerMiniPluginInstance {
     });
     final name = value['displayName'];
     final state = value['state'];
-    if (value['schemaVersion'] != 1 ||
+    if (value['schemaVersion'] != 2 ||
         value['templateId'] != 'home-resource-count' ||
-        value['executionClass'] != 'builtin_bounded_v1' ||
+        value['executionClass'] != 'builtin_metadata_v2' ||
         name is! String ||
         name.isEmpty ||
         name.runes.length > 48 ||
@@ -188,7 +178,7 @@ final class ServerMiniPluginSnapshot {
     });
     final count = value['resourceCount'];
     final generated = value['generatedAt'];
-    if (value['schemaVersion'] != 1 ||
+    if (value['schemaVersion'] != 2 ||
         value['capability'] != 'home.resource_count.read' ||
         count is! int ||
         count < 0 ||
