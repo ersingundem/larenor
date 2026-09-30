@@ -42,6 +42,7 @@ _JELLYFIN_STEPS = {
      'libraries_verified', 'session_closed'),
     ('authenticated', 'keys_observed', 'key_created', 'key_verified',
      'system_verified', 'libraries_verified', 'session_closed'),
+    ('api_key_verified', 'system_verified', 'libraries_verified'),
 }
 _QBITTORRENT_STEPS = (
     'version_verified', 'preferences_verified', 'categories_verified')
