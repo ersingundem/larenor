@@ -277,6 +277,10 @@ internal class VncAndroidRfbBackend(
         }
 
         fun upgradeTls(expectedPin: String?) {
+            // VeNCrypt's TLS subtype sends a plaintext readiness byte before
+            // the TLS records. It must be consumed before SSLSocket takes
+            // ownership of the transport (TigerVNC CSecurityTLS/SSecurityTLS).
+            if (readUnsignedByte() != 1) throw VncNativeFailure("tlsRequired")
             val secured = try {
                 (discoveryTlsContext.socketFactory
                     .createSocket(socket, host, port, true) as SSLSocket).apply {

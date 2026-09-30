@@ -152,3 +152,30 @@ passing receipt. Eight workflow/parser/provenance policy tests pass locally.
 No raw fixture or Gradle logs are included in the public receipt. A new hosted
 run must still execute that exact test successfully before F61 can claim native
 TigerVNC interoperability.
+
+## Real TigerVNC TLS readiness defect and repair
+
+[Run 36772273119](https://github.com/ersingundem/larenor/actions/runs/36772273119)
+on exact `f5b382cec7e3d4ced65535e8e538e696fbb3fec6` reached the production
+bridge test. Certificate inspection failed before VNC authentication or frames.
+The real server reported an improperly terminated TLS handshake.
+
+TigerVNC 1.13.1's [server TLS implementation](https://github.com/TigerVNC/tigervnc/blob/v1.13.1/common/rfb/SSecurityTLS.cxx#L150-L169)
+sends a plaintext readiness byte after VeNCrypt subtype selection; its
+[client reads that byte before TLS](https://github.com/TigerVNC/tigervnc/blob/v1.13.1/common/rfb/CSecurityTLS.cxx#L152-L175).
+Larenor had handed the unread byte to SSLSocket, so the TLS record stream began
+with non-TLS data. The production backend now requires readiness byte 1 before
+TLS takes ownership. TLS 1.3 and profile SPKI verification remain unchanged.
+
+Root ran the actual production loopback class after adding the same readiness
+step to the owned server. All 3 tests passed with 0 skips/failures/errors:
+frame/input/resize/disconnect, readiness 0 rejection, and unknown readiness 2
+rejection. Both rejection hosts observed EOF with no TLS ClientHello or
+authentication traffic. The archived local XML is
+`/tmp/larenor-root-vnc-readiness-result.xml`.
+
+The first local full Gradle dependency run stopped on an in-progress F47 Dart
+type error before native tests. The final narrow Kotlin run excluded
+`:app:compileFlutterBuildDebug` and passed in 14 seconds; it is native protocol
+evidence, not a new full application build. A new exact hosted TigerVNC receipt
+is still required. F61 remains implemented/awaiting native validation.

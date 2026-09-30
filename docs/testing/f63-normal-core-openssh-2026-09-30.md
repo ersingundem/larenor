@@ -207,3 +207,17 @@ interoperability claim; an exact-head Linux workflow result is still required.
 ### Root hosted entrypoint verification
 
 Root found that the direct workflow command `python3 tool/f63_openssh_acceptance.py` could not import the shared helper without an ambient PYTHONPATH. The runner now selects package-relative or direct sibling imports as appropriate. A real child process with `-E`, no fixture variables and no PYTHONPATH reaches the expected static missing-fixture rejection (exit 2), without a traceback or provider I/O. Root's combined VNC/RDP/SSH readiness gate passed 43 tests; Python compilation and scoped diff checks were clean. This does not substitute for the new exact hosted native run.
+
+### Strong exact hosted receipt passed
+
+[Run 36772281257](https://github.com/ersingundem/larenor/actions/runs/36772281257)
+at exact `f5b382cec7e3d4ced65535e8e538e696fbb3fec6` completed successfully.
+Root downloaded the public receipt and confirmed sourceRevision equals that
+SHA, 7 named tests, 0 skipped, 0 failures, and 0 errors. The observed OpenSSH
+package is `1:9.6p1-3ubuntu13.19`; direct/jump/MFA public host-key fingerprints
+are present. The real native fixture, regression tests, normal Core authority
+and no-replay acceptance, Android APK build and Android host contract all
+passed. This closes the stricter receipt gate above on that named source.
+
+Later branch HEADs still need their final broad CI; physical hosts/IME/DeX
+remain manual gates. F63 stays CI awaiting, with no acceptance-counter increase.

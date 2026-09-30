@@ -5251,9 +5251,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36772281257",
+          "commit": "f5b382cec7e3d4ced65535e8e538e696fbb3fec6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact native 7/0 skip receipt, normal Core and Android SSH host"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Gerçek normal Core/OpenSSH iki yaşamında SSH/SFTP/tunnel, drift/logout retirement ve exact iki non-replayed komut geçti; üçüncü gerçek Core fazında DELETE/readback sonrası typed local cleanup hatası ve explicit exact namespace retry geçti, sunucu DELETE bir kez. Source/Core/home/account/family+public profile digest v2 kasası local/Core sahiplerini ayırır; local-only legacy migration korunur. Root son 24 Flutter, scoped analyze ve 5 workflow policy geçti. Bağlantı authority hatası EN/TR görünür. Exact HEAD Linux password/key/MFA/jump CI bekliyor; fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f63-normal-core-openssh-2026-09-30.md. Exact b76558c4 Linux run 36765828318 MFAde sıfır-sorulu PAM roundunu reddeden gerçek protocol hatasını buldu; RFC4256 uyumlu visible confirmation/zero-response ve empty-answer düzeltmesi 43 focused Flutter/0 skip ve analyze ile geçti. Password/MFA/jump ayrı named gate; yeni exact Linux sonucu bekliyor, eski kırmızı kör tekrar yok."
+      "reason": "Gerçek normal Core/OpenSSH iki yaşam, exact DELETE/readback/local cleanup, drift/logout ve replay engeli geçti. Run36772281257 exact f5b382cec7e3d4ced65535e8e538e696fbb3fec6 güçlü yedi named native test/sıfır skip/sourceRevision receipt, gerçek password/key/MFA/jump/SFTP/tunnel, normal Core ve Android APK/host contract adımlarını yeşil bitirdi; root public receipt sourceRevision ve 7/0/0/0 değerlerini doğruladı. Geniş sonraki HEAD CI bekliyor; fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f63-normal-core-openssh-2026-09-30.md."
     },
     {
       "id": "F62",
@@ -5286,7 +5295,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Receipted FreeRDP Android gerçek motoru iki ABI AAR/APK gateini exact 0513c841/run36762392915 üzerinde geçti; owned NLA host başladı fakat KVM kapalı emulator bootunda instrumentation başlamadı. Dar hosted char-device/access preflight ve acceleration düzeltildi, timeout değişmedi. Yeni gerçek packaged Android→NLA gate ve Core-managed source/secure-store adapter açık; uygulanmış olarak kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX fiziksel MANUAL açık. Kanıt: docs/testing/f62-freerdp-native-acceptance-2026-09-30.md."
+      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Receipted FreeRDP Android iki ABI AAR/APK üretimi var; eski exact ebf00c06 run36768544534 app/test runner classpath çatışmasında instrumentation öncesi durdu. Dar debugRuntime dependency hizası gerçek dependencyInsight ile doğrulandı. Yeni exact packaged Android→NLA bir test/sıfır skip receipt tamamlanmadan uygulanmış kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX MANUAL açık. Kanıt: docs/testing/f62-freerdp-native-acceptance-2026-09-30.md."
     },
     {
       "id": "F61",
@@ -5318,9 +5327,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36772273119",
+          "commit": "f5b382cec7e3d4ced65535e8e538e696fbb3fec6",
+          "state": "completed",
+          "result": "failed",
+          "label": "Real TigerVNC reached; missing plaintext TLS readiness exposed"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Üretim Android RFB/VeNCrypt kodu var; exact 939646c2/run36764619917 TigerVNCyi başlattı fakat eksik xterm fixed Unicode fontu nedeniyle bridge testi başlamadı. Disposable fixture xfonts-base ile düzeltildi; atlama/cache exit0 kabul edilmez, XML exact 1 non-skipped test gerekir. Yeni gerçek hosted sonuç ve Core-managed source/secure-store adapter tamamlanmadan CI bekliyor olmayacak. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
+      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Run36772273119 exact f5b382ce gerçek TigerVNC testine ulaştı; üretim istemci TLS hazır byteını okumadığı için inspect başarısız oldu. TigerVNC1.13.1 resmî kaynak sırasına göre düzeltildi; root üç production loopback/no-TLS-on-reject native testi sıfır skip/failure ile geçti. Yeni exact gerçek hosted class/method bir test/sıfır skip receipt olmadan CI bekliyor sayılmaz. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
     },
     {
       "id": "FINAL",

@@ -134,6 +134,31 @@ class VncProductionLoopbackTest {
         }
     }
 
+    @Test
+    fun tlsInitializationFailureClosesBeforeTlsOrAuthentication() = rejectTlsReadiness(0)
+
+    @Test
+    fun unknownTlsReadinessClosesBeforeTlsOrAuthentication() = rejectTlsReadiness(2)
+
+    private fun rejectTlsReadiness(value: Int) {
+        val fixture = OwnedRfbFixture(tlsReadiness = value)
+        val backend = VncAndroidRfbBackend({ _, _, _, _ -> true }, {})
+        try {
+            fixture.start()
+            try {
+                backend.inspect(fixture.address.hostAddress, fixture.port)
+                org.junit.Assert.fail("Invalid TLS readiness must reject the connection")
+            } catch (failure: VncNativeFailure) {
+                assertEquals("tlsRequired", failure.code)
+            }
+            assertTrue(fixture.finished.await(5, TimeUnit.SECONDS))
+            fixture.failure.get()?.let { throw AssertionError("Owned RFB fixture failed", it) }
+            assertEquals(listOf("closedBeforeTls"), fixture.observed)
+        } finally {
+            fixture.close()
+        }
+    }
+
     private fun binding() = mapOf(
         "ownerId" to "22222222-2222-4222-8222-222222222222",
         "accountRevision" to 7,
@@ -168,7 +193,7 @@ class VncProductionLoopbackTest {
         assertTrue("Timed out waiting for production VNC bridge", condition())
     }
 
-    private class OwnedRfbFixture : AutoCloseable {
+    private class OwnedRfbFixture(private val tlsReadiness: Int = 1) : AutoCloseable {
         val address: Inet4Address = NetworkInterface.getNetworkInterfaces().toList()
             .flatMap { it.inetAddresses.toList() }
             .filterIsInstance<Inet4Address>()
@@ -215,6 +240,13 @@ class VncProductionLoopbackTest {
             plainOutput.writeInt(261)
             plainOutput.flush()
             assertEquals(261, plainInput.readInt())
+            plainOutput.writeByte(tlsReadiness)
+            plainOutput.flush()
+            if (tlsReadiness != 1) {
+                assertEquals(-1, plainInput.read())
+                observed += "closedBeforeTls"
+                return
+            }
 
             val keyManager = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
                 init(store, STORE_PASSWORD)
