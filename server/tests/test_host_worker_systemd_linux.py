@@ -5,6 +5,7 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
 import subprocess
 import time
 import zipfile
@@ -54,6 +55,62 @@ def _identity(uid, gid, groups=(10002,)):
     return apply
 
 
+def _seal_hosted_release_parent(path, *, expected_uid, expected_gid):
+    """Normalize the disposable runner's fixed release parent after identity proof."""
+    descriptor = -1
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        before = os.fstat(descriptor)
+        assert stat.S_ISDIR(before.st_mode)
+        assert (before.st_uid, before.st_gid) == (expected_uid, expected_gid)
+        os.fchmod(descriptor, 0o755)
+        after = os.fstat(descriptor)
+        assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
+        assert stat.S_ISDIR(after.st_mode)
+        assert (after.st_uid, after.st_gid) == (expected_uid, expected_gid)
+        assert stat.S_IMODE(after.st_mode) == 0o755
+    except OSError:
+        raise AssertionError("host_release_parent_invalid") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def test_hosted_release_parent_is_normalized_only_after_nofollow_identity_proof(
+    tmp_path,
+):
+    release_parent = tmp_path / "opt"
+    release_parent.mkdir(mode=0o700)
+    release_parent.chmod(0o777)
+    info = release_parent.stat()
+    with pytest.raises(AssertionError):
+        _seal_hosted_release_parent(
+            release_parent,
+            expected_uid=info.st_uid + 1,
+            expected_gid=info.st_gid,
+        )
+    assert stat.S_IMODE(release_parent.stat().st_mode) == 0o777
+
+    _seal_hosted_release_parent(
+        release_parent,
+        expected_uid=info.st_uid,
+        expected_gid=info.st_gid,
+    )
+    assert stat.S_IMODE(release_parent.stat().st_mode) == 0o755
+
+    link = tmp_path / "opt-link"
+    link.symlink_to(release_parent, target_is_directory=True)
+    with pytest.raises(AssertionError, match="host_release_parent_invalid"):
+        _seal_hosted_release_parent(
+            link,
+            expected_uid=info.st_uid,
+            expected_gid=info.st_gid,
+        )
+
+
 @pytest.mark.skipif(not _hosted_root_gate(), reason="requires isolated hosted Linux root")
 def test_production_units_are_loaded_and_verified_by_real_systemd():
     systemctl = Path("/usr/bin/systemctl")
@@ -65,6 +122,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     assert all(path.is_file() for path in (
         systemctl, analyze, sysusers, tmpfiles, mount, umount,
     ))
+    _seal_hosted_release_parent(Path("/opt"), expected_uid=0, expected_gid=0)
     installed = [Path("/etc/systemd/system") / name for name in UNITS]
     prefix = Path("/opt/larenor-server-host")
     helper = Path("/usr/libexec/larenor-unmanic-provision")

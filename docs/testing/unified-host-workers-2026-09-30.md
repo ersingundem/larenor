@@ -149,6 +149,14 @@ Pip console scripts record their interpreter using an absolute shebang. The inst
 
 `python3 -m unittest tool.tests.host_worker_release_paths_test -v`: 1 passed. This uses real offline pip, venvs and executable console scripts from tiny path-fixture wheels; it verifies activation through the current symlink and reproduces rejection of a relocated venv. These wheels are explicitly test fixtures, not provider evidence. The full production offline bundle install and real host service activation remain Linux acceptance gates. An interrupted final directory without a valid receipt fails closed; this change does not silently recreate existing or corrupt releases.
 
+The target host must provide a root-owned, non-symlink `/opt` whose group and
+other write bits are clear. The installer verifies every release ancestor and
+does not repair an unsafe host filesystem. GitHub's disposable hosted Linux
+image currently provides a root-owned but writable `/opt`; the hosted-only
+acceptance fixture opens that exact directory with `O_NOFOLLOW`, verifies its
+UID, GID and inode through the descriptor, and normalizes only its mode to
+`0755` before exercising the unchanged production installer.
+
 ## Separate IPC mount correction
 
 Core data and secrets retain UID10001 mode0700. Host workers cannot traverse that private directory. Shared IPC is therefore bound separately from `/var/lib/larenor-server/host-workers/ipc` to `/run/larenor-workers`, with root-owned mode0750 GID10002 parent and owner-specific child directories. The host-worker parent is root-owned0711; private journals remain0700. Core needs narrow write access for its authority socket; it receives no host Docker socket. Linux hosted acceptance starts normal Core against private0700 data and the separate mount; macOS cannot prove cross-UID/systemd behavior.

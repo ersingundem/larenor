@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host CI makinesinin güvenli dizin önkoşulu
+
+Exact `93ac3f29289b77fbd918dd6b2f035eee077b9e49` run `36758191763` üretim bundle buildini geçti; installer `release_opt_root_unsafe_dir` ile CI makinesinin root-owned fakat yazılabilir `/opt` dizinini doğru olarak reddetti. Yalnız disposable hosted test fixture exact nofollow descriptor/UID/GID/inode kontrolünden sonra modu 0755 yapar; production installer unsafe ancestorı değiştirmez ve reddetmeye devam eder. İzin/kimlik/symlink regresyonu geçti; hosted Linux kapısı yeni exact üzerinde doğrulanacak. [Host kanıtı](testing/unified-host-workers-2026-09-30.md).
+
 ### 30 Eylül F36 gerçek ev işi ve bildirim kabulü
 
 Gerçek Client→normal Core iki yaşamında erteleme, Berlin DST, kayıp ACK uzlaşması, restart ve ayrılan üye skip/handoff doğrulandı. Yeni görev ataması aynı transaction içinde yalnız bir private F54 bildirimi üretir. Üyelik/revoke yarışları ve 32 kişi sınırı gerçek HTTP kapısında doğrulandı; 10 Server testi, focused Flutter, iki actual TCP fazı ve analyze geçti. F36 CI bekliyor tablosuna taşındı: 53 özellik geniş CI bekliyor; kabul sayaçları değişmedi. [F36 kanıtı](testing/f36-normal-core-acceptance-2026-09-30.md).
