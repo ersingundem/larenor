@@ -126,7 +126,8 @@ final class CorePowerBudgetApi implements PowerBudgetApi {
             _text(value['previewId'], 128) != snapshot.planId ||
             _text(value['planHash'], 64) != snapshot.planHash ||
             _positive(value['applyCount']) != 1 ||
-            behaviors.keys.toSet() != expectedLoads ||
+            behaviors.length != expectedLoads.length ||
+            !behaviors.keys.toSet().containsAll(expectedLoads) ||
             snapshot.actions.any(
               (action) =>
                   behaviors[action.loadId] != action.communicationLossBehavior,
