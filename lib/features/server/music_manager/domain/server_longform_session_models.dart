@@ -65,6 +65,14 @@ bool _validLongformUri(String value) {
 
 enum ServerLongformPlaybackState { paused, playing, ended }
 
+enum ServerLongformSleepState {
+  off,
+  scheduled,
+  enforced,
+  needsAttention,
+  cancelled,
+}
+
 class ServerLongformBookmark {
   const ServerLongformBookmark({
     required this.id,
@@ -118,6 +126,9 @@ class ServerLongformSession {
     required this.positionSeconds,
     required this.playbackState,
     required this.sleepTimerEndsAt,
+    required this.sleepTimerState,
+    required this.sleepTimerCode,
+    required this.sleepTimerTargetId,
     required this.bookmarks,
     required this.ownedByCurrentSession,
     required this.updatedAt,
@@ -143,6 +154,9 @@ class ServerLongformSession {
       'positionSeconds',
       'playbackState',
       'sleepTimerEndsAt',
+      'sleepTimerState',
+      'sleepTimerCode',
+      'sleepTimerTargetId',
       'bookmarks',
       'ownedByCurrentSession',
       'updatedAt',
@@ -150,7 +164,7 @@ class ServerLongformSession {
     final uri = map['mediaUri'];
     final rawBookmarks = map['bookmarks'];
     final rawState = map['playbackState'];
-    if (map['schemaVersion'] != 1 ||
+    if (map['schemaVersion'] != 2 ||
         uri is! String ||
         !_validLongformUri(uri) ||
         rawBookmarks is! List ||
@@ -162,12 +176,45 @@ class ServerLongformSession {
     final state = ServerLongformPlaybackState.values
         .where((item) => item.name == rawState)
         .firstOrNull;
+    final rawSleepState = map['sleepTimerState'];
+    final sleepState = switch (rawSleepState) {
+      'off' => ServerLongformSleepState.off,
+      'scheduled' => ServerLongformSleepState.scheduled,
+      'enforced' => ServerLongformSleepState.enforced,
+      'needs_attention' => ServerLongformSleepState.needsAttention,
+      'cancelled' => ServerLongformSleepState.cancelled,
+      _ => null,
+    };
+    final sleepCode = map['sleepTimerCode'];
+    final sleepTarget = map['sleepTimerTargetId'];
+    final sleepEnd = _timestamp(map['sleepTimerEndsAt'], nullable: true);
     final duration = _position(map['durationSeconds']);
     final position = _position(map['positionSeconds']);
     final bookmarks = rawBookmarks
         .map(ServerLongformBookmark.fromJson)
         .toList(growable: false);
+    const expectedCodes = {
+      ServerLongformSleepState.scheduled: 'scheduled',
+      ServerLongformSleepState.enforced: 'authenticated_readback',
+      ServerLongformSleepState.needsAttention: 'effect_unknown',
+      ServerLongformSleepState.cancelled: 'cancelled',
+    };
     if (state == null ||
+        sleepState == null ||
+        (sleepCode != null && sleepCode is! String) ||
+        (sleepTarget != null &&
+            (sleepTarget is! String ||
+                !RegExp(r'^[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}$')
+                    .hasMatch(sleepTarget))) ||
+        (sleepState == ServerLongformSleepState.scheduled) !=
+            (sleepEnd != null) ||
+        (sleepState == ServerLongformSleepState.scheduled) !=
+            (sleepTarget != null) ||
+        (sleepState == ServerLongformSleepState.off) != (sleepCode == null) ||
+        (sleepState != ServerLongformSleepState.off &&
+            expectedCodes[sleepState] != sleepCode &&
+            !(sleepState == ServerLongformSleepState.cancelled &&
+                sleepCode == 'authority_retired')) ||
         duration <= 0 ||
         position > duration ||
         (state == ServerLongformPlaybackState.ended && position != duration) ||
@@ -192,7 +239,10 @@ class ServerLongformSession {
       durationSeconds: duration,
       positionSeconds: position,
       playbackState: state,
-      sleepTimerEndsAt: _timestamp(map['sleepTimerEndsAt'], nullable: true),
+      sleepTimerEndsAt: sleepEnd,
+      sleepTimerState: sleepState,
+      sleepTimerCode: sleepCode as String?,
+      sleepTimerTargetId: sleepTarget as String?,
       bookmarks: List.unmodifiable(bookmarks),
       ownedByCurrentSession: map['ownedByCurrentSession'] as bool,
       updatedAt: _timestamp(map['updatedAt'])!,
@@ -205,6 +255,8 @@ class ServerLongformSession {
   final double durationSeconds, positionSeconds;
   final ServerLongformPlaybackState playbackState;
   final DateTime? sleepTimerEndsAt;
+  final ServerLongformSleepState sleepTimerState;
+  final String? sleepTimerCode, sleepTimerTargetId;
   final List<ServerLongformBookmark> bookmarks;
   final bool ownedByCurrentSession;
   final DateTime updatedAt;

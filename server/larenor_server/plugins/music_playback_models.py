@@ -375,6 +375,16 @@ class PrivateMusicPlaybackAuthority(StrictModel):
 class PrivateMusicPlaybackAction(StrictModel):
     request: MusicPlaybackCommandRequest = Field(repr=False)
     token: str = Field(min_length=1, max_length=2048, repr=False)
+    expectedCurrentItemUri: str | None = Field(default=None, repr=False)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        if (self.expectedCurrentItemUri is not None
+                and (self.request.operation != 'pause'
+                     or self.request.expectedQueueId is None
+                     or not _safe_media_uri(self.expectedCurrentItemUri))):
+            raise ValueError('invalid_music_playback_action')
+        return self
 
 
 class PrivateMusicCatalogAction(StrictModel):

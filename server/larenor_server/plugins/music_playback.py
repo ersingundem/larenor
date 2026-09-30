@@ -157,6 +157,37 @@ class MusicPlaybackManagement:
             'installAvailable': False, 'updatedAt': utc(row['updated_at']),
         }).model_dump()
 
+    def _assert_scheduled_pause(self, connection, request, media_uri,
+                                allowed_revisions):
+        """Validate an internal timer against the encrypted live snapshot."""
+        self._authority(
+            connection, request.installationId,
+            request.expectedInstallationRevision, request.expectedCoreRevision,
+        )
+        row = connection.execute(
+            'SELECT * FROM music_playback WHERE installation_id=?',
+            (request.installationId,),
+        ).fetchone()
+        if row is None or row['revision'] not in allowed_revisions:
+            raise ApiError('revision_conflict', 409)
+        stored = self._decode(row)
+        if self._provider_bindings(
+                connection, request.installationId,
+                request.expectedInstallationRevision) != stored.providerBindings:
+            raise ApiError('music_provider_changed', 409)
+        target = self._player(stored, request.targetId)
+        queue = next((item for item in stored.queues
+                      if item.queueId == request.expectedQueueId), None)
+        if (target is None or not target.available or not target.enabled
+                or target.provider != request.expectedProvider
+                or target.targetKind != request.expectedTargetKind
+                or target.groupMembers != request.expectedGroupMembers
+                or target.queueId != request.expectedQueueId
+                or 'pause' not in target.capabilities
+                or queue is None or not queue.active
+                or queue.currentItemUri != media_uri):
+            raise ApiError('music_player_changed', 409)
+
     @staticmethod
     def _effect_verified(request, result):
         target = result.target
@@ -478,8 +509,22 @@ class MusicPlaybackManagement:
     def command(self, actor, body):
         if type(body) is not MusicPlaybackCommandRequest:
             raise ApiError('invalid_request')
+        return self._command_scoped(
+            actor.id, body,
+            lambda connection: self._assert_user(connection, actor),
+        )
+
+    def _command_scoped(self, actor_id, body, assert_current,
+                        expected_current_item_uri=None):
+        """Run a packaged command under a caller-owned durable authority guard."""
+        if (type(body) is not MusicPlaybackCommandRequest
+                or type(actor_id) is not str or not callable(assert_current)
+                or (expected_current_item_uri is not None
+                    and (body.operation != 'pause'
+                         or body.expectedQueueId is None))):
+            raise ApiError('invalid_request')
         with self.db.transaction() as connection:
-            self._assert_user(connection, actor)
+            assert_current(connection)
             authority = self._authority(
                 connection, body.installationId,
                 body.expectedInstallationRevision, body.expectedCoreRevision)
@@ -497,7 +542,7 @@ class MusicPlaybackManagement:
             for command in stored.commands:
                 if command.request.requestId != body.requestId:
                     continue
-                if command.request != body or command.actorId != actor.id:
+                if command.request != body or command.actorId != actor_id:
                     raise ApiError('music_playback_command_conflict', 409)
                 return self._receipt(command)
             if row['revision'] != body.expectedPlayerRevision:
@@ -518,7 +563,7 @@ class MusicPlaybackManagement:
                            updated_at=max(row['updated_at'],
                                           int(self.settings.clock())))
             pending = _StoredPlaybackCommand(
-                actorId=actor.id, request=body, state='pending',
+                actorId=actor_id, request=body, state='pending',
                 playerRevision=changed['revision'])
             claimed = stored.model_copy(update={
                 'commands': [*stored.commands, pending]})
@@ -530,6 +575,7 @@ class MusicPlaybackManagement:
                 return False
             try:
                 with self.db.connection() as connection:
+                    assert_current(connection)
                     self._authority(
                         connection, body.installationId,
                         body.expectedInstallationRevision,
@@ -553,7 +599,9 @@ class MusicPlaybackManagement:
 
         try:
             result = self.backend.execute_music_playback(
-                PrivateMusicPlaybackAction(request=body, token=authority.token),
+                PrivateMusicPlaybackAction(
+                    request=body, token=authority.token,
+                    expectedCurrentItemUri=expected_current_item_uri),
                 deadline=deadline, gate=gate)
             if (type(result) is not MusicPlaybackWorkerResult
                     or result.target.playerId != body.targetId
@@ -561,13 +609,17 @@ class MusicPlaybackManagement:
                     or result.target.provider != body.expectedProvider
                     or result.target.targetKind != body.expectedTargetKind
                     or result.target.queueId != body.expectedQueueId
+                    or (expected_current_item_uri is not None
+                        and (result.queue is None or not result.queue.active
+                             or result.queue.currentItemUri
+                             != expected_current_item_uri))
                     or not self._effect_verified(body, result)
                     or gate() is not True):
                 raise ValueError()
         except Exception:
             raise ApiError('music_playback_worker_unavailable', 503) from None
         with self.db.transaction() as connection:
-            self._assert_user(connection, actor)
+            assert_current(connection)
             self._authority(connection, body.installationId,
                             body.expectedInstallationRevision,
                             body.expectedCoreRevision)

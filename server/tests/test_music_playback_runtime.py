@@ -166,6 +166,46 @@ def test_transport_success_requires_matching_post_effect_readback(
         assert result.queue.positionSeconds == 48
 
 
+def test_scheduled_pause_requires_fresh_exact_media_before_device_write():
+    calls = []
+    responses = [
+        raw_player(state='playing'),
+        [raw_queue(uri='spotify://track/unrelated')],
+    ]
+    runtime = MusicPlaybackRuntime(
+        lambda _timeout: Connection(responses, calls))
+    action = PrivateMusicPlaybackAction(
+        request=request('pause'), token='private-token',
+        expectedCurrentItemUri='spotify://track/current')
+
+    with pytest.raises(Exception, match='music_queue_readback_changed'):
+        runtime.execute(action, deadline=time.monotonic() + 2)
+
+    assert [call[2]['command'] for call in calls] == [
+        'players/get', 'player_queues/all']
+
+
+def test_scheduled_pause_readback_keeps_exact_media_identity():
+    calls = []
+    responses = [
+        raw_player(state='playing'), [raw_queue()], None,
+        raw_player(state='paused'), [raw_queue()],
+    ]
+    runtime = MusicPlaybackRuntime(
+        lambda _timeout: Connection(responses, calls))
+    action = PrivateMusicPlaybackAction(
+        request=request('pause'), token='private-token',
+        expectedCurrentItemUri='spotify://track/current')
+
+    result = runtime.execute(action, deadline=time.monotonic() + 2)
+
+    assert result.target.playbackState == 'paused'
+    assert result.queue.currentItemUri == 'spotify://track/current'
+    assert [call[2]['command'] for call in calls] == [
+        'players/get', 'player_queues/all', 'players/cmd/pause',
+        'players/get', 'player_queues/all']
+
+
 @pytest.mark.parametrize(('operation', 'after_state', 'extra', 'after_queue'), [
     ('play', 'paused', {}, None),
     ('pause', 'playing', {}, None),

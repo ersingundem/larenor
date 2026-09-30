@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-30",
+  "updatedAt": "2026-10-01",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -4164,7 +4164,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4188,7 +4188,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/provider/member katalog ve playback yolu geçti. sleepTimerEndsAt yalnız doğrulanıp saklanıyor; deadline dolunca yetkili gerçek pause/stop yürütme, restart/arka plan/MediaSession kapanışı eksik. Fiziksel receiver doğrulaması bu yazılım açığını kapatmaz."
+      "reason": "Durable authority-bound deadline pause normal Core dispatcher ve production Unix IPCye bağlandı. Root gerçek Flutter→normal Core→owned Music Assistant iki yaşamını tekrar geçti; tek pause ve restart readback/no replay doğrulandı. F28/music 57 test, ortak F22-F28 46 Server ve F47-F28 37 Flutter testi geçti; scoped analyze temiz. Provider effect/receipt arası takeover exact public409 üretir, final success veya lost-ACK unknown korunur; v1 migration legacy progressi korur ama yetkisiz timer üretmez. Fresh player/queue/media identity pause öncesi/sonrası doğrulanır; IPC sonrası belirsiz etki replay edilmez. Geniş exact HEAD CI bekliyor; fiziksel receiver MANUAL ayrı. Kanıt: docs/testing/f28-sleep-timer-2026-09-30.md."
     },
     {
       "id": "F29",

@@ -39,6 +39,7 @@ class ServerLongformSessionApi {
     required ServerLongformPlaybackState playbackState,
     required List<ServerLongformBookmark> bookmarks,
     DateTime? sleepTimerEndsAt,
+    ServerMusicReceiver? sleepTimerReceiver,
     bool takeover = false,
   }) async {
     if (!session.sameMedia(manager, item) ||
@@ -53,7 +54,21 @@ class ServerLongformSessionApi {
               value.positionSeconds > item.durationSeconds,
         ) ||
         (playbackState == ServerLongformPlaybackState.ended &&
-            positionSeconds != item.durationSeconds)) {
+            positionSeconds != item.durationSeconds) ||
+        (sleepTimerEndsAt == null) != (sleepTimerReceiver == null)) {
+      _invalidRequest();
+    }
+    final sleepQueue = sleepTimerReceiver == null
+        ? null
+        : manager.queueFor(sleepTimerReceiver);
+    if (sleepTimerReceiver != null &&
+        (!manager.receivers.any((value) => value.id == sleepTimerReceiver.id) ||
+            !sleepTimerReceiver.available ||
+            !sleepTimerReceiver.enabled ||
+            !sleepTimerReceiver.supports(ServerMusicOperation.pause) ||
+            sleepQueue == null ||
+            !sleepQueue.active ||
+            sleepQueue.currentItemUri != item.uri)) {
       _invalidRequest();
     }
     final body = _authority(manager, item, takeover: takeover)
@@ -64,6 +79,15 @@ class ServerLongformSessionApi {
         'sleepTimerEndsAt': sleepTimerEndsAt == null
             ? null
             : sleepTimerEndsAt.toUtc().millisecondsSinceEpoch ~/ 1000,
+        'sleepTimerTarget': sleepTimerReceiver == null
+            ? null
+            : {
+                'targetId': sleepTimerReceiver.id,
+                'expectedProvider': sleepTimerReceiver.provider,
+                'expectedTargetKind': sleepTimerReceiver.kind,
+                'expectedQueueId': sleepTimerReceiver.queueId,
+                'expectedGroupMembers': sleepTimerReceiver.groupMembers,
+              },
         'bookmarks': bookmarks.map((value) => value.toJson()).toList(),
       });
     final value = _session(
@@ -93,7 +117,7 @@ class ServerLongformSessionApi {
       _invalidRequest();
     }
     return {
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'requestId': requestId,
       'installationId': manager.installationId,
       'expectedInstallationRevision': manager.installationRevision,

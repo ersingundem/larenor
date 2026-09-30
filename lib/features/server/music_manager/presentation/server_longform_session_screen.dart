@@ -41,7 +41,7 @@ class _ServerLongformSessionScreenState
   String? _receiverId, _failure;
   double _position = 0;
   int? _sleepMinutes;
-  bool _busy = true, _saved = false;
+  bool _busy = true, _saved = false, _sleepTimerChanged = false;
   int _epoch = 0;
 
   bool get _current =>
@@ -97,6 +97,16 @@ class _ServerLongformSessionScreenState
         _session = value;
         _position = value.positionSeconds;
         _sleepMinutes = _remainingSleepMinutes(value.sleepTimerEndsAt);
+        _sleepTimerChanged = false;
+        if (value.sleepTimerTargetId != null &&
+            _manager.receivers.any(
+              (receiver) => receiver.id == value.sleepTimerTargetId,
+            )) {
+          _receiverId = value.sleepTimerTargetId;
+        }
+        if (value.sleepTimerState == ServerLongformSleepState.needsAttention) {
+          _failure = 'effect_unknown';
+        }
       });
     } catch (error) {
       if (_current && epoch == _epoch) {
@@ -122,7 +132,8 @@ class _ServerLongformSessionScreenState
       _saved = false;
     });
     try {
-      final now = DateTime.now().toUtc();
+      final deadline = _sleepDeadline(before);
+      final timerReceiver = _sleepReceiver(authority, before, deadline);
       final result = await widget.account.withSession(
         (api, login) => ServerLongformSessionApi(api, login.accessToken).update(
           manager: authority,
@@ -131,9 +142,8 @@ class _ServerLongformSessionScreenState
           positionSeconds: _position,
           playbackState: state ?? before.playbackState,
           bookmarks: before.bookmarks,
-          sleepTimerEndsAt: _sleepMinutes == null
-              ? null
-              : now.add(Duration(minutes: _sleepMinutes!)),
+          sleepTimerEndsAt: deadline,
+          sleepTimerReceiver: timerReceiver,
           takeover: takeover,
         ),
       );
@@ -141,6 +151,8 @@ class _ServerLongformSessionScreenState
       setState(() {
         _manager = authority;
         _session = result;
+        _sleepMinutes = _remainingSleepMinutes(result.sleepTimerEndsAt);
+        _sleepTimerChanged = false;
         _saved = true;
       });
     } catch (error) {
@@ -156,7 +168,7 @@ class _ServerLongformSessionScreenState
     final before = _session;
     if (before == null || !before.ownedByCurrentSession) return;
     final copied = ServerLongformSession.fromJson({
-      'schemaVersion': 1,
+      'schemaVersion': 2,
       'sessionId': before.id,
       'revision': before.revision,
       'coreId': before.coreId,
@@ -176,6 +188,15 @@ class _ServerLongformSessionScreenState
       'sleepTimerEndsAt': before.sleepTimerEndsAt == null
           ? null
           : before.sleepTimerEndsAt!.millisecondsSinceEpoch ~/ 1000,
+      'sleepTimerState': switch (before.sleepTimerState) {
+        ServerLongformSleepState.off => 'off',
+        ServerLongformSleepState.scheduled => 'scheduled',
+        ServerLongformSleepState.enforced => 'enforced',
+        ServerLongformSleepState.needsAttention => 'needs_attention',
+        ServerLongformSleepState.cancelled => 'cancelled',
+      },
+      'sleepTimerCode': before.sleepTimerCode,
+      'sleepTimerTargetId': before.sleepTimerTargetId,
       'bookmarks': values.map((value) => value.toJson()).toList(),
       'ownedByCurrentSession': before.ownedByCurrentSession,
       'updatedAt': before.updatedAt.millisecondsSinceEpoch ~/ 1000,
@@ -241,11 +262,12 @@ class _ServerLongformSessionScreenState
               positionSeconds: _position,
               playbackState: ServerLongformPlaybackState.playing,
               bookmarks: before.bookmarks,
-              sleepTimerEndsAt: _sleepMinutes == null
-                  ? null
-                  : DateTime.now().toUtc().add(
-                      Duration(minutes: _sleepMinutes!),
-                    ),
+              sleepTimerEndsAt: _sleepDeadline(before),
+              sleepTimerReceiver: _sleepReceiver(
+                current,
+                before,
+                _sleepDeadline(before),
+              ),
             );
         return (current, nextSession);
       });
@@ -254,6 +276,8 @@ class _ServerLongformSessionScreenState
         _manager = result.$1;
         _session = result.$2;
         _receiverId = receiver.id;
+        _sleepMinutes = _remainingSleepMinutes(result.$2.sleepTimerEndsAt);
+        _sleepTimerChanged = false;
         _saved = true;
       });
     } catch (error) {
@@ -306,6 +330,8 @@ class _ServerLongformSessionScreenState
       setState(() {
         _manager = result.$1;
         _session = result.$2;
+        _sleepMinutes = null;
+        _sleepTimerChanged = false;
         _saved = true;
       });
     } catch (error) {
@@ -370,13 +396,47 @@ class _ServerLongformSessionScreenState
         ),
       ),
     );
-    if (_current && result != null) setState(() => _receiverId = result);
+    if (_current && result != null) {
+      setState(() {
+        _receiverId = result;
+        if (_sleepMinutes != null) _sleepTimerChanged = true;
+      });
+    }
   }
 
   int? _remainingSleepMinutes(DateTime? end) {
     if (end == null) return null;
     final seconds = end.difference(DateTime.now().toUtc()).inSeconds;
-    return seconds < 60 ? null : (seconds / 60).ceil();
+    if (seconds < 60) return null;
+    final minutes = (seconds / 60).ceil();
+    return const [
+      15,
+      30,
+      60,
+    ].firstWhere((value) => minutes <= value, orElse: () => 60);
+  }
+
+  DateTime? _sleepDeadline(ServerLongformSession session) => _sleepTimerChanged
+      ? (_sleepMinutes == null
+            ? null
+            : DateTime.now().toUtc().add(Duration(minutes: _sleepMinutes!)))
+      : session.sleepTimerEndsAt;
+
+  ServerMusicReceiver? _sleepReceiver(
+    ServerMusicManager manager,
+    ServerLongformSession session,
+    DateTime? deadline,
+  ) {
+    if (deadline == null) return null;
+    final target = _sleepTimerChanged
+        ? _receiverId
+        : session.sleepTimerTargetId;
+    return manager.receivers
+        .where(
+          (receiver) =>
+              receiver.id == target && receiver.available && receiver.enabled,
+        )
+        .firstOrNull;
   }
 
   String _format(double seconds) {
@@ -559,6 +619,7 @@ class _ServerLongformSessionScreenState
                     onValueChanged: (value) => setState(() {
                       if (_busy) return;
                       _sleepMinutes = value == 0 ? null : value;
+                      _sleepTimerChanged = true;
                       _saved = false;
                     }),
                   ),

@@ -336,6 +336,11 @@ class MusicPlaybackRuntime:
                 or before.targetKind != request.expectedTargetKind
                 or before.queueId != request.expectedQueueId):
             raise MusicPlaybackRuntimeError('music_player_changed')
+        if (action.expectedCurrentItemUri is not None
+                and (before_queue is None or not before_queue.active
+                     or before_queue.currentItemUri
+                     != action.expectedCurrentItemUri)):
+            raise MusicPlaybackRuntimeError('music_queue_readback_changed')
         expected_capability = {
             'play': 'play', 'pause': 'pause', 'seek': 'seek', 'stop': 'stop',
             'next': 'next_previous', 'previous': 'next_previous',
@@ -386,7 +391,9 @@ class MusicPlaybackRuntime:
                 or after.queueId != request.expectedQueueId):
             raise MusicPlaybackRuntimeError('music_player_changed')
         after_queue = None
-        if request.operation == 'seek' or request.operation.startswith('queue_'):
+        if (request.operation == 'seek'
+                or request.operation.startswith('queue_')
+                or action.expectedCurrentItemUri is not None):
             after_queues = self._command(
                 request.requestId, action.token, 'player_queues/all', {},
                 deadline, cancelled)
@@ -401,7 +408,12 @@ class MusicPlaybackRuntime:
         if request.operation == 'play':
             verified = after.playbackState == 'playing'
         elif request.operation == 'pause':
-            verified = after.playbackState == 'paused'
+            verified = (after.playbackState == 'paused'
+                        and (action.expectedCurrentItemUri is None
+                             or (after_queue is not None
+                                 and after_queue.active
+                                 and after_queue.currentItemUri
+                                 == action.expectedCurrentItemUri)))
         elif request.operation == 'seek':
             verified = (after_queue is not None
                         and abs(after_queue.positionSeconds

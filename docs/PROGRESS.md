@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 56 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 65 iş CI bekliyor tablosunda. F28 gönderim sırasında oturum devralma ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 57 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 66 iş CI bekliyor tablosunda. F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 1 Ekim F28 kalıcı uyku timerı kabulü
+
+Deadline pause artık normal Core scheduler→production Unix IPC→taze Music Assistant player/queue readback yolunda yürür. Root gerçek Flutter/Core iki yaşamını tekrar geçti; tek pause ve restartta no replay doğrulandı. 57 F28/music, ortak 46 Server ve 37 Flutter testi geçti; analiz temiz. Effect ile receipt arasında takeover public409 üretir; success veya kayıp ACK unknown sonucu korunur. F28 CI bekliyor tablosuna taşındı: 57 seçili özellik, toplam 66 iş. F60 geliştirmede, F61/F62 gerçek native kabul bekler; 37/127 ve 3/63 kabul sayaçları değişmedi. [Kabul kanıtı](testing/f28-sleep-timer-2026-09-30.md).
 
 ### 30 Eylül F22 kalıcı kanal devamı kabulü
 

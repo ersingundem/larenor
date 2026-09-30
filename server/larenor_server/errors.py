@@ -341,6 +341,7 @@ MESSAGES = {
     'longform_session_request_conflict': 'The listening request id was already used for different input.',
     'longform_session_schema_unsupported': 'The listening session schema is unsupported.',
     'longform_session_storage_invalid': 'Listening session storage integrity validation failed.',
+    'longform_sleep_timer_dispatch_in_progress': 'Wait for the scheduled pause result before taking over this listening session.',
     'media_catalog_item_unavailable': 'This media item is no longer available in the current catalog.',
     'media_rows_item_unavailable': 'This account media item is no longer available.',
     'media_context_changed': 'The Core or home changed. Review the preparation again.',
