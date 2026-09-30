@@ -3579,7 +3579,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Çakışan kurallar hakemi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3604,7 +3604,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Öncelik, süreli sahiplik, manuel müdahale, idempotent etki bileti ve observed-only dış HA kaydı Core hakemine eklendi; gerçek Home Assistant kural/manuel yazma yolu hakeme bağlandı (329274e7, 2dba87da). Özellik testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
+      "reason": "Gerçek Flutter CoreHaApi→normal Core→owned HA iki yaşamında manual ownership sonrası attributed core_rule active_manual ile provider öncesi bastırıldı. Exact bir POST ve dört authenticated GET; restart/fresh Client durable manual receipt ve suppressed execution exact replay yeni POST üretmedi. External observation yalnız observed/nonauthoritative. 5 F04/F06 focused Server testi, analyze ve gerçek iki faz geçti; root F04/F26 toplam 9 testi doğruladı. Geniş exact HEAD CI ve gerçek ev eşzamanlı otomasyon MANUAL kabulü açık. Kanıt: docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md."
     },
     {
       "id": "F02",

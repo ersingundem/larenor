@@ -87,3 +87,5 @@ F20 adlandırılmış gerçek Flutter→normal Core TCP iki yaşamında pin/comp
 F19 iki bağımsız gerçek Core, gerçek Client registry ve owned Jellyfin TCP iki fazında kabul edildi; `awaiting_ci`. F37 kabulündeki edit history eksikliği gerçek kod incelemesinde bulundu ve yalnız bu özellik aktif geliştirmeye alındı; ödeme/create/export varlığı tam kabul sayılmaz.
 
 F13 actual Client→normal Core→owned RFC1918 HA iki yaşamında configure/restart/revoke ve exact iki GET/sıfır üçüncü çağrı kapısını geçti; `awaiting_ci`. Fiziksel ağ ve broad exact CI açık kalır.
+
+F04 gerçek Client/normal Core/owned HA iki yaşamında manual→rule suppression, durable receipt ve exact replay kapısını geçti. Provider exact bir POST kalır; external observation non-authoritative. 5 Server/analyze geçti, root F04/F26 9 focused testi doğruladı; geniş exact CI bekler. Kanıt: `f04-normal-core-rule-arbitration-2026-09-30.md`.

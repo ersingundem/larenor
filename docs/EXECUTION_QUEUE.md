@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 1 | 0 | 3 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 1 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 7 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 2 | 0 | 8 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 1 | 5 | 0 |
@@ -118,7 +118,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
-| F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
@@ -134,6 +133,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F18 | Elektrik kesintisinde düzenli kapanış | CI bekliyor | — |
 | F51 | Etkileşimli ev kat planı | CI bekliyor | — |
 | F08 | Yapay zekâ kaynak yöneticisi | CI bekliyor | — |
+| F04 | Çakışan kurallar hakemi | CI bekliyor | — |
 | F02 | Otomasyonun deneme haftası | CI bekliyor | — |
 | F03 | Geçmişte otomasyon sınaması | CI bekliyor | — |
 | F01 | Konuşarak otomasyon taslağı | CI bekliyor | — |
