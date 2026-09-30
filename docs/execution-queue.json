@@ -4643,7 +4643,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Evdeyken kamera kayıt profili",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4668,7 +4668,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül normal composition denetimi kamera profil gatewayinin yalnız injected provider ile kurulduğunu doğruladı; önceki saf koordinatör testleri üretim kamera bağlantısını kanıtlamıyor. Gerçek HA kayıt/algılama resource binding, taze presence, gerçek switch command ve readback, kalıcı no-repeat executor geliştiriliyor; mikrofon/kamera donanımı kapatılmış sayılmaz. Tam Client→Core→provider ve exact HEAD CI açık."
+      "reason": "Normal Core gerçek private HA/Frigate providerını kuruyor; admin kaynak eşleme UI, live registry provenance, gerçek switch service/readback, encrypted durable single-dispatch ve explicit readonly recovery tamamlandı. 19 Server, 11 Flutter ve gerçek Flutter Client→normal Uvicorn Core→HA TCP/WebSocket apply/readback/rollback kapısı geçti (docs/testing/f43-normal-core-camera-2026-09-30.md). Tam feature matrisi ve final exact HEAD CI açık; mikrofon/kamera hardware veya fiziksel cihaz kabulü iddia edilmiyor."
     },
     {
       "id": "F42",

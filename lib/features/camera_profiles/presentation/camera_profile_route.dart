@@ -13,6 +13,7 @@ import '../../server/providers/server_providers.dart';
 import '../data/camera_profile_api.dart';
 import '../data/camera_profile_controller.dart';
 import 'camera_profile_screen.dart';
+import 'camera_profile_sources_screen.dart';
 
 const _routeId = '43434343434343434343434343434343';
 
@@ -30,6 +31,7 @@ class _CameraProfileRouteState extends ConsumerState<CameraProfileRoute> {
   CameraProfileController? _controller;
   int _generation = 0;
   bool _loading = true, _failed = false;
+  bool _sources = false;
   bool get _interactive => _interaction?.active ?? true;
 
   @override
@@ -78,6 +80,27 @@ class _CameraProfileRouteState extends ConsumerState<CameraProfileRoute> {
     setState(() {
       _loading = false;
       _failed = showFailure;
+      _sources = false;
+    });
+  }
+
+  void _openSources() {
+    if (!_interactive || !_current(_generation)) return;
+    _api?.retire();
+    _controller?.dispose();
+    _controller = null;
+    final generation = ++_generation;
+    _api = CoreCameraProfileApi(
+      account: _account!,
+      routeId: _routeId,
+      sessionRevision: generation,
+      routeRevision: generation,
+      isCurrent: () => _current(generation),
+    );
+    setState(() {
+      _sources = true;
+      _loading = false;
+      _failed = false;
     });
   }
 
@@ -93,6 +116,7 @@ class _CameraProfileRouteState extends ConsumerState<CameraProfileRoute> {
     setState(() {
       _loading = true;
       _failed = false;
+      _sources = false;
     });
     final api = CoreCameraProfileApi(
       account: _account!,
@@ -142,10 +166,26 @@ class _CameraProfileRouteState extends ConsumerState<CameraProfileRoute> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    if (_sources && _api != null) {
+      return CameraProfileSourcesScreen(
+        api: _api!,
+        onDone: () => unawaited(_connect()),
+      );
+    }
     final controller = _controller;
-    if (controller != null) return CameraProfileScreen(controller: controller);
+    if (controller != null) {
+      return CameraProfileScreen(
+        controller: controller,
+        onSources: _interactive ? _openSources : null,
+      );
+    }
     return ServiceRootScaffold(
       title: l10n.cameraProfileTitle,
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _interactive && !_loading ? _openSources : null,
+        child: Text(l10n.cameraProfileSources),
+      ),
       slivers: [
         SliverToBoxAdapter(
           child: SettingsSection(

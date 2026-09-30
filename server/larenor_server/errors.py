@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'camera_profile_storage_invalid': 'The camera profile provider records could not be verified.',
     'live_tv_schema_unsupported': 'The live television schema is unsupported.',
     'live_tv_storage_invalid': 'Live television storage is invalid.',
     'live_tv_source_unavailable': 'The live television source is unavailable.',

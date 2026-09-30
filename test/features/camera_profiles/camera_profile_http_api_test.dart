@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:larenor/features/camera_profiles/data/camera_profile_api.dart';
+import 'package:larenor/features/camera_profiles/presentation/camera_profile_sources_screen.dart';
+import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
@@ -166,6 +169,188 @@ Future<ServerAccountController> _account(
 }
 
 void main() {
+  for (final language in ['en', 'tr']) {
+    testWidgets(
+      'source bindings remain editable after unavailable recovery in $language',
+      (tester) async {
+        final calls = <http.Request>[];
+        final account = await _account((request) async {
+          calls.add(request);
+          if (request.url.path.endsWith('/auth/login')) {
+            return _json({
+              'accessToken': 'a' * 43,
+              'refreshToken': 'b' * 43,
+              'expiresIn': 3600,
+              'user': {
+                'id': accountId,
+                'username': 'admin',
+                'role': 'admin',
+                'mustChangePassword': false,
+              },
+            });
+          }
+          if (request.url.path.endsWith('/context')) {
+            return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+          }
+          if (request.url.path.endsWith('/recovery')) {
+            return _json({
+              'error': {'code': 'camera_profile_provider_unavailable'},
+            }, 503);
+          }
+          return _json({
+            'source': {
+              'schemaVersion': 1,
+              'revision': 1,
+              'settings': {
+                'schemaVersion': 1,
+                'expectedRevision': 0,
+                'presenceResourceId': source,
+                'cameras': [
+                  {
+                    'recordingResourceId': camera,
+                    'detectionResourceId': binding,
+                    'areaId': area,
+                  },
+                ],
+                'enterDelayMs': 0,
+                'exitDelayMs': 1000,
+                'hysteresisMs': 0,
+                'presenceMaxAgeMs': 60000,
+                'atHomeMode': modeHome,
+                'awayMode': modeAway,
+                'failSafeMode': modeAway,
+              },
+              'resources': [
+                {'id': source, 'name': 'Presence fixture', 'domain': 'person'},
+                {'id': camera, 'name': 'Recording fixture', 'domain': 'switch'},
+                {
+                  'id': binding,
+                  'name': 'Detection fixture',
+                  'domain': 'switch',
+                },
+              ],
+              'areas': [
+                {'id': area, 'name': 'Entry fixture'},
+              ],
+            },
+          });
+        });
+        addTearDown(account.dispose);
+        final api = CoreCameraProfileApi(
+          account: account,
+          routeId: 'd' * 32,
+          sessionRevision: 1,
+          routeRevision: 1,
+          isCurrent: () => true,
+        );
+        addTearDown(api.retire);
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: Locale(language),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: CameraProfileSourcesScreen(api: api, onDone: () {}),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Presence fixture'), findsOneWidget);
+        // Provider recovery failure must not remove configuration controls.
+        await tester.tap(find.text('Presence fixture'));
+        await tester.pumpAndSettle();
+        expect(find.byType(CupertinoActionSheet), findsOneWidget);
+        expect(
+          calls.where(
+            (request) =>
+                request.method == 'POST' &&
+                !request.url.path.endsWith('/auth/login'),
+          ),
+          isEmpty,
+        );
+      },
+    );
+  }
+
+  test(
+    'camera source CAS saves only explicit bindings and retires late replies',
+    () async {
+      var current = true;
+      final calls = <http.Request>[];
+      final settings = {
+        'schemaVersion': 1,
+        'expectedRevision': 0,
+        'presenceResourceId': source,
+        'cameras': [
+          {
+            'recordingResourceId': camera,
+            'detectionResourceId': binding,
+            'areaId': area,
+          },
+        ],
+        'enterDelayMs': 0,
+        'exitDelayMs': 1000,
+        'hysteresisMs': 0,
+        'presenceMaxAgeMs': 60000,
+        'atHomeMode': modeHome,
+        'awayMode': modeAway,
+        'failSafeMode': modeAway,
+      };
+      final account = await _account((request) async {
+        calls.add(request);
+        if (request.url.path.endsWith('/auth/login')) {
+          return _json({
+            'accessToken': 'a' * 43,
+            'refreshToken': 'b' * 43,
+            'expiresIn': 3600,
+            'user': {
+              'id': accountId,
+              'username': 'admin',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
+        expect(
+          request.url.path,
+          '/api/v1/admin/camera-profiles/$core/$home/sources',
+        );
+        if (request.method == 'PUT') expect(jsonDecode(request.body), settings);
+        return _json({
+          'source': {
+            'schemaVersion': 1,
+            'revision': request.method == 'PUT' ? 1 : 0,
+            'settings': request.method == 'PUT' ? settings : null,
+            'resources': [
+              {'id': source, 'name': 'Presence', 'domain': 'person'},
+              {'id': camera, 'name': 'Recording', 'domain': 'switch'},
+              {'id': binding, 'name': 'Detection', 'domain': 'switch'},
+            ],
+            'areas': [
+              {'id': area, 'name': 'Entry'},
+            ],
+          },
+        });
+      });
+      addTearDown(account.dispose);
+      final api = CoreCameraProfileApi(
+        account: account,
+        routeId: 'd' * 32,
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => current,
+      );
+      expect((await api.sources()).revision, 0);
+      expect((await api.configureSources(settings)).revision, 1);
+      expect(calls.where((r) => r.url.path.contains('/apply')), isEmpty);
+      current = false;
+      final before = calls.length;
+      await expectLater(api.sources(), throwsA(isA<LarenorServerException>()));
+      expect(calls.length, before);
+    },
+  );
+
   test(
     'authenticated client sends exact snapshot and preserves failed readback',
     () async {

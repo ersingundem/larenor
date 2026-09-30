@@ -4,6 +4,7 @@ import 'dart:math';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/camera_profile_models.dart';
+import '../domain/camera_source_models.dart';
 
 abstract interface class CameraProfileApi {
   Future<CameraProfileSnapshot> bootstrap();
@@ -65,6 +66,79 @@ final class CoreCameraProfileApi
       List.generate(32, (_) => _random.nextInt(16).toRadixString(16)).join();
   String _base(ServerContext context) =>
       '/admin/camera-profiles/${context.coreId}/${context.homeId}';
+
+  Future<CameraSourceState> sources() => _sources('GET');
+
+  Future<CameraSourceState> configureSources(Map<String, dynamic> settings) {
+    CameraSourceState.validateSettings(settings);
+    return _sources('PUT', settings);
+  }
+
+  Future<List<CameraSourceRecovery>> sourceRecoveries() async {
+    final response = await _sourceRequest('GET', '/recovery');
+    _keys(response, const {'recoveries'});
+    final items = response['recoveries'];
+    if (items is! List || items.length > 4096) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return List.unmodifiable(
+      items.map((item) => CameraSourceRecovery.decode(_object(item))),
+    );
+  }
+
+  Future<void> reconcileSource(CameraSourceRecovery recovery) async {
+    final response = await _sourceRequest(
+      'POST',
+      '/reconcile',
+      recovery.request,
+    );
+    _keys(response, const {'reconciliation'});
+    final result = _object(response['reconciliation']);
+    _keys(result, const {'schemaVersion', 'commandId', 'status'});
+    if (result['schemaVersion'] != 1 ||
+        result['commandId'] != recovery.commandId ||
+        result['status'] != 'current_state_confirmed') {
+      throw const LarenorServerException('invalid_response');
+    }
+  }
+
+  Future<CameraSourceState> _sources(
+    String method, [
+    Map<String, dynamic>? body,
+  ]) async {
+    final response = await _sourceRequest(method, '', body);
+    _keys(response, const {'source'});
+    return CameraSourceState.decode(_object(response['source']));
+  }
+
+  Future<Map<String, dynamic>> _sourceRequest(
+    String method,
+    String suffix, [
+    Map<String, dynamic>? body,
+  ]) async {
+    _check();
+    return account.withSession((api, session) async {
+      _check();
+      final context = session.context;
+      if (!session.user.canAdminister || context == null) {
+        throw const LarenorServerException('forbidden');
+      }
+      final expected = _session;
+      if (expected != null) _checkSession(session, expected: expected);
+      _session = session;
+      final response = await api
+          .request(
+            method,
+            '${_base(context)}/sources$suffix',
+            token: session.accessToken,
+            body: body,
+          )
+          .timeout(const Duration(seconds: 20));
+      _checkSession(session, expected: session);
+      final envelope = _object(response);
+      return envelope;
+    });
+  }
 
   @override
   Future<CameraProfileSnapshot> bootstrap() async {

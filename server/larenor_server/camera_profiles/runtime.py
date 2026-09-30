@@ -38,6 +38,7 @@ def build_camera_profile_gateway(provider, *, master_key: bytes, clock):
     engine = CameraProfileEngine(
         authorityResolver=provider.authority,
         policyResolver=provider.policy_for,
+        freshObservationTimes=getattr(provider, 'fresh_observation_times', False),
     )
     audit = TamperEvidentCameraAudit(
         key=audit_key,

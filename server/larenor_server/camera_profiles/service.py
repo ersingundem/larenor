@@ -48,9 +48,11 @@ class _AppliedBatch:
 class CameraProfileEngine:
     """Presence selects a policy branch only after independent live authorization."""
 
-    def __init__(self, *, authorityResolver: Callable, policyResolver: Callable):
+    def __init__(self, *, authorityResolver: Callable, policyResolver: Callable,
+                 freshObservationTimes=False):
         self._resolve_authority = authorityResolver
         self._resolve_policy = policyResolver
+        self._fresh_observation_times = freshObservationTimes is True
         self._signals: dict[str, _ObservedPresence] = {}
         self._signal_lock = threading.Lock()
 
@@ -103,7 +105,13 @@ class CameraProfileEngine:
                     raise ApiError("revision_conflict", 409)
                 if signal.signalRevision == old.signal.signalRevision:
                     if signal != old.signal:
-                        raise ApiError("revision_conflict", 409)
+                        if (not self._fresh_observation_times
+                                or signal.observedAtMs < old.signal.observedAtMs
+                                or signal.model_dump(exclude={'observedAtMs'})
+                                   != old.signal.model_dump(exclude={'observedAtMs'})):
+                            raise ApiError("revision_conflict", 409)
+                        old = _ObservedPresence(signal, old.stable_since_ms)
+                        self._signals[profile_id] = old
                     return old
                 if signal.observedAtMs < old.signal.observedAtMs:
                     raise ApiError("revision_conflict", 409)

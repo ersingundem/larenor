@@ -236,6 +236,8 @@ from .camera_search import (
     migrate_camera_search_feedback,
 )
 from .camera_profiles.runtime import build_camera_profile_gateway
+from .camera_profiles.ha_provider import HomeAssistantCameraProvider
+from .camera_profiles.source_store import migrate_camera_provider
 from .power_budget.schema import migrate_power_budget
 from .power_budget.runtime import build_power_budget_gateway
 from .floor_plan.schema import migrate_floor_plan
@@ -546,6 +548,7 @@ class CoreServices:
                 migrate_resource_reservations(connection)
                 MemoryAlbumStore.migrate(connection)
                 MemorySourceBindings.migrate(connection)
+                migrate_camera_provider(connection, key, self.context.coreId, self.context.homeId)
                 migrate_power_budget(connection)
                 migrate_floor_plan(connection)
                 migrate_shared_expenses(connection)
@@ -1079,6 +1082,11 @@ class CoreServices:
                 self.rule_arbitration,
             )
             self.home_assistant.validate_storage()
+            self.camera_profile_sources = HomeAssistantCameraProvider(
+                self.home_assistant, self.db, key, self.context, settings.clock)
+            if self._camera_profile_provider is None:
+                self.camera_profiles = build_camera_profile_gateway(
+                    self.camera_profile_sources, master_key=key, clock=settings.clock)
             self.home_workflows = HomeWorkflowService(
                 self.db, self.auth, settings, key,
                 self.home_resources, self.home_assistant, self.local_notifications,

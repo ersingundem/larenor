@@ -8,8 +8,13 @@ import '../data/camera_profile_controller.dart';
 import '../domain/camera_profile_models.dart';
 
 class CameraProfileScreen extends StatefulWidget {
-  const CameraProfileScreen({super.key, required this.controller});
+  const CameraProfileScreen({
+    super.key,
+    required this.controller,
+    this.onSources,
+  });
   final CameraProfileController controller;
+  final VoidCallback? onSources;
 
   @override
   State<CameraProfileScreen> createState() => _CameraProfileScreenState();
@@ -59,6 +64,13 @@ class _CameraProfileScreenState extends State<CameraProfileScreen> {
     final snapshot = controller.snapshot;
     return ServiceRootScaffold(
       title: l10n.cameraProfileTitle,
+      trailing: widget.onSources == null
+          ? null
+          : CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: widget.onSources,
+              child: Text(l10n.cameraProfileSources),
+            ),
       slivers: [
         SliverToBoxAdapter(
           child: SettingsSection(

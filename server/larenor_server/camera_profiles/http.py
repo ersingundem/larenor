@@ -1,5 +1,7 @@
 """Fail-closed authenticated adapter for presence-informed camera profiles."""
 
+from contextlib import nullcontext
+
 from ..errors import ApiError
 from .http_models import (
     CameraProfileApplyRequest,
@@ -95,26 +97,38 @@ class CameraProfileHttpGateway:
         )
 
     def snapshot(self, actor, core_id, home_id):
-        return self._snapshot(actor, core_id, home_id)
+        scope = getattr(self._provider, 'request_context', lambda _actor: nullcontext())
+        with scope(actor):
+            return self._snapshot(actor, core_id, home_id)
 
     def apply(self, actor, core_id, home_id, raw):
+        scope = getattr(self._provider, 'request_context', lambda _actor: nullcontext())
+        with scope(actor):
+            return self._apply(actor, core_id, home_id, raw)
+
+    def _apply(self, actor, core_id, home_id, raw):
         try:
             request = CameraProfileApplyRequest.model_validate(raw)
         except ValueError:
             raise ApiError("invalid_request") from None
+        refresh_times = getattr(self._provider, 'fresh_observation_times', False) is True
         current = self._snapshot(
             actor,
             core_id,
             home_id,
-            evaluated_at=request.decision.evaluatedAtMs,
+            evaluated_at=None if refresh_times else request.decision.evaluatedAtMs,
         )
+        def facts(value, excluded):
+            return value.model_dump(mode='json', exclude=set(excluded) if refresh_times else set())
         if (
             request.authority != current.authority
             or request.policy != current.policy
-            or request.signal != current.signal
-            or request.decision != current.decision
-            or request.readbacks != current.readbacks
-            or request.support != current.support
+            or facts(request.signal, ('observedAtMs',)) != facts(current.signal, ('observedAtMs',))
+            or facts(request.decision, ('evaluatedAtMs',)) != facts(current.decision, ('evaluatedAtMs',))
+            or [facts(item, ('observedAtMs',)) for item in request.readbacks]
+               != [facts(item, ('observedAtMs',)) for item in current.readbacks]
+            or [facts(item, ('verifiedAtMs',)) for item in request.support]
+               != [facts(item, ('verifiedAtMs',)) for item in current.support]
         ):
             raise ApiError("revision_conflict", 409)
         return self._coordinator.apply(
@@ -128,6 +142,11 @@ class CameraProfileHttpGateway:
         )
 
     def rollback(self, actor, core_id, home_id, raw):
+        scope = getattr(self._provider, 'request_context', lambda _actor: nullcontext())
+        with scope(actor):
+            return self._rollback(actor, core_id, home_id, raw)
+
+    def _rollback(self, actor, core_id, home_id, raw):
         try:
             request = CameraProfileRollbackRequest.model_validate(raw)
         except ValueError:

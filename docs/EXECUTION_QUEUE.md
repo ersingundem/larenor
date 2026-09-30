@@ -18,7 +18,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 0 | 1 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 1 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 2 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
@@ -29,7 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F43 | Evdeyken kamera kayıt profili | Çalışılıyor | — |
 | F47 | Güneş ve ev bataryası öncelikleri | Çalışılıyor | — |
 | F49 | Bahçe sulama ve su bütçesi | Çalışılıyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Çalışılıyor | — |
@@ -40,11 +39,11 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F46 | Elektrikli araç şarj planlayıcısı | Başlanabilir | — |
-| 2 | F42 | Mahremiyet korumalı olay paylaşımı | Bağımlılık bekliyor | F43 |
-| 3 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F43 |
-| 4 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F43 |
-| 5 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F43 |
+| 1 | F42 | Mahremiyet korumalı olay paylaşımı | Başlanabilir | — |
+| 2 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
+| 3 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
+| 4 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 5 | F46 | Elektrikli araç şarj planlayıcısı | Başlanabilir | — |
 | 6 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08, G09, G10 |
 | 7 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 8 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
@@ -162,6 +161,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F38 | Aile anıları ve fotoğraf araması | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
+| F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F50 | Oda konforu ve havalandırma planı | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |
