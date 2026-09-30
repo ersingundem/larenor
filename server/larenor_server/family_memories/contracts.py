@@ -155,7 +155,7 @@ class MemorySearchRequest(MemoryVersioned):
     serviceId: ObjectId
     expectedServiceRevision: Revision
     query: str = Field(min_length=1, max_length=256)
-    albumIds: list[str] = Field(min_length=1, max_length=1)
+    albumIds: list[str] = Field(min_length=1, max_length=32)
     limit: int = Field(default=48, ge=1, le=100)
     language: str = Field(default="tr", pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     personIds: list[str] = Field(default_factory=list, max_length=16)

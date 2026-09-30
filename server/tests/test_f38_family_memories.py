@@ -15,6 +15,7 @@ ALBUM = "11111111-1111-4111-8111-111111111111"
 OTHER_ALBUM = "22222222-2222-4222-8222-222222222222"
 PERSON = "33333333-3333-4333-8333-333333333333"
 ASSET = "44444444-4444-4444-8444-444444444444"
+OTHER_ASSET = "55555555-5555-4555-8555-555555555555"
 
 
 class Transport:
@@ -29,7 +30,7 @@ class Transport:
         if path == "/api/server/about":
             return ProbeResponse(200, (("content-type", "application/json"),),
                                  json.dumps({"version": self.version}).encode())
-        return self.response
+        return self.response(method, path, kwargs) if callable(self.response) else self.response
 
     def close(self):
         self.closed = True
@@ -68,14 +69,14 @@ def asset(**changes):
     }
 
 
-def policy(*, face=False):
+def policy(*, face=False, albums=(ALBUM,)):
     return MemoryPolicy(
         core_id="a" * 32,
         home_id="b" * 32,
         account_id="c" * 32,
         service_id="d" * 32,
         service_revision=7,
-        allowed_album_ids=(ALBUM,),
+        allowed_album_ids=albums,
         face_search_enabled=face,
     )
 
@@ -138,6 +139,39 @@ def test_album_confined_turkish_search_minimizes_returned_metadata():
         "query": "İzmir sahili",
         "size": 12,
     }
+
+
+def test_multiple_albums_are_searched_separately_and_deduplicated_with_exact_source():
+    responses = {
+        ALBUM: reply([asset(), asset(id=OTHER_ASSET, originalFileName="Ortak.jpg")]),
+        OTHER_ALBUM: reply([
+            asset(id=OTHER_ASSET, originalFileName="Ortak.jpg"),
+            asset(id="66666666-6666-4666-8666-666666666666",
+                  originalFileName="İkinci-albüm.jpg"),
+        ]),
+    }
+
+    def respond(_method, _path, kwargs):
+        album_id = json.loads(kwargs["body"])["filter"]["albumIds"]["any"]
+        assert len(album_id) == 1
+        return responses[album_id[0]]
+
+    transport = Transport(respond)
+    result = adapter(
+        transport,
+        current_policy=policy(albums=(ALBUM, OTHER_ALBUM)),
+    ).search(MemorySearch("family", (ALBUM, OTHER_ALBUM), limit=3))
+
+    assert [(value.id, value.source_album_id) for value in result.assets] == [
+        (ASSET, ALBUM),
+        (OTHER_ASSET, OTHER_ALBUM),
+        ("66666666-6666-4666-8666-666666666666", OTHER_ALBUM),
+    ]
+    calls = [(method, path, json.loads(kwargs["body"]))
+             for method, path, kwargs in transport.calls if method == "POST"]
+    assert [value[2]["filter"]["albumIds"] for value in calls] == [
+        {"any": [ALBUM]}, {"any": [OTHER_ALBUM]}]
+    assert all(value[2]["size"] == 3 for value in calls)
 
 
 def test_album_and_face_consent_fail_before_network_and_retirement_is_terminal():

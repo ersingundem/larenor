@@ -86,7 +86,7 @@ class MemorySearch:
             not _safe_text(query, 256)
             or query != self.query
             or not isinstance(self.album_ids, tuple)
-            or len(self.album_ids) != 1
+            or not 1 <= len(self.album_ids) <= 32
             or len(set(self.album_ids)) != len(self.album_ids)
             or any(not _uuid(value) for value in self.album_ids)
             or type(self.limit) is not int

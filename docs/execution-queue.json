@@ -4544,7 +4544,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Aile anıları ve fotoğraf araması",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4569,7 +4569,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül normal Core Immich kaynağı tamamlandı: doğrulanmış 3.2.x servis, hesap/revizyona bağlı şifreli açık albüm yetkisi, kendi yüz-arama izni, gerçek upstream albüm üyelik denetimi, her işlemde actual sürüm kapısı ve Client kaynak ayarları. Yerel gerçek HTTP sözleşme kabulü ve odaklı Flutter test/analyze geçti; kurulu Immich model/index, tam Client→Core→Immich, backup/restore ve exact HEAD CI docs/testing/f38-normal-source-2026-09-30.md kaydında açık. Sayaç artışı yok. Yeniden açılan gerçek production bağımlılığı bekleniyor: F08."
+      "reason": "Gerçek Immich araması her seçili albüm için ayrı bounded provider çağrısı kullanır; round-robin/dedupe doğru sourceAlbumIdyi korur ve seçim üyeliği ayrıca doğrulanır. 40 Server, 1 gerçek Flutter→normal Core→TCP Immich kabulü ve analyze geçti. docs/testing/f38-normal-source-2026-09-30.md. Geniş exact HEAD CI/manual sağlayıcı kabulü açık; sayaç artmadı."
     },
     {
       "id": "F39",

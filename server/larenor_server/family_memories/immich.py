@@ -157,7 +157,7 @@ class ImmichMemoryAdapter:
             "language": request.language,
             "size": request.limit,
             "filter": {
-                "albumIds": {"any": list(request.album_ids)},
+                "albumIds": {"any": []},
                 "type": {"eq": "IMAGE"},
             },
         }
@@ -170,22 +170,37 @@ class ImmichMemoryAdapter:
             taken["lt"] = request.taken_before
         if taken:
             body["filter"]["takenAt"] = taken
-        encoded = json.dumps(
-            body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
-        if len(encoded) > 16384:
-            raise MemoryError("invalid_search")
         try:
             _verify_version(self._transport, self._headers)
-            response = self._transport.request(
-                "POST", "/api/search/smart", headers=self._headers, body=encoded
-            )
+            per_album = []
+            for album_id in request.album_ids:
+                body["filter"]["albumIds"]["any"] = [album_id]
+                encoded = json.dumps(
+                    body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")
+                if len(encoded) > 16384:
+                    raise MemoryError("invalid_search")
+                response = self._transport.request(
+                    "POST", "/api/search/smart", headers=self._headers, body=encoded
+                )
+                per_album.append(self._parse(
+                    response, request.limit, album_id).assets)
         except ProbeTransportError as error:
             code = (
                 "service_unavailable" if error.code != "request_timeout" else "timeout"
             )
             raise MemoryError(code) from None
-        return self._parse(response, request.limit, request.album_ids[0])
+        assets = []
+        seen = set()
+        for rank in range(request.limit):
+            for values in per_album:
+                if rank >= len(values) or values[rank].id in seen:
+                    continue
+                seen.add(values[rank].id)
+                assets.append(values[rank])
+                if len(assets) == request.limit:
+                    return MemorySearchResult(tuple(assets))
+        return MemorySearchResult(tuple(assets))
 
     def asset(self, asset_id: str, *, source_album_id: str) -> MemoryAsset | None:
         """Read one source asset for integrity reconciliation; never downloads it."""

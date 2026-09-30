@@ -13,7 +13,9 @@ from conftest import auth, ready
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
 from test_admin import create, activate
-from test_f38_family_memories import ALBUM, OTHER_ALBUM, ASSET, asset
+from test_f38_family_memories import (
+    ALBUM, OTHER_ALBUM, ASSET, OTHER_ASSET, asset,
+)
 
 
 ROOT = '/api/v1/family-memories'
@@ -26,7 +28,14 @@ def body(**values):
 
 @pytest.fixture
 def immich_http():
-    state = {'contains': True, 'calls': [], 'during_search': lambda: None, 'version': '3.2.4'}
+    state = {
+        'contains': True,
+        'calls': [],
+        'during_search': lambda: None,
+        'version': '3.2.4',
+        'albums': {ALBUM: 'Aile tatili'},
+        'search_items': {ALBUM: [asset()]},
+    }
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = 'HTTP/1.1'
@@ -52,8 +61,14 @@ def immich_http():
             elif path.path == '/api/albums':
                 query = parse_qs(path.query)
                 assert not query or query == {'assetId': [ASSET]}
-                self.send([{'id': ALBUM, 'albumName': 'Aile tatili'}]
-                          if not query or state['contains'] else [])
+                self.send([
+                    {'id': album_id, 'albumName': title}
+                    for album_id, title in state['albums'].items()
+                ] if not query else [
+                    {'id': album_id, 'albumName': title}
+                    for album_id, title in state['albums'].items()
+                    if state['contains'] and album_id == ALBUM
+                ])
             elif path.path == '/api/assets/' + ASSET:
                 self.send(asset())
             else:
@@ -62,10 +77,15 @@ def immich_http():
         def do_POST(self):
             assert self.path == '/api/search/smart'
             incoming = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-            assert incoming['filter'] == {'albumIds': {'any': [ALBUM]}, 'type': {'eq': 'IMAGE'}}
-            state['calls'].append(('POST', self.path))
+            albums = incoming['filter'].pop('albumIds')
+            assert incoming['filter'] == {'type': {'eq': 'IMAGE'}}
+            assert isinstance(albums, dict) and list(albums) == ['any']
+            assert isinstance(albums['any'], list) and len(albums['any']) == 1
+            album_id = albums['any'][0]
+            assert album_id in state['albums']
+            state['calls'].append(('POST', self.path, album_id))
             state['during_search']()
-            self.send({'assets': {'items': [asset()]}})
+            self.send({'assets': {'items': state['search_items'][album_id]}})
 
     httpd = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -146,6 +166,42 @@ def test_normal_core_catalog_grant_search_membership_reconcile_and_restart(serve
     with app.state.core.db.connection() as db:
         row = db.execute('SELECT ciphertext FROM memory_source_bindings').fetchone()
         assert KEY.encode() not in row['ciphertext'] and ALBUM.encode() not in row['ciphertext']
+
+
+def test_normal_core_searches_each_granted_album_and_returns_exact_provenance(
+        server, immich_http):
+    _app, client, _settings, _clock = server
+    immich_http[1]['albums'][OTHER_ALBUM] = 'Aile arşivi'
+    immich_http[1]['search_items'] = {
+        ALBUM: [asset(), asset(id=OTHER_ASSET, originalFileName='Ortak.jpg')],
+        OTHER_ALBUM: [
+            asset(id=OTHER_ASSET, originalFileName='Ortak.jpg'),
+            asset(id='66666666-6666-4666-8666-666666666666',
+                  originalFileName='İkinci-albüm.jpg'),
+        ],
+    }
+    admin, service = configured(server, immich_http)
+    source = sources(client, admin)
+    granted = grant(
+        client, admin, service, source, albums=[ALBUM, OTHER_ALBUM])
+    assert granted.status_code == 200, granted.text
+    snapshot = client.post(
+        ROOT + '/snapshot', headers=auth(admin), json=body()).json()['snapshot']
+    searched = client.post(ROOT + '/search', headers=auth(admin), json=body(
+        expectedMembersRevision=snapshot['authority']['membersRevision'],
+        serviceId=service['id'], expectedServiceRevision=service['revision'],
+        query='Aile', albumIds=[ALBUM, OTHER_ALBUM], limit=3))
+    assert searched.status_code == 200, searched.text
+    assert [(value['assetId'], value['sourceAlbumId'])
+            for value in searched.json()['assets']] == [
+        (ASSET, ALBUM),
+        (OTHER_ASSET, OTHER_ALBUM),
+        ('66666666-6666-4666-8666-666666666666', OTHER_ALBUM),
+    ]
+    assert [call for call in immich_http[1]['calls'] if call[0] == 'POST'] == [
+        ('POST', '/api/search/smart', ALBUM),
+        ('POST', '/api/search/smart', OTHER_ALBUM),
+    ]
 
 
 def test_grants_are_admin_only_face_consent_is_self_only_and_revocation_is_immediate(server, immich_http):
