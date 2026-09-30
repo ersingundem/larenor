@@ -30,6 +30,7 @@ final class RoomComfortStrings {
     required this.advisoryUnoccupied,
     required this.advisoryStale,
     required this.review,
+    required this.retryConfirmation,
     required this.confirmTitle,
     required this.confirmBody,
     required this.confirm,
@@ -45,7 +46,8 @@ final class RoomComfortStrings {
   final String noPlan, planned, skipped, blocked, heat, cool, ventilate;
   final String hvacOff, windowOpen, windowClosed;
   final String advisoryOccupied, advisoryUnoccupied, advisoryStale;
-  final String review, confirmTitle, confirmBody, confirm, cancel, recorded;
+  final String review, retryConfirmation, confirmTitle, confirmBody;
+  final String confirm, cancel, recorded;
   final String applied, partial, failed;
   final Map<ComfortReason, String> reasons;
 
@@ -70,6 +72,7 @@ final class RoomComfortStrings {
     advisoryUnoccupied: 'Occupancy advisory: unoccupied',
     advisoryStale: 'Occupancy advisory: stale',
     review: 'Review comfort plan',
+    retryConfirmation: 'Retry exact confirmation',
     confirmTitle: 'Confirm comfort plan',
     confirmBody: 'Larenor records this exact plan request. Device delivery remains unverified until provider readback.',
     confirm: 'Confirm plan',
@@ -113,6 +116,7 @@ final class RoomComfortStrings {
     advisoryUnoccupied: 'Varlık önerisi: oda boş',
     advisoryStale: 'Varlık önerisi: güncel değil',
     review: 'Konfor planını incele',
+    retryConfirmation: 'Aynı onayı yeniden dene',
     confirmTitle: 'Konfor planını onayla',
     confirmBody: 'Larenor bu tam plan isteğini kaydeder. Sağlayıcı geri okumasına kadar cihaza iletim doğrulanmış sayılmaz.',
     confirm: 'Planı onayla',
@@ -179,7 +183,8 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
 
   Future<void> _review() async {
     if (!_current) return;
-    final preview = await widget.controller.preview();
+    final preview =
+        widget.controller.previewValue ?? await widget.controller.preview();
     if (!mounted || !_current || preview == null) return;
     final accepted = await showCupertinoDialog<bool>(
       context: context,
@@ -323,7 +328,11 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
               autofocus: true,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               minimumSize: const Size(48, 48),
-              onPressed: controller.busy || !_current
+              onPressed:
+                  controller.busy ||
+                      !_current ||
+                      (controller.previewValue != null &&
+                          controller.failure == RoomComfortFailure.unavailable)
                   ? null
                   : controller.refresh,
               child: Row(
@@ -351,7 +360,11 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
                     )
                 ? null
                 : _review,
-            child: Text(widget.strings.review),
+            child: Text(
+              controller.previewValue == null
+                  ? widget.strings.review
+                  : widget.strings.retryConfirmation,
+            ),
           ),
         ),
         const SizedBox(height: 20),

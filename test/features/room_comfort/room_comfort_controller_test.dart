@@ -37,32 +37,39 @@ final class _Gateway implements RoomComfortGateway {
   bool retired = false;
   Future<RoomComfortPreview>? nextPreview;
   Future<RoomComfortReceipt>? nextReceipt;
+  var previewCalls = 0, confirmCalls = 0;
   @override
   Future<RoomComfortPlan> loadPlan() => next;
   @override
-  Future<RoomComfortPreview> preview(RoomComfortPlan plan, String requestId) =>
-      nextPreview ??
-      Future.value(
-        RoomComfortPreview(
-          id: '1' * 32,
-          planId: plan.planId,
-          policyRevision: plan.policyRevision,
-          token: 'A' * 43,
-          expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
-          commandCount: 1,
-        ),
-      );
+  Future<RoomComfortPreview> preview(RoomComfortPlan plan, String requestId) {
+    previewCalls++;
+    return nextPreview ??
+        Future.value(
+          RoomComfortPreview(
+            id: '1' * 32,
+            planId: plan.planId,
+            policyRevision: plan.policyRevision,
+            token: 'A' * 43,
+            expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 1)),
+            commandCount: 1,
+          ),
+        );
+  }
+
   @override
-  Future<RoomComfortReceipt> confirm(RoomComfortPreview preview) =>
-      nextReceipt ??
-      Future.value(
-        RoomComfortReceipt(
-          requestId: '2' * 32,
-          planId: preview.planId,
-          status: 'unknown',
-          commandCount: preview.commandCount,
-        ),
-      );
+  Future<RoomComfortReceipt> confirm(RoomComfortPreview preview) {
+    confirmCalls++;
+    return nextReceipt ??
+        Future.value(
+          RoomComfortReceipt(
+            requestId: '2' * 32,
+            planId: preview.planId,
+            status: 'unknown',
+            commandCount: preview.commandCount,
+          ),
+        );
+  }
+
   @override
   void retire() => retired = true;
 }
@@ -141,6 +148,57 @@ void main() {
     expect(await value.confirm(preview), isFalse);
     value.dispose();
   });
+
+  test('lost confirm acknowledgement retries only the exact preview', () async {
+    final gateway = _Gateway(Future.value(plan()));
+    final value = _controller(gateway, () => true);
+    await value.refresh();
+    final preview = await value.preview();
+    gateway.nextReceipt = Future.error(StateError('lost acknowledgement'));
+
+    expect(await value.confirm(preview!), isFalse);
+    expect(value.previewValue, same(preview));
+    expect(value.failure, RoomComfortFailure.unavailable);
+    await value.refresh();
+    expect(value.previewValue, same(preview));
+    expect(await value.preview(), isNull);
+    expect(gateway.previewCalls, 1);
+
+    gateway.nextReceipt = null;
+    expect(await value.confirm(preview), isTrue);
+    expect(value.previewValue, isNull);
+    expect(gateway.confirmCalls, 2);
+    value.dispose();
+  });
+
+  test(
+    'an expired attempted preview reconciles without allowing a new intent',
+    () async {
+      var now = DateTime.now().toUtc();
+      final gateway = _Gateway(Future.value(plan()));
+      final value = RoomComfortController(
+        gateway: gateway,
+        isCurrent: () => true,
+        coreId: 'a' * 32,
+        homeId: 'b' * 32,
+        requestId: () => '3' * 32,
+        clock: () => now,
+      );
+      addTearDown(value.dispose);
+      await value.refresh();
+      final preview = (await value.preview())!;
+      gateway.nextReceipt = Future.error(StateError('lost acknowledgement'));
+      expect(await value.confirm(preview), isFalse);
+      now = preview.expiresAt.add(const Duration(seconds: 1));
+      await value.refresh();
+      expect(value.previewValue, same(preview));
+      expect(await value.preview(), isNull);
+      gateway.nextReceipt = null;
+      expect(await value.confirm(preview), isTrue);
+      expect(gateway.previewCalls, 1);
+      expect(gateway.confirmCalls, 2);
+    },
+  );
 
   test('late confirmation is rejected after authority retires', () async {
     final gateway = _Gateway(Future.value(plan()));

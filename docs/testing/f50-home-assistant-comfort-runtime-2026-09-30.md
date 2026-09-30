@@ -27,6 +27,11 @@
   leaves an uncertain intent that recovery records as `worker_ack_unknown` and
   never resends. Exact provider readback is checked against the timestamp taken
   after I/O.
+- Flutter retains the exact preview after a failed confirmation response and
+  offers only a retry of that same preview/token. It cannot create another
+  preview or clear it via refresh while reconciliation is pending. An expired attempted preview can only retry the identical confirmation; Core returns a previously stored receipt before applying expiry to any new effect. A durable receipt returned by the
+  retry clears the pending preview; account retirement clears it without any
+  further request.
 - The normal worker supports only `climate.set_hvac_mode`,
   `cover.open_cover`, and `cover.close_cover` for the persisted entity. Before
   every credential-bearing I/O it re-resolves the source, service revision,
@@ -62,7 +67,10 @@ flutter analyze lib/features/room_comfort test/features/room_comfort
 # No issues found
 
 flutter test test/features/room_comfort
-# 26 passed
+# 28 passed, 1 explicit isolated-runner skip
+
+server/.venv/bin/python server/tests/support/f50_flutter_acceptance.py
+# 1 Flutter test passed through normal Core and HA TCP/WebSocket
 ```
 
 The normal-Core test uses `create_app`, encrypted Services, authenticated source
@@ -73,6 +81,14 @@ live preflight, configuration save, cold-room observation, one fixed climate
 action after explicit confirm, and exact state readback. Provider-derived
 numeric revisions are also asserted to survive a JSON round trip within the
 JavaScript safe-integer range. No home device was contacted.
+
+The isolated Flutter runner uses the production account, source-setup,
+controller, and confirmation clients against normal Core. It replaces the first
+successful Core confirmation response with a synthetic transport failure only
+after Core has durably completed the effect. Flutter retries the exact preview;
+Core returns the stored receipt, while the HA fixture proves exactly one mutation
+POST plus post-mutation state readback. The runner also checks that signing out
+retires the captured account gateway before another plan request.
 
 ## Manual provider gate
 

@@ -19,7 +19,15 @@ final class RoomComfortController extends ChangeNotifier {
     required String coreId,
     required String homeId,
     required String Function() requestId,
-  }) : this._(gateway, isCurrent, coreId, homeId, requestId);
+    DateTime Function()? clock,
+  }) : this._(
+         gateway,
+         isCurrent,
+         coreId,
+         homeId,
+         requestId,
+         clock ?? DateTime.now,
+       );
 
   RoomComfortController._(
     this._gateway,
@@ -27,12 +35,14 @@ final class RoomComfortController extends ChangeNotifier {
     this._coreId,
     this._homeId,
     this._requestId,
+    this._clock,
   );
 
   final RoomComfortGateway _gateway;
   final bool Function() _isCurrent;
   final String _coreId, _homeId;
   final String Function() _requestId;
+  final DateTime Function() _clock;
   RoomComfortPlan? _plan;
   RoomComfortPreview? _preview;
   RoomComfortReceipt? _receipt;
@@ -56,7 +66,11 @@ final class RoomComfortController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (_busy || !_current()) return;
+    if (_busy ||
+        !_current() ||
+        (_preview != null && _failure == RoomComfortFailure.unavailable)) {
+      return;
+    }
     final operation = ++_epoch;
     _busy = true;
     _failure = null;
@@ -134,6 +148,7 @@ final class RoomComfortController extends ChangeNotifier {
     final plan = _plan;
     if (_busy ||
         !_current() ||
+        _preview != null ||
         plan == null ||
         plan.rooms.every((room) => room.status != ComfortPlanStatus.planned)) {
       return null;
@@ -149,7 +164,7 @@ final class RoomComfortController extends ChangeNotifier {
           !_current() ||
           value.planId != plan.planId ||
           value.policyRevision != plan.policyRevision ||
-          !value.expiresAt.isAfter(DateTime.now().toUtc())) {
+          !value.expiresAt.isAfter(_clock().toUtc())) {
         if (!_retired) _failure = RoomComfortFailure.staleAuthority;
         return null;
       }
@@ -172,12 +187,12 @@ final class RoomComfortController extends ChangeNotifier {
     if (_busy ||
         !_current() ||
         !identical(value, _preview) ||
-        !value.expiresAt.isAfter(DateTime.now().toUtc())) {
+        (!value.expiresAt.isAfter(_clock().toUtc()) &&
+            _failure != RoomComfortFailure.unavailable)) {
       return false;
     }
     final operation = ++_epoch;
     _busy = true;
-    _preview = null;
     _failure = null;
     notifyListeners();
     try {
@@ -186,13 +201,18 @@ final class RoomComfortController extends ChangeNotifier {
           !_current() ||
           receipt.planId != value.planId ||
           receipt.commandCount != value.commandCount) {
-        if (!_retired) _failure = RoomComfortFailure.staleAuthority;
+        if (!_retired) {
+          _preview = null;
+          _failure = RoomComfortFailure.staleAuthority;
+        }
         return false;
       }
+      _preview = null;
       _receipt = receipt;
       return true;
     } catch (_) {
       if (operation == _epoch && _current()) {
+        _preview = value;
         _failure = RoomComfortFailure.unavailable;
       }
       return false;
