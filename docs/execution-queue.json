@@ -2559,7 +2559,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "İsteğe bağlı yaklaşma ve kişisel kamera görünümü",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B5"
       ],
@@ -2567,9 +2567,10 @@
       "sources": [
         "docs/product-implementation-plan-2026-09-05.md"
       ],
-      "scope": "Yüz tanıma yönetici veya sağlık kilidi değildir; gizli arka plan kayıt/uyandırma yok.",
+      "scope": "Yazılım teslim kapısı; fiziksel kamera/izin/termal/batarya/performans MANUAL.TABLET/FEATURES içinde açık. Yüz eşleme yalnız kişiselleştirme; yönetici veya sağlık yetkisi değildir. Gizli arka plan kayıt/uyandırma yok.",
       "acceptance": [
-        "Önce açık izinli cihazda anonim yaklaşma; yüz kaydı/silme ve model lisans/donanım ölçümü ayrıca. İzin iptali, kamera meşgul, termal/batarya ve yanlış eşleme sınanır."
+        "Açık izinli foreground kişisel kamera, opt-in anonim yaklaşma ve yerel profil kayıt/silme; route/focus/account retirement ile durma ve düşük/yanlış eşlemede genel görünüme düşme. Native event-channel iptali preview/analysis ve pending permissionı kapatır.",
+        "Exact dialog ownership ve transition sonrası current-route kontrolü; authenticated HA snapshot TCP, gizli/arka plan polling durdurma ve bozuk/geç yanıt sınırları yazılım kapısında sınanır. Gerçek donanım/model performansı, kamera meşgul, termal/batarya ve yanlış eşleme doğruluğu MANUAL kayıtlarında ayrıca ölçülür."
       ],
       "requiredEvidence": [
         "test",
@@ -2578,7 +2579,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kimliksiz opt-in yaklaşma/ambient uyandırma, yalnız foreground ön kamera, GMS indirmesi gerektirmeyen paketli yüz algılayıcı yetenek görünümü, Keystore korumalı yerel profil kayıt/doğrulanmış silme ve yanlış/düşük güvenli/birden çok yüzde genel görünüme fail-closed düşen kişiselleştirme eşleştirmesi tamamlandı; testler, bağımsız inceleme, exact-head CI ve gerçek cihazda izin/kamera meşgul/termal/batarya/performans kabulü son doğrulama kapısında bekliyor."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Root 30 Flutter testi ve temiz scoped analyze doğruladı; normal Android CameraX/packaged MLKit compile gate geçti. Explicit owned dialog foreign-route callbackinden silme/pop yapmaz; reverse transition sonrası current-route/profile/interaction yeniden doğrulanır. Native event listener iptali pending permission/preview/analysis kapatır; exact close yalnız son released session için idempotent. Owned HA authenticated snapshot TCP kanıtı var. Keystore/model accuracy/latency, kamera busy/izin/OEM/termal/batarya ve gerçek ONVIF snapshot MANUAL açık; live WebRTC/HLS/RTSP/audio/PTZ iddiası yok. docs/testing/product-camera-software-acceptance-2026-09-30.md."
     },
     {
       "id": "KIOSK",
@@ -3174,7 +3175,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Gerçek component backup/update/restore root worker, bounded Core IPC ve crash-resumable journal-set receipt bağlıdır; 54 focused ve 19 package/deploy kapısı geçti. Exact888dfd46 run36762186381 root worker→Core UID10001 IPC ve production systemd yükünü geçti. Gerçek hedef Docker/Btrfs kimliği, topology/free-space ve explicit admin update/restore etkisi MANUAL.INSTALL açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F20",
@@ -3345,7 +3346,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Gerçek component backup/update/restore root worker, bounded Core IPC ve crash-resumable journal-set receipt bağlıdır; 54 focused ve 19 package/deploy kapısı geçti. Exact888dfd46 run36762186381 root worker→Core UID10001 IPC ve production systemd yükünü geçti. Gerçek hedef Docker/Btrfs kimliği, topology/free-space ve explicit admin update/restore etkisi MANUAL.INSTALL açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F17",
@@ -3406,7 +3407,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek NUT NOTIFYCMD/EXEC producer bridge, UID10006 durable sıralı outbox ve aynı body lost-ACK retry; pinned upsc/TLS/normal Core ingest; UID10005 Proxmox worker ile ayrı IPC/health/peer UID ve unified paketleme tamamlandı. İzole snapshotta 75 focused test geçti, 2 hosted Linux kapısı yerelde atlandı; 8 paket testi geçti. docs/testing/f18-power-recovery-production-2026-09-30.md. Exact HEAD geniş Linux CI ve fiziksel UPS/Proxmox bakım penceresi kabulü açık; yazılım tam kabulü henüz verilmedi."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. UID10006 NUT bridge ve UID10005 Proxmox worker, durable outbox/lost-ACK, private IPC/health ve unified package bağlıdır; 75 focused ve 8 package kapısı geçti. Exact888dfd46 run36762186381 cross-UID IPC/systemd kapısı geçti. Gerçek UPS bildirimi/read-only Proxmox gözlemi ve bakım penceresi etkisi MANUAL.SERVICES açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "G03",
@@ -3573,7 +3574,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Exact 09a912b4002f062757583df24f499731f507432c F08 Linux CI 36750577813 başarılı: ayrı UID IPC, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Bu dar Linux koşusu geniş güncel commit CI veya gerçek model kabulü değildir. docs/testing/f08-linux-cgroup-acceptance-2026-09-30.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F04",
@@ -4030,7 +4031,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek segment worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Coreun paketlenmiş installation backendindeki JellyfinPlaybackRuntime segment read yolu bağlıdır; Client yalnız doğrulanmış güncel segment için skip gösterir. Named worker/API/Client loopback ve exact888dfd46 run36762186381 host package/systemd kapıları geçti. Gerçek segment metadata doğruluğu ve oynatıcı seek MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F21",
@@ -4092,7 +4093,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek playback worker var; FINAL.FUNCTION paket denetiminde unified runtime worker socket/env/mount ve başlatma eksik. Dağıtım bağlaması ve normal runtime kabulü gerekli. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core, MediaPlaybackWorkerProvider(installation_backend) üzerinden paketlenmiş Jellyfin playback runtimeını PersonalChannelServicee bağlıyor; ayrı F22 daemon/socket gerekli değil. Named F22 API/playback kapıları ile exact 888dfd46 host run36762186381 production offline bundle/kurulu Core/systemd kapısı geçti. Gerçek Jellyfin kütüphanesi, kesintisiz yayın/EPG zamanlaması ve alıcı MANUAL.MEDIA açık; ErsatzTV/tuner iddiası yok. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F23",
@@ -4156,7 +4157,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek offline media worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core OfflineMediaService paketlenmiş playback providerından yetkili bounded Jellyfin chunk okur; Client vault resume/cancel/corrupt-chunk sınırlarını uygular. Named worker/API/Client/vault ve exact888dfd46 run36762186381 host package/systemd kapıları geçti. DRM bypass yok; gerçek depolama baskısı ve çevrimdışı oynatma MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F28",
@@ -4187,7 +4188,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Ready üye navigasyonu, kurulum görünümü, manager refresh, catalog/playback ve longform yolları normal Coreda bağlıdır. 35 Server, 24 Flutter ve gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant geçti. Exact888dfd46 run36762186381 host package/systemd kapısı geçti. Gerçek provider chapter metadata, receiver ve sleep interruption MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F29",
@@ -4251,7 +4252,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek pinned Unmanic encoder/korunan orijinal/confirmed cleanup uygulandı; unified runtime archive read/action worker başlatma ve private catalog/socket bağlaması tamamlanacak. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Archive read/action/authority socketları, UID1000 worker/Unmanic, private catalog/mount kökleri ve Core /run/larenor-workers bileşimi paketlenmiştir; exact888dfd46 run36762186381 production bundle/systemd load kapısı geçti. Pinned Unmanic/FFmpeg, provider/collector/engine/resolver/cleanup kanıtları korunur. Gerçek admin provisioning, Docker/mount/free-space/media ve archive encode MANUAL.INSTALL/MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "G07",
@@ -4631,7 +4632,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Adlandırılmış gerçek Flutter Client→normal Uvicorn Core create/restart kapısı catalog create replay, reservation create/cancel, stale ikinci transport ile receipt uzlaşması, kalıcı history/export ve authority retirementi doğruladı. DBde exact catalog created=1, reservation created=1/cancelled=1; mutation retry yok. 10 Server ve iki gerçek Client fazı geçti; root birleşik runnerı ve Server paketini bağımsız doğruladı. Fiziksel tablet/yer erişimi MANUAL kayıtlarında açık; sayaç artmadı. docs/testing/f40-normal-core-acceptance-2026-09-30.md. Hosted exact 8b0de547 gerçek restartı integral-clock/SQLite REAL timestamp HMAC boşluğunu buldu; hash öncesi float normalizasyonu ve 12 F40 restart/replay/regression testi geçti, yeni exact Linux CI henüz açık."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Named Flutter→normal Uvicorn Core create/restart gate catalog replay, reservation cancel, stale receipt reconciliation, history/export ve authority retirementi geçti. Integral-clock/SQLite REAL HMAC hatası düzeltildi, 12 restart/replay regresyonu geçti; eski host startup kırmızısı exact888dfd46 run36762186381 ile kapandı. Fiziksel tablet/yer erişimi MANUAL.TABLET/FEATURES açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "G08",
@@ -4995,7 +4996,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Zigbee2MQTT ve HA Thread providerı yanında host UID10004/GID10002 özel IPC, owner-only broker policy ve unified worker unit/env bileşimi tamamlandı. 26 odaklı gerçek TCP broker→Unix IPC→normal Core ve 11 paket/runtime kabulü geçti. Distinct UID kernel-peer Linux kapısı ve exact HEAD geniş CI, fiziksel MANUAL kabulü açık; docs/testing/f55-mesh-host-worker-2026-09-30.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. UID10004 Zigbee2MQTT worker, owner-only broker policy, normal Core IPC ve HA Thread providerı bağlıdır; 26 runtime/MQTT ve 11 package testi geçti. Exact888dfd46 run36762186381 UID10004→Core10001 kernel-peer IPC/systemd kapısı geçti. Gerçek coordinator/broker ve user-confirmed OTA MANUAL.SERVICES açık. docs/testing/unified-host-workers-2026-09-30.md."
     },
     {
       "id": "F56",

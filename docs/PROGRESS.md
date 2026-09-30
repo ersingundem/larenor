@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül PRODUCT.CAMERA ve eski kuyruk nedenleri uzlaşması
+
+Root 30 Flutter/0 skip, scoped analyze ve normal Android compile kanıtıyla Camera yazılımını CI bekliyor tablosuna taşıdı. Exact dialog ownership foreign-route callbackinden silme yapmaz; native listener retirement kamerayı kapatır. Fiziksel izin/busy/termal/batarya/ML doğruluğu MANUAL kaldı. Yeşil named Linux host/cgroup kanıtlarıyla kapanan F08/F15/F16/F18/F22/F25/F27/F28/F30/F40/F55 composition açıklamaları güncellendi; geniş güncel HEAD CI ile gerçek provider/cihaz kabulü ayrı ve açık, sayaçlar değişmedi. [Camera kanıtı](testing/product-camera-software-acceptance-2026-09-30.md), [host kanıtı](testing/unified-host-workers-2026-09-30.md).
 
 ### 30 Eylül F47 gerçek Client/Core/evcc kabulü
 

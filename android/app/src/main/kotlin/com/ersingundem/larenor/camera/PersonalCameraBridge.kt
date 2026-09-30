@@ -108,6 +108,7 @@ class PersonalCameraBridge(
     private var sink: EventChannel.EventSink? = null
     private var provider: ProcessCameraProvider? = null
     private var session: Session? = null
+    private var lastReleasedSessionId: String? = null
     private var pendingPermission: MethodChannel.Result? = null
     private var enrollment: Enrollment? = null
     private var matching: Matching? = null
@@ -548,8 +549,12 @@ class PersonalCameraBridge(
         require(arguments["schemaVersion"] == SCHEMA_VERSION)
         val id = arguments["sessionId"] as? String ?: throw IllegalArgumentException()
         val current = session
-        if (current == null || current.id != id) return fail(result, "expired")
-        release(current)
+        if (current == null) {
+            if (lastReleasedSessionId != id) return fail(result, "expired")
+        } else {
+            if (current.id != id) return fail(result, "expired")
+            release(current)
+        }
         result.success(mapOf("schemaVersion" to SCHEMA_VERSION, "sessionId" to id, "closed" to true))
     }
 
@@ -571,6 +576,7 @@ class PersonalCameraBridge(
         stopEnrollment("expired")
         stopMatching("expired")
         session = null
+        lastReleasedSessionId = current.id
         current.camera.cameraInfo.cameraState.removeObservers(activity as LifecycleOwner)
         try {
             provider?.unbind(current.preview)
@@ -668,6 +674,11 @@ class PersonalCameraBridge(
     }
 
     override fun onCancel(arguments: Any?) {
+        // Event-channel ownership is route-scoped. If Dart retires its listener
+        // after a lost/timed-out close response, the native camera and any
+        // pending permission or analysis still stop here.
+        cancelPermission("background")
+        session?.let(::release)
         sink = null
     }
 

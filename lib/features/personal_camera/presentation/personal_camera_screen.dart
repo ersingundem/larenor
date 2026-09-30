@@ -40,6 +40,7 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
   PersonalCameraFailure? _profileFailure;
   bool _profileLoaded = false;
   bool _profileBusy = false;
+  CupertinoDialogRoute<bool>? _profileDeleteDialogRoute;
 
   @override
   void initState() {
@@ -138,34 +139,71 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
 
   Future<void> _confirmDeleteProfile() async {
     final profile = _profile;
-    if (profile == null || _profileBusy) return;
+    if (profile == null || _profileBusy || !_current()) return;
+    final ownerRoute = ModalRoute.of(context);
+    final navigator = Navigator.of(context);
     final l = AppLocalizations.of(context);
-    final confirmed = await showCupertinoDialog<bool>(
+    late final CupertinoDialogRoute<bool> dialogRoute;
+    void closeOwnedDialog(bool result) {
+      if (!mounted ||
+          !identical(_profileDeleteDialogRoute, dialogRoute) ||
+          !dialogRoute.isActive ||
+          !dialogRoute.isCurrent ||
+          !identical(dialogRoute.navigator, navigator)) {
+        return;
+      }
+      navigator.pop(result);
+    }
+
+    dialogRoute = CupertinoDialogRoute<bool>(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (_) => CupertinoAlertDialog(
         title: Text(l.personalCameraProfileDeleteTitle),
         content: Text(l.personalCameraProfileDeletePrompt),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => closeOwnedDialog(false),
             child: Text(l.commonCancel),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => closeOwnedDialog(true),
             child: Text(l.personalCameraProfileDelete),
           ),
         ],
       ),
     );
-    if (confirmed != true || !mounted || _profile?.id != profile.id) return;
+    bool? confirmed;
+    _profileDeleteDialogRoute = dialogRoute;
+    try {
+      confirmed = await navigator.push<bool>(dialogRoute);
+      if (confirmed != null) await dialogRoute.completed;
+    } finally {
+      if (identical(_profileDeleteDialogRoute, dialogRoute)) {
+        _profileDeleteDialogRoute = null;
+      }
+    }
+    if (confirmed != true ||
+        !mounted ||
+        _profile?.id != profile.id ||
+        !identical(ModalRoute.of(context), ownerRoute) ||
+        ownerRoute?.isCurrent != true ||
+        !_current()) {
+      return;
+    }
     setState(() {
       _profileBusy = true;
       _profileFailure = null;
     });
     try {
       await widget.platform.deleteProfile(profile.id);
-      if (!mounted) return;
+      if (!mounted ||
+          _profile?.id != profile.id ||
+          !identical(ModalRoute.of(context), ownerRoute) ||
+          ownerRoute?.isCurrent != true ||
+          !_current()) {
+        return;
+      }
       setState(() {
         _profile = null;
         _match = null;
@@ -195,6 +233,16 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
     }
   }
 
+  bool _ownedDeleteDialogCovers(Route<dynamic>? ownerRoute) {
+    final dialogRoute = _profileDeleteDialogRoute;
+    return ownerRoute != null &&
+        dialogRoute != null &&
+        identical(ModalRoute.of(context), ownerRoute) &&
+        identical(dialogRoute.navigator, ownerRoute.navigator) &&
+        dialogRoute.isActive &&
+        dialogRoute.isCurrent;
+  }
+
   void _changed() {
     if (!mounted) return;
     setState(() {
@@ -211,9 +259,11 @@ final class _PersonalCameraScreenState extends State<PersonalCameraScreen>
       _interaction?.removeListener(_interactionChanged);
       _interaction = interaction?..addListener(_interactionChanged);
     }
+    final ownerRoute = ModalRoute.of(context);
     final visible =
         TickerMode.valuesOf(context).enabled &&
-        ModalRoute.of(context)?.isCurrent != false;
+        (ownerRoute?.isCurrent != false ||
+            _ownedDeleteDialogCovers(ownerRoute));
     if (_routeVisible != visible) {
       _routeVisible = visible;
       if (!visible) unawaited(_controller.close());
