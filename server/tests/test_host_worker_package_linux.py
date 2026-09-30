@@ -256,16 +256,17 @@ def test_installer_plugin_artifact_check_uses_real_package_and_fixed_phase(
 def test_installer_release_root_check_has_one_safe_fixed_phase(tmp_path):
     with pytest.raises(installer.HostWorkerPackageError) as captured:
         installer._root_directory(tmp_path)
-    assert captured.value.safe_message == "release_invalid:release_root"
+    assert captured.value.phase in installer.RELEASE_ROOT_PHASES
+    assert str(tmp_path) not in captured.value.safe_message
 
 
 def test_installer_creates_exact_directory_modes_under_group_writable_umask(
     tmp_path, monkeypatch,
 ):
-    def validate(path, *, mode=None):
+    def validate(path, *, mode=None, leaf=None):
         if Path(path).stat().st_mode & 0o777 != mode:
             raise installer.HostWorkerPackageError(
-                "release_invalid", "release_root"
+                "release_invalid", f"release_{leaf}_nonroot_unsafe_dir"
             )
 
     monkeypatch.setattr(installer, "_root_directory", validate)
@@ -274,10 +275,10 @@ def test_installer_creates_exact_directory_modes_under_group_writable_umask(
     previous = os.umask(0o002)
     try:
         assert installer._create_root_directory(
-            parent, mode=0o755, allow_existing=True,
+            parent, mode=0o755, allow_existing=True, leaf="prefix",
         )
         assert installer._create_root_directory(
-            release, mode=0o700, allow_existing=False,
+            release, mode=0o700, allow_existing=False, leaf="leaf",
         )
     finally:
         os.umask(previous)
@@ -287,13 +288,34 @@ def test_installer_creates_exact_directory_modes_under_group_writable_umask(
     parent.chmod(0o775)
     with pytest.raises(installer.HostWorkerPackageError) as captured:
         installer._create_root_directory(
-            parent, mode=0o755, allow_existing=True,
+            parent, mode=0o755, allow_existing=True, leaf="prefix",
         )
-    assert captured.value.safe_message == "release_invalid:release_root"
+    assert captured.value.safe_message == (
+        "release_invalid:release_prefix_nonroot_unsafe_dir"
+    )
     assert parent.stat().st_mode & 0o777 == 0o775
 
     with pytest.raises(installer.HostWorkerPackageError) as captured:
         installer._create_root_directory(
-            release, mode=0o700, allow_existing=False,
+            release, mode=0o700, allow_existing=False, leaf="leaf",
         )
-    assert captured.value.safe_message == "release_invalid:release_root"
+    assert captured.value.safe_message == "release_invalid:release_leaf_exists"
+
+
+@pytest.mark.parametrize(
+    ("mode", "owner", "kind", "expected"),
+    [
+        (0o40755, 0, "dir", "release_prefix_root_exact_dir"),
+        (0o40700, 0, "dir", "release_prefix_root_safe_dir"),
+        (0o40775, 1000, "dir", "release_prefix_nonroot_unsafe_dir"),
+        (0o120755, 0, "symlink", "release_prefix_root_exact_symlink"),
+        (0o100755, 0, "other", "release_prefix_root_exact_other"),
+    ],
+)
+def test_installer_release_root_metadata_is_bounded(
+    mode, owner, kind, expected,
+):
+    info = type("Info", (), {"st_mode": mode, "st_uid": owner})()
+    phase = installer._release_root_metadata("prefix", info, 0o755)
+    assert phase == expected
+    assert phase in installer.RELEASE_ROOT_PHASES

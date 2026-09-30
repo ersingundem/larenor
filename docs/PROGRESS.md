@@ -17,9 +17,13 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host root kontrolünün somut koşulu
+
+Son exact host hatası henüz kapanmadı. Installer filesystem/opt/prefix/releases/leaf ayrımını ve yalnız sabit owner=root/nonroot, mode=exact/safe/unsafe, type=dir/symlink/other sınıflarını güvenli aşama koduyla ayırır. Yol, UID numarası, ham mod, child stdout/stderr veya gizli içerik gösterilmez. 30 test geçti, 1 hosted-Linux kapısı yerelde skip; yeni exact koşu gerçek başarısız katmanı belirleyecek. Hiçbir eski exact körlemesine yeniden çalıştırılmadı.
+
 ### 30 Eylül host installer gerçek umask düzeltmesi
 
-Exact `2c9ca9fb27c5bd4bd96e962c09dbd172c5005b69` host `36756593861` build sonrası `release_invalid:release_root` verdi. Python `parents=True` ara dizinlere leaf modunu uygulamadığı için inherited grup-yazılabilir umask ile 0775 oluşuyordu. Installer her yeni root-owned dizini ayrı açıp exact 0755/0700 yapar; mevcut yanlış mod/owner/symlink düzeltilmez, reddedilir. Umask 0002 regresyonu ve gerçek plugin paketleriyle 25 test geçti, 1 Linux kapısı yerelde skip; yeni exact host kabulü beklenecek.
+Exact `2c9ca9fb27c5bd4bd96e962c09dbd172c5005b69` host `36756593861` build sonrası `release_invalid:release_root` verdi. Python `parents=True` ara dizinlere leaf modunu uygulamadığından yeni dizin modları inherited umasktan bağımsız exact 0755/0700 yapıldı; mevcut yanlış mod/owner/symlink değiştirilmeden reddedilir. Umask 0002 regresyonu ve gerçek plugin paketleriyle 25 test geçti, 1 Linux kapısı yerelde skip. Ancak exact `37586155c1fb9f0fe137eafdd6414071a2bb4907` host `36757253756` aynı root kontrolünde düştü: umask değişikliği deterministik sertleştirmedir, bu CI hatasının kanıtlanmış nedeni değildir.
 
 ### 30 Eylül F21 gerçek izleme odası ve yeniden giriş kabulü
 

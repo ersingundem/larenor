@@ -106,13 +106,25 @@ ENTRYPOINTS = (
      "callback_package_help", "callback_package_layout"),
     ("unmanic/bin/unmanic", "unmanic_help", "unmanic_layout"),
 )
+RELEASE_ROOT_LOCATIONS = ("filesystem", "opt", "prefix", "releases", "leaf")
+RELEASE_ROOT_PHASES = frozenset(
+    f"release_{location}_{owner}_{mode}_{kind}"
+    for location in RELEASE_ROOT_LOCATIONS
+    for owner in ("root", "nonroot")
+    for mode in ("exact", "safe", "unsafe")
+    for kind in ("dir", "symlink", "other")
+) | frozenset(
+    f"release_{location}_{state}"
+    for location in RELEASE_ROOT_LOCATIONS
+    for state in ("missing", "create_failed", "seal_failed", "exists")
+)
 RELEASE_PHASES = frozenset({
     "server_venv", "server_install", "server_check",
     "unmanic_venv", "unmanic_install", "unmanic_check",
     "callback_package", "encoder_package", "callback_artifact",
     "encoder_artifact", "release_root", "release_receipt", "sysusers",
     "tmpfiles", "daemon_reload",
-}) | frozenset(
+}) | RELEASE_ROOT_PHASES | frozenset(
     phase for _relative, help_phase, layout_phase in ENTRYPOINTS
     for phase in (help_phase, layout_phase)
 )
@@ -269,21 +281,53 @@ def _run(command, *, timeout=120, phase=None):
         raise HostWorkerPackageError("release_invalid", phase)
 
 
-def _root_directory(path, *, mode=None):
-    try:
-        path = Path(path).absolute()
-        for item in (*reversed(path.parents), path):
+def _release_root_location(item, target, leaf):
+    if item == Path("/"):
+        return "filesystem"
+    if item == PREFIX.parent:
+        return "opt"
+    if item == PREFIX:
+        return "prefix"
+    if item == PREFIX / "releases":
+        return "releases"
+    if item == target:
+        return leaf
+    return "filesystem"
+
+
+def _release_root_metadata(location, info, expected_mode):
+    kind = ("symlink" if stat.S_ISLNK(info.st_mode) else
+            "dir" if stat.S_ISDIR(info.st_mode) else "other")
+    owner = "root" if info.st_uid == 0 else "nonroot"
+    actual_mode = stat.S_IMODE(info.st_mode)
+    mode = ("unsafe" if actual_mode & 0o022 else
+            "exact" if expected_mode is not None and actual_mode == expected_mode
+            else "safe")
+    return f"release_{location}_{owner}_{mode}_{kind}"
+
+
+def _root_directory(path, *, mode=None, leaf="leaf"):
+    path = Path(path).absolute()
+    for item in (*reversed(path.parents), path):
+        location = _release_root_location(item, path, leaf)
+        try:
             info = item.lstat()
-            if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                    or info.st_uid != 0 or info.st_mode & 0o022):
-                raise OSError()
-        if mode is not None and stat.S_IMODE(path.lstat().st_mode) != mode:
-            raise OSError()
-    except OSError:
-        raise HostWorkerPackageError("release_invalid", "release_root") from None
+        except OSError:
+            raise HostWorkerPackageError(
+                "release_invalid", f"release_{location}_missing"
+            ) from None
+        expected_mode = mode if item == path else None
+        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                or info.st_uid != 0 or info.st_mode & 0o022
+                or expected_mode is not None
+                and stat.S_IMODE(info.st_mode) != expected_mode):
+            raise HostWorkerPackageError(
+                "release_invalid",
+                _release_root_metadata(location, info, expected_mode),
+            ) from None
 
 
-def _create_root_directory(path, *, mode, allow_existing):
+def _create_root_directory(path, *, mode, allow_existing, leaf):
     """Create one trusted directory without inheriting a permissive umask."""
     path = Path(path)
     created = False
@@ -296,14 +340,17 @@ def _create_root_directory(path, *, mode, allow_existing):
     except FileExistsError:
         if not allow_existing:
             raise HostWorkerPackageError(
-                "release_invalid", "release_root"
+                "release_invalid", f"release_{leaf}_exists"
             ) from None
     except OSError:
-        raise HostWorkerPackageError("release_invalid", "release_root") from None
+        phase = "seal_failed" if created else "create_failed"
+        raise HostWorkerPackageError(
+            "release_invalid", f"release_{leaf}_{phase}"
+        ) from None
     finally:
         if descriptor >= 0:
             os.close(descriptor)
-    _root_directory(path, mode=mode)
+    _root_directory(path, mode=mode, leaf=leaf)
     return created
 
 
@@ -347,7 +394,7 @@ def _install_release(bundle, python):
     if release.exists():
         receipt = release / "release.json"
         try:
-            _root_directory(release, mode=0o755)
+            _root_directory(release, mode=0o755, leaf="leaf")
         except HostWorkerPackageError:
             raise
         try:
@@ -360,9 +407,15 @@ def _install_release(bundle, python):
     # A Python venv is not relocatable: pip's script shebangs use its absolute
     # installation path. Build at the final path while it is private and not
     # referenced by current; publish only the validated complete release.
-    _create_root_directory(PREFIX, mode=0o755, allow_existing=True)
-    _create_root_directory(PREFIX / "releases", mode=0o755, allow_existing=True)
-    _create_root_directory(release, mode=0o700, allow_existing=False)
+    _create_root_directory(
+        PREFIX, mode=0o755, allow_existing=True, leaf="prefix",
+    )
+    _create_root_directory(
+        PREFIX / "releases", mode=0o755, allow_existing=True, leaf="releases",
+    )
+    _create_root_directory(
+        release, mode=0o700, allow_existing=False, leaf="leaf",
+    )
     try:
         _install_environments(release, bundle, python)
         for kind in ("callback", "encoder"):
