@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from unittest import mock
 
 from tool import f61_tigervnc_acceptance as runner
 
@@ -140,6 +141,53 @@ class VncNativeWorkflowTest(unittest.TestCase):
 
         self.assertIn('":app:cleanTestDebugUnitTest"', self.runner)
         self.assertLess(self.runner.index("verify_report()"), self.runner.index("receipt.json"))
+
+    def test_runner_materializes_the_wrapper_from_the_pinned_flutter_sdk(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            flutter = root / "flutter/bin/flutter"
+            wrapper = (
+                root
+                / "flutter/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
+            )
+            flutter.parent.mkdir(parents=True)
+            flutter.write_text("fixture")
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_bytes(b"reviewed-flutter-wrapper")
+            workspace = root / "workspace"
+
+            def resolved(name):
+                return str(flutter if name == "flutter" else root / "java")
+
+            with mock.patch.object(runner, "executable", side_effect=resolved):
+                command = runner.gradle_wrapper_command(workspace)
+
+            materialized = workspace / "gradle/wrapper"
+            self.assertEqual(
+                (materialized / "gradle-wrapper.jar").read_bytes(),
+                b"reviewed-flutter-wrapper",
+            )
+            self.assertEqual(
+                (materialized / "gradle-wrapper.properties").read_bytes(),
+                (ROOT / "android/gradle/wrapper/gradle-wrapper.properties").read_bytes(),
+            )
+            self.assertEqual(command[0], str(root / "java"))
+            self.assertEqual(command[-1], "org.gradle.wrapper.GradleWrapperMain")
+            self.assertEqual(
+                (materialized / "gradle-wrapper.jar").stat().st_mode & 0o777,
+                0o600,
+            )
+            self.assertEqual(
+                (materialized / "gradle-wrapper.properties").stat().st_mode & 0o777,
+                0o600,
+            )
+
+            wrapper.unlink()
+            with mock.patch.object(runner, "executable", side_effect=resolved):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.gradle_wrapper_command(root / "missing-wrapper")
+
+        self.assertNotIn('ROOT / "android" / "gradlew"', self.runner)
 
 
 if __name__ == "__main__":

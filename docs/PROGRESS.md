@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül VNC fresh-checkout Gradle launcher düzeltmesi
+
+Exact645e5b73 / run36768307357 font ve sabit WM_CLASS fixtureını geçti, tracked olmayan android/gradlew fresh checkoutta bulunmadığı için native test başlamadı. Launcher pinned Flutter SDK wrapper JARını tracked proje properties ile private geçici dizinde çalıştırır; production RFB/TLS/auth koşulları korunur. Root 6 policy testini geçti; yerel 46 native testte beklenen tek non-Linux skip gerçek hosted kabulü sayılmadı. Yeni exact one-test/zero-skip sonucu gerekli. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül SSH hosted runner önkoşulu
 
 Exact8159c9a / run36767901119 gerçek SSH/SFTP/tunnel adımını geçti; normal Core adımı uv bulunmadığı için test başlamadan exit127 verdi. Workflow immutable resmi setup-uv ve exact uv sürümünü locked runner öncesi kurar; root 6 policy testini geçti. Yeni exact hosted sonuç gerekli, eski kırmızı koşu körlemesine tekrar edilmedi. [SSH kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).

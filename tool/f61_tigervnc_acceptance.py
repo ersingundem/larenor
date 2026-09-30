@@ -138,6 +138,37 @@ def tiger_version(xvnc: str) -> str:
     return value[:1024]
 
 
+def gradle_wrapper_command(workspace: Path) -> list[str]:
+    """Materialize Flutter's reviewed wrapper beside this project's properties."""
+    java = executable("java")
+    flutter = Path(executable("flutter")).resolve(strict=True)
+    source_wrapper = (
+        flutter.parent
+        / "cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
+    )
+    project_properties = ROOT / "android/gradle/wrapper/gradle-wrapper.properties"
+    if not source_wrapper.is_file() or source_wrapper.is_symlink():
+        raise AcceptanceFailure("Flutter Gradle wrapper artifact is unavailable")
+    if not project_properties.is_file() or project_properties.is_symlink():
+        raise AcceptanceFailure("project Gradle wrapper properties are unavailable")
+
+    wrapper = workspace / "gradle/wrapper"
+    wrapper.mkdir(parents=True, mode=0o700)
+    wrapper_jar = wrapper / "gradle-wrapper.jar"
+    wrapper_properties = wrapper / "gradle-wrapper.properties"
+    shutil.copyfile(source_wrapper, wrapper_jar)
+    shutil.copyfile(project_properties, wrapper_properties)
+    wrapper_jar.chmod(0o600)
+    wrapper_properties.chmod(0o600)
+    return [
+        java,
+        "-Dorg.gradle.appname=gradlew",
+        "-classpath",
+        str(wrapper_jar),
+        "org.gradle.wrapper.GradleWrapperMain",
+    ]
+
+
 def verify_report(path: Path = REPORT) -> None:
     try:
         suite = ET.parse(path).getroot()
@@ -312,7 +343,7 @@ def main() -> int:
             }
             subprocess.run(
                 [
-                    str(ROOT / "android" / "gradlew"),
+                    *gradle_wrapper_command(fixture / "gradle-launcher"),
                     "--no-daemon",
                     ":app:cleanTestDebugUnitTest",
                     ":app:testDebugUnitTest",

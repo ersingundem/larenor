@@ -63,15 +63,18 @@ is present:
 
 ```text
 python3 -m unittest tool.tests.vnc_native_workflow_test
-.....
-Ran 5 tests ... OK
+......
+Ran 6 tests ... OK
 
 python3 -m py_compile tool/f61_tigervnc_acceptance.py
 
-./gradlew --no-daemon :app:testDebugUnitTest \
-  --tests com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest
-BUILD SUCCESSFUL in 20s
-1 test, 1 skipped, 0 failures/errors
+The acceptance runner's materialized Gradle 9.7.1 wrapper command then ran:
+
+java ... org.gradle.wrapper.GradleWrapperMain --no-daemon \
+  :app:cleanTestDebugUnitTest :app:testDebugUnitTest \
+  --tests 'com.ersingundem.larenor.vnc.*'
+BUILD SUCCESSFUL in 24s
+46 tests, 1 skipped, 0 failures/errors
 ```
 
 The skip is mandatory outside the owned Linux fixture. A passing real-server
@@ -111,6 +114,24 @@ documents `-class` and `-e`; the
 [xdotool manual](https://manpages.ubuntu.com/manpages/noble/man1/xdotool.1.html)
 defines `--class` against WM_CLASS. The visible-window/focus readiness check still
 has a ten-second bound; none of the real SPKI/auth/frame/input/resize assertions
-or the exact one-test/no-skip XML receipt gate were relaxed. Five VNC workflow
+or the exact one-test/no-skip XML receipt gate were relaxed. Six VNC workflow
 policy tests passed locally. A new exact hosted gate must verify this bootstrap
 repair and then execute the actual bridge acceptance.
+
+[Run 36768307357](https://github.com/ersingundem/larenor/actions/runs/36768307357)
+at `645e5b7305fe56c56545a3dba8fcf4671e959ad5` proved that the font and
+WM_CLASS bootstrap repairs worked: TigerVNC started, the fixture window became
+ready, and the runner reached the native-test launch. It then failed before any
+Gradle test because `android/gradlew` is deliberately ignored and is absent in a
+fresh checkout. The local file had hidden that packaging error; this was not an
+RFB, TLS or authentication failure.
+
+The runner now materializes the wrapper JAR supplied by the workflow's pinned
+Flutter SDK beside the repository's tracked `gradle-wrapper.properties` in its
+private temporary fixture directory, gives both files mode `0600`, and invokes
+`GradleWrapperMain` directly. It does not generate or trust an untracked
+project script. Missing or symlinked SDK wrapper artifacts and missing or
+symlinked project properties fail closed. Six workflow-policy tests, an actual
+materialized Gradle 9.7.1 launch, and the 46-test native VNC batch passed
+locally; the one real TigerVNC test remains the intentional non-Linux skip. A
+new exact hosted run is still required for the one-test/no-skip receipt.
