@@ -4,6 +4,7 @@ import '../../domain/server_models.dart';
 
 enum ServerServiceKind {
   homeAssistant('home_assistant', 'Home Assistant'),
+  evcc('evcc', 'evcc'),
   jellyfin('jellyfin', 'Jellyfin'),
   seerr('seerr', 'Seerr'),
   sonarr('sonarr', 'Sonarr'),
@@ -61,6 +62,7 @@ List<ServerServiceAuthMethod> serviceAuthMethods(ServerServiceKind kind) =>
       ServerServiceKind.homeAssistant ||
       ServerServiceKind.musicAssistant => const [ServerServiceAuthMethod.token],
       ServerServiceKind.seerr ||
+      ServerServiceKind.evcc ||
       ServerServiceKind.sonarr ||
       ServerServiceKind.radarr ||
       ServerServiceKind.lidarr ||

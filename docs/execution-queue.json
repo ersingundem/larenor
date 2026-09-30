@@ -4900,7 +4900,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4924,7 +4924,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi. FINAL.FUNCTION incelemesi declared real Flutter→normal Core→owned TCP sağlayıcı birleşik gatein eksik olduğunu doğruladı. Bu kapı yazılıp çalıştırılana dek CI bekliyor kabulü geri alındı; fiziksel inverter ayrı MANUAL."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Flutter service wire modeline eksik evcc türü ve Core ile aynı API-key auth formu eklendi. Root gerçek Flutter account→normal Uvicorn Core→owned evcc HTTP/HA REST-WebSocket iki yaşamını doğruladı: kalıcı Fronius binding, tek 40% reserve gönderimi ve causal readback; Core/Client restart sonrası binding okunur, gerçek Home Resource revizyonu driftinden sonra stale preview provider I/O yapmadan reddedilir. Toplam HA POST=1. 14 Server, 14 Flutter ve temiz scoped analyze geçti. Watt/direction kontrolü desteklenmiş sayılmaz; gerçek inverter/batarya/forecast MANUAL.FEATURES açık. docs/testing/f47-normal-core-tcp-acceptance-2026-09-30.md."
     },
     {
       "id": "F49",
