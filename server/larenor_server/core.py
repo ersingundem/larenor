@@ -209,11 +209,13 @@ from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
 from .evcc import (
     EvccBinding,
+    EvccBatteryBindingStore,
     EvccConnection,
     EvccCurrentControl,
     EvccEnergyWindowStore,
     EvccRuntimeResolver,
     migrate_evcc_current_control,
+    migrate_evcc_battery_bindings,
     migrate_evcc_energy_windows,
 )
 from .epaper_snapshots.schema import migrate_epaper_snapshots
@@ -535,6 +537,7 @@ class CoreServices:
                 migrate_ev_charging(connection)
                 migrate_evcc_energy_windows(connection)
                 migrate_evcc_current_control(connection)
+                migrate_evcc_battery_bindings(connection)
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
@@ -801,16 +804,6 @@ class CoreServices:
                     self._irrigation_provider, clock=settings.clock
                 )
             )
-            self.energy_priorities = EnergyPriorityService(
-                self.db,
-                self.auth,
-                settings,
-                key,
-                self.context,
-                self._energy_priority_provider,
-                self._energy_priority_inverter_worker,
-                self._energy_priority_inverter_capability,
-            )
             self.epaper = EpaperManagement(
                 self.db, self.auth, settings, key, self.context)
             self.epaper.validate_storage()
@@ -889,10 +882,12 @@ class CoreServices:
             )
             self.evcc_energy_windows.validate_storage()
             self.evcc_current_control = None
+            self.evcc_battery_bindings = None
             evcc_runtime = None
             if (
                 self._ev_charge_provider is None
                 or self._power_budget_provider is None
+                or self._energy_priority_provider is None
             ):
                 def evcc_account_revision(actor):
                     with self.db.connection() as connection:
@@ -939,6 +934,18 @@ class CoreServices:
                         ),
                     )
 
+                self.evcc_battery_bindings = EvccBatteryBindingStore(
+                    self.db,
+                    audit_key=hmac.new(
+                        key,
+                        b"larenor:evcc-battery-bindings:v1:audit",
+                        hashlib.sha256,
+                    ).digest(),
+                    clock=settings.clock,
+                    services=self.services,
+                    binding_resolver=evcc_binding,
+                )
+                self.evcc_battery_bindings.validate_storage()
                 self.evcc_current_control = EvccCurrentControl(
                     self.db,
                     audit_key=hmac.new(
@@ -956,8 +963,22 @@ class CoreServices:
                     evcc_binding,
                     clock=settings.clock,
                     energy_windows=self.evcc_energy_windows,
+                    battery_bindings=self.evcc_battery_bindings,
                     control_authority=self.evcc_current_control,
                 )
+            energy_priority_provider = self._energy_priority_provider
+            if energy_priority_provider is None and evcc_runtime is not None:
+                energy_priority_provider = evcc_runtime.energy_priorities
+            self.energy_priorities = EnergyPriorityService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                self.context,
+                energy_priority_provider,
+                self._energy_priority_inverter_worker,
+                self._energy_priority_inverter_capability,
+            )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(
                     self.db,

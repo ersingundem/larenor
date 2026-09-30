@@ -102,6 +102,9 @@ def accept_energy_windows(
                     item.tariffMicrosPerKwh,
                     item.solarSurplusW,
                     item.homeBudgetW,
+                    item.solarEnergyWh,
+                    item.loadEnergyWh,
+                    item.exportTariffMicrosPerKwh,
                 )
                 for item in body.slots
             ),

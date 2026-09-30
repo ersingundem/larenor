@@ -34,6 +34,11 @@ class AcceptedEnergyWindowSlot(FrozenModel):
     tariffMicrosPerKwh: int = Field(ge=-10_000_000, le=10_000_000)
     solarSurplusW: int = Field(ge=0, le=100_000)
     homeBudgetW: int = Field(ge=0, le=100_000)
+    solarEnergyWh: int | None = Field(default=None, ge=0, le=10**9)
+    loadEnergyWh: int | None = Field(default=None, ge=0, le=10**9)
+    exportTariffMicrosPerKwh: int | None = Field(
+        default=None, ge=-10_000_000, le=10_000_000
+    )
 
 
 class AcceptEnergyWindows(FrozenModel):

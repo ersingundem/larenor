@@ -46,7 +46,7 @@ class EnergyPriorityService:
         if (core_id, home_id) != (self.context.coreId, self.context.homeId):
             raise ApiError("not_found", 404)
 
-    def _authority(self, actor):
+    def _authority(self, actor, capability=None):
         with self.db.connection() as connection:
             self.auth.assert_current(connection, actor)
             row = connection.execute(
@@ -55,6 +55,7 @@ class EnergyPriorityService:
             ).fetchone()
         if row is None or row["disabled"] or row["must_change_password"]:
             raise ApiError("forbidden", 403)
+        selected = self.inverter if capability is None else capability
         authority = EnergyAuthority(
             schemaVersion=1,
             coreId=self.context.coreId,
@@ -70,8 +71,8 @@ class EnergyPriorityService:
             canControl=(
                 row["role"] == "admin"
                 and self.worker is not None
-                and self.inverter is not None
-                and self.inverter.writable
+                and selected is not None
+                and selected.writable
             ),
         )
         with self._lock:
@@ -86,15 +87,25 @@ class EnergyPriorityService:
         with self._lock:
             return self._plans.get(plan_id)
 
-    def _inputs(self, authority):
+    def _provider_snapshot(self, authority):
         if self.provider is None:
             raise ApiError("energy_provider_unavailable", 503)
         try:
-            inputs = EnergyInputs.model_validate(self.provider(authority))
+            method = getattr(self.provider, "snapshot", None)
+            if callable(method):
+                raw_inputs, raw_capability = method(authority)
+                capability = InverterCapability.model_validate(raw_capability)
+            else:
+                raw_inputs = self.provider(authority)
+                capability = self.inverter
+            inputs = EnergyInputs.model_validate(raw_inputs)
         except ApiError:
             raise
         except Exception:  # noqa: BLE001 -- provider failures are redacted
             raise ApiError("energy_provider_unavailable", 503) from None
+        return inputs, capability
+
+    def _inputs(self, authority, inputs):
         now = int(self.settings.clock() * 1000)
         forecast_slot_ms = inputs.forecast.slotDurationSeconds * 1_000
         forecast_end_ms = (
@@ -119,7 +130,9 @@ class EnergyPriorityService:
     def snapshot(self, actor, core_id, home_id):
         self._scope(core_id, home_id)
         authority = self._authority(actor)
-        inputs = self._inputs(authority)
+        inputs, capability = self._provider_snapshot(authority)
+        authority = self._authority(actor, capability)
+        inputs = self._inputs(authority, inputs)
         planner = EnergyPlanner(
             authorityResolver=lambda account: (
                 authority if account == authority.accountId else None
@@ -132,7 +145,6 @@ class EnergyPriorityService:
         plan = planner.plan(authority, inputs)
         with self._lock:
             self._plans = {plan.planId: plan}
-        capability = self.inverter
         if capability is not None and not authority.canControl:
             capability = capability.model_copy(update={"writable": False})
         return EnergyPrioritySnapshot(

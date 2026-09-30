@@ -15,6 +15,7 @@ import json
 import math
 import re
 import threading
+from types import SimpleNamespace
 from typing import Protocol
 
 from ..ev_charging.runtime import (
@@ -23,6 +24,15 @@ from ..ev_charging.runtime import (
     ChargeProviderSnapshot,
 )
 from ..ev_charging.service import ChargeAuthority, EnergyInputs
+from ..energy_priorities.models import (
+    BatteryInput as PriorityBatteryInput,
+    EnergyInputs as PriorityEnergyInputs,
+    InverterCapability,
+    MeterInput as PriorityMeterInput,
+    ReservePolicy,
+    SolarForecastInput,
+    TariffInput,
+)
 from ..power_budget.service import (
     BudgetAuthority,
     BudgetInputs,
@@ -127,6 +137,27 @@ class EvccLoadpoint:
 
 
 @dataclass(frozen=True)
+class EvccBatteryDevice:
+    name: str
+    revision: int
+    power_w: int
+    capacity_wh: int
+    soc_percent: int
+    controllable: bool
+
+
+@dataclass(frozen=True)
+class EvccBatteryState:
+    revision: int
+    catalog_revision: int
+    power_w: int
+    capacity_wh: int
+    soc_percent: int
+    priority_soc_percent: int
+    devices: tuple[EvccBatteryDevice, ...]
+
+
+@dataclass(frozen=True)
 class EvccObservation:
     service_id: str
     service_revision: int
@@ -138,11 +169,13 @@ class EvccObservation:
     load_registry_revision: int
     grid_limit_revision: int
     grid_import_w: int
+    grid_export_w: int
     physical_grid_limit_w: int
     grid_limit_w: int
     tariff_micros_per_kwh: int
     currency: str
     loadpoints: tuple[EvccLoadpoint, ...]
+    battery: EvccBatteryState | None
 
 
 @dataclass(frozen=True)
@@ -401,6 +434,82 @@ class EvccHttpReader:
             )
         return tuple(result)
 
+    @staticmethod
+    def _battery(state):
+        raw = state.get("battery")
+        if raw is None:
+            return None
+        if type(raw) is not dict:
+            raise EvccProviderError("provider_protocol_changed")
+        devices = raw.get("devices")
+        if type(devices) is not list or not 1 <= len(devices) <= 16:
+            raise EvccProviderError("provider_protocol_changed")
+        result = []
+        for item in devices:
+            if type(item) is not dict:
+                raise EvccProviderError("provider_protocol_changed")
+            name = _text(item.get("name"), pattern=_IDENTIFIER)
+            power = round(_number(item.get("power"), minimum=-100_000, maximum=100_000))
+            capacity_kwh = _number(item.get("capacity"), minimum=0.001, maximum=1_000)
+            soc = _number(item.get("soc"), minimum=0, maximum=100)
+            controllable = item.get("controllable")
+            if (
+                not (capacity_kwh * 1_000).is_integer()
+                or not soc.is_integer()
+                or type(controllable) is not bool
+            ):
+                raise EvccProviderError("provider_protocol_changed")
+            facts = {
+                "name": name,
+                "capacityWh": int(capacity_kwh * 1_000),
+                "controllable": controllable,
+            }
+            result.append(
+                EvccBatteryDevice(
+                    name,
+                    _revision(facts),
+                    power,
+                    int(capacity_kwh * 1_000),
+                    int(soc),
+                    controllable,
+                )
+            )
+        if len({item.name for item in result}) != len(result):
+            raise EvccProviderError("provider_protocol_changed")
+        power = round(_number(raw.get("power"), minimum=-100_000, maximum=100_000))
+        capacity_kwh = _number(raw.get("capacity"), minimum=0.001, maximum=1_000)
+        soc = _number(raw.get("soc"), minimum=0, maximum=100)
+        priority_soc = _number(state.get("prioritySoc"), minimum=0, maximum=100)
+        if (
+            not (capacity_kwh * 1_000).is_integer()
+            or not soc.is_integer()
+            or not priority_soc.is_integer()
+            or sum(item.capacity_wh for item in result) != int(capacity_kwh * 1_000)
+        ):
+            raise EvccProviderError("provider_protocol_changed")
+        catalog = [
+            {
+                "name": item.name,
+                "revision": item.revision,
+                "capacityWh": item.capacity_wh,
+                "controllable": item.controllable,
+            }
+            for item in result
+        ]
+        dynamic = {
+            "catalog": catalog,
+            "socPercent": int(soc),
+        }
+        return EvccBatteryState(
+            _revision(dynamic),
+            _revision(catalog),
+            power,
+            int(capacity_kwh * 1_000),
+            int(soc),
+            int(priority_soc),
+            tuple(result),
+        )
+
     def state(self, connection: EvccConnection) -> EvccObservation:
         if not isinstance(connection, EvccConnection):
             raise EvccProviderError("provider_binding_changed")
@@ -416,10 +525,12 @@ class EvccHttpReader:
             raise EvccProviderError("provider_protocol_changed")
         grid_power = _number(grid.get("power"))
         grid_import = max(0, round(grid_power))
+        grid_export = max(0, round(-grid_power))
         price = _number(state.get("tariffGrid"), minimum=-10, maximum=10)
         price_micros = round(price * 1_000_000)
         physical_limit, effective_limit = self._grid_limit(state)
         loads = self._loadpoints(state)
+        battery = self._battery(state)
         if grid_import > 1_000_000 or any(
             load.charge_power_w > physical_limit for load in loads
         ):
@@ -436,6 +547,19 @@ class EvccHttpReader:
             "meter": meter_facts,
             "tariff": tariff_facts,
             "loads": load_facts,
+            "battery": (
+                None
+                if battery is None
+                else {
+                    "revision": battery.revision,
+                    "catalogRevision": battery.catalog_revision,
+                    "powerW": battery.power_w,
+                    "capacityWh": battery.capacity_wh,
+                    "socPercent": battery.soc_percent,
+                    "prioritySocPercent": battery.priority_soc_percent,
+                    "devices": [item.__dict__ for item in battery.devices],
+                }
+            ),
             "limit": limit_facts,
         }
         observed_at = self._clock()
@@ -457,11 +581,13 @@ class EvccHttpReader:
             _revision(load_facts),
             _revision(limit_facts),
             grid_import,
+            grid_export,
             physical_limit,
             effective_limit,
             price_micros,
             currency,
             loads,
+            battery,
         )
 
 
@@ -769,6 +895,146 @@ class EvccChargeProvider:
         )
 
 
+class EvccEnergyPriorityProvider:
+    """Live battery facts joined to separately accepted forecast and limits."""
+
+    def __init__(self, binding, cache, energy_windows, battery_bindings):
+        self._binding = binding
+        self._cache = cache
+        self._energy_windows = energy_windows
+        self._battery_bindings = battery_bindings
+
+    @staticmethod
+    def _resource(service_id, kind):
+        return hashlib.sha256(
+            f"evcc:{service_id}:{kind}".encode("ascii")
+        ).hexdigest()[:32]
+
+    def snapshot(self, authority):
+        self._binding.assert_current()
+        account_id = getattr(authority, "accountId", None)
+        family_id = getattr(authority, "sessionFamilyId", None)
+
+        actor = SimpleNamespace(id=account_id, family_id=family_id)
+        key = _actor_key(actor)
+        account_revision = self._binding.account_revision(actor)
+        if (
+            type(account_revision) is not int
+            or account_revision < 1
+            or getattr(authority, "coreId", None) != self._binding.core_id
+            or getattr(authority, "homeId", None) != self._binding.home_id
+            or getattr(authority, "accountRevision", None) != account_revision
+        ):
+            raise EvccProviderError("provider_binding_changed")
+        observation = self._cache.refresh(key)
+        battery = observation.battery
+        if battery is None:
+            raise EvccProviderError("provider_unavailable")
+        binding = self._battery_bindings.current(observation)
+        accepted_revision, windows = self._energy_windows.current(observation)
+        slots = windows.slots
+        if (
+            not 1 <= len(slots) <= 96
+            or any(
+                item.solar_energy_wh is None
+                or item.load_energy_wh is None
+                or item.export_tariff_micros_per_kwh is None
+                for item in slots
+            )
+        ):
+            raise EvccProviderError("provider_protocol_changed")
+        durations = {item.end_at - item.start_at for item in slots}
+        if (
+            len(durations) != 1
+            or next(iter(durations)) not in range(300, 3_601)
+            or any(
+                current.start_at != previous.end_at
+                for previous, current in zip(slots, slots[1:])
+            )
+        ):
+            raise EvccProviderError("provider_protocol_changed")
+        duration = int(next(iter(durations)))
+        captured_ms = round(observation.observed_at * 1_000)
+        generated_ms = round(windows.observed_at * 1_000)
+        starts_ms = round(slots[0].start_at * 1_000)
+        state_wh = round(battery.capacity_wh * battery.soc_percent / 100)
+        inputs = PriorityEnergyInputs(
+            schemaVersion=1,
+            coreId=self._binding.core_id,
+            homeId=self._binding.home_id,
+            homeRevision=self._binding.home_revision,
+            meter=PriorityMeterInput(
+                schemaVersion=1,
+                resourceId=self._resource(observation.service_id, "grid"),
+                revision=observation.meter_revision,
+                providerRevision=observation.meter_revision,
+                capturedAtMs=captured_ms,
+                gridImportPowerW=observation.grid_import_w,
+                gridExportPowerW=observation.grid_export_w,
+            ),
+            forecast=SolarForecastInput(
+                schemaVersion=1,
+                resourceId=self._resource(observation.service_id, "forecast"),
+                revision=accepted_revision,
+                providerRevision=windows.solar_revision,
+                generatedAtMs=generated_ms,
+                startsAtMs=starts_ms,
+                slotDurationSeconds=duration,
+                solarEnergyWh=[item.solar_energy_wh for item in slots],
+                loadEnergyWh=[item.load_energy_wh for item in slots],
+            ),
+            tariff=TariffInput(
+                schemaVersion=1,
+                resourceId=self._resource(observation.service_id, "tariff"),
+                revision=windows.tariff_revision,
+                startsAtMs=starts_ms,
+                slotDurationSeconds=duration,
+                importPriceMicrosPerKwh=[
+                    item.tariff_micros_per_kwh for item in slots
+                ],
+                exportPriceMicrosPerKwh=[
+                    item.export_tariff_micros_per_kwh for item in slots
+                ],
+            ),
+            battery=PriorityBatteryInput(
+                schemaVersion=1,
+                resourceId=self._resource(observation.service_id, "battery"),
+                revision=battery.revision,
+                providerRevision=battery.catalog_revision,
+                capturedAtMs=captured_ms,
+                capacityWh=battery.capacity_wh,
+                stateOfChargeWh=state_wh,
+                minimumSocWh=0,
+                maximumSocWh=battery.capacity_wh,
+                maxChargePowerW=binding.max_charge_power_w,
+                maxDischargePowerW=binding.max_discharge_power_w,
+            ),
+            reserve=ReservePolicy(
+                schemaVersion=1,
+                revision=binding.binding_revision,
+                backupReservePercent=binding.backup_reserve_percent,
+            ),
+            manualOverride=None,
+        )
+        controllable = all(item.controllable for item in battery.devices)
+        capability = InverterCapability(
+            schemaVersion=1,
+            inverterId=self._resource(observation.service_id, "inverter"),
+            revision=_revision(
+                {
+                    "serviceRevision": observation.service_revision,
+                    "catalogRevision": battery.catalog_revision,
+                    "bindingRevision": binding.binding_revision,
+                }
+            ),
+            canCharge=controllable,
+            canDischarge=controllable,
+            writable=False,
+            physicalAcceptance="manual",
+        )
+        return inputs, capability
+
+
 class EvccRuntimeProviders:
     """Composition seam used by Core once a private evcc connection is bound."""
 
@@ -778,6 +1044,7 @@ class EvccRuntimeProviders:
         *,
         clock,
         energy_windows: EnergyWindowSource | None = None,
+        battery_bindings=None,
         control_authority=None,
         transport_factory=None,
     ):
@@ -792,6 +1059,13 @@ class EvccRuntimeProviders:
             binding, cache, control_authority)
         self.ev_charging = EvccChargeProvider(
             binding, cache, energy_windows, control_authority
+        )
+        self.energy_priorities = (
+            None
+            if energy_windows is None or battery_bindings is None
+            else EvccEnergyPriorityProvider(
+                binding, cache, energy_windows, battery_bindings
+            )
         )
 
 
@@ -874,6 +1148,49 @@ class _ResolvedPowerBudgetProvider:
             authority, plan_hash=plan_hash, actions=actions)
 
 
+class _ResolvedEnergyPriorityProvider:
+    def __init__(self, owner):
+        self._owner = owner
+        self._lock = threading.RLock()
+        self._snapshots = OrderedDict()
+
+    def snapshot(self, authority):
+        runtime = self._owner._runtime()
+        if runtime is None or runtime.energy_priorities is None:
+            raise EvccProviderError("provider_unavailable")
+        inputs, capability = runtime.energy_priorities.snapshot(authority)
+        with self._lock:
+            old = self._snapshots.get(authority)
+            if old is not None:
+                prior_inputs, prior_capability = old
+                if (
+                    0
+                    <= inputs.meter.capturedAtMs - prior_inputs.meter.capturedAtMs
+                    < 60_000
+                ):
+                    stable = inputs.model_copy(
+                        update={
+                            "meter": inputs.meter.model_copy(
+                                update={
+                                    "capturedAtMs": prior_inputs.meter.capturedAtMs
+                                }
+                            ),
+                            "battery": inputs.battery.model_copy(
+                                update={
+                                    "capturedAtMs": prior_inputs.battery.capturedAtMs
+                                }
+                            ),
+                        }
+                    )
+                    if stable == prior_inputs and capability == prior_capability:
+                        inputs, capability = old
+            self._snapshots[authority] = (inputs, capability)
+            self._snapshots.move_to_end(authority)
+            while len(self._snapshots) > _CACHE_SIZE:
+                self._snapshots.popitem(last=False)
+        return inputs, capability
+
+
 class EvccRuntimeResolver:
     """Resolve one immutable evcc binding at each request boundary.
 
@@ -888,6 +1205,7 @@ class EvccRuntimeResolver:
         *,
         clock,
         energy_windows: EnergyWindowSource | None = None,
+        battery_bindings=None,
         control_authority=None,
         transport_factory=None,
     ):
@@ -896,10 +1214,12 @@ class EvccRuntimeResolver:
         self._binding_resolver = binding_resolver
         self._clock = clock
         self._energy_windows = energy_windows
+        self._battery_bindings = battery_bindings
         self._control_authority = control_authority
         self._transport_factory = transport_factory
         self.ev_charging = _ResolvedChargeProvider(self)
         self.power_budget = _ResolvedPowerBudgetProvider(self)
+        self.energy_priorities = _ResolvedEnergyPriorityProvider(self)
 
     def _runtime(self):
         binding = self._binding_resolver()
@@ -911,6 +1231,7 @@ class EvccRuntimeResolver:
             binding,
             clock=self._clock,
             energy_windows=self._energy_windows,
+            battery_bindings=self._battery_bindings,
             control_authority=self._control_authority,
             transport_factory=self._transport_factory,
         )

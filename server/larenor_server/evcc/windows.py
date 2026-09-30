@@ -61,6 +61,9 @@ class AcceptedWindowSlot:
     tariff_micros_per_kwh: int
     solar_surplus_w: int
     home_budget_w: int
+    solar_energy_wh: int | None = None
+    load_energy_wh: int | None = None
+    export_tariff_micros_per_kwh: int | None = None
 
 
 @dataclass(frozen=True)
@@ -132,6 +135,21 @@ class EvccEnergyWindowStore:
                 or not 0 <= slot.solar_surplus_w <= 100_000
                 or type(slot.home_budget_w) is not int
                 or not 0 <= slot.home_budget_w <= 100_000
+                or (slot.solar_energy_wh is None) != (slot.load_energy_wh is None)
+                or slot.solar_energy_wh is not None
+                and (
+                    type(slot.solar_energy_wh) is not int
+                    or not 0 <= slot.solar_energy_wh <= 10**9
+                    or type(slot.load_energy_wh) is not int
+                    or not 0 <= slot.load_energy_wh <= 10**9
+                )
+                or slot.export_tariff_micros_per_kwh is not None
+                and (
+                    type(slot.export_tariff_micros_per_kwh) is not int
+                    or not -10_000_000
+                    <= slot.export_tariff_micros_per_kwh
+                    <= 10_000_000
+                )
             ):
                 raise ApiError("invalid_request")
             previous_end = slot.end_at
@@ -279,17 +297,7 @@ class EvccEnergyWindowStore:
         }
 
     def projection(self, observation: EvccObservation) -> EvccEnergyProjection:
-        now = self._clock()
-        with self.database.connection() as connection:
-            row = connection.execute(
-                "SELECT * FROM evcc_energy_windows WHERE service_id=?",
-                (observation.service_id,),
-            ).fetchone()
-        if row is None or row["service_revision"] != observation.service_revision:
-            raise ApiError("energy_provider_unavailable", 503)
-        value = self._decode(row)
-        if now >= value.expires_at or now - value.observed_at > 300:
-            raise ApiError("energy_provider_unavailable", 503)
+        revision, value = self.current(observation)
         inputs = EnergyInputs(
             tariff_revision=value.tariff_revision,
             solar_revision=value.solar_revision,
@@ -317,7 +325,23 @@ class EvccEnergyWindowStore:
             ),
             manual_override=None,
         )
-        return EvccEnergyProjection(row["accepted_revision"], inputs)
+        return EvccEnergyProjection(revision, inputs)
+
+    def current(
+        self, observation: EvccObservation
+    ) -> tuple[int, AcceptedEnergyWindows]:
+        now = self._clock()
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM evcc_energy_windows WHERE service_id=?",
+                (observation.service_id,),
+            ).fetchone()
+        if row is None or row["service_revision"] != observation.service_revision:
+            raise ApiError("energy_provider_unavailable", 503)
+        value = self._decode(row)
+        if now >= value.expires_at or now - value.observed_at > 300:
+            raise ApiError("energy_provider_unavailable", 503)
+        return row["accepted_revision"], value
 
     def is_single_current_window(
         self, observation: EvccObservation, schedule_revision: int

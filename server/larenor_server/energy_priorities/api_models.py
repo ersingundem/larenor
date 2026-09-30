@@ -29,3 +29,13 @@ class PreviewEnergyCommand(FrozenModel):
 class ConfirmEnergyCommand(FrozenModel):
     schemaVersion: Literal[1]
     confirmationToken: Snapshot
+
+
+class AcceptEvccBatteryBinding(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedServiceRevision: Revision
+    expectedBindingRevision: int = Field(ge=0, le=2**63 - 1)
+    expectedBatteryCatalogRevision: Revision
+    backupReservePercent: int = Field(ge=0, le=100)
+    maxChargePowerW: int = Field(ge=1, le=1_000_000)
+    maxDischargePowerW: int = Field(ge=1, le=1_000_000)
