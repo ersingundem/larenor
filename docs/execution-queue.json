@@ -3838,7 +3838,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Yetkili MCP kapısı",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3863,7 +3863,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yetkili araç/grant uygulaması ve focused Core kabulü mevcut; FINAL.FUNCTION gerçek MCP protokol incelemesi initialized notification / HTTP Origin / protokol sürümü sınırında açık buldu. Bu gerçek lifecycle/transport bağlantısı düzeltiliyor. Tamamlanana kadar CI bekliyor grubunda gösterilmez; sayaç değişmedi."
+      "reason": "Uygulama ve odaklı gerçek protokol kabulü tamamlandı; geniş exact HEAD CI bekleniyor. 20 normal Core/boundary testi, 51 admin/context regresyonu ve official MCP Python SDK 2.2.0 ile gerçek Uvicorn TCP initialize→initialized→tools/list→live revoke geçti. Bounded sürüm uzlaşması ve standard _meta gerçek SDK hatasını düzeltti; docs/testing/f12-mcp-streamable-http-2026-09-30.md. Preconfigured bearer/client-header yolu desteklenir; OAuth discovery uyumu iddia edilmez. Kabul sayaçları değişmedi."
     },
     {
       "id": "F14",

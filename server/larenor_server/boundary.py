@@ -19,6 +19,12 @@ def _unique_object(pairs):
     return value
 
 
+def _mcp_endpoint(path):
+    return re.fullmatch(
+        r"/api/v1/mcp-gateway/[0-9a-f]{32}/[0-9a-f]{32}/mcp", path
+    ) is not None
+
+
 class SafeBoundaryMiddleware:
     def __init__(self, app):
         self.app = app
@@ -102,6 +108,16 @@ class SafeBoundaryMiddleware:
                                          parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
                     validate_json_bounds(decoded)
                 except (ValueError, UnicodeError, RecursionError):
+                    if method == "POST" and _mcp_endpoint(scope["path"]):
+                        await JSONResponse(
+                            {
+                                "jsonrpc": "2.0",
+                                "id": None,
+                                "error": {"code": -32700, "message": "Parse error"},
+                            },
+                            status_code=400,
+                        )(scope, receive, safe_send)
+                        return
                     raise ApiError("invalid_request") from None
             delivered = False
 

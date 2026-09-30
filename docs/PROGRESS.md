@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 36 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11 limit sözleşmesi ve F12 gerçek MCP lifecycle/transport sınırı geliştirmede. F08/host Linux koşularındaki gerçek başlangıç hataları ayrıca çözülüyor; bu koşular yeşil sayılmaz. Diğer test/review eksikleri ayrı tabloda. Actual Linux UID/systemd/cgroup ve exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 37 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 gerçek MCP lifecycle/transport kabulü geçti; F11 CPU/bellek izolasyonu geliştirmede. F08/host Linux koşularındaki gerçek başlangıç hataları ayrıca çözülüyor; bu koşular yeşil sayılmaz. Diğer test/review eksikleri ayrı tabloda. Actual Linux UID/systemd/cgroup ve exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F12 gerçek SDK kabulü ve CI bekleyen kuyruk
+
+20 odaklı Server/boundary, 51 admin/context ve official Python MCP SDK 2.2.0 gerçek Uvicorn TCP kapısı geçti; root 20 testi ve SDK kabulünü bağımsız tekrar doğruladı. Gerçek SDK ile bulunan yeni sürüm offer/_meta hatası düzeltildi. F12 CI bekliyor grubuna geçti; 37 özellik geniş CI bekliyor, yalnız F11 aktif. 37/127 ve 3/63 kabul sayaçları değişmedi. Custom bearer/client-header yolu desteklenir; OAuth credential discovery iddiası yoktur. [Adlandırılmış kanıt](testing/f12-mcp-streamable-http-2026-09-30.md), [63 özellik üretim yolu matrisi](testing/final-function-feature-matrix-2026-09-30.md).
 
 ### 30 Eylül Keenetic gerçek RCI revizyon ve WAN kanıtı
 

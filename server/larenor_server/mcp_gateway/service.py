@@ -16,6 +16,7 @@ from .models import (
     CreateGrant,
     EmptyParams,
     InitializeParams,
+    McpInitializedNotification,
     McpRequest,
     PreviewNoteArguments,
     ReadArguments,
@@ -281,6 +282,14 @@ class McpGatewayService:
     def _content(value):
         return {"content": [{"type": "text", "text": json.dumps(value, separators=(",", ":"))}], "structuredContent": value}
 
+    @staticmethod
+    def protocol_error(request_id, code, message):
+        return {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {"code": code, "message": message},
+        }
+
     def _preview_note(self, connection, grant, arguments):
         body = PreviewNoteArguments.model_validate(arguments)
         existing = connection.execute(
@@ -350,7 +359,7 @@ class McpGatewayService:
         try:
             body = McpRequest.model_validate(value)
         except ValidationError:
-            raise ApiError("invalid_mcp_request") from None
+            return self.protocol_error(None, -32600, "Invalid Request")
         self.auth.rate_limit([("mcp_client", client_id, 240), ("mcp_global", "all", 2000)])
         try:
             with self.db.transaction() as connection:
@@ -370,7 +379,7 @@ class McpGatewayService:
                 elif body.method == "tools/list":
                     EmptyParams.model_validate(body.params)
                     result = {"tools": [TOOLS[name] for name in tools]}
-                else:
+                elif body.method == "tools/call":
                     call = ToolCallParams.model_validate(body.params)
                     if call.name not in tools:
                         raise ApiError("mcp_tool_forbidden", 403)
@@ -388,7 +397,17 @@ class McpGatewayService:
                     elif call.arguments.get("phase") == "confirm":
                         result = self._confirm_note(connection, grant, call.arguments)
                     else:
-                        raise ApiError("invalid_mcp_request")
+                        return self.protocol_error(body.id, -32602, "Invalid params")
+                else:
+                    return self.protocol_error(body.id, -32601, "Method not found")
         except ValidationError:
-            raise ApiError("invalid_mcp_request") from None
+            return self.protocol_error(body.id, -32602, "Invalid params")
         return {"jsonrpc": "2.0", "id": body.id, "result": result}
+
+    def accept_initialized(self, token, client_id, core_id, home_id, value):
+        if type(value) is not McpInitializedNotification:
+            McpInitializedNotification.model_validate(value)
+        self.auth.rate_limit([("mcp_client", client_id, 240), ("mcp_global", "all", 2000)])
+        with self.db.transaction() as connection:
+            self._validate(connection)
+            self._authority(connection, token, client_id, core_id, home_id)

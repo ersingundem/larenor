@@ -1,4 +1,5 @@
 import math
+from datetime import date
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -55,13 +56,34 @@ class RevokeGrant(Versioned):
 
 
 class InitializeParams(FrozenModel):
-    protocolVersion: Literal["2025-06-18"]
+    protocolVersion: Annotated[
+        str,
+        Field(min_length=10, max_length=10, pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"),
+    ]
     capabilities: dict = Field(default_factory=dict, max_length=16)
     clientInfo: dict = Field(default_factory=dict, max_length=8)
+    meta: dict = Field(default_factory=dict, alias="_meta", max_length=16)
+
+    @field_validator("protocolVersion")
+    @classmethod
+    def bounded_protocol_offer(cls, value):
+        try:
+            offered = date.fromisoformat(value)
+        except ValueError:
+            raise ValueError("invalid_protocol_version") from None
+        if offered < date(2024, 1, 1):
+            raise ValueError("invalid_protocol_version")
+        return value
 
 
 class EmptyParams(FrozenModel):
-    pass
+    meta: dict = Field(default_factory=dict, alias="_meta", max_length=16)
+
+
+class McpInitializedNotification(FrozenModel):
+    jsonrpc: Literal["2.0"]
+    method: Literal["notifications/initialized"]
+    params: EmptyParams = Field(default_factory=EmptyParams)
 
 
 class ReadArguments(FrozenModel):
@@ -91,12 +113,13 @@ class ConfirmNoteArguments(FrozenModel):
 class ToolCallParams(FrozenModel):
     name: ToolId
     arguments: dict = Field(default_factory=dict, max_length=8)
+    meta: dict = Field(default_factory=dict, alias="_meta", max_length=16)
 
 
 class McpRequest(FrozenModel):
     jsonrpc: Literal["2.0"]
     id: int | str
-    method: Literal["initialize", "ping", "tools/list", "tools/call"]
+    method: Annotated[str, Field(min_length=1, max_length=128)]
     params: dict = Field(default_factory=dict, max_length=16)
 
     @field_validator("id")
@@ -107,4 +130,11 @@ class McpRequest(FrozenModel):
                 raise ValueError("invalid_id")
         elif not 1 <= len(value) <= 128:
             raise ValueError("invalid_id")
+        return value
+
+    @field_validator("method")
+    @classmethod
+    def bounded_method(cls, value):
+        if any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ValueError("invalid_method")
         return value
