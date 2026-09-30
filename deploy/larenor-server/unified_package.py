@@ -23,6 +23,44 @@ CONTAINER_ID = re.compile(r"[a-f0-9]{64}\Z")
 FORBIDDEN_KEY = re.compile(r"token|api.?key|password|credential|authorization|secret.?value", re.I)
 MAX_CONFIG_BYTES = 512 * 1024
 
+_HOST_WORKER_ENVIRONMENT = {
+    "LARENOR_PLUGIN_WORKER_SOCKET": "/data/host-workers/ipc/root/preflight.sock",
+    "LARENOR_PLUGIN_WORKER_UID": "0",
+    "LARENOR_INSTALLATION_WORKER_SOCKET": "/data/host-workers/ipc/root/installation.sock",
+    "LARENOR_INSTALLATION_WORKER_UID": "0",
+    "LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-read.sock",
+    "LARENOR_MEDIA_ARCHIVE_WORKER_UID": "1000",
+    "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-action.sock",
+    "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID": "1000",
+    "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET": "/data/host-workers/ipc/core/archive-authority.sock",
+    "LARENOR_MEDIA_ARCHIVE_SOCKET_GID": "10002",
+}
+_HOST_WORKER_PORTS = {
+    "larenor-jellyfin": ["127.0.0.1:8096:8096"],
+    "larenor-sonarr": ["127.0.0.1:8989:8989"],
+    "larenor-radarr": ["127.0.0.1:7878:7878"],
+    "larenor-qbittorrent": ["127.0.0.1:8080:8080"],
+}
+
+
+def _host_worker_runtime(service):
+    environment = service.get("environment", {})
+    present = service.get("group_add") is not None or any(
+        key in environment for key in _HOST_WORKER_ENVIRONMENT)
+    if not present:
+        return None
+    if (service.get("group_add") != ["10002"]
+            or environment != _HOST_WORKER_ENVIRONMENT):
+        raise PackageError("config_identity_changed")
+    return {
+        "ipcGid": 10002,
+        "preflightOwnerUid": 0,
+        "installationOwnerUid": 0,
+        "archiveOwnerUid": 1000,
+        "coreOwnerUid": 10001,
+        "ipcMount": "/data/host-workers/ipc",
+    }
+
 
 class PackageError(ValueError):
     """Static error codes only; adapter errors and private values stay internal."""
@@ -259,6 +297,11 @@ class UnifiedPackagePlanner:
         core_mounts = _mounts(core)
         if core_mounts != _mounts(expected_core) or _tmpfs(core) != _tmpfs(expected_core):
             raise PackageError("config_identity_changed")
+        host_workers = _host_worker_runtime(core)
+        if host_workers is not None:
+            if any(services[name].get("ports") != wanted
+                   for name, wanted in _HOST_WORKER_PORTS.items()):
+                raise PackageError("config_identity_changed")
         core_projection = {
             "containerName": CORE_NAME,
             "image": core["image"],
@@ -369,6 +412,11 @@ class UnifiedPackagePlanner:
             "user": services[CORE_NAME]["user"],
             "mounts": _mounts(services[CORE_NAME]),
         }
+        host_workers = _host_worker_runtime(services[CORE_NAME])
+        if host_workers is not None:
+            if any(services[name].get("ports") != wanted
+                   for name, wanted in _HOST_WORKER_PORTS.items()):
+                raise PackageError("manifest_invalid")
         wanted_components = []
         for service_id in COMPONENTS:
             name = SERVICE_NAMES[service_id]

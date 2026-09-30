@@ -123,6 +123,32 @@ def test_uid_private_roundtrip_carries_exact_authority_and_safe_observation(runt
     assert 'credential' not in repr(collector.calls[0]).lower()
 
 
+def test_private_group_socket_keeps_exact_peer_uid_authority(runtime_path):
+    runtime_path.parent.chmod(0o770)
+    os.chown(runtime_path.parent, -1, os.getgid())
+    collector = Collector()
+    server = MediaArchiveWorkerServer(
+        runtime_path, collector, allowed_uid=os.getuid(),
+        peer_uid=lambda _connection: os.getuid(), socket_gid=os.getgid(),
+        timeout=.5,
+    )
+    server.start()
+    try:
+        info = runtime_path.stat()
+        assert (info.st_uid, info.st_gid, info.st_mode & 0o777) == (
+            os.getuid(), os.getgid(), 0o660)
+        client = MediaArchiveWorkerClient(
+            runtime_path, owner_uid=os.getuid(),
+            peer_uid=lambda _connection: os.getuid(), timeout=.5,
+        )
+        assert client.status()['state'] == 'ready'
+        server.peer_uid = lambda _connection: os.getuid() + 1
+        with pytest.raises(MediaArchiveWorkerError, match='worker_unavailable'):
+            client.status()
+    finally:
+        server.close()
+
+
 def test_core_read_uses_one_private_ipc_roundtrip(server, runtime_path):
     pair, _installation, _current, _reader, prepared, body = configured(server)
     collector = Collector(prepared.result)

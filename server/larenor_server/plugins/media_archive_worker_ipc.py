@@ -126,7 +126,8 @@ def _socket_identity(path, owner_uid):
     except OSError:
         raise MediaArchiveWorkerError() from None
     if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != owner_uid
-            or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+            or stat.S_IMODE(info.st_mode) not in {0o600, 0o660}
+            or info.st_nlink != 1):
         raise MediaArchiveWorkerError()
     return info.st_dev, info.st_ino
 
@@ -245,8 +246,10 @@ class MediaArchiveWorkerServer:
     """A single-flight supervised worker with an unavailable default effect."""
 
     def __init__(self, path, collector, *, allowed_uid, peer_uid=None,
-                 timeout=5):
+                 socket_gid=None, timeout=5):
         if (type(allowed_uid) is not int or allowed_uid < 0
+                or socket_gid is not None
+                and (type(socket_gid) is not int or not 0 <= socket_gid < 2**31)
                 or type(timeout) not in (int, float) or type(timeout) is bool
                 or not 0 < timeout <= 5):
             raise MediaArchiveWorkerError()
@@ -254,6 +257,7 @@ class MediaArchiveWorkerServer:
         self.collector = collector
         self.allowed_uid = allowed_uid
         self.peer_uid = peer_uid or _peer_uid
+        self.socket_gid = socket_gid
         self.timeout = timeout
         self._listener = None
         self._thread = None
@@ -278,13 +282,22 @@ class MediaArchiveWorkerServer:
             raise MediaArchiveWorkerError()
         try:
             parent = self.path.parent.lstat()
-            if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid()
+            private_parent = (
+                parent.st_uid == os.getuid() and parent.st_mode & 0o077 == 0
+                if self.socket_gid is None else
+                parent.st_gid == self.socket_gid and parent.st_mode & 0o007 == 0
+                and (os.geteuid() == 0 or self.socket_gid in os.getgroups()
+                     or os.getegid() == self.socket_gid)
+            )
+            if (not stat.S_ISDIR(parent.st_mode) or not private_parent
                     or self.path.exists() or self.path.is_symlink()):
                 raise MediaArchiveWorkerError()
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self._listener = listener
             listener.bind(str(self.path))
-            os.chmod(self.path, 0o600)
+            if self.socket_gid is not None:
+                os.chown(self.path, -1, self.socket_gid)
+            os.chmod(self.path, 0o660 if self.socket_gid is not None else 0o600)
             self._identity = _socket_identity(self.path, os.getuid())
             listener.listen(4)
             listener.settimeout(.1)

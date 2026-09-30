@@ -207,6 +207,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
                     settings.media_archive_authority_socket,
                     provider,
                     allowed_uid=settings.media_archive_action_worker_uid,
+                    socket_gid=settings.media_archive_socket_gid,
                 )
                 authority_server.start()
             except MediaArchiveWorkerError:

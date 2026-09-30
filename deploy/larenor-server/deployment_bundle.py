@@ -429,6 +429,15 @@ class DeploymentBundlePlanner:
     def _configured_compose(self, canonical, settings, port):
         value = copy.deepcopy(canonical)
         root = settings["LARENOR_DATA_ROOT"]
+        host_worker_ports = {
+            "larenor-jellyfin": ["127.0.0.1:8096:8096"],
+            "larenor-sonarr": ["127.0.0.1:8989:8989"],
+            "larenor-radarr": ["127.0.0.1:7878:7878"],
+            "larenor-qbittorrent": ["127.0.0.1:8080:8080"],
+        }
+        worker_ports_present = any(
+            canonical["services"].get(name, {}).get("ports") is not None
+            for name in host_worker_ports)
         for name, service in value["services"].items():
             environment = service.setdefault("environment", {})
             environment["TZ"] = settings["LARENOR_TIMEZONE"]
@@ -442,7 +451,8 @@ class DeploymentBundlePlanner:
             if name == "larenor-core":
                 service["ports"] = [str(port) + ":8098"]
                 service.pop("build", None)
-            elif "ports" in service:
+            elif service.get("ports", []) != (
+                    host_worker_ports.get(name, []) if worker_ports_present else []):
                 raise BundleError("bundle_canonical_invalid")
             if service.get("network_mode") == "host" and name != "larenor-music-assistant":
                 raise BundleError("bundle_canonical_invalid")

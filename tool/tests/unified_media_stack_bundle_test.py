@@ -116,10 +116,22 @@ class UnifiedMediaStackBundleTest(unittest.TestCase):
                 "ghcr.io/ersingundem/larenor-server:sha-" + REVISION,
             )
             for name, service in compose["services"].items():
-                if name != "larenor-core":
+                if name not in {
+                    "larenor-core", "larenor-jellyfin", "larenor-sonarr",
+                    "larenor-radarr", "larenor-qbittorrent",
+                }:
                     self.assertNotIn("ports", service)
                 if service.get("network_mode") == "host":
                     self.assertEqual(name, "larenor-music-assistant")
+            self.assertEqual({name: compose["services"][name]["ports"] for name in (
+                "larenor-jellyfin", "larenor-sonarr", "larenor-radarr",
+                "larenor-qbittorrent",
+            )}, {
+                "larenor-jellyfin": ["127.0.0.1:8096:8096"],
+                "larenor-sonarr": ["127.0.0.1:8989:8989"],
+                "larenor-radarr": ["127.0.0.1:7878:7878"],
+                "larenor-qbittorrent": ["127.0.0.1:8080:8080"],
+            })
             for name in ("larenor-sonarr", "larenor-radarr", "larenor-qbittorrent"):
                 self.assertEqual(compose["services"][name]["tmpfs"], [
                     "/run:rw,nosuid,nodev,exec,size=64m,uid=1000,gid=1000,mode=1777",

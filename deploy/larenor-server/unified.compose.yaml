@@ -12,6 +12,9 @@
       "image": "ghcr.io/ersingundem/larenor-server:sha-${LARENOR_SOURCE_REVISION}",
       "container_name": "larenor-core",
       "user": "10001:10001",
+      "group_add": [
+        "10002"
+      ],
       "restart": "unless-stopped",
       "cap_drop": [
         "ALL"
@@ -25,6 +28,18 @@
       "extra_hosts": [
         "host.docker.internal:host-gateway"
       ],
+      "environment": {
+        "LARENOR_PLUGIN_WORKER_SOCKET": "/data/host-workers/ipc/root/preflight.sock",
+        "LARENOR_PLUGIN_WORKER_UID": "0",
+        "LARENOR_INSTALLATION_WORKER_SOCKET": "/data/host-workers/ipc/root/installation.sock",
+        "LARENOR_INSTALLATION_WORKER_UID": "0",
+        "LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-read.sock",
+        "LARENOR_MEDIA_ARCHIVE_WORKER_UID": "1000",
+        "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-action.sock",
+        "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_UID": "1000",
+        "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET": "/data/host-workers/ipc/core/archive-authority.sock",
+        "LARENOR_MEDIA_ARCHIVE_SOCKET_GID": "10002"
+      },
       "networks": {
         "control": {
           "aliases": [
@@ -67,6 +82,9 @@
       "image": "ghcr.io/jellyfin/jellyfin@sha256:45f648c382a0c8b552582fcea40e95cb17c5d475473a891cba0eb7523fb92112",
       "container_name": "larenor-jellyfin",
       "user": "1000:1000",
+      "ports": [
+        "127.0.0.1:8096:8096"
+      ],
       "restart": "unless-stopped",
       "cap_drop": [
         "ALL"
@@ -176,6 +194,9 @@
       "image": "ghcr.io/linuxserver/sonarr@sha256:4d9df314875e1249ab7d6170c2b9b3dc1d8e6383f168ceb10dc9a5ad9b324739",
       "container_name": "larenor-sonarr",
       "user": "1000:1000",
+      "ports": [
+        "127.0.0.1:8989:8989"
+      ],
       "restart": "unless-stopped",
       "cap_drop": [
         "ALL"
@@ -233,6 +254,9 @@
       "image": "ghcr.io/linuxserver/radarr@sha256:119aaa4a4f7349bcd2a136c5373a0d7925b5479915c7dfe0c0ad352db2a6d438",
       "container_name": "larenor-radarr",
       "user": "1000:1000",
+      "ports": [
+        "127.0.0.1:7878:7878"
+      ],
       "restart": "unless-stopped",
       "cap_drop": [
         "ALL"
@@ -290,6 +314,9 @@
       "image": "ghcr.io/linuxserver/qbittorrent@sha256:a00b6a597a3832a1814cde0ef60abc55c94644f3f80902c3432f6af6de8d4a96",
       "container_name": "larenor-qbittorrent",
       "user": "1000:1000",
+      "ports": [
+        "127.0.0.1:8080:8080"
+      ],
       "restart": "unless-stopped",
       "cap_drop": [
         "ALL"

@@ -88,6 +88,49 @@ def write_packet(connection, body, deadline):
         raise PreflightIPCError("invalid_request") from None
 
 
+def _shared_socket_directory(path, *, owner_uid, allowed_uid, socket_gid):
+    """Validate the one group bridge without weakening other worker paths."""
+    path = Path(path).absolute()
+    try:
+        for item in (*reversed(path.parents), path):
+            info = item.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                raise OSError()
+            if item != path:
+                owned = info.st_uid in {0, owner_uid, allowed_uid}
+                writable = info.st_mode & 0o022
+                sticky_root = info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+                if not owned or writable and not sticky_root:
+                    raise OSError()
+        info = path.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != owner_uid
+                or info.st_gid != socket_gid or info.st_mode & 0o007):
+            raise OSError()
+    except OSError:
+        raise PreflightIPCError() from None
+
+
+def _shared_worker_socket(path, *, owner_uid, caller_uid):
+    path = Path(path).absolute()
+    try:
+        for item in (*reversed(path.parents), path):
+            info = item.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                raise OSError()
+            if item != path:
+                owned = info.st_uid in {0, owner_uid, caller_uid}
+                writable = info.st_mode & 0o022
+                sticky_root = info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+                if not owned or writable and not sticky_root:
+                    raise OSError()
+        info = path.lstat()
+        if (not stat.S_ISSOCK(info.st_mode) or info.st_uid != owner_uid
+                or stat.S_IMODE(info.st_mode) != 0o660 or info.st_nlink != 1):
+            raise OSError()
+    except OSError:
+        raise PreflightIPCError() from None
+
+
 class PreflightWorkerClient:
     def __init__(self, path, *, owner_uid=0, peer_uid=None, timeout=5):
         if type(owner_uid) is not int or owner_uid < 0 or type(timeout) not in (int, float) or not 0 < timeout <= 5:
@@ -97,7 +140,14 @@ class PreflightWorkerClient:
 
     def _exchange(self, operation, plan=None):
         try:
-            _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
+            info = self.path.lstat()
+            if stat.S_IMODE(info.st_mode) == 0o660:
+                _shared_worker_socket(
+                    self.path, owner_uid=self.owner_uid,
+                    caller_uid=os.geteuid(),
+                )
+            else:
+                _safe_path(self.path, uid=self.owner_uid, kind=stat.S_ISSOCK)
             deadline = time.monotonic() + self.timeout
             request = {"protocol": 1, "requestId": uuid.uuid4().hex, "operation": operation}
             if plan is not None:
@@ -171,11 +221,24 @@ class PreflightWorkerServer:
         if self._listener is not None or self._lock is not None:
             raise PreflightIPCError()
         try:
-            _safe_path(self.path.parent, uid=os.getuid(), kind=stat.S_ISDIR)
+            if self.socket_gid is None:
+                _safe_path(self.path.parent, uid=os.getuid(), kind=stat.S_ISDIR)
+            else:
+                _shared_socket_directory(
+                    self.path.parent, owner_uid=os.getuid(),
+                    allowed_uid=self.allowed_uid, socket_gid=self.socket_gid,
+                )
             lock_path = self.path.parent / (self.path.name + ".lock")
             descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
             self._lock = descriptor
-            _safe_path(lock_path, uid=os.getuid(), kind=stat.S_ISREG, private=True)
+            if self.socket_gid is None:
+                _safe_path(lock_path, uid=os.getuid(), kind=stat.S_ISREG, private=True)
+            else:
+                lock = lock_path.lstat()
+                if (not stat.S_ISREG(lock.st_mode) or lock.st_uid != os.getuid()
+                        or stat.S_IMODE(lock.st_mode) != 0o600
+                        or lock.st_nlink != 1):
+                    raise PreflightIPCError()
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             # A matching UID is not worker ownership. A pre-existing endpoint
             # requires operator/runtime-directory recovery, never blind unlink.

@@ -1,0 +1,30 @@
+[Unit]
+Description=Larenor authenticated media archive worker
+After=larenor-unmanic.service
+Requires=larenor-unmanic.service
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/archive
+
+[Service]
+Type=simple
+User=1000
+Group=1000
+SupplementaryGroups=10002
+UMask=0007
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-media-archive-worker --config /etc/larenor-server/host-workers/archive/runtime.json --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-media-archive-worker --config /etc/larenor-server/host-workers/archive/runtime.json
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/larenor-server/core/data/host-workers/ipc /var/lib/larenor-server/host-workers/archive /var/lib/larenor-server/library
+
+[Install]
+WantedBy=multi-user.target

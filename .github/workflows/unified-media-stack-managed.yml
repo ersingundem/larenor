@@ -99,7 +99,7 @@
         },
         {
           "name": "Verify planner and native policy contracts",
-          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_bundle_test tool.tests.unified_media_stack_install_upgrade_acceptance_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test",
+          "run": "\"$UNIFIED_STACK_PYTHON\" -B -m unittest -v tool.tests.unified_media_stack_deployment_test tool.tests.unified_media_stack_runtime_test tool.tests.unified_media_stack_bundle_test tool.tests.unified_media_stack_install_upgrade_acceptance_test tool.tests.unified_media_stack_managed_ci_test tool.tests.unified_media_stack_managed_workflow_test tool.tests.unified_host_worker_package_test\n\"$RUNNER_TEMP/unified-stack-bootstrap/bin/uv\" sync --frozen --project server --python \"$UNIFIED_STACK_PYTHON\"\nsudo --non-interactive env -i PATH=/usr/bin:/bin PYTHONPATH=server CI=true GITHUB_ACTIONS=true RUNNER_ENVIRONMENT=github-hosted LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE=1 server/.venv/bin/python -m pytest -q server/tests/test_media_archive_linux_uid_ipc.py server/tests/test_host_worker_systemd_linux.py",
           "if": "needs.native-scope.outputs.run == 'true'"
         },
         {

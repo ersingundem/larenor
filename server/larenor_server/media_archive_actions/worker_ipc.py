@@ -115,15 +115,26 @@ def _peer_uid(stream):
         raise MediaArchiveActionWorkerError("peer_uid_unavailable") from None
 
 
-def _validate_socket_path(path, owner_uid, *, existing):
+def _validate_socket_path(path, owner_uid, *, existing, socket_gid=None):
     parent = os.path.dirname(os.path.abspath(path))
     parent_stat = os.stat(parent)
-    if (parent_stat.st_uid != owner_uid
-            or parent_stat.st_mode & 0o022):
+    if existing:
+        parent_valid = (parent_stat.st_uid in {0, owner_uid}
+                        and parent_stat.st_mode & 0o007 == 0)
+    elif socket_gid is None:
+        parent_valid = (parent_stat.st_uid == owner_uid
+                        and parent_stat.st_mode & 0o077 == 0)
+    else:
+        parent_valid = (parent_stat.st_gid == socket_gid
+                        and parent_stat.st_mode & 0o007 == 0
+                        and (os.geteuid() == 0 or socket_gid in os.getgroups()
+                             or os.getegid() == socket_gid))
+    if not parent_valid:
         raise MediaArchiveActionWorkerError("unsafe_socket_directory")
     if existing:
         info = os.stat(path, follow_symlinks=False)
-        if (info.st_uid != owner_uid or info.st_mode & 0o077
+        if (info.st_uid != owner_uid
+                or stat.S_IMODE(info.st_mode) not in {0o600, 0o660}
                 or not stat.S_ISSOCK(info.st_mode)):
             raise MediaArchiveActionWorkerError("unsafe_socket")
 
@@ -233,10 +244,15 @@ class MediaArchiveActionWorkerClient:
 
 
 class MediaArchiveActionWorkerServer:
-    def __init__(self, path, handler=None, *, owner_uid=None, peer_uid=None):
+    def __init__(self, path, handler=None, *, owner_uid=None, peer_uid=None,
+                 socket_gid=None):
         self.path = path
         self.owner_uid = os.geteuid() if owner_uid is None else owner_uid
         self.peer_uid = self.owner_uid if peer_uid is None else peer_uid
+        if (socket_gid is not None
+                and (type(socket_gid) is not int or not 0 <= socket_gid < 2**31)):
+            raise MediaArchiveActionWorkerError("unsafe_socket_directory")
+        self.socket_gid = socket_gid
         self.handler = handler or UnavailableMediaArchiveActionHandler()
         self._socket = None
         self._thread = None
@@ -251,14 +267,19 @@ class MediaArchiveActionWorkerServer:
     def start(self):
         if self._socket is not None:
             raise MediaArchiveActionWorkerError("already_started")
-        _validate_socket_path(self.path, self.owner_uid, existing=False)
+        _validate_socket_path(
+            self.path, self.owner_uid, existing=False,
+            socket_gid=self.socket_gid,
+        )
         if os.path.lexists(self.path):
             raise MediaArchiveActionWorkerError("socket_path_exists")
         stream = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         stream.bind(self.path)
         info = os.lstat(self.path)
         self._socket_identity = (info.st_dev, info.st_ino)
-        os.chmod(self.path, 0o600)
+        if self.socket_gid is not None:
+            os.chown(self.path, -1, self.socket_gid)
+        os.chmod(self.path, 0o660 if self.socket_gid is not None else 0o600)
         stream.listen(8)
         stream.settimeout(0.2)
         self._socket = stream

@@ -133,6 +133,8 @@ def test_core_lifespan_serves_only_live_archive_authority(tmp_path):
     root = tmp_path.resolve()
     with tempfile.TemporaryDirectory(prefix="la-", dir="/tmp") as socket_dir:
         authority_socket = Path(socket_dir) / "authority.sock"
+        Path(socket_dir).chmod(0o770)
+        os.chown(socket_dir, -1, os.getgid())
         settings = Settings(
             root / "data", root / "secrets/vault.key",
             media_archive_worker_socket=root / "read.sock",
@@ -140,6 +142,7 @@ def test_core_lifespan_serves_only_live_archive_authority(tmp_path):
             media_archive_action_worker_socket=root / "action.sock",
             media_archive_action_worker_uid=os.getuid(),
             media_archive_authority_socket=authority_socket,
+            media_archive_socket_gid=os.getgid(),
         )
         app = create_configured_app(settings)
         current = [archive_authority(), archive_authority(snapshot=5)]
@@ -151,6 +154,8 @@ def test_core_lifespan_serves_only_live_archive_authority(tmp_path):
         with TestClient(app):
             assert app.state.media_archive_authority_server is not None
             assert settings.media_archive_authority_socket.is_socket()
+            info = settings.media_archive_authority_socket.stat()
+            assert (info.st_gid, info.st_mode & 0o777) == (os.getgid(), 0o660)
             reader = MediaArchiveWorkerClient(
                 settings.media_archive_authority_socket,
                 owner_uid=os.getuid())
@@ -221,6 +226,7 @@ def test_media_archive_worker_environment_is_exact_and_fail_closed(
     monkeypatch.setenv(
         "LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET", str(authority_socket)
     )
+    monkeypatch.setenv("LARENOR_MEDIA_ARCHIVE_SOCKET_GID", str(os.getgid()))
 
     settings = Settings.from_environment()
 
@@ -229,6 +235,7 @@ def test_media_archive_worker_environment_is_exact_and_fail_closed(
     assert settings.media_archive_action_worker_socket == action_socket
     assert settings.media_archive_action_worker_uid == os.getuid()
     assert settings.media_archive_authority_socket == authority_socket
+    assert settings.media_archive_socket_gid == os.getgid()
 
     monkeypatch.delenv("LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET")
     with pytest.raises(StartupError, match="^invalid_worker_configuration$"):

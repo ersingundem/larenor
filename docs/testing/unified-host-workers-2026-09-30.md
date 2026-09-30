@@ -1,0 +1,148 @@
+# Unified host workers: Linux packaging and authority proof (2026-09-30)
+
+This slice packages the already implemented F22/F25/F27/F28/F29 installation
+backend and the F30 archive worker as optional host services. It deliberately
+does not put Docker mutation authority in the Core container. The preflight and
+installation processes run on the Linux host, retain the existing Docker Unix
+socket, daemon executable and peer PID checks, and expose only their bounded IPC
+contracts to Core.
+
+## Fixed identity and filesystem layout
+
+The unified Core remains UID/GID `10001:10001`. The archive process and Unmanic
+run as the media library owner UID/GID `1000:1000`. The installer creates the
+non-secret IPC group `larenor-ipc` with GID `10002`; Core receives this one
+supplementary group. Kernel Unix peer credentials still require the exact
+service UID, so group access alone cannot impersonate Core or a worker.
+
+The bridge reuses the existing private Core `/data` bind instead of adding a new
+persistent mount:
+
+- host: `/var/lib/larenor-server/core/data/host-workers/ipc`
+- Core container: `/data/host-workers/ipc`
+- root worker sockets: `root/preflight.sock`, `root/installation.sock`
+- archive sockets: `archive/archive-read.sock`, `archive/archive-action.sock`
+- Core authority socket: `core/archive-authority.sock`
+
+Socket directories are owner-specific mode `0750`; sockets are mode `0660`,
+group `10002`. Peer UID validation is unchanged. This placement preserves the
+existing exact private-mount upgrade receipt.
+
+The four authenticated F30 read endpoints are published only on host loopback:
+Jellyfin `8096`, Sonarr `8989`, Radarr `7878`, and qBittorrent WebUI `8080`.
+The archive collector itself permits only `127.0.0.1` and the exact ports from
+the verified deployment plan. These bindings are required because the worker
+runs in the host namespace; no service API is exposed on a LAN interface.
+
+Root mutation state is under
+`/var/lib/larenor-server/host-workers/installation`. Archive state is under
+`/var/lib/larenor-server/host-workers/archive`. Operator policy is under
+`/etc/larenor-server/host-workers`; every private file is mode `0600` and owned
+by the service UID. The installer never creates policy, keys or credentials.
+
+## Offline package and activation
+
+`build_bundle.py` copies a pre-resolved wheelhouse into a new bundle and records
+every wheel SHA-256. The server wheelhouse must contain `larenor-server` and all
+of its locked runtime dependencies. The Unmanic wheelhouse must contain Unmanic
+`0.4.1` built from upstream revision
+`1c324b8fc3974ffce3d7cc945adb938fe7182910` and all of its dependencies. The
+installer uses `pip --no-index --no-deps`, then `pip check`; installation cannot
+resolve or download packages.
+
+Example from an exact checkout, after the two reviewed wheelhouses have been
+built:
+
+```bash
+python3 deploy/larenor-server/host_workers/build_bundle.py \
+  --server-wheels /secure/build/server-wheels \
+  --unmanic-wheels /secure/build/unmanic-wheels \
+  --source-revision "$(git rev-parse HEAD)" \
+  --platform linux/amd64 \
+  --output /secure/build/larenor-host-workers
+sudo python3 deploy/larenor-server/host_workers/install.py \
+  --bundle /secure/build/larenor-host-workers/bundle.json --check
+sudo python3 deploy/larenor-server/host_workers/install.py \
+  --bundle /secure/build/larenor-host-workers/bundle.json --install
+```
+
+Installation is non-activating. It verifies hashes, creates isolated server and
+Unmanic virtual environments, generates the two deterministic Larenor plugin
+archives, installs the exact sysusers/tmpfiles/systemd assets, and atomically
+selects the release. It does not start a service.
+
+Before activation the administrator must create these exact files:
+
+- root-owned: `root/preflight.json`, `root/installation.json`
+- UID 1000-owned: `archive/runtime.json`, `archive/resolver.json`,
+  `archive/callback.key`, `archive/encoder.json`, `archive/callback.json`
+
+The preflight policy must be version 3 with the real `/var/run/docker.sock`,
+the observed socket owner, `/usr/bin/dockerd`, and one to sixteen approved host
+roots. The installation policy uses the same Docker identity, a current worker
+policy binding, exact bootstrap image digest, and the three installed journal
+directories. `--activate` invokes every worker's non-mutating `--check-config`
+path before it enables units.
+
+The archive runtime schema is `schemaVersion: 1` plus
+`resolverCatalog`, `readSocket`, `actionSocket`, `authoritySocket`, `coreUid`,
+`unmanicPort`, `callbackPort`, `journalRoot`, `terminalRoot`, `callbackKeyFile`,
+`ffmpeg`, `ffprobe`, `quotaBytes`, and `socketGid`. For this package `coreUid` is
+`10001`, `socketGid` is `10002`, and the worker-side socket paths use the host
+IPC root above. The resolver catalog binds the private store/work/retained
+roots, a raw 32-byte authentication key, and each approved Jellyfin root to its
+real host library root. Caller supplied paths are never accepted.
+
+Activation provisions the deterministic encoder and terminal callback ZIPs via
+Unmanic's own `PluginsHandler.install_plugin_from_path_on_disk` API before the
+loopback service starts. The operator must then configure exactly one Unmanic
+library whose path equals the resolver `workRoot`, enable exactly
+`larenor_archive_encoder` and `larenor_archive_terminal`, and keep scanning and
+inotify disabled for the isolated work-copy library. The packaged unit fixes
+Unmanic's config, cache, plugin, log, userdata and isolated work library paths
+under the UID 1000 archive state root. The archive worker refuses
+to expose action IPC until that live readback and both FFmpeg executables pass.
+
+```bash
+sudo python3 deploy/larenor-server/host_workers/install.py --activate
+```
+
+## Validation and remaining manual evidence
+
+Local focused evidence:
+
+- 48 media archive/Core runtime tests passed; the Linux UID and systemd tests
+  are intentionally skipped on macOS.
+- 13 package/workflow policy tests passed.
+- 68 of 70 broad historical unified deployment tests passed in the uncommitted tree.
+  The two capacity tests bind their bundle to a committed revision; they can
+  only become green after the integration commit SHA exists and is placed in
+  that historical acceptance fixture.
+
+The hosted `linux/amd64` and `linux/arm64` matrix now installs the server
+environment, runs the real forked UID 1000/10001 AF_UNIX + kernel peer credential
+test, copies the exact production unit files into systemd, verifies them with
+`systemd-analyze verify`, and confirms systemd reports each unit loaded. This is
+in addition to the existing real Docker install/upgrade/restart receipt chain.
+
+Still manual, and therefore not claimed by this slice:
+
+- building the reviewed Unmanic wheel at the pinned upstream revision on each
+  target architecture;
+- the target host's real Docker daemon executable/PID/socket identity;
+- the selected UID 1000 library mounts, free space and media files;
+- administrator policy, service credentials and Unmanic library configuration;
+- an actual archive encode on the target CPU/FFmpeg build.
+
+## Primary-source basis
+
+- Docker warns that daemon access can grant host-level authority and documents
+  rootless/user-namespace alternatives: <https://docs.docker.com/engine/security/>.
+- systemd defines `User=`, `SupplementaryGroups=`, filesystem protection and
+  read/write path allowlists in `systemd.exec`:
+  <https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html>.
+- Unmanic's pinned source exposes `--address`, `--port`, plugin management and
+  local plugin installation at revision `1c324b8`:
+  <https://github.com/Unmanic/unmanic/tree/1c324b8fc3974ffce3d7cc945adb938fe7182910>.
+- Unmanic's official Docker deployment documents separate configuration, cache
+  and library mounts: <https://docs.unmanic.app/docs/installation/docker>.

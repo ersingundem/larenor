@@ -1342,20 +1342,28 @@ def _config_ports(service):
     result = []
     for item in service.get("ports", []):
         if isinstance(item, str):
-            match = re.fullmatch(r"(?:0\.0\.0\.0:)?([0-9]+):([0-9]+)(?:/(tcp|udp))?", item)
+            match = re.fullmatch(
+                r"(?:(127\.0\.0\.1|0\.0\.0\.0):)?([0-9]+):([0-9]+)(?:/(tcp|udp))?",
+                item,
+            )
             if not match:
                 raise ManagedStackCIError("unified_manifest_invalid")
-            result.append((match.group(1), int(match.group(2)), match.group(3) or "tcp"))
+            scope = "loopback" if match.group(1) == "127.0.0.1" else "any"
+            result.append((scope, match.group(2), int(match.group(3)),
+                           match.group(4) or "tcp"))
         elif isinstance(item, dict):
             published = item.get("published")
             target = item.get("target")
             protocol = item.get("protocol", "tcp")
             if (type(published) not in (str, int) or type(target) is not int
                     or protocol not in {"tcp", "udp"}
-                    or item.get("host_ip", "0.0.0.0") not in {"", "0.0.0.0"}
+                    or item.get("host_ip", "0.0.0.0") not in {
+                        "", "0.0.0.0", "127.0.0.1"}
                     or item.get("mode", "ingress") != "ingress"):
                 raise ManagedStackCIError("unified_manifest_invalid")
-            result.append((str(published), target, protocol))
+            scope = ("loopback" if item.get("host_ip") == "127.0.0.1"
+                     else "any")
+            result.append((scope, str(published), target, protocol))
         else:
             raise ManagedStackCIError("unified_manifest_invalid")
     return sorted(result)

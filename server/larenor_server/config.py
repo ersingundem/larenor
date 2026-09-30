@@ -36,6 +36,7 @@ class Settings:
     media_archive_action_worker_socket: Path | None = None
     media_archive_action_worker_uid: int = 0
     media_archive_authority_socket: Path | None = None
+    media_archive_socket_gid: int | None = None
     mesh_center_worker_socket: Path | None = None
     mesh_center_worker_uid: int = 0
     ai_worker_config: Path | None = None
@@ -59,6 +60,10 @@ class Settings:
             type(value) is not int or not 0 <= value < 2**31
             for value in worker_uids
         ):
+            raise ValueError("invalid_worker_configuration")
+        if (self.media_archive_socket_gid is not None
+                and (type(self.media_archive_socket_gid) is not int
+                     or not 0 <= self.media_archive_socket_gid < 2**31)):
             raise ValueError("invalid_worker_configuration")
         proxmox_paths = (
             self.proxmox_power_worker_socket,
@@ -126,6 +131,11 @@ class Settings:
             raise ValueError("invalid_worker_configuration")
         if (self.media_archive_authority_socket is not None
                 and (self.media_archive_worker_socket is None
+                     or self.media_archive_action_worker_socket is None)):
+            raise ValueError("invalid_worker_configuration")
+        if (self.media_archive_socket_gid is not None
+                and (self.media_archive_authority_socket is None
+                     or self.media_archive_worker_socket is None
                      or self.media_archive_action_worker_socket is None)):
             raise ValueError("invalid_worker_configuration")
         redaction_binaries = (self.private_event_ffmpeg, self.private_event_ffprobe)
@@ -221,6 +231,11 @@ class Settings:
                 media_archive_authority_socket=(
                     Path(os.environ["LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET"])
                     if os.environ.get("LARENOR_MEDIA_ARCHIVE_AUTHORITY_SOCKET")
+                    else None
+                ),
+                media_archive_socket_gid=(
+                    int(os.environ["LARENOR_MEDIA_ARCHIVE_SOCKET_GID"])
+                    if os.environ.get("LARENOR_MEDIA_ARCHIVE_SOCKET_GID")
                     else None
                 ),
                 mesh_center_worker_socket=(

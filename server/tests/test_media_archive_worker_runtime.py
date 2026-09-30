@@ -144,6 +144,18 @@ def test_private_config_strict_fields_permissions_and_redacted_repr(runtime_root
         ArchiveWorkerRuntimeConfig.load(path)
 
 
+def test_check_config_never_opens_unmanic_or_worker_sockets(runtime_root, monkeypatch):
+    settings, _paths = config(runtime_root)
+    path = runtime_root / 'runtime.json'
+    private_json(path, {'schemaVersion': 1, **asdict(settings)})
+    monkeypatch.setattr(
+        'larenor_server.media_archive_actions.worker_runtime.ArchiveWorkerRuntime',
+        lambda *_args: pytest.fail('check-config must not construct runtime'),
+    )
+    from larenor_server.media_archive_actions.worker_runtime import main
+    assert main(['--config', str(path), '--check-config']) == 0
+
+
 def test_runtime_does_not_advertise_ready_without_live_unmanic_library(runtime_root):
     tmp_path = runtime_root
     settings, _paths = config(tmp_path, unmanic_port=port())

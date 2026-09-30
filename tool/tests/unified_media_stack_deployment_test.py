@@ -122,6 +122,15 @@ class UnifiedMediaStackDeploymentTest(unittest.TestCase):
         self.assertEqual(services["larenor-core"]["extra_hosts"], [
             "host.docker.internal:host-gateway"])
         self.assertNotIn("links", services["larenor-core"])
+        self.assertEqual({name: services[name].get("ports") for name in (
+            "larenor-jellyfin", "larenor-sonarr", "larenor-radarr",
+            "larenor-qbittorrent",
+        )}, {
+            "larenor-jellyfin": ["127.0.0.1:8096:8096"],
+            "larenor-sonarr": ["127.0.0.1:8989:8989"],
+            "larenor-radarr": ["127.0.0.1:7878:7878"],
+            "larenor-qbittorrent": ["127.0.0.1:8080:8080"],
+        })
 
     def test_package_never_requests_or_serializes_interservice_secrets(self):
         document = self.load()

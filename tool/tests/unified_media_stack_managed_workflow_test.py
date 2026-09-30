@@ -194,6 +194,20 @@ class UnifiedMediaStackManagedWorkflowTest(unittest.TestCase):
         self.assertNotIn("self-hosted", text)
         self.assertNotIn("sudo -E", text)
 
+    def test_host_worker_units_and_cross_uid_ipc_run_on_each_hosted_linux_architecture(self):
+        value = self.workflow()
+        step = next(item for item in
+                    value["jobs"]["unified-media-stack-native"]["steps"]
+                    if item.get("name") == "Verify planner and native policy contracts")
+        script = step["run"]
+        self.assertIn("tool.tests.unified_host_worker_package_test", script)
+        self.assertIn("uv\" sync --frozen --project server", script)
+        self.assertIn("sudo --non-interactive env -i", script)
+        self.assertIn("RUNNER_ENVIRONMENT=github-hosted", script)
+        self.assertIn("LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE=1", script)
+        self.assertIn("test_media_archive_linux_uid_ipc.py", script)
+        self.assertIn("test_host_worker_systemd_linux.py", script)
+
 
 if __name__ == "__main__":
     unittest.main()

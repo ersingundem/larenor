@@ -30,6 +30,7 @@ RELEVANT_PATTERNS = (
     "deploy/larenor-server/unified.compose.yaml",
     "deploy/larenor-server/unified_package.py",
     "deploy/larenor-server/deployment_bundle.py",
+    "deploy/larenor-server/host_workers/**",
     "deploy/larenor-server/.env.example",
     "tool/unified_media_stack_managed_ci.py",
     "tool/tests/unified_media_stack_*",
@@ -145,10 +146,14 @@ _WORKFLOW_PATTERNS = {
         "deploy/larenor-server/unified.compose.yaml",
         "deploy/larenor-server/unified_package.py",
         "deploy/larenor-server/deployment_bundle.py",
+        "deploy/larenor-server/host_workers/**",
         "deploy/larenor-server/.env.example",
         "tool/qbittorrent_managed_ci.py",
         "tool/unified_media_stack_managed_ci.py",
         "tool/tests/unified_media_stack_*",
+        "tool/tests/unified_host_worker_package_test.py",
+        "server/tests/test_host_worker_systemd_linux.py",
+        "server/tests/test_media_archive_linux_uid_ipc.py",
     ),
 }
 _WORKFLOW_REF = re.compile(

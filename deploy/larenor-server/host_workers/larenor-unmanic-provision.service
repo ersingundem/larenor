@@ -1,0 +1,36 @@
+[Unit]
+Description=Install reviewed Larenor plugins into isolated Unmanic
+After=local-fs.target
+Before=larenor-unmanic.service
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/archive/unmanic/config
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=1000
+Group=1000
+UMask=0077
+Environment=HOME=/var/lib/larenor-server/host-workers/archive/unmanic
+Environment=HOME_DIR=/var/lib/larenor-server/host-workers/archive/unmanic
+Environment=config_path=/var/lib/larenor-server/host-workers/archive/unmanic/config
+Environment=cache_path=/var/lib/larenor-server/host-workers/archive/unmanic/cache
+Environment=plugins_path=/var/lib/larenor-server/host-workers/archive/unmanic/plugins
+Environment=log_path=/var/lib/larenor-server/host-workers/archive/unmanic/logs
+Environment=userdata_path=/var/lib/larenor-server/host-workers/archive/unmanic/userdata
+Environment=library_path=/var/lib/larenor-server/host-workers/archive/work
+ExecStart=/opt/larenor-server-host/current/unmanic/bin/python /usr/libexec/larenor-unmanic-provision --callback /opt/larenor-server-host/current/callback.zip --encoder /opt/larenor-server-host/current/encoder.zip
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX
+ReadOnlyPaths=/opt/larenor-server-host/current
+ReadWritePaths=/var/lib/larenor-server/host-workers/archive/unmanic
+
+[Install]
+WantedBy=multi-user.target

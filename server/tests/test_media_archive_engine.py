@@ -1,6 +1,7 @@
 """Real protected files/decode with authenticated upstream protocol fixtures."""
 from dataclasses import replace
 import json
+import os
 import shutil
 import tempfile
 import threading
@@ -460,6 +461,28 @@ def test_ipc_cancel_is_transmitted_and_original_is_never_replaced(engine, media)
         assert record.evidence.cancelRequested and record.receipt.errorCode == "cancel_unknown"
         assert source.read_bytes() == media[2].read_bytes()
         assert handler.files.inspect_original(handler.files.lookup(cmd))[1] == cmd.reservedBytes
+
+
+def test_action_ipc_group_mode_does_not_replace_peer_uid_check(engine):
+    handler, _cmd, _source, _exchange, _resolver, _roots = engine
+    with tempfile.TemporaryDirectory(prefix="la-", dir="/tmp") as socket_root:
+        root = Path(socket_root)
+        root.chmod(0o770)
+        os.chown(root, -1, os.getgid())
+        path = str(root / "archive.sock")
+        server = MediaArchiveActionWorkerServer(
+            path, handler, peer_uid=os.getuid(), socket_gid=os.getgid())
+        server.start()
+        try:
+            info = os.stat(path, follow_symlinks=False)
+            assert (info.st_uid, info.st_gid, info.st_mode & 0o777) == (
+                os.getuid(), os.getgid(), 0o660)
+            assert MediaArchiveActionWorkerClient(path).status()["provider"] == "unmanic"
+            server.peer_uid = os.getuid() + 1
+            with pytest.raises(Exception, match="invalid_response"):
+                MediaArchiveActionWorkerClient(path).status()
+        finally:
+            server.close()
 
 
 def test_pre_effect_wrong_source_profile_has_no_mutation(engine, media):

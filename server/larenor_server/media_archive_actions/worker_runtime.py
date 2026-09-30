@@ -73,6 +73,7 @@ class ArchiveWorkerRuntimeConfig:
     ffmpeg: str
     ffprobe: str
     quotaBytes: int
+    socketGid: int | None = None
 
     def __repr__(self):
         return "ArchiveWorkerRuntimeConfig(<private>)"
@@ -89,6 +90,9 @@ class ArchiveWorkerRuntimeConfig:
                 or any(len(path.encode('utf-8')) > 103 for path in (
                     self.readSocket, self.actionSocket, self.authoritySocket))
                 or type(self.coreUid) is not int or not 0 <= self.coreUid < 2**31
+                or self.socketGid is not None
+                and (type(self.socketGid) is not int
+                     or not 0 <= self.socketGid < 2**31)
                 or any(type(port) is not int or not 1024 <= port <= 65535
                        for port in (self.unmanicPort, self.callbackPort))
                 or self.unmanicPort == self.callbackPort
@@ -172,14 +176,17 @@ class ArchiveWorkerRuntime:
             self._resources.callback(engine.close)
             self.callback = UnmanicCallbackServer(terminals, config.callbackPort)
             self._resources.callback(self.callback.close)
-            self.actions = MediaArchiveActionWorkerServer(config.actionSocket, engine, peer_uid=config.coreUid)
+            self.actions = MediaArchiveActionWorkerServer(
+                config.actionSocket, engine, peer_uid=config.coreUid,
+                socket_gid=config.socketGid,
+            )
             self._resources.callback(self.actions.close)
             self.reads = MediaArchiveWorkerServer(config.readSocket,
                 _Collector(MediaArchiveReadCollector(
                     private_source_sink=publisher,
                     private_cleanup_sink=cleanup_publisher,
                     credential_sink=deletions), authority),
-                allowed_uid=config.coreUid)
+                allowed_uid=config.coreUid, socket_gid=config.socketGid)
             self._resources.callback(self.reads.close)
         except Exception:
             self.close()
@@ -216,11 +223,17 @@ class _Parser(argparse.ArgumentParser):
 def main(argv=None):
     parser = _Parser(description=__doc__)
     parser.add_argument('--config', required=True)
+    parser.add_argument(
+        '--check-config', action='store_true',
+        help='Validate the private runtime document without opening sockets or services',
+    )
     stopped = threading.Event()
     previous = {}
     try:
         args = parser.parse_args(argv)
         config = ArchiveWorkerRuntimeConfig.load(args.config)
+        if args.check_config:
+            return 0
         for number in (signal.SIGTERM, signal.SIGINT):
             previous[number] = signal.signal(number, lambda *_args: stopped.set())
         with ArchiveWorkerRuntime(config):

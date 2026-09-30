@@ -1,0 +1,39 @@
+[Unit]
+Description=Larenor isolated Unmanic archive encoder
+After=local-fs.target larenor-unmanic-provision.service
+Requires=larenor-unmanic-provision.service
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/archive/unmanic/config
+
+[Service]
+Type=simple
+User=1000
+Group=1000
+SupplementaryGroups=10002
+UMask=0077
+Environment=HOME=/var/lib/larenor-server/host-workers/archive/unmanic
+Environment=HOME_DIR=/var/lib/larenor-server/host-workers/archive/unmanic
+Environment=config_path=/var/lib/larenor-server/host-workers/archive/unmanic/config
+Environment=cache_path=/var/lib/larenor-server/host-workers/archive/unmanic/cache
+Environment=plugins_path=/var/lib/larenor-server/host-workers/archive/unmanic/plugins
+Environment=log_path=/var/lib/larenor-server/host-workers/archive/unmanic/logs
+Environment=userdata_path=/var/lib/larenor-server/host-workers/archive/unmanic/userdata
+Environment=library_path=/var/lib/larenor-server/host-workers/archive/work
+Environment=LARENOR_UNMANIC_ENCODER_CONFIG=/etc/larenor-server/host-workers/archive/encoder.json
+Environment=LARENOR_UNMANIC_CALLBACK_CONFIG=/etc/larenor-server/host-workers/archive/callback.json
+ExecStart=/opt/larenor-server-host/current/unmanic/bin/unmanic --port 8888 --address 127.0.0.1
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/larenor-server/host-workers/archive /var/lib/larenor-server/library
+
+[Install]
+WantedBy=multi-user.target
