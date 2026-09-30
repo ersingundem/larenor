@@ -1,6 +1,59 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+final class EpaperSourceDevice {
+  const EpaperSourceDevice({
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.deviceId,
+    required this.sourceRevision,
+    required this.name,
+    required this.width,
+    required this.height,
+    required this.batteryPercent,
+    required this.lastSeenAt,
+    required this.reachable,
+  });
+
+  final String serviceId, deviceId, name;
+  final int serviceRevision, sourceRevision, width, height;
+  final int? batteryPercent;
+  final DateTime? lastSeenAt;
+  final bool reachable;
+
+  factory EpaperSourceDevice.fromJson(Map<String, dynamic> json) =>
+      EpaperSourceDevice(
+        serviceId: json['serviceId'] as String,
+        serviceRevision: json['serviceRevision'] as int,
+        deviceId: json['deviceId'] as String,
+        sourceRevision: json['sourceRevision'] as int,
+        name: json['name'] as String,
+        width: json['width'] as int,
+        height: json['height'] as int,
+        batteryPercent: json['batteryPercent'] as int?,
+        lastSeenAt: json['lastSeenAtMs'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                json['lastSeenAtMs'] as int,
+                isUtc: true,
+              ),
+        reachable: json['reachable'] as bool,
+      );
+
+  bool get isValid =>
+      RegExp(r'^[a-f0-9]{32}$').hasMatch(serviceId) &&
+      RegExp(r'^[a-f0-9]{32}$').hasMatch(deviceId) &&
+      serviceRevision > 0 &&
+      sourceRevision > 0 &&
+      name.isNotEmpty &&
+      name.length <= 80 &&
+      width >= 64 &&
+      width <= 2048 &&
+      height >= 32 &&
+      height <= 2048;
+}
+
+@immutable
 final class EpaperClientAuthority {
   const EpaperClientAuthority({
     required this.coreId,
@@ -262,6 +315,9 @@ final class EpaperCommandPreview {
     required this.action,
     required this.expectedLayoutRevision,
     required this.expiresAt,
+    this.artifactPath,
+    this.artifactDigest,
+    this.physicalDeliveryVerified = false,
   });
 
   final EpaperClientAuthority authority;
@@ -271,6 +327,8 @@ final class EpaperCommandPreview {
   final EpaperManagementAction action;
   final String expectedLayoutRevision;
   final DateTime expiresAt;
+  final String? artifactPath, artifactDigest;
+  final bool physicalDeliveryVerified;
 
   factory EpaperCommandPreview.fromJson(Map<String, dynamic> json) =>
       EpaperCommandPreview(
@@ -286,6 +344,9 @@ final class EpaperCommandPreview {
           json['expiresAtMs'] as int,
           isUtc: true,
         ),
+        artifactPath: json['artifactPath'] as String?,
+        artifactDigest: json['artifactDigest'] as String?,
+        physicalDeliveryVerified: json['physicalDeliveryVerified'] == true,
       );
 
   bool isExactFor(
@@ -301,7 +362,14 @@ final class EpaperCommandPreview {
       deviceRevision == device.deviceRevision &&
       action == expectedAction &&
       expectedLayoutRevision.isNotEmpty &&
-      expiresAt.isAfter(now);
+      expiresAt.isAfter(now) &&
+      !physicalDeliveryVerified &&
+      (artifactPath == null ||
+          RegExp(
+            r'^/admin/epaper/[a-f0-9]{32}/[a-f0-9]{32}/previews/[a-f0-9]{32}/artifact$',
+          ).hasMatch(artifactPath!)) &&
+      (artifactDigest == null ||
+          RegExp(r'^[a-f0-9]{64}$').hasMatch(artifactDigest!));
 
   @override
   String toString() => 'EpaperCommandPreview($action, redacted)';
@@ -365,12 +433,37 @@ final class EpaperDeviceMappingDraft {
     required this.name,
     this.width = 800,
     this.height = 480,
+    this.serviceId,
+    this.serviceRevision,
+    this.sourceRevision,
+    this.title = 'Larenor',
+    this.value = '--:--',
   });
 
   final String deviceId;
   final String name;
   final int width;
   final int height;
+  final String? serviceId;
+  final int? serviceRevision, sourceRevision;
+  final String title, value;
+
+  factory EpaperDeviceMappingDraft.fromSource(
+    EpaperSourceDevice source, {
+    required String name,
+    required String title,
+    required String value,
+  }) => EpaperDeviceMappingDraft(
+    deviceId: source.deviceId,
+    name: name,
+    width: source.width,
+    height: source.height,
+    serviceId: source.serviceId,
+    serviceRevision: source.serviceRevision,
+    sourceRevision: source.sourceRevision,
+    title: title,
+    value: value,
+  );
 
   bool get isValid =>
       RegExp(r'^[a-f0-9]{32}$').hasMatch(deviceId) &&
@@ -380,5 +473,19 @@ final class EpaperDeviceMappingDraft {
       width >= 64 &&
       width <= 2048 &&
       height >= 32 &&
-      height <= 2048;
+      height <= 2048 &&
+      title.trim() == title &&
+      title.isNotEmpty &&
+      title.length <= 32 &&
+      value.trim() == value &&
+      value.isNotEmpty &&
+      value.length <= 48;
+
+  bool get hasVerifiedSource =>
+      serviceId != null &&
+      RegExp(r'^[a-f0-9]{32}$').hasMatch(serviceId!) &&
+      serviceRevision != null &&
+      serviceRevision! > 0 &&
+      sourceRevision != null &&
+      sourceRevision! > 0;
 }

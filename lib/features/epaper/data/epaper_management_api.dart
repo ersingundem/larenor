@@ -1,8 +1,14 @@
+import 'dart:typed_data';
+
 import '../domain/epaper_management_models.dart';
 
 /// Core-facing boundary. Implementations authenticate with the current Larenor
 /// session; no device token or bridge secret crosses the presentation layer.
 abstract interface class EpaperManagementApi {
+  Future<List<EpaperSourceDevice>> discoverSources(
+    EpaperClientAuthority authority,
+  );
+
   Future<EpaperDeviceStatus> map(
     EpaperClientAuthority authority,
     EpaperDeviceMappingDraft draft,
@@ -18,6 +24,11 @@ abstract interface class EpaperManagementApi {
   });
 
   Future<EpaperCommandReceipt> confirm(
+    EpaperClientAuthority authority,
+    EpaperCommandPreview preview,
+  );
+
+  Future<Uint8List> artifact(
     EpaperClientAuthority authority,
     EpaperCommandPreview preview,
   );

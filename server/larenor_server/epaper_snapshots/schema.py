@@ -28,6 +28,14 @@ TABLES = {
         received_frames INTEGER NOT NULL CHECK(received_frames >= 0),
         authentication_tag TEXT NOT NULL,
         FOREIGN KEY(device_id) REFERENCES epaper_devices(device_id) ON DELETE CASCADE)""",
+    "epaper_provider_commands": """CREATE TABLE epaper_provider_commands (
+        request_id TEXT PRIMARY KEY, device_id TEXT NOT NULL,
+        command_json TEXT NOT NULL, state TEXT NOT NULL
+          CHECK(state IN ('prepared','dispatching','accepted','rejected','uncertain','readback_observed','cancelled')),
+        artifact_digest TEXT NOT NULL, artifact BLOB NOT NULL,
+        observed_digest TEXT, authentication_tag TEXT NOT NULL,
+        FOREIGN KEY(request_id) REFERENCES epaper_previews(request_id) ON DELETE CASCADE,
+        FOREIGN KEY(device_id) REFERENCES epaper_devices(device_id) ON DELETE CASCADE)""",
 }
 
 
@@ -50,10 +58,26 @@ def migrate_epaper_snapshots(connection: sqlite3.Connection) -> None:
             for statement in TABLES.values():
                 connection.execute(statement)
             connection.execute(
-                "INSERT INTO metadata VALUES('epaper_snapshot_schema','1')"
+                "INSERT INTO metadata VALUES('epaper_snapshot_schema','2')"
             )
             return
-        if marker["value"] != "1" or set(actual) != set(TABLES):
+        version = marker["value"]
+        if version == "1" and set(actual) == set(TABLES) - {"epaper_provider_commands"}:
+            connection.execute(TABLES["epaper_provider_commands"])
+            connection.execute(
+                "UPDATE metadata SET value='2' WHERE key='epaper_snapshot_schema'"
+            )
+            rows = connection.execute(
+                "SELECT name,type,tbl_name,sql FROM sqlite_master "
+                "WHERE name GLOB 'epaper_*' OR tbl_name GLOB 'epaper_*'"
+            ).fetchall()
+            actual = {row["name"]: row for row in rows if row["type"] == "table"}
+            implicit = {
+                row["name"] for row in rows
+                if row["type"] == "index" and row["sql"] is None
+            }
+            version = "2"
+        if version != "2" or set(actual) != set(TABLES):
             raise ValueError("invalid_epaper_schema")
         for name, statement in TABLES.items():
             if (
@@ -66,6 +90,7 @@ def migrate_epaper_snapshots(connection: sqlite3.Connection) -> None:
             "sqlite_autoindex_epaper_devices_1",
             "sqlite_autoindex_epaper_previews_1",
             "sqlite_autoindex_epaper_polls_1",
+            "sqlite_autoindex_epaper_provider_commands_1",
         }
         if implicit != expected_indexes:
             raise ValueError("invalid_epaper_indexes")

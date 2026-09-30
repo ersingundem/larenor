@@ -5063,7 +5063,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5088,7 +5088,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION incelemesinde mevcut e-paper yolu yalnız canonical JSON üretiyor; gerçek etiket görüntüsü/köprü providerı yok. OpenEPaperLink HA drawcustom resmi kontratı, gerçek inventory/capability ve görüntü/teslim sonucu araştırılıyor. Önceki metadata testleri production kabulü sayılmaz."
+      "reason": "Gerçek HA/OpenEPaperLink inventory, JPEG dry-run artifact, güncel cihaz/source doğrulaması ve durable tek gönderim uygulandı; 10 Server, 13 Flutter (+1 izole koşucu skip), gerçek Flutter→normal Core→HA TCP/WS 1/1 ve analyze geçti. Header/scan/dimension doğrulaması ve Client decode fiziksel pixel teslimi değildir; readback_observed/physicalDeliveryVerified=false. Geniş exact commit CI kabulü açık."
     },
     {
       "id": "F59",

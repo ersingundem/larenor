@@ -32,14 +32,17 @@ final class EpaperManagementController extends ChangeNotifier {
   final bool Function() isCurrent;
   final DateTime Function() _clock;
   final List<EpaperDeviceStatus> _devices = [];
+  final List<EpaperSourceDevice> _sources = [];
   int _epoch = 0;
   bool _disposed = false;
   bool _interactive = true;
 
   EpaperManagementState state = EpaperManagementState.idle;
   EpaperCommandPreview? pendingPreview;
+  Uint8List? pendingArtifact;
 
   List<EpaperDeviceStatus> get devices => List.unmodifiable(_devices);
+  List<EpaperSourceDevice> get sources => List.unmodifiable(_sources);
   bool get canAct =>
       _current() && authority.canManage && state != EpaperManagementState.busy;
 
@@ -56,7 +59,9 @@ final class EpaperManagementController extends ChangeNotifier {
 
   void _stale() {
     _devices.clear();
+    _sources.clear();
     pendingPreview = null;
+    pendingArtifact = null;
     state = EpaperManagementState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -77,6 +82,7 @@ final class EpaperManagementController extends ChangeNotifier {
     }
     final operation = ++_epoch;
     pendingPreview = null;
+    pendingArtifact = null;
     state = EpaperManagementState.loading;
     notifyListeners();
     try {
@@ -140,7 +146,15 @@ final class EpaperManagementController extends ChangeNotifier {
       if (!value.isExactFor(authority, device, action, _clock())) {
         state = EpaperManagementState.failed;
       } else {
+        final artifact = value.artifactPath == null
+            ? null
+            : await api.artifact(authority, value);
+        if (!_operationCurrent(operation)) {
+          _stale();
+          return;
+        }
         pendingPreview = value;
+        pendingArtifact = artifact;
         state = EpaperManagementState.awaitingConfirmation;
       }
     } catch (_) {
@@ -154,7 +168,7 @@ final class EpaperManagementController extends ChangeNotifier {
   }
 
   Future<void> map(EpaperDeviceMappingDraft draft) async {
-    if (!canAct || !draft.isValid) return;
+    if (!canAct || !draft.isValid || !draft.hasVerifiedSource) return;
     final operation = ++_epoch;
     pendingPreview = null;
     state = EpaperManagementState.busy;
@@ -182,11 +196,48 @@ final class EpaperManagementController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  Future<List<EpaperSourceDevice>> discoverSources() async {
+    if (!canAct) return const [];
+    final operation = ++_epoch;
+    pendingPreview = null;
+    pendingArtifact = null;
+    state = EpaperManagementState.busy;
+    notifyListeners();
+    try {
+      final value = await api.discoverSources(authority);
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return const [];
+      }
+      if (value.length > 100 || value.any((item) => !item.isValid)) {
+        _sources.clear();
+        state = EpaperManagementState.failed;
+        return const [];
+      }
+      _sources
+        ..clear()
+        ..addAll(value);
+      state = EpaperManagementState.ready;
+      return List.unmodifiable(_sources);
+    } catch (_) {
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return const [];
+      }
+      _sources.clear();
+      state = EpaperManagementState.failed;
+      return const [];
+    } finally {
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   Future<void> cancelPending() async {
     if (!_current() || pendingPreview == null) return;
     final preview = pendingPreview!;
     final operation = ++_epoch;
     pendingPreview = null;
+    pendingArtifact = null;
     state = EpaperManagementState.busy;
     notifyListeners();
     try {
@@ -228,6 +279,7 @@ final class EpaperManagementController extends ChangeNotifier {
           receipt.action == preview.action;
       if (!receiptBound || receipt.status == EpaperCommandStatus.rejected) {
         pendingPreview = null;
+        pendingArtifact = null;
         state = EpaperManagementState.failed;
         notifyListeners();
         return;
@@ -265,6 +317,7 @@ final class EpaperManagementController extends ChangeNotifier {
         } else {
           _devices[index] = readback;
           pendingPreview = null;
+          pendingArtifact = null;
           state = EpaperManagementState.pendingDelivery;
         }
       }
@@ -275,6 +328,7 @@ final class EpaperManagementController extends ChangeNotifier {
       }
       // A missing acknowledgement is ambiguous. Never replay automatically.
       pendingPreview = null;
+      pendingArtifact = null;
       state = EpaperManagementState.failed;
     }
     if (!_disposed) notifyListeners();
@@ -285,7 +339,9 @@ final class EpaperManagementController extends ChangeNotifier {
     _disposed = true;
     _epoch++;
     _devices.clear();
+    _sources.clear();
     pendingPreview = null;
+    pendingArtifact = null;
     super.dispose();
   }
 }

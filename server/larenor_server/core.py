@@ -894,7 +894,9 @@ class CoreServices:
                 irrigation_provider, clock=settings.clock
             )
             self.epaper = EpaperManagement(
-                self.db, self.auth, settings, key, self.context)
+                self.db, self.auth, settings, key, self.context,
+                lambda: self.services, self.home_resources,
+            )
             self.epaper.validate_storage()
             self.room_presence = build_room_presence_runtime(
                 self.db, self.auth, settings, key, self.context,

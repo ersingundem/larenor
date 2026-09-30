@@ -38,7 +38,12 @@ final class _EpaperStrings {
   String get add => tr ? 'Ekran eşle' : 'Map display';
   String get addTitle => tr ? 'E-paper ekran eşle' : 'Map e-paper display';
   String get deviceId => tr ? 'Cihaz kimliği' : 'Device ID';
+  String get source => tr ? 'OpenEPaperLink ekranı' : 'OpenEPaperLink display';
+  String get sourceEmpty =>
+      tr ? 'Doğrulanmış ekran bulunamadı' : 'No verified display found';
   String get name => tr ? 'Ekran adı' : 'Display name';
+  String get contentTitle => tr ? 'Başlık' : 'Title';
+  String get contentValue => tr ? 'Gösterilecek değer' : 'Display value';
   String get save => tr ? 'Eşle' : 'Map';
   String get invalid => tr
       ? '32 karakterli küçük harfli onaltılık cihaz kimliği girin.'
@@ -177,7 +182,20 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text(strings.confirmTitle(action)),
-        content: Text(strings.confirmBody(action)),
+        content: Column(
+          children: [
+            Text(strings.confirmBody(action)),
+            if (widget.controller.pendingArtifact case final bytes?) ...[
+              const SizedBox(height: 12),
+              Image.memory(
+                bytes,
+                key: const ValueKey('epaper-preview-artifact'),
+                fit: BoxFit.contain,
+                semanticLabel: strings.preview,
+              ),
+            ],
+          ],
+        ),
         actions: [
           _EpaperDialogAction(
             key: const ValueKey('epaper-cancel-action'),
@@ -205,9 +223,14 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
   Future<void> _map() async {
     if (!widget.controller.canAct) return;
     final epoch = _viewEpoch;
+    final sources = await widget.controller.discoverSources();
+    if (!mounted || epoch != _viewEpoch || sources.isEmpty) return;
     final draft = await Navigator.of(context).push<EpaperDeviceMappingDraft>(
       CupertinoPageRoute(
-        builder: (_) => _MappingScreen(strings: _EpaperStrings.of(context)),
+        builder: (_) => _MappingScreen(
+          strings: _EpaperStrings.of(context),
+          sources: sources,
+        ),
       ),
     );
     if (!mounted || epoch != _viewEpoch || draft == null) return;
@@ -489,31 +512,48 @@ class _EpaperPreview extends StatelessWidget {
 }
 
 class _MappingScreen extends StatefulWidget {
-  const _MappingScreen({required this.strings});
+  const _MappingScreen({required this.strings, required this.sources});
   final _EpaperStrings strings;
+  final List<EpaperSourceDevice> sources;
 
   @override
   State<_MappingScreen> createState() => _MappingScreenState();
 }
 
 class _MappingScreenState extends State<_MappingScreen> {
-  final _device = TextEditingController();
   final _name = TextEditingController();
+  final _title = TextEditingController(text: 'Larenor');
+  final _value = TextEditingController(text: '--:--');
+  EpaperSourceDevice? _source;
   bool _attempted = false;
 
-  EpaperDeviceMappingDraft get _draft =>
-      EpaperDeviceMappingDraft(deviceId: _device.text, name: _name.text);
+  EpaperDeviceMappingDraft? get _draft => _source == null
+      ? null
+      : EpaperDeviceMappingDraft.fromSource(
+          _source!,
+          name: _name.text,
+          title: _title.text,
+          value: _value.text,
+        );
+
+  @override
+  void initState() {
+    super.initState();
+    _source = widget.sources.firstOrNull;
+    if (_source case final source?) _name.text = source.name;
+  }
 
   @override
   void dispose() {
-    _device.dispose();
     _name.dispose();
+    _title.dispose();
+    _value.dispose();
     super.dispose();
   }
 
   void _submit() {
     final value = _draft;
-    if (!value.isValid) {
+    if (value == null || !value.isValid || !value.hasVerifiedSource) {
       setState(() => _attempted = true);
       return;
     }
@@ -529,22 +569,36 @@ class _MappingScreenState extends State<_MappingScreen> {
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Semantics(
-            textField: true,
-            label: widget.strings.deviceId,
-            child: SizedBox(
-              height: 48,
-              child: CupertinoTextField(
-                key: const ValueKey('epaper-map-device-id'),
-                controller: _device,
-                minLines: 1,
-                maxLines: 1,
-                placeholder: widget.strings.deviceId,
-                textInputAction: TextInputAction.next,
-                autocorrect: false,
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) => FocusScope.of(context).nextFocus(),
-              ),
+          CupertinoButton(
+            key: const ValueKey('epaper-map-device-id'),
+            alignment: AlignmentDirectional.centerStart,
+            onPressed: () async {
+              final selected = await showCupertinoModalPopup<EpaperSourceDevice>(
+                context: context,
+                builder: (context) => CupertinoActionSheet(
+                  title: Text(widget.strings.source),
+                  actions: [
+                    for (final source in widget.sources)
+                      CupertinoActionSheetAction(
+                        onPressed: () => Navigator.pop(context, source),
+                        child: Text(
+                          '${source.name} · ${source.width}×${source.height}',
+                        ),
+                      ),
+                  ],
+                ),
+              );
+              if (selected != null && mounted) {
+                setState(() {
+                  _source = selected;
+                  _name.text = selected.name;
+                });
+              }
+            },
+            child: Text(
+              _source == null
+                  ? widget.strings.sourceEmpty
+                  : '${_source!.name} · ${_source!.width}×${_source!.height}',
             ),
           ),
           const SizedBox(height: 16),
@@ -565,6 +619,22 @@ class _MappingScreenState extends State<_MappingScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          CupertinoTextField(
+            key: const ValueKey('epaper-map-title'),
+            controller: _title,
+            placeholder: widget.strings.contentTitle,
+            maxLength: 32,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          CupertinoTextField(
+            key: const ValueKey('epaper-map-value'),
+            controller: _value,
+            placeholder: widget.strings.contentValue,
+            maxLength: 48,
+            onChanged: (_) => setState(() {}),
+          ),
           const SizedBox(height: 24),
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
@@ -574,7 +644,8 @@ class _MappingScreenState extends State<_MappingScreen> {
               child: Text(widget.strings.save),
             ),
           ),
-          if (_attempted && !_draft.isValid)
+          if (_attempted &&
+              !(_draft?.isValid == true && _draft!.hasVerifiedSource))
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: Semantics(

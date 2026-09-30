@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -53,8 +54,39 @@ final class _Api implements EpaperManagementApi {
   var readbackCalls = 0;
   var cancelCalls = 0;
   var mapCalls = 0;
+  var artifactCalls = 0;
+  var previewHasArtifact = false;
   var confirmStatus = EpaperCommandStatus.uncertain;
   var readbackTrust = EpaperSnapshotTrust.acknowledged;
+
+  @override
+  Future<List<EpaperSourceDevice>> discoverSources(
+    EpaperClientAuthority authority,
+  ) async => const [
+    EpaperSourceDevice(
+      serviceId: 'e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0',
+      serviceRevision: 2,
+      deviceId: 'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0',
+      sourceRevision: 3,
+      name: 'Bedroom display',
+      width: 296,
+      height: 128,
+      batteryPercent: 80,
+      lastSeenAt: null,
+      reachable: true,
+    ),
+  ];
+
+  @override
+  Future<Uint8List> artifact(
+    EpaperClientAuthority authority,
+    EpaperCommandPreview preview,
+  ) async {
+    artifactCalls++;
+    return base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    );
+  }
 
   @override
   Future<EpaperDeviceStatus> map(
@@ -100,6 +132,10 @@ final class _Api implements EpaperManagementApi {
       action: action,
       expectedLayoutRevision: 'layout-r4',
       expiresAt: DateTime.utc(2030),
+      artifactPath: previewHasArtifact
+          ? '/admin/epaper/${'1' * 32}/${'2' * 32}/previews/${'3' * 32}/artifact'
+          : null,
+      artifactDigest: previewHasArtifact ? 'c' * 64 : null,
     );
   }
 
@@ -245,6 +281,9 @@ void main() {
       const EpaperDeviceMappingDraft(
         deviceId: 'b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0',
         name: 'Kitchen display',
+        serviceId: 'e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0',
+        serviceRevision: 2,
+        sourceRevision: 3,
       ),
     );
     expect(api.mapCalls, 1);
@@ -267,6 +306,9 @@ void main() {
       const EpaperDeviceMappingDraft(
         deviceId: 'c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0',
         name: 'Late display',
+        serviceId: 'e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0',
+        serviceRevision: 2,
+        sourceRevision: 3,
       ),
     );
     expect(api.mapCalls, 1);
@@ -323,6 +365,34 @@ void main() {
     expect(controller.devices.single.layoutRevision, 'layout-r4');
     expect(api.confirmCalls, 2);
     expect(api.readbackCalls, 1);
+  });
+
+  testWidgets('actual provider preview artifact is displayed before confirm', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1100);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = _Api()..previewHasArtifact = true;
+    final controller = EpaperManagementController(
+      api: api,
+      authority: _authority,
+      isCurrent: () => true,
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      CupertinoApp(home: EpaperManagementScreen(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+    final refresh = find.byKey(const ValueKey('epaper-refresh-hall-display'));
+    await tester.ensureVisible(refresh);
+    await tester.tap(refresh);
+    await tester.pumpAndSettle();
+    expect(api.artifactCalls, 1);
+    expect(
+      find.byKey(const ValueKey('epaper-preview-artifact')),
+      findsOneWidget,
+    );
   });
 
   for (final language in ['en', 'tr']) {
@@ -437,10 +507,6 @@ void main() {
       expect(
         tester.getRect(find.byKey(const ValueKey('epaper-map-submit'))).height,
         greaterThanOrEqualTo(48),
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('epaper-map-device-id')),
-        'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0',
       );
       await tester.enterText(
         find.byKey(const ValueKey('epaper-map-name')),

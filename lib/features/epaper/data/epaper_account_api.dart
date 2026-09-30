@@ -1,6 +1,10 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+
+import '../../../shared/network/server_bound_client.dart';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
@@ -22,6 +26,7 @@ final class EpaperAccountApi implements EpaperManagementApi {
     this._generation,
     this._endpoint,
     this._api,
+    this._binary,
     this.authority,
   );
 
@@ -32,6 +37,7 @@ final class EpaperAccountApi implements EpaperManagementApi {
   final int _generation;
   final ServerEndpoint _endpoint;
   final LarenorServerApi _api;
+  final ServerBoundClient _binary;
   final EpaperClientAuthority authority;
   bool _closed = false;
 
@@ -81,6 +87,7 @@ final class EpaperAccountApi implements EpaperManagementApi {
         generation,
         captured.endpoint,
         api,
+        ServerBoundClient(baseUrl: captured.endpoint.baseUrl),
         authority,
       );
     } catch (_) {
@@ -170,92 +177,59 @@ final class EpaperAccountApi implements EpaperManagementApi {
   }
 
   @override
+  Future<List<EpaperSourceDevice>> discoverSources(
+    EpaperClientAuthority presented,
+  ) async {
+    _exact(presented);
+    if (!authority.canManage) throw const EpaperApiException('forbidden');
+    final raw = await _request(
+      'POST',
+      '$_adminRoot/sources',
+      body: authority.toJson(),
+    );
+    if (raw?['authority'] is! Map<String, dynamic> ||
+        EpaperClientAuthority.fromJson(
+              raw!['authority'] as Map<String, dynamic>,
+            ) !=
+            authority ||
+        raw['devices'] is! List ||
+        (raw['devices'] as List).length > 100) {
+      throw const EpaperApiException('invalid_response');
+    }
+    final values = (raw['devices'] as List)
+        .map(
+          (item) => EpaperSourceDevice.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+    if (values.any((item) => !item.isValid) ||
+        values.map((item) => item.deviceId).toSet().length != values.length) {
+      throw const EpaperApiException('invalid_response');
+    }
+    return List.unmodifiable(values);
+  }
+
+  @override
   Future<EpaperDeviceStatus> map(
     EpaperClientAuthority presented,
     EpaperDeviceMappingDraft draft,
   ) async {
     _exact(presented);
-    if (!authority.canManage || !draft.isValid) {
+    if (!authority.canManage || !draft.isValid || !draft.hasVerifiedSource) {
       throw const EpaperApiException('forbidden');
     }
-    final now = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final layoutId = _randomId(), dataId = _randomId();
-    final policyId = _randomId(), slotId = _randomId();
-    final common = {
-      'schemaVersion': 1,
-      'coreId': context.coreId,
-      'homeId': context.homeId,
-    };
     final value = await _request(
       'PUT',
-      '$_adminRoot/devices/${draft.deviceId}',
+      '$_adminRoot/sources/${draft.deviceId}',
       body: {
         ...authority.toJson(),
         'expectedMappingRevision': 0,
+        'serviceId': draft.serviceId,
+        'serviceRevision': draft.serviceRevision,
+        'expectedSourceRevision': draft.sourceRevision,
         'name': draft.name,
+        'title': draft.title,
+        'value': draft.value,
         'ttlSeconds': 900,
-        'device': {
-          ...common,
-          'deviceId': draft.deviceId,
-          'revision': 1,
-          'bridgeRevision': 1,
-          'width': draft.width,
-          'height': draft.height,
-          'supportedColors': ['black', 'white'],
-          'active': true,
-          'connectivity': 'unknown',
-          'batteryPercent': 0,
-          'lastSeenAtMs': now,
-        },
-        'layout': {
-          ...common,
-          'layoutId': layoutId,
-          'revision': 1,
-          'width': draft.width,
-          'height': draft.height,
-          'colors': ['black', 'white'],
-          'slots': [
-            {
-              'schemaVersion': 1,
-              'slotId': slotId,
-              'kind': 'clock',
-              'column': 0,
-              'row': 0,
-              'columnSpan': 8,
-              'rowSpan': 8,
-            },
-          ],
-        },
-        'data': {
-          ...common,
-          'dataId': dataId,
-          'revision': 1,
-          'providerRevision': 1,
-          'capturedAtMs': now,
-          'classification': 'shared',
-          'cards': [
-            {
-              'schemaVersion': 1,
-              'slotId': slotId,
-              'kind': 'clock',
-              'label': 'Larenor',
-              'value': '--:--',
-              'unit': null,
-              'status': 'offline',
-              'accent': 'black',
-            },
-          ],
-        },
-        'policy': {
-          ...common,
-          'policyId': policyId,
-          'revision': 1,
-          'allowedKinds': ['clock'],
-          'allowedColors': ['black', 'white'],
-          'maxCards': 1,
-          'maxTtlSeconds': 3600,
-          'sharedContentOnly': true,
-        },
       },
     );
     return EpaperDeviceStatus.fromJson(value!);
@@ -305,6 +279,43 @@ final class EpaperAccountApi implements EpaperManagementApi {
   }
 
   @override
+  Future<Uint8List> artifact(
+    EpaperClientAuthority presented,
+    EpaperCommandPreview preview,
+  ) async {
+    _exact(presented);
+    if (preview.authority != authority ||
+        preview.artifactPath == null ||
+        preview.artifactDigest == null) {
+      throw const EpaperApiException('invalid_response');
+    }
+    final session = await _session();
+    final request = http.Request('GET', _endpoint.api(preview.artifactPath!))
+      ..headers['Authorization'] = 'Bearer ${session.accessToken}';
+    final response = await _binary
+        .send(request)
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode != 200 ||
+        response.headers['content-type']?.split(';').first != 'image/jpeg') {
+      throw const EpaperApiException('invalid_response');
+    }
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in response.stream) {
+      if (builder.length + chunk.length > 2 * 1024 * 1024) {
+        throw const EpaperApiException('invalid_response');
+      }
+      builder.add(chunk);
+    }
+    final bytes = builder.takeBytes();
+    if (bytes.length < 16 ||
+        sha256.convert(bytes).toString() != preview.artifactDigest) {
+      throw const EpaperApiException('invalid_response');
+    }
+    await _session();
+    return bytes;
+  }
+
+  @override
   Future<void> cancel(
     EpaperClientAuthority presented,
     EpaperCommandPreview preview,
@@ -336,17 +347,10 @@ final class EpaperAccountApi implements EpaperManagementApi {
     return device;
   }
 
-  static String _randomId() {
-    final random = Random.secure();
-    return List.generate(
-      16,
-      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-    ).join();
-  }
-
   void close() {
     if (_closed) return;
     _closed = true;
     _api.close();
+    _binary.close();
   }
 }

@@ -54,6 +54,17 @@ class MapDeviceRequest(AuthorityRequest):
     policy: EpaperPolicy
 
 
+class MapOpenEpaperLinkRequest(AuthorityRequest):
+    expectedMappingRevision: Annotated[int, Field(ge=0, le=2**63 - 1)]
+    serviceId: Identity
+    serviceRevision: Revision
+    expectedSourceRevision: Revision
+    name: str = Field(min_length=1, max_length=80, pattern=r"^[^\x00-\x1f\x7f]+$")
+    title: str = Field(min_length=1, max_length=32, pattern=r"^[^\x00-\x1f\x7f]+$")
+    value: str = Field(min_length=1, max_length=48, pattern=r"^[^\x00-\x1f\x7f]+$")
+    ttlSeconds: Annotated[int, Field(ge=60, le=86_400)]
+
+
 class PreviewRequest(AuthorityRequest):
     expectedDeviceRevision: str = Field(min_length=1, max_length=20, pattern=r"^[1-9][0-9]*$")
     action: Literal["refresh"]
@@ -88,6 +99,12 @@ def devices(core_id: Identity, home_id: Identity, body: AuthorityRequest,
     return core.epaper.list_devices(actor, core_id, home_id, body)
 
 
+@router.post(ADMIN + "/sources")
+def sources(core_id: Identity, home_id: Identity, body: AuthorityRequest,
+            actor: Admin, core: Core):
+    return core.epaper.discover_sources(actor, core_id, home_id, body)
+
+
 @router.post(ROOT + "/devices/{device_id}")
 def device(core_id: Identity, home_id: Identity, device_id: Identity,
            body: AuthorityRequest, actor: Ready, core: Core):
@@ -101,6 +118,14 @@ def map_device(core_id: Identity, home_id: Identity, device_id: Identity,
         from ..errors import ApiError
         raise ApiError("revision_conflict", 409)
     return core.epaper.map_device(actor, core_id, home_id, body)
+
+
+@router.put(ADMIN + "/sources/{device_id}")
+def map_open_epaper_link(
+    core_id: Identity, home_id: Identity, device_id: Identity,
+    body: MapOpenEpaperLinkRequest, actor: Admin, core: Core,
+):
+    return core.epaper.map_source(actor, core_id, home_id, device_id, body)
 
 
 @router.post(ADMIN + "/devices/{device_id}/previews", status_code=201)
@@ -120,6 +145,17 @@ def cancel(core_id: Identity, home_id: Identity, request_id: Identity,
 def confirm(core_id: Identity, home_id: Identity, request_id: Identity,
             body: AuthorityRequest, actor: Admin, core: Core):
     return core.epaper.confirm(actor, core_id, home_id, request_id, body)
+
+
+@router.get(ADMIN + "/previews/{request_id}/artifact")
+def artifact(core_id: Identity, home_id: Identity, request_id: Identity,
+             actor: Admin, core: Core):
+    body, digest = core.epaper.artifact(actor, core_id, home_id, request_id)
+    return Response(
+        content=body, media_type="image/jpeg",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                 "ETag": f'"{digest}"'},
+    )
 
 
 @router.post(ROOT + "/devices/{device_id}/poll")

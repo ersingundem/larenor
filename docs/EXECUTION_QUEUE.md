@@ -20,7 +20,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 2 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 0 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -31,7 +31,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | F51 | Etkileşimli ev kat planı | Çalışılıyor | — |
 | F23 | Canlı TV ve kayıt merkezi | Çalışılıyor | — |
-| F58 | E-paper mini ev ekranları | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -61,7 +60,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 20 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F08 |
 | 21 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F08 |
 | 22 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F03 |
-| 23 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G03, G04, G06, G07, G08, G09, G10 |
+| 23 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G03, G04, G06, G07, G08, G09 |
 | 24 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 25 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 26 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -168,6 +167,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | Uygulama tamamlandı · test bekliyor | — |
+| F58 | E-paper mini ev ekranları | Uygulama tamamlandı · test bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |

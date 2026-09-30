@@ -57,8 +57,8 @@ class EpaperDevice(FrozenModel):
     supportedColors: list[Color] = Field(min_length=2, max_length=4)
     active: bool
     connectivity: Connectivity
-    batteryPercent: int = Field(ge=0, le=100)
-    lastSeenAtMs: TimestampMs
+    batteryPercent: int | None = Field(default=None, ge=0, le=100)
+    lastSeenAtMs: TimestampMs | None = None
 
     @field_validator("supportedColors")
     @classmethod
