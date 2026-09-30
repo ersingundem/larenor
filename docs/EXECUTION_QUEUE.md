@@ -18,7 +18,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
-| G08 — Kamera ve olaylar | 5 | 0 | 2 | 0 | 0 | 0 |
+| G08 — Kamera ve olaylar | 5 | 0 | 2 | 2 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 1 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
@@ -29,6 +29,8 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
+| F44 | Kameradan görsel sensörler | Çalışılıyor | — |
+| F45 | Havlama ve gürültü olayları | Çalışılıyor | — |
 | F50 | Oda konforu ve havalandırma planı | Çalışılıyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Çalışılıyor | — |
 
@@ -39,14 +41,12 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
 | 1 | F42 | Mahremiyet korumalı olay paylaşımı | Başlanabilir | — |
-| 2 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
-| 3 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 4 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08, G09, G10 |
-| 5 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 6 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 7 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 8 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 9 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 2 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08, G09, G10 |
+| 3 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 4 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 5 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 6 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 7 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 

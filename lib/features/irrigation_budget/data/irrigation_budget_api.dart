@@ -189,7 +189,7 @@ final class CoreIrrigationBudgetApi
       _invalid();
     }
     final context = session.context!;
-    final policyRevision = _positive(raw['policyRevision']);
+    final policyRevision = _revision(raw['policyRevision']);
     final budget = _object(raw['budget']);
     _keys(budget, const {
       'revision',
@@ -205,10 +205,10 @@ final class CoreIrrigationBudgetApi
       sessionFamilyId: _identity(authorityRaw['sessionFamilyId']),
       policyId: _identity(raw['policyId']),
       routeId: _text(routeId, 128),
-      homeRevision: _positive(authorityRaw['homeRevision']),
-      accountRevision: _positive(authorityRaw['accountRevision']),
+      homeRevision: _revision(authorityRaw['homeRevision']),
+      accountRevision: _revision(authorityRaw['accountRevision']),
       policyRevision: policyRevision,
-      budgetRevision: _positive(budget['revision']),
+      budgetRevision: _revision(budget['revision']),
       clientSessionRevision: sessionRevision,
       routeRevision: routeRevision,
     );
@@ -243,11 +243,11 @@ final class CoreIrrigationBudgetApi
       zones.add(
         IrrigationZoneBudget(
           zoneId: zoneId,
-          zoneRevision: _positive(zone['zoneRevision']),
+          zoneRevision: _revision(zone['zoneRevision']),
           areaName: _text(zone['areaName'], 120),
           plantName: _text(zone['plantName'], 120),
           moisturePermille: _bounded(zone['moisturePermille'], 0, 1000),
-          soilReadingRevision: _positive(zone['soilReadingRevision']),
+          soilReadingRevision: _revision(zone['soilReadingRevision']),
           status: _oneOf(zone['status'], const {
             'planned',
             'deferred',
@@ -328,7 +328,7 @@ final class CoreIrrigationBudgetApi
       confirmToken: token,
       requestId: _identity(raw['requestId']),
       planId: _identity(raw['planId']),
-      policyRevision: _positive(raw['policyRevision']),
+      policyRevision: _revision(raw['policyRevision']),
       expiresAtMs: _bounded(raw['expiresAtMs'], 0, 0x7fffffffffffffff),
       commandCount: _bounded(raw['commandCount'], 1, 32),
     );
@@ -515,7 +515,7 @@ final class CoreIrrigationBudgetApi
         (!stop && raw['flowVerified'] is! bool)) {
       _invalid();
     }
-    _positive(raw['stateRevision']);
+    _revision(raw['stateRevision']);
     _bounded(raw['observedAtMs'], 0, 0x7fffffffffffffff);
     final deliveredMl = stop
         ? null
@@ -555,7 +555,7 @@ final class CoreIrrigationBudgetApi
       'valveServiceRevision',
       'valveBindingRevision',
     ]) {
-      _positive(zone[key]);
+      _revision(zone[key]);
     }
     _bounded(zone['flowMlPerMinute'], 1, 1000000);
     _bounded(zone['maxDurationSeconds'], 1, 7200);
@@ -578,7 +578,7 @@ final class CoreIrrigationBudgetApi
   }
 
   static int _int(Object? value) => value is int ? value : _invalid();
-  static int _positive(Object? value) => _bounded(value, 1, 0x7fffffff);
+  static int _revision(Object? value) => _bounded(value, 1, 0x1fffffffffffff);
   static int _bounded(Object? value, int min, int max) {
     final result = _int(value);
     return result >= min && result <= max ? result : _invalid();

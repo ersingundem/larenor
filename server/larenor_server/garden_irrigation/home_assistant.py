@@ -107,7 +107,11 @@ def _revision(value):
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
-    return int(hashlib.sha256(raw).hexdigest()[:15], 16) + 1
+    # This projection crosses Flutter's JavaScript JSON boundary. Thirteen
+    # hexadecimal digest digits retain 52 bits of change detection while the
+    # numeric revision stays exact on every supported Dart target. Persisted
+    # source/controller revisions use separate monotonic counters.
+    return int(hashlib.sha256(raw).hexdigest()[:13], 16) + 1
 
 
 def _identity(*values):

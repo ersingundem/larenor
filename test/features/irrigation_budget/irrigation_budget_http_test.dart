@@ -7,6 +7,7 @@ import 'package:larenor/features/irrigation_budget/data/irrigation_budget_api.da
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 final class _Store implements ServerSessionPersistence {
   @override
@@ -130,6 +131,61 @@ void main() {
     expect(requests.single.url.path, '/api/v1/admin/irrigation-budget');
     expect(requests.single.headers['authorization'], 'Bearer ${'a' * 43}');
   });
+
+  test(
+    'round-trips JS-safe provider revisions without widening values',
+    () async {
+      const revision = 0x123456789abcd;
+      final raw = snapshot();
+      raw['policyRevision'] = revision;
+      final authority = raw['authority']! as Map<String, dynamic>;
+      authority['homeRevision'] = revision;
+      authority['accountRevision'] = revision;
+      final budget = raw['budget']! as Map<String, dynamic>;
+      budget['revision'] = revision;
+      final zone = (raw['zones']! as List).single as Map<String, dynamic>;
+      zone['zoneRevision'] = revision;
+      zone['soilReadingRevision'] = revision;
+      final account = await accountFor((_) async => json({'snapshot': raw}));
+      addTearDown(account.dispose);
+      final api = CoreIrrigationBudgetApi(
+        account: account,
+        routeId: 'route',
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => true,
+      );
+
+      final value = await api.load();
+
+      expect(value.authority.homeRevision, revision);
+      expect(value.authority.accountRevision, revision);
+      expect(value.authority.policyRevision, revision);
+      expect(value.authority.budgetRevision, revision);
+      expect(value.zones.single.zoneRevision, revision);
+      expect(value.zones.single.soilReadingRevision, revision);
+      expect(value.dailyLimitMl, 100000);
+    },
+  );
+
+  test(
+    'rejects a revision above the JavaScript safe integer boundary',
+    () async {
+      final raw = snapshot();
+      (raw['budget']! as Map<String, dynamic>)['revision'] = 0x20000000000000;
+      final account = await accountFor((_) async => json({'snapshot': raw}));
+      addTearDown(account.dispose);
+      final api = CoreIrrigationBudgetApi(
+        account: account,
+        routeId: 'route',
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => true,
+      );
+
+      await expectLater(api.load(), throwsA(isA<LarenorServerException>()));
+    },
+  );
 
   test('rejects command capability and foreign Core authority', () async {
     for (final invalid in [
