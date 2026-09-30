@@ -2503,7 +2503,7 @@
       "kind": "task",
       "parent": "PRODUCT",
       "title": "Spotify/Apple Music/YouTube Music kullanıcı akışı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S07.3",
         "S08.8"
@@ -2524,7 +2524,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sağlayıcı destek matrisi, güvenli kurulum/yenileme/iptal durumları, sıkı HTTPS dış akışı, dinamik gizli alan formu ve belirsiz create sonucunda POST tekrarlamadan exact request readback/aktif kurulum uzlaştırması Server ve Client tarafında tamamlandı; testler, bağımsız inceleme, exact-head CI ve gerçek hesap/HomePod kabulü son doğrulama kapısında bekliyor."
+      "reason": "Gerçek Client provider controller ve admin müzik merkezi girişi normal Core→private InstallationWorkerClient/Server→MusicProviderSetupRuntime→owned authenticated MA TCP ile iki Core/Client yaşamında doğrulandı; lost-create ACK exact request readback bir upstream start korur, secure YT form/loaded-instance readback, Spotify exact HTTPS external flow, explicit abort ve logout retirement geçti. Root iki fazı ve 26 Server/runtime testini tekrar geçti; analyze temiz. Standard fixture yokken actual TCP testi explicit skip, acceptance sayılmaz. Exact HEAD CI bekliyor; gerçek Spotify/Apple/YT hesapları, abonelik/çalma hakları/HomePod ve fiziksel household MA MANUAL açık. Kanıt: docs/testing/product-music-provider-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "PRODUCT.HEALTH",
