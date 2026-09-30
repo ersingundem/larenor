@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/irrigation_budget/data/irrigation_budget_api.dart';
+import 'package:larenor/features/irrigation_budget/data/irrigation_source_api.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
@@ -18,6 +19,8 @@ const _plan = '66666666666666666666666666666666';
 const _zone = '77777777777777777777777777777777';
 const _preview = '88888888888888888888888888888888';
 const _command = '99999999999999999999999999999999';
+const _service = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const _room = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const _access = 'irrigation_loopback_access_token_123456789';
 const _confirmToken = 'T123456789012345678901234567890123456789012';
 
@@ -75,6 +78,56 @@ final class _IrrigationCore {
         'coreId': _core,
         'homeId': _home,
       });
+    }
+    if (request.method == 'GET' && path == '/api/v1/admin/services') {
+      return _json(request, {
+        'services': [
+          {
+            'id': _service,
+            'name': 'Garden Home Assistant',
+            'kind': 'home_assistant',
+            'baseUrl': 'http://home-assistant.fixture.invalid',
+            'revision': 2,
+            'credentialKeys': ['token'],
+            'verification': {
+              'state': 'authenticated',
+              'checkedAt': '2026-09-30T10:00:00Z',
+              'version': '2026.9.0',
+            },
+          },
+        ],
+      });
+    }
+    if (request.method == 'GET' &&
+        path == '/api/v1/home-resources/$_core/$_home') {
+      return _json(request, {
+        'scope': {'schemaVersion': 1, 'coreId': _core, 'homeId': _home},
+        'userRevision': 4,
+        'entries': [
+          {
+            'ref': {
+              'schemaVersion': 1,
+              'coreId': _core,
+              'homeId': _home,
+              'kind': 'room',
+              'id': _room,
+            },
+            'revision': 5,
+            'aclRevision': 6,
+            'permissions': {'read': true, 'write': true},
+            'label': 'Back garden',
+            'order': 1,
+          },
+        ],
+        'snapshot':
+            'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+        'nextAfter': null,
+      });
+    }
+    if (request.method == 'GET' &&
+        (path == '/api/v1/admin/irrigation-budget/source' ||
+            path == '/api/v1/admin/irrigation-budget/controller')) {
+      return _error(request, 409);
     }
     if (request.method == 'GET' && path == '/api/v1/admin/irrigation-budget') {
       loads++;
@@ -266,13 +319,42 @@ void main() {
       final receipt = await api.confirm(preview);
       expect(receipt.status, 'applied');
       expect(receipt.results.single.code, 'applied');
+      expect(receipt.results.single.flowVerified, isTrue);
+      expect(receipt.results.single.deliveredMl, 18000);
+      expect(receipt.results.single.flowActive, isNull);
       final stopped = await api.stop(snapshot, const [_zone]);
       expect(stopped.status, 'stopped');
       expect(stopped.results.single.code, 'stopped');
+      expect(stopped.results.single.flowActive, isFalse);
+      expect(stopped.results.single.flowVerified, isNull);
+      expect(stopped.results.single.deliveredMl, isNull);
       expect(
         (core.loads, core.previews, core.confirms, core.stops),
         (1, 1, 1, 1),
       );
+    },
+  );
+
+  test(
+    'production source setup lists exact current HA and room bindings',
+    () async {
+      final core = await _IrrigationCore.start();
+      addTearDown(core.close);
+      final account = await _signIn(core);
+      addTearDown(account.dispose);
+      final api = CoreIrrigationSourceApi(
+        account: account,
+        isCurrent: () => true,
+      );
+      addTearDown(api.retire);
+
+      final catalog = await api.load();
+      expect(catalog.services.single.id, _service);
+      expect(catalog.services.single.revision, 2);
+      expect(catalog.rooms.single.id, _room);
+      expect(catalog.rooms.single.revision, 5);
+      expect(catalog.source, isNull);
+      expect(catalog.controller, isNull);
     },
   );
 

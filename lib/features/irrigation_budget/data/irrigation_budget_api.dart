@@ -426,8 +426,9 @@ final class CoreIrrigationBudgetApi
         final zoneId = _identity(raw['zoneId']);
         if (!seen.add(zoneId)) _invalid();
         final readback = raw['readback'];
+        _IrrigationReadbackEvidence? evidence;
         if (readback != null) {
-          _validateReadback(
+          evidence = _validateReadback(
             _object(readback),
             stop: stop,
             commandId: commandId,
@@ -470,12 +471,15 @@ final class CoreIrrigationBudgetApi
           zoneId: zoneId,
           status: status,
           code: code,
+          deliveredMl: evidence?.deliveredMl,
+          flowVerified: evidence?.flowVerified,
+          flowActive: evidence?.flowActive,
         );
       }),
     );
   }
 
-  void _validateReadback(
+  _IrrigationReadbackEvidence _validateReadback(
     Map<String, dynamic> raw, {
     required bool stop,
     required String commandId,
@@ -513,7 +517,9 @@ final class CoreIrrigationBudgetApi
     }
     _positive(raw['stateRevision']);
     _bounded(raw['observedAtMs'], 0, 0x7fffffffffffffff);
-    if (!stop) _bounded(raw['deliveredMl'], 0, 10000000000);
+    final deliveredMl = stop
+        ? null
+        : _bounded(raw['deliveredMl'], 0, 10000000000);
     final zone = _object(raw['zone']);
     _keys(zone, const {
       'schemaVersion',
@@ -553,6 +559,11 @@ final class CoreIrrigationBudgetApi
     }
     _bounded(zone['flowMlPerMinute'], 1, 1000000);
     _bounded(zone['maxDurationSeconds'], 1, 7200);
+    return _IrrigationReadbackEvidence(
+      deliveredMl: deliveredMl,
+      flowVerified: stop ? null : raw['flowVerified'] as bool,
+      flowActive: stop ? raw['flowActive'] as bool : null,
+    );
   }
 
   static Never _invalid() =>
@@ -594,4 +605,15 @@ final class CoreIrrigationBudgetApi
     final result = _text(value, 64);
     return allowed.contains(result) ? result : _invalid();
   }
+}
+
+final class _IrrigationReadbackEvidence {
+  const _IrrigationReadbackEvidence({
+    required this.deliveredMl,
+    required this.flowVerified,
+    required this.flowActive,
+  });
+
+  final int? deliveredMl;
+  final bool? flowVerified, flowActive;
 }

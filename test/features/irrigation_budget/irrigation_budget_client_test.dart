@@ -49,6 +49,21 @@ const sample = IrrigationBudgetSnapshot(
   ],
 );
 
+IrrigationBudgetSnapshot controlledSample() => IrrigationBudgetSnapshot(
+  authority: sample.authority,
+  planId: sample.planId,
+  generatedAtMs: sample.generatedAtMs,
+  forecastStatus: sample.forecastStatus,
+  rainMilliMm: sample.rainMilliMm,
+  dailyLimitMl: sample.dailyLimitMl,
+  usedMl: sample.usedMl,
+  plannedMl: sample.plannedMl,
+  estimatedCostMicros: sample.estimatedCostMicros,
+  controlCapability: 'verified_control',
+  commandEndpointAvailable: true,
+  zones: sample.zones,
+);
+
 final class _Api implements IrrigationBudgetApi {
   Completer<IrrigationBudgetSnapshot>? gate;
   var retired = false;
@@ -120,4 +135,50 @@ void main() {
       });
     }
   }
+
+  testWidgets('shows measured controller receipt separately from estimate', (
+    tester,
+  ) async {
+    final controller =
+        IrrigationBudgetController(api: _Api(), isCurrent: () => true)
+          ..snapshot = controlledSample()
+          ..state = IrrigationBudgetViewState.ready
+          ..receipt = const IrrigationControlReceipt(
+            requestId: 'request',
+            planId: 'plan',
+            status: 'applied',
+            completedAtMs: 1021000,
+            results: [
+              IrrigationCommandResult(
+                zoneId: 'zone',
+                status: 'applied',
+                code: 'applied',
+                deliveredMl: 17500,
+                flowVerified: true,
+                flowActive: null,
+              ),
+            ],
+          );
+    addTearDown(controller.dispose);
+    var setupCalls = 0;
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: IrrigationBudgetScreen(
+          controller: controller,
+          onSetup: () => setupCalls++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('irrigation-actual-flow-receipt')),
+      findsOneWidget,
+    );
+    expect(find.text('Measured delivery: 17.5 L'), findsOneWidget);
+    expect(find.text('Estimated water: 18.0 L'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('irrigation-source-setup')));
+    expect(setupCalls, 1);
+  });
 }

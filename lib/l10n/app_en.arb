@@ -3752,7 +3752,7 @@
   "remoteAccessCoreUnavailable": "Core data could not be verified. Any visible profiles are an offline, read-only memory cache.",
   "irrigationBudgetTitle": "Irrigation and water budget",
   "irrigationBudgetStatus": "Verified garden status",
-  "irrigationBudgetManualBoundary": "Recommendations do not open a valve or write to Home Assistant. Valve control remains unavailable until a verified capability and separate confirmation flow are connected.",
+  "irrigationBudgetManualBoundary": "Home Assistant observations stay read-only. A separately configured and verified OpenSprinkler controller enables preview, explicit confirmation, and measured-flow receipts.",
   "irrigationBudgetManualOnly": "Read-only plan; no valve commands",
   "irrigationBudgetLoading": "Loading verified soil, rain and water budget data",
   "irrigationBudgetVerified": "Garden, forecast and budget revisions are verified",
@@ -5031,5 +5031,36 @@
   "energyPrioritySetupAccept": "Verify and bind source",
   "energyPrioritySetupNoSource": "No authenticated Home Assistant connection is available.",
   "energyPrioritySetupFailed": "The inverter source could not be verified. Refresh before trying another write.",
-  "energyPrioritySetupRefresh": "Read current source state"
+  "energyPrioritySetupRefresh": "Read current source state",
+  "irrigationSetupAction": "Configure irrigation sources",
+  "irrigationSetupTitle": "Irrigation sources",
+  "irrigationSetupFailed": "The current source settings could not be verified or saved.",
+  "irrigationSetupSaved": "The source binding was saved and verified.",
+  "irrigationSetupSaveSource": "Save Home Assistant source",
+  "irrigationSetupSaveController": "Save OpenSprinkler controller",
+  "irrigationSetupHomeAssistant": "Home Assistant observations",
+  "irrigationSetupOpenSprinkler": "OpenSprinkler verified control",
+  "irrigationSetupService": "Home Assistant service",
+  "irrigationSetupRoom": "Room",
+  "irrigationSetupWeatherEntity": "Weather entity",
+  "irrigationSetupLeakEntity": "Leak entity",
+  "irrigationSetupWaterEntity": "Daily water entity",
+  "irrigationSetupSoilEntity": "Soil moisture entity",
+  "irrigationSetupValveEntity": "Valve entity",
+  "irrigationSetupPlantName": "Plant name",
+  "irrigationSetupFlowEstimate": "Configured flow estimate (mL/min)",
+  "irrigationSetupMaxDuration": "Maximum duration (seconds)",
+  "irrigationSetupEndpoint": "Controller URL",
+  "irrigationSetupPasswordMd5": "Controller password MD5",
+  "irrigationSetupStationIndex": "Station index",
+  "irrigationSetupAddZone": "Add irrigation zone",
+  "irrigationSetupRemoveZone": "Remove irrigation zone",
+  "irrigationActualWater": "Measured delivery: {liters} L",
+  "@irrigationActualWater": {
+    "placeholders": {
+      "liters": {
+        "type": "String"
+      }
+    }
+  }
 }

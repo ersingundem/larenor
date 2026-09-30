@@ -3399,7 +3399,7 @@
   "remoteAccessCoreUnavailable": "Core verisi doğrulanamadı. Görünen profiller çevrimdışı ve salt okunur bellek önbelleğidir.",
   "irrigationBudgetTitle": "Sulama ve su bütçesi",
   "irrigationBudgetStatus": "Doğrulanmış bahçe durumu",
-  "irrigationBudgetManualBoundary": "Öneriler vanayı açmaz veya Home Assistant'a yazmaz. Doğrulanmış yetenek ve ayrı onay akışı bağlanana kadar vana kontrolü kullanılamaz.",
+  "irrigationBudgetManualBoundary": "Home Assistant gözlemleri salt okunur kalır. Ayrı yapılandırılmış ve doğrulanmış OpenSprinkler denetleyicisi önizleme, açık onay ve ölçülen akış makbuzlarını etkinleştirir.",
   "irrigationBudgetManualOnly": "Salt okunur plan; vana komutu yok",
   "irrigationBudgetLoading": "Doğrulanmış toprak, yağış ve su bütçesi verileri yükleniyor",
   "irrigationBudgetVerified": "Bahçe, tahmin ve bütçe sürümleri doğrulandı",
@@ -4678,5 +4678,36 @@
   "energyPrioritySetupAccept": "Kaynağı doğrula ve bağla",
   "energyPrioritySetupNoSource": "Kimliği doğrulanmış bir Home Assistant bağlantısı yok.",
   "energyPrioritySetupFailed": "İnverter kaynağı doğrulanamadı. Başka bir yazma denemeden önce güncel durumu okuyun.",
-  "energyPrioritySetupRefresh": "Güncel kaynak durumunu oku"
+  "energyPrioritySetupRefresh": "Güncel kaynak durumunu oku",
+  "irrigationSetupAction": "Sulama kaynaklarını yapılandır",
+  "irrigationSetupTitle": "Sulama kaynakları",
+  "irrigationSetupFailed": "Güncel kaynak ayarları doğrulanamadı veya kaydedilemedi.",
+  "irrigationSetupSaved": "Kaynak bağlantısı kaydedildi ve doğrulandı.",
+  "irrigationSetupSaveSource": "Home Assistant kaynağını kaydet",
+  "irrigationSetupSaveController": "OpenSprinkler denetleyicisini kaydet",
+  "irrigationSetupHomeAssistant": "Home Assistant gözlemleri",
+  "irrigationSetupOpenSprinkler": "OpenSprinkler doğrulanmış kontrolü",
+  "irrigationSetupService": "Home Assistant servisi",
+  "irrigationSetupRoom": "Oda",
+  "irrigationSetupWeatherEntity": "Hava durumu varlığı",
+  "irrigationSetupLeakEntity": "Sızıntı varlığı",
+  "irrigationSetupWaterEntity": "Günlük su varlığı",
+  "irrigationSetupSoilEntity": "Toprak nemi varlığı",
+  "irrigationSetupValveEntity": "Vana varlığı",
+  "irrigationSetupPlantName": "Bitki adı",
+  "irrigationSetupFlowEstimate": "Yapılandırılmış akış tahmini (mL/dak)",
+  "irrigationSetupMaxDuration": "Azami süre (saniye)",
+  "irrigationSetupEndpoint": "Denetleyici URL'si",
+  "irrigationSetupPasswordMd5": "Denetleyici parolası MD5",
+  "irrigationSetupStationIndex": "İstasyon indeksi",
+  "irrigationSetupAddZone": "Sulama bölgesi ekle",
+  "irrigationSetupRemoveZone": "Sulama bölgesini kaldır",
+  "irrigationActualWater": "Ölçülen teslimat: {liters} L",
+  "@irrigationActualWater": {
+    "placeholders": {
+      "liters": {
+        "type": "String"
+      }
+    }
+  }
 }

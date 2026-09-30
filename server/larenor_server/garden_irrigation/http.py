@@ -162,6 +162,16 @@ class IrrigationHttpGateway:
         with self._lock:
             return self._plans.get(plan_id)
 
+    def _current_effect_authority(self, expected):
+        try:
+            current = IrrigationAuthority.model_validate(
+                self._authority_resolver(expected)
+            )
+        except Exception:
+            raise ApiError("revision_conflict", 409) from None
+        if current != expected:
+            raise ApiError("revision_conflict", 409)
+
     def preview(self, actor, raw):
         body = IrrigationPreviewRequest.model_validate(raw)
         projection, authority, policy, inputs, plan = self._load(actor)
@@ -215,13 +225,32 @@ class IrrigationHttpGateway:
         ):
             raise ApiError("revision_conflict", 409)
 
+        def current():
+            self._current_effect_authority(authority)
+            check = getattr(self._provider, 'assert_control_current', None)
+            if check is not None:
+                check(actor, authority, _policy)
+
         def apply(command):
-            return self._provider.valve_worker(command, cancelled=cancelled)
+            current()
+            guarded = getattr(self._provider, 'guarded_valve_worker', None)
+            result = (guarded(command, guard=current, cancelled=cancelled)
+                      if guarded is not None else self._provider.valve_worker(command, cancelled=cancelled))
+            current()
+            return result
+
+        def stop(command):
+            current()
+            guarded = getattr(self._provider, 'guarded_stop_valve', None)
+            result = (guarded(command, guard=current) if guarded is not None
+                      else self._provider.stop_valve(command))
+            current()
+            return result
 
         return self._coordinator.confirm(
             authority, body.previewId, body.confirmToken,
             nowMs=self._clock_ms(), worker=apply, cancelled=cancelled,
-            stopWorker=self._provider.stop_valve,
+            stopWorker=stop,
         )
 
     def stop(self, actor, raw):
@@ -238,10 +267,23 @@ class IrrigationHttpGateway:
             )
         except Exception:
             raise ApiError("irrigation_provider_unavailable", 503) from None
+        def stop(command):
+            def current():
+                self._current_effect_authority(authority)
+                check = getattr(self._provider, 'assert_control_current', None)
+                if check is not None:
+                    check(actor, authority, policy)
+            current()
+            guarded = getattr(self._provider, 'guarded_stop_valve', None)
+            result = (guarded(command, guard=current) if guarded is not None
+                      else self._provider.stop_valve(command))
+            current()
+            return result
+
         return self._coordinator.stop(
             authority, policy, readbacks, body.zoneIds,
             requestId=body.requestId, nowMs=self._clock_ms(),
-            worker=self._provider.stop_valve,
+            worker=stop,
         )
 
     def _control_context(self, actor):
@@ -280,3 +322,21 @@ class IrrigationHttpGateway:
         if not callable(method):
             raise ApiError("irrigation_source_unavailable", 503)
         return method(actor, body)
+
+    def controller_configuration(self, actor):
+        method = getattr(self._provider, "controller_configuration", None)
+        if not callable(method):
+            raise ApiError("irrigation_controller_unavailable", 503)
+        return method(actor)
+
+    def configure_controller(self, actor, body):
+        method = getattr(self._provider, "configure_controller", None)
+        if not callable(method):
+            raise ApiError("irrigation_controller_unavailable", 503)
+        return method(actor, body)
+
+    def controller_candidates(self, actor):
+        method = getattr(self._provider, "controller_candidates", None)
+        if not callable(method):
+            raise ApiError("irrigation_controller_unavailable", 503)
+        return method(actor)

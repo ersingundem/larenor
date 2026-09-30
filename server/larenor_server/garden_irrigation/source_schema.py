@@ -23,6 +23,22 @@ def migrate_irrigation_source(connection: sqlite3.Connection) -> None:
         """
     )
     connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS irrigation_opensprinkler_controller (
+            singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+            controller_id TEXT NOT NULL UNIQUE,
+            revision INTEGER NOT NULL CHECK(revision > 0),
+            source_revision INTEGER NOT NULL CHECK(source_revision > 0),
+            nonce BLOB NOT NULL,
+            ciphertext BLOB NOT NULL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )
+        """
+    )
+    from .opensprinkler import migrate_opensprinkler_commands
+    migrate_opensprinkler_commands(connection)
+    connection.execute(
         "INSERT OR REPLACE INTO metadata(key,value) VALUES"
         "('irrigation_source_schema',?)",
         (SCHEMA_VERSION,),

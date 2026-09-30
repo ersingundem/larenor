@@ -117,8 +117,13 @@ final class IrrigationCommandResult {
     required this.zoneId,
     required this.status,
     required this.code,
+    required this.deliveredMl,
+    required this.flowVerified,
+    required this.flowActive,
   });
   final String zoneId, status, code;
+  final int? deliveredMl;
+  final bool? flowVerified, flowActive;
 }
 
 @immutable

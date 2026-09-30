@@ -12,7 +12,9 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/irrigation_budget_api.dart';
 import '../data/irrigation_budget_controller.dart';
+import '../data/irrigation_source_api.dart';
 import 'irrigation_budget_screen.dart';
+import 'irrigation_source_screen.dart';
 
 const _routeId = '49494949494949494949494949494949';
 
@@ -120,6 +122,30 @@ class _IrrigationBudgetRouteState extends ConsumerState<IrrigationBudgetRoute> {
     }
   }
 
+  Future<void> _openSetup() async {
+    final account = _account;
+    final session = account?.session;
+    if (account == null ||
+        session == null ||
+        !session.user.canAdminister ||
+        !_interactive ||
+        !mounted) {
+      return;
+    }
+    final api = CoreIrrigationSourceApi(
+      account: account,
+      isCurrent: () =>
+          mounted && _interactive && identical(account.session, session),
+    );
+    await Navigator.of(context).push<void>(
+      CupertinoPageRoute(builder: (_) => IrrigationSourceScreen(api: api)),
+    );
+    api.retire();
+    if (mounted && _interactive && identical(account.session, session)) {
+      await _connect();
+    }
+  }
+
   @override
   void dispose() {
     _generation++;
@@ -134,7 +160,10 @@ class _IrrigationBudgetRouteState extends ConsumerState<IrrigationBudgetRoute> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (_controller case final controller?) {
-      return IrrigationBudgetScreen(controller: controller);
+      return IrrigationBudgetScreen(
+        controller: controller,
+        onSetup: _openSetup,
+      );
     }
     return ServiceRootScaffold(
       title: l10n.irrigationBudgetTitle,
@@ -161,6 +190,12 @@ class _IrrigationBudgetRouteState extends ConsumerState<IrrigationBudgetRoute> {
                   additionalInfo: Text(l10n.irrigationBudgetFailed),
                   onTap: _interactive ? _connect : null,
                 ),
+              SettingsActionTile(
+                buttonKey: const ValueKey('irrigation-source-setup'),
+                leading: const Icon(CupertinoIcons.settings),
+                title: Text(l10n.irrigationSetupAction),
+                onTap: _interactive ? _openSetup : null,
+              ),
             ],
           ),
         ),

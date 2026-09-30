@@ -4930,7 +4930,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Bahçe sulama ve su bütçesi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4955,7 +4955,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül normal composition denetiminde sulama providerı varsayılan Core içinde yok. HA kaynak/bölge/hava/toprak ve gerçek vana okuması ile kalıcı açık ayarlar; ardından süre/akış makbuzunu gerçekten sunan kontrolcü adapteri geliştiriliyor. Genel HA valve süre/flow kanıtı vermez; verified_control olarak sunulmayacak. Tam Client→Core→provider, güvenli stop/no-flow ve exact HEAD CI açık."
+      "reason": "Gerçek HA hava/toprak/su/oda kaynağı ve admin kurulum UI, OpenSprinkler 2.2.1(5) timed vana/gerçek pulse-flow makbuzu ve durdurma uygulandı. Kalıcı dispatch intent kayıp ACK/restart sonrası yeniden gönderilmez; socket before_send tam actor/session/source/policy/controller guard uygular. 21 Server, 11 Flutter ve analyze kapısı geçti; tam Client→normal Core→TCP sağlayıcı kabulü ve exact HEAD CI açık. Genel HA valve read-only kalır; fiziksel kurulum MANUAL kapısında."
     },
     {
       "id": "G10",

@@ -8,8 +8,13 @@ import '../data/irrigation_budget_controller.dart';
 import '../domain/irrigation_budget_models.dart';
 
 class IrrigationBudgetScreen extends StatefulWidget {
-  const IrrigationBudgetScreen({super.key, required this.controller});
+  const IrrigationBudgetScreen({
+    super.key,
+    required this.controller,
+    this.onSetup,
+  });
   final IrrigationBudgetController controller;
+  final VoidCallback? onSetup;
 
   @override
   State<IrrigationBudgetScreen> createState() => _IrrigationBudgetScreenState();
@@ -60,6 +65,13 @@ class _IrrigationBudgetScreenState extends State<IrrigationBudgetScreen> {
                     ? null
                     : controller.load,
               ),
+              if (widget.onSetup case final onSetup?)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('irrigation-source-setup'),
+                  leading: const Icon(CupertinoIcons.settings),
+                  title: Text(l10n.irrigationSetupAction),
+                  onTap: onSetup,
+                ),
             ],
           ),
         ),
@@ -149,9 +161,15 @@ class _ControlCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final text = _controlText(context);
     final preview = controller.preview;
     final result = controller.stopReceipt?.status ?? controller.receipt?.status;
+    final actualMl = controller.receipt?.results
+        .where((item) => item.flowVerified == true)
+        .map((item) => item.deliveredMl)
+        .whereType<int>()
+        .fold<int>(0, (sum, value) => sum + value);
     return _Card(
       label: text.title,
       children: [
@@ -185,6 +203,13 @@ class _ControlCard extends StatelessWidget {
         if (result != null) ...[
           const SizedBox(height: 12),
           Text('${text.result}: $result'),
+        ],
+        if (actualMl != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            l10n.irrigationActualWater((actualMl / 1000).toStringAsFixed(1)),
+            key: const ValueKey('irrigation-actual-flow-receipt'),
+          ),
         ],
         const SizedBox(height: 12),
         SizedBox(

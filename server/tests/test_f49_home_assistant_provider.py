@@ -13,6 +13,7 @@ from larenor_server.services.transport import ProbeResponse
 
 
 TOKEN = "synthetic-home-assistant-token"
+OPENSPRINKLER_PASSWORD = "d" * 32
 
 
 def _json(value):
@@ -37,7 +38,9 @@ class HomeAssistantFixture:
     def close(self):
         pass
 
-    def request(self, method, path, headers=None, body=None, query_parameters=None):
+    def request(self, method, path, headers=None, body=None, query_parameters=None, before_send=None):
+        if before_send is not None:
+            before_send()
         assert headers["Authorization"] == "Bearer " + TOKEN
         self.calls.append((method, path, body, query_parameters))
         if len(self.calls) == 1 and self.after_first is not None:
@@ -115,6 +118,86 @@ class HomeAssistantFixture:
         })
 
 
+class OpenSprinklerReadFixture:
+    def __init__(self, clock, *, mutable=False, on_complete=None):
+        self.clock = clock
+        self.mutable = mutable
+        self.calls = []
+        self.phase = "idle"
+        self.boot = int(clock.now) - 100
+        self.flow = 50
+        self.last_run = [0, 0, 0, 0]
+        self.duration = 0
+        self.finish_after_snapshot = False
+        self.on_complete = on_complete
+
+    def sleep(self, seconds):
+        self.clock.now += seconds
+
+    @property
+    def now(self):
+        return int(self.clock.now)
+
+    def __call__(self, base_url, **limits):
+        assert base_url == "http://sprinkler.fixture.invalid"
+        assert limits == {"timeout": 5.0, "max_bytes": 65_536}
+        return self
+
+    def close(self):
+        pass
+
+    def request(self, method, path, headers=None, body=None, query_parameters=None, before_send=None):
+        if before_send is not None:
+            before_send()
+        assert method == "GET"
+        assert headers == {"Accept": "application/json"}
+        assert query_parameters["pw"] == OPENSPRINKLER_PASSWORD
+        self.calls.append(path)
+        if path == "/cm":
+            assert self.mutable
+            if query_parameters["en"] == "1":
+                self.duration = int(query_parameters["t"])
+                self.phase = "running"
+            else:
+                self.phase = "idle"
+                self.clock.now += 1
+            return _json({"result": 1})
+        running = self.phase == "running"
+        values = {
+            "/jo": {
+                "fwv": 221, "fwm": 5, "sn1t": 2,
+                "fpr0": 1, "fpr1": 0,
+                "mas": 0, "mas2": 0, "mas3": 0, "mas4": 0,
+            },
+            "/jn": {"stn_dis": [0], "stn_spe": [0]},
+            "/jc": {
+                "devt": self.now, "lupt": self.boot,
+                "lrun": self.last_run, "sbits": [1 if running else 0],
+                "ps": ([
+                    [99, self.duration, self.now, 0]
+                    if running else [0, 0, 0, 0]
+                ] + [[0, 0, 0, 0] for _ in range(7)]),
+                "flwrt": 1, "flcrt": 1 if running else 0,
+                "flcto": self.flow,
+                "nq": 1 if running else 0, "en": 1, "ocs": 0,
+            },
+            "/js": {"sn": [1 if running else 0] + [0] * 7, "nstations": 8},
+        }
+        result = _json(values[path])
+        if path == "/jc" and running:
+            self.finish_after_snapshot = True
+        if path == "/js" and self.finish_after_snapshot:
+            self.finish_after_snapshot = False
+            self.phase = "idle"
+            self.clock.now += self.duration
+            self.flow += max(1, (4_000 * self.duration // 60) // 10)
+            self.last_run = [0, 99, self.duration, self.now]
+            if self.on_complete is not None:
+                callback, self.on_complete = self.on_complete, None
+                callback()
+        return result
+
+
 def _source(service_id, room, *, expected=None, service_revision=1):
     return {
         "schemaVersion": 1,
@@ -146,7 +229,7 @@ def _source(service_id, room, *, expected=None, service_revision=1):
     }
 
 
-def _configured(server):
+def _configured(server, *, controller_fixture=None):
     app, client, settings, clock = server
     pair = ready(server)
     scope = app.state.core.context
@@ -181,6 +264,10 @@ def _configured(server):
         app.state.core.services._home_assistant_connection,
         app.state.core.home_resources,
         transport_factory=fixture,
+        controller_transport_factory=controller_fixture,
+        controller_sleep=(
+            None if controller_fixture is None else controller_fixture.sleep
+        ),
     )
     app.state.irrigation_gateway = build_irrigation_gateway(
         provider, clock=clock
@@ -323,3 +410,192 @@ def test_room_revision_drift_discards_upstream_observation(server):
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "revision_conflict"
+
+
+def test_admin_controller_binding_enables_only_live_verified_control(server):
+    controller_fixture = OpenSprinklerReadFixture(server[3])
+    app, client, pair, service, room, _fixture = _configured(
+        server, controller_fixture=controller_fixture
+    )
+    source_response = client.put(
+        "/api/v1/admin/irrigation-budget/source",
+        headers=auth(pair),
+        json=_source(service["id"], room),
+    )
+    assert source_response.status_code == 200
+    manual = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    ).json()["snapshot"]
+    assert manual["controlCapability"] == "manual_required"
+    zone = manual["zones"][0]
+
+    saved = client.put(
+        "/api/v1/admin/irrigation-budget/controller",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedRevision": None,
+            "expectedSourceRevision": 1,
+            "baseUrl": "http://sprinkler.fixture.invalid",
+            "passwordMd5": OPENSPRINKLER_PASSWORD,
+            "stations": [{
+                "zoneId": zone["zoneId"],
+                "expectedZoneRevision": zone["zoneRevision"],
+                "stationIndex": 0,
+            }],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    metadata = saved.json()["controller"]
+    assert metadata["revision"] == 1
+    assert metadata["sourceRevision"] == 1
+    assert metadata["endpointConfigured"] is True
+    assert metadata["passwordConfigured"] is True
+    assert OPENSPRINKLER_PASSWORD not in saved.text
+    assert "sprinkler.fixture.invalid" not in saved.text
+
+    controlled = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    )
+    assert controlled.status_code == 200, controlled.text
+    assert controlled.json()["snapshot"]["controlCapability"] == "verified_control"
+    assert controlled.json()["snapshot"]["commandEndpointAvailable"] is True
+    assert controller_fixture.calls == ["/jo", "/jn", "/jc", "/js"]
+
+
+def test_loopback_confirm_returns_actual_flow_receipt(server):
+    controller_fixture = OpenSprinklerReadFixture(server[3], mutable=True)
+    _app, client, pair, service, room, _fixture = _configured(
+        server, controller_fixture=controller_fixture
+    )
+    assert client.put(
+        "/api/v1/admin/irrigation-budget/source",
+        headers=auth(pair),
+        json=_source(service["id"], room),
+    ).status_code == 200
+    snapshot = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    ).json()["snapshot"]
+    zone = snapshot["zones"][0]
+    assert client.put(
+        "/api/v1/admin/irrigation-budget/controller",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedRevision": None,
+            "expectedSourceRevision": 1,
+            "baseUrl": "http://sprinkler.fixture.invalid",
+            "passwordMd5": OPENSPRINKLER_PASSWORD,
+            "stations": [{
+                "zoneId": zone["zoneId"],
+                "expectedZoneRevision": zone["zoneRevision"],
+                "stationIndex": 0,
+            }],
+        },
+    ).status_code == 200
+    controlled = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    ).json()["snapshot"]
+    assert controlled["budget"]["plannedMl"] == 30_000
+    preview = client.post(
+        "/api/v1/admin/irrigation-budget/preview",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "requestId": "e" * 32,
+            "expectedPlanId": controlled["planId"],
+            "expectedPolicyRevision": controlled["policyRevision"],
+            "expectedBudgetRevision": controlled["budget"]["revision"],
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    preview_value = preview.json()["preview"]
+    receipt = client.post(
+        "/api/v1/admin/irrigation-budget/confirm",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "previewId": preview_value["previewId"],
+            "confirmToken": preview_value["confirmToken"],
+        },
+    )
+    assert receipt.status_code == 200, receipt.text
+    value = receipt.json()["receipt"]
+    assert value["status"] == "applied"
+    assert value["results"][0]["status"] == "applied"
+    assert value["results"][0]["readback"]["flowVerified"] is True
+    assert value["results"][0]["readback"]["deliveredMl"] == 30_000
+    mutations = [path for path in controller_fixture.calls if path == "/cm"]
+    assert mutations == ["/cm"]
+
+
+def test_account_revision_drift_after_device_io_discards_applied_receipt(server):
+    app = server[0]
+    actor_id = None
+
+    def change_account_revision():
+        with app.state.core.db.transaction() as connection:
+            connection.execute(
+                "UPDATE users SET revision=revision+1 WHERE id=?", (actor_id,)
+            )
+
+    controller_fixture = OpenSprinklerReadFixture(
+        server[3], mutable=True, on_complete=change_account_revision
+    )
+    _app, client, pair, service, room, _fixture = _configured(
+        server, controller_fixture=controller_fixture
+    )
+    actor_id = app.state.core.auth.authenticate(pair["accessToken"]).id
+    assert client.put(
+        "/api/v1/admin/irrigation-budget/source",
+        headers=auth(pair), json=_source(service["id"], room),
+    ).status_code == 200
+    snapshot = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    ).json()["snapshot"]
+    zone = snapshot["zones"][0]
+    assert client.put(
+        "/api/v1/admin/irrigation-budget/controller",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedRevision": None,
+            "expectedSourceRevision": 1,
+            "baseUrl": "http://sprinkler.fixture.invalid",
+            "passwordMd5": OPENSPRINKLER_PASSWORD,
+            "stations": [{
+                "zoneId": zone["zoneId"],
+                "expectedZoneRevision": zone["zoneRevision"],
+                "stationIndex": 0,
+            }],
+        },
+    ).status_code == 200
+    controlled = client.get(
+        "/api/v1/admin/irrigation-budget", headers=auth(pair)
+    ).json()["snapshot"]
+    preview = client.post(
+        "/api/v1/admin/irrigation-budget/preview",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "requestId": "f" * 32,
+            "expectedPlanId": controlled["planId"],
+            "expectedPolicyRevision": controlled["policyRevision"],
+            "expectedBudgetRevision": controlled["budget"]["revision"],
+        },
+    ).json()["preview"]
+    receipt = client.post(
+        "/api/v1/admin/irrigation-budget/confirm",
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "previewId": preview["previewId"],
+            "confirmToken": preview["confirmToken"],
+        },
+    )
+    assert receipt.status_code == 200, receipt.text
+    result = receipt.json()["receipt"]
+    assert result["status"] == "unknown"
+    assert result["results"][0]["code"] == "worker_ack_unknown"
+    assert result["results"][0]["readback"] is None
+    assert [path for path in controller_fixture.calls if path == "/cm"] == ["/cm"]

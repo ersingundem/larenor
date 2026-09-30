@@ -8,6 +8,7 @@ deliberately exposes ``manual_required`` rather than verified control.
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
+import hmac
 import json
 import math
 import re
@@ -16,6 +17,8 @@ from ..errors import ApiError
 from ..services.transport import ProbeResponse, ProbeTransportError, ServiceTransport
 from ..vault import validate_json_bounds
 from .models import IrrigationAuthority, IrrigationPolicy, IrrigationZone
+from .controller_store import OpenSprinklerControllerStore
+from .opensprinkler import OpenSprinklerError, OpenSprinklerExecutor
 from .source_store import IrrigationSourceStore
 
 
@@ -116,17 +119,36 @@ class HomeAssistantIrrigationProvider:
     def __init__(
         self, db, auth, settings, key, context, connection_resolver,
         home_resources, *,
-        transport_factory=None,
+        transport_factory=None, controller_transport_factory=None,
+        controller_sleep=None, controller_poll_seconds=1.0,
     ):
         self._db, self._auth, self._settings = db, auth, settings
         self._context = context
         self._connection_resolver = connection_resolver
         self._home_resources = home_resources
+        self._control_key = hmac.new(
+            key, b"larenor-irrigation-control-v1", hashlib.sha256
+        ).digest()
         self._factory = transport_factory or ServiceTransport
         self.source_store = IrrigationSourceStore(
             db, auth, key, context, connection_resolver, self._room_context
         )
         self.source_store.validate_storage()
+        self.controller_store = OpenSprinklerControllerStore(
+            db, auth, key, context, self.source_store,
+            self._policy_in_transaction, settings.clock,
+        )
+        self.controller_store.validate_storage()
+        executor_kwargs = {
+            "transport_factory": controller_transport_factory,
+            "poll_seconds": controller_poll_seconds,
+        }
+        if controller_sleep is not None:
+            executor_kwargs["sleep"] = controller_sleep
+        self._controller = OpenSprinklerExecutor(
+            db, key, settings.clock, self.controller_store.binding,
+            **executor_kwargs,
+        )
 
     def _room_context(self, connection, zones):
         self._home_resources._check_context(
@@ -246,6 +268,10 @@ class HomeAssistantIrrigationProvider:
             active=True,
         )
 
+    def _policy_in_transaction(self, connection, source):
+        _home_revision, rooms = self._room_context(connection, source.zones)
+        return self._policy(source, rooms)
+
     def _source_context(self, *, actor=None, expected=None, service=False):
         with self._db.connection() as connection:
             connection.execute("BEGIN")
@@ -282,6 +308,24 @@ class HomeAssistantIrrigationProvider:
 
     def configure(self, actor, value):
         return self.source_store.put(actor, value)
+
+    def controller_configuration(self, actor):
+        return self.controller_store.get_for_actor(actor)
+
+    def configure_controller(self, actor, value):
+        return self.controller_store.put(actor, value)
+
+    def controller_candidates(self, actor):
+        source, _home_revision, rooms, _service = self._source_context(actor=actor)
+        policy = self._policy(source, rooms)
+        return [
+            {
+                "zoneId": zone.zoneId,
+                "zoneRevision": zone.zoneRevision,
+                "valveEntityId": item.valveEntityId,
+            }
+            for item, zone in zip(source.zones, policy.zones, strict=True)
+        ]
 
     @staticmethod
     def _headers(connection, *, body=False):
@@ -524,6 +568,72 @@ class HomeAssistantIrrigationProvider:
             for item in source.zones
         }
 
-    @staticmethod
-    def control_capability(_actor, _authority, _policy):
-        return "manual_required"
+    def _control_context(self, actor, authority, policy):
+        source, home_revision, rooms, _service = self._source_context(actor=actor)
+        expected = IrrigationPolicy.model_validate(policy)
+        if (
+            home_revision != authority.homeRevision
+            or self.current_authority(authority) != authority
+            or self._policy(source, rooms) != expected
+        ):
+            raise ApiError("revision_conflict", 409)
+        return source, rooms, expected
+
+    def valve_readbacks(self, actor, authority, policy, zone_ids):
+        source, rooms, expected = self._control_context(actor, authority, policy)
+        zones = {item.zoneId: item for item in expected.zones}
+        if (
+            not isinstance(zone_ids, tuple) or not zone_ids
+            or len(zone_ids) != len(set(zone_ids))
+            or any(zone_id not in zones for zone_id in zone_ids)
+        ):
+            raise ApiError("revision_conflict", 409)
+        results = tuple(
+            self._controller.readback(zones[zone_id]) for zone_id in zone_ids
+        )
+        current_source, current_home, current_rooms, _service = (
+            self._source_context(actor=actor, expected=source)
+        )
+        if (
+            current_source != source or current_home != authority.homeRevision
+            or current_rooms != rooms
+            or self.current_authority(authority) != authority
+        ):
+            raise ApiError("revision_conflict", 409)
+        return results
+
+    def control_capability(self, actor, authority, policy):
+        try:
+            self.valve_readbacks(
+                actor, authority, policy,
+                tuple(sorted(item.zoneId for item in policy.zones)),
+            )
+        except ApiError as error:
+            if error.code in {
+                "irrigation_controller_not_configured",
+                "irrigation_binding_changed",
+            }:
+                return "manual_required"
+            raise
+        except OpenSprinklerError:
+            return "manual_required"
+        return "verified_control"
+
+    def control_key(self, actor, authority, policy):
+        self._control_context(actor, authority, policy)
+        return self._control_key
+
+    def valve_worker(self, command, *, cancelled=lambda: False):
+        return self._controller.run(command, cancelled=cancelled)
+
+    def assert_control_current(self, actor, authority, policy):
+        self._control_context(actor, authority, policy)
+
+    def guarded_valve_worker(self, command, *, guard, cancelled=lambda: False):
+        return self._controller.run(command, cancelled=cancelled, guard=guard)
+
+    def guarded_stop_valve(self, command, *, guard):
+        return self._controller.stop(command, guard=guard)
+
+    def stop_valve(self, command):
+        return self._controller.stop(command)

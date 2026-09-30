@@ -16,6 +16,7 @@ from .models import (
     IrrigationStopRequest,
 )
 from .source_models import HomeAssistantIrrigationSourceInput
+from .controller_models import OpenSprinklerControllerInput
 
 Admin = Annotated[Principal, Depends(require_admin)]
 
@@ -45,7 +46,12 @@ def snapshot(actor: Admin, request: Request):
 
 @router.get("/admin/irrigation-budget/source")
 def source(actor: Admin, request: Request):
-    return {"schemaVersion": 1, "source": _gateway(request).configuration(actor)}
+    gateway = _gateway(request)
+    return {
+        "schemaVersion": 1,
+        "source": gateway.configuration(actor),
+        "controlZones": gateway.controller_candidates(actor),
+    }
 
 
 @router.put("/admin/irrigation-budget/source")
@@ -54,9 +60,32 @@ def put_source(
     actor: Admin,
     request: Request,
 ):
+    gateway = _gateway(request)
+    source = gateway.configure(actor, body)
     return {
         "schemaVersion": 1,
-        "source": _gateway(request).configure(actor, body),
+        "source": source,
+        "controlZones": gateway.controller_candidates(actor),
+    }
+
+
+@router.get("/admin/irrigation-budget/controller")
+def controller(actor: Admin, request: Request):
+    return {
+        "schemaVersion": 1,
+        "controller": _gateway(request).controller_configuration(actor),
+    }
+
+
+@router.put("/admin/irrigation-budget/controller")
+def put_controller(
+    body: OpenSprinklerControllerInput,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "schemaVersion": 1,
+        "controller": _gateway(request).configure_controller(actor, body),
     }
 
 
