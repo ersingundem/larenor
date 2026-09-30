@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 
 import '../../../core/app_interaction_scope.dart';
@@ -127,6 +129,10 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
     _authority = null;
     _inventory = null;
     _busy = false;
+    final runtime = _runtime;
+    if (runtime is KioskPeripheralRetirementRuntime) {
+      unawaited((runtime as KioskPeripheralRetirementRuntime).retire());
+    }
     if (mounted) setState(() {});
   }
 
@@ -323,6 +329,10 @@ class _KioskPeripheralScreenState extends State<KioskPeripheralScreen>
     WidgetsBinding.instance.removeObserver(this);
     _interaction?.removeListener(_interactionChanged);
     _epoch++;
+    final runtime = _runtime;
+    if (runtime is KioskPeripheralRetirementRuntime) {
+      unawaited((runtime as KioskPeripheralRetirementRuntime).retire());
+    }
     super.dispose();
   }
 

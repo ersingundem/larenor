@@ -70,11 +70,13 @@ class _Store implements KioskPeripheralOptInStore {
   }
 }
 
-class _Runtime implements KioskPeripheralRuntime {
+class _Runtime
+    implements KioskPeripheralRuntime, KioskPeripheralRetirementRuntime {
   _Runtime({this.ready = true});
   bool ready;
   int reads = 0;
   int consumes = 0;
+  int retires = 0;
   Completer<Object?>? pending;
   @override
   int nowElapsedMs() => 50000;
@@ -92,6 +94,11 @@ class _Runtime implements KioskPeripheralRuntime {
   Future<Object?> takeNextInput(String providerId) async {
     consumes++;
     return pending?.future ?? _event();
+  }
+
+  @override
+  Future<void> retire() async {
+    retires++;
   }
 }
 
@@ -135,7 +142,11 @@ void main() {
     const channel = MethodChannel('com.ersingundem.larenor/kiosk_peripherals');
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (call) async => _inventory());
+    final methods = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      methods.add(call.method);
+      return call.method == 'capabilities' ? _inventory() : null;
+    });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
     final runtime = AndroidKioskPeripheralRuntime(
       channel: channel,
@@ -152,8 +163,116 @@ void main() {
       isTrue,
     );
     expect(await runtime.takeNextInput('qr.local'), isNull);
+    await runtime.retire();
+    expect(methods, ['capabilities', 'retire']);
   });
 
+  test('unacknowledged native retirement fences every later arm until acknowledged', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const channel = MethodChannel(
+      'com.ersingundem.larenor/kiosk_peripherals-retirement',
+    );
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final firstRetirement = Completer<void>();
+    final methods = <String>[];
+    var retirements = 0;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      methods.add(call.method);
+      if (call.method == 'capabilities') {
+        return {
+          'schemaVersion': 1,
+          'gmsAvailable': false,
+          'inventory': _inventory(),
+        };
+      }
+      if (call.method == 'retire' && retirements++ == 0) {
+        await firstRetirement.future;
+        return null;
+      }
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final runtime = AndroidKioskPeripheralRuntime(
+      channel: channel,
+      isAndroid: true,
+      retirementTimeout: const Duration(milliseconds: 1),
+    );
+
+    expect((await runtime.snapshot()).authority, isNotNull);
+    await runtime.retire();
+    firstRetirement.complete();
+    await Future<void>.delayed(Duration.zero);
+
+    expect((await runtime.snapshot()).authority, isNull);
+    expect(await runtime.takeNextInput('nfc.local'), isNull);
+    expect(await runtime.requestProviderPermission('ble.gatt'), isFalse);
+    expect(methods, ['capabilities', 'retire']);
+
+    await runtime.retire();
+    expect((await runtime.snapshot()).authority, isNotNull);
+    expect(methods, ['capabilities', 'retire', 'retire', 'capabilities']);
+  });
+
+  test(
+    'late capabilities from a retired route cannot arm or clear its successor',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      const channel = MethodChannel(
+        'com.ersingundem.larenor/kiosk_peripherals-generation',
+      );
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      final oldReply = Completer<Object?>();
+      final oldRequested = Completer<void>();
+      var capabilityCalls = 0;
+      final methods = <String>[];
+      final armEpochs = <int>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        methods.add(call.method);
+        if (call.method == 'capabilities') {
+          if (capabilityCalls++ == 0) {
+            oldRequested.complete();
+            return oldReply.future;
+          }
+          return {
+            'schemaVersion': 1,
+            'gmsAvailable': false,
+            'inventory': _inventory(),
+          };
+        }
+        if (call.method == 'takeNextInput') {
+          armEpochs.add((call.arguments as Map)['routeEpoch'] as int);
+          return {'input': _event(), 'nowElapsedMs': 50000};
+        }
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final runtime = AndroidKioskPeripheralRuntime(
+        channel: channel,
+        isAndroid: true,
+      );
+      final oldSnapshot = runtime.snapshot();
+      await oldRequested.future;
+      await runtime.retire();
+      final successor = await runtime.snapshot();
+      expect(successor.authority, isNotNull);
+      oldReply.complete({
+        'schemaVersion': 1,
+        'gmsAvailable': false,
+        'inventory': _inventory(),
+      });
+      expect((await oldSnapshot).authority, isNull);
+      expect(await runtime.takeNextInput('nfc.local'), isNotNull);
+      expect(armEpochs, [successor.authority!.routeEpoch]);
+      expect(methods, [
+        'capabilities',
+        'retire',
+        'capabilities',
+        'takeNextInput',
+      ]);
+    },
+  );
   for (final locale in const [Locale('en'), Locale('tr')]) {
     for (final width in const [600.0, 1200.0]) {
       testWidgets('${locale.languageCode} $width 2x lists distinct providers', (
@@ -265,6 +384,8 @@ void main() {
     );
     await tester.pump();
     await tester.pumpWidget(const CupertinoApp(home: SizedBox()));
+    await tester.pump();
+    expect(runtime.retires, greaterThan(0));
     runtime.pending!.complete(_event());
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

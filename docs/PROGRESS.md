@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K12/K13 ve PRODUCT.HEALTH/PROVIDERS CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 57 seçili özellik ile K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül K11 kabulü ve F47 kanıt ayrımı
+
+K11 explicit native retirement, sticky belirsiz ACK fence ve eski async yanıt epoch sınırlarını root 19 Flutter/6 Android sıfır skip ile doğruladı; analyze temiz. K11 CI bekliyor tablosuna taşındı, fiziksel cihaz kapıları MANUAL kaldı. F47nin declared gerçek Flutter→normal Core→TCP provider birleşik gatei henüz yok; ayrı Python/Flutter testlerini o kanıt yerine saymamak için F47 yeniden çalışılıyor. Böylece 57 seçili özellik ve altı ek iş (K10/K11/K12/K13, HEALTH/PROVIDERS) CI bekliyor; kabul sayaçları değişmedi. [K11 kanıtı](testing/k11-production-input-retirement-2026-09-30.md).
 
 ### 30 Eylül exact SSH MFA CI hatasının dar düzeltmesi
 

@@ -9,7 +9,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 11 | 0 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
-| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 4 | 0 | 5 | 0 |
+| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 3 | 0 | 6 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
@@ -19,7 +19,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 1 | 4 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 1 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F47 | Güneş ve ev bataryası öncelikleri | Yeniden çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -108,12 +108,12 @@ Tamamlanan ve test/CI bekleyen işler
 | PRODUCT.APPLETV | Apple TV video ve medya hedefleri | Uygulama tamamlandı · test bekliyor | — |
 | PRODUCT.CAMERA | İsteğe bağlı yaklaşma ve kişisel kamera görünümü | Uygulama tamamlandı · test bekliyor | — |
 | K09 | Cihaz bilgisi ve kontrollü uzaktan görünüm | Uygulama tamamlandı · test bekliyor | — |
-| K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | CI bekliyor | — |
 | PRODUCT.HEALTH | Kişisel sağlık ve tartı sağlayıcı yazılım sınırı | CI bekliyor | — |
 | K10 | Hareket, karanlık ve cihaz sensörleri | CI bekliyor | — |
+| K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | CI bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | CI bekliyor | — |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | CI bekliyor | — |
 | F13 | Bileşen bazında internet izinleri | CI bekliyor | — |
@@ -165,7 +165,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F50 | Oda konforu ve havalandırma planı | CI bekliyor | — |
 | F48 | Ev güç bütçesi | CI bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | CI bekliyor | — |
-| F47 | Güneş ve ev bataryası öncelikleri | CI bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |

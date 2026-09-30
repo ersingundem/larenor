@@ -65,4 +65,24 @@ class KioskPeripheralBridgeTest {
             activity.pause().stop().destroy()
         }
     }
+
+    @Test fun explicitRetirementIsIdempotentAndRejectsArguments() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup()
+        val bridge = KioskPeripheralBridge(activity.get(), Messenger())
+        try {
+            val first = Result()
+            bridge.onMethodCall(MethodCall("retire", null), first)
+            assertNull(first.code)
+            assertNull(first.value)
+            val second = Result()
+            bridge.onMethodCall(MethodCall("retire", null), second)
+            assertNull(second.code)
+            val invalid = Result()
+            bridge.onMethodCall(MethodCall("retire", emptyMap<String, Any>()), invalid)
+            assertEquals("invalid", invalid.code)
+        } finally {
+            bridge.dispose()
+            activity.pause().stop().destroy()
+        }
+    }
 }

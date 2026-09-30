@@ -80,18 +80,24 @@ class KioskPeripheralBridge(
             }
             "takeNextInput" -> arm(call.arguments, result)
             "requestPermission" -> requestPermission(call.arguments, result)
+            "retire" -> {
+                if (call.arguments != null) invalid(result) else {
+                    retireAll()
+                    result.success(null)
+                }
+            }
             else -> result.notImplemented()
         }
     }
 
     fun setResumed(value: Boolean) {
         resumed = value
-        if (!value) retire()
+        if (!value) retireAll()
     }
 
     fun setWindowFocused(value: Boolean) {
         focused = value
-        if (!value) cancelPending("retired")
+        if (!value) retireAll()
     }
 
     fun onNewIntent(intent: Intent) {
@@ -408,12 +414,12 @@ class KioskPeripheralBridge(
     fun dispose() {
         if (disposed) return
         disposed = true
-        retire()
+        retireAll()
         inputManager.unregisterInputDeviceListener(inputDevices)
         channel.setMethodCallHandler(null)
     }
 
-    private fun retire() {
+    private fun retireAll() {
         cancelPending("retired")
         pendingPermission?.error("retired", "Peripheral permission unavailable", null)
         pendingPermission = null

@@ -27,26 +27,50 @@ abstract interface class KioskPeripheralPermissionRuntime {
   Future<bool> requestProviderPermission(String providerId);
 }
 
+abstract interface class KioskPeripheralRetirementRuntime {
+  Future<void> retire();
+}
+
 /// Review-only Android adapter for explicitly armed NFC and external HID input.
 final class AndroidKioskPeripheralRuntime
-    implements KioskPeripheralRuntime, KioskPeripheralPermissionRuntime {
-  AndroidKioskPeripheralRuntime({MethodChannel? channel, bool? isAndroid})
-    : _channel =
-          channel ??
-          const MethodChannel('com.ersingundem.larenor/kiosk_peripherals'),
-      _isAndroid = isAndroid ?? defaultTargetPlatform == TargetPlatform.android;
+    implements
+        KioskPeripheralRuntime,
+        KioskPeripheralPermissionRuntime,
+        KioskPeripheralRetirementRuntime {
+  AndroidKioskPeripheralRuntime({
+    MethodChannel? channel,
+    bool? isAndroid,
+    Duration? retirementTimeout,
+  }) : _retirementTimeout = retirementTimeout ?? const Duration(seconds: 2),
+       _channel =
+           channel ??
+           const MethodChannel('com.ersingundem.larenor/kiosk_peripherals'),
+       _isAndroid =
+           isAndroid ?? defaultTargetPlatform == TargetPlatform.android;
 
   final MethodChannel _channel;
   final bool _isAndroid;
+  final Duration _retirementTimeout;
   KioskPeripheralAuthority? _authority;
   int _routeEpoch = 0;
   int _lastElapsedMs = 0;
+  int _retirementEpoch = 0;
+  Future<void> _retiring = Future<void>.value();
+  bool _retirementUncertain = false;
 
   @override
   Future<KioskPeripheralRuntimeSnapshot> snapshot() async {
     if (!_isAndroid) return _unavailable();
+    final epoch = _retirementEpoch;
     try {
+      await _retiring;
+      if (epoch != _retirementEpoch || _retirementUncertain) {
+        return _unavailable();
+      }
       final raw = await _channel.invokeMethod<Object?>('capabilities');
+      if (epoch != _retirementEpoch || _retirementUncertain) {
+        return _unavailable();
+      }
       if (raw is! Map ||
           raw.length != 3 ||
           raw['schemaVersion'] != 1 ||
@@ -77,13 +101,16 @@ final class AndroidKioskPeripheralRuntime
         gmsAvailable: gmsAvailable,
       );
     } catch (_) {
-      _authority = null;
+      if (epoch == _retirementEpoch) _authority = null;
       return _unavailable();
     }
   }
 
   @override
   Future<Object?> takeNextInput(String providerId) async {
+    final epoch = _retirementEpoch;
+    await _retiring;
+    if (epoch != _retirementEpoch || _retirementUncertain) return null;
     final authority = _authority;
     if (!_isAndroid ||
         authority == null ||
@@ -100,6 +127,7 @@ final class AndroidKioskPeripheralRuntime
           'lifecycleEpoch': authority.lifecycleEpoch,
         })
         .timeout(const Duration(seconds: 16));
+    if (epoch != _retirementEpoch || _authority != authority) return null;
     if (raw is! Map ||
         raw.length != 2 ||
         raw['input'] is! Map ||
@@ -116,17 +144,41 @@ final class AndroidKioskPeripheralRuntime
 
   @override
   Future<bool> requestProviderPermission(String providerId) async {
+    final epoch = _retirementEpoch;
+    await _retiring;
+    if (epoch != _retirementEpoch || _retirementUncertain) return false;
     if (!_isAndroid || providerId != 'ble.gatt' || _authority == null) {
       return false;
     }
     try {
-      return await _channel.invokeMethod<bool>('requestPermission', {
-            'providerId': providerId,
-          }) ==
-          true;
+      final allowed = await _channel.invokeMethod<bool>('requestPermission', {
+        'providerId': providerId,
+      });
+      return epoch == _retirementEpoch && _authority != null && allowed == true;
     } catch (_) {
       return false;
     }
+  }
+
+  @override
+  Future<void> retire() {
+    _retirementEpoch++;
+    _authority = null;
+    _lastElapsedMs = 0;
+    if (!_isAndroid) return Future<void>.value();
+    final operation = _retiring.then((_) async {
+      try {
+        await _channel.invokeMethod<void>('retire').timeout(_retirementTimeout);
+        _retirementUncertain = false;
+      } catch (_) {
+        // Local authority is already retired. A missing native acknowledgement
+        // fences every later native operation until a new explicit retirement
+        // is acknowledged or the runtime instance is replaced.
+        _retirementUncertain = true;
+      }
+    });
+    _retiring = operation;
+    return operation;
   }
 }
 

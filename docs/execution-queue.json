@@ -2892,7 +2892,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "QR/NFC/BLE/USB/TTS/print seçili çevre birimleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K03.remaining",
         "K08"
@@ -2902,7 +2902,7 @@
         "docs/kiosk-capabilities-research-2026-09-05.md",
         "docs/product-implementation-plan-2026-09-05.md"
       ],
-      "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
+      "scope": "Yazılım teslim kapısı; fiziksel QR/NFC/BLE/HID/TTS/yazıcı ve GMS’siz OEM kabulü MANUAL kayıtlarında ayrı.",
       "acceptance": [
         "Bağımsız izin/etkinleştirme; GMS’siz cihaz, kablo çıkması ve yinelenen tarama. Tarama verisi otomatik komut/JS olmaz."
       ],
@@ -2913,7 +2913,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "QR kamera, NFC NDEF, BLE reklamı ve harici USB HID girdileri bağımsız yerel seçim/izin/yetenek durumlarıyla yalnız açık kullanıcı isteğinden sonra sınırlı inceleme zarfına bağlandı; TTS ve kullanıcı onaylı PDF yazdırma K08 çalışanları ayrı yetenekler olarak ilan ediliyor. GMS gerekmiyor; rota/odak/yaşam döngüsü kaybı, izin reddi, kablo çıkarma, zaman aşımı, bozuk/aşırı veri ve iki saniyelik yinelenen tarama fail-closed. Hiçbir tarama URL, komut veya JavaScript olarak yürütülmüyor. Özellik testleri, bağımsız inceleme, exact-head CI ve gerçek GMS’siz tablet/QR/NFC/BLE/USB/TTS/yazıcı kabulü son doğrulama kapısında bekliyor."
+      "reason": "Root 19 Flutter ve 6 Android testi sıfır skip/failure/error ile geçti; scoped analyze temiz. Actual MainActivity kanalında explicit retire NFC foreground dispatch/BLE scan/HID buffer ve outstanding permissionı bırakır; rota/account/odak/lifecycle/dispose clear old authority first. ACK yoksa sticky uncertain fence sonraki input/permission/capability I/Oyu kapatır; yalnız yeni explicit başarılı ACK açar. Retirement epoch geç eski capability/input/permission replyını reddeder ve successor yetkisini bozmaz. QR/NFC/BLE/HID verisi bounded review-only, hiçbir URL/komut/JS yürütülmez; TTS/print bağımsız açık seçimle K08 capabilitydir. Exact HEAD CI bekliyor; fiziksel cihaz/provider MANUAL açık. Kanıt: docs/testing/k11-production-input-retirement-2026-09-30.md."
     },
     {
       "id": "K12",
@@ -4899,7 +4899,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi. FINAL.FUNCTION incelemesi declared real Flutter→normal Core→owned TCP sağlayıcı birleşik gatein eksik olduğunu doğruladı. Bu kapı yazılıp çalıştırılana dek CI bekliyor kabulü geri alındı; fiziksel inverter ayrı MANUAL."
     },
     {
       "id": "F49",
