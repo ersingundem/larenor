@@ -1,3 +1,4 @@
+import hashlib
 from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
@@ -11,6 +12,48 @@ SafeName = Annotated[
 ]
 Timestamp = Annotated[int, Field(ge=0, le=253402300799)]
 Revision = Annotated[int, Field(ge=1, le=2**63 - 1)]
+OpaqueRef = Annotated[
+    str, StringConstraints(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+]
+ProviderNode = Annotated[
+    str,
+    StringConstraints(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$",
+    ),
+]
+
+
+class ProxmoxPowerProviderRef(StrictModel):
+    """Durable exact authority and provider selector captured at policy save."""
+
+    contractVersion: Literal[1]
+    provider: Literal["proxmox"]
+    actorId: Identity
+    actorRevision: Revision
+    coreId: Identity
+    homeId: Identity
+    resourceId: Identity
+    resourceRevision: Revision
+    aclRevision: Revision
+    bindingId: OpaqueRef
+    bindingRevision: Revision
+    serviceId: OpaqueRef
+    serviceRevision: Revision
+    egressRevision: Revision
+    installationId: OpaqueRef
+    node: ProviderNode
+    guestKind: Literal["qemu", "lxc"]
+    guestId: Annotated[int, Field(ge=1, le=999_999_999)]
+    statusRevision: Revision
+
+    def target_id(self) -> str:
+        public_identity = (
+            f"larenor-proxmox-target-v1:{self.installationId}:"
+            f"{self.resourceId}:{self.node}:{self.guestKind}:{self.guestId}"
+        )
+        return hashlib.sha256(public_identity.encode("ascii")).hexdigest()[:32]
 
 
 class PowerTarget(StrictModel):
@@ -20,6 +63,7 @@ class PowerTarget(StrictModel):
     shutdownOrder: Annotated[int, Field(ge=1, le=1000)]
     startOnRestore: bool
     timeoutSeconds: Annotated[int, Field(ge=5, le=300)]
+    providerRef: ProxmoxPowerProviderRef | None = None
 
     @field_validator("label")
     @classmethod
@@ -27,6 +71,15 @@ class PowerTarget(StrictModel):
         if value != value.strip() or any(ord(char) < 32 or ord(char) == 127 for char in value):
             raise ValueError("invalid_power_target_label")
         return value
+
+    @model_validator(mode="after")
+    def coherent_provider_ref(self):
+        if self.providerRef is not None and (
+            self.kind != "proxmoxGuest"
+            or self.targetId != self.providerRef.target_id()
+        ):
+            raise ValueError("invalid_power_target_provider_ref")
+        return self
 
 
 class ConfigurePowerRecoveryRequest(StrictModel):
@@ -123,6 +176,7 @@ class PowerStepReceipt(StrictModel):
         "effect_failed",
         "restore_disabled",
         "reconciliation_required",
+        "reconciled_current_state",
     ]
     createdAt: Timestamp
     updatedAt: Timestamp
@@ -178,6 +232,11 @@ class RetryPowerRecoveryRequest(StrictModel):
     expectedUpdatedAt: Timestamp
 
 
+class ReconcilePowerRecoveryRequest(StrictModel):
+    contractVersion: Literal[1]
+    expectedUpdatedAt: Timestamp
+
+
 class PowerEffectRequest(StrictModel):
     contractVersion: Literal[1]
     runId: Identity
@@ -203,3 +262,13 @@ class PowerEffectReceipt(StrictModel):
         if self.observedState != expected:
             raise ValueError("power_effect_readback_mismatch")
         return self
+
+
+class PowerEffectObservation(StrictModel):
+    contractVersion: Literal[1]
+    runId: Identity
+    stepId: Identity
+    targetId: Identity
+    action: Literal["shutdown", "start"]
+    observedState: Literal["running", "stopped"]
+    observedAt: Timestamp

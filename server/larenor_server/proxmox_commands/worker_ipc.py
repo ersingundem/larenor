@@ -92,10 +92,39 @@ class PackagedProxmoxApiResult:
         )
 
 
+@dataclass(frozen=True)
+class PackagedProxmoxObservation:
+    """Exact read-only guest binding presented to the packaged adapter."""
+
+    request_id: str
+    resource_id: str
+    user_revision: int
+    resource_revision: int
+    acl_revision: int
+    binding_id: str
+    binding_revision: int
+    service_id: str
+    service_revision: int
+    node: str
+    guest_kind: str
+    guest_id: int
+    status_revision: int
+    allowed_addresses: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PackagedProxmoxObservationResult:
+    state: str
+    status_revision: int
+
+
 class UnavailableProxmoxApiAdapter:
     """Production-safe default until an owned packaged adapter is configured."""
 
     def execute(self, _command, *, deadline, cancelled):
+        raise ProxmoxPowerWorkerError()
+
+    def observe(self, _command, *, deadline, cancelled):
         raise ProxmoxPowerWorkerError()
 
 
@@ -250,6 +279,63 @@ def _wire_command(descriptor, action, preview, deadline_ms, allowed_addresses):
     }
 
 
+def _wire_observation(
+    descriptor, *, user_revision, resource_revision, acl_revision,
+    deadline_ms, allowed_addresses,
+):
+    revisions = (
+        user_revision,
+        resource_revision,
+        acl_revision,
+        getattr(descriptor, "binding_revision", None),
+        getattr(descriptor, "service_revision", None),
+        getattr(descriptor, "status_revision", None),
+    )
+    if (
+        not isinstance(descriptor, ProxmoxGuestDescriptor)
+        or any(not _revision(value) for value in revisions)
+        or type(descriptor.resource_id) is not str
+        or _ID.fullmatch(descriptor.resource_id) is None
+        or any(
+            type(value) is not str or _OPAQUE.fullmatch(value) is None
+            for value in (descriptor.binding_id, descriptor.service_id)
+        )
+        or descriptor.guest_kind not in {"qemu", "lxc"}
+        or type(descriptor.node) is not str
+        or re.fullmatch(
+            r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?",
+            descriptor.node,
+        ) is None
+        or type(descriptor.guest_id) is not int
+        or not 1 <= descriptor.guest_id <= 999_999_999
+        or type(deadline_ms) is not int
+        or not 500 <= deadline_ms <= 30_000
+        or type(allowed_addresses) is not tuple
+        or not 1 <= len(allowed_addresses) <= 8
+        or len(set(allowed_addresses)) != len(allowed_addresses)
+        or any(not _allowed_address(value) for value in allowed_addresses)
+    ):
+        raise ProxmoxPowerWorkerError()
+    return {
+        "schemaVersion": 1,
+        "requestId": uuid.uuid4().hex,
+        "resourceId": descriptor.resource_id,
+        "userRevision": user_revision,
+        "resourceRevision": resource_revision,
+        "aclRevision": acl_revision,
+        "bindingId": descriptor.binding_id,
+        "bindingRevision": descriptor.binding_revision,
+        "serviceId": descriptor.service_id,
+        "serviceRevision": descriptor.service_revision,
+        "node": descriptor.node,
+        "guestKind": descriptor.guest_kind,
+        "guestId": descriptor.guest_id,
+        "statusRevision": descriptor.status_revision,
+        "allowedAddresses": sorted(allowed_addresses),
+        "deadlineMs": deadline_ms,
+    }
+
+
 def _command(value):
     keys = {
         "schemaVersion", "requestId", "action", "resourceId",
@@ -293,6 +379,90 @@ def _command(value):
         guest_kind=value["guestKind"], current_state=value["currentState"],
         status_revision=value["statusRevision"],
         allowed_addresses=tuple(value["allowedAddresses"]),
+    )
+
+
+def _observation(value):
+    keys = {
+        "schemaVersion", "requestId", "resourceId", "userRevision",
+        "resourceRevision", "aclRevision", "bindingId", "bindingRevision",
+        "serviceId", "serviceRevision", "node", "guestKind", "guestId",
+        "statusRevision", "allowedAddresses", "deadlineMs",
+    }
+    if (
+        type(value) is not dict
+        or set(value) != keys
+        or value["schemaVersion"] != 1
+        or type(value["schemaVersion"]) is not int
+        or type(value["requestId"]) is not str
+        or _ID.fullmatch(value["requestId"]) is None
+        or type(value["resourceId"]) is not str
+        or _ID.fullmatch(value["resourceId"]) is None
+        or any(
+            not _revision(value[key])
+            for key in (
+                "userRevision", "resourceRevision", "aclRevision",
+                "bindingRevision", "serviceRevision", "statusRevision",
+            )
+        )
+        or any(
+            type(value[key]) is not str or _OPAQUE.fullmatch(value[key]) is None
+            for key in ("bindingId", "serviceId")
+        )
+        or value["guestKind"] not in {"qemu", "lxc"}
+        or type(value["node"]) is not str
+        or re.fullmatch(
+            r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?",
+            value["node"],
+        ) is None
+        or type(value["guestId"]) is not int
+        or not 1 <= value["guestId"] <= 999_999_999
+        or type(value["allowedAddresses"]) is not list
+        or not 1 <= len(value["allowedAddresses"]) <= 8
+        or value["allowedAddresses"] != sorted(set(value["allowedAddresses"]))
+        or any(not _allowed_address(item) for item in value["allowedAddresses"])
+        or type(value["deadlineMs"]) is not int
+        or not 500 <= value["deadlineMs"] <= 30_000
+    ):
+        raise ProxmoxPowerWorkerError("invalid_request")
+    return PackagedProxmoxObservation(
+        request_id=value["requestId"],
+        resource_id=value["resourceId"],
+        user_revision=value["userRevision"],
+        resource_revision=value["resourceRevision"],
+        acl_revision=value["aclRevision"],
+        binding_id=value["bindingId"],
+        binding_revision=value["bindingRevision"],
+        service_id=value["serviceId"],
+        service_revision=value["serviceRevision"],
+        node=value["node"],
+        guest_kind=value["guestKind"],
+        guest_id=value["guestId"],
+        status_revision=value["statusRevision"],
+        allowed_addresses=tuple(value["allowedAddresses"]),
+    )
+
+
+def _wire_observation_result(value, command):
+    if (
+        not isinstance(value, PackagedProxmoxObservationResult)
+        or value.state not in {"running", "stopped"}
+        or value.status_revision != command.status_revision
+    ):
+        raise ProxmoxPowerWorkerError("invalid_worker_result")
+    return {"state": value.state, "statusRevision": value.status_revision}
+
+
+def _observation_result(value):
+    if (
+        type(value) is not dict
+        or set(value) != {"state", "statusRevision"}
+        or value["state"] not in {"running", "stopped"}
+        or not _revision(value["statusRevision"])
+    ):
+        raise ProxmoxPowerWorkerError("invalid_worker_result")
+    return PackagedProxmoxObservationResult(
+        value["state"], value["statusRevision"]
     )
 
 
@@ -443,6 +613,70 @@ class ProxmoxPowerWorkerClient:
                 raise ProxmoxPowerWorkerError() from None
             raise
 
+    def observe_bounded(
+        self, descriptor, guard, *, user_revision, resource_revision,
+        acl_revision, deadline_ms, allowed_addresses, continuation_guard=None,
+    ):
+        if not callable(guard) or (
+            continuation_guard is not None and not callable(continuation_guard)
+        ):
+            raise ProxmoxPowerWorkerError()
+        continuing = continuation_guard or guard
+        command = _wire_observation(
+            descriptor,
+            user_revision=user_revision,
+            resource_revision=resource_revision,
+            acl_revision=acl_revision,
+            deadline_ms=deadline_ms,
+            allowed_addresses=tuple(allowed_addresses),
+        )
+        try:
+            guard()
+            selected = _safe_path(
+                self.path, uid=self.owner_uid, kind=stat.S_ISSOCK, private=True
+            )
+            info = selected.lstat()
+            if (
+                self.expected_identity is not None
+                and (info.st_dev, info.st_ino, info.st_ctime_ns)
+                != self.expected_identity
+            ):
+                raise ProxmoxPowerWorkerError()
+            deadline = time.monotonic() + min(self.timeout, deadline_ms / 1000)
+            envelope_id = uuid.uuid4().hex
+            request = {
+                "protocol": PROTOCOL,
+                "requestId": envelope_id,
+                "operation": "observe",
+                "command": command,
+            }
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(_remaining(deadline))
+                connection.connect(str(self.path))
+                if self.peer_uid(connection) != self.owner_uid:
+                    raise ProxmoxPowerWorkerError()
+                _write_packet(connection, request, deadline)
+                response = _read_packet(connection, deadline, continuing)
+            if response["requestId"] != envelope_id:
+                raise ProxmoxPowerWorkerError("invalid_worker_result")
+            if set(response) == {"protocol", "requestId", "error"}:
+                raise ProxmoxPowerWorkerError()
+            if set(response) != {"protocol", "requestId", "result"}:
+                raise ProxmoxPowerWorkerError("invalid_worker_result")
+            continuing()
+            return _observation_result(response["result"])
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            if isinstance(error, ProxmoxPowerWorkerError):
+                raise ProxmoxPowerWorkerError(error.code) from None
+            if isinstance(
+                error,
+                (OSError, ValueError, TypeError, RuntimeError, DockerWorkerError),
+            ):
+                raise ProxmoxPowerWorkerError() from None
+            raise
+
 
 def verified_power_worker_client(
     socket_path, health_path, owner_uid, *, peer_uid=None, timeout=5,
@@ -552,24 +786,28 @@ class ProxmoxPowerWorkerServer:
     def _answer(self, request, connection, deadline):
         if (
             set(request) != {"protocol", "requestId", "operation", "command"}
-            or request["operation"] != "execute"
+            or request["operation"] not in {"execute", "observe"}
         ):
             raise ProxmoxPowerWorkerError("invalid_request")
         raw = request["command"]
-        command = _command(raw)
-        self._remember(command.request_id)
+        observation = request["operation"] == "observe"
+        command = _observation(raw) if observation else _command(raw)
+        if not observation:
+            self._remember(command.request_id)
         worker_deadline = min(
             deadline, time.monotonic() + raw["deadlineMs"] / 1000
         )
         if self._cancelled(connection, worker_deadline):
             raise ProxmoxPowerWorkerError()
-        value = self.adapter.execute(
-            command,
-            deadline=worker_deadline,
+        method = self.adapter.observe if observation else self.adapter.execute
+        value = method(
+            command, deadline=worker_deadline,
             cancelled=lambda: self._cancelled(connection, worker_deadline),
         )
         if self._cancelled(connection, worker_deadline):
             raise ProxmoxPowerWorkerError()
+        if observation:
+            return _wire_observation_result(value, command)
         return _wire_result(value, command)
 
     def _serve(self):

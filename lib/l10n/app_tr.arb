@@ -4236,6 +4236,7 @@
   "serverPowerRecoveryStepFailed": "Başarısız",
   "serverPowerRecoveryStepSkipped": "Atlandı",
   "serverPowerRecoveryStepUncertain": "Uzlaştırma gerekiyor",
+  "serverPowerRecoveryStepReconciled": "Güncel durum uzlaştırıldı",
   "serverHomesTitle": "Evler ve Core'lar",
   "serverHomesIntro": "Her ev bağımsız bir Core oturumu tutar. Ev değişiminde seçilen Core doğrulanmadan önce mevcut ev çalışma alanı kapatılır.",
   "serverHomesCount": "{count} kayıtlı ev",

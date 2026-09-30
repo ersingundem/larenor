@@ -39,6 +39,10 @@ from .core_backups.drill_schema import migrate_core_recovery_drills
 from .core_backups.immutable_schema import migrate_immutable_backup_target
 from .power_recovery.schema import migrate_power_recovery
 from .power_recovery.service import PowerRecoveryService
+from .power_recovery.proxmox_executor import (
+    ProxmoxPowerRecoveryExecutor,
+    StoredProxmoxPowerResolver,
+)
 from .core_audit import CoreAuditService, migrate as migrate_core_audit
 from .database import Database
 from .errors import ApiError, StartupError
@@ -852,13 +856,6 @@ class CoreServices:
                 context=self.context,
                 encryption_key=key,
             )
-            self.power_recovery = PowerRecoveryService(
-                self.db,
-                self.auth,
-                settings,
-                key,
-                executor=self._power_recovery_executor,
-            )
             self.services = ServiceManagement(
                 self.db, self.auth, settings, key, self.context
             )
@@ -897,19 +894,17 @@ class CoreServices:
             self.component_egress = ComponentEgress(self.services, key, self.context)
             self.services.component_egress = self.component_egress
             power_executor = self._proxmox_power_executor
-            if (
-                power_executor is None
-                and settings.proxmox_power_worker_socket is not None
-            ):
+            worker = None
+            if settings.proxmox_power_worker_socket is not None:
                 worker = verified_power_worker_client(
                     settings.proxmox_power_worker_socket,
                     settings.proxmox_power_worker_health,
                     settings.proxmox_power_worker_uid,
                 )
-                if worker is not None:
-                    power_executor = EgressGatedProxmoxExecutor(
-                        worker, self.component_egress
-                    )
+            if power_executor is None and worker is not None:
+                power_executor = EgressGatedProxmoxExecutor(
+                    worker, self.component_egress
+                )
             self.proxmox_power = ProxmoxPowerAuthority(
                 self.home_resources,
                 self.auth,
@@ -974,6 +969,28 @@ class CoreServices:
             )
             self.proxmox.validate_storage()
             self.proxmox_power.attach_binding_reader(self.proxmox)
+            recovery_executor = self._power_recovery_executor
+            if recovery_executor is None and worker is not None:
+                recovery_executor = ProxmoxPowerRecoveryExecutor(
+                    StoredProxmoxPowerResolver(
+                        self.db,
+                        self.auth,
+                        self.home_resources,
+                        self.services,
+                        self.proxmox,
+                        self.component_egress,
+                        self._proxmox_guest_provider,
+                    ),
+                    worker,
+                    settings,
+                )
+            self.power_recovery = PowerRecoveryService(
+                self.db,
+                self.auth,
+                settings,
+                key,
+                executor=recovery_executor,
+            )
             self.service_probe = ServiceProbeRunner(self.services)
             self.plugins = PluginManagement(self.db, self.auth, settings, key)
             self.plugins.validate_storage()

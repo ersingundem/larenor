@@ -5,7 +5,15 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from larenor_server.config import Settings
 from larenor_server.database import Database
-from larenor_server.power_recovery.models import PowerEffectReceipt
+from types import SimpleNamespace
+
+import pytest
+
+from larenor_server.errors import ApiError
+from larenor_server.power_recovery.models import (
+    PowerEffectObservation,
+    PowerEffectReceipt,
+)
 from larenor_server.power_recovery.schema import migrate_power_recovery
 from larenor_server.power_recovery.service import PowerRecoveryService
 
@@ -19,8 +27,9 @@ NOW = 1_788_609_600
 
 
 class Executor:
-    def __init__(self, receipt=None):
+    def __init__(self, receipt=None, observation=None):
         self.receipt = receipt
+        self.observation = observation
         self.executed = []
         self.reconciled = []
 
@@ -31,6 +40,9 @@ class Executor:
     def reconcile(self, request):
         self.reconciled.append(request)
         return self.receipt
+
+    def observe(self, request):
+        return self.observation
 
 
 def database(tmp_path, *, action="shutdownTarget", state="executing"):
@@ -221,7 +233,7 @@ def test_v1_schema_migration_preserves_steps_and_adds_uncertain_state(tmp_path):
             (STEP,),
         )
 
-    assert marker == "2"
+    assert marker == "3"
     assert rows(db)[0] == {
         "state": "uncertain",
         "result_code": "reconciliation_required",
@@ -243,3 +255,72 @@ def test_lost_live_effect_ack_reconciles_read_only_and_never_becomes_retryable(
         {"state": "uncertain", "result_code": "reconciliation_required"},
         {"state": "failed", "failure_code": "effect_failed"},
     )
+
+
+def test_admin_reconcile_accepts_current_state_without_claiming_timed_completion(
+    tmp_path,
+):
+    db, settings = database(tmp_path)
+    executor = Executor(
+        observation=PowerEffectObservation(
+            contractVersion=1,
+            runId=RUN,
+            stepId=STEP,
+            targetId=TARGET,
+            action="shutdown",
+            observedState="stopped",
+            observedAt=NOW + 1,
+        )
+    )
+    service = PowerRecoveryService(db, object(), settings, KEY, executor=executor)
+    service._assert_admin = lambda _connection, _actor: 1
+
+    run = service.reconcile_step(
+        SimpleNamespace(id="a" * 32),
+        RUN,
+        STEP,
+        {"contractVersion": 1, "expectedUpdatedAt": NOW + 1},
+    )
+
+    assert run.state == "shuttingDown"
+    assert run.failureCode is None
+    step = next(value for value in run.steps if value.stepId == STEP)
+    assert (step.state, step.resultCode) == (
+        "succeeded",
+        "reconciled_current_state",
+    )
+    assert executor.executed == []
+
+
+def test_admin_reconcile_keeps_uncertain_when_current_state_does_not_match(tmp_path):
+    db, settings = database(tmp_path)
+    executor = Executor(
+        observation=PowerEffectObservation(
+            contractVersion=1,
+            runId=RUN,
+            stepId=STEP,
+            targetId=TARGET,
+            action="shutdown",
+            observedState="running",
+            observedAt=NOW + 1,
+        )
+    )
+    service = PowerRecoveryService(db, object(), settings, KEY, executor=executor)
+    service._assert_admin = lambda _connection, _actor: 1
+
+    with pytest.raises(ApiError) as raised:
+        service.reconcile_step(
+            SimpleNamespace(id="a" * 32),
+            RUN,
+            STEP,
+            {"contractVersion": 1, "expectedUpdatedAt": NOW + 1},
+        )
+
+    assert (raised.value.code, raised.value.status) == (
+        "power_reconciliation_required",
+        409,
+    )
+    assert rows(db)[0] == {
+        "state": "uncertain",
+        "result_code": "reconciliation_required",
+    }

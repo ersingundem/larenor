@@ -538,7 +538,7 @@ class _ServerPowerRecoveryScreenState
                     Text(l10n.serverPowerRecoveryStepCount(run.steps.length)),
                     for (final step in run.steps)
                       Text(
-                        '${step.sequence}. ${_stepLabel(l10n, step.action)} · ${_stepStateLabel(l10n, step.state)}',
+                        '${step.sequence}. ${_stepLabel(l10n, step.action)} · ${_stepOutcomeLabel(l10n, step)}',
                         style: AppText.footnote,
                       ),
                   ],
@@ -614,4 +614,9 @@ class _ServerPowerRecoveryScreenState
         PowerStepState.skipped => l10n.serverPowerRecoveryStepSkipped,
         PowerStepState.uncertain => l10n.serverPowerRecoveryStepUncertain,
       };
+
+  String _stepOutcomeLabel(AppLocalizations l10n, PowerRecoveryStep step) =>
+      step.resultCode == 'reconciled_current_state'
+      ? l10n.serverPowerRecoveryStepReconciled
+      : _stepStateLabel(l10n, step.state);
 }

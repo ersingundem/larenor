@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from ..errors import ApiError, StartupError
 from .models import (
     ConfigurePowerRecoveryRequest,
+    PowerEffectObservation,
     PowerEffectReceipt,
     PowerEffectRequest,
     PowerRecoveryPolicy,
@@ -18,6 +19,7 @@ from .models import (
     PowerRecoveryRun,
     PowerRecoveryStatus,
     PowerStepReceipt,
+    ReconcilePowerRecoveryRequest,
     RetryPowerRecoveryRequest,
     UpsEventReceipt,
     UpsPowerEvent,
@@ -119,6 +121,12 @@ class PowerRecoveryService:
         now = int(self.settings.clock())
         with self._lock, self.db.transaction() as connection:
             self._assert_admin(connection, actor)
+            validator = getattr(self._executor, "validate_configuration", None)
+            for target in body.targets:
+                if target.providerRef is not None:
+                    if not callable(validator):
+                        raise ApiError("server_unavailable", 503)
+                    validator(connection, actor, target)
             current = self._policy_row(connection)
             revision = 1 if current is None else current["revision"] + 1
             if body.expectedRevision != revision - 1:
@@ -554,6 +562,156 @@ class PowerRecoveryService:
                     "SELECT * FROM power_recovery_runs WHERE run_id=?", (run_id,)
                 ).fetchone(),
             )
+
+    def reconcile_step(self, actor, run_id, step_id, raw):
+        """Explicitly accept current state evidence without rewriting effect history."""
+        body = ReconcilePowerRecoveryRequest.model_validate(raw)
+        observer = getattr(self._executor, "observe", None)
+        if not callable(observer):
+            raise ApiError("server_unavailable", 503)
+        with self._lock:
+            started_at = int(self.settings.clock())
+            with self.db.transaction() as connection:
+                self._assert_admin(connection, actor)
+                state = connection.execute(
+                    "SELECT * FROM power_recovery_state WHERE id=1"
+                ).fetchone()
+                run = connection.execute(
+                    "SELECT * FROM power_recovery_runs WHERE run_id=?", (run_id,)
+                ).fetchone()
+                step = connection.execute(
+                    "SELECT * FROM power_recovery_steps WHERE step_id=? AND run_id=?",
+                    (step_id, run_id),
+                ).fetchone()
+                policy = self._policy(self._policy_row(connection))
+                if (
+                    run is None
+                    or step is None
+                    or policy is None
+                    or state["active_run_id"] != run_id
+                    or run["state"] != "failed"
+                    or run["updated_at"] != body.expectedUpdatedAt
+                    or run["policy_revision"] != policy.revision
+                    or step["state"] != "uncertain"
+                    or step["action"] not in {"shutdownTarget", "startTarget"}
+                ):
+                    raise ApiError("revision_conflict", 409)
+                target = next(
+                    (
+                        item
+                        for item in policy.targets
+                        if item.targetId == step["target_id"]
+                        and item.kind == step["target_kind"]
+                    ),
+                    None,
+                )
+                if target is None:
+                    raise ApiError("revision_conflict", 409)
+                effect = PowerEffectRequest(
+                    contractVersion=1,
+                    runId=run_id,
+                    stepId=step_id,
+                    action=(
+                        "shutdown"
+                        if step["action"] == "shutdownTarget"
+                        else "start"
+                    ),
+                    target=target,
+                    deadlineAt=started_at + min(30, target.timeoutSeconds),
+                )
+            try:
+                observation = PowerEffectObservation.model_validate(observer(effect))
+            except Exception:
+                raise ApiError("power_reconciliation_required", 409) from None
+            finished_at = int(self.settings.clock())
+            expected_state = "stopped" if effect.action == "shutdown" else "running"
+            if (
+                observation.runId != effect.runId
+                or observation.stepId != effect.stepId
+                or observation.targetId != effect.target.targetId
+                or observation.action != effect.action
+                or observation.observedState != expected_state
+                or observation.observedAt < started_at
+                or observation.observedAt > finished_at + 5
+            ):
+                raise ApiError("power_reconciliation_required", 409)
+            with self.db.transaction() as connection:
+                self._assert_admin(connection, actor)
+                state = connection.execute(
+                    "SELECT * FROM power_recovery_state WHERE id=1"
+                ).fetchone()
+                run = connection.execute(
+                    "SELECT * FROM power_recovery_runs WHERE run_id=?", (run_id,)
+                ).fetchone()
+                step = connection.execute(
+                    "SELECT * FROM power_recovery_steps WHERE step_id=? AND run_id=?",
+                    (step_id, run_id),
+                ).fetchone()
+                if (
+                    run is None
+                    or step is None
+                    or state["active_run_id"] != run_id
+                    or run["state"] != "failed"
+                    or run["updated_at"] != body.expectedUpdatedAt
+                    or step["state"] != "uncertain"
+                ):
+                    raise ApiError("revision_conflict", 409)
+                if step["action"] == "startTarget" and (
+                    state["source_state"] != "online"
+                    or run["restore_eligible_at"] is None
+                    or finished_at < run["restore_eligible_at"]
+                ):
+                    raise ApiError("power_restore_not_stable", 409)
+                self._finish_step(
+                    connection,
+                    step_id,
+                    "succeeded",
+                    "reconciled_current_state",
+                    observation.observedAt,
+                )
+                next_state = (
+                    "restoring"
+                    if step["action"] == "startTarget"
+                    or state["source_state"] == "online"
+                    else "shuttingDown"
+                )
+                if step["action"] == "shutdownTarget" and state["source_state"] == "online":
+                    succeeded = {
+                        row["target_id"]
+                        for row in connection.execute(
+                            "SELECT target_id FROM power_recovery_steps WHERE run_id=? "
+                            "AND action='shutdownTarget' AND state='succeeded'",
+                            (run_id,),
+                        )
+                    }
+                    connection.execute(
+                        """UPDATE power_recovery_steps SET state='skipped',updated_at=?
+                            WHERE run_id=? AND action IN ('holdNewWork','drainActiveWork',
+                            'checkpointDatabase','shutdownTarget') AND state='queued'""",
+                        (finished_at, run_id),
+                    )
+                    for queued in connection.execute(
+                        "SELECT step_id,target_id FROM power_recovery_steps "
+                        "WHERE run_id=? AND action='startTarget'",
+                        (run_id,),
+                    ):
+                        if queued["target_id"] not in succeeded:
+                            connection.execute(
+                                "UPDATE power_recovery_steps SET state='skipped',"
+                                "result_code='restore_disabled',updated_at=? WHERE step_id=?",
+                                (finished_at, queued["step_id"]),
+                            )
+                connection.execute(
+                    "UPDATE power_recovery_runs SET state=?,failure_code=NULL,updated_at=? "
+                    "WHERE run_id=?",
+                    (next_state, finished_at, run_id),
+                )
+                return self._run(
+                    connection,
+                    connection.execute(
+                        "SELECT * FROM power_recovery_runs WHERE run_id=?", (run_id,)
+                    ).fetchone(),
+                )
 
     def validate_storage(self):
         with self.db.connection() as connection:

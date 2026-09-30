@@ -4589,6 +4589,7 @@
   "serverPowerRecoveryStepFailed": "Failed",
   "serverPowerRecoveryStepSkipped": "Skipped",
   "serverPowerRecoveryStepUncertain": "Reconciliation required",
+  "serverPowerRecoveryStepReconciled": "Current state reconciled",
   "serverHomesTitle": "Homes and Cores",
   "serverHomesIntro": "Each home keeps an independent Core session. Switching retires the current home runtime before the selected Core is verified.",
   "serverHomesCount": "{count} saved homes",

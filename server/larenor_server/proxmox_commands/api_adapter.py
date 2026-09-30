@@ -24,7 +24,11 @@ from ..files import private_read
 from ..plugins.worker import DockerWorkerError, _safe_path
 from ..services.transport import ProbeTransportError, ServiceTransport
 from .worker_ipc import (
-    EFFECT_ACTIONS, PackagedProxmoxApiResult, PackagedProxmoxCommand,
+    EFFECT_ACTIONS,
+    PackagedProxmoxApiResult,
+    PackagedProxmoxCommand,
+    PackagedProxmoxObservation,
+    PackagedProxmoxObservationResult,
 )
 
 
@@ -338,6 +342,11 @@ class ProxmoxApiEffectAdapter:
             and command.service_id == selected.service_id
             and command.service_revision == selected.service_revision
             and command.guest_kind == selected.guest_kind
+            and (
+                not isinstance(command, PackagedProxmoxObservation)
+                or command.node == selected.node
+                and command.guest_id == selected.guest_id
+            )
             and selected.pinned_address in command.allowed_addresses
         )
 
@@ -345,6 +354,96 @@ class ProxmoxApiEffectAdapter:
         return PackagedProxmoxApiResult(
             "unknown", command.current_state, command.status_revision, upid
         )
+
+    def observe(self, command, *, deadline, cancelled):
+        """Read the one sealed guest's state through a fixed GET endpoint."""
+        if (
+            not isinstance(command, PackagedProxmoxObservation)
+            or not callable(cancelled)
+            or type(deadline) not in (int, float)
+            or isinstance(deadline, bool)
+            or not math.isfinite(deadline)
+            or not self._matches(command)
+        ):
+            raise ProxmoxApiAdapterError("binding_changed")
+
+        def gate():
+            try:
+                if time.monotonic() >= deadline or cancelled():
+                    raise ProxmoxApiAdapterError()
+            except ProxmoxApiAdapterError:
+                raise
+            except BaseException as error:
+                if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                raise ProxmoxApiAdapterError() from None
+
+        selected = self._binding
+
+        def pinned(value):
+            if value != selected.pinned_address:
+                raise ProxmoxApiAdapterError()
+
+        try:
+            gate()
+            timeout = min(5.0, deadline - time.monotonic())
+            if timeout <= 0:
+                raise ProxmoxApiAdapterError()
+            authority = selected.host
+            default = 443 if selected.scheme == "https" else 80
+            base = f"{selected.scheme}://{authority}"
+            if selected.port != default:
+                base += f":{selected.port}"
+            path = (
+                f"/api2/json/nodes/{selected.node}/{selected.guest_kind}/"
+                f"{selected.guest_id}/status/current"
+            )
+            with ServiceTransport(
+                base,
+                timeout=timeout,
+                max_bytes=MAX_RESULT_BYTES,
+                resolver=self._resolver,
+                connector=self._connector,
+                address_guard=pinned,
+            ) as transport:
+                response = transport.request(
+                    "GET",
+                    path,
+                    headers={
+                        "Authorization": (
+                            "PVEAPIToken="
+                            + selected.token_id
+                            + "="
+                            + selected.token_secret
+                        ),
+                        "Accept": "application/json",
+                    },
+                    before_send=gate,
+                )
+            gate()
+            if response.status != 200:
+                raise ProxmoxApiAdapterError()
+            value = self._json(response)
+            if (
+                type(value) is not dict
+                or set(value) != {"data"}
+                or type(value["data"]) is not dict
+                or set(value["data"]) != {"status"}
+                or value["data"]["status"] not in {"running", "stopped"}
+            ):
+                raise ProxmoxApiAdapterError()
+            return PackagedProxmoxObservationResult(
+                value["data"]["status"], command.status_revision
+            )
+        except ProxmoxApiAdapterError:
+            raise
+        except (ProbeTransportError, ValueError, TypeError, KeyError,
+                UnicodeError, RecursionError):
+            raise ProxmoxApiAdapterError() from None
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise ProxmoxApiAdapterError() from None
 
     @staticmethod
     def _json(response):

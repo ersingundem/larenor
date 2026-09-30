@@ -14,6 +14,13 @@ String _identity(Object? value) {
   return value;
 }
 
+String _opaque(Object? value) {
+  if (value is! String || !RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(value)) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return value;
+}
+
 int _revision(Object? value, {bool allowZero = false}) {
   if (value is! int || value < (allowZero ? 0 : 1)) {
     throw const LarenorServerException('invalid_response');
@@ -29,6 +36,126 @@ void _keys(Map<String, dynamic> json, Set<String> expected) {
 
 enum PowerTargetKind { service, proxmoxGuest, networkDevice, coreHost }
 
+final class ProxmoxPowerProviderRef {
+  const ProxmoxPowerProviderRef({
+    required this.actorId,
+    required this.actorRevision,
+    required this.coreId,
+    required this.homeId,
+    required this.resourceId,
+    required this.resourceRevision,
+    required this.aclRevision,
+    required this.bindingId,
+    required this.bindingRevision,
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.egressRevision,
+    required this.installationId,
+    required this.node,
+    required this.guestKind,
+    required this.guestId,
+    required this.statusRevision,
+  });
+
+  factory ProxmoxPowerProviderRef.fromJson(Object? raw) {
+    final json = serverObject(raw);
+    _keys(json, const {
+      'contractVersion',
+      'provider',
+      'actorId',
+      'actorRevision',
+      'coreId',
+      'homeId',
+      'resourceId',
+      'resourceRevision',
+      'aclRevision',
+      'bindingId',
+      'bindingRevision',
+      'serviceId',
+      'serviceRevision',
+      'egressRevision',
+      'installationId',
+      'node',
+      'guestKind',
+      'guestId',
+      'statusRevision',
+    });
+    final node = json['node'];
+    final kind = json['guestKind'];
+    final guestId = json['guestId'];
+    if (json['contractVersion'] != 1 ||
+        json['provider'] != 'proxmox' ||
+        node is! String ||
+        !RegExp(r'^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$')
+            .hasMatch(node) ||
+        !const {'qemu', 'lxc'}.contains(kind) ||
+        guestId is! int ||
+        guestId < 1 ||
+        guestId > 999999999) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return ProxmoxPowerProviderRef(
+      actorId: _identity(json['actorId']),
+      actorRevision: _revision(json['actorRevision']),
+      coreId: _identity(json['coreId']),
+      homeId: _identity(json['homeId']),
+      resourceId: _identity(json['resourceId']),
+      resourceRevision: _revision(json['resourceRevision']),
+      aclRevision: _revision(json['aclRevision']),
+      bindingId: _opaque(json['bindingId']),
+      bindingRevision: _revision(json['bindingRevision']),
+      serviceId: _opaque(json['serviceId']),
+      serviceRevision: _revision(json['serviceRevision']),
+      egressRevision: _revision(json['egressRevision']),
+      installationId: _opaque(json['installationId']),
+      node: node,
+      guestKind: kind as String,
+      guestId: guestId,
+      statusRevision: _revision(json['statusRevision']),
+    );
+  }
+
+  final String actorId;
+  final int actorRevision;
+  final String coreId;
+  final String homeId;
+  final String resourceId;
+  final int resourceRevision;
+  final int aclRevision;
+  final String bindingId;
+  final int bindingRevision;
+  final String serviceId;
+  final int serviceRevision;
+  final int egressRevision;
+  final String installationId;
+  final String node;
+  final String guestKind;
+  final int guestId;
+  final int statusRevision;
+
+  Map<String, Object?> toJson() => {
+    'contractVersion': 1,
+    'provider': 'proxmox',
+    'actorId': actorId,
+    'actorRevision': actorRevision,
+    'coreId': coreId,
+    'homeId': homeId,
+    'resourceId': resourceId,
+    'resourceRevision': resourceRevision,
+    'aclRevision': aclRevision,
+    'bindingId': bindingId,
+    'bindingRevision': bindingRevision,
+    'serviceId': serviceId,
+    'serviceRevision': serviceRevision,
+    'egressRevision': egressRevision,
+    'installationId': installationId,
+    'node': node,
+    'guestKind': guestKind,
+    'guestId': guestId,
+    'statusRevision': statusRevision,
+  };
+}
+
 final class PowerRecoveryTarget {
   const PowerRecoveryTarget({
     required this.targetId,
@@ -37,6 +164,7 @@ final class PowerRecoveryTarget {
     required this.shutdownOrder,
     required this.startOnRestore,
     required this.timeoutSeconds,
+    this.providerRef,
   });
 
   factory PowerRecoveryTarget.fromJson(Object? raw) {
@@ -48,11 +176,15 @@ final class PowerRecoveryTarget {
       'shutdownOrder',
       'startOnRestore',
       'timeoutSeconds',
+      'providerRef',
     });
     final label = json['label'];
     final order = json['shutdownOrder'];
     final start = json['startOnRestore'];
     final timeout = json['timeoutSeconds'];
+    final providerRef = json['providerRef'] == null
+        ? null
+        : ProxmoxPowerProviderRef.fromJson(json['providerRef']);
     final kind = switch (json['kind']) {
       'service' => PowerTargetKind.service,
       'proxmoxGuest' => PowerTargetKind.proxmoxGuest,
@@ -79,6 +211,7 @@ final class PowerRecoveryTarget {
       shutdownOrder: order,
       startOnRestore: start,
       timeoutSeconds: timeout,
+      providerRef: providerRef,
     );
   }
 
@@ -88,8 +221,9 @@ final class PowerRecoveryTarget {
   final int shutdownOrder;
   final bool startOnRestore;
   final int timeoutSeconds;
+  final ProxmoxPowerProviderRef? providerRef;
 
-  Map<String, Object> toJson() => {
+  Map<String, Object?> toJson() => {
     'targetId': targetId,
     'label': label,
     'kind': switch (kind) {
@@ -101,6 +235,7 @@ final class PowerRecoveryTarget {
     'shutdownOrder': shutdownOrder,
     'startOnRestore': startOnRestore,
     'timeoutSeconds': timeoutSeconds,
+    'providerRef': providerRef?.toJson(),
   };
 }
 
@@ -234,6 +369,7 @@ final class PowerRecoveryStep {
           'checkpoint_failed',
           'effect_failed',
           'reconciliation_required',
+          'reconciled_current_state',
           'restore_disabled',
         }.contains(result)) {
       throw const LarenorServerException('invalid_response');

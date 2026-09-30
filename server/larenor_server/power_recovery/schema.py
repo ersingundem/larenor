@@ -13,7 +13,7 @@ _POLICY_COLUMNS = (
     ("configured_at", "INTEGER", 1, None, 0),
 )
 
-_STEPS_V2 = """CREATE TABLE power_recovery_steps (
+_STEPS_V3 = """CREATE TABLE power_recovery_steps (
     step_id TEXT PRIMARY KEY CHECK(length(step_id)=32),
     run_id TEXT NOT NULL REFERENCES power_recovery_runs(run_id),
     sequence INTEGER NOT NULL CHECK(sequence>0),
@@ -21,7 +21,7 @@ _STEPS_V2 = """CREATE TABLE power_recovery_steps (
     target_id TEXT,
     target_kind TEXT CHECK(target_kind IS NULL OR target_kind IN ('service','proxmoxGuest','networkDevice','coreHost')),
     state TEXT NOT NULL CHECK(state IN ('queued','executing','succeeded','failed','skipped','uncertain')),
-    result_code TEXT NOT NULL CHECK(result_code IN ('pending','completed','no_active_work','active_work_timeout','checkpoint_failed','effect_failed','restore_disabled','reconciliation_required')),
+    result_code TEXT NOT NULL CHECK(result_code IN ('pending','completed','no_active_work','active_work_timeout','checkpoint_failed','effect_failed','restore_disabled','reconciliation_required','reconciled_current_state')),
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE(run_id,sequence)
@@ -80,27 +80,27 @@ def migrate_power_recovery(connection):
                 restore_eligible_at INTEGER,
                 failure_code TEXT CHECK(failure_code IS NULL OR failure_code IN ('active_work_timeout','checkpoint_failed','effect_failed'))
             )""",
-            _STEPS_V2,
+            _STEPS_V3,
             "CREATE INDEX power_recovery_runs_recent ON power_recovery_runs(created_at DESC)",
-            "INSERT INTO metadata(key,value) VALUES('power_recovery_schema','2')",
+            "INSERT INTO metadata(key,value) VALUES('power_recovery_schema','3')",
         )
         for statement in statements:
             connection.execute(statement)
-    elif marker["value"] == "1" and exists:
-        connection.execute("ALTER TABLE power_recovery_steps RENAME TO power_recovery_steps_v1")
-        connection.execute(_STEPS_V2)
+    elif marker["value"] in {"1", "2"} and exists:
+        connection.execute("ALTER TABLE power_recovery_steps RENAME TO power_recovery_steps_old")
+        connection.execute(_STEPS_V3)
         connection.execute(
             """INSERT INTO power_recovery_steps(
                 step_id,run_id,sequence,action,target_id,target_kind,state,
                 result_code,created_at,updated_at)
                 SELECT step_id,run_id,sequence,action,target_id,target_kind,state,
-                result_code,created_at,updated_at FROM power_recovery_steps_v1"""
+                result_code,created_at,updated_at FROM power_recovery_steps_old"""
         )
-        connection.execute("DROP TABLE power_recovery_steps_v1")
+        connection.execute("DROP TABLE power_recovery_steps_old")
         connection.execute(
-            "UPDATE metadata SET value='2' WHERE key='power_recovery_schema'"
+            "UPDATE metadata SET value='3' WHERE key='power_recovery_schema'"
         )
-    elif marker["value"] != "2" or not exists:
+    elif marker["value"] != "3" or not exists:
         raise StartupError("power_recovery_schema_unsupported")
     columns = tuple(
         tuple(row)

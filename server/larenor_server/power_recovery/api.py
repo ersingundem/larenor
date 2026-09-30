@@ -11,6 +11,7 @@ from .models import (
     PowerRecoveryPolicyResponse,
     PowerRecoveryStatus,
     PowerRecoveryRun,
+    ReconcilePowerRecoveryRequest,
     RetryPowerRecoveryRequest,
     UpsEventReceipt,
     UpsPowerEvent,
@@ -61,3 +62,17 @@ def retry_run(
     actor: Admin,
 ):
     return core.power_recovery.retry(actor, run_id, body)
+
+
+@router.post(
+    "/runs/{run_id}/steps/{step_id}/reconcile",
+    response_model=PowerRecoveryRun,
+)
+def reconcile_step(
+    run_id: Identity,
+    step_id: Identity,
+    body: ReconcilePowerRecoveryRequest,
+    core: Core,
+    actor: Admin,
+):
+    return core.power_recovery.reconcile_step(actor, run_id, step_id, body)
