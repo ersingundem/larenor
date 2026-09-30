@@ -4930,7 +4930,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Bahçe sulama ve su bütçesi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4955,7 +4955,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek HA/OpenSprinkler timed/flow kaynak ve admin kurulum yolu uygulandı. Normal Flutter Client→create_app Core→TCP HA/OpenSprinkler kabulü geçti: 30.000 ml gerçek flow readback, tek /cm, kayıp ACK uzlaşması, source/session driftte sıfır gönderim ve restart kalıcılığı. 27 Server, 13 Flutter, gerçek TCP runner ve focused analyze geçti; derived revisions JS-safe ve Dart→JS→Node roundtrip exact. Genel Flutter Web signed64 literal derleme açığı ile geniş kabul/exact HEAD CI açık; fiziksel kurulum MANUAL kapısında."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı. Normal Flutter Client→create_app Core→owned TCP HA/OpenSprinkler gerçek source setup/preview/confirm/30.000 ml flow readback, tek /cm, kayıp ACK, authority/session driftte sıfır gönderim ve restart kapısı geçti. 27 Server, 13 Flutter ve gerçek TCP runner kanıtı docs/testing/f49-normal-core-tcp-acceptance-2026-09-30.md içinde. JS-safe gözlem revision roundtrip exact; genel Flutter Web derleme/geniş CI ve fiziksel MANUAL kabulü ayrı açık, sayaç değişmedi."
     },
     {
       "id": "G10",

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 35 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11 limit sözleşmesi ve F12 gerçek MCP lifecycle/transport sınırı geliştirmede. F08/host Linux koşularındaki gerçek başlangıç hataları ayrıca çözülüyor; bu koşular yeşil sayılmaz. Diğer test/review eksikleri ayrı tabloda. Actual Linux UID/systemd/cgroup ve exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 36 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11 limit sözleşmesi ve F12 gerçek MCP lifecycle/transport sınırı geliştirmede. F08/host Linux koşularındaki gerçek başlangıç hataları ayrıca çözülüyor; bu koşular yeşil sayılmaz. Diğer test/review eksikleri ayrı tabloda. Actual Linux UID/systemd/cgroup ve exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül exact Security CI ve F49 kuyruk kanıtı
+
+`fd6a6a4246c8c7824c63763e17ec5773d2e0a62d` için [Security CI 36747936989](https://github.com/ersingundem/larenor/actions/runs/36747936989) platform-policy, secret-scan ve dependency-scan kapılarının tümünü geçti. Bu yalnız Security kanıtıdır; Server/Linux/Android ve tüm FINAL kabulü yerine geçmez. F49'un adlandırılmış gerçek Flutter→normal Core→TCP HA/OpenSprinkler kabulü doğrulandı ve CI bekliyor grubuna taşındı. Artık 36 özellik geniş CI bekliyor; F11/F12 geliştirmede. 37/127 ve 3/63 sayaçları değişmedi.
 
 ### 30 Eylül geniş platform kapısında IPC ayrımı
 

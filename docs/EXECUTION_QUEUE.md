@@ -19,7 +19,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G06 — Medya ve müzik | 10 | 0 | 2 | 0 | 8 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 2 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 3 | 0 | 2 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 3 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 5 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -133,7 +133,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
-| F49 | Bahçe sulama ve su bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
@@ -168,6 +167,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F45 | Havlama ve gürültü olayları | CI bekliyor | — |
 | F50 | Oda konforu ve havalandırma planı | CI bekliyor | — |
 | F47 | Güneş ve ev bataryası öncelikleri | CI bekliyor | — |
+| F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | CI bekliyor | — |
