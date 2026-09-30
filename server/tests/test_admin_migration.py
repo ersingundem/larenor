@@ -88,6 +88,16 @@ def downgrade_to_known_v1(app):
         connection.execute(
             "DELETE FROM metadata WHERE key='legacy_remote_schema'"
         )
+        # E-paper delivery records have foreign keys to previews and devices.
+        # Remove the dependent tables before the generic historical cleanup;
+        # otherwise SQLite resolves their parent schema after the alphabetical
+        # loop has already removed epaper_devices.
+        for table in (
+            'epaper_provider_commands',
+            'epaper_polls',
+            'epaper_previews',
+        ):
+            connection.execute(f'DROP TABLE {table}')
         # Keep this historical fixture independent of every later feature
         # schema.  A real v1 database cannot contain context-bound extension
         # tables or their migration markers; merely changing schema_version on

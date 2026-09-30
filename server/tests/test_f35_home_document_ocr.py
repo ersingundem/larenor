@@ -234,7 +234,8 @@ def test_client_changed_candidate_is_rejected_before_document_storage(server):
 
 
 def test_container_declares_real_ocr_runtime_and_configuration_is_paired(tmp_path):
-    dockerfile = (Path(__file__).resolve().parents[2] / "server/Dockerfile").read_text()
+    repository = Path(__file__).resolve().parents[2]
+    dockerfile = (repository / "server/Dockerfile").read_text()
     for required in (
         "poppler-utils", "tesseract-ocr", "/usr/bin/pdftoppm",
         "/usr/bin/tesseract", "LARENOR_HOME_DOCUMENT_TESSERACT=/usr/bin/tesseract",
@@ -242,6 +243,14 @@ def test_container_declares_real_ocr_runtime_and_configuration_is_paired(tmp_pat
         "/usr/bin/tesseract --list-langs | grep -Fx eng",
     ):
         assert required in dockerfile
+    workflow = (repository / ".github/workflows/server-test.yml").read_text()
+    for required in (
+        "sudo apt-get install --yes --no-install-recommends poppler-utils tesseract-ocr",
+        "LARENOR_TEST_TESSERACT=/usr/bin/tesseract",
+        "LARENOR_TEST_PDFTOPPM=/usr/bin/pdftoppm",
+        "/usr/bin/tesseract --list-langs | grep -Fx eng",
+    ):
+        assert required in workflow
     with pytest.raises(ValueError, match="invalid_home_document_ocr_configuration"):
         Settings(
             tmp_path / "data", tmp_path / "key",

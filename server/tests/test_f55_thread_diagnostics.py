@@ -222,7 +222,7 @@ def test_read_only_home_assistant_thread_snapshot_uses_fixed_commands():
     finally:
         fixture.close()
 
-    assert guards == ["before", "after"]
+    assert guards == ["before", "before", "after", "before", "after", "after"]
     assert fixture.commands == [
         {"type": "auth", "access_token": TOKEN},
         {"id": 1, "type": "thread/list_datasets"},

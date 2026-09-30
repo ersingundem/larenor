@@ -3,6 +3,15 @@ name: Server API & Storage Tests
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: "Run the complete Server gate or only the F08 Linux proof"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - f08
 
 permissions:
   contents: read
@@ -31,7 +40,7 @@ jobs:
 
       - name: Install the reviewed Server dependency lock
         working-directory: server
-        run: uv sync --locked --python 3.12.14
+        run: uv sync --locked --no-editable --python 3.12.14
 
       - name: Prepare the dedicated unprivileged AI user manager
         run: |
@@ -73,6 +82,7 @@ jobs:
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}
+    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all'
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +142,19 @@ jobs:
           "$RUNNER_TEMP/larenor-ci-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
           echo "$RUNNER_TEMP/larenor-ci-tools/bin" >> "$GITHUB_PATH"
 
+      - name: Install and verify the real OCR runtime
+        if: steps.server_scope.outputs.run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends poppler-utils tesseract-ocr
+          {
+            echo 'LARENOR_TEST_TESSERACT=/usr/bin/tesseract'
+            echo 'LARENOR_TEST_PDFTOPPM=/usr/bin/pdftoppm'
+          } >> "$GITHUB_ENV"
+          /usr/bin/tesseract --version
+          /usr/bin/tesseract --list-langs | grep -Fx eng
+          /usr/bin/pdftoppm -v
+
       - name: Install the reviewed Server dependency lock
         if: steps.server_scope.outputs.run == 'true'
         working-directory: server
@@ -177,7 +200,7 @@ jobs:
   # shards remain visible as independent evidence.
   server-test:
     name: server-test
-    if: always()
+    if: always() && (github.event_name != 'workflow_dispatch' || inputs.scope == 'all')
     needs: [server-test-shard, f08-linux-cgroup]
     permissions:
       contents: read
