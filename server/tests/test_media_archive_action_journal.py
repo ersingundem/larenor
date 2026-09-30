@@ -69,6 +69,25 @@ def successful_evidence():
     )
 
 
+def cleanup_command(source=None):
+    source = source or command()
+    return PrivateArchiveActionCommand(
+        operationId="9" * 32,
+        operation="cleanup_retained_original",
+        authority=source.authority,
+        candidate=source.candidate,
+        sourceJobId="8" * 32,
+        sourceJobRevision=3,
+        target={
+            "targetType": "retained_original",
+            "sourceOperationId": source.operationId,
+        },
+        evidenceDigest="e" * 64,
+        reservedBytes=0,
+        retainOriginal=False,
+    )
+
+
 def test_durable_begin_survives_restart_and_exact_replay(directory):
     cmd = command()
     with MediaArchiveActionJournal(directory) as journal:
@@ -143,6 +162,79 @@ def test_stale_cas_and_confirmed_original_cannot_be_lost(directory):
                 journal.transition(active, "uncertain", evidence=ArchiveActionEffectEvidence())
             recovered = journal.transition(active, "uncertain")
             assert recovered.evidence.retainedBytes == 4096
+
+
+def test_cleanup_delete_intent_and_exact_identity_survive_restart(directory):
+    source = command()
+    cleanup = cleanup_command(source)
+    source_evidence = successful_evidence()
+    with MediaArchiveActionJournal(directory) as journal:
+        with journal.locked():
+            started = journal.begin(journal.prepare(source))
+            source_receipt = ArchiveActionWorkerReceipt(
+                operationId=source.operationId,
+                evidenceDigest=source.evidenceDigest,
+                state="succeeded", errorCode=None, retainedOriginal=True,
+                proofDigest=journal.proof_digest(source, source_evidence),
+            )
+            journal.transition(
+                started, "succeeded", evidence=source_evidence,
+                receipt=source_receipt)
+            cleanup_record = journal.begin(journal.prepare(cleanup))
+            unowned = ArchiveActionEffectEvidence(cleanupVerified=True)
+            unowned_receipt = ArchiveActionWorkerReceipt(
+                operationId=cleanup.operationId,
+                evidenceDigest=cleanup.evidenceDigest,
+                state="succeeded", errorCode=None,
+                retainedOriginal=False,
+                proofDigest=journal.proof_digest(cleanup, unowned),
+            )
+            with pytest.raises(ArchiveActionJournalError):
+                journal.transition(
+                    cleanup_record, "succeeded", evidence=unowned,
+                    receipt=unowned_receipt)
+            intent = ArchiveActionEffectEvidence(
+                cleanupSourceProofDigest=source_receipt.proofDigest,
+                cleanupRetainedDevice=11,
+                cleanupRetainedInode=12,
+                cleanupRetainedDigest=source_evidence.retainedDigest,
+                cleanupRetainedBytes=source_evidence.retainedBytes,
+                cleanupOutputDigest=source_evidence.outputDigest,
+                cleanupOutputBytes=source_evidence.outputBytes,
+                cleanupDeleteIntent=True,
+            )
+            attention = ArchiveActionWorkerReceipt(
+                operationId=cleanup.operationId,
+                evidenceDigest=cleanup.evidenceDigest,
+                state="needs_attention", errorCode="effect_unknown",
+                retainedOriginal=False,
+            )
+            journal.transition(
+                cleanup_record, "needs_attention", evidence=intent,
+                receipt=attention)
+
+    with MediaArchiveActionJournal(directory) as journal:
+        with journal.locked():
+            recovered = journal.get(cleanup.operationId)
+            assert recovered.evidence == intent
+            running_record = journal.transition(
+                recovered, "running", evidence=intent,
+                receipt=running(cleanup))
+            verified = intent.model_copy(update={"cleanupVerified": True})
+            receipt = ArchiveActionWorkerReceipt(
+                operationId=cleanup.operationId,
+                evidenceDigest=cleanup.evidenceDigest,
+                state="succeeded", errorCode=None,
+                retainedOriginal=False,
+                proofDigest=journal.proof_digest(cleanup, verified),
+            )
+            finished = journal.transition(
+                running_record, "succeeded", evidence=verified,
+                receipt=receipt)
+            assert finished.evidence.cleanupVerified
+
+    with pytest.raises(ValueError):
+        ArchiveActionEffectEvidence(cleanupRetainedDevice=11)
 
 
 @pytest.mark.parametrize("tamper", [

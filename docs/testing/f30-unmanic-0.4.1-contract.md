@@ -148,6 +148,35 @@ kalıcı olmalıdır. Cleanup da kurulmuş çıktıyı tekrar okuyup doğrular.
 - Bunlar gerçek geçici dosyalarla yerel kanıttır. Tam worker runtime, paketli
   callback outbox, gerçek codec/decode doğrulaması ve deploy kabulü henüz
   tamamlanmadığı için F30 kapatılmamıştır.
+
+## Korunan orijinal cleanup yetkisi ve crash uzlaştırması
+
+`cleanup_retained_original` yalnız aynı worker journalındaki başarılı
+`stage_transcode` operation kimliğini kabul eder. Kaynak command/candidate,
+terminal proof digest, saklanan orijinal digest/byte değeri ve kurulmuş doğrulanmış
+çıktının digest/byte değeri birlikte doğrulanır. `stage.json` saklanan kopyanın
+device/inode kimliğini de mühürlediğinden sonradan aynı yola bırakılan başka bir
+dosya sahiplenilmez.
+
+Silme anında eski transcode snapshot/profile eşitliği aranmaz. Resolver cleanup
+command içindeki güncel Core authority'yi canlı authority socket üzerinden,
+güncel private collector publication ile; gerçek Unmanic library ID/config
+readback'ini ve kaynak host yolunun admin onaylı mount altında kalmasını ayrıca
+doğrular. Böylece kurulmuş HEVC dosyanın yeni transcode cache'inde bulunmaması
+yetkiyi gevşetmez.
+
+Orijinalin exact device/inode/digest/byte kimliği, source proof ve kurulu çıktı
+kanıtı unlink'ten önce cleanup journalına kalıcı `cleanupDeleteIntent` olarak
+yazılır. Restart yalnız bu intent varsa ve kurulu çıktı hâlâ aynı hash ise
+kayıp unlink makbuzunu dosyanın yokluğundan uzlaştırabilir. Intent öncesi eksik
+orijinal ve aynı yola yeniden oluşturulan dosya başarı sayılmaz. Provider'a
+gitmeden önceki encoder plan writer hook'u da retained/work kanıtı journalda
+kalıcı olduktan sonra ve `/pending/test` ile `/pending/create` çağrılarından önce
+çalışır; plan yazımı başarısızsa Unmanic etkisi başlamaz.
+
+- Cleanup journal/file-store/engine/resolver odaklı küme: `42 passed`.
+- Action contract, collector/provider, Unmanic, IPC, worker runtime, encoder
+  plugin ve normal runtime ile genişletilmiş regresyon: `126 passed`.
 # Real HTTP and durable callback delivery — 2026-09-30
 
 The worker now has a concrete one-attempt loopback TCP transport for the pinned

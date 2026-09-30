@@ -12,6 +12,7 @@ import pytest
 from larenor_server.media_archive_actions.engine import MediaArchiveActionEngine, ResolvedArchiveActionSource
 from larenor_server.media_archive_actions.file_store import MediaArchiveFileStore
 from larenor_server.media_archive_actions.journal import MediaArchiveActionJournal, action_command_digest
+from larenor_server.media_archive_actions.models import PrivateArchiveActionCommand
 from larenor_server.media_archive_actions.terminal_store import UnmanicTerminalStore
 from larenor_server.media_archive_actions.unmanic import UnmanicAdapter, UnmanicResponse
 from larenor_server.media_archive_actions.worker_ipc import MediaArchiveActionWorkerClient, MediaArchiveActionWorkerServer
@@ -34,6 +35,15 @@ class Resolver:
 
     def authorize(self, _command, *, deadline):
         return self.allowed
+
+    def authorize_retained(
+            self, command, source_command, source_path, *, deadline):
+        return (self.allowed
+                and command.operation == "cleanup_retained_original"
+                and command.target.sourceOperationId
+                == source_command.operationId
+                and source_path == self.source.path
+                and time.monotonic() < deadline)
 
 
 class Exchange:
@@ -95,6 +105,24 @@ def wait_result(handler, cmd):
     pytest.fail("archive fixture did not terminate")
 
 
+def cleanup_command(source, *, operation_id="9" * 32):
+    return PrivateArchiveActionCommand(
+        operationId=operation_id,
+        operation="cleanup_retained_original",
+        authority=source.authority,
+        candidate=source.candidate,
+        sourceJobId="8" * 32,
+        sourceJobRevision=3,
+        target={
+            "targetType": "retained_original",
+            "sourceOperationId": source.operationId,
+        },
+        evidenceDigest="e" * 64,
+        reservedBytes=0,
+        retainOriginal=False,
+    )
+
+
 def test_async_engine_installs_real_verified_output_and_keeps_original(engine, media):
     handler, cmd, source, exchange, _resolver, _roots = engine
     assert handler.preview(cmd, deadline=time.monotonic()+5, gate=lambda: True).state == "ready"
@@ -106,8 +134,134 @@ def test_async_engine_installs_real_verified_output_and_keeps_original(engine, m
     assert source.read_bytes() == media[3].read_bytes()
     assert handler.files.inspect_original(binding)[1] == media[2].stat().st_size
     assert len(exchange.created) == 1
-    assert handler.execute(cmd, deadline=time.monotonic()+5, cancelled=lambda: False) == result
+    assert handler.execute(
+        cmd, deadline=time.monotonic()+5,
+        cancelled=lambda: False) == result
     assert len(exchange.created) == 1
+
+
+def test_retained_cleanup_uses_source_proof_and_keeps_installed_output(
+        engine, media):
+    handler, cmd, source, exchange, _resolver, _roots = engine
+    handler.execute(cmd, deadline=time.monotonic()+5, cancelled=lambda: False)
+    assert wait_result(handler, cmd).state == "succeeded"
+    cleanup = cleanup_command(cmd)
+
+    preview = handler.preview(
+        cleanup, deadline=time.monotonic()+5, gate=lambda: True)
+    assert (preview.requiredBytes, preview.originalWillBeRetained) == (0, False)
+    assert handler.execute(
+        cleanup, deadline=time.monotonic()+5,
+        cancelled=lambda: False).state == "running"
+    result = wait_result(handler, cleanup)
+
+    assert result.state == "succeeded"
+    assert not result.retainedOriginal and result.proofDigest
+    assert source.read_bytes() == media[3].read_bytes()
+    binding = handler.files.lookup(cmd)
+    assert not Path(binding.retainedPath).exists()
+    assert len(exchange.created) == 1
+    with handler.journal.locked():
+        record = handler.journal.get(cleanup.operationId)
+        source_record = handler.journal.get(cmd.operationId)
+    assert record.evidence.cleanupDeleteIntent
+    assert record.evidence.cleanupVerified
+    assert (record.evidence.cleanupSourceProofDigest
+            == source_record.receipt.proofDigest)
+
+
+def test_cleanup_lost_delete_receipt_recovers_only_from_durable_intent(
+        engine, media, monkeypatch):
+    handler, cmd, source, _exchange, resolver, _roots = engine
+    handler.execute(cmd, deadline=time.monotonic()+5, cancelled=lambda: False)
+    assert wait_result(handler, cmd).state == "succeeded"
+    cleanup = cleanup_command(cmd, operation_id="a" * 32)
+    transition = handler.journal.transition
+
+    def lose_after_delete(record, state, **kwargs):
+        evidence = kwargs.get("evidence")
+        if (record.command.operation == "cleanup_retained_original"
+                and evidence is not None and evidence.cleanupVerified):
+            raise OSError("simulated interruption after retained delete")
+        return transition(record, state, **kwargs)
+
+    monkeypatch.setattr(handler.journal, "transition", lose_after_delete)
+    handler.execute(cleanup, deadline=time.monotonic()+5,
+                    cancelled=lambda: False)
+    deadline = time.monotonic()+10
+    while handler._threads and time.monotonic() < deadline:
+        time.sleep(.02)
+    binding = handler.files.lookup(cmd)
+    assert not Path(binding.retainedPath).exists()
+    with handler.journal.locked():
+        interrupted = handler.journal.get(cleanup.operationId)
+    assert interrupted.state == "needs_attention"
+    assert interrupted.evidence.cleanupDeleteIntent
+    assert not interrupted.evidence.cleanupVerified
+
+    monkeypatch.setattr(handler.journal, "transition", transition)
+    replacement = MediaArchiveActionEngine(
+        handler.journal, handler.files, handler.unmanic, handler.terminals,
+        handler.verifier, resolver)
+    try:
+        recovered = wait_result(replacement, cleanup)
+        assert recovered.state == "succeeded" and recovered.proofDigest
+        assert not recovered.retainedOriginal
+        assert source.read_bytes() == media[3].read_bytes()
+    finally:
+        replacement.close()
+
+
+def test_unrelated_missing_original_and_installed_hash_drift_never_succeed(
+        engine, media):
+    handler, cmd, source, _exchange, _resolver, _roots = engine
+    handler.execute(cmd, deadline=time.monotonic()+5, cancelled=lambda: False)
+    assert wait_result(handler, cmd).state == "succeeded"
+    binding = handler.files.lookup(cmd)
+    # Same-size installed tampering is detected by the full hash before any
+    # delete intent is recorded.
+    source.write_bytes(b"z" * source.stat().st_size)
+    drift = cleanup_command(cmd, operation_id="d" * 32)
+    handler.execute(drift, deadline=time.monotonic()+5,
+                    cancelled=lambda: False)
+    result = wait_result(handler, drift)
+    assert result.state == "needs_attention"
+    assert Path(binding.retainedPath).exists()
+    with handler.journal.locked():
+        record = handler.journal.get(drift.operationId)
+    assert not record.evidence.cleanupDeleteIntent
+
+    source.write_bytes(media[3].read_bytes())
+    cleanup = cleanup_command(cmd, operation_id="c" * 32)
+    Path(binding.retainedPath).unlink()
+    with pytest.raises(Exception):
+        handler.execute(cleanup, deadline=time.monotonic()+5,
+                        cancelled=lambda: False)
+    with handler.journal.locked():
+        assert handler.journal.get(cleanup.operationId) is None
+
+
+def test_plan_writer_precedes_every_unmanic_effect(engine):
+    handler, cmd, _source, exchange, resolver, _roots = engine
+    calls = []
+
+    def writer(actual, staged, *, deadline):
+        assert actual == cmd and staged.operationId == cmd.operationId
+        assert time.monotonic() < deadline and exchange.created == []
+        calls.append(staged.workPath)
+        raise RuntimeError("plan publication failed")
+
+    replacement = MediaArchiveActionEngine(
+        handler.journal, handler.files, handler.unmanic, handler.terminals,
+        handler.verifier, resolver, plan_writer=writer)
+    try:
+        replacement.execute(
+            cmd, deadline=time.monotonic()+5, cancelled=lambda: False)
+        result = wait_result(replacement, cmd)
+        assert result.state == "needs_attention"
+        assert calls and exchange.created == []
+    finally:
+        replacement.close()
 
 
 def test_lost_provider_ack_is_never_resubmitted_or_installed(engine, media):

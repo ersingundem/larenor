@@ -11,7 +11,10 @@ from pathlib import Path
 import threading
 import time
 
-from .file_store import ArchiveFileStoreError, MediaArchiveFileStore
+from .file_store import (
+    ArchiveFileStoreError, ArchiveRetainedCleanupProof,
+    MediaArchiveFileStore,
+)
 from .journal import (
     ArchiveActionEffectEvidence, ArchiveActionJournalError,
     MediaArchiveActionJournal, action_command_digest,
@@ -43,17 +46,21 @@ class MediaArchiveActionEngine:
     available = True
     LEASE_SECONDS = 15
 
-    def __init__(self, journal, files, unmanic, terminals, verifier, resolver):
+    def __init__(self, journal, files, unmanic, terminals, verifier, resolver,
+                 plan_writer=None):
         if (type(journal) is not MediaArchiveActionJournal
                 or type(files) is not MediaArchiveFileStore
                 or type(unmanic) is not UnmanicAdapter
                 or type(verifier) is not MediaArchiveOutputVerifier
                 or not callable(getattr(terminals, "lookup_terminal", None))
                 or not callable(getattr(resolver, "resolve", None))
-                or not callable(getattr(resolver, "authorize", None))):
+                or not callable(getattr(resolver, "authorize", None))
+                or not callable(getattr(resolver, "authorize_retained", None))
+                or plan_writer is not None and not callable(plan_writer)):
             raise ValueError("archive_engine_unavailable")
         self.journal, self.files, self.unmanic = journal, files, unmanic
         self.terminals, self.verifier, self.resolver = terminals, verifier, resolver
+        self.plan_writer = plan_writer
         self._lock = threading.Lock()
         self._threads = {}
         self._leases = {}
@@ -76,6 +83,46 @@ class MediaArchiveActionEngine:
                 or time.monotonic() >= deadline):
             raise MediaArchiveActionWorkerError("evidence_changed")
         return source
+
+    def _cleanup_source(self, command, deadline, *, preview):
+        if (command.operation != "cleanup_retained_original"
+                or command.target.targetType != "retained_original"):
+            raise MediaArchiveActionWorkerError("worker_unavailable")
+        with self.journal.locked():
+            source = self.journal.get(command.target.sourceOperationId)
+            if (source is None or source.state != "succeeded"
+                    or source.receipt is None
+                    or source.command.operation != "stage_transcode"
+                    or source.command.target.targetType != "transcode"
+                    or source.command.candidate != command.candidate
+                    or source.receipt.retainedOriginal is not True
+                    or source.receipt.proofDigest != self.journal.proof_digest(
+                        source.command, source.evidence)):
+                raise MediaArchiveActionWorkerError("evidence_changed")
+        evidence = source.evidence
+        if (evidence.retainedDigest is None
+                or evidence.retainedBytes is None
+                or evidence.outputDigest is None
+                or evidence.outputBytes is None
+                or evidence.outputCodec != source.command.target.targetCodec
+                or not evidence.outputVerified
+                or not evidence.outputInstalled):
+            raise MediaArchiveActionWorkerError("evidence_changed")
+        staged = self.files.lookup(source.command)
+        if (staged.commandDigest != source.command_digest
+                or staged.source.sha256 != evidence.retainedDigest
+                or staged.source.byteLength != evidence.retainedBytes):
+            raise MediaArchiveActionWorkerError("evidence_changed")
+        if self.resolver.authorize_retained(
+                command, source.command, staged.source.path,
+                deadline=deadline) is not True:
+            raise MediaArchiveActionWorkerError("authority_changed")
+        if preview:
+            self.files.preview_retained_cleanup(
+                staged, output_bytes=evidence.outputBytes)
+        if time.monotonic() >= deadline:
+            raise MediaArchiveActionWorkerError("authority_changed")
+        return source, staged
 
     @staticmethod
     def _receipt(command, state, *, retained=False, error=None, proof=None):
@@ -101,6 +148,16 @@ class MediaArchiveActionEngine:
     def preview(self, command, *, deadline, gate):
         if not gate():
             raise MediaArchiveActionWorkerError("authority_changed")
+        if command.operation == "cleanup_retained_original":
+            self._cleanup_source(command, deadline, preview=True)
+            if not gate() or time.monotonic() >= deadline:
+                raise MediaArchiveActionWorkerError("authority_changed")
+            return ArchiveActionWorkerPreview(
+                operationId=command.operationId,
+                evidenceDigest=command.evidenceDigest,
+                state="ready", requiredBytes=0,
+                originalWillBeRetained=False,
+            )
         source = self._source(command, deadline)
         # Preview is read-only and bounded. Full hash/copy follows confirmation.
         with self.files._library_parent(source.path) as (parent, name):
@@ -130,13 +187,31 @@ class MediaArchiveActionEngine:
             raise MediaArchiveActionWorkerError("worker_unavailable")
         with self.journal.locked():
             record = self.journal.get(command.operationId)
-            if record is None:
-                self._source(command, deadline)
-                record = self.journal.prepare(command)
-            elif record.command_digest != action_command_digest(command):
+            if (record is not None
+                    and record.command_digest != action_command_digest(command)):
                 raise MediaArchiveActionWorkerError("evidence_changed")
-            if record.receipt is not None and record.state in {"succeeded", "failed", "cancelled", "needs_attention"}:
+            if (record is not None and record.receipt is not None
+                    and record.state in {
+                        "succeeded", "failed", "cancelled",
+                        "needs_attention"}):
                 return record.receipt
+        if record is None:
+            if command.operation == "stage_transcode":
+                self._source(command, deadline)
+            elif command.operation == "cleanup_retained_original":
+                self._cleanup_source(command, deadline, preview=True)
+            else:
+                raise MediaArchiveActionWorkerError("worker_unavailable")
+            with self.journal.locked():
+                record = self.journal.get(command.operationId)
+                if record is None:
+                    record = self.journal.prepare(command)
+                elif record.command_digest != action_command_digest(command):
+                    raise MediaArchiveActionWorkerError("evidence_changed")
+                elif record.receipt is not None and record.state in {
+                        "succeeded", "failed", "cancelled",
+                        "needs_attention"}:
+                    return record.receipt
         self._renew(command, cancelled)
         self._launch(command)
         return self._receipt(command, "running")
@@ -161,6 +236,12 @@ class MediaArchiveActionEngine:
         # An unknown submission cannot be made certain by polling or repeating
         # it. Resume only from independently recorded terminal/install evidence.
         evidence = record.evidence
+        if command.operation == "cleanup_retained_original":
+            return (evidence.cleanupDeleteIntent
+                    and not evidence.cancelRequested
+                    and record.receipt.errorCode in {
+                        "effect_unknown", "authority_changed"}
+                    and not self._closing.is_set())
         if (evidence.cancelRequested or evidence.providerTaskId is None
                 or record.receipt.errorCode not in {"effect_unknown", "authority_changed"}
                 or self._closing.is_set()):
@@ -212,6 +293,9 @@ class MediaArchiveActionEngine:
                     fresh = True
                 else:
                     fresh = False
+            if command.operation == "cleanup_retained_original":
+                self._run_retained_cleanup(command, record)
+                return
             if command.operation != "stage_transcode":
                 raise MediaArchiveActionWorkerError("worker_unavailable")
             self._require_lease(command.operationId)
@@ -233,6 +317,10 @@ class MediaArchiveActionEngine:
                         workDigest=observed.sha256,
                     )
                     record = self.journal.transition(record, "mutating", evidence=evidence)
+                self._require_lease(command.operationId)
+                if self.plan_writer is not None:
+                    self.plan_writer(
+                        command, staged, deadline=time.monotonic() + 5)
                 self._require_lease(command.operationId)
                 decision = self.unmanic.test_path(staged.workPath, library_id=source.libraryId)
                 if decision.shouldQueue is not True or decision.issueCount != 0:
@@ -317,6 +405,86 @@ class MediaArchiveActionEngine:
             with self._lock:
                 self._threads.pop(command.operationId, None)
 
+    @staticmethod
+    def _cleanup_proof(evidence, source):
+        return ArchiveRetainedCleanupProof(
+            operationId=source.command.operationId,
+            commandDigest=source.command_digest,
+            retainedDevice=evidence.cleanupRetainedDevice,
+            retainedInode=evidence.cleanupRetainedInode,
+            retainedDigest=evidence.cleanupRetainedDigest,
+            retainedBytes=evidence.cleanupRetainedBytes,
+            outputDigest=evidence.cleanupOutputDigest,
+            outputBytes=evidence.cleanupOutputBytes,
+        )
+
+    def _run_retained_cleanup(self, command, record):
+        self._require_lease(command.operationId)
+        source, staged = self._cleanup_source(
+            command, time.monotonic() + 5, preview=False)
+        evidence = record.evidence
+        stop = lambda: self._stop_code(command.operationId) is not None
+
+        def before_unlink(_proof):
+            self._require_lease(command.operationId)
+            if self.resolver.authorize_retained(
+                    command, source.command, staged.source.path,
+                    deadline=time.monotonic() + 5) is not True:
+                raise MediaArchiveActionWorkerError("authority_changed")
+
+        if evidence.cleanupDeleteIntent:
+            if (evidence.cleanupSourceProofDigest
+                    != source.receipt.proofDigest
+                    or evidence.cleanupRetainedDigest
+                    != source.evidence.retainedDigest
+                    or evidence.cleanupRetainedBytes
+                    != source.evidence.retainedBytes
+                    or evidence.cleanupOutputDigest
+                    != source.evidence.outputDigest
+                    or evidence.cleanupOutputBytes
+                    != source.evidence.outputBytes):
+                raise MediaArchiveActionWorkerError("evidence_changed")
+            proof = self._cleanup_proof(evidence, source)
+            self.files.cleanup_retained(
+                staged, proof, intent_recorded=True,
+                before_unlink=before_unlink, cancelled=stop)
+        else:
+            proof = self.files.observe_retained_cleanup(
+                staged,
+                expected_digest=source.evidence.retainedDigest,
+                output_digest=source.evidence.outputDigest,
+                output_bytes=source.evidence.outputBytes,
+                cancelled=stop)
+
+            def before_delete(observed):
+                nonlocal record, evidence
+                self._require_lease(command.operationId)
+                if observed != proof:
+                    raise MediaArchiveActionWorkerError("evidence_changed")
+                evidence = ArchiveActionEffectEvidence.model_validate({
+                    **record.evidence.model_dump(mode="python"),
+                    "cleanupSourceProofDigest": source.receipt.proofDigest,
+                    "cleanupRetainedDevice": proof.retainedDevice,
+                    "cleanupRetainedInode": proof.retainedInode,
+                    "cleanupRetainedDigest": proof.retainedDigest,
+                    "cleanupRetainedBytes": proof.retainedBytes,
+                    "cleanupOutputDigest": proof.outputDigest,
+                    "cleanupOutputBytes": proof.outputBytes,
+                    "cleanupDeleteIntent": True,
+                })
+                with self.journal.locked():
+                    current = self.journal.get(command.operationId)
+                    record = self.journal.transition(
+                        current, current.state, evidence=evidence)
+
+            self.files.cleanup_retained(
+                staged, proof, intent_recorded=False,
+                before_delete=before_delete, before_unlink=before_unlink,
+                cancelled=stop)
+        self._require_lease(command.operationId)
+        record = self._advance_evidence(command, cleanupVerified=True)
+        self._save(command, "succeeded", record.evidence)
+
     def _failure(self, command, error):
         try:
             with self.journal.locked():
@@ -329,7 +497,8 @@ class MediaArchiveActionEngine:
                 evidence = ArchiveActionEffectEvidence.model_validate({
                     **evidence.model_dump(mode="python"), "cancelRequested": True})
                 if (record.state != "uncertain" and evidence.providerTaskId is None
-                        and not evidence.installIntent):
+                        and not evidence.installIntent
+                        and not evidence.cleanupDeleteIntent):
                     self._save(command, "cancelled", evidence)
                 else:
                     self._save(command, "needs_attention", evidence, error="cancel_unknown")

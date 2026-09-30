@@ -94,16 +94,41 @@ class ArchiveActionEffectEvidence(StrictModel):
     outputVerified: bool = False
     installIntent: bool = False
     outputInstalled: bool = False
+    cleanupSourceProofDigest: str | None = None
+    cleanupRetainedDevice: int | None = Field(
+        default=None, ge=0, le=2**63 - 1)
+    cleanupRetainedInode: int | None = Field(
+        default=None, gt=0, le=2**63 - 1)
+    cleanupRetainedDigest: str | None = None
+    cleanupRetainedBytes: int | None = Field(
+        default=None, gt=0, le=2**63 - 1)
+    cleanupOutputDigest: str | None = None
+    cleanupOutputBytes: int | None = Field(
+        default=None, gt=0, le=2**63 - 1)
+    cleanupDeleteIntent: bool = False
     cleanupVerified: bool = False
     cancelRequested: bool = False
 
-    @field_validator("sourceDigest", "retainedDigest", "workDigest", "outputDigest")
+    @field_validator(
+        "sourceDigest", "retainedDigest", "workDigest", "outputDigest",
+        "cleanupSourceProofDigest", "cleanupRetainedDigest",
+        "cleanupOutputDigest",
+    )
     @classmethod
     def digests(cls, value):
         return None if value is None else _digest(value)
 
     @model_validator(mode="after")
     def coherent(self):
+        cleanup_values = (
+            self.cleanupSourceProofDigest,
+            self.cleanupRetainedDevice,
+            self.cleanupRetainedInode,
+            self.cleanupRetainedDigest,
+            self.cleanupRetainedBytes,
+            self.cleanupOutputDigest,
+            self.cleanupOutputBytes,
+        )
         if ((self.sourceDigest is None) != (self.sourceBytes is None)
                 or (self.retainedDigest is None) != (self.retainedBytes is None)
                 or (self.outputDigest is None) != (self.outputBytes is None)
@@ -114,7 +139,11 @@ class ArchiveActionEffectEvidence(StrictModel):
                 or self.outputVerified and (self.outputDigest is None
                     or self.outputCodec is None or self.providerTerminal != "succeeded")
                 or self.installIntent and not self.outputVerified
-                or self.outputInstalled and not self.installIntent):
+                or self.outputInstalled and not self.installIntent
+                or any(value is not None for value in cleanup_values)
+                != all(value is not None for value in cleanup_values)
+                or self.cleanupDeleteIntent
+                != all(value is not None for value in cleanup_values)):
             raise ValueError("invalid_media_archive_effect_evidence")
         return self
 
@@ -135,14 +164,25 @@ class ArchiveActionEffectRecord:
 
 def _validate_evidence(command, evidence, receipt, state):
     optimize = command.operation == "stage_transcode"
+    retained_cleanup = command.operation == "cleanup_retained_original"
     if optimize:
         _require(evidence.sourceBytes in {None, command.target.sourceSizeBytes})
         _require(evidence.outputCodec in {None, command.target.targetCodec})
+        _require(evidence.cleanupSourceProofDigest is None
+                 and not evidence.cleanupDeleteIntent
+                 and not evidence.cleanupVerified)
     else:
         _require(evidence.retainedDigest is None and evidence.workDigest is None
                  and evidence.providerTaskId is None and evidence.outputDigest is None
                  and not evidence.outputVerified and not evidence.installIntent
                  and not evidence.outputInstalled)
+        if retained_cleanup:
+            _require(evidence.sourceDigest is None
+                     and evidence.cleanupVerified in {
+                         False, evidence.cleanupDeleteIntent})
+        else:
+            _require(evidence.cleanupSourceProofDigest is None
+                     and not evidence.cleanupDeleteIntent)
     if receipt is None:
         _require(state not in TERMINAL and state != "running")
         return

@@ -79,10 +79,33 @@ def test_install_intent_precedes_atomic_replace_and_original_remains(store):
     assert seen == [result] == [(output_digest, 9)]
     assert Path(binding.source.path).read_bytes() == b"optimized"
     assert Path(binding.retainedPath).read_bytes() == b"x" * 4096
-    files.cleanup_retained(binding, expected_digest=binding.source.sha256,
+    proof = files.observe_retained_cleanup(
+        binding, expected_digest=binding.source.sha256,
         output_digest=output_digest, output_bytes=9)
+    intents = []
+    assert files.cleanup_retained(
+        binding, proof, intent_recorded=False,
+        before_delete=intents.append,
+        before_unlink=lambda _proof: None) is True
+    assert intents == [proof]
     assert not Path(binding.retainedPath).exists()
     assert files.retained_bytes() == 0
+    assert files.cleanup_retained(
+        binding, proof, intent_recorded=True,
+        before_unlink=lambda _proof: None) is False
+    Path(binding.retainedPath).write_bytes(b"x" * 4096)
+    Path(binding.retainedPath).chmod(0o600)
+    with pytest.raises(ArchiveFileStoreError, match="artifact_changed"):
+        files.cleanup_retained(
+            binding, proof, intent_recorded=True,
+            before_unlink=lambda _proof: None)
+    Path(binding.retainedPath).unlink()
+    with pytest.raises(
+            ArchiveFileStoreError, match="retained_original_missing"):
+        files.cleanup_retained(
+            binding, proof, intent_recorded=False,
+            before_delete=lambda _proof: None,
+            before_unlink=lambda _proof: None)
 
 
 def test_lost_install_intent_ack_never_replaces_source(store):
@@ -106,7 +129,8 @@ def test_original_tamper_or_missing_verified_output_blocks_cleanup(store):
     with pytest.raises(ArchiveFileStoreError, match="artifact_changed"):
         files.inspect_original(binding)
     with pytest.raises(ArchiveFileStoreError, match="source_changed"):
-        files.cleanup_retained(binding, expected_digest=binding.source.sha256,
+        files.observe_retained_cleanup(
+            binding, expected_digest=binding.source.sha256,
             output_digest="f" * 64, output_bytes=8)
     assert Path(binding.retainedPath).exists()
 

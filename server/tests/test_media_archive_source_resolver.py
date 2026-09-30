@@ -92,6 +92,24 @@ def command(current=None):
     )
 
 
+def cleanup_command(source, current):
+    return PrivateArchiveActionCommand(
+        operationId="4" * 32,
+        operation="cleanup_retained_original",
+        authority=current,
+        candidate=source.candidate,
+        sourceJobId="5" * 32,
+        sourceJobRevision=3,
+        target={
+            "targetType": "retained_original",
+            "sourceOperationId": source.operationId,
+        },
+        evidenceDigest="d" * 64,
+        reservedBytes=0,
+        retainOriginal=False,
+    )
+
+
 class AuthorityReader:
     def __init__(self, value):
         self.value = value
@@ -250,6 +268,34 @@ def test_resolve_requires_old_profile_but_recovery_authorize_allows_replacement(
         assert caught.value.code == "evidence_changed"
         assert resolver.authorize(
             command(), deadline=time.monotonic() + 5) is True
+    finally:
+        resolver.close()
+
+
+def test_retained_cleanup_uses_current_authority_without_old_source_cache(
+        roots):
+    resolver, current, _unmanic = build(roots)
+    source = command()
+    try:
+        resolver.replace_authenticated(
+            authority(), [source_record()], deadline=time.monotonic() + 5)
+        # The installed output is now a different profile/size and the next
+        # authenticated collection legitimately excludes HEVC from transcodes.
+        roots[1].write_bytes(b"hevc-output")
+        current.value = authority(snapshot=10)
+        resolver.replace_authenticated(
+            current.value, [], deadline=time.monotonic() + 5)
+        cleanup = cleanup_command(source, current.value)
+
+        assert resolver.authorize_retained(
+            cleanup, source, str(roots[1]),
+            deadline=time.monotonic() + 5)
+        assert not resolver.authorize_retained(
+            cleanup.model_copy(update={"authority": authority()}),
+            source, str(roots[1]), deadline=time.monotonic() + 5)
+        assert not resolver.authorize_retained(
+            cleanup, source, str(roots[0]["retained"] / "foreign.mkv"),
+            deadline=time.monotonic() + 5)
     finally:
         resolver.close()
 

@@ -83,9 +83,26 @@ class ArchiveStagedFiles:
     source: ArchiveSourceFile
     retainedPath: str
     workPath: str
+    retainedDevice: int
+    retainedInode: int
 
     def __repr__(self):
         return "ArchiveStagedFiles(<private>)"
+
+
+@dataclass(frozen=True, repr=False)
+class ArchiveRetainedCleanupProof:
+    operationId: str
+    commandDigest: str
+    retainedDevice: int
+    retainedInode: int
+    retainedDigest: str
+    retainedBytes: int
+    outputDigest: str
+    outputBytes: int
+
+    def __repr__(self):
+        return "ArchiveRetainedCleanupProof(<private>)"
 
 
 class MediaArchiveFileStore:
@@ -245,6 +262,7 @@ class MediaArchiveFileStore:
             actual = _digest_fd(fd, cancelled)
             _require(_unchanged(before) == _unchanged(os.fstat(fd))
                      and actual == (digest, length), "artifact_changed")
+            return before
         finally:
             os.close(fd)
 
@@ -266,7 +284,8 @@ class MediaArchiveFileStore:
             self._copy(source_fd, original, expected_digest=source.sha256,
                        expected_bytes=source.byteLength, cancelled=cancelled)
             _require(_unchanged(os.fstat(source_fd)) == source.identity, "source_changed")
-        self._verify(original, source.sha256, source.byteLength, cancelled)
+        retained_info = self._verify(
+            original, source.sha256, source.byteLength, cancelled)
         fd = os.open(original, os.O_RDONLY | os.O_NOFOLLOW)
         try:
             self._copy(fd, staged, expected_digest=source.sha256,
@@ -274,11 +293,16 @@ class MediaArchiveFileStore:
         finally:
             os.close(fd)
         self._verify(staged, source.sha256, source.byteLength, cancelled)
-        binding = ArchiveStagedFiles(command.operationId, action_command_digest(command), source,
-                                     str(original), str(staged))
+        binding = ArchiveStagedFiles(
+            command.operationId, action_command_digest(command), source,
+            str(original), str(staged), retained_info.st_dev,
+            retained_info.st_ino)
         payload = _canonical({"operationId": binding.operationId,
                               "commandDigest": binding.commandDigest,
-                              "source": asdict(source), "workName": staged.name})
+                              "source": asdict(source),
+                              "workName": staged.name,
+                              "retainedDevice": binding.retainedDevice,
+                              "retainedInode": binding.retainedInode})
         fd = os.open(retained / "stage.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         try:
             _require(os.write(fd, payload) == len(payload))
@@ -302,15 +326,24 @@ class MediaArchiveFileStore:
             payload = os.read(fd, 16385)
             _require(len(payload) <= 16384)
             value = json.loads(payload)
-            _require(type(value) is dict and set(value) == {"operationId", "commandDigest", "source", "workName"}
+            _require(type(value) is dict and set(value) == {
+                         "operationId", "commandDigest", "source", "workName",
+                         "retainedDevice", "retainedInode"}
                      and _canonical(value) == payload)
             _require(value["operationId"] == command.operationId
                      and value["commandDigest"] == action_command_digest(command), "evidence_changed")
             source = ArchiveSourceFile(**value["source"])
             _require(type(source.sha256) is str and _DIGEST.fullmatch(source.sha256))
+            _require(type(value["retainedDevice"]) is int
+                     and value["retainedDevice"] >= 0
+                     and type(value["retainedInode"]) is int
+                     and value["retainedInode"] > 0)
             _require(value["workName"] == "media" + Path(source.path).suffix.lower())
             return ArchiveStagedFiles(command.operationId, value["commandDigest"], source,
-                                     str(retained / "original"), str(work / value["workName"]))
+                                     str(retained / "original"),
+                                     str(work / value["workName"]),
+                                     value["retainedDevice"],
+                                     value["retainedInode"])
         except (ValueError, TypeError, KeyError):
             raise ArchiveFileStoreError() from None
         finally:
@@ -319,8 +352,31 @@ class MediaArchiveFileStore:
     def inspect_original(self, binding, *, cancelled=lambda: False):
         expected = self._op_dir(self.retained_root, binding.operationId) / "original"
         _require(str(expected) == binding.retainedPath)
-        self._verify(expected, binding.source.sha256, binding.source.byteLength, cancelled)
+        info = self._verify(
+            expected, binding.source.sha256, binding.source.byteLength,
+            cancelled)
+        _require((info.st_dev, info.st_ino) == (
+            binding.retainedDevice, binding.retainedInode),
+            "artifact_changed")
         return binding.source.sha256, binding.source.byteLength
+
+    def preview_retained_cleanup(self, binding, *, output_bytes):
+        _require(type(output_bytes) is int
+                 and 0 < output_bytes < binding.source.byteLength)
+        with self._library_parent(binding.source.path) as (parent, name):
+            installed = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            _require(stat.S_ISREG(installed.st_mode)
+                     and installed.st_size == output_bytes,
+                     "artifact_changed")
+        retained = self._op_dir(
+            self.retained_root, binding.operationId) / "original"
+        _require(str(retained) == binding.retainedPath)
+        info = os.stat(retained, follow_symlinks=False)
+        _require(stat.S_ISREG(info.st_mode)
+                 and info.st_size == binding.source.byteLength
+                 and (info.st_dev, info.st_ino) == (
+                     binding.retainedDevice, binding.retainedInode),
+                 "artifact_changed")
 
     def install_verified(self, binding, *, output_digest, output_bytes,
                          before_replace, cancelled=lambda: False):
@@ -372,20 +428,99 @@ class MediaArchiveFileStore:
                 os.close(temp_fd)
         return output_digest, output_bytes
 
-    def cleanup_retained(self, binding, *, expected_digest, output_digest,
-                         output_bytes, cancelled=lambda: False):
+    def observe_retained_cleanup(self, binding, *, expected_digest,
+                                 output_digest, output_bytes,
+                                 cancelled=lambda: False):
         _require(expected_digest == binding.source.sha256, "evidence_changed")
         _require(type(output_digest) is str and _DIGEST.fullmatch(output_digest))
         _require(type(output_bytes) is int and 0 < output_bytes < binding.source.byteLength)
         installed = self.observe_source(binding.source.path, expected_bytes=output_bytes,
                                         cancelled=cancelled)
         _require(installed.sha256 == output_digest, "artifact_changed")
-        self.inspect_original(binding, cancelled=cancelled)
+        expected = self._op_dir(
+            self.retained_root, binding.operationId) / "original"
+        _require(str(expected) == binding.retainedPath)
+        retained = self._verify(
+            expected, binding.source.sha256, binding.source.byteLength,
+            cancelled)
+        _require((retained.st_dev, retained.st_ino) == (
+            binding.retainedDevice, binding.retainedInode),
+            "artifact_changed")
+        return ArchiveRetainedCleanupProof(
+            operationId=binding.operationId,
+            commandDigest=binding.commandDigest,
+            retainedDevice=retained.st_dev,
+            retainedInode=retained.st_ino,
+            retainedDigest=binding.source.sha256,
+            retainedBytes=binding.source.byteLength,
+            outputDigest=output_digest,
+            outputBytes=output_bytes,
+        )
+
+    def cleanup_retained(self, binding, proof, *, intent_recorded,
+                         before_delete=None, before_unlink,
+                         cancelled=lambda: False):
+        _require(type(proof) is ArchiveRetainedCleanupProof
+                 and proof.operationId == binding.operationId
+                 and proof.commandDigest == binding.commandDigest
+                 and proof.retainedDigest == binding.source.sha256
+                 and proof.retainedBytes == binding.source.byteLength
+                 and (proof.retainedDevice, proof.retainedInode) == (
+                     binding.retainedDevice, binding.retainedInode)
+                 and type(proof.retainedDevice) is int
+                 and proof.retainedDevice >= 0
+                 and type(proof.retainedInode) is int
+                 and proof.retainedInode > 0
+                 and type(intent_recorded) is bool
+                 and callable(before_unlink)
+                 and (intent_recorded or callable(before_delete)),
+                 "evidence_changed")
+        installed = self.observe_source(
+            binding.source.path, expected_bytes=proof.outputBytes,
+            cancelled=cancelled)
+        _require(installed.sha256 == proof.outputDigest, "artifact_changed")
         parent = self._op_dir(self.retained_root, binding.operationId)
         fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
+            try:
+                retained_fd = os.open(
+                    "original", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                    dir_fd=fd)
+            except FileNotFoundError:
+                _require(intent_recorded, "retained_original_missing")
+                return False
+            try:
+                before = os.fstat(retained_fd)
+                _require(
+                    stat.S_ISREG(before.st_mode)
+                    and (before.st_dev, before.st_ino) == (
+                        proof.retainedDevice, proof.retainedInode),
+                    "artifact_changed")
+                actual = _digest_fd(retained_fd, cancelled)
+                _require(
+                    _unchanged(before) == _unchanged(os.fstat(retained_fd))
+                    and actual == (
+                        proof.retainedDigest, proof.retainedBytes),
+                    "artifact_changed")
+            finally:
+                os.close(retained_fd)
+            if not intent_recorded:
+                before_delete(proof)
+                _require(not cancelled(), "cancelled")
+                installed = self.observe_source(
+                    binding.source.path, expected_bytes=proof.outputBytes,
+                    cancelled=cancelled)
+                _require(
+                    installed.sha256 == proof.outputDigest,
+                    "artifact_changed")
+                entry = os.stat("original", dir_fd=fd, follow_symlinks=False)
+                _require(
+                    _unchanged(entry) == _unchanged(before),
+                    "artifact_changed")
+            before_unlink(proof)
             _require(not cancelled(), "cancelled")
             os.unlink("original", dir_fd=fd)
             os.fsync(fd)
+            return True
         finally:
             os.close(fd)

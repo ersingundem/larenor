@@ -665,6 +665,23 @@ class PrivateMediaArchiveSourceResolver:
                  "source_path_rejected")
         return mount, str(relative)
 
+    def _host_path(self, value):
+        _require(type(value) is str and len(value) <= 4096,
+                 "source_path_rejected")
+        path = Path(value)
+        _require(path.is_absolute() and ".." not in path.parts
+                 and str(path) == value, "source_path_rejected")
+        matches = []
+        for mount in self._mounts.values():
+            try:
+                relative = path.relative_to(mount.hostRoot)
+            except ValueError:
+                continue
+            if relative.parts and self._relative(relative.as_posix()) is not None:
+                matches.append((mount, relative.as_posix()))
+        _require(len(matches) == 1, "source_path_rejected")
+        return matches[0]
+
     @contextmanager
     def _file(self, mount, relative):
         parts = self._relative(relative)
@@ -924,6 +941,53 @@ class PrivateMediaArchiveSourceResolver:
         """Renew authority for recovery after an installed file changed profile."""
         try:
             self._lookup(command, deadline, exact_profile=False)
+            return True
+        except Exception:
+            return False
+
+    def authorize_retained(
+            self, cleanup_command, source_command, source_path, *, deadline):
+        """Authorize cleanup with current Core authority and sealed path policy.
+
+        The installed file may now be HEVC and have different bytes, so this
+        deliberately does not consult the retired transcode record or compare
+        the old source profile.  The current private collector publication,
+        live Core authority, current Unmanic configuration and catalog mount
+        must all still agree.
+        """
+        try:
+            _deadline(deadline)
+            _require(
+                type(cleanup_command) is PrivateArchiveActionCommand
+                and cleanup_command.operation == "cleanup_retained_original"
+                and cleanup_command.target.targetType == "retained_original"
+                and type(source_command) is PrivateArchiveActionCommand
+                and source_command.operation == "stage_transcode"
+                and source_command.target.targetType == "transcode"
+                and cleanup_command.target.sourceOperationId
+                == source_command.operationId
+                and cleanup_command.candidate == source_command.candidate,
+                "evidence_changed")
+            self._current(cleanup_command.authority, deadline)
+            unmanic = self._unmanic(deadline)
+            with self._locked():
+                self._validate_storage()
+                marker = self._db.execute(
+                    "SELECT * FROM metadata").fetchone()
+                _require(marker is not None, "authority_changed")
+                stored = ArchiveActionAuthority.model_validate(
+                    _json(marker["authority"]))
+                _require(
+                    stored == cleanup_command.authority
+                    and marker["library_id"] == unmanic.libraryId
+                    and hmac.compare_digest(
+                        marker["unmanic_config_digest"],
+                        unmanic.configDigest),
+                    "authority_changed")
+            mount, relative = self._host_path(source_path)
+            with self._file(mount, relative):
+                pass
+            _deadline(deadline)
             return True
         except Exception:
             return False
