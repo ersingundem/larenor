@@ -93,11 +93,12 @@ def _body(data, work_root):
     source = _path(data["source_data"].get("abspath"), work_root)
     destination = _path(data["destination_data"].get("abspath"), work_root)
     paths = data.get("destination_files")
-    _check(type(paths) is list and 1 <= len(paths) <= 64)
+    _check(type(paths) is list and 0 <= len(paths) <= 16)
     paths = [_path(path, work_root) for path in paths]
-    _check(len(set(paths)) == len(paths) and destination in paths)
+    _check(len(set(paths)) == len(paths))
     for field in ("task_success", "file_move_processes_success"):
         _check(type(data.get(field)) is bool)
+    _check(not (data['task_success'] and data['file_move_processes_success']) or destination in paths)
     start, finish = data.get("start_time"), data.get("finish_time")
     _check(type(start) in {int, float} and type(finish) in {int, float}
            and math.isfinite(start) and math.isfinite(finish) and 1 <= start <= finish <= 253402300799)

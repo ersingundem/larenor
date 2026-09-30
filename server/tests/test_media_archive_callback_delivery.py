@@ -77,6 +77,22 @@ def test_real_signed_delivery_is_durable_before_removal_and_reopens(tmp_path):
         connection.close()
 
 
+def test_failed_upstream_task_without_destinations_delivers_terminal_failure(tmp_path):
+    paths, port = setup(tmp_path)
+    value = event(paths['work'], task_success=False, destination_files=[])
+    sender = outbox(paths, port)
+    try:
+        sender.enqueue(value)
+        with UnmanicTerminalStore(paths['terminal'], KEY, clock=lambda: NOW) as store:
+            with UnmanicCallbackServer(store, port):
+                assert sender.flush_one() is True
+            proof = store.lookup_terminal(31, value['source_data']['abspath'])
+            assert proof.terminal == 'failed' and proof.destinationFiles == ()
+            assert sender.pending() == 0
+    finally:
+        sender.close()
+
+
 def test_receiver_down_then_process_restart_retries_without_new_event(tmp_path):
     paths, port = setup(tmp_path)
     value = event(paths['work'])

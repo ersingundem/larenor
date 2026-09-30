@@ -65,6 +65,8 @@ def test_install_intent_precedes_atomic_replace_and_original_remains(store):
     import hashlib
     files, binding = stage(store)
     Path(binding.workPath).write_bytes(b"optimized")
+    # Actual Unmanic moves an output created under its default 0022 umask.
+    Path(binding.workPath).chmod(0o644)
     output_digest = hashlib.sha256(b"optimized").hexdigest()
     seen = []
 
@@ -77,6 +79,7 @@ def test_install_intent_precedes_atomic_replace_and_original_remains(store):
     result = files.install_verified(binding, output_digest=output_digest,
         output_bytes=9, before_replace=before_replace)
     assert seen == [result] == [(output_digest, 9)]
+    assert Path(binding.workPath).stat().st_mode & 0o777 == 0o600
     assert Path(binding.source.path).read_bytes() == b"optimized"
     assert Path(binding.retainedPath).read_bytes() == b"x" * 4096
     proof = files.observe_retained_cleanup(
@@ -121,6 +124,24 @@ def test_lost_install_intent_ack_never_replaces_source(store):
             output_bytes=9, before_replace=before_replace)
     assert Path(binding.source.path).read_bytes() == b"x" * 4096
     assert Path(binding.retainedPath).read_bytes() == b"x" * 4096
+
+
+@pytest.mark.parametrize('unsafe', ['writable', 'hardlink', 'changed'])
+def test_provider_output_sealing_does_not_admit_unsafe_or_changed_output(store, unsafe):
+    import hashlib
+    files, binding = stage(store)
+    output = Path(binding.workPath)
+    output.write_bytes(b'optimized')
+    if unsafe == 'writable':
+        output.chmod(0o666)
+    elif unsafe == 'hardlink':
+        output.with_name('other.mkv').hardlink_to(output)
+    else:
+        output.write_bytes(b'altered!!')
+    with pytest.raises(ArchiveFileStoreError, match='artifact_changed'):
+        files.install_verified(binding, output_digest=hashlib.sha256(b'optimized').hexdigest(),
+            output_bytes=9, before_replace=lambda *_: pytest.fail('unsafe output reached install'))
+    assert Path(binding.source.path).read_bytes() == b'x' * 4096
 
 
 def test_original_tamper_or_missing_verified_output_blocks_cleanup(store):

@@ -387,6 +387,7 @@ class MediaArchiveFileStore:
         work = self._op_dir(self.work_root, binding.operationId)
         output = Path(binding.workPath)
         _require(output.parent == work and output.name == "media" + Path(binding.source.path).suffix.lower())
+        self._seal_provider_output(output, output_digest, output_bytes, cancelled)
         self._verify(output, output_digest, output_bytes, cancelled)
         with self._source_fd(binding.source) as (source_fd, parent, name):
             _require(_digest_fd(source_fd, cancelled) == (binding.source.sha256, binding.source.byteLength),
@@ -427,6 +428,27 @@ class MediaArchiveFileStore:
             finally:
                 os.close(temp_fd)
         return output_digest, output_bytes
+
+    @staticmethod
+    def _seal_provider_output(output, digest, length, cancelled):
+        # Unmanic moves its FFmpeg output into this already private operation
+        # directory with the provider's umask (commonly 0644). Seal only the
+        # exact verified work file, never a library source or retained original.
+        fd = os.open(output, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            before = os.fstat(fd)
+            _require(stat.S_ISREG(before.st_mode)
+                     and before.st_uid == os.getuid()
+                     and before.st_nlink == 1
+                     and not before.st_mode & 0o022, "artifact_changed")
+            _require(_digest_fd(fd, cancelled) == (digest, length)
+                     and _unchanged(os.fstat(fd)) == _unchanged(before)
+                     and _unchanged(os.stat(output, follow_symlinks=False))
+                     == _unchanged(before), "artifact_changed")
+            os.fchmod(fd, 0o600)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
     def observe_retained_cleanup(self, binding, *, expected_digest,
                                  output_digest, output_bytes,

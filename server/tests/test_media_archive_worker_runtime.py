@@ -38,7 +38,7 @@ def port():
 
 
 @contextmanager
-def unmanic(work):
+def unmanic(work, plugins=('larenor_archive_encoder', 'larenor_archive_terminal')):
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             assert self.path == '/unmanic/api/v2/settings/libraries'
@@ -47,7 +47,8 @@ def unmanic(work):
         def do_POST(self):
             assert self.path == '/unmanic/api/v2/settings/library/read'
             assert json.loads(self.rfile.read(int(self.headers['Content-Length']))) == {'id': 42}
-            self.reply({'library_config': {'id': 42, 'path': str(work)}, 'plugins': {}})
+            self.reply({'library_config': {'id': 42, 'path': str(work)},
+                'plugins': {'enabled_plugins': [{'plugin_id': value} for value in plugins]}})
 
         def reply(self, value):
             body = json.dumps(value).encode()
@@ -148,3 +149,13 @@ def test_runtime_does_not_advertise_ready_without_live_unmanic_library(runtime_r
     settings, _paths = config(tmp_path, unmanic_port=port())
     with pytest.raises(ArchiveWorkerRuntimeError):
         ArchiveWorkerRuntime(settings)
+
+
+@pytest.mark.parametrize('plugins', [(), ('larenor_archive_terminal',),
+    ('larenor_archive_encoder', 'larenor_archive_terminal', 'other_encoder')])
+def test_runtime_refuses_missing_or_extra_encoder_flows(runtime_root, plugins):
+    settings, paths = config(runtime_root)
+    with unmanic(paths['work'], plugins) as upstream_port:
+        settings = ArchiveWorkerRuntimeConfig(**{**asdict(settings), 'unmanicPort': upstream_port})
+        with pytest.raises(ArchiveWorkerRuntimeError):
+            ArchiveWorkerRuntime(settings)

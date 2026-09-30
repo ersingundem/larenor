@@ -67,6 +67,8 @@ class Exchange:
             if self.mode != "waiting":
                 shutil.copyfile(self.output, path)
                 raw = body(sourcePath=path, destinationPath=path, destinationFiles=[path])
+                if self.mode == 'failed':
+                    raw = body(sourcePath=path, destinationPath=path, destinationFiles=[], taskSuccess=False)
                 self.terminals.ingest(headers(raw), raw)
             value = {"id": 31, "abspath": path, "priority": 0, "type": "local",
                      "status": "pending", "library_id": 7}
@@ -278,6 +280,17 @@ def test_lost_provider_ack_is_never_resubmitted_or_installed(engine, media):
     handler.close()
     assert len(exchange.created) == 1
     assert source.read_bytes() == media[2].read_bytes()
+
+
+def test_failed_terminal_without_output_is_not_polled_as_running(engine, media):
+    handler, cmd, source, exchange, _resolver, _roots = engine
+    exchange.mode = 'failed'
+    handler.execute(cmd, deadline=time.monotonic()+5, cancelled=lambda: False)
+    result = wait_result(handler, cmd)
+    assert result.state == 'failed' and result.errorCode == 'verification_failed'
+    assert result.retainedOriginal and source.read_bytes() == media[2].read_bytes()
+    assert handler.reconcile(cmd, deadline=time.monotonic()+5, cancelled=lambda: False) == result
+    assert len(exchange.created) == 1
 
 
 def test_ipc_cancel_is_transmitted_and_original_is_never_replaced(engine, media):

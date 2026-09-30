@@ -15,6 +15,7 @@ from ..plugins.media_archive_read_collector import MediaArchiveReadCollector
 from ..plugins.media_archive_worker_ipc import MediaArchiveWorkerClient, MediaArchiveWorkerServer
 from .callback_server import UnmanicCallbackServer
 from .engine import MediaArchiveActionEngine
+from .encoder_plan import SignedArchiveTranscodePlanWriter
 from .file_store import MediaArchiveFileStore
 from .http_transport import UnmanicLoopbackHttpTransport
 from .journal import MediaArchiveActionJournal
@@ -24,7 +25,7 @@ from .source_resolver import (
     build_private_media_archive_source_resolver, _read_private, _unique_pairs,
 )
 from .terminal_store import UnmanicTerminalStore
-from .unmanic import UnmanicAdapter
+from .unmanic import UnmanicAdapter, UnmanicRequest
 from .verifier import MediaArchiveOutputVerifier
 from .worker_ipc import MediaArchiveActionWorkerServer
 
@@ -32,6 +33,27 @@ from .worker_ipc import MediaArchiveActionWorkerServer
 class ArchiveWorkerRuntimeError(RuntimeError):
     def __init__(self):
         super().__init__("archive_worker_unavailable")
+
+
+def _verified_encoder_library(transport, library):
+    response = transport(UnmanicRequest(
+        'POST', '/unmanic/api/v2/settings/library/read',
+        (('Accept', 'application/json'), ('Content-Type', 'application/json')),
+        json.dumps({'id': library.libraryId}).encode()), time.monotonic() + 5)
+    if response.status != 200 or response.contentType.split(';', 1)[0] != 'application/json':
+        raise ArchiveWorkerRuntimeError()
+    value = json.loads(response.body, object_pairs_hook=_unique_pairs)
+    if (type(value) is not dict or type(value.get('library_config')) is not dict
+            or value['library_config'].get('id') != library.libraryId
+            or value['library_config'].get('path') != library.workRoot
+            or type(value.get('plugins')) is not dict
+            or type(value['plugins'].get('enabled_plugins')) is not list):
+        raise ArchiveWorkerRuntimeError()
+    plugins = value['plugins']['enabled_plugins']
+    if (len(plugins) != 2 or any(type(item) is not dict for item in plugins)
+            or {item.get('plugin_id') for item in plugins}
+            != {'larenor_archive_encoder', 'larenor_archive_terminal'}):
+        raise ArchiveWorkerRuntimeError()
 
 
 @dataclass(frozen=True, repr=False)
@@ -124,7 +146,8 @@ class ArchiveWorkerRuntime:
                 unmanic_exchange=transport))
             # Refuse to expose ready action IPC without the actual isolated
             # library readback and working verifier binaries.
-            resolver._unmanic(time.monotonic() + 5)
+            library = resolver._unmanic(time.monotonic() + 5)
+            _verified_encoder_library(transport, library)
             journal = self._resources.enter_context(MediaArchiveActionJournal(config.journalRoot))
             key = _read_private(config.callbackKeyFile, maximum=32)
             if len(key) != 32:
@@ -134,7 +157,8 @@ class ArchiveWorkerRuntime:
                 tuple(mount.hostRoot for mount in catalog.approvedMounts), quota_bytes=config.quotaBytes)
             verifier = MediaArchiveOutputVerifier(config.ffmpeg, config.ffprobe)
             engine = MediaArchiveActionEngine(journal, files, UnmanicAdapter(transport),
-                terminals, verifier, resolver)
+                terminals, verifier, resolver,
+                plan_writer=SignedArchiveTranscodePlanWriter(catalog.workRoot, key))
             self._resources.callback(engine.close)
             self.callback = UnmanicCallbackServer(terminals, config.callbackPort)
             self._resources.callback(self.callback.close)
