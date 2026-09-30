@@ -38,7 +38,7 @@ DeliveryCredential = Annotated[
     str | None, Header(alias="X-Larenor-Delivery-Credential")
 ]
 router = APIRouter(tags=["Local notifications"], responses={
-    status: {"model": ErrorResponse} for status in (400, 401, 403, 404, 409, 413, 429, 503)})
+    status: {"model": ErrorResponse} for status in (400, 401, 403, 404, 409, 410, 413, 429, 503)})
 ROOT = "/local-notifications/{core_id}/{home_id}"
 
 

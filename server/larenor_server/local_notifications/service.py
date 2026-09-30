@@ -629,11 +629,11 @@ class LocalNotificationService:
                 self._validate_delivery_lease(lease)
                 if not hmac.compare_digest(lease["credential_hash"], credential_hash):
                     raise ApiError("invalid_notification_delivery_credential", 401)
-                if lease["revision"] != expected_lease_revision:
-                    raise ApiError("notification_delivery_lease_changed", 409)
                 now = float(self.settings.clock())
                 if lease["state"] != "active" or now >= lease["expires_at"]:
-                    raise ApiError("notification_delivery_lease_inactive", 409)
+                    raise ApiError("notification_delivery_lease_inactive", 410)
+                if lease["revision"] != expected_lease_revision:
+                    raise ApiError("notification_delivery_lease_changed", 409)
                 user = connection.execute(
                     "SELECT * FROM users WHERE id=?", (lease["owner_id"],)
                 ).fetchone()
@@ -649,12 +649,13 @@ class LocalNotificationService:
                 if subscription is None:
                     raise ApiError("notification_delivery_authority_changed", 409)
                 self._validate_subscription(subscription)
-                if (subscription["owner_id"] != lease["owner_id"]
-                        or subscription["family_id"] != lease["family_id"]
-                        or subscription["revision"] != lease["subscription_revision"]
-                        or subscription["state"] != "active"
+                if (subscription["state"] != "active"
                         or subscription["permission"] != "granted"
                         or now >= subscription["expires_at"]):
+                    raise ApiError("notification_delivery_authority_inactive", 410)
+                if (subscription["owner_id"] != lease["owner_id"]
+                        or subscription["family_id"] != lease["family_id"]
+                        or subscription["revision"] != lease["subscription_revision"]):
                     raise ApiError("notification_delivery_authority_changed", 409)
                 referenced_subscriptions = connection.execute(
                     "SELECT DISTINCT retired_subscription.* "

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F54 kalıcı teslim iptali
+
+Gerçek normal HTTPS Core→Android teslim deneyi eski lease revizyonu iptalden sonra 409 aldığı için şifreli teslim yetkisi ve bildirimin kaldığını buldu. İptal/expiry ve subscription permission reddi artık doğru credential için kalıcı 410 üretir; hâlâ aktif yenileme drift 409 olarak ayrı kalır, yanlış credential 401dir. Native revoke/restart deneyi geçti; 30 ilgili Server testi geçti. F54 Android iş planlaması ayrıca düzeltildiği için yeniden çalışılıyor kalır; bu dilim CI bekliyor veya cihaz kabulü sayılmadı.
+
 ### 30 Eylül Linux host kabulü ve cleanup düzeltmesi
 
 Exact `b23e543ee30f064ad779d37cc45f7050f7125a16` run `36760951195` dört gerçek kurulu Core/IPC/systemd testini geçti. Koşu yalnız EXIT cleanupında root-owned bytecode izniyle düştü. Taze exact disposable proof tree noninteractive sudo ve one-file-system sınırıyla temizlenir; ilk test hata kodu korunur, cleanup hatası başarı sayılmaz. Bash syntax ve workflow policy geçti; yeni exact Linux sonucu ayrıca bekleniyor. Üretim izinleri gevşetilmedi. [Host kanıtı](testing/unified-host-workers-2026-09-30.md).
