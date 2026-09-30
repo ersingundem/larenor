@@ -3149,7 +3149,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Doğrulanabilir bileşen güncellemeleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3173,7 +3173,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
     },
     {
       "id": "F20",
@@ -3320,7 +3320,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Otomatik kurtarma tatbikatı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3344,14 +3344,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek component backup/update/restore host worker normal Core IPC’ye bağlandı; bağımsız installation journal seti explicit initialize/receipt ile crash-resumable ve fail-closed. 54 odaklı test geçti, 1 actual Linux kapısı macOS üzerinde atlandı; 19 paket/bundle/deploy kapısı geçti. docs/testing/f15-f16-component-host-worker-2026-09-30.md kanıtı mevcut. Linux distinct UID, gerçek Docker/Btrfs hedef ve exact HEAD geniş CI açık; tam kabul henüz verilmedi."
     },
     {
       "id": "F17",
       "kind": "task",
       "parent": "G02",
       "title": "Yedekleri silmeye kapalı kurtarma hedefi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3374,14 +3374,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek ayrı TLS append-only hedefi, kalıcı HMAC kota/retention, ayrı recovery kimliği ve Client uzak şifreli kopya indirme uygulandı. 7 Server testi normal Core günlük export→TLS hedef→download→boş Core restore/start, prepared retry erişim iptali ve kalıcı kota/tamper davranışını doğruladı; 38 Flutter, 12 boundary testi ve analyze geçti. docs/testing/f17-append-only-target-2026-09-30.md. Tam current HEAD CI, bağımsız geniş kabul ve ayrı hedef fiziksel kurulumu açık; kabul sayacı artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek ayrı TLS append-only hedefi, kalıcı HMAC kota/retention, ayrı recovery kimliği ve Client uzak şifreli kopya indirme uygulandı. 7 Server testi normal Core günlük export→TLS hedef→download→boş Core restore/start, prepared retry erişim iptali ve kalıcı kota/tamper davranışını doğruladı; 38 Flutter, 12 boundary testi ve analyze geçti. docs/testing/f17-append-only-target-2026-09-30.md. Tam current HEAD CI, bağımsız geniş kabul ve ayrı hedef fiziksel kurulumu açık; kabul sayacı artmadı."
     },
     {
       "id": "F18",
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3405,7 +3405,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek NUT NOTIFYCMD/EXEC producer bridge, UID10006 durable sıralı outbox ve aynı body lost-ACK retry; pinned upsc/TLS/normal Core ingest; UID10005 Proxmox worker ile ayrı IPC/health/peer UID ve unified paketleme tamamlandı. İzole snapshotta 75 focused test geçti, 2 hosted Linux kapısı yerelde atlandı; 8 paket testi geçti. docs/testing/f18-power-recovery-production-2026-09-30.md. Exact HEAD geniş Linux CI ve fiziksel UPS/Proxmox bakım penceresi kabulü açık; yazılım tam kabulü henüz verilmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek NUT NOTIFYCMD/EXEC producer bridge, UID10006 durable sıralı outbox ve aynı body lost-ACK retry; pinned upsc/TLS/normal Core ingest; UID10005 Proxmox worker ile ayrı IPC/health/peer UID ve unified paketleme tamamlandı. İzole snapshotta 75 focused test geçti, 2 hosted Linux kapısı yerelde atlandı; 8 paket testi geçti. docs/testing/f18-power-recovery-production-2026-09-30.md. Exact HEAD geniş Linux CI ve fiziksel UPS/Proxmox bakım penceresi kabulü açık; yazılım tam kabulü henüz verilmedi."
     },
     {
       "id": "G03",
@@ -3481,7 +3481,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Etkileşimli ev kat planı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3504,7 +3504,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Core registry catalog, admin dört-revizyon CAS ve inline Client kat/oda/cihaz yerleştirme/onarım editörü uygulandı. Odaklı Server ve Flutter testleri geçti; docs/testing/f51-floor-plan-editor-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor; fiziksel ev ölçümü ayrı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Core registry catalog, admin dört-revizyon CAS ve inline Client kat/oda/cihaz yerleştirme/onarım editörü uygulandı. Odaklı Server ve Flutter testleri geçti; docs/testing/f51-floor-plan-editor-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor; fiziksel ev ölçümü ayrı."
     },
     {
       "id": "F52",
@@ -3547,7 +3547,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Yapay zekâ kaynak yöneticisi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3572,7 +3572,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md."
     },
     {
       "id": "F04",
@@ -3611,7 +3611,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3635,14 +3635,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F03",
       "kind": "task",
       "parent": "G04",
       "title": "Geçmişte otomasyon sınaması",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3666,14 +3666,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F01",
       "kind": "task",
       "parent": "G04",
       "title": "Konuşarak otomasyon taslağı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3699,14 +3699,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
     },
     {
       "id": "F09",
       "kind": "task",
       "parent": "G04",
       "title": "Görülebilir, süreli AI hafızası",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3730,14 +3730,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Güncel Core public write yalnız manual provenance kabul eder; learnedBy authenticated actor’dan türetilir, restore forged source/actor’ı tombstone mutasyonu öncesi reddeder. Client strict account/context snapshot parserı, typed search/export/restore ve kaynak türünü gösteren UI bağlandı; eski non-manual kaynaklar önceki beyan olarak görünür, receipt kanıtı sayılmaz ve sessizce relabel edilmez. 10 Server + 2 gerçek Flutter→normal Core TCP kabulü ve focused analyze geçti. Geniş exact HEAD CI açık, sayaç artmadı. docs/testing/f09-ai-memory-provenance-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Güncel Core public write yalnız manual provenance kabul eder; learnedBy authenticated actor’dan türetilir, restore forged source/actor’ı tombstone mutasyonu öncesi reddeder. Client strict account/context snapshot parserı, typed search/export/restore ve kaynak türünü gösteren UI bağlandı; eski non-manual kaynaklar önceki beyan olarak görünür, receipt kanıtı sayılmaz ve sessizce relabel edilmez. 10 Server + 2 gerçek Flutter→normal Core TCP kabulü ve focused analyze geçti. Geniş exact HEAD CI açık, sayaç artmadı. docs/testing/f09-ai-memory-provenance-2026-09-30.md."
     },
     {
       "id": "F07",
       "kind": "task",
       "parent": "G04",
       "title": "Evin alışılmış düzeninden sapmalar",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3761,14 +3761,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
     },
     {
       "id": "F10",
       "kind": "task",
       "parent": "G04",
       "title": "Kanıta dayalı arıza yardımcısı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3792,7 +3792,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek authenticated HA entity-registry WS ve bounded REST history normal Core providerına bağlandı. Mevcut actor/ACL/binding/service öncesi/sonrası/transaction kontrolü, raw veri yerine sealed provenance/digest, sentetik eski verinin açık migration etiketi. F07 yeterli gerçek baseline yoksa persist etmez; F10 arbitrary client sources sentetik ve repair preview-only. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü geçti; focused Flutter/analyze temiz. docs/testing/f07-f10-ha-history-evidence-2026-09-30.md. Exact HEAD CI/geniş kabul açık, sayaç artmadı."
     },
     {
       "id": "G05",
@@ -3838,7 +3838,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Yetkili MCP kapısı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3863,14 +3863,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
     },
     {
       "id": "F14",
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3895,7 +3895,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
     },
     {
       "id": "F19",
@@ -3942,7 +3942,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Akıllı altyazı ve dil tercihleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3966,7 +3966,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Eski Jellyfin preference endpointi ve aktif oynatıcı tek AES-GCM kişi deposuna bağlandı; authenticated eski kayıtlar startup transaction ile taşınır, mevcut oynatıcı tercihleri korunur. 10 Server, 8 Flutter ve 1 gerçek Flutter→normal Core TCP kabulü geçti, analyze temiz. docs/testing/f24-shared-player-preferences-2026-09-30.md. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Eski Jellyfin preference endpointi ve aktif oynatıcı tek AES-GCM kişi deposuna bağlandı; authenticated eski kayıtlar startup transaction ile taşınır, mevcut oynatıcı tercihleri korunur. 10 Server, 8 Flutter ve 1 gerçek Flutter→normal Core TCP kabulü geçti, analyze temiz. docs/testing/f24-shared-player-preferences-2026-09-30.md. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
     },
     {
       "id": "F26",
@@ -4005,7 +4005,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Jenerik ve kapanış atlama",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4029,7 +4029,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek segment worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek segment worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F21",
@@ -4067,7 +4067,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4091,14 +4091,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek playback worker var; FINAL.FUNCTION paket denetiminde unified runtime worker socket/env/mount ve başlatma eksik. Dağıtım bağlaması ve normal runtime kabulü gerekli. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek playback worker var; FINAL.FUNCTION paket denetiminde unified runtime worker socket/env/mount ve başlatma eksik. Dağıtım bağlaması ve normal runtime kabulü gerekli. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F23",
       "kind": "task",
       "parent": "G06",
       "title": "Canlı TV ve kayıt merkezi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4123,14 +4123,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core doğrulanmış Jellyfin 10.11 servisiyle gerçek guide/timer create/read/cancel/restart ve Client admin kaynak kurulumu uygulandı. 8 Server testi + 1 gerçek Flutter→normal Core TCP→Jellyfin sözleşme kabulü, analyze temiz. Kalıcı quota-stop dispatcher, tüm upstream kayıtların byte hesabı, bilinmeyen boyut ve kayıp cancel cevabı/restart uzlaştırması dahil. docs/testing/f23-jellyfin-live-tv-provider-2026-09-30.md. Core kota politikası uzaktan admission/stop sınırıdır; OS sert byte kotası/fiziksel tuner manuel kapı. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core doğrulanmış Jellyfin 10.11 servisiyle gerçek guide/timer create/read/cancel/restart ve Client admin kaynak kurulumu uygulandı. 8 Server testi + 1 gerçek Flutter→normal Core TCP→Jellyfin sözleşme kabulü, analyze temiz. Kalıcı quota-stop dispatcher, tüm upstream kayıtların byte hesabı, bilinmeyen boyut ve kayıp cancel cevabı/restart uzlaştırması dahil. docs/testing/f23-jellyfin-live-tv-provider-2026-09-30.md. Core kota politikası uzaktan admission/stop sınırıdır; OS sert byte kotası/fiziksel tuner manuel kapı. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
     },
     {
       "id": "F27",
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4155,14 +4155,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek offline media worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek offline media worker var; unified runtime worker başlatma/socket/env bağlaması eksik; paketlenmiş production kabulü bekliyor. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F28",
       "kind": "task",
       "parent": "G06",
       "title": "Sesli kitap ve podcast merkezi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4186,7 +4186,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "F29",
@@ -4224,7 +4224,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Medya arşivi sağlık ve yer tasarrufu",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4250,7 +4250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek pinned Unmanic encoder/korunan orijinal/confirmed cleanup uygulandı; unified runtime archive read/action worker başlatma ve private catalog/socket bağlaması tamamlanacak. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek pinned Unmanic encoder/korunan orijinal/confirmed cleanup uygulandı; unified runtime archive read/action worker başlatma ve private catalog/socket bağlaması tamamlanacak. Gerçek host worker foundation ve Unmanic/archive supervision/özel IPC paketi bağlandı; 56 paket/workflow kapısı ve focused IPC/runtime yeşil, actual Linux UID/systemd kapıları macOS üzerinde 3 skip. docs/testing/unified-host-workers-2026-09-30.md. Exact HEAD Linux CI ve manuel hedef kurulum kanıtı açık; sayaç artmadı."
     },
     {
       "id": "G07",
@@ -4450,7 +4450,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ev belgeleri ve garanti hatırlatmaları",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4475,7 +4475,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek encrypted blob→bounded Poppler/Tesseract OCR, confidence/source binding, tekrar çıkarım ve ayrı kullanıcı garanti onayı bağlandı. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. docs/testing/f35-home-document-ocr-2026-09-30.md. Image build/geniş exact HEAD CI ve fiziksel belge/platform kabulü açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek encrypted blob→bounded Poppler/Tesseract OCR, confidence/source binding, tekrar çıkarım ve ayrı kullanıcı garanti onayı bağlandı. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. docs/testing/f35-home-document-ocr-2026-09-30.md. Image build/geniş exact HEAD CI ve fiziksel belge/platform kabulü açık; sayaç artmadı."
     },
     {
       "id": "F36",
@@ -4544,7 +4544,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Aile anıları ve fotoğraf araması",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4569,7 +4569,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Immich araması her seçili albüm için ayrı bounded provider çağrısı kullanır; round-robin/dedupe doğru sourceAlbumIdyi korur ve seçim üyeliği ayrıca doğrulanır. 40 Server, 1 gerçek Flutter→normal Core→TCP Immich kabulü ve analyze geçti. docs/testing/f38-normal-source-2026-09-30.md. Geniş exact HEAD CI/manual sağlayıcı kabulü açık; sayaç artmadı."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Immich araması her seçili albüm için ayrı bounded provider çağrısı kullanır; round-robin/dedupe doğru sourceAlbumIdyi korur ve seçim üyeliği ayrıca doğrulanır. 40 Server, 1 gerçek Flutter→normal Core→TCP Immich kabulü ve analyze geçti. docs/testing/f38-normal-source-2026-09-30.md. Geniş exact HEAD CI/manual sağlayıcı kabulü açık; sayaç artmadı."
     },
     {
       "id": "F39",
@@ -4643,7 +4643,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Evdeyken kamera kayıt profili",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4668,14 +4668,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek private HA/Frigate providerını kuruyor; admin kaynak eşleme UI, live registry provenance, gerçek switch service/readback, encrypted durable single-dispatch ve explicit readonly recovery tamamlandı. 19 Server, 11 Flutter ve gerçek Flutter Client→normal Uvicorn Core→HA TCP/WebSocket apply/readback/rollback kapısı geçti (docs/testing/f43-normal-core-camera-2026-09-30.md). Tam feature matrisi ve final exact HEAD CI açık; mikrofon/kamera hardware veya fiziksel cihaz kabulü iddia edilmiyor."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek private HA/Frigate providerını kuruyor; admin kaynak eşleme UI, live registry provenance, gerçek switch service/readback, encrypted durable single-dispatch ve explicit readonly recovery tamamlandı. 19 Server, 11 Flutter ve gerçek Flutter Client→normal Uvicorn Core→HA TCP/WebSocket apply/readback/rollback kapısı geçti (docs/testing/f43-normal-core-camera-2026-09-30.md). Tam feature matrisi ve final exact HEAD CI açık; mikrofon/kamera hardware veya fiziksel cihaz kabulü iddia edilmiyor."
     },
     {
       "id": "F42",
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4699,14 +4699,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md."
     },
     {
       "id": "F41",
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4730,14 +4730,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). 30 Eylül bağımsız provider incelemesi: gerçek Frigate semantic search doğrudan normal Core’a bağlı; F08 dependency sıra/kabul kapısı olarak korunuyor, runtime ingest eksikliği olarak gösterilmiyor. Native decode/UI ve exact HEAD geniş CI açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). 30 Eylül bağımsız provider incelemesi: gerçek Frigate semantic search doğrudan normal Core’a bağlı; F08 dependency sıra/kabul kapısı olarak korunuyor, runtime ingest eksikliği olarak gösterilmiyor. Native decode/UI ve exact HEAD geniş CI açık."
     },
     {
       "id": "F44",
       "kind": "task",
       "parent": "G08",
       "title": "Kameradan görsel sensörler",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4761,7 +4761,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
     },
     {
       "id": "F45",
@@ -4806,7 +4806,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4830,7 +4830,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek authenticated HA source/entity registry, server-only iklim/perde gözlemi ve durable tek gönderimli climate/cover worker uygulandı. Client kayıp confirm yanıtında exact preview/requesti korur; refresh/yeni intent engellenir, süresi geçen attempted preview yalnız aynı confirm ile Core kalıcı makbuzuna uzlaşır. 17 Server, 28 Flutter + 1 gerçek Client→normal Core→TCP/WS HA geçti; fixture lostACK sonrasında tam bir climate mutation ve readback doğruladı, signout yeni isteği durdurdu. Analyze temiz; geniş kabul/exact CI ve fiziksel iklim/perde kabulü açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek authenticated HA source/entity registry, server-only iklim/perde gözlemi ve durable tek gönderimli climate/cover worker uygulandı. Client kayıp confirm yanıtında exact preview/requesti korur; refresh/yeni intent engellenir, süresi geçen attempted preview yalnız aynı confirm ile Core kalıcı makbuzuna uzlaşır. 17 Server, 28 Flutter + 1 gerçek Client→normal Core→TCP/WS HA geçti; fixture lostACK sonrasında tam bir climate mutation ve readback doğruladı, signout yeni isteği durdurdu. Analyze temiz; geniş kabul/exact CI ve fiziksel iklim/perde kabulü açık."
     },
     {
       "id": "F48",
@@ -4899,7 +4899,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
     },
     {
       "id": "F49",
@@ -4968,7 +4968,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4994,14 +4994,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Zigbee2MQTT ve HA Thread providerı yanında host UID10004/GID10002 özel IPC, owner-only broker policy ve unified worker unit/env bileşimi tamamlandı. 26 odaklı gerçek TCP broker→Unix IPC→normal Core ve 11 paket/runtime kabulü geçti. Distinct UID kernel-peer Linux kapısı ve exact HEAD geniş CI, fiziksel MANUAL kabulü açık; docs/testing/f55-mesh-host-worker-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Zigbee2MQTT ve HA Thread providerı yanında host UID10004/GID10002 özel IPC, owner-only broker policy ve unified worker unit/env bileşimi tamamlandı. 26 odaklı gerçek TCP broker→Unix IPC→normal Core ve 11 paket/runtime kabulü geçti. Distinct UID kernel-peer Linux kapısı ve exact HEAD geniş CI, fiziksel MANUAL kabulü açık; docs/testing/f55-mesh-host-worker-2026-09-30.md."
     },
     {
       "id": "F56",
       "kind": "task",
       "parent": "G10",
       "title": "Eski cihazlar için akıllı kumanda",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5025,14 +5025,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek HA Broadlink registry kaynağı, şifreli tuş eşleştirme, 19 tuş admin düzenleyicisi ve gerçek remote.learn_command IR isteği uygulandı. Kalıcı intent tekrar göndermez; öğrenme öncesi kaynak revizyonu eski previewları iptal eder. HA public API fiziksel teslim/öğrenilmiş kod kanıtı sunmadığından makbuzlar uncertain kalır. 18 Server, 19 Flutter ve gerçek Client→normal Core→TCP/WS send+learn kabulü geçti; analyze temiz. Geniş exact HEAD CI ve fiziksel IR kabulü açık. Kanıt: docs/testing/f56-broadlink-command-editor-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek HA Broadlink registry kaynağı, şifreli tuş eşleştirme, 19 tuş admin düzenleyicisi ve gerçek remote.learn_command IR isteği uygulandı. Kalıcı intent tekrar göndermez; öğrenme öncesi kaynak revizyonu eski previewları iptal eder. HA public API fiziksel teslim/öğrenilmiş kod kanıtı sunmadığından makbuzlar uncertain kalır. 18 Server, 19 Flutter ve gerçek Client→normal Core→TCP/WS send+learn kabulü geçti; analyze temiz. Geniş exact HEAD CI ve fiziksel IR kabulü açık. Kanıt: docs/testing/f56-broadlink-command-editor-2026-09-30.md."
     },
     {
       "id": "F57",
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5056,14 +5056,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek HA mqtt_room kaynağı ve atomik politika/depolama uygulandı; 19 Server, 18 Flutter ve gerçek Flutter→normal Core→HA TCP/WS candidate/present/offline rıza iptali geçti. Tam commit geniş CI kabulü açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek HA mqtt_room kaynağı ve atomik politika/depolama uygulandı; 19 Server, 18 Flutter ve gerçek Flutter→normal Core→HA TCP/WS candidate/present/offline rıza iptali geçti. Tam commit geniş CI kabulü açık."
     },
     {
       "id": "F58",
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5088,7 +5088,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek HA/OpenEPaperLink inventory, JPEG dry-run artifact, güncel cihaz/source doğrulaması ve durable tek gönderim uygulandı; 10 Server, 13 Flutter (+1 izole koşucu skip), gerçek Flutter→normal Core→HA TCP/WS 1/1 ve analyze geçti. Header/scan/dimension doğrulaması ve Client decode fiziksel pixel teslimi değildir; readback_observed/physicalDeliveryVerified=false. Geniş exact commit CI kabulü açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek HA/OpenEPaperLink inventory, JPEG dry-run artifact, güncel cihaz/source doğrulaması ve durable tek gönderim uygulandı; 10 Server, 13 Flutter (+1 izole koşucu skip), gerçek Flutter→normal Core→HA TCP/WS 1/1 ve analyze geçti. Header/scan/dimension doğrulaması ve Client decode fiziksel pixel teslimi değildir; readback_observed/physicalDeliveryVerified=false. Geniş exact commit CI kabulü açık."
     },
     {
       "id": "F59",
@@ -5126,7 +5126,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5150,7 +5150,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kurulu Moonlight için gerçek Android capability/launch, exact provider-revision receipt, Core Sunshine host görünümü ve foreground/late-response kapıları uygulandı; Flutter 17/17, focused analyze, Android üretim derlemesi ve F60 Kotlin testi geçti. Fiziksel yayın/giriş/gecikme/kopuş ile tam CI bekliyor."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Kurulu Moonlight için gerçek Android capability/launch, exact provider-revision receipt, Core Sunshine host görünümü ve foreground/late-response kapıları uygulandı; Flutter 17/17, focused analyze, Android üretim derlemesi ve F60 Kotlin testi geçti. Fiziksel yayın/giriş/gecikme/kopuş ile tam CI bekliyor."
     },
     {
       "id": "G11",

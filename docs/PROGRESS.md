@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül kuyrukta CI bekleyen uygulamalar
+
+Uygulama ve odaklı kanıtı tamamlanan 34 özellik `awaiting_ci` olarak ayrıldı. Test/review eksikleri olan uygulamalar alt tablonun test bekleyen bölümünde, F45 gerçek bildirim bağlantısı aktif geliştirmede kalır. CI bekliyor etiketi tam kabul veya fiziksel cihaz kabulü sayılmaz; 37/127 ve 3/63 sayaçları değişmedi.
+
 ### 30 Eylül F18 gerçek NUT ve Proxmox host bağlantısı
 
 NUT producer, durable sıralı outbox ve kayıp ACK uzlaştırması normal Core ingest’e bağlandı. Proxmox ayrı UID10005 worker ile bounded health/socket identity üzerinden çalışır; Core veri dizini açılmaz. İzole snapshotta 75 focused ve 8 paket testi geçti; 2 hosted Linux kapısı macOS üzerinde atlandı. [Kanıt](testing/f18-power-recovery-production-2026-09-30.md). Fiziksel UPS/Proxmox ve exact HEAD geniş CI açık; sayaç değişmedi.
