@@ -127,3 +127,20 @@ phase cannot obscure the other paths. The PAM case requires one password prompt
 and at least one zero-prompt round. Root ran 43 focused engine/controller/UI tests
 with zero skips and scoped analyze with no issues. The new exact Linux result is
 still required; the local result does not establish password/PAM interoperability.
+
+## Exact hosted runner failure after the protocol repair
+
+[Run 36767901119](https://github.com/ersingundem/larenor/actions/runs/36767901119)
+at `8159c9a72f47f2c8e3c5037a5a7933c96771d17b` completed the real SSH fixture
+step, then failed before normal-Core acceptance with shell exit 127 because
+`uv` was not installed on the hosted runner. No SSH, authentication or product
+assertion failed in that step. Repeating the same run would not test the RFC
+4256 repair.
+
+The workflow now installs official `astral-sh/setup-uv` v10.2.0 by immutable
+commit, pins uv 0.12.12 and verifies by policy test that setup precedes the
+locked normal-Core runner. The exact-head hosted result remains required; this
+workflow repair is not itself Linux SSH interoperability evidence.
+
+Local regression evidence after this repair is 6/6 workflow-policy tests and
+45/45 focused engine/controller/terminal tests, with scoped analysis clean.

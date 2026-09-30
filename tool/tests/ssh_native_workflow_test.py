@@ -36,6 +36,20 @@ class SshNativeWorkflowPolicyTest(unittest.TestCase):
             self.raw,
         )
 
+    def test_normal_core_gate_installs_exact_uv_before_use(self):
+        setup = (
+            "uses: astral-sh/setup-uv@"
+            "c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0"
+        )
+        invocation = (
+            "uv run --project server --locked python "
+            "server/tests/support/f63_flutter_acceptance.py"
+        )
+        self.assertIn(setup, self.raw)
+        self.assertIn('version: "0.12.12"', self.raw)
+        self.assertIn("enable-cache: false", self.raw)
+        self.assertLess(self.raw.index(setup), self.raw.index(invocation))
+
     def test_fixture_is_private_bounded_and_runs_exact_native_suite(self):
         self.assertIn('fixture_user="larenor-fixture"', self.raw)
         self.assertIn(

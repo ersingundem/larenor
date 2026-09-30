@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül SSH hosted runner önkoşulu
+
+Exact8159c9a / run36767901119 gerçek SSH/SFTP/tunnel adımını geçti; normal Core adımı uv bulunmadığı için test başlamadan exit127 verdi. Workflow immutable resmi setup-uv ve exact uv sürümünü locked runner öncesi kurar; root 6 policy testini geçti. Yeni exact hosted sonuç gerekli, eski kırmızı koşu körlemesine tekrar edilmedi. [SSH kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).
+
 ### 30 Eylül PRODUCT.CAMERA ve eski kuyruk nedenleri uzlaşması
 
 Root 30 Flutter/0 skip, scoped analyze ve normal Android compile kanıtıyla Camera yazılımını CI bekliyor tablosuna taşıdı. Exact dialog ownership foreign-route callbackinden silme yapmaz; native listener retirement kamerayı kapatır. Fiziksel izin/busy/termal/batarya/ML doğruluğu MANUAL kaldı. Yeşil named Linux host/cgroup kanıtlarıyla kapanan F08/F15/F16/F18/F22/F25/F27/F28/F30/F40/F55 composition açıklamaları güncellendi; geniş güncel HEAD CI ile gerçek provider/cihaz kabulü ayrı ve açık, sayaçlar değişmedi. [Camera kanıtı](testing/product-camera-software-acceptance-2026-09-30.md), [host kanıtı](testing/unified-host-workers-2026-09-30.md).
