@@ -366,7 +366,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.state.camera_profile_gateway = app.state.core.camera_profiles
     app.state.power_budget_gateway = app.state.core.power_budget
     app.state.legacy_remote_gateway = app.state.core.legacy_remote_gateway
-    app.state.camera_search_runtime = camera_search_runtime
+    app.state.camera_search_runtime = camera_search_runtime or app.state.core.camera_search_runtime
     app.add_middleware(SafeBoundaryMiddleware)
 
     @app.middleware("http")

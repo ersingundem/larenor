@@ -143,6 +143,7 @@ class CameraSearchScreen extends StatefulWidget {
     required this.filter,
     required this.cameraNames,
     required this.onShare,
+    this.onSources,
   });
 
   final CameraSearchController controller;
@@ -150,6 +151,7 @@ class CameraSearchScreen extends StatefulWidget {
   final CameraSearchFilter filter;
   final Map<String, String> cameraNames;
   final ValueChanged<CameraSearchEvidence>? onShare;
+  final VoidCallback? onSources;
 
   @override
   State<CameraSearchScreen> createState() => _CameraSearchScreenState();
@@ -251,7 +253,16 @@ class _CameraSearchScreenState extends State<CameraSearchScreen>
 
   @override
   Widget build(BuildContext context) => AppPageScaffold(
-    navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
+    navigationBar: CupertinoNavigationBar(
+      middle: Text(widget.strings.title),
+      trailing: widget.onSources == null
+          ? null
+          : CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: widget.onSources,
+              child: Text(AppLocalizations.of(context).cameraSearchSources),
+            ),
+    ),
     child: SafeArea(
       child: Column(
         children: [
@@ -520,7 +531,9 @@ class _ResultCard extends StatelessWidget {
                 key: ValueKey('camera-share-${result.evidence.clipId}'),
                 padding: EdgeInsets.zero,
                 onPressed: onShare,
-                child: const Text('Private share'),
+                child: Text(
+                  AppLocalizations.of(context).privateEventShareTitle,
+                ),
               ),
               CupertinoButton(
                 key: ValueKey('camera-report-${result.evidence.clipId}'),

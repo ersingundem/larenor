@@ -76,7 +76,12 @@ Map<String, Object?> _page() => {
 };
 
 final class _Harness {
-  _Harness({this.pendingSearch, this.contextFailuresRemaining = 0});
+  _Harness({
+    this.pendingSearch,
+    this.contextFailuresRemaining = 0,
+    this.role = 'member',
+  });
+  final String role;
   final Completer<http.Response>? pendingSearch;
   int contextFailuresRemaining;
   final source = _Source();
@@ -91,7 +96,7 @@ final class _Harness {
         'user': {
           'id': 'c' * 32,
           'username': 'fixture',
-          'role': 'member',
+          'role': role,
           'mustChangePassword': false,
         },
       });
@@ -119,6 +124,15 @@ final class _Harness {
     }
     if (request.method == 'POST' && request.url.path.endsWith('/search')) {
       return pendingSearch?.future ?? _json(_page());
+    }
+    if (request.method == 'GET' && request.url.path.endsWith('/sources')) {
+      return _json({
+        'schemaVersion': 1,
+        'revision': 0,
+        'services': [],
+        'cameras': [],
+        'settings': null,
+      });
     }
     return _json({
       'error': {'code': 'not_found'},
@@ -178,6 +192,28 @@ final class _Harness {
 }
 
 void main() {
+  testWidgets(
+    'administrator can set up sources before a search context exists',
+    (tester) async {
+      final harness = _Harness(role: 'admin', contextFailuresRemaining: 1);
+      await harness.initialize();
+      addTearDown(harness.dispose);
+      await harness.mount(tester, language: 'tr');
+      await tester.tap(find.text('Arama kaynakları'));
+      await tester.pumpAndSettle();
+      expect(
+        harness.requests.any(
+          (request) => request.url.path.endsWith('/sources'),
+        ),
+        isTrue,
+      );
+      expect(find.text('Aramaya dön'), findsOneWidget);
+      await tester.tap(find.text('Aramaya dön'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CameraSearchScreen), findsOneWidget);
+    },
+  );
+
   testWidgets('route discovers exact index and searches with current session', (
     tester,
   ) async {

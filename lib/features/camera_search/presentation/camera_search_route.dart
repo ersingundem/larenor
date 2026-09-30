@@ -16,6 +16,7 @@ import '../data/camera_search_api.dart';
 import '../data/camera_search_controller.dart';
 import '../domain/camera_search_models.dart';
 import 'camera_search_screen.dart';
+import 'camera_search_sources_screen.dart';
 
 /// Route-owned F41 binding. Results cannot outlive the exact Core account,
 /// home, session, window, route or index revision used to discover them.
@@ -38,6 +39,8 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   CameraSearchApi? _api;
   CameraSearchController? _controller;
   CameraSearchContext? _context;
+  bool _sources = false;
+  int _sourceEpoch = 0;
   bool _loading = false,
       _scheduled = false,
       _foreground = true,
@@ -118,6 +121,8 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   }
 
   void _retireRuntime() {
+    _sourceEpoch++;
+    _sources = false;
     _api?.retire();
     _controller?.retire();
     _api = null;
@@ -138,7 +143,11 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
   }
 
   void _schedule() {
-    if (_scheduled || _loading || _controller != null || _failure != null) {
+    if (_scheduled ||
+        _loading ||
+        _sources ||
+        _controller != null ||
+        _failure != null) {
       return;
     }
     _scheduled = true;
@@ -204,6 +213,58 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
       _loading = false;
       if (mounted) setState(() {});
     }
+  }
+
+  Future<void> _openSources() async {
+    if (_loading || !_binding()) return;
+    _retireRuntime();
+    final epoch = _sourceEpoch;
+    setState(() {
+      _loading = true;
+      _failure = null;
+    });
+    try {
+      final loaded = await _home!.account.withSession((
+        serverApi,
+        session,
+      ) async {
+        _session = session;
+        if (!_currentFor(session) || !session.user.canAdminister) {
+          throw const LarenorServerException('cancelled');
+        }
+        return CameraSearchApi(
+          serverApi,
+          session,
+          isCurrent: () => _sourceEpoch == epoch && _currentFor(session),
+        );
+      });
+      if (!_current || _sourceEpoch != epoch) {
+        loaded.retire();
+        return;
+      }
+      setState(() {
+        _api = loaded;
+        _sources = true;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted && _sourceEpoch == epoch) {
+        _retireRuntime();
+        setState(() {
+          _loading = false;
+          _failure = 'unavailable';
+        });
+      }
+    }
+  }
+
+  void _returnToSearch() {
+    _retireRuntime();
+    setState(() {
+      _failure = null;
+      _loading = false;
+    });
+    unawaited(_load());
   }
 
   void _retry() {
@@ -277,6 +338,9 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
       AppLocalizations.of(context),
     );
     final controller = _controller, filter = _filter, searchContext = _context;
+    if (_sources && _api != null && _current) {
+      return CameraSearchSourcesScreen(api: _api!, onDone: _returnToSearch);
+    }
     if (controller != null &&
         filter != null &&
         searchContext != null &&
@@ -290,11 +354,24 @@ final class _CameraSearchRouteState extends ConsumerState<CameraSearchRoute>
             searchContext.cameraIds[index]: '${strings.camera} ${index + 1}',
         },
         onShare: _share,
+        onSources: _session?.user.canAdminister == true ? _openSources : null,
       );
     }
     _schedule();
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(strings.title),
+        trailing:
+            !_loading &&
+                _binding() &&
+                _home?.account.session?.user.canAdminister == true
+            ? CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _openSources,
+                child: Text(AppLocalizations.of(context).cameraSearchSources),
+              )
+            : null,
+      ),
       child: SafeArea(
         child: Center(
           child: Padding(

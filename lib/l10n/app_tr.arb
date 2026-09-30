@@ -4632,5 +4632,12 @@
   "cameraProfileReturnToProfile": "Güncel profili oku",
   "cameraProfileRecoveryTitle": "Tamamlanmamış kamera işlemleri",
   "cameraProfileRecoveryHelp": "Kısmi veya kesintiye uğramış işlem belirsiz kalır. Yeni bir işleme izin vermek için kameranın güncel kayıt ve algılama durumlarını onaylayın. Bu adım yalnız durum okur ve eski komutu tekrar göndermez.",
-  "cameraProfileRecoverSource": "Güncel durumu onayla"
+  "cameraProfileRecoverSource": "Güncel durumu onayla",
+  "cameraSearchSources": "Arama kaynakları",
+  "cameraSearchFrigateService": "Doğrulanmış Frigate servisi",
+  "cameraSearchSourceHelp": "Home Assistant üzerinden bağlı kameraları ve Frigate servisini seçin. Core kaydetmeden önce kamera kayıtlarını ve Frigate hesabının güncel izinlerini doğrular.",
+  "cameraSearchReturnToSearch": "Aramaya dön",
+  "cameraSearchAllowedCameras": "Kullanılabilir kameralar",
+  "cameraSearchCameraHelp": "En fazla 16 kamera seçin. Her aramada Core hesabının güncel izinleri de kontrol edilir. Anlamsal arama Frigate’ın yapılandırılmış modelini kullanır; kullanılamıyorsa kayıt metadatası aranır.",
+  "cameraSearchNoSources": "Önce Ev kaynaklarında Frigate kamera kaynaklarını bağlayın."
 }

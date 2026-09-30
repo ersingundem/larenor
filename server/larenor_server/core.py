@@ -236,6 +236,7 @@ from .camera_search import (
     CameraSearchFeedbackService,
     migrate_camera_search_feedback,
 )
+from .camera_search.frigate import FrigateCameraSearchRuntime
 from .camera_profiles.runtime import build_camera_profile_gateway
 from .camera_profiles.ha_provider import HomeAssistantCameraProvider
 from .camera_profiles.source_store import migrate_camera_provider
@@ -1093,6 +1094,9 @@ class CoreServices:
             self.home_assistant.validate_storage()
             self.camera_profile_sources = HomeAssistantCameraProvider(
                 self.home_assistant, self.db, key, self.context, settings.clock)
+            self.camera_search_runtime = FrigateCameraSearchRuntime(
+                self.home_assistant, self.services, self.camera_profile_sources.store,
+                self.context, key, settings.clock)
             if self._camera_profile_provider is None:
                 self.camera_profiles = build_camera_profile_gateway(
                     self.camera_profile_sources, master_key=key, clock=settings.clock)

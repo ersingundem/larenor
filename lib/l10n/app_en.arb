@@ -4985,5 +4985,12 @@
   "cameraProfileReturnToProfile": "Read current profile",
   "cameraProfileRecoveryTitle": "Incomplete camera actions",
   "cameraProfileRecoveryHelp": "A partial or interrupted action stays unknown. Confirm the camera’s current recording and detection states to allow a new action. This step only reads states and never resends the old command.",
-  "cameraProfileRecoverSource": "Confirm current state"
+  "cameraProfileRecoverSource": "Confirm current state",
+  "cameraSearchSources": "Search sources",
+  "cameraSearchFrigateService": "Verified Frigate service",
+  "cameraSearchSourceHelp": "Select the Frigate service and cameras bound through Home Assistant. Core verifies the camera registry and current Frigate account permissions before saving.",
+  "cameraSearchReturnToSearch": "Return to search",
+  "cameraSearchAllowedCameras": "Available cameras",
+  "cameraSearchCameraHelp": "Select up to 16 cameras. Each search also checks the current Core account permissions. Semantic search uses the configured Frigate model; when unavailable, recording metadata is searched.",
+  "cameraSearchNoSources": "Bind Frigate camera resources in Home resources first."
 }

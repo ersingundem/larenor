@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/camera_search_models.dart';
+import '../domain/camera_search_source_models.dart';
 
 final class CameraSearchApi
     implements CameraSearchGateway, CameraSearchFeedbackGateway {
@@ -40,6 +41,54 @@ final class CameraSearchApi
     );
     _check();
     return CameraSearchContext.fromJson(response, context);
+  }
+
+  Future<CameraSearchSourceState> sources() async {
+    _check();
+    if (!_session.user.canAdminister) {
+      throw const LarenorServerException('forbidden');
+    }
+    final c = _context;
+    final raw = await _api.request(
+      'GET',
+      '/admin/camera-search/${c.coreId}/${c.homeId}/sources',
+      token: _session.accessToken,
+    );
+    _check();
+    return CameraSearchSourceState.decode(serverObject(raw));
+  }
+
+  Future<CameraSearchSourceState> configureSources({
+    required int revision,
+    required CameraSearchSourceChoice service,
+    required List<String> cameras,
+  }) async {
+    _check();
+    if (!_session.user.canAdminister) {
+      throw const LarenorServerException('forbidden');
+    }
+    if (service.revision == null ||
+        cameras.isEmpty ||
+        cameras.length > 16 ||
+        cameras.toSet().length != cameras.length ||
+        revision < 0) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final c = _context;
+    final raw = await _api.request(
+      'PUT',
+      '/admin/camera-search/${c.coreId}/${c.homeId}/sources',
+      token: _session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'expectedRevision': revision,
+        'serviceId': service.id,
+        'expectedServiceRevision': service.revision,
+        'cameraResourceIds': cameras,
+      },
+    );
+    _check();
+    return CameraSearchSourceState.decode(serverObject(raw));
   }
 
   @override

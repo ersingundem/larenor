@@ -101,7 +101,7 @@ def test_route_binds_authenticated_account_home_camera_and_private_scope(server)
     assert client.post(path, json=_body()).status_code == 401
     unavailable = client.post(path, headers=auth(pair), json=_body())
     assert unavailable.status_code == 503
-    assert unavailable.json()["error"]["code"] == "service_unavailable"
+    assert unavailable.json()["error"]["code"] == "camera_search_not_configured"
 
     _principal, installed = _install(app, pair)
     discovery = client.get(
