@@ -258,6 +258,7 @@ from .legacy_remote.runtime import build_legacy_remote_gateway
 from .legacy_remote.ha_provider import HomeAssistantLegacyRemoteProvider
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
+from .camera_visual_sensors.frigate import FrigateVisualSensorProvider
 from .private_event_sharing import (
     PrivateEventShareService,
     PrivateEventShareStore,
@@ -1134,6 +1135,8 @@ class CoreServices:
             self.camera_search_runtime = FrigateCameraSearchRuntime(
                 self.home_assistant, self.services, self.camera_profile_sources.store,
                 self.context, key, settings.clock)
+            self.camera_visual_sensors.provider = FrigateVisualSensorProvider(
+                self.camera_search_runtime, self.camera_visual_sensors, settings.clock)
             if self._camera_profile_provider is None:
                 self.camera_profiles = build_camera_profile_gateway(
                     self.camera_profile_sources, master_key=key, clock=settings.clock)

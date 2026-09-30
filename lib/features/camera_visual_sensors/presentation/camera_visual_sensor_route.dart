@@ -6,6 +6,8 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/camera_visual_sensor_api.dart';
 import '../data/camera_visual_sensor_controller.dart';
+import '../data/camera_visual_sensor_source_api.dart';
+import 'camera_visual_sensor_source_editor.dart';
 import 'camera_visual_sensor_screen.dart';
 
 final class CameraVisualSensorRoute extends ConsumerStatefulWidget {
@@ -22,6 +24,8 @@ final class _CameraVisualSensorRouteState
     with WidgetsBindingObserver {
   ServerAccountController? _account;
   CameraVisualSensorController? _controller;
+  AccountVisualSourceApi? _source;
+  bool _setup = false;
   Object? _session;
   int? _generation;
   bool _foreground = true, _closed = false;
@@ -58,6 +62,9 @@ final class _CameraVisualSensorRouteState
   void _changed() {
     if (!mounted || _authority()) return;
     _closed = true;
+    _source?.retire();
+    _source = null;
+    _setup = false;
     _controller?.retire();
     _controller = null;
     setState(() {});
@@ -74,6 +81,9 @@ final class _CameraVisualSensorRouteState
       account.addListener(_changed);
     } else if (!identical(_account, account)) {
       _closed = true;
+      _source?.retire();
+      _source = null;
+      _setup = false;
       _controller?.retire();
       _controller = null;
     }
@@ -85,6 +95,9 @@ final class _CameraVisualSensorRouteState
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
+      _source?.retire();
+      _source = null;
+      _setup = false;
       _controller?.retire();
       _controller = null;
     }
@@ -95,6 +108,9 @@ final class _CameraVisualSensorRouteState
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _account?.removeListener(_changed);
+    _source?.retire();
+    _source = null;
+    _setup = false;
     _controller?.retire();
     super.dispose();
   }
@@ -107,6 +123,10 @@ final class _CameraVisualSensorRouteState
         : CameraVisualSensorStrings.en;
     if (_controller == null && _authority()) {
       final scope = _account!.session!.context!;
+      _source = AccountVisualSourceApi(
+        account: _account!,
+        isCurrent: _authority,
+      );
       _controller = CameraVisualSensorController(
         gateway: AccountCameraVisualSensorGateway(
           account: _account!,
@@ -119,7 +139,24 @@ final class _CameraVisualSensorRouteState
     }
     final controller = _controller;
     if (controller != null && _authority()) {
-      return CameraVisualSensorScreen(controller: controller, strings: strings);
+      return CameraVisualSensorScreen(
+        controller: controller,
+        strings: strings,
+        onSetup: () {
+          if (_authority()) setState(() => _setup = !_setup);
+        },
+        sourceEditor: _setup && _source != null
+            ? CameraVisualSourceEditor(
+                gateway: _source!,
+                isCurrent: _authority,
+                onClose: () {
+                  if (!_authority()) return;
+                  setState(() => _setup = false);
+                  controller.refresh();
+                },
+              )
+            : null,
+      );
     }
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),

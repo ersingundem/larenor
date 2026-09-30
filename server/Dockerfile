@@ -30,6 +30,19 @@ COPY server/larenor_server ./larenor_server
 RUN uv sync --locked --no-dev --no-editable --python /usr/local/bin/python3 \
     && uv pip check --python /opt/larenor/.venv/bin/python
 
+# Build media tools and their exact ELF dependency closure before the runtime.
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes ffmpeg \
+    && mkdir -p /opt/larenor/media-runtime/usr/bin /opt/larenor/media-runtime/usr/share/doc \
+    && cp /usr/bin/ffmpeg /usr/bin/ffprobe /opt/larenor/media-runtime/usr/bin/ \
+    && for library in $(ldd /usr/bin/ffmpeg /usr/bin/ffprobe | awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' | sort -u); do \
+         test -f "$library" && cp --parents -L "$library" /opt/larenor/media-runtime/ || exit 1; \
+       done \
+    && cp -a /usr/share/doc/. /opt/larenor/media-runtime/usr/share/doc/ \
+    && dpkg-query -W > /opt/larenor/media-runtime/usr/share/doc/media-runtime-packages.txt \
+    && ffmpeg -hide_banner -version \
+    && ffprobe -hide_banner -version
+
 FROM python:3.12.14-slim-bookworm@sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254 AS runtime
 ARG LARENOR_REPOSITORY_URL=https://github.com/ersingundem/larenor
 ARG LARENOR_SOURCE_REVISION
@@ -43,6 +56,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LARENOR_JAVA=/usr/bin/java \
     LARENOR_APKSIG_JAR=/opt/larenor/verifier/apksig.jar \
     LARENOR_APKSIG_CLASSES=/opt/larenor/verifier/classes \
+    LARENOR_PRIVATE_EVENT_FFMPEG=/usr/bin/ffmpeg \
+    LARENOR_PRIVATE_EVENT_FFPROBE=/usr/bin/ffprobe \
     LARENOR_SOURCE_REVISION=${LARENOR_SOURCE_REVISION} \
     LARENOR_SOURCE_URL=${LARENOR_REPOSITORY_URL}/tree/${LARENOR_SOURCE_REVISION} \
     LARENOR_LICENSE_URL=${LARENOR_REPOSITORY_URL}/blob/${LARENOR_SOURCE_REVISION}/LICENSE
@@ -53,6 +68,7 @@ LABEL org.opencontainers.image.title="Larenor Server" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
 WORKDIR /opt/larenor
 COPY --from=dependencies /opt/larenor/.venv ./.venv
+COPY --from=dependencies /opt/larenor/media-runtime/ /
 COPY --from=verifier /opt/larenor/verifier ./verifier
 COPY --from=verifier /opt/larenor/java ./java
 COPY --from=verifier /opt/larenor/java-native ./java-native
@@ -71,6 +87,7 @@ RUN python3 -c 'import os,re; assert re.fullmatch(r"[0-9a-f]{40}", os.environ["L
 USER 10001:10001
 # Exercise the exact runtime user's file access before declaring the image built.
 RUN python -c 'import hashlib,os; from pathlib import Path; from larenor_server.releases.verifier import APKSIG_SHA256; assert os.geteuid() == 10001; jar=Path("/opt/larenor/verifier/apksig.jar"); assert hashlib.sha256(jar.read_bytes()).hexdigest() == APKSIG_SHA256; assert Path("/opt/larenor/verifier/classes/org/larenor/updates/VerifyApk.class").read_bytes()'
+RUN /usr/bin/ffmpeg -hide_banner -version && /usr/bin/ffprobe -hide_banner -version
 EXPOSE 8098
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

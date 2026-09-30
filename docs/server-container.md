@@ -310,3 +310,16 @@ The local permission-policy regression and real Java/apksig fixture tests can
 be run without Docker; they do not prove that the corrected images build or
 pass the complete hosted smoke test. Docker is unavailable on the development
 Mac, so a new hosted run must verify both architectures before publication.
+
+## Camera image and private-event processing runtime
+
+The runtime image installs the Debian bookworm `ffmpeg` package, which includes
+FFmpeg and FFprobe for amd64 and arm64. F44 verifies actual WebP image bytes
+with bounded probe/decode subprocesses. F42 uses explicitly configured
+`LARENOR_PRIVATE_EVENT_FFMPEG=/usr/bin/ffmpeg` and
+`LARENOR_PRIVATE_EVENT_FFPROBE=/usr/bin/ffprobe`; these never select an arbitrary
+remote program or accept a user-authored command. Debian package copyright
+notices remain in the image. Build logs record both binary versions; the final
+exact-image smoke gate must validate those binaries on both architectures.
+The September 30 local host has no Docker runtime, so the image build/smoke is
+recorded as pending CI, separately from successful actual local FFmpeg tests.

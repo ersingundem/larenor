@@ -37,6 +37,7 @@ class CameraVisualSensorService:
         self._authorities = {}
         self._rules = {}
         self._runtime_capability = None
+        self.provider = None
         self._engine = VisualSensorEngine(
             authorityResolver=lambda account_id: self._authorities.get(account_id),
             ruleResolver=lambda rule_id: self._rules.get(rule_id),
@@ -270,7 +271,7 @@ class CameraVisualSensorService:
             update={"detectorState": "degraded", "reason": "worker_stale"}
         )
 
-    def configure(self, actor, core_id, home_id, rule_id, value):
+    def configure(self, actor, core_id, home_id, rule_id, value, *, persist_source=None):
         body = ConfigureVisualSensorRule.model_validate(value)
         self._scope(core_id, home_id)
         if body.rule.ruleId != rule_id:
@@ -310,6 +311,8 @@ class CameraVisualSensorService:
                 self._rules[rule_id] = body.rule
                 if self._runtime_capability is not None:
                     self._persist_runtime(connection, self._runtime_capability)
+                if persist_source is not None:
+                    persist_source(connection)
                 return {"schemaVersion": 2, "rule": self._summary(
                     body.rule, now_ms=int(self.settings.clock() * 1000))}
         except ApiError:

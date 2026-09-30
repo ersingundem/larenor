@@ -6,6 +6,7 @@ source or application bundles.
 
 | Component | Location / license | Source |
 | --- | --- | --- |
+| FFmpeg command-line tools (Server image) | Debian package notices and library licenses in `/usr/share/doc/ffmpeg/copyright` and `/usr/share/doc/libav*/`; upstream LGPL/GPL terms depend on the packaged build | [Debian bookworm package and corresponding source](https://packages.debian.org/bookworm/ffmpeg), [FFmpeg license](https://ffmpeg.org/legal.html) |
 | Inter font | `assets/fonts/Inter-Variable.ttf`; [SIL OFL 1.1](assets/fonts/OFL.txt), copyright The Inter Project Authors | [Inter](https://github.com/rsms/inter) |
 | noVNC | `assets/console/novnc/`; [upstream license summary](assets/console/novnc/LICENSE.txt), [MPL 2.0 text](assets/console/novnc/docs/LICENSE.MPL-2.0). Individual files retain their additional notices. | [noVNC](https://github.com/novnc/noVNC) |
 | pako, included with noVNC | [MIT license](assets/console/novnc/vendor/pako/LICENSE); source-file notices also apply | [pako](https://github.com/nodeca/pako) |

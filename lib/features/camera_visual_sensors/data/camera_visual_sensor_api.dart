@@ -125,7 +125,11 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
       VisualArchitecture.other =>
         avx == VisualCpuSupport.unknown &&
             avx2 == VisualCpuSupport.unknown &&
-            reason == 'capability_unverified',
+            const {
+              'capability_unverified',
+              'ready',
+              'worker_stale',
+            }.contains(reason),
     };
     if (!capabilityConsistent) {
       throw const LarenorServerException('invalid_response');
@@ -149,6 +153,11 @@ final class CameraVisualSensorApi implements CameraVisualSensorGateway {
       trainingSupported: training,
       inferenceSupported: inference,
     );
+  }
+
+  CameraVisualSensor parseConfiguredRule(Object? raw) {
+    _check();
+    return _sensor(raw, version: 2);
   }
 
   CameraVisualSensor _sensor(Object? raw, {required int version}) {

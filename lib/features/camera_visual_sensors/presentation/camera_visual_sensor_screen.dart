@@ -111,7 +111,11 @@ class CameraVisualSensorScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.strings,
+    this.sourceEditor,
+    this.onSetup,
   });
+  final Widget? sourceEditor;
+  final VoidCallback? onSetup;
   final CameraVisualSensorController controller;
   final CameraVisualSensorStrings strings;
 
@@ -157,7 +161,24 @@ class _CameraVisualSensorScreenState extends State<CameraVisualSensorScreen>
 
   @override
   Widget build(BuildContext context) => AppPageScaffold(
-    navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
+    navigationBar: CupertinoNavigationBar(
+      middle: Text(widget.strings.title),
+      trailing: widget.onSetup == null
+          ? null
+          : CupertinoButton(
+              key: const ValueKey('visual-source-setup'),
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(48, 48),
+              onPressed: _current ? widget.onSetup : null,
+              child: Icon(
+                CupertinoIcons.slider_horizontal_3,
+                semanticLabel:
+                    Localizations.localeOf(context).languageCode == 'tr'
+                    ? 'Kaynağı ayarla'
+                    : 'Configure source',
+              ),
+            ),
+    ),
     child: SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
@@ -171,6 +192,7 @@ class _CameraVisualSensorScreenState extends State<CameraVisualSensorScreen>
   );
 
   Widget _body(double width) {
+    if (widget.sourceEditor != null) return widget.sourceEditor!;
     final controller = widget.controller;
     if (controller.busy && controller.value == null) {
       return _status(widget.strings.loading);
