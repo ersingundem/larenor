@@ -30,12 +30,16 @@ COPY server/larenor_server ./larenor_server
 RUN uv sync --locked --no-dev --no-editable --python /usr/local/bin/python3 \
     && uv pip check --python /opt/larenor/.venv/bin/python
 
-# Build media tools and their exact ELF dependency closure before the runtime.
+# Build media/OCR tools and their exact ELF dependency closure before the runtime.
 RUN apt-get update \
-    && apt-get install --no-install-recommends --yes ffmpeg \
-    && mkdir -p /opt/larenor/media-runtime/usr/bin /opt/larenor/media-runtime/usr/share/doc \
-    && cp /usr/bin/ffmpeg /usr/bin/ffprobe /opt/larenor/media-runtime/usr/bin/ \
-    && for library in $(ldd /usr/bin/ffmpeg /usr/bin/ffprobe | awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' | sort -u); do \
+    && apt-get install --no-install-recommends --yes ffmpeg poppler-utils tesseract-ocr \
+    && mkdir -p /opt/larenor/media-runtime/etc /opt/larenor/media-runtime/usr/bin /opt/larenor/media-runtime/usr/share/doc \
+    && cp /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/pdftoppm /usr/bin/tesseract /opt/larenor/media-runtime/usr/bin/ \
+    && cp -a /usr/share/poppler /opt/larenor/media-runtime/usr/share/ \
+    && cp -a /usr/share/tesseract-ocr /opt/larenor/media-runtime/usr/share/ \
+    && cp -a /etc/fonts /opt/larenor/media-runtime/etc/ \
+    && cp -a /usr/share/fonts /opt/larenor/media-runtime/usr/share/ \
+    && for library in $(ldd /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/pdftoppm /usr/bin/tesseract | awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' | sort -u); do \
          test -f "$library" && cp --parents -L "$library" /opt/larenor/media-runtime/ || exit 1; \
        done \
     && cp -a /usr/share/doc/. /opt/larenor/media-runtime/usr/share/doc/ \
@@ -58,6 +62,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     LARENOR_APKSIG_CLASSES=/opt/larenor/verifier/classes \
     LARENOR_PRIVATE_EVENT_FFMPEG=/usr/bin/ffmpeg \
     LARENOR_PRIVATE_EVENT_FFPROBE=/usr/bin/ffprobe \
+    LARENOR_HOME_DOCUMENT_TESSERACT=/usr/bin/tesseract \
+    LARENOR_HOME_DOCUMENT_PDFTOPPM=/usr/bin/pdftoppm \
     LARENOR_SOURCE_REVISION=${LARENOR_SOURCE_REVISION} \
     LARENOR_SOURCE_URL=${LARENOR_REPOSITORY_URL}/tree/${LARENOR_SOURCE_REVISION} \
     LARENOR_LICENSE_URL=${LARENOR_REPOSITORY_URL}/blob/${LARENOR_SOURCE_REVISION}/LICENSE
@@ -87,7 +93,11 @@ RUN python3 -c 'import os,re; assert re.fullmatch(r"[0-9a-f]{40}", os.environ["L
 USER 10001:10001
 # Exercise the exact runtime user's file access before declaring the image built.
 RUN python -c 'import hashlib,os; from pathlib import Path; from larenor_server.releases.verifier import APKSIG_SHA256; assert os.geteuid() == 10001; jar=Path("/opt/larenor/verifier/apksig.jar"); assert hashlib.sha256(jar.read_bytes()).hexdigest() == APKSIG_SHA256; assert Path("/opt/larenor/verifier/classes/org/larenor/updates/VerifyApk.class").read_bytes()'
-RUN /usr/bin/ffmpeg -hide_banner -version && /usr/bin/ffprobe -hide_banner -version
+RUN /usr/bin/ffmpeg -hide_banner -version \
+    && /usr/bin/ffprobe -hide_banner -version \
+    && /usr/bin/pdftoppm -v \
+    && /usr/bin/tesseract --version \
+    && /usr/bin/tesseract --list-langs | grep -Fx eng
 EXPOSE 8098
 STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

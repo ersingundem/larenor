@@ -38,6 +38,12 @@ void main() {
           ((((value['items'] as List).first as Map<String, dynamic>)['warranty']
                   as Map<String, dynamic>))['correctedFromOcr'] =
               true,
+      (value) =>
+          (((((value['items'] as List).first
+                          as Map<String, dynamic>)['warranty']
+                      as Map<String, dynamic>)['candidate']
+                  as Map<String, dynamic>)['sourceDigest'] =
+              '0' * 64),
     ]) {
       final bad = jsonDecode(jsonEncode(base)) as Map<String, dynamic>;
       mutate(bad);

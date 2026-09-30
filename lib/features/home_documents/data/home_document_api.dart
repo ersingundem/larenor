@@ -90,17 +90,64 @@ final class HomeDocumentApi
   Future<HomeDocumentUploadEvidence?> pickAndUpload(
     String resourceId,
     int expectedAccountRevision,
-  ) {
+  ) async {
     final adapter = uploadAdapter;
     if (adapter == null) {
       throw const LarenorServerException('server_unavailable');
     }
-    return _guard(
-      () => adapter.pickAndUpload(
+    return _guard(() async {
+      final uploaded = await adapter.pickAndUpload(
         resourceId: resourceId,
         expectedAccountRevision: expectedAccountRevision,
-      ),
-    );
+      );
+      if (uploaded == null) return null;
+      final response = serverObject(
+        await _api.request(
+          'POST',
+          '$_root/ocr-candidates',
+          token: _token,
+          body: {
+            'schemaVersion': 1,
+            'expectedAccountRevision': expectedAccountRevision,
+            'blob': uploaded.blob.toJson(),
+          },
+        ),
+      );
+      if (response.length != 4 ||
+          !response.keys.toSet().containsAll({
+            'schemaVersion',
+            'accountRevision',
+            'blob',
+            'candidate',
+          }) ||
+          response['schemaVersion'] != 1 ||
+          response['accountRevision'] != expectedAccountRevision) {
+        throw const LarenorServerException('invalid_response');
+      }
+      final blob = HomeDocumentBlobRef.fromJson(response['blob']);
+      if (blob.resourceId != uploaded.blob.resourceId ||
+          blob.serviceRevision != uploaded.blob.serviceRevision ||
+          blob.contentLength != uploaded.blob.contentLength ||
+          blob.sha256 != uploaded.blob.sha256 ||
+          blob.contentType != uploaded.blob.contentType) {
+        throw const LarenorServerException('invalid_response');
+      }
+      final candidate = response['candidate'] == null
+          ? null
+          : HomeDocumentOcrCandidate.fromJson(response['candidate']);
+      if (candidate != null &&
+          (candidate.provider != 'tesseract' ||
+              candidate.sourceRevision != blob.serviceRevision ||
+              candidate.sourceDigest != blob.sha256 ||
+              candidate.sourceContentType != blob.contentType)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      return HomeDocumentUploadEvidence(
+        filename: uploaded.filename,
+        blob: blob,
+        candidate: candidate,
+      );
+    });
   }
 
   @override

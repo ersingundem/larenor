@@ -242,7 +242,7 @@ class _HomeDocumentsScreenState extends State<HomeDocumentsScreen>
             if (candidate != null) ...[
               const SizedBox(height: 8),
               _Notice(
-                '${copy.ocrSuggestion}: ${candidate.extractedDate} · ${(candidate.confidencePermille / 10).toStringAsFixed(0)}%',
+                '${copy.ocrSuggestion(candidate.provider)}: ${candidate.extractedDate} · ${(candidate.confidencePermille / 10).toStringAsFixed(0)}%',
               ),
             ] else ...[
               const SizedBox(height: 8),
@@ -618,8 +618,16 @@ class _Copy {
   String get add => tr ? 'Belge ekle' : 'Add document';
   String get upload => tr ? 'Belge seç ve yükle' : 'Choose and upload';
   String get uploaded => tr ? 'Yüklendi' : 'Uploaded';
-  String get ocrSuggestion =>
-      tr ? 'OCR önerisi, henüz onaylı değil' : 'OCR suggestion, not confirmed';
+  String ocrSuggestion(String provider) => switch (provider) {
+    'tesseract' =>
+      tr
+          ? 'Tesseract OCR önerisi, henüz onaylı değil'
+          : 'Tesseract OCR suggestion, not confirmed',
+    _ =>
+      tr
+          ? 'Eski doğrulanmamış OCR önerisi'
+          : 'Legacy unverified OCR suggestion',
+  };
   String get ocrUnavailable => tr
       ? 'OCR kanıtı sağlanmadı; garanti tarihini elle girip doğrulayın.'
       : 'OCR evidence is unavailable; enter and confirm the warranty date manually.';

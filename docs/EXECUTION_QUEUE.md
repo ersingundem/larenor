@@ -17,7 +17,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 6 | 1 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 4 | 0 | 0 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 7 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 2 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
@@ -45,19 +45,18 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | 6 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
 | 7 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
 | 8 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
-| 9 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
-| 10 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
-| 11 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
-| 12 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
-| 13 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 14 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
-| 15 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
-| 16 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 17 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 18 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 19 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 20 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 21 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 9 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
+| 10 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
+| 11 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
+| 12 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 13 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
+| 14 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
+| 15 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 16 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 17 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 18 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 19 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 20 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -154,6 +153,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F23 | Canlı TV ve kayıt merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | Uygulama tamamlandı · test bekliyor | — |
+| F35 | Ev belgeleri ve garanti hatırlatmaları | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |

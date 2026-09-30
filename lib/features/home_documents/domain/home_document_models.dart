@@ -179,42 +179,61 @@ final class HomeDocumentBlobRef {
 
 final class HomeDocumentOcrCandidate {
   const HomeDocumentOcrCandidate._({
+    required this.provider,
     required this.extractedDate,
     required this.confidencePermille,
     required this.sourceRevision,
     required this.sourceDigest,
+    required this.sourceContentType,
   });
   factory HomeDocumentOcrCandidate.fromJson(Object? raw) {
     final value = _object(raw, {
       'schemaVersion',
+      'provider',
       'extractedDate',
       'confidencePermille',
       'sourceRevision',
       'sourceDigest',
+      'sourceContentType',
     });
     final confidence = value['confidencePermille'];
+    final provider = value['provider'];
+    final contentType = value['sourceContentType'];
     if (value['schemaVersion'] != 1 ||
+        !const {'tesseract', 'legacy_unverified'}.contains(provider) ||
         confidence is! int ||
         confidence < 0 ||
-        confidence > 1000) {
+        confidence > 1000 ||
+        (provider == 'tesseract') !=
+            const {
+              'application/pdf',
+              'image/jpeg',
+              'image/png',
+            }.contains(contentType) ||
+        provider == 'legacy_unverified' && contentType != null) {
       _invalid();
     }
     return HomeDocumentOcrCandidate._(
+      provider: provider as String,
       extractedDate: _date(value['extractedDate']),
       confidencePermille: confidence,
       sourceRevision: _revision(value['sourceRevision']),
       sourceDigest: _hex(value['sourceDigest'], 64),
+      sourceContentType: contentType as String?,
     );
   }
-  final String extractedDate, sourceDigest;
+  final String provider, extractedDate, sourceDigest;
+  final String? sourceContentType;
   final int confidencePermille, sourceRevision;
 
   Map<String, Object?> toJson() => {
     'schemaVersion': 1,
+    'provider': provider,
     'extractedDate': extractedDate,
     'confidencePermille': confidencePermille,
     'sourceRevision': sourceRevision,
     'sourceDigest': sourceDigest,
+    'sourceContentType': sourceContentType,
   };
 }
 
@@ -317,10 +336,18 @@ final class HomeDocument {
     };
     final created = _timestamp(value['createdAt']);
     final updated = _timestamp(value['updatedAt']);
+    final blob = HomeDocumentBlobRef.fromJson(value['blob']);
+    final warranty = HomeDocumentWarranty.fromJson(value['warranty']);
+    final candidate = warranty.candidate;
     if (value['schemaVersion'] != 1 ||
         ref['kind'] != 'home_document' ||
         context != expected ||
-        updated < created) {
+        updated < created ||
+        candidate != null &&
+            candidate.provider == 'tesseract' &&
+            (candidate.sourceRevision != blob.serviceRevision ||
+                candidate.sourceDigest != blob.sha256 ||
+                candidate.sourceContentType != blob.contentType)) {
       _invalid();
     }
     return HomeDocument._(
@@ -330,8 +357,8 @@ final class HomeDocument {
       title: _text(value['title'], 120),
       kind: kind,
       inventoryItemId: _hex(value['inventoryItemId']),
-      blob: HomeDocumentBlobRef.fromJson(value['blob']),
-      warranty: HomeDocumentWarranty.fromJson(value['warranty']),
+      blob: blob,
+      warranty: warranty,
       createdAt: created,
       updatedAt: updated,
     );

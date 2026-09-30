@@ -266,6 +266,15 @@ class HomeDocumentLibrary:
         )
 
     @_synchronized
+    def replay_create(self, actor, value):
+        """Return an exact durable replay or validate a new create preflight."""
+
+        actor = DocumentActor.model_validate(actor)
+        command = CreateHomeDocumentCommand.model_validate(value)
+        _key, replay = self._base(actor, command, self._fingerprint(command))
+        return replay
+
+    @_synchronized
     def create(self, actor, value):
         actor = DocumentActor.model_validate(actor)
         command = CreateHomeDocumentCommand.model_validate(value)

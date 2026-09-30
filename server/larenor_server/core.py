@@ -238,6 +238,7 @@ from .room_presence.schema import migrate_room_presence
 from .room_presence.runtime import build_room_presence_runtime
 from .home_documents.schema import migrate_home_documents
 from .home_documents.repository import HomeDocumentRepository
+from .home_documents.ocr import TesseractHomeDocumentOcr
 from .resource_reservations.schema import migrate_resource_reservations
 from .resource_reservations.integration import ResourceReservationService
 from .family_board.service import FamilyBoardService
@@ -694,7 +695,16 @@ class CoreServices:
             self.pantry_stock.validate_storage()
             self.home_documents = HomeDocumentRepository(
                 self.db, self.auth, settings, key, self.context,
-                self.product_blobs, self.inventory)
+                self.product_blobs, self.inventory,
+                ocr=(
+                    TesseractHomeDocumentOcr(
+                        settings.home_document_tesseract,
+                        settings.home_document_pdftoppm,
+                    )
+                    if settings.home_document_tesseract is not None
+                    else None
+                ),
+            )
             self.local_notifications = LocalNotificationService(
                 self.db, self.auth, settings, key, self.context
             )

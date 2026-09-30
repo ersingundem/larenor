@@ -41,6 +41,8 @@ class Settings:
     ai_worker_config: Path | None = None
     private_event_ffmpeg: Path | None = None
     private_event_ffprobe: Path | None = None
+    home_document_tesseract: Path | None = None
+    home_document_pdftoppm: Path | None = None
 
     def __post_init__(self):
         worker_uids = (
@@ -86,6 +88,8 @@ class Settings:
             self.media_archive_authority_socket,
             self.mesh_center_worker_socket,
             self.ai_worker_config,
+            self.home_document_tesseract,
+            self.home_document_pdftoppm,
         )
         for path in paths:
             if path is not None and (
@@ -129,6 +133,14 @@ class Settings:
             value is not None for value in redaction_binaries
         ):
             raise ValueError("invalid_private_event_configuration")
+        document_ocr = (
+            self.home_document_tesseract,
+            self.home_document_pdftoppm,
+        )
+        if any(value is None for value in document_ocr) and any(
+            value is not None for value in document_ocr
+        ):
+            raise ValueError("invalid_home_document_ocr_configuration")
         if any(
             not isinstance(value, Path)
             or not value.is_absolute()
@@ -222,6 +234,14 @@ class Settings:
                 ai_worker_config=(
                     Path(os.environ["LARENOR_AI_WORKER_CONFIG"])
                     if os.environ.get("LARENOR_AI_WORKER_CONFIG") else None
+                ),
+                home_document_tesseract=(
+                    Path(os.environ["LARENOR_HOME_DOCUMENT_TESSERACT"])
+                    if os.environ.get("LARENOR_HOME_DOCUMENT_TESSERACT") else None
+                ),
+                home_document_pdftoppm=(
+                    Path(os.environ["LARENOR_HOME_DOCUMENT_PDFTOPPM"])
+                    if os.environ.get("LARENOR_HOME_DOCUMENT_PDFTOPPM") else None
                 ),
                 private_event_ffmpeg=(
                     Path(os.environ["LARENOR_PRIVATE_EVENT_FFMPEG"])

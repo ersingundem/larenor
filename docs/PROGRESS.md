@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F35 gerçek belge OCR
+
+Normal Core şifreli belgeyi gerçek Poppler/Tesseract ile sınırlı yerel süreçte okur; tarih adayı confidence ve source digest taşır, kullanıcı onayı olmadan hatırlatma oluşturmaz. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. [Kanıt ve image build kapısı](testing/f35-home-document-ocr-2026-09-30.md). Geniş exact HEAD CI açık; sayaç değişmedi.
+
 ### 30 Eylül F28 ev üyesi müzik erişimi
 
 Ready ev üyeleri normal Core müzik akışını açıp doğrulayabilir, katalog arayıp oynatıcıyı kontrol edebilir; sağlayıcı kurulumu admin yetkisinde kalır. 35 Server, 24 Flutter, 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. [Kanıt ve açık host paket kapısı](testing/f28-member-music-access-2026-09-30.md). Host IPC paketi ve geniş exact HEAD CI bekliyor; sayaç değişmedi.

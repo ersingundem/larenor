@@ -69,10 +69,12 @@ class OcrWarrantyCandidate(FrozenModel):
     """Untrusted extraction evidence; never schedules a reminder by itself."""
 
     schemaVersion: Literal[1]
+    provider: Literal["tesseract", "legacy_unverified"] = "legacy_unverified"
     extractedDate: CanonicalDate
     confidencePermille: int = Field(ge=0, le=1000)
     sourceRevision: Revision
     sourceDigest: Digest
+    sourceContentType: Literal["application/pdf", "image/jpeg", "image/png"] | None = None
 
     _version = field_validator("schemaVersion", mode="before")(
         DocumentActor.integer_version.__func__
@@ -129,7 +131,15 @@ class HomeDocument(FrozenModel):
 
     @model_validator(mode="after")
     def ordered_timestamps(self):
-        if self.updatedAt < self.createdAt:
+        candidate = self.warranty.candidate
+        if (
+            self.updatedAt < self.createdAt
+            or candidate is not None and candidate.provider == "tesseract" and (
+                candidate.sourceRevision != self.blob.serviceRevision
+                or candidate.sourceDigest != self.blob.sha256
+                or candidate.sourceContentType != self.blob.contentType
+            )
+        ):
             raise ValueError("invalid_timestamps")
         return self
 
@@ -175,6 +185,27 @@ class CreateHomeDocumentCommand(DocumentCommand):
         ):
             raise ValueError("invalid_document_sets")
         return self
+
+
+class ExtractOcrCandidateCommand(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedAccountRevision: Revision
+    blob: DocumentBlobRef
+
+    _version = field_validator("schemaVersion", mode="before")(
+        DocumentActor.integer_version.__func__
+    )
+
+
+class OcrCandidateReadback(FrozenModel):
+    schemaVersion: Literal[1]
+    accountRevision: Revision
+    blob: DocumentBlobRef
+    candidate: OcrWarrantyCandidate | None
+
+    _version = field_validator("schemaVersion", mode="before")(
+        DocumentActor.integer_version.__func__
+    )
 
 
 class ConfirmWarrantyCommand(DocumentCommand):

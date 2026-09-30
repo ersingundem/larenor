@@ -60,10 +60,12 @@ def create_command(**changes):
         "readerIds": [READER],
         "ocrCandidate": OcrWarrantyCandidate(
             schemaVersion=1,
+            provider="tesseract",
             extractedDate="2028-05-10",
             confidencePermille=810,
-            sourceRevision=12,
-            sourceDigest="d" * 64,
+            sourceRevision=3,
+            sourceDigest="c" * 64,
+            sourceContentType="application/pdf",
         ),
         "reminderLeadDays": [30, 7],
     }
@@ -99,6 +101,18 @@ def test_verified_create_is_exactly_idempotent_and_reference_bounded():
         library(inventory_allowed=False).create(actor(), create_command())
     with pytest.raises(ApiError, match="revision_conflict"):
         library().create(actor(revision=5), create_command())
+
+
+def test_legacy_candidate_is_not_upgraded_to_tesseract_evidence():
+    candidate = OcrWarrantyCandidate.model_validate({
+        "schemaVersion": 1,
+        "extractedDate": "2028-05-10",
+        "confidencePermille": 810,
+        "sourceRevision": 12,
+        "sourceDigest": "d" * 64,
+    })
+    assert candidate.provider == "legacy_unverified"
+    assert candidate.sourceContentType is None
 
 
 def test_ocr_date_needs_explicit_confirmation_and_correction_is_audited():

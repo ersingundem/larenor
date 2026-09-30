@@ -13,6 +13,8 @@ from .models import (
     DocumentCommandResult,
     DocumentPage,
     DocumentReadback,
+    ExtractOcrCandidateCommand,
+    OcrCandidateReadback,
     WarrantyReminderPage,
 )
 
@@ -26,6 +28,17 @@ router = APIRouter(
     },
 )
 ROOT = "/home-documents/{core_id}/{home_id}"
+
+
+@router.post(ROOT + "/ocr-candidates", response_model=OcrCandidateReadback)
+def extract_ocr_candidate(
+    core_id: Identity,
+    home_id: Identity,
+    body: ExtractOcrCandidateCommand,
+    actor: Ready,
+    core: Core,
+):
+    return core.home_documents.ocr_candidate(actor, core_id, home_id, body)
 
 
 @router.get(ROOT + "/documents", response_model=DocumentPage)

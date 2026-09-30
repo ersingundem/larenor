@@ -56,10 +56,12 @@ Map<String, Object?> documentJson({
   'warranty': {
     'candidate': {
       'schemaVersion': 1,
+      'provider': 'tesseract',
       'extractedDate': '2028-05-10',
       'confidencePermille': 810,
-      'sourceRevision': 12,
-      'sourceDigest': '9' * 64,
+      'sourceRevision': 3,
+      'sourceDigest': '8' * 64,
+      'sourceContentType': 'application/pdf',
     },
     'confirmedDate': confirmedDate,
     'confirmedBy': confirmedDate == null ? null : account,

@@ -8,7 +8,12 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
-from .models import CreateHomeDocumentCommand, DocumentActor
+from .models import (
+    CreateHomeDocumentCommand,
+    DocumentActor,
+    ExtractOcrCandidateCommand,
+    OcrCandidateReadback,
+)
 from .service import HomeDocumentLibrary
 
 MAX_STATE_BYTES = 16 * 1024 * 1024
@@ -17,13 +22,17 @@ MAX_STATE_BYTES = 16 * 1024 * 1024
 class HomeDocumentRepository:
     """Durable encrypted owner for the bounded home-document reducer."""
 
-    def __init__(self, db, auth, settings, key, context, product_blobs, inventory):
+    def __init__(
+        self, db, auth, settings, key, context, product_blobs, inventory,
+        *, ocr=None,
+    ):
         self.db, self.auth, self.settings = db, auth, settings
         self.scope = HomeScope.model_validate(context.model_dump())
         self._cipher = AESGCM(key)
         self._lock = threading.RLock()
         self._product_blobs = product_blobs
         self._inventory = inventory
+        self._ocr = ocr
         self._blob_current = self._production_blob_current
         self._inventory_current = self._production_inventory_current
         self._library = self._empty()
@@ -169,6 +178,47 @@ class HomeDocumentRepository:
         if not valid:
             raise ApiError("not_found", 404)
 
+    @staticmethod
+    def _exact_blob(value, blob):
+        return all(
+            value[key] == expected
+            for key, expected in {
+                "resourceId": blob.resourceId,
+                "serviceRevision": blob.serviceRevision,
+                "contentLength": blob.contentLength,
+                "sha256": blob.sha256,
+                "contentType": blob.contentType,
+            }.items()
+        )
+
+    def _extract_candidate(self, principal, actor, blob):
+        if self._ocr is None:
+            raise ApiError("server_unavailable", 503)
+        descriptor = self._product_blobs.descriptor(
+            principal, self.scope.coreId, self.scope.homeId, blob.resourceId
+        )["blob"]
+        if not self._exact_blob(descriptor, blob):
+            raise ApiError("revision_conflict", 409)
+        resolved = self._product_blobs.resolve(blob.resourceId)
+        if (
+            resolved is None
+            or resolved.resource_id != blob.resourceId
+            or resolved.service_revision != blob.serviceRevision
+            or resolved.content_type != blob.contentType
+            or len(resolved.content) != blob.contentLength
+        ):
+            raise ApiError("revision_conflict", 409)
+        candidate = self._ocr.extract(blob, resolved.content)
+        current = self._actor(principal)
+        if current != actor:
+            raise ApiError("revision_conflict", 409)
+        descriptor = self._product_blobs.descriptor(
+            principal, self.scope.coreId, self.scope.homeId, blob.resourceId
+        )["blob"]
+        if not self._exact_blob(descriptor, blob):
+            raise ApiError("revision_conflict", 409)
+        return candidate
+
     def validate_storage(self):
         try:
             with self._lock:
@@ -191,6 +241,16 @@ class HomeDocumentRepository:
         with self._lock:
             self._sync()
             actor = self._actor(principal)
+            replay = self._library.replay_create(actor, command)
+            if replay is not None:
+                return replay
+        if command.ocrCandidate is not None:
+            candidate = self._extract_candidate(principal, actor, command.blob)
+            if candidate is None or candidate != command.ocrCandidate:
+                raise ApiError("ocr_candidate_changed", 409)
+        with self._lock:
+            self._sync()
+            actor = self._actor(principal)
             before = self._library.revision
             try:
                 result = self._library.create(actor, command)
@@ -202,6 +262,23 @@ class HomeDocumentRepository:
             except Exception:
                 self._sync()
                 raise
+
+    def ocr_candidate(self, principal, core_id, home_id, value):
+        command = ExtractOcrCandidateCommand.model_validate(value)
+        self._scope(core_id, home_id)
+        self.auth.rate_limit([("home_document_ocr", principal.id, 30)])
+        actor = self._actor(principal)
+        if actor.role != "admin":
+            raise ApiError("forbidden", 403)
+        if actor.accountRevision != command.expectedAccountRevision:
+            raise ApiError("revision_conflict", 409)
+        candidate = self._extract_candidate(principal, actor, command.blob)
+        return OcrCandidateReadback(
+            schemaVersion=1,
+            accountRevision=actor.accountRevision,
+            blob=command.blob,
+            candidate=candidate,
+        )
 
     def confirm_warranty(self, principal, core_id, home_id, value):
         self._scope(core_id, home_id)

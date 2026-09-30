@@ -4450,7 +4450,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ev belgeleri ve garanti hatırlatmaları",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4475,7 +4475,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: belge yükleme gerçek, fakat OCR adayı her zaman null; yalnız manuel giriş mevcut. Gerçek bounded OCR üretim sağlayıcısı ve kullanıcı onayı akışı gerekli."
+      "reason": "Gerçek encrypted blob→bounded Poppler/Tesseract OCR, confidence/source binding, tekrar çıkarım ve ayrı kullanıcı garanti onayı bağlandı. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. docs/testing/f35-home-document-ocr-2026-09-30.md. Image build/geniş exact HEAD CI ve fiziksel belge/platform kabulü açık; sayaç artmadı."
     },
     {
       "id": "F36",

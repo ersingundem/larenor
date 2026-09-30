@@ -301,6 +301,7 @@ MESSAGES = {
     'vault_unavailable': 'The saved configuration is unavailable.',
     'rate_limited': 'Too many requests. Try again later.',
     'server_unavailable': 'The service is temporarily unavailable.',
+    'ocr_candidate_changed': 'The OCR suggestion changed. Read the document again before saving it.',
     'not_found': 'The requested resource was not found.',
     'method_not_allowed': 'The request method is not supported.',
     'release_conflict': 'This release conflicts with an immutable published version.',
