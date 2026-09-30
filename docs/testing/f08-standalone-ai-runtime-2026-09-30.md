@@ -132,3 +132,7 @@ UID10003 mode0700 runtime directory. The check now runs under sudo, manager
 startup is bounded/nonblocking, and a failed readiness check prints unit
 status/journal. actionlint and focused workflow policy passed; a changed exact
 commit run is needed to establish actual IPC/cgroup acceptance.
+
+## Actual Ubuntu managed-Python düzeltmesi
+
+Exact `e2da860e1` Server koşusu `36738496557` gerçek UID10003 user manager bus aşamasını geçti. Worker başlangıcı uv managed CPython stdlibine erişemedi (`ModuleNotFoundError: encodings`). CI sadece venv izinlerini açıyordu; managed Python kurulumunun okuma/geçiş izinleri de worker için açıldı. Bu uygulama sonucu veya yeşil Linux kabulü değildir; değişmiş HEAD tekrar actual Linux kapısına gönderilir.

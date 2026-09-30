@@ -56,6 +56,7 @@ jobs:
             sleep 1
           done
           chmod -R a+rX "$UV_PROJECT_ENVIRONMENT"
+          chmod -R a+rX "$UV_PYTHON_INSTALL_DIR"
 
       - name: Prove Core UID IPC to the actual user-manager cgroup runtime
         working-directory: server
