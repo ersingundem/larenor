@@ -58,7 +58,7 @@ class ChargeProviderCapability:
     def __post_init__(self):
         if (
             self.state not in {"ready", "degraded", "unavailable"}
-            or self.provider_kind not in {"ocpp", "vehicle_api", "manual", "none"}
+            or self.provider_kind not in {"ocpp", "vehicle_api", "evcc", "manual", "none"}
             or type(self.can_plan) is not bool
             or type(self.can_control) is not bool
             or self.reason

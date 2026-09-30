@@ -206,6 +206,7 @@ from .garden_irrigation.runtime import build_irrigation_gateway
 from .energy_priorities.service import EnergyPriorityService
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
+from .evcc import EvccBinding, EvccConnection, EvccRuntimeProviders
 from .epaper_snapshots.schema import migrate_epaper_snapshots
 from .epaper_snapshots.management import EpaperManagement
 from .room_presence.schema import migrate_room_presence
@@ -860,6 +861,71 @@ class CoreServices:
                 self.db, self.auth, settings, key, self.context
             )
             self.services.validate_storage()
+            evcc_runtime = None
+            if (
+                self._ev_charge_provider is None
+                or self._power_budget_provider is None
+            ):
+                evcc_service = self.services._configured_evcc_connection()
+                if evcc_service is not None:
+                    api_key = evcc_service.credentials.get("apiKey")
+
+                    def evcc_account_revision(actor):
+                        with self.db.connection() as connection:
+                            row = connection.execute(
+                                "SELECT u.revision,u.disabled,u.must_change_password,"
+                                "f.revoked_at,f.expires_at FROM users u "
+                                "JOIN session_families f ON f.user_id=u.id "
+                                "WHERE u.id=? AND f.id=?",
+                                (actor.id, actor.family_id),
+                            ).fetchone()
+                        now = settings.clock()
+                        if (
+                            row is None
+                            or row["disabled"]
+                            or row["must_change_password"]
+                            or row["revoked_at"] is not None
+                            or now >= row["expires_at"]
+                        ):
+                            raise ValueError("evcc_actor_changed")
+                        return row["revision"]
+
+                    evcc_runtime = EvccRuntimeProviders(
+                        EvccBinding(
+                            core_id=self.context.coreId,
+                            home_id=self.context.homeId,
+                            core_revision=self.context.schemaVersion,
+                            home_revision=self.context.schemaVersion,
+                            account_revision=evcc_account_revision,
+                            connection=EvccConnection(
+                                service_id=evcc_service.id,
+                                revision=evcc_service.revision,
+                                base_url=evcc_service.base_url,
+                                api_key=api_key,
+                            ),
+                            validate_connection=lambda: self.services._evcc_connection(
+                                evcc_service.id, evcc_service.revision
+                            ),
+                        ),
+                        clock=settings.clock,
+                    )
+            if self._ev_charge_provider is None and evcc_runtime is not None:
+                self.ev_charging = EvChargeRuntime(
+                    self.db,
+                    self.auth,
+                    settings,
+                    key,
+                    self.context,
+                    evcc_runtime.ev_charging,
+                    None,
+                )
+            if self._power_budget_provider is None and evcc_runtime is not None:
+                self.power_budget = build_power_budget_gateway(
+                    evcc_runtime.power_budget,
+                    database=self.db,
+                    master_key=key,
+                    clock=settings.clock,
+                )
             self._family_memory_members_key = hmac.new(
                 key, b"larenor-family-memory-members-v1", hashlib.sha256
             ).digest()

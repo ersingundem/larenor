@@ -209,6 +209,46 @@ class ServiceManagement:
             raise ApiError("workshop_binding_changed", 409)
         return self._private(row, record)
 
+    @staticmethod
+    def _valid_evcc_record(record):
+        credentials = record["credentials"]
+        return (
+            record["kind"] == "evcc"
+            and set(credentials) in (set(), {"apiKey"})
+            and (
+                not credentials
+                or re.fullmatch(r"evcc_[A-Za-z0-9_-]{1,2043}", credentials["apiKey"])
+                is not None
+            )
+            and record["verification"]["state"] == "reachable"
+        )
+
+    def _configured_evcc_connection(self) -> ServiceConnection | None:
+        """Select one verified private evcc service during Core composition."""
+        with self.db.connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM service_connections ORDER BY id LIMIT ?",
+                (MAX_SERVICES + 1,),
+            ).fetchall()
+            if len(rows) > MAX_SERVICES:
+                raise ApiError("service_unavailable", 503)
+            matches = []
+            for row in rows:
+                record = self._decode(row)
+                if record["kind"] == "evcc":
+                    if not self._valid_evcc_record(record):
+                        continue
+                    matches.append(self._private(row, record))
+            return matches[0] if len(matches) == 1 else None
+
+    def _evcc_connection(self, service_id: str, revision: int) -> ServiceConnection:
+        """Revalidate the exact startup-selected evcc record and revision."""
+        with self.db.connection() as connection:
+            row, record = self._record(connection, service_id, revision)
+            if not self._valid_evcc_record(record):
+                raise ApiError("evcc_binding_changed", 409)
+            return self._private(row, record)
+
     def list(self, actor: Principal) -> dict:
         with self._read(actor) as connection:
             rows = connection.execute("SELECT * FROM service_connections ORDER BY id LIMIT ?", (MAX_SERVICES + 1,)).fetchall()

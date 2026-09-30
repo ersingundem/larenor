@@ -23,6 +23,7 @@ https://github.com/qbittorrent/qBittorrent/blob/release-5.1.2/src/webui/api/auth
 https://github.com/qbittorrent/qBittorrent/blob/release-5.1.2/src/webui/webapplication.cpp
 https://docs.octoprint.org/en/master/api/version.html
 https://moonraker.readthedocs.io/en/latest/web_api/#query-server-info
+https://docs.evcc.io/integrations/rest-api/operations/getstate/
 
 Keenetic, Proxmox and ESPHome use the packaged network_probes module. Frigate
 and ESPHome prove public identity only. Seerr uses public settings, avoiding the status endpoint's
@@ -49,7 +50,7 @@ _MAX_REPLY = 65536
 _VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._+:/()\-]{0,79}\Z")
 _PLAIN_VERSION = re.compile(r"v?[0-9]+\.[0-9]+(?:[.A-Za-z0-9_+\-]*)\Z")
 _ARR = {"sonarr": "v3", "radarr": "v3", "lidarr": "v1", "readarr": "v1", "prowlarr": "v1"}
-_SUPPORTED = frozenset({*_ARR, "bazarr", "home_assistant", "seerr", "jellyfin", "immich", "adguard", "frigate", "music_assistant", "qbittorrent", "keenetic", "proxmox", "esphome", "octoprint", "moonraker"})
+_SUPPORTED = frozenset({*_ARR, "bazarr", "home_assistant", "seerr", "jellyfin", "immich", "adguard", "frigate", "music_assistant", "qbittorrent", "keenetic", "proxmox", "esphome", "octoprint", "moonraker", "evcc"})
 _NETWORK_ERRORS = frozenset({"request_timeout", "resolution_failed", "request_failed", "tls_failed", "transport_closed"})
 
 
@@ -324,6 +325,17 @@ def _run(probe):
         return _qbittorrent(probe)
     if kind in {"octoprint", "moonraker"}:
         return _workshop(probe)
+    if kind == "evcc":
+        headers = _key_headers(credentials, "apiKey", "Authorization", "Bearer ")
+        if credentials:
+            _require(re.fullmatch(r"evcc_[A-Za-z0-9_-]{1,2043}", credentials["apiKey"]) is not None)
+        data = probe.get_object("/api/state", headers)
+        _require(type(data.get("loadpoints")) is list)
+        _require(type(data.get("gridConfigured")) is bool)
+        _require(data.get("startupCompleted") is True and data.get("apiReady") is True)
+        # `/api/state` is not an authenticated route in evcc. A successful
+        # bearer request proves reachability and identity, never authorization.
+        return probe.result(_version(data.get("version"), credentials))
     if kind == "home_assistant":
         headers = _key_headers(credentials, "token", "Authorization", "Bearer ")
         data = probe.get_object("/api/config", headers)
