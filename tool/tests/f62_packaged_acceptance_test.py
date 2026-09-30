@@ -240,6 +240,55 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             }])
             self.assertNotIn("private-password", json.dumps(diagnostic))
 
+    def test_initialization_identity_failure_keeps_owned_frame_but_cannot_pass_acceptance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            secret = "private-initialization-method-and-message"
+            report = directory / "TEST-device.xml"
+            report.write_text(self._failure_xml(body=(
+                "java.lang.RuntimeException: " + secret + "\n"
+                " at com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime."
+                "open(RdpPackagedRuntime.kt:112)"
+            )).replace(runner.TEST_NAME, secret))
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["code"], "instrumentation_report_identity_mismatch")
+            self.assertEqual(diagnostic["identity"], {
+                "suiteExpected": True, "countsExpected": True, "caseCount": 1,
+                "classExpected": True, "methodExpected": False,
+            })
+            self.assertEqual(diagnostic["frames"], [{
+                "file": "RdpPackagedRuntime.kt", "line": 112,
+            }])
+            self.assertNotIn(secret, json.dumps(diagnostic))
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.verify_reports(directory)
+            public = runner.failure_receipt(
+                {"freerdp3-shadow-x11": "3.32.0", "winpr3-utils": "3.32.0"},
+                revision="a" * 40, package_digest="b" * 64, diagnostic=diagnostic)
+            self.assertEqual(public["result"], "failed")
+            for bad in (
+                {**diagnostic, "identity": {**diagnostic["identity"], "methodExpected": secret}},
+                {**diagnostic, "counts": {**diagnostic["counts"], "tests": 1025}},
+                {**diagnostic, "identity": {**diagnostic["identity"], "caseCount": True}},
+            ):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.failure_receipt({}, revision="a" * 40, package_digest="b" * 64,
+                                           diagnostic=bad)
+
+    def test_native_constructor_failure_retains_class_and_location_without_library_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "TEST-device.xml").write_text(self._failure_xml(
+                exception_type="java.lang.UnsatisfiedLinkError",
+                body=("java.lang.UnsatisfiedLinkError: /data/private/lib-secret.so\n"
+                      " at com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime."
+                      "&lt;init&gt;(RdpPackagedRuntime.kt:62)"),
+            ).replace(runner.TEST_NAME, "initializationError"))
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["exceptionType"], "java.lang.UnsatisfiedLinkError")
+            self.assertEqual(diagnostic["frames"], [{"file": "RdpPackagedRuntime.kt", "line": 62}])
+            self.assertNotIn("lib-secret", json.dumps(diagnostic))
+
     def test_failure_frames_are_deduplicated_bounded_and_require_regular_xml(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary).resolve()

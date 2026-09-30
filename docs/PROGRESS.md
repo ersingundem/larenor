@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F62 native başlangıç teşhis kapısı
+
+Exacte3ae7cb3 koşusunda receipted AAR ve gerçek APK buildleri geçti, fakat owned-host instrumentation başarısız. Güvenli çıktı yalnız report identity mismatch verdi; adlandırılmış testin çalıştığı kabul edilmedi. Başlangıç hatalarını sınıf/metod adı, mesaj veya gizli yol göstermeden owned source frame/count/boolean ile ayıran failure-only parser genişletildi; 30 odaklı tool testi geçti. Success receipt koşulu gevşetilmedi. F62 gerçek native kabulü açık, CI bekliyor sayısı ve kabul sayaçları değişmedi. [Kanıt](testing/f62-safe-native-failure-diagnostics-2026-09-30.md).
+
 ### 1 Ekim F61 gerçek RFB boyut bildirimi düzeltmesi
 
 Actual TigerVNC exact2a585d3c koşusu ilk kare kontrolünde tekrar düştü. Root gerçek TLS peer ile metadata-only ExtendedDesktopSize mesajının yanlış boş kare yayınlanmasını RED olarak üretti; production parser artık metadata/gerçek pixels ayrımını, screen ID, resize refusal ve framebuffer korunmasını uygular. 49 native test (1 kasıtlı Linux skip), 4 gerçek TLS/0skip ve9 policy geçti. F61 yeni actual hosted receipt bekler; CI bekliyor yapılmadı, sayaçlar değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

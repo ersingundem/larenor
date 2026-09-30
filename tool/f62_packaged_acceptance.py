@@ -56,17 +56,22 @@ _KNOWN_EXCEPTION_TYPES = frozenset({
     "com.ersingundem.larenor.rdp.RdpNativeFailure",
     "java.lang.AssertionError",
     "java.lang.IllegalStateException",
+    "java.lang.ClassNotFoundException",
+    "java.lang.ExceptionInInitializerError",
+    "java.lang.NoClassDefFoundError",
     "java.lang.NullPointerException",
     "java.lang.RuntimeException",
     "java.lang.SecurityException",
     "java.lang.UnsupportedOperationException",
+    "java.lang.UnsatisfiedLinkError",
     "java.util.concurrent.TimeoutException",
     "kotlin.KotlinNullPointerException",
     "org.junit.ComparisonFailure",
     "org.junit.runners.model.TestTimedOutException",
 })
 _OWNED_FRAME = re.compile(
-    r"\s*at (com\.ersingundem\.larenor\.rdp\.[A-Za-z0-9_.$]+)"
+    r"\s*at (com\.ersingundem\.larenor\.rdp\.[A-Za-z0-9_.$]+"
+    r"\.(?:[A-Za-z0-9_$]+|<init>|<clinit>))"
     r"\(([A-Za-z][A-Za-z0-9_]{0,127}\.(?:kt|java)):(\d{1,6})\)\s*"
 )
 _OWNED_SOURCE_FILES = frozenset(
@@ -212,11 +217,30 @@ def failure_diagnostic(directory: Path | None = None) -> dict[str, object]:
     except (OSError, ET.ParseError, KeyError, ValueError, TypeError):
         return _static_diagnostic("instrumentation_report_malformed")
     cases = list(suite.iter("testcase"))
+    if any(not 0 <= value <= 1024 for value in counts.values()) or len(cases) > 1024:
+        return _static_diagnostic("instrumentation_report_malformed")
     if (suite.tag != "testsuite" or counts["tests"] != 1
             or counts["skipped"] != 0 or len(cases) != 1
             or cases[0].attrib.get("classname") != TEST_CLASS
             or cases[0].attrib.get("name") != TEST_NAME):
-        return _static_diagnostic("instrumentation_report_identity_mismatch")
+        # Initialization/device failures can have a synthetic testcase identity. Keep
+        # the acceptance rejection, but retain only booleans, bounded counts and
+        # allowlisted owned frames so a real pre-method failure can be diagnosed.
+        diagnostic = _static_diagnostic("instrumentation_report_identity_mismatch")
+        if len(cases) == 1:
+            elements = list(cases[0].findall("failure")) + list(cases[0].findall("error"))
+            if len(elements) == 1:
+                diagnostic = _failure_element_diagnostic(
+                    elements[0], code="instrumentation_report_identity_mismatch", counts=counts)
+        diagnostic["counts"] = counts
+        diagnostic["identity"] = {
+            "suiteExpected": suite.tag == "testsuite",
+            "countsExpected": counts["tests"] == 1 and counts["skipped"] == 0,
+            "caseCount": len(cases),
+            "classExpected": len(cases) == 1 and cases[0].attrib.get("classname") == TEST_CLASS,
+            "methodExpected": len(cases) == 1 and cases[0].attrib.get("name") == TEST_NAME,
+        }
+        return diagnostic
     failures = list(cases[0].findall("failure"))
     errors = list(cases[0].findall("error"))
     if (counts == {"tests": 1, "skipped": 0, "failures": 1, "errors": 0}
@@ -242,7 +266,8 @@ def failure_receipt(
     if _DIGEST.fullmatch(package_digest) is None:
         raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
     if set(diagnostic) not in ({"code", "exceptionType", "frames"}, {
-            "code", "exceptionType", "frames", "counts"}):
+            "code", "exceptionType", "frames", "counts"}, {
+            "code", "exceptionType", "frames", "counts", "identity"}):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
     exception_type = diagnostic.get("exceptionType")
@@ -258,9 +283,22 @@ def failure_receipt(
                 or not 1 <= frame["line"] <= 1_000_000):
             raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     counts = diagnostic.get("counts")
+    identity = diagnostic.get("identity")
+    mismatch = code == "instrumentation_report_identity_mismatch"
+    if mismatch:
+        if (type(identity) is not dict or set(identity) != {
+                "suiteExpected", "countsExpected", "caseCount", "classExpected", "methodExpected"}
+                or any(type(identity[key]) is not bool for key in (
+                    "suiteExpected", "countsExpected", "classExpected", "methodExpected"))
+                or type(identity["caseCount"]) is not int
+                or not 0 <= identity["caseCount"] <= 1024
+                or counts is None):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    elif identity is not None:
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     if counts is not None and (type(counts) is not dict
             or set(counts) != {"tests", "skipped", "failures", "errors"}
-            or any(type(value) is not int or not 0 <= value <= 1
+            or any(type(value) is not int or not 0 <= value <= (1024 if mismatch else 1)
                    for value in counts.values())):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     expected_counts = {
@@ -271,7 +309,7 @@ def failure_receipt(
             "tests": 1, "skipped": 0, "failures": 0, "errors": 1,
         },
     }
-    if ((code in expected_counts) != (counts is not None)
+    if not mismatch and ((code in expected_counts) != (counts is not None)
             or counts is not None and counts != expected_counts[code]):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     return {

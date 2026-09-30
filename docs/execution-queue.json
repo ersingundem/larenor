@@ -5295,7 +5295,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Exact f5b382ce/run36772277001 arm64 AAR/APKyi; x86 AAR/APK, NLA host ve emulatoru geçti, named instrumentation çalıştı fakat altı saniyede düştü. Saklanan log assertionı göstermediği için runtime nedeni henüz bilinmiyor. Source/package bağlı, yalnız allowlisted exception ve owned filename/line içeren bounded failure receipt eklendi; root 28 araç testi geçti. Yeni exact gerçek Android→NLA bir test/sıfır skip receipt tamamlanmadan uygulanmış kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX MANUAL açık. Kanıt: docs/testing/f62-safe-native-failure-diagnostics-2026-09-30.md."
+      "reason": "Uygulama tamamlandı, gerçek native test bekliyor: normal Core managed-profile authority kabulü geçti. Exacte3ae7cb3 run36776341714 gerçek AAR/APK buildlerini geçti, owned-host instrumentation düştü; güvenli artifact report identity mismatch verdi, adlandırılmış test kabulü yok. Failure-only diagnostic counts/identity booleans ve owned constructor/source frames ile genişletildi; 30 focused policy/runner/package testi geçti. Success receipt değişmedi; yeni exact packaged native tek method/0skip gerçek kabul kapanmadan CI bekliyor/done sayılmaz."
     },
     {
       "id": "F61",

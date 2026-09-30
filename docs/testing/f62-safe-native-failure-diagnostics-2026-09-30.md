@@ -57,3 +57,30 @@ also passed. Adding the unchanged F62 Android dependency and immutable package
 policy suites produced 27/27 passing focused tests.
 
 Root independent verification: 28 focused runner/workflow/package/dependency tests passed after adding the packaged production runtime source directory to the public frame allowlist. A packaged runtime frame is retained while its private exception message is discarded. This diagnostic change does not establish successful native acceptance.
+
+## Initialization/report-identity diagnostic gap — 1 October
+
+[Run 36776341714](https://github.com/ersingundem/larenor/actions/runs/36776341714)
+on exact `e3ae7cb36e6155ca4cab287befb347dc8058d138` again built the receipted
+arm64/x86 AARs and real Larenor APKs. Its x86 owned-host instrumentation failed.
+The public artifact was bound to that source, package receipt and host versions,
+but reported only `instrumentation_report_identity_mismatch`. It did not prove
+that the named acceptance method executed and provided no owned frame. No
+native acceptance is inferred from that report.
+
+The failure-only parser now keeps bounded test counts and identity comparison
+booleans, without publishing arbitrary class/method/suite names. A synthetic
+initialization testcase can retain only the existing allowlisted exception
+class and up to eight real owned source-file/line frames. Native constructor
+and static-initializer frames are included; standard class-loading/linking
+exception types are bounded enum values. Messages, paths, credentials and raw
+JUnit remain excluded and raw reports are removed. The successful acceptance
+parser is unchanged: it still requires the exact class/method, one executed
+test, no skip and no failure/error.
+
+Root passed 30 focused runner/workflow/package/dependency tests. The added
+regressions prove that initialization identity cannot pass acceptance, private
+method/message/library paths never enter public JSON, owned constructor frames
+are retained and malformed/oversized identity values are rejected. This repairs
+the observed diagnostic gap before a new exact owned-host run; it does not
+claim to have fixed an as-yet-unidentified RDP runtime defect.
