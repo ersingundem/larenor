@@ -122,3 +122,13 @@ Primary contracts:
 - `loginctl enable-linger` starts a user manager at boot and keeps it after the
   last login session ends:
   <https://www.freedesktop.org/software/systemd/man/latest/loginctl.html>
+
+## First actual Linux CI preparation correction
+
+Exact `d8f17838f` run `36737286388` stopped before the IPC test in user-manager
+preparation. The untraced log does not prove which command stopped. Review
+found a definite permission bug: the runner attempted `test -S` inside the
+UID10003 mode0700 runtime directory. The check now runs under sudo, manager
+startup is bounded/nonblocking, and a failed readiness check prints unit
+status/journal. actionlint and focused workflow policy passed; a changed exact
+commit run is needed to establish actual IPC/cgroup acceptance.

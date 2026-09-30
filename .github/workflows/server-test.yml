@@ -35,14 +35,26 @@ jobs:
 
       - name: Prepare the dedicated unprivileged AI user manager
         run: |
+          set -x
           sudo groupadd --gid 10001 larenor-core
           sudo useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin larenor-core
           sudo groupadd --gid 10002 larenor-ipc
           sudo groupadd --gid 10003 larenor-ai
           sudo useradd --uid 10003 --gid 10003 --groups 10002 --create-home --home-dir /var/lib/larenor-ai --shell /usr/sbin/nologin larenor-ai
           sudo loginctl enable-linger larenor-ai
-          sudo systemctl start user@10003.service
-          test -S /run/user/10003/bus
+          sudo systemctl start user-runtime-dir@10003.service
+          sudo systemctl start --no-block user@10003.service
+          for attempt in $(seq 1 30); do
+            if sudo systemctl is-active --quiet user@10003.service && sudo test -S /run/user/10003/bus; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              sudo systemctl --no-pager --full status user-runtime-dir@10003.service user@10003.service || true
+              sudo journalctl --no-pager --unit=user-runtime-dir@10003.service --unit=user@10003.service --lines=100 || true
+              exit 1
+            fi
+            sleep 1
+          done
           chmod -R a+rX "$UV_PROJECT_ENVIRONMENT"
 
       - name: Prove Core UID IPC to the actual user-manager cgroup runtime
