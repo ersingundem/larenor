@@ -58,6 +58,8 @@ final class PantryStockAccountApi {
       },
     ),
     expected: context,
+    expectedRequestId: requestId,
+    expectedKind: 'receive',
   );
 
   Future<PantryMutation> consume({
@@ -78,6 +80,8 @@ final class PantryStockAccountApi {
       },
     ),
     expected: context,
+    expectedRequestId: requestId,
+    expectedKind: 'consume',
   );
 
   Future<PantryMutation> undo({
@@ -96,6 +100,8 @@ final class PantryStockAccountApi {
       },
     ),
     expected: context,
+    expectedRequestId: requestId,
+    expectedKind: 'undo',
   );
 
   void close() => _closed = true;

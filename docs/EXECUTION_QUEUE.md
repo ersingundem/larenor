@@ -17,7 +17,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 7 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 0 | 3 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 2 | 0 | 8 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 4 | 0 | 4 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 3 | 0 | 5 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 1 | 0 | 4 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
@@ -124,7 +124,6 @@ Tamamlanan ve test/CI bekleyen işler
 | F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
-| F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
@@ -155,6 +154,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F28 | Sesli kitap ve podcast merkezi | CI bekliyor | — |
 | F29 | Parti DJ'i ve ortak şarkı oylaması | CI bekliyor | — |
 | F30 | Medya arşivi sağlık ve yer tasarrufu | CI bekliyor | — |
+| F32 | Dolap stoğu ve son kullanma takibi | CI bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | CI bekliyor | — |
 | F35 | Ev belgeleri ve garanti hatırlatmaları | CI bekliyor | — |
 | F38 | Aile anıları ve fotoğraf araması | CI bekliyor | — |

@@ -4326,7 +4326,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Dolap stoğu ve son kullanma takibi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4349,7 +4349,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sürümlü ve AES-GCM korumalı Core stoğu; revision CAS ve idempotent makbuzlarla lot ekleme, en erken son kullanma tarihinden tüketme, yinelenen barkod/lot reddi ve tüketimi geri alma; tablet Client üzerinde lot/tarih/birim girişi, barkoddan kararlı kimlik, stok görünümü ve undo akışı tamamlandı. Özellik testleri kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Client→Core E2E, eşzamanlılık/bozuk-geç cevap paketi, bağımsız inceleme ve exact-head CI açık."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Gerçek Flutter account/pantry API/controller → normal TCP Core iki lot, FEFO tüketim, exact replay, undo, stale CAS, route retire ve ayrı Core/Client restart sonrası kalıcı iki lot/tek undo kapısını geçti. Eski receipt ile güncel snapshotın yanlış reddi düzeltildi; receipt exact requestId/kind ve revision<=snapshot ile doğrulanır. 7 Server, 4 Client contract ve iki gerçek Client fazı root doğrulamasından geçti; analyze temiz. Fiziksel miktar/barkod/tablet MANUAL kayıtlarında açık; sayaç artmadı. docs/testing/f32-normal-core-tcp-acceptance-2026-09-30.md."
     },
     {
       "id": "F33",

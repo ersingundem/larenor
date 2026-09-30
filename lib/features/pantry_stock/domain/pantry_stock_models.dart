@@ -233,12 +233,21 @@ final class PantryMutation {
   factory PantryMutation.fromResponse(
     Object? raw, {
     required ServerContext expected,
+    required String expectedRequestId,
+    required String expectedKind,
   }) {
     final response = _object(raw, {'scope', 'receipt', 'snapshot'});
     _scope(response['scope'], expected);
     final receipt = PantryReceipt.fromJson(response['receipt']);
     final snapshot = PantrySnapshot.fromJson(response['snapshot']);
-    if (receipt.revision != snapshot.revision) _invalid();
+    // An idempotent replay keeps its original receipt, while Core returns the
+    // current stock snapshot. A later snapshot must not invalidate that receipt
+    // or roll the Client back to an earlier balance.
+    if (receipt.revision > snapshot.revision ||
+        receipt.requestId != expectedRequestId ||
+        receipt.kind != expectedKind) {
+      _invalid();
+    }
     return PantryMutation(receipt: receipt, snapshot: snapshot);
   }
 
