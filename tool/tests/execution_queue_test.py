@@ -150,6 +150,18 @@ class ValidationTest(unittest.TestCase):
         complete(node)
         self.invalid(data, 'dependencies_unfinished')
 
+    def test_final_steps_wait_for_completed_predecessor_evidence(self):
+        data = fixture()
+        data['nodes'].extend([
+            {'id': 'FINAL', 'kind': 'group', 'parent': None, 'title': 'Son kapılar'},
+            task('FINAL.FUNCTION', 'FINAL', status='awaiting_ci'),
+            task('FINAL.UI', 'FINAL', dependsOn=['FINAL.FUNCTION']),
+        ])
+        model = queue.validate_queue(data)
+        self.assertEqual(model.blockers('FINAL.UI'), ['FINAL.FUNCTION'])
+        complete(data['nodes'][-2])
+        self.assertEqual(queue.validate_queue(data).blockers('FINAL.UI'), [])
+
     def test_ci_metadata_does_not_accept_other_hosts_queries_credentials_or_short_sha(self):
         for ref in ['https://example.com/actions/runs/1',
                     'https://github.com/another/repo/actions/runs/1',
@@ -284,7 +296,7 @@ class CliJourneyTest(unittest.TestCase):
         self.assertEqual(view['awaitingCi'][0]['id'], 'F01')
         self.assertEqual(view['needsUser'][0]['id'], 'F02')
 
-    def test_render_paginates_and_escapes_data_without_running_or_writing_it(self):
+    def test_render_lists_all_pending_and_escapes_without_running_or_writing_it(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'queue.json'; data = fixture()
             data['nodes'][2]['title'] = '<script>|$(touch NEVER)|`echo unsafe`'
@@ -294,12 +306,9 @@ class CliJourneyTest(unittest.TestCase):
             self.assertEqual((result, error), (0, ''))
             self.assertIn('&lt;script&gt;', output)
             self.assertIn('F01', output); self.assertIn('F02', output)
-            self.assertNotIn('| F03 |', output)
+            self.assertIn('| F03 |', output); self.assertIn('| F63 |', output)
             self.assertEqual(path.read_bytes(), before)
             self.assertEqual(sorted(p.name for p in Path(directory).iterdir()), ['queue.json'])
-            second = self.run_cli(['render', '--file', str(path), '--group', 'G',
-                                   '--page-size', '2', '--page', '2'])[1]
-            self.assertIn('| F03 |', second); self.assertNotIn('| F01 |', second)
 
     def test_invalid_cli_input_fails_statically_without_traceback_or_data_leak(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -326,7 +335,7 @@ class CliJourneyTest(unittest.TestCase):
             result, output, error = self.run_cli(['status', '--file', str(path)])
             self.assertEqual((result, error), (0, ''))
             self.assertIn('fiziksel kabul ayrı', output)
-            self.assertIn('| G — İşler | 63 | 0 | 1 | 0 | 1 |', output)
+            self.assertIn('| G — İşler | 63 | 0 | 0 | 1 | 0 | 1 |', output)
 
     def test_real_queue_matches_all_selected_sources_and_dependency_scope(self):
         model = queue.load_queue(ROOT / 'docs/execution-queue.json')
@@ -335,7 +344,9 @@ class CliJourneyTest(unittest.TestCase):
         ids = {'F%02d' % n for n in selected['selected'] + remote['selected']}
         self.assertEqual(set(model.data['selectedFeatures']), ids)
         for number, dependencies in selected['implementation']['requires'].items():
-            self.assertTrue(set(dependencies) <= set(model.nodes['F%02d' % int(number)]['dependsOn']))
+            node = model.nodes['F%02d' % int(number)]
+            self.assertTrue(set(dependencies) <=
+                            set(node['dependsOn'] + node['finishDependsOn']))
         for feature in remote['features']:
             node = model.nodes['F%02d' % feature['id']]
             self.assertNotIn('B3', node['dependsOn'])

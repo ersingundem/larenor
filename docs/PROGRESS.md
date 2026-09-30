@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 27 Eylül 2026, birleşmiş yazılım tabanı `ffad5364`, tek çalışma dalı `353961c3` — 37/125 kuyruk işi ve 3/63 seçili özellik kabul edildi. F31, F06 ve F34'ün daha önce tamamlanan exact ürün/test/review/CI kanıtları, ortak bağımlılıkları da kapandığı için kuyrukta kabul edildi. K10, K12, F08, F16, F17, F18, F19, F20, F21, F25, F26, F27, F28, F32, F53, F54, F56, F62 ve F63 yazılımı tek çalışma dalında tamamlandı ve final exact CI bekliyor. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100`, yazılım kabul tabanı `52b30612` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. F01–F63 ile ürün işlerinin uygulamaları final fonksiyonellik geçişinde toplandı; tam Flutter paketi ve bütün platform politika paketi geçti, Server/Core tam paketi ile exact-head CI bekleniyor. `FINAL.FUNCTION` bu kanıtlar tamamlanmadan kabul edilmeyecek; `FINAL.UI` veya başka bir final maddesi başlatılmayacak. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
-Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/125 iş (%29,6; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/126 iş (%29,4; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -16,6 +16,28 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül FINAL.FUNCTION — tek final maddesinin kabul koşusu
+
+Tek çalışma dalındaki fonksiyonellik geçişi Client/Flutter, Android platform
+ve Server/Core olarak kapatılıyor. Uygulama test tabanı `06f5551a` üzerinde
+Flutter tam paketinde 7.637 test geçti, 4 platform testi atlandı; statik analiz
+sıfır sorunla geçti. `52b30612` üzerinde tüm platform politika paketi 442 geçti,
+4 atlandı. Server/Core tam paketi ve exact-head CI bekleniyor.
+Backup v3 geri kazanma kimliği, Home Assistant komut makbuzu, oynatma kalite
+gözlemi, tablet uzaktan sözleşmesi, müzik sağlayıcı gizliliği ve ağ fixture
+kapanış yarışı bulunan gerçek uyumsuzluklar olarak düzeltildi. İlerleme kapısı
+workflow tabanı `52b30612` dahil 323 commit'i doğruladı. Ayrıntılı komut ve kapsam
+[FINAL.FUNCTION kabul kaydında](testing/final-function-acceptance-2026-09-30.md)
+tutuluyor.
+
+`FINAL.FUNCTION` uygulaması tamamlandı ve **CI bekliyor**. Server/Core tam
+paketi ile Security, Server API & Storage ve Android Build aynı son belge
+commit'inde geçmeden
+kanıtla tamamlandı sayılmayacak. Bu sırada `FINAL.UI`,
+`FINAL.AUDIT`, `FINAL.CI`, `FINAL.GALLERY` ve `FINAL.README` bağımlılık
+bekleyecek; aynı anda ikinci final maddesi alınmayacak. Sayaçlar **37/126
+(%29,4)** ve **3/63 (%4,8)** olarak değişmedi.
 
 ### 27 Eylül F08 yapay zekâ kaynak yöneticisi — uygulama tamamlandı, test bekliyor
 

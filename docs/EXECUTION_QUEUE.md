@@ -22,14 +22,14 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 5 | 0 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
-| FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
+| FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 1 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
 Şu anda çalışılanlar
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -172,3 +172,4 @@ Tamamlanan ve test/CI bekleyen işler
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
+| FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | CI bekliyor | — |

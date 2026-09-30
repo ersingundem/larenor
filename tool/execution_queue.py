@@ -264,7 +264,14 @@ class Queue:
         if finishing:
             deps.extend(node['finishDependsOn'])
             return [dep for dep in deps if not self.is_done(dep)]
-        return [dep for dep in deps if not self.is_implemented(dep)]
+        # Final gates are deliberately serial. An awaiting-CI final step is
+        # implemented, but the following final step must not start until its
+        # predecessor has completed every evidence gate.
+        return [dep for dep in deps
+                if not (self.is_done(dep)
+                        if node['parent'] == 'FINAL'
+                        and self.nodes[dep]['parent'] == 'FINAL'
+                        else self.is_implemented(dep))]
 
     def tasks(self, group=None):
         if group is not None:

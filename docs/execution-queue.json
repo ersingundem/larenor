@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-09-27",
+  "updatedAt": "2026-09-30",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -5331,7 +5331,7 @@
       "kind": "task",
       "parent": "FINAL",
       "title": "Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B1",
         "B2",
@@ -5371,7 +5371,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif final maddesi olarak Flutter ürün yüzeyi, Android/platform ve Server/Core ön kabul denetimleri yürütülüyor; bulunan kopuk rota, yanıltıcı hata ve eski sözleşme fixture düzeltmeleri ayrı commitlerle doğrulanıyor."
+      "reason": "Uygulama kapısı tamamlandı: 06f5551a tabanında Flutter tam paketi 7.637 geçti/4 platform testi atlandı ve analyze temiz; 52b30612 tabanında platform politikası 442 geçti/4 atlandı, kuyruk testi 25/25 geçti ve ilerleme kapısı workflow tabanına kadar 323 commit doğruladı. Server/Core tam paketi ile aynı son belge commitindeki Security, Server API & Storage ve Android Build exact-head CI sonucu bekleniyor; bu sırada başka FINAL maddesi başlatılmaz."
     },
     {
       "id": "FINAL.UI",
