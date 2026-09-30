@@ -85,6 +85,15 @@ UNITS = (
     "larenor-proxmox-power-worker.service",
     "larenor-nut-bridge.service",
 )
+RELEASE_PHASES = frozenset({
+    "server_venv", "server_install", "server_check",
+    "unmanic_venv", "unmanic_install", "unmanic_check",
+    "preflight_help", "installation_help", "component_backup_help",
+    "media_archive_help", "ai_help", "mesh_help", "keenetic_help",
+    "proxmox_power_help", "proxmox_supervisor_help", "nut_bridge_help",
+    "callback_package_help", "unmanic_help", "callback_package",
+    "encoder_package", "sysusers", "tmpfiles", "daemon_reload",
+})
 
 
 class HostWorkerPackageError(RuntimeError):
@@ -94,9 +103,18 @@ class HostWorkerPackageError(RuntimeError):
         "activation_failed",
     })
 
-    def __init__(self, code="bundle_invalid"):
+    def __init__(self, code="bundle_invalid", phase=None):
         self.code = code if code in self.CODES else "bundle_invalid"
+        self.phase = (
+            phase
+            if self.code == "release_invalid" and phase in RELEASE_PHASES
+            else None
+        )
         super().__init__(self.code)
+
+    @property
+    def safe_message(self):
+        return self.code + (":" + self.phase if self.phase is not None else "")
 
 
 def _pairs(values):
@@ -219,14 +237,14 @@ def preview(bundle):
     return body
 
 
-def _run(command, *, timeout=120):
+def _run(command, *, timeout=120, phase=None):
     try:
         result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, timeout=timeout, check=False)
     except (OSError, subprocess.SubprocessError):
-        raise HostWorkerPackageError("release_invalid") from None
+        raise HostWorkerPackageError("release_invalid", phase) from None
     if result.returncode or len(result.stdout) > 1024 * 1024 or len(result.stderr) > 1024 * 1024:
-        raise HostWorkerPackageError("release_invalid")
+        raise HostWorkerPackageError("release_invalid", phase)
 
 
 def _root_directory(path, *, mode=None):
@@ -246,35 +264,35 @@ def _root_directory(path, *, mode=None):
 def _validate_entrypoints(release):
     # Executing the installed script catches a stale venv shebang as well as
     # missing package/dependency imports. --help must not start any service.
-    for relative in (
-        "server/bin/larenor-preflight-worker",
-        "server/bin/larenor-installation-worker",
-        "server/bin/larenor-component-backup-worker",
-        "server/bin/larenor-media-archive-worker",
-        "server/bin/larenor-ai-worker",
-        "server/bin/larenor-mesh-worker",
-        "server/bin/larenor-keenetic-worker",
-        "server/bin/larenor-proxmox-power-worker",
-        "server/bin/larenor-proxmox-power-supervisor",
-        "server/bin/larenor-nut-bridge",
-        "server/bin/larenor-unmanic-callback-package",
-        "unmanic/bin/unmanic",
+    for relative, phase in (
+        ("server/bin/larenor-preflight-worker", "preflight_help"),
+        ("server/bin/larenor-installation-worker", "installation_help"),
+        ("server/bin/larenor-component-backup-worker", "component_backup_help"),
+        ("server/bin/larenor-media-archive-worker", "media_archive_help"),
+        ("server/bin/larenor-ai-worker", "ai_help"),
+        ("server/bin/larenor-mesh-worker", "mesh_help"),
+        ("server/bin/larenor-keenetic-worker", "keenetic_help"),
+        ("server/bin/larenor-proxmox-power-worker", "proxmox_power_help"),
+        ("server/bin/larenor-proxmox-power-supervisor", "proxmox_supervisor_help"),
+        ("server/bin/larenor-nut-bridge", "nut_bridge_help"),
+        ("server/bin/larenor-unmanic-callback-package", "callback_package_help"),
+        ("unmanic/bin/unmanic", "unmanic_help"),
     ):
         executable = release / relative
         if (not executable.is_file() or executable.is_symlink()
                 or not os.access(executable, os.X_OK)):
             raise HostWorkerPackageError("release_invalid")
-        _run([str(executable), "--help"])
+        _run([str(executable), "--help"], phase=phase)
 
 
 def _install_environments(release, bundle, python):
     for name, wheels in (("server", bundle["server"]), ("unmanic", bundle["unmanic"])):
         target = release / name
-        _run([str(python), "-m", "venv", str(target)])
+        _run([str(python), "-m", "venv", str(target)], phase=name + "_venv")
         interpreter = target / "bin/python"
         _run([str(interpreter), "-m", "pip", "install", "--no-index", "--no-deps",
-              *[str(item) for item in wheels]], timeout=300)
-        _run([str(interpreter), "-m", "pip", "check"])
+              *[str(item) for item in wheels]], timeout=300, phase=name + "_install")
+        _run([str(interpreter), "-m", "pip", "check"], phase=name + "_check")
     _validate_entrypoints(release)
 
 
@@ -304,7 +322,7 @@ def _install_release(bundle, python):
             _run([
                 str(release / "server/bin/larenor-unmanic-callback-package"),
                 "--kind", kind, "--output", str(release / (kind + ".zip")),
-            ])
+            ], phase=kind + "_package")
             plugin = release / (kind + ".zip")
             if (not plugin.is_file() or plugin.is_symlink()
                     or plugin.stat().st_uid != 0
@@ -358,7 +376,8 @@ def install(bundle, python=Path("/usr/bin/python3")):
     source = Path(__file__).resolve().parent
     for name, (destination, mode) in ASSETS.items():
         _install_asset(source / name, destination, mode)
-    _run(["/usr/bin/systemd-sysusers", "/usr/lib/sysusers.d/larenor-host-workers.conf"])
+    _run(["/usr/bin/systemd-sysusers", "/usr/lib/sysusers.d/larenor-host-workers.conf"],
+         phase="sysusers")
     try:
         ipc = grp.getgrnam("larenor-ipc")
         if ipc.gr_gid != 10002 or grp.getgrgid(10002).gr_name != "larenor-ipc":
@@ -408,14 +427,15 @@ def install(bundle, python=Path("/usr/bin/python3")):
             raise KeyError()
     except KeyError:
         raise HostWorkerPackageError("host_identity_invalid") from None
-    _run(["/usr/bin/systemd-tmpfiles", "--create", "/usr/lib/tmpfiles.d/larenor-host-workers.conf"])
+    _run(["/usr/bin/systemd-tmpfiles", "--create", "/usr/lib/tmpfiles.d/larenor-host-workers.conf"],
+         phase="tmpfiles")
     current = PREFIX / "current"
     link = PREFIX / ".current-new"
     if link.exists() or link.is_symlink():
         link.unlink()
     os.symlink(release.relative_to(PREFIX), link)
     os.replace(link, current)
-    _run(["/usr/bin/systemctl", "daemon-reload"])
+    _run(["/usr/bin/systemctl", "daemon-reload"], phase="daemon_reload")
     return preview(bundle)
 
 
@@ -563,7 +583,7 @@ def main(argv=None):
         print(_canonical(result))
         return 0
     except HostWorkerPackageError as error:
-        print(error.code, file=sys.stderr)
+        print(error.safe_message, file=sys.stderr)
         return 1
 
 

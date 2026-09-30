@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 from io import BytesIO
 from pathlib import Path
+import subprocess
 import tarfile
 
 from fastapi import APIRouter
@@ -20,6 +21,10 @@ TCP_HELPER = ROOT / "server/tests/support/installed_core_tcp.py"
 TCP_SPEC = importlib.util.spec_from_file_location("installed_core_tcp", TCP_HELPER)
 tcp = importlib.util.module_from_spec(TCP_SPEC)
 TCP_SPEC.loader.exec_module(tcp)
+INSTALLER = ROOT / "deploy/larenor-server/host_workers/install.py"
+INSTALLER_SPEC = importlib.util.spec_from_file_location("host_worker_install", INSTALLER)
+installer = importlib.util.module_from_spec(INSTALLER_SPEC)
+INSTALLER_SPEC.loader.exec_module(installer)
 
 
 def _archive(path, members):
@@ -185,3 +190,21 @@ def test_installed_core_client_uses_actual_normal_core_loopback_tcp(tmp_path):
         )
         assert status == 200
         assert value == {"actual": "tcp"}
+
+
+def test_installer_reports_only_a_fixed_phase_when_a_child_fails(monkeypatch):
+    monkeypatch.setattr(
+        installer.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            (), 1, stdout=b"synthetic secret output", stderr=b"private detail"
+        ),
+    )
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._run(["/synthetic/command"], phase="unmanic_help")
+    assert captured.value.safe_message == "release_invalid:unmanic_help"
+    assert "secret" not in captured.value.safe_message
+    assert "private" not in captured.value.safe_message
+
+    unknown = installer.HostWorkerPackageError("release_invalid", "secret-value")
+    assert unknown.safe_message == "release_invalid"

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host installer güvenli hata aşaması
+
+Exact `747b2717556e83d8a2e53d387cfd7ad134b75dce` host `36753201469` bundle üretimini geçti ancak gerçek production installer exit 1 verdi; test captured stderr'i gizlediği için hangi aşama olduğu kanıtlanamıyordu. Installer yalnız sabit allowlist aşama kodunu döndürür; child stdout/stderr/log/gizli içerik görünmez. Hosted test bu güvenli kodu görünür yapar. 7 odaklı test geçti, Linux kapısı yerelde skip; yeni tanı exact'i çalıştırılacak, eski koşu körlemesine tekrarlanmadı.
+
 ### 30 Eylül F59 gerçek yazıcı kayıt ve kontrol kabulü
 
 Client authenticated OctoPrint/Moonraker servis kataloğundan yazıcı kaydeder; iş/ısı/stop yetkisi taze provider gözleminden türetilir. Filament miktarı gerçek API'de yoksa unknown/null kalır. Stable service registrationId kayıp ACK/restart çift kaydını önler; I/O sırasında admin iptali sıfır kayıt verir. 21 Server, 21 Flutter ve gerçek Client→normal Core→owned OctoPrint iki fazı geçti; pause POST sayısı restart/replay boyunca bir kaldı. F59 CI bekliyor tablosuna taşındı: 45 özellik geniş CI bekliyor, kabul sayaçları değişmedi. [F59 kanıtı](testing/f59-real-provider-2026-09-30.md).

@@ -3,6 +3,7 @@ import json
 import pwd
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -117,9 +118,19 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         installed_release = subprocess.run(
             [package_python, installer, "--bundle", bundle, "--python", package_python,
              "--install"],
-            check=True, timeout=600, text=True, stdout=subprocess.PIPE,
+            check=False, timeout=600, text=True, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        if installed_release.returncode != 0:
+            detail = installed_release.stderr.strip()
+            assert re.fullmatch(
+                r"(?:bundle_invalid|host_unsupported|host_identity_invalid|"
+                r"asset_install_failed|private_config_invalid|activation_failed|"
+                r"release_invalid(?::[a-z][a-z0-9_]{0,63})?)",
+                detail,
+            ), "host_installer_unsafe_failure"
+            pytest.fail("host_installer_failed:" + detail)
+        assert installed_release.stderr == ""
         assert json.loads(installed_release.stdout) == preview
         current = prefix / "current"
         release = prefix / "releases" / source_revision
