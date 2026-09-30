@@ -196,3 +196,5 @@ regressions and14 fixed native tests/zero skips, plus receipted production/Andro
 compile. IME/bidirectional capability truth and current external-display snapshot
 corrections remain active; F62 is reworking, broad CI counts58/67 unchanged.
 See [ACK lifecycle evidence](f62-frame-ack-lifecycle-2026-10-01.md).
+
+F60 output witness slice: real MediaCodec rendered-frame callbacks and full positive AudioTrack writes are exact-lease/connection/stop fenced, private and bounded to one witness each. Source-locked fresh AAR/APK verification,29 Moonlight and46 combined native tests/zero skips passed; root independently checked7 package tests,4 XML counts and both APK verifiers. This is linkage/lifecycle evidence; real owned-Sunshine frame/PCM observation and physical output remain open. F60 stays reworking,58 selected/67 total await broad CI,37/127 and3/63 acceptance counts are unchanged. See [output witness evidence](f60-moonlight-output-witness-2026-10-01.md).

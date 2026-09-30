@@ -43,7 +43,7 @@
   "patches": [
     {
       "path": "android/moonlight/patches/0001-embed-library.patch",
-      "sha256": "06cc81c69805eb92fed2becd14a1c3f38f30e80ac150ace1a9abca88de39b347"
+      "sha256": "fecdb1c3f37b9f52eedb8186c59029a54e8d2b241d4291a762ccb34a5ec18bed"
     }
   ],
   "reviewedFiles": {
@@ -112,7 +112,9 @@
     "audio",
     "input",
     "stream",
-    "causalStop"
+    "causalStop",
+    "renderedFrameWitness",
+    "acceptedPcmWriteWitness"
   ],
   "requiredSources": [
     "app/src/main/java/com/limelight/Game.java",

@@ -147,14 +147,14 @@ index d916899e..29fed4ec 100644
 -            android:exported="true"
 +            android:exported="false"
 diff --git a/app/src/main/java/com/limelight/Game.java b/app/src/main/java/com/limelight/Game.java
-index 8d369b3e..21717f9e 100644
+index 8d369b3e..55458d9d 100644
 --- a/app/src/main/java/com/limelight/Game.java
 +++ b/app/src/main/java/com/limelight/Game.java
 @@ -2242,0 +2243 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 +            onConnectionStopStarted();
 @@ -2245,0 +2247 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 +                    onConnectionStopCompleted();
-@@ -2250,0 +2253,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
+@@ -2250,0 +2253,28 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 +    /** Called immediately before the local stop worker is started. */
 +    protected void onConnectionStopStarted() {
 +    }
@@ -168,6 +168,46 @@ index 8d369b3e..21717f9e 100644
 +    protected void onConnectionStopCompleted() {
 +    }
 +
++    /**
++     * Called only from MediaCodec.OnFrameRenderedListener after Android reports
++     * an output frame rendered on the configured surface. The default
++     * standalone application does not retain or publish this observation.
++     */
++    public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos) {
++    }
++
++    /**
++     * Called only after AudioTrack accepted the complete decoded PCM write.
++     * The callback contains counts only and never exposes PCM data.
++     */
++    public void onAudioPcmWritten(int requestedSamples, int writtenSamples) {
++    }
++
+diff --git a/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java b/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java
+index dc25cc89..be2695c4 100644
+--- a/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java
++++ b/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java
+@@ -11,0 +12 @@ import android.os.Build;
++import com.limelight.Game;
+@@ -195 +196,4 @@ public class AndroidAudioRenderer implements AudioRenderer {
+-            track.write(audioData, 0, audioData.length);
++            int writtenSamples = track.write(audioData, 0, audioData.length);
++            if (writtenSamples > 0 && writtenSamples == audioData.length && context instanceof Game) {
++                ((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);
++            }
+diff --git a/app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java b/app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java
+index 5d4e44ec..f5a5d87b 100644
+--- a/app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java
++++ b/app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java
+@@ -16,0 +17 @@ import com.limelight.BuildConfig;
++import com.limelight.Game;
+@@ -660 +661 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
+-        if (USE_FRAME_RENDER_TIME && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+@@ -663,0 +665,3 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
++                    if (activity instanceof Game) {
++                        ((Game) activity).onVideoFrameRendered(presentationTimeUs, renderTimeNanos);
++                    }
 diff --git a/app/src/main/jni/moonlight-core/Android.mk b/app/src/main/jni/moonlight-core/Android.mk
 index f32fc9dc..e7c6fffc 100644
 --- a/app/src/main/jni/moonlight-core/Android.mk

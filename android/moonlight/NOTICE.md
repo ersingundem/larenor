@@ -35,6 +35,21 @@ The patch also adds a protected causal-stop hook immediately after the actual
 `NvConnection.stop()` call returns. This is necessary because the pinned
 moonlight-common-c intentionally suppresses `connectionTerminated` for a local
 `LiStopConnection`; the hook does not treat Activity destruction as a stop.
+The patch also forwards two bounded, data-free output observations to the
+embedding activity: Android's `MediaCodec.OnFrameRenderedListener` callback
+after a frame is rendered on the output surface, and a full positive return
+from the blocking PCM `AudioTrack.write()` call. It does not retain pixels or
+audio samples, and it does not present submitted decoder buffers, dropped
+audio, or Activity lifecycle as rendered/accepted output.
+
+Android defines `OnFrameRenderedListener` as notification that an output frame
+rendered on the surface, while noting that callbacks may be delayed, batched,
+or omitted. Android defines `AudioTrack.write()` as returning the positive
+amount actually written, with zero/negative values and short transfers possible
+when playback cannot accept the complete request:
+
+- <https://developer.android.com/reference/android/media/MediaCodec#setOnFrameRenderedListener(android.media.MediaCodec.OnFrameRenderedListener,%20android.os.Handler)>
+- <https://developer.android.com/reference/android/media/AudioTrack#write(short[],%20int,%20int,%20int)>
 
 The complete corresponding source is the exact recursive checkout named by
 `source-lock.json`, plus `patches/0001-embed-library.patch`. The packaging tool

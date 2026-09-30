@@ -57,10 +57,53 @@ class MoonlightEmbeddedRuntimeTest {
         assertNotNull(ControllerHandler::class.java)
         assertNotNull(Game::class.java.getDeclaredMethod("onConnectionStopStarted"))
         assertNotNull(Game::class.java.getDeclaredMethod("onConnectionStopCompleted"))
+        assertNotNull(Game::class.java.getDeclaredMethod(
+            "onVideoFrameRendered", Long::class.javaPrimitiveType, Long::class.javaPrimitiveType,
+        ))
+        assertNotNull(Game::class.java.getDeclaredMethod(
+            "onAudioPcmWritten", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+        ))
         assertEquals(
             "moonlight-android-12.2-larenor-embed-v2",
             MoonlightEmbeddedRuntime.ENGINE_REVISION,
         )
+    }
+
+    @Test fun renderedFrameAndAcceptedPcmWitnessesAreExactBoundedAndLeaseFenced() {
+        fun activity() = Robolectric.buildActivity(Activity::class.java).setup().visible().get().also {
+            it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+        }
+        val observations = mutableListOf<MoonlightLeaseObservation>()
+        val first = MoonlightForegroundLeaseRegistry.issue(launchSpec(), observations::add)
+        MoonlightForegroundLeaseRegistry.claim(first.token, activity())
+
+        assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        MoonlightForegroundLeaseRegistry.connectionStarted(first.token)
+        shadowOf(Looper.getMainLooper()).idle()
+        repeat(10) { MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token) }
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 0))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 4))
+        repeat(10) { MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8) }
+        assertEquals(
+            MoonlightOutputWitnessSnapshot(first.sessionId, first.epoch, 1, 1),
+            MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(first.token),
+        )
+        assertEquals(listOf("connectionStarted"), observations.map { it.observationKind })
+
+        MoonlightForegroundLeaseRegistry.retireSession(first.sessionId, first.epoch)
+        assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        MoonlightForegroundLeaseRegistry.connectionStopStarted(first.token)
+        MoonlightForegroundLeaseRegistry.connectionStopped(first.token)
+
+        val successor = MoonlightForegroundLeaseRegistry.issue(
+            launchSpec().copy(sessionId = ids.getValue(9), epoch = 2),
+        )
+        assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        assertEquals(MoonlightOutputWitnessSnapshot(successor.sessionId, successor.epoch, 0, 0),
+            MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(successor.token))
     }
 
     @Test fun catalogDigestMatchesCoreCanonicalJsonIncludingEmptyCatalog() {

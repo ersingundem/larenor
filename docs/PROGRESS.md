@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 gerçek çıktı tanığı bağlantısı
+
+Pinned Moonlight artık gerçek MediaCodec rendered-frame callbackini ve yalnız tam pozitif AudioTrack PCM write sonucunu exact visible/connected/not-stopping lease ile gözler. Private tanıklar1 ile sınırlıdır; Activity görünürlüğü, connectionStarted veya buffer release çıktı kanıtı sayılmaz. Fresh AAR/APK source-lock/link doğrulaması,29 Moonlight ve birleşik46 native test/0skip geçti; root7 paket testini, XML sayımlarını ve iki APK verifierını bağımsız doğruladı. Gerçek owned Sunshine frame/PCM gözlemi ve fiziksel ses/kalite kabulü açık; F60 yeniden çalışılıyor,58/67 CI bekliyor ve37/127,3/63 kabul sayaçları değişmedi. [Kanıt](testing/f60-moonlight-output-witness-2026-10-01.md).
+
 ### 1 Ekim F60 gerçek Sunshine host readiness kabulü
 
 Exact768a511176136c00b8fef103105602e02178e311/run36791861104 gerçek owned Sunshine host readiness kapısını geçti. Root canonical741-byte receipt/source/package kimliğini ve SHA256905cee98d5eb0b5ef7546b86650fe47f8b07f03caab2aa46b5aee7bd33281507 doğruladı; state=host_ready ve streamAccepted=false. Aynı exact discovery run36791864541 native test başlamadan output_must_not_exist ile düştü: workflow builderın absent beklediği work dizinini önceden oluşturuyordu. Yalnız mkdir operandı kaldırıldı;7 focused discovery testi/actionlint geçti. Gerçek discovery/pairing/stream/frame/audio/input/stop/unpair hâlâ açık, F60 yeniden çalışılıyor kalır. 58 seçili/toplam67 CI bekliyor ve37/127,3/63 kabul sayaçları korunur. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).

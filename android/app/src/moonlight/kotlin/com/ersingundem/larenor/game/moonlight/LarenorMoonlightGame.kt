@@ -109,6 +109,20 @@ class LarenorMoonlightGame : Game() {
         launchToken?.let(MoonlightForegroundLeaseRegistry::connectionStopped)
     }
 
+    override fun onVideoFrameRendered(presentationTimeUs: Long, renderTimeNanos: Long) {
+        launchToken?.let(MoonlightForegroundLeaseRegistry::videoFrameRendered)
+    }
+
+    override fun onAudioPcmWritten(requestedSamples: Int, writtenSamples: Int) {
+        launchToken?.let {
+            MoonlightForegroundLeaseRegistry.audioPcmWritten(
+                it,
+                requestedSamples,
+                writtenSamples,
+            )
+        }
+    }
+
     override fun onStop() {
         launchToken?.let {
             MoonlightForegroundLeaseRegistry.gameHidden(it, isInPictureInPictureMode)

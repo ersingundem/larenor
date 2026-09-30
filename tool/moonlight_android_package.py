@@ -131,7 +131,10 @@ def load_lock(path=LOCK_PATH):
     _require(value["requiredLibraries"] == ["libmoonlight-core.so"], "invalid_lock")
     _require(
         value["engineContracts"]
-        == ["pairing", "credentialStore", "video", "audio", "input", "stream", "causalStop"],
+        == [
+            "pairing", "credentialStore", "video", "audio", "input", "stream",
+            "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
+        ],
         "invalid_lock",
     )
     for key in ("mavenDependencies", "requiredSources", "requiredClasses"):
@@ -352,6 +355,28 @@ def verify_transformed_tree(root, lock):
         and "protected void onConnectionStopStarted()" in game
         and "protected void onConnectionStopCompleted()" in game,
         "causal_stop_hook_missing",
+    )
+    video = _bounded_text(
+        root / "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java",
+        4 * 1024 * 1024,
+    )
+    audio = _bounded_text(
+        root / "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java",
+        4 * 1024 * 1024,
+    )
+    _require(
+        "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)" in video
+        and "setOnFrameRenderedListener" in video
+        and "((Game) activity).onVideoFrameRendered(presentationTimeUs, renderTimeNanos);" in video
+        and "public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos)" in game,
+        "rendered_frame_hook_missing",
+    )
+    _require(
+        "int writtenSamples = track.write(audioData, 0, audioData.length);" in audio
+        and "writtenSamples > 0 && writtenSamples == audioData.length" in audio
+        and "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);" in audio
+        and "public void onAudioPcmWritten(int requestedSamples, int writtenSamples)" in game,
+        "accepted_pcm_hook_missing",
     )
 
 

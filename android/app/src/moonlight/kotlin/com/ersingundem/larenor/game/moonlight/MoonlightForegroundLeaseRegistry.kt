@@ -6,6 +6,8 @@ import android.os.Looper
 import android.os.SystemClock
 import java.security.SecureRandom
 
+private const val MAX_OUTPUT_WITNESS_COUNT = 1
+
 enum class MoonlightLeaseState {
     FLUTTER_OWNED,
     TRANSFER_PENDING,
@@ -70,6 +72,22 @@ data class MoonlightLeaseObservation(
     val result: String,
 )
 
+data class MoonlightOutputWitnessSnapshot(
+    val sessionId: String,
+    val epoch: Long,
+    val renderedFrameCount: Int,
+    val acceptedAudioWriteCount: Int,
+) {
+    init {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(epoch, "revision")
+        require(renderedFrameCount in 0..MAX_OUTPUT_WITNESS_COUNT)
+        require(acceptedAudioWriteCount in 0..MAX_OUTPUT_WITNESS_COUNT)
+    }
+
+    override fun toString(): String = "MoonlightOutputWitnessSnapshot(<redacted>)"
+}
+
 /** Process-private ownership transfer between the Flutter and embedded Game activities. */
 object MoonlightForegroundLeaseRegistry {
     private data class Entry(
@@ -83,6 +101,8 @@ object MoonlightForegroundLeaseRegistry {
         var localStopStarted: Boolean = false,
         var lastInputAtMillis: Long = SystemClock.elapsedRealtime(),
         var idleRunnable: Runnable? = null,
+        var renderedFrameCount: Int = 0,
+        var acceptedAudioWriteCount: Int = 0,
     )
 
     private val random = SecureRandom()
@@ -143,6 +163,33 @@ object MoonlightForegroundLeaseRegistry {
         notify(entry, "connectionStarted", "streaming")
         return entry.snapshot()
     }
+
+    @Synchronized
+    fun videoFrameRendered(token: String): MoonlightOutputWitnessSnapshot? {
+        val entry = activeOutputEntry(token) ?: return null
+        if (entry.renderedFrameCount < MAX_OUTPUT_WITNESS_COUNT) {
+            entry.renderedFrameCount += 1
+        }
+        return entry.outputSnapshot()
+    }
+
+    @Synchronized
+    fun audioPcmWritten(
+        token: String,
+        requestedSamples: Int,
+        writtenSamples: Int,
+    ): MoonlightOutputWitnessSnapshot? {
+        if (requestedSamples <= 0 || writtenSamples != requestedSamples) return null
+        val entry = activeOutputEntry(token) ?: return null
+        if (entry.acceptedAudioWriteCount < MAX_OUTPUT_WITNESS_COUNT) {
+            entry.acceptedAudioWriteCount += 1
+        }
+        return entry.outputSnapshot()
+    }
+
+    @Synchronized
+    fun outputWitnessSnapshot(token: String): MoonlightOutputWitnessSnapshot =
+        exact(token).outputSnapshot()
 
     @Synchronized
     fun gameHidden(token: String, pictureInPicture: Boolean): MoonlightLeaseSnapshot? {
@@ -387,12 +434,30 @@ object MoonlightForegroundLeaseRegistry {
         return current?.takeIf { it.token == token } ?: throw MoonlightRuntimeFailure("foreground_required")
     }
 
+    private fun activeOutputEntry(token: String): Entry? {
+        requireIdentity(token, "candidate")
+        return current?.takeIf {
+            it.token == token &&
+                it.state == MoonlightLeaseState.GAME_VISIBLE &&
+                it.activity != null &&
+                it.started &&
+                !it.localStopStarted
+        }
+    }
+
     private fun Entry.snapshot() = MoonlightLeaseSnapshot(
         token = token,
         sessionId = spec.sessionId,
         epoch = spec.epoch,
         state = state,
         readbackRevision = readbackRevision,
+    )
+
+    private fun Entry.outputSnapshot() = MoonlightOutputWitnessSnapshot(
+        sessionId = spec.sessionId,
+        epoch = spec.epoch,
+        renderedFrameCount = renderedFrameCount,
+        acceptedAudioWriteCount = acceptedAudioWriteCount,
     )
 
     private const val TRANSFER_TIMEOUT_MS = 5_000L

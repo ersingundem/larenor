@@ -52,7 +52,10 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         self.assertEqual(lock["variant"], "nonRootRelease")
         self.assertEqual(
             set(lock["engineContracts"]),
-            {"pairing", "credentialStore", "video", "audio", "input", "stream", "causalStop"},
+            {
+                "pairing", "credentialStore", "video", "audio", "input", "stream",
+                "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
+            },
         )
         self.assertEqual(
             [item["reportedVersion"] for item in lock["bundledNativeArchives"]],
@@ -119,6 +122,28 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             self._aar(mixed, lock, extra_abi="armeabi-v7a")
             with self.assertRaisesRegex(PackageError, "unexpected_aar_abi"):
                 package_receipt(mixed, lock)
+
+    def test_transformation_requires_actual_render_and_pcm_acceptance_hooks(self):
+        lock = load_lock()
+        for relative, marker, error in (
+            (
+                "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java",
+                "((Game) activity).onVideoFrameRendered(presentationTimeUs, renderTimeNanos);",
+                "rendered_frame_hook_missing",
+            ),
+            (
+                "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java",
+                "writtenSamples > 0 && writtenSamples == audioData.length",
+                "accepted_pcm_hook_missing",
+            ),
+        ):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self._transformed_tree(root, lock)
+                path = root / relative
+                path.write_text(path.read_text().replace(marker, "removed witness hook"))
+                with self.assertRaisesRegex(PackageError, error):
+                    verify_transformed_tree(root, lock)
 
     def test_install_and_apk_require_receipted_native_and_dex_contracts(self):
         lock = load_lock()
@@ -193,6 +218,18 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "                    onConnectionStopCompleted();\n"
             "protected void onConnectionStopStarted() {}\n"
             "protected void onConnectionStopCompleted() {}\n"
+            "public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos) {}\n"
+            "public void onAudioPcmWritten(int requestedSamples, int writtenSamples) {}\n"
+        )
+        (root / "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java").write_text(
+            "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {\n"
+            "setOnFrameRenderedListener\n"
+            "((Game) activity).onVideoFrameRendered(presentationTimeUs, renderTimeNanos);\n"
+        )
+        (root / "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java").write_text(
+            "int writtenSamples = track.write(audioData, 0, audioData.length);\n"
+            "if (writtenSamples > 0 && writtenSamples == audioData.length) {\n"
+            "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);\n"
         )
 
     def _aar(self, path, lock, extra_abi=None):
