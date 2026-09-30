@@ -63,6 +63,7 @@ final class MethodChannelSecondaryDisplayPort extends ChangeNotifier
       'displayId': request.display.displayId,
       'displayGeneration': request.display.generation,
       'routeId': request.routeId,
+      'publicSnapshot': request.publicSnapshot.toPublicMessage(),
     };
     try {
       final raw = await _channel.invokeMethod<Object?>('present', arguments);
@@ -104,6 +105,39 @@ final class MethodChannelSecondaryDisplayPort extends ChangeNotifier
         'sessionId': dismissal.sessionId,
         'displayId': dismissal.displayId,
       });
+    } on Object {
+      throw const DualDisplayException('platform_unavailable');
+    }
+  }
+
+  @override
+  Future<void> publishPublicSnapshot(
+    SecondaryPublicSnapshotUpdate update,
+  ) async {
+    try {
+      final raw = await _channel.invokeMethod<Object?>(
+        'publishPublicSnapshot',
+        {
+          'sessionId': update.sessionId,
+          'displayId': update.displayId,
+          'publicSnapshot': update.snapshot.toPublicMessage(),
+        },
+      );
+      final value = _closedMap(raw, const {
+        'sessionId',
+        'displayId',
+        'snapshotRevision',
+        'accepted',
+      });
+      if (_text(value['sessionId']) != update.sessionId ||
+          _integer(value['displayId']) != update.displayId ||
+          _integer(value['snapshotRevision']) !=
+              update.snapshot.snapshotRevision ||
+          !_boolean(value['accepted'])) {
+        throw const DualDisplayException('malformed_platform_response');
+      }
+    } on DualDisplayException {
+      rethrow;
     } on Object {
       throw const DualDisplayException('platform_unavailable');
     }

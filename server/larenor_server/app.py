@@ -126,6 +126,7 @@ from .watch_parties.api import router as watch_parties_router
 from .offline_media.api import router as offline_media_router
 from .longform_sessions.api import router as longform_sessions_router
 from .power_recovery.api import router as power_recovery_router
+from .multi_display.api import router as multi_display_router
 
 
 Core = Annotated[CoreServices, Depends(get_core)]
@@ -506,6 +507,7 @@ def create_app(settings: Settings, *, routers: Iterable[APIRouter] = (),
     app.include_router(workshop_router, prefix="/api/v1")
     app.include_router(core_backups_router, prefix="/api/v1")
     app.include_router(power_recovery_router, prefix="/api/v1")
+    app.include_router(multi_display_router, prefix="/api/v1")
     app.include_router(mesh_center_router, prefix="/api/v1")
     app.include_router(irrigation_router, prefix="/api/v1")
     app.include_router(energy_priorities_router, prefix="/api/v1")

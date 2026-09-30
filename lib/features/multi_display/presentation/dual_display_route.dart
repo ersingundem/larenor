@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
@@ -11,9 +10,10 @@ import '../../../core/home_source_store.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
+import '../../server/data/larenor_server_api.dart';
+import '../data/dual_display_authority_api.dart';
 import '../data/dual_display_platform_port.dart';
 import '../data/dual_display_task_controller.dart';
-import '../domain/dual_display_session.dart';
 import 'dual_display_task_screen.dart';
 
 /// Owns the display lease for one exact account, home, route and window.
@@ -31,11 +31,11 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
   HomeSessionController? _home;
   AppInteractionController? _interaction;
   DualDisplayTaskController? _controller;
+  DualDisplayAuthorityApi? _authorityApi;
   MethodChannelSecondaryDisplayPort? _ownedPlatform;
   Object? _identity;
   int? _accountGeneration, _homeEpoch, _viewId;
   bool _foreground = true, _focused = true, _closed = false, _scheduled = false;
-  late final String _displaySessionId = _randomIdentity();
 
   @override
   void initState() {
@@ -74,26 +74,19 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
         _windowCurrent() &&
         _interaction?.active != false &&
         home.source == HomeSource.verifiedCore &&
+        !home.busy &&
+        home.failure == null &&
+        home.interaction.active &&
+        home.account.initialized &&
+        !home.account.working &&
+        !home.account.hasPendingContext &&
         session?.context != null &&
+        session?.sessionFamilyId != null &&
+        session?.authMutationPending == false &&
         session!.user.mustChangePassword == false &&
         RegExp(r'^[0-9a-f]{32}$').hasMatch(session.user.id) &&
         TickerMode.valuesOf(context).enabled &&
         ModalRoute.of(context)?.isCurrent == true;
-  }
-
-  DisplayRouteAuthority _authority() {
-    final home = _home!, account = home.account, session = account.session!;
-    return DisplayRouteAuthority(
-      accountId: session.user.id,
-      accountRevision: account.generation + 1,
-      homeId: session.context!.homeId,
-      homeRevision: account.generation + 1,
-      sessionFamilyId: _displaySessionId,
-      routeRevision: 1,
-      lifecycleEpoch: (_homeEpoch ?? 0) + 1,
-      interactionEpoch: home.interaction.epoch + 1,
-      allowedSecondaryRoutes: const {'dashboard.overview', 'media.now-playing'},
-    );
   }
 
   void _changed() {
@@ -112,10 +105,20 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
           setState(() {});
         }
       } else if (_controller == null) {
-        final controller = DualDisplayTaskController(
+        final session = _home!.account.session!;
+        final authorityApi = DualDisplayAuthorityApi(
+          LarenorServerApi(endpoint: session.endpoint),
+          session,
+        );
+        _authorityApi = authorityApi;
+        final controller = DualDisplayTaskController.authorized(
           widget.platform ??
               (_ownedPlatform ??= MethodChannelSecondaryDisplayPort()),
-          _authority,
+          (current) => authorityApi.read(
+            lifecycleEpoch: (_homeEpoch ?? 0) + 1,
+            interactionEpoch: _home!.interaction.epoch + 1,
+            current: current,
+          ),
           _current,
         );
         setState(() => _controller = controller);
@@ -128,6 +131,8 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
     final controller = _controller;
     if (controller == null) return;
     _controller = null;
+    _authorityApi?.close();
+    _authorityApi = null;
     controller.retire();
     controller.dispose();
     if (mounted && rebuild) setState(() {});
@@ -214,11 +219,5 @@ class _DualDisplayRouteState extends ConsumerState<DualDisplayRoute>
         ),
       ],
     );
-  }
-
-  static String _randomIdentity() {
-    final random = Random.secure();
-    const digits = '0123456789abcdef';
-    return List.generate(32, (_) => digits[random.nextInt(16)]).join();
   }
 }

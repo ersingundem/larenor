@@ -219,6 +219,114 @@ final class DisplayRouteAuthority {
   String toString() => 'DisplayRouteAuthority(redacted)';
 }
 
+final class PublicCoreStatusSnapshot {
+  PublicCoreStatusSnapshot({
+    required this.snapshotRevision,
+    required this.observedAtMs,
+    required this.expiresAtMs,
+    required this.systemLoadPercent,
+    required this.processMemoryMiB,
+    required this.dataDiskFreeBytes,
+    required this.dataDiskTotalBytes,
+    required this.processUptimeSeconds,
+  }) {
+    if (!_clientRevision(snapshotRevision) ||
+        observedAtMs < 0 ||
+        observedAtMs > _maxClientRevision ||
+        expiresAtMs <= observedAtMs ||
+        expiresAtMs - observedAtMs > 15000 ||
+        expiresAtMs > _maxClientRevision ||
+        systemLoadPercent < 0 ||
+        systemLoadPercent > 100 ||
+        processMemoryMiB < 0 ||
+        processMemoryMiB > 1048576 ||
+        dataDiskFreeBytes < 0 ||
+        dataDiskTotalBytes < 1 ||
+        dataDiskFreeBytes > dataDiskTotalBytes ||
+        dataDiskTotalBytes > _maxClientRevision ||
+        processUptimeSeconds < 0 ||
+        processUptimeSeconds > _maxClientRevision) {
+      throw ArgumentError('invalid_public_core_status');
+    }
+  }
+
+  final int snapshotRevision;
+  final int observedAtMs;
+  final int expiresAtMs;
+  final int systemLoadPercent;
+  final int processMemoryMiB;
+  final int dataDiskFreeBytes;
+  final int dataDiskTotalBytes;
+  final int processUptimeSeconds;
+
+  Map<String, Object> toPublicMessage() => {
+    'schemaVersion': 1,
+    'snapshotRevision': snapshotRevision,
+    'observedAtMs': observedAtMs,
+    'expiresAtMs': expiresAtMs,
+    'serviceState': 'online',
+    'apiVersion': 1,
+    'systemLoadPercent': systemLoadPercent,
+    'processMemoryMiB': processMemoryMiB,
+    'dataDiskFreeBytes': dataDiskFreeBytes,
+    'dataDiskTotalBytes': dataDiskTotalBytes,
+    'processUptimeSeconds': processUptimeSeconds,
+  };
+
+  factory PublicCoreStatusSnapshot.fromPublicMessage(Object? raw) {
+    const keys = {
+      'schemaVersion',
+      'snapshotRevision',
+      'observedAtMs',
+      'expiresAtMs',
+      'serviceState',
+      'apiVersion',
+      'systemLoadPercent',
+      'processMemoryMiB',
+      'dataDiskFreeBytes',
+      'dataDiskTotalBytes',
+      'processUptimeSeconds',
+    };
+    if (raw is! Map ||
+        raw.length != keys.length ||
+        raw.keys.any((key) => key is! String || !keys.contains(key)) ||
+        raw['schemaVersion'] != 1 ||
+        raw['serviceState'] != 'online' ||
+        raw['apiVersion'] != 1) {
+      throw ArgumentError('invalid_public_core_status');
+    }
+    int integer(String key) {
+      final result = raw[key];
+      if (result is! int) throw ArgumentError('invalid_public_core_status');
+      return result;
+    }
+
+    return PublicCoreStatusSnapshot(
+      snapshotRevision: integer('snapshotRevision'),
+      observedAtMs: integer('observedAtMs'),
+      expiresAtMs: integer('expiresAtMs'),
+      systemLoadPercent: integer('systemLoadPercent'),
+      processMemoryMiB: integer('processMemoryMiB'),
+      dataDiskFreeBytes: integer('dataDiskFreeBytes'),
+      dataDiskTotalBytes: integer('dataDiskTotalBytes'),
+      processUptimeSeconds: integer('processUptimeSeconds'),
+    );
+  }
+
+  @override
+  String toString() => 'PublicCoreStatusSnapshot(redacted)';
+}
+
+final class DualDisplayAuthorityReading {
+  const DualDisplayAuthorityReading({
+    required this.authority,
+    required this.publicSnapshot,
+  });
+
+  final DisplayRouteAuthority authority;
+  final PublicCoreStatusSnapshot publicSnapshot;
+}
+
 final class DisplayRouteSelection {
   DisplayRouteSelection({
     required this.primaryRouteId,
@@ -230,6 +338,7 @@ final class DisplayRouteSelection {
     if (!_route.hasMatch(primaryRouteId) ||
         !_route.hasMatch(secondaryRouteId) ||
         focusOwner == DisplayOwner.none ||
+        secondaryRouteId == 'core.status' && playerOwner != DisplayOwner.none ||
         focusOwner == DisplayOwner.secondary &&
             playerOwner == DisplayOwner.primary) {
       throw ArgumentError('invalid_route_selection');
@@ -249,12 +358,14 @@ final class SecondaryPresentationRequest {
     required this.topologyRevision,
     required this.display,
     required this.routeId,
+    required this.publicSnapshot,
   });
 
   final String sessionId;
   final int topologyRevision;
   final DisplaySurface display;
   final String routeId;
+  final PublicCoreStatusSnapshot publicSnapshot;
 
   @override
   String toString() => 'SecondaryPresentationRequest(redacted)';
@@ -284,11 +395,24 @@ final class SecondaryDismissal {
   final int displayId;
 }
 
+final class SecondaryPublicSnapshotUpdate {
+  const SecondaryPublicSnapshotUpdate({
+    required this.sessionId,
+    required this.displayId,
+    required this.snapshot,
+  });
+
+  final String sessionId;
+  final int displayId;
+  final PublicCoreStatusSnapshot snapshot;
+}
+
 abstract interface class SecondaryDisplayPort {
   Future<SecondaryPresentationReceipt> present(
     SecondaryPresentationRequest request,
   );
   Future<void> dismiss(SecondaryDismissal dismissal);
+  Future<void> publishPublicSnapshot(SecondaryPublicSnapshotUpdate update);
 }
 
 final class DualDisplayState {
@@ -389,6 +513,7 @@ final class DualDisplayCoordinator {
     required DisplayTopology topology,
     required int secondaryDisplayId,
     required DisplayRouteSelection selection,
+    required PublicCoreStatusSnapshot publicSnapshot,
   }) async {
     if (_lifecycle != DisplayLifecycle.resumed) {
       throw const DualDisplayException('lifecycle_inactive');
@@ -451,6 +576,7 @@ final class DualDisplayCoordinator {
           topologyRevision: topology.revision,
           display: secondary,
           routeId: selection.secondaryRouteId,
+          publicSnapshot: publicSnapshot,
         ),
       );
     } catch (_) {
@@ -529,6 +655,37 @@ final class DualDisplayCoordinator {
     return _retire(DualDisplayReason.staleAuthority, _topologyResolver());
   }
 
+  Future<bool> publishPublicSnapshot(PublicCoreStatusSnapshot snapshot) async {
+    final active = _active;
+    if (active == null || _lifecycle != DisplayLifecycle.resumed) return false;
+    try {
+      await _port.publishPublicSnapshot(
+        SecondaryPublicSnapshotUpdate(
+          sessionId: active.sessionId,
+          displayId: active.secondary.displayId,
+          snapshot: snapshot,
+        ),
+      );
+    } catch (_) {
+      if (_active?.epoch == active.epoch) {
+        await _retire(
+          DualDisplayReason.presentationFailed,
+          _topologyResolver(),
+        );
+      }
+      return false;
+    }
+    if (_active?.epoch != active.epoch ||
+        _authorityResolver() != active.authority ||
+        _topologyResolver() != active.topology) {
+      if (_active?.epoch == active.epoch) {
+        await _retire(DualDisplayReason.staleAuthority, _topologyResolver());
+      }
+      return false;
+    }
+    return true;
+  }
+
   Future<DualDisplayState> _retire(
     DualDisplayReason reason,
     DisplayTopology topology,
@@ -571,9 +728,11 @@ final class _ActiveDisplay {
 }
 
 const _maxRevision = 9223372036854775806;
+const _maxClientRevision = 0x1fffffffffffff;
 final _identity = RegExp(r'^[0-9a-f]{32}$');
 final _route = RegExp(r'^[a-z][a-z0-9._/-]{0,79}$');
 bool _revision(int value) => value >= 1 && value <= _maxRevision;
+bool _clientRevision(int value) => value >= 1 && value <= _maxClientRevision;
 bool _listEquals<T>(List<T> left, List<T> right) =>
     left.length == right.length &&
     List.generate(

@@ -18,8 +18,26 @@ DisplayRouteAuthority exactAuthority() => DisplayRouteAuthority(
   routeRevision: 7,
   lifecycleEpoch: 11,
   interactionEpoch: 13,
-  allowedSecondaryRoutes: const {'dashboard.overview', 'media.now-playing'},
+  allowedSecondaryRoutes: const {'core.status'},
 );
+
+PublicCoreStatusSnapshot publicSnapshot([int revision = 101]) =>
+    PublicCoreStatusSnapshot(
+      snapshotRevision: revision,
+      observedAtMs: 1000,
+      expiresAtMs: 16000,
+      systemLoadPercent: 10,
+      processMemoryMiB: 128,
+      dataDiskFreeBytes: 400,
+      dataDiskTotalBytes: 1000,
+      processUptimeSeconds: 30,
+    );
+
+DualDisplayAuthorityReading exactReading([int revision = 101]) =>
+    DualDisplayAuthorityReading(
+      authority: exactAuthority(),
+      publicSnapshot: publicSnapshot(revision),
+    );
 
 DisplaySurface tablet() => DisplaySurface(
   displayId: 0,
@@ -55,6 +73,7 @@ final class Platform implements DualDisplayPlatformPort {
   DisplayTopology snapshotValue;
   final presented = <SecondaryPresentationRequest>[];
   final dismissed = <SecondaryDismissal>[];
+  final published = <SecondaryPublicSnapshotUpdate>[];
   Completer<SecondaryPresentationReceipt>? pending;
 
   @override
@@ -81,9 +100,63 @@ final class Platform implements DualDisplayPlatformPort {
   Future<void> dismiss(SecondaryDismissal dismissal) async {
     dismissed.add(dismissal);
   }
+
+  @override
+  Future<void> publishPublicSnapshot(
+    SecondaryPublicSnapshotUpdate update,
+  ) async {
+    published.add(update);
+  }
 }
 
 void main() {
+  test(
+    'real authority is checked before and after native presentation',
+    () async {
+      var current = true;
+      var reads = 0;
+      final platform = Platform(screens(7));
+      final controller = DualDisplayTaskController.authorized(platform, (
+        valid,
+      ) async {
+        expect(valid(), isTrue);
+        reads++;
+        final base = exactAuthority();
+        return DualDisplayAuthorityReading(
+          authority: reads == 1
+              ? base
+              : DisplayRouteAuthority(
+                  accountId: base.accountId,
+                  accountRevision: base.accountRevision + 1,
+                  homeId: base.homeId,
+                  homeRevision: base.homeRevision,
+                  sessionFamilyId: base.sessionFamilyId,
+                  routeRevision: base.routeRevision,
+                  lifecycleEpoch: base.lifecycleEpoch,
+                  interactionEpoch: base.interactionEpoch,
+                  allowedSecondaryRoutes: base.allowedSecondaryRoutes,
+                ),
+          publicSnapshot: publicSnapshot(100 + reads),
+        );
+      }, () => current);
+      addTearDown(() {
+        current = false;
+        controller.dispose();
+      });
+
+      await controller.refresh();
+      await controller.activate(
+        controller.topology!.externalById(4)!,
+        'core.status',
+      );
+      expect(reads, 2);
+      expect(platform.presented, hasLength(1));
+      expect(platform.dismissed, hasLength(1));
+      expect(controller.failure, 'stale_authority');
+      expect(controller.state?.status, DualDisplayStatus.retired);
+    },
+  );
+
   test(
     'disconnect and reconnect reject stale display and use new generation',
     () async {
@@ -91,7 +164,7 @@ void main() {
       final platform = Platform(screens(7));
       final controller = DualDisplayTaskController(
         platform,
-        exactAuthority,
+        exactReading,
         () => current,
       );
       addTearDown(() {
@@ -101,7 +174,7 @@ void main() {
 
       await controller.refresh();
       final first = controller.topology!.externalById(4)!;
-      await controller.activate(first, 'media.now-playing');
+      await controller.activate(first, 'core.status');
       expect(controller.state?.status, DualDisplayStatus.active);
 
       platform.snapshotValue = screens(8, externalGeneration: null);
@@ -111,11 +184,11 @@ void main() {
 
       platform.snapshotValue = screens(9, externalGeneration: 6);
       await controller.refresh();
-      await controller.activate(first, 'media.now-playing');
+      await controller.activate(first, 'core.status');
       expect(platform.presented, hasLength(1));
       expect(controller.failure, 'stale_display');
       final reconnected = controller.topology!.externalById(4)!;
-      await controller.activate(reconnected, 'dashboard.overview');
+      await controller.activate(reconnected, 'core.status');
       expect(platform.presented, hasLength(2));
       expect(platform.presented.last.display.generation, 6);
     },
@@ -126,7 +199,7 @@ void main() {
     final platform = Platform(screens(7));
     final controller = DualDisplayTaskController(
       platform,
-      exactAuthority,
+      exactReading,
       () => current,
     );
     addTearDown(controller.dispose);
@@ -137,7 +210,7 @@ void main() {
     expect(controller.failure, 'stale_display');
 
     platform.pending = Completer();
-    final pending = controller.activate(display, 'media.now-playing');
+    final pending = controller.activate(display, 'core.status');
     await Future<void>.delayed(Duration.zero);
     current = false;
     final request = platform.presented.single;

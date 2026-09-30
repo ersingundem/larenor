@@ -110,40 +110,18 @@ class DualDisplayTaskScreen extends StatelessWidget {
                     children: [
                       SettingsActionTile(
                         buttonKey: ValueKey(
-                          'dual-display-dashboard-${display.displayId}',
+                          'dual-display-core-status-${display.displayId}',
                         ),
                         selected:
                             active &&
                             state?.secondaryDisplayId == display.displayId &&
-                            state?.secondaryRouteId == 'dashboard.overview',
-                        leading: const Icon(CupertinoIcons.square_grid_2x2),
+                            state?.secondaryRouteId == 'core.status',
+                        leading: const Icon(CupertinoIcons.gauge),
                         title: Text(l10n.dualDisplayShowDashboard),
                         onTap: controller.busy
                             ? null
                             : () => unawaited(
-                                controller.activate(
-                                  display,
-                                  'dashboard.overview',
-                                ),
-                              ),
-                      ),
-                      SettingsActionTile(
-                        buttonKey: ValueKey(
-                          'dual-display-media-${display.displayId}',
-                        ),
-                        selected:
-                            active &&
-                            state?.secondaryDisplayId == display.displayId &&
-                            state?.secondaryRouteId == 'media.now-playing',
-                        leading: const Icon(CupertinoIcons.play_rectangle),
-                        title: Text(l10n.dualDisplayShowMedia),
-                        onTap: controller.busy
-                            ? null
-                            : () => unawaited(
-                                controller.activate(
-                                  display,
-                                  'media.now-playing',
-                                ),
+                                controller.activate(display, 'core.status'),
                               ),
                       ),
                     ],

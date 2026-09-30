@@ -84,11 +84,10 @@ void main() {
         await tester.pump();
 
         final refresh = find.byKey(const ValueKey('dual-display-refresh'));
-        final media = find.byKey(const ValueKey('dual-display-media-4'));
-        final dashboard = find.byKey(
-          const ValueKey('dual-display-dashboard-4'),
+        final coreStatus = find.byKey(
+          const ValueKey('dual-display-core-status-4'),
         );
-        for (final action in [refresh, media, dashboard]) {
+        for (final action in [refresh, coreStatus]) {
           await tester.ensureVisible(action);
           await tester.pump();
           expect(tester.getRect(action).height, greaterThanOrEqualTo(48));
@@ -98,12 +97,19 @@ void main() {
         expect(find.byKey(const ValueKey('dual-display-external-4')), findsOne);
         expect(tester.takeException(), isNull);
 
-        final label = find.descendant(of: media, matching: find.byType(Text));
+        expect(
+          find.byKey(const ValueKey('dual-display-media-4')),
+          findsNothing,
+        );
+        final label = find.descendant(
+          of: coreStatus,
+          matching: find.byType(Text),
+        );
         Focus.of(tester.element(label)).requestFocus();
         await tester.pump();
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
-        expect(tasks.activations, [(4, 'media.now-playing')]);
+        expect(tasks.activations, [(4, 'core.status')]);
         semantics.dispose();
       });
     }
@@ -120,10 +126,10 @@ void main() {
       secondary: tasks.topology!.externalById(4)!,
       selection: DisplayRouteSelection(
         primaryRouteId: 'dashboard.home',
-        secondaryRouteId: 'media.now-playing',
+        secondaryRouteId: 'core.status',
         secondarySensitivity: RouteSensitivity.public,
         focusOwner: DisplayOwner.primary,
-        playerOwner: DisplayOwner.secondary,
+        playerOwner: DisplayOwner.none,
       ),
     );
     await tester.pumpWidget(

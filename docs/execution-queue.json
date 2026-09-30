@@ -3443,7 +3443,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION canlı incelemesi normal bundled HTTP Core ile HTTPS-only native background lease arasında gerçek boşluk buldu. Aktif geliştirme: named HTTP background-unavailable nedeni, doğrudan normal Core TLS listener/opsiyonel compose TLS boundary ve gerçek owned TLS transport/notification permission/reconnect/dedupe/private lock-screen/safe-target kabulü. Trusted certificate provisioning ve fiziksel OEM/Doze MANUAL açık; permissive production trust yok."
+      "reason": "Gerçek normal HTTPS Core→native delivery/restart/revoke kapısı kalıcı iptal 410 ayrımıyla geçti. Resmi Android incelemesi genel ev uyarısı pollinginin remoteMessaging FGS türüne uymadığını buldu. GMS-free WorkManager bounded periodic teslimine geçiş aktif: en az 15dk Android planlaması, açık gecikme/Doze nedeni, foreground inbox korunur; sonsuz FGS/yanlış policy iddiası yok. Tam worker kapısı, geniş CI ve fiziksel permission/trust/OEM MANUAL açık."
     },
     {
       "id": "F53",
@@ -3474,7 +3474,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION canlı incelemesi gerçek boşluk buldu: F53 device session/controller production caller olmadan memory-only kalmış; normal Client register/heartbeat/poll/complete çalıştırmıyor. Aktif geliştirme: açık opt-in enrollment, kalıcı Core/home/account scoped identity+journal, observed native kiosk capability, normal composition heartbeat/command receipt/revoke ve gerçek iki yaşam kabulü. App restart desteklenmeden advertised capability sayılmaz; normal app/DeviceOwner ve manuel donanım kapıları ayrılır."
+      "reason": "Gerçek opt-in registration, durable journal ve exact profil publication/apply/readback/restart kapısı geçti; root normal composition içinde K07 MQTT scope callbacklerinin F53 active profileı temizleyebildiğini buldu. F53/K07 ayrı authority korunması ve gerçek uygulanan window/idle settings invalidation aktif düzeltmede. Bu composition kabulü geçmeden CI bekliyor olmayacak; fiziksel Device Owner/OEM MANUAL açık."
     },
     {
       "id": "F51",
@@ -3511,7 +3511,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "DeX'te iki ekrana farklı görev",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3534,7 +3534,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION canlı incelemesi dual-display route authority içinde generation/route=1/random family ürettiğini ve pre-present topology tazelemediğini buldu. Aktif geliştirme: normal Core current account/home/session authority endpoint, pre/post drift kontrolü, gerçek DisplayManager hotplug/resize ve secondary public current-content/empty-state kapısı. Secondary player/private token aktarımı yok; fiziksel DeX/receiver MANUAL açık."
+      "reason": "Gerçek normal Core→Flutter→Android secondary public core.status yolu tamamlandı: gerçek bounded load/RSS/disk/uptime projection, 5sn güncelleme, 15sn TTL ve authority/topology/revoke retirement. Root 4 Server ve iki gerçek normal Core TCP fazını bağımsız doğruladı; 24 Flutter, 5 Android ve analyze geçti. Dar payload hiçbir token/identity/provider/private içerik taşımaz; unsupported OS sahte sıfır yerine 503 verir. Geniş exact HEAD CI ve fiziksel Samsung DeX MANUAL kapısı açık. Kanıt: docs/testing/f52-dual-display-2026-09-30.md."
     },
     {
       "id": "G04",
@@ -5225,7 +5225,7 @@
       "kind": "task",
       "parent": "G11",
       "title": "SSH terminal, SFTP ve güvenli tüneller",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5251,7 +5251,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Doğrudan SSH terminali; parola/anahtar/MFA, host-key pinleme, PTY/Unicode/Türkçe, sekmeler, SFTP açma/indirme/yükleme, jump host ve yerel güvenli tünel ürün ekranına bağlı. Güncel kaynak statik analizden geçti; özellik testleri, izole gerçek SSH hostu, bağımsız inceleme ve exact-head CI son toplu doğrulama evresinde açık."
+      "reason": "Gerçek Core-managed SSH terminali ve iki normal Core/OpenSSH yaşamı geçti; root bağımsız inceleme identical public profileın farklı Core/account/local source ile aynı secure credential namespaceini paylaştığını buldu. Exact authority/source digest namespace, cross-owner regression ve gerçek Core-managed SFTP/tunnel retirement kapısı aktif düzeltmede. Linux password/key/MFA/jump exact HEAD CI ve fiziksel Huawei/DeX MANUAL açık."
     },
     {
       "id": "F62",

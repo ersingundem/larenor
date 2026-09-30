@@ -13,7 +13,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
-| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 3 | 1 | 0 |
+| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 2 | 2 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
@@ -21,7 +21,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
-| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
+| G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 1 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
 
@@ -31,7 +31,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | F54 | Google servislerinden bağımsız bildirim | Yeniden çalışılıyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Yeniden çalışılıyor | — |
-| F52 | DeX'te iki ekrana farklı görev | Yeniden çalışılıyor | — |
+| F63 | SSH terminal, SFTP ve güvenli tüneller | Yeniden çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -116,7 +116,6 @@ Tamamlanan ve test/CI bekleyen işler
 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | Uygulama tamamlandı · test bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | Uygulama tamamlandı · test bekliyor | — |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | Uygulama tamamlandı · test bekliyor | — |
-| F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
 | F13 | Bileşen bazında internet izinleri | CI bekliyor | — |
@@ -127,6 +126,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | CI bekliyor | — |
 | F18 | Elektrik kesintisinde düzenli kapanış | CI bekliyor | — |
 | F51 | Etkileşimli ev kat planı | CI bekliyor | — |
+| F52 | DeX'te iki ekrana farklı görev | CI bekliyor | — |
 | F08 | Yapay zekâ kaynak yöneticisi | CI bekliyor | — |
 | F04 | Çakışan kurallar hakemi | CI bekliyor | — |
 | F02 | Otomasyonun deneme haftası | CI bekliyor | — |

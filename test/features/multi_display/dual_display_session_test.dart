@@ -20,9 +20,21 @@ DisplayRouteAuthority authority({
     routeRevision: routeRevision,
     lifecycleEpoch: 11,
     interactionEpoch: 13,
-    allowedSecondaryRoutes: const {'dashboard.overview', 'media.now-playing'},
+    allowedSecondaryRoutes: const {'core.status'},
   );
 }
+
+PublicCoreStatusSnapshot snapshot([int revision = 101]) =>
+    PublicCoreStatusSnapshot(
+      snapshotRevision: revision,
+      observedAtMs: 1000,
+      expiresAtMs: 16000,
+      systemLoadPercent: 10,
+      processMemoryMiB: 128,
+      dataDiskFreeBytes: 400,
+      dataDiskTotalBytes: 1000,
+      processUptimeSeconds: 30,
+    );
 
 DisplaySurface primary({int generation = 2}) => DisplaySurface(
   displayId: 0,
@@ -54,11 +66,11 @@ DisplayTopology topology({bool withExternal = true, int revision = 9}) {
 
 DisplayRouteSelection selection({
   RouteSensitivity sensitivity = RouteSensitivity.public,
-  DisplayOwner playerOwner = DisplayOwner.secondary,
+  DisplayOwner playerOwner = DisplayOwner.none,
 }) {
   return DisplayRouteSelection(
     primaryRouteId: 'dashboard.home',
-    secondaryRouteId: 'media.now-playing',
+    secondaryRouteId: 'core.status',
     secondarySensitivity: sensitivity,
     focusOwner: DisplayOwner.primary,
     playerOwner: playerOwner,
@@ -68,6 +80,7 @@ DisplayRouteSelection selection({
 final class FakeDisplayPort implements SecondaryDisplayPort {
   final requests = <SecondaryPresentationRequest>[];
   final dismissals = <SecondaryDismissal>[];
+  final updates = <SecondaryPublicSnapshotUpdate>[];
   Completer<SecondaryPresentationReceipt>? pending;
   bool succeed = true;
 
@@ -92,6 +105,13 @@ final class FakeDisplayPort implements SecondaryDisplayPort {
   Future<void> dismiss(SecondaryDismissal dismissal) async {
     dismissals.add(dismissal);
   }
+
+  @override
+  Future<void> publishPublicSnapshot(
+    SecondaryPublicSnapshotUpdate update,
+  ) async {
+    updates.add(update);
+  }
 }
 
 void main() {
@@ -111,15 +131,16 @@ void main() {
         authority: liveAuthority,
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(state.status, DualDisplayStatus.active);
       expect(state.primaryRouteId, 'dashboard.home');
-      expect(state.secondaryRouteId, 'media.now-playing');
+      expect(state.secondaryRouteId, 'core.status');
       expect(state.focusOwner, DisplayOwner.primary);
-      expect(state.playerOwner, DisplayOwner.secondary);
+      expect(state.playerOwner, DisplayOwner.none);
       expect(port.requests, hasLength(1));
-      expect(port.requests.single.routeId, 'media.now-playing');
+      expect(port.requests.single.routeId, 'core.status');
 
       final diagnostics = state.toDiagnostics().toString();
       expect(diagnostics, isNot(contains(account)));
@@ -133,6 +154,7 @@ void main() {
           authority: authority(),
           topology: liveTopology,
           secondaryDisplayId: 7,
+          publicSnapshot: snapshot(),
           selection: selection(),
         ),
         throwsA(
@@ -161,6 +183,7 @@ void main() {
         authority: authority(),
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(missing.status, DualDisplayStatus.primaryOnly);
@@ -174,6 +197,7 @@ void main() {
         authority: authority(),
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(active.status, DualDisplayStatus.active);
@@ -202,6 +226,7 @@ void main() {
         authority: authority(),
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       await Future<void>.delayed(Duration.zero);
@@ -231,6 +256,7 @@ void main() {
         authority: authority(),
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       final paused = await coordinator.updateLifecycle(DisplayLifecycle.paused);
@@ -264,6 +290,7 @@ void main() {
           authority: authority(),
           topology: topology(),
           secondaryDisplayId: 7,
+          publicSnapshot: snapshot(),
           selection: value,
         ),
         throwsA(isA<DualDisplayException>()),
@@ -273,7 +300,7 @@ void main() {
     expect(
       () => DisplayRouteSelection(
         primaryRouteId: 'https://secret.invalid',
-        secondaryRouteId: 'media.now-playing',
+        secondaryRouteId: 'core.status',
         secondarySensitivity: RouteSensitivity.public,
         focusOwner: DisplayOwner.primary,
         playerOwner: DisplayOwner.none,
@@ -295,6 +322,7 @@ void main() {
       authority: authority(),
       topology: topology(),
       secondaryDisplayId: 7,
+      publicSnapshot: snapshot(),
       selection: selection(),
     );
     await Future<void>.delayed(Duration.zero);
@@ -335,12 +363,14 @@ void main() {
         authority: liveAuthority,
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       await coordinator.activate(
         authority: liveAuthority,
         topology: liveTopology,
         secondaryDisplayId: 8,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(port.dismissals.map((value) => value.displayId), [7]);
@@ -351,6 +381,7 @@ void main() {
         authority: liveAuthority,
         topology: liveTopology,
         secondaryDisplayId: 8,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(missing.status, DualDisplayStatus.primaryOnly);
@@ -362,6 +393,7 @@ void main() {
         authority: liveAuthority,
         topology: liveTopology,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       liveAuthority = authority(accountRevision: 4);
@@ -387,6 +419,7 @@ void main() {
         authority: authority(),
         topology: live,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
 
@@ -401,6 +434,7 @@ void main() {
           authority: authority(),
           topology: topology(revision: 9),
           secondaryDisplayId: 7,
+          publicSnapshot: snapshot(),
           selection: selection(),
         ),
         throwsA(isA<DualDisplayException>()),
@@ -409,6 +443,7 @@ void main() {
         authority: authority(),
         topology: live,
         secondaryDisplayId: 7,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(reconnected.status, DualDisplayStatus.active);
@@ -430,6 +465,7 @@ void main() {
         authority: authority(),
         topology: topology(),
         secondaryDisplayId: 63,
+        publicSnapshot: snapshot(),
         selection: selection(),
       );
       expect(missing.reason, DualDisplayReason.secondaryUnavailable);
@@ -438,6 +474,7 @@ void main() {
           authority: authority(),
           topology: topology(),
           secondaryDisplayId: 7,
+          publicSnapshot: snapshot(),
           selection: DisplayRouteSelection(
             primaryRouteId: 'dashboard.home',
             secondaryRouteId: 'admin.secrets',

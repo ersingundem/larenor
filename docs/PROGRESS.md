@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 54 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi gerçek kabulden geçti; F52/F53/F54 gerçek bağlantı boşlukları geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 55 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi gerçek kabulden geçti; F52 gerçek ikinci ekran kabulünden geçti; F53 profil composition, F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek host kabulü dört testi geçti; CI cleanup izni hatası düzeltilecek. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F52 gerçek ikinci ekran kabulü
+
+Normal Core gerçek host ölçümlerini yetki öncesi/sonrası kontrolüyle kapalı public core.status snapshotına çevirir. Primary 5sn yeniler; isolated secondary 15sn sonra eski değerleri gizler. Root 4 Server ve iki gerçek TCP fazını bağımsız doğruladı; 24 Flutter, 5 Android DisplayManager/contract testi ve analyze geçti. F52 CI bekliyor tablosuna taşındı: 55 özellik geniş CI bekliyor, kabul sayaçları 37/127 ve 3/63 değişmedi. F53/K07 profil composition, F54 doğru Android iş planlaması ve F63 source/account kasa izolasyonu açık geliştirmede; yalnız local analiz geçen kod tamamlanmış sayılmadı. [F52 kanıtı](testing/f52-dual-display-2026-09-30.md).
 
 ### 30 Eylül gerçek Core katalog restart hatası
 

@@ -14,12 +14,14 @@ import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import org.json.JSONObject
 
 /**
  * Public, bounded Android display bridge.
  *
- * Only route identifiers cross this bridge. Account, home, session-family,
- * media metadata, credentials and rendered Flutter state remain in Dart.
+ * Only a route identifier and the closed public Core-health projection cross
+ * this bridge. Account, home, session-family, media metadata, credentials and
+ * rendered primary Flutter state remain in the primary engine.
  */
 class DualDisplayBridge(
     activity: Activity,
@@ -64,8 +66,27 @@ class DualDisplayBridge(
                     host.refresh()
                     result.success(controller.snapshot())
                 }
-                "present" -> result.success(controller.present(call.arguments))
+                "present" -> {
+                    // Display callbacks and method calls share the main looper,
+                    // but a dock can change between Dart's snapshot and this
+                    // request. Read the platform again at the send boundary.
+                    host.refresh()
+                    result.success(controller.present(call.arguments))
+                }
                 "dismiss" -> result.success(controller.dismiss(call.arguments))
+                "publishPublicSnapshot" -> controller.publish(call.arguments) { accepted ->
+                    if (!accepted) {
+                        result.error("unavailable", "Secondary display unavailable", null)
+                    } else {
+                        val update = DualDisplayPublicUpdate.parse(call.arguments)
+                        result.success(mapOf(
+                            "sessionId" to update.sessionId,
+                            "displayId" to update.displayId,
+                            "snapshotRevision" to update.publicSnapshot.snapshotRevision,
+                            "accepted" to true,
+                        ))
+                    }
+                }
                 else -> result.notImplemented()
             }
         } catch (failure: DualDisplayFailure) {
@@ -109,7 +130,12 @@ class DualDisplayBridge(
     }
 }
 
-private class AndroidDualDisplayHost(private val activity: Activity) : DualDisplayHost {
+internal class AndroidDualDisplayHost(
+    private val activity: Activity,
+    private val eligibleExternal: (Display) -> Boolean = {
+        it.displayId in 1..63 && it.flags and Display.FLAG_PRESENTATION != 0
+    },
+) : DualDisplayHost {
     private val manager = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
     private var revision = 1L
     private var surfaces = emptyList<DualDisplaySurface>()
@@ -128,9 +154,9 @@ private class AndroidDualDisplayHost(private val activity: Activity) : DualDispl
     fun refresh() {
         val displays = buildList {
             manager.getDisplay(Display.DEFAULT_DISPLAY)?.let(::add)
-            manager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+            manager.displays
                 .asSequence()
-                .filter { it.displayId in 1..63 }
+                .filter(eligibleExternal)
                 .sortedBy(Display::getDisplayId)
                 .take(4)
                 .forEach(::add)
@@ -181,7 +207,9 @@ private class AndroidDualDisplayHost(private val activity: Activity) : DualDispl
         val display = manager.getDisplay(request.displayId) ?: return false
         val surface = surfaces.singleOrNull { it.displayId == request.displayId } ?: return false
         if (surface.primary || surface.generation != request.displayGeneration) return false
-        val candidate = RoutePresentation(activity, display, request.routeId, surface.securePresentation)
+        val candidate = RoutePresentation(
+            activity, display, request.routeId, request.publicSnapshot, surface.securePresentation,
+        )
         return try {
             candidate.show()
             if (!candidate.isShowing) {
@@ -208,6 +236,16 @@ private class AndroidDualDisplayHost(private val activity: Activity) : DualDispl
         active.dismissSafely()
     }
 
+    @Synchronized
+    override fun publish(update: DualDisplayPublicUpdate, completion: (Boolean) -> Unit) {
+        val active = presentation
+        if (active == null || active.display.displayId != update.displayId) {
+            completion(false)
+            return
+        }
+        active.publish(update.publicSnapshot, completion)
+    }
+
     fun dispose() {
         val active = presentation
         presentation = null
@@ -228,10 +266,9 @@ private data class DisplaySignature(
         fun read(display: Display): DisplaySignature {
             val metrics = android.util.DisplayMetrics()
             display.getRealMetrics(metrics)
-            val mode = display.mode
             return DisplaySignature(
-                widthPixels = mode.physicalWidth,
-                heightPixels = mode.physicalHeight,
+                widthPixels = metrics.widthPixels,
+                heightPixels = metrics.heightPixels,
                 densityDpi = metrics.densityDpi,
                 secure = display.flags and Display.FLAG_SECURE != 0,
             )
@@ -244,6 +281,7 @@ private class RoutePresentation(
     context: Context,
     display: Display,
     private val routeId: String,
+    private val initialSnapshot: PublicCoreStatusSnapshot,
     secure: Boolean,
 ) : Presentation(context, display) {
     private var engine: FlutterEngine? = null
@@ -269,7 +307,7 @@ private class RoutePresentation(
                 loader.findAppBundlePath(),
                 "dualDisplayMain",
             ),
-            listOf(routeId),
+            listOf(routeId, JSONObject(initialSnapshot.projection()).toString()),
         )
     }
 
@@ -293,6 +331,23 @@ private class RoutePresentation(
         ownedEngine.destroy()
     }
 
+    fun publish(snapshot: PublicCoreStatusSnapshot, completion: (Boolean) -> Unit) {
+        val ownedEngine = engine
+        if (ownedEngine == null) {
+            completion(false)
+            return
+        }
+        MethodChannel(ownedEngine.dartExecutor.binaryMessenger, PUBLIC_CHANNEL).invokeMethod(
+            "publicSnapshot",
+            snapshot.projection(),
+            object : MethodChannel.Result {
+                override fun success(result: Any?) = completion(result == true)
+                override fun error(code: String, message: String?, details: Any?) = completion(false)
+                override fun notImplemented() = completion(false)
+            },
+        )
+    }
+
     fun dismissSafely() {
         releaseRenderer()
         try {
@@ -300,5 +355,9 @@ private class RoutePresentation(
         } catch (_: RuntimeException) {
             // The display can disappear before Android delivers its callback.
         }
+    }
+
+    companion object {
+        const val PUBLIC_CHANNEL = "com.ersingundem.larenor/dual_display_public"
     }
 }

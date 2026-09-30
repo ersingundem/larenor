@@ -3,6 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/multi_display/data/dual_display_platform_port.dart';
 import 'package:larenor/features/multi_display/domain/dual_display_session.dart';
 
+PublicCoreStatusSnapshot snapshot([int revision = 101]) =>
+    PublicCoreStatusSnapshot(
+      snapshotRevision: revision,
+      observedAtMs: 1000,
+      expiresAtMs: 16000,
+      systemLoadPercent: 10,
+      processMemoryMiB: 128,
+      dataDiskFreeBytes: 400,
+      dataDiskTotalBytes: 1000,
+      processUptimeSeconds: 30,
+    );
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('com.ersingundem.larenor/dual_display_test');
@@ -52,8 +64,38 @@ void main() {
             'displayId',
             'displayGeneration',
             'routeId',
+            'publicSnapshot',
           });
-          return {...args, 'attached': true};
+          expect((args['publicSnapshot']! as Map).keys, {
+            'schemaVersion',
+            'snapshotRevision',
+            'observedAtMs',
+            'expiresAtMs',
+            'serviceState',
+            'apiVersion',
+            'systemLoadPercent',
+            'processMemoryMiB',
+            'dataDiskFreeBytes',
+            'dataDiskTotalBytes',
+            'processUptimeSeconds',
+          });
+          return {
+            for (final entry in args.entries)
+              if (entry.key != 'publicSnapshot') entry.key: entry.value,
+            'attached': true,
+          };
+        }
+        if (call.method == 'publishPublicSnapshot') {
+          final args = Map<String, Object?>.from(call.arguments as Map);
+          final public = Map<String, Object?>.from(
+            args['publicSnapshot']! as Map,
+          );
+          return {
+            'sessionId': args['sessionId'],
+            'displayId': args['displayId'],
+            'snapshotRevision': public['snapshotRevision'],
+            'accepted': true,
+          };
         }
         if (call.method == 'dismiss') return null;
         throw PlatformException(code: 'unexpected');
@@ -68,9 +110,17 @@ void main() {
         sessionId: 'display-session-1-7-4',
         topologyRevision: 7,
         display: secondary,
-        routeId: 'media.now-playing',
+        routeId: 'core.status',
+        publicSnapshot: snapshot(),
       );
       expect(await port.present(request), isA<SecondaryPresentationReceipt>());
+      await port.publishPublicSnapshot(
+        SecondaryPublicSnapshotUpdate(
+          sessionId: request.sessionId,
+          displayId: 4,
+          snapshot: snapshot(102),
+        ),
+      );
       await port.dismiss(
         const SecondaryDismissal(
           sessionId: 'display-session-1-7-4',
@@ -80,6 +130,7 @@ void main() {
       expect(calls.map((call) => call.method), [
         'snapshot',
         'present',
+        'publishPublicSnapshot',
         'dismiss',
       ]);
     },
@@ -117,7 +168,7 @@ void main() {
         'displayId': 4,
         'displayGeneration': 5,
         'topologyRevision': 7,
-        'routeId': 'media.now-playing',
+        'routeId': 'core.status',
         'attached': true,
       },
     );
@@ -135,7 +186,8 @@ void main() {
             densityDpi: 160,
             securePresentation: true,
           ),
-          routeId: 'media.now-playing',
+          routeId: 'core.status',
+          publicSnapshot: snapshot(),
         ),
       ),
       throwsA(isA<DualDisplayException>()),

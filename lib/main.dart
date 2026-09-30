@@ -23,8 +23,9 @@ void main() {
 ///
 /// The secondary engine deliberately does not construct ConfigurationScope or
 /// HomeSessionScope. It receives one allow-listed public route identifier and
-/// can never inherit account, home, credential, URL, or media metadata state
-/// from the primary engine.
+/// a closed, expiring Core-health projection. It can never inherit account,
+/// home, credential, URL, provider, or media metadata state from the primary
+/// engine.
 @pragma('vm:entry-point')
 void dualDisplayMain(List<String> arguments) {
   WidgetsFlutterBinding.ensureInitialized();
