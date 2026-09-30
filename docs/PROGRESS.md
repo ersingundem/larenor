@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 38 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 ve F33 gerçek Client/Core kabulü geçti; F11 izolasyonu ve F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 39 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F11 gerçek Wasmtime kabulü ve CI ayrımı
+
+İmzalı/hash-sabitlenmiş katalog artifacti normal Core içinde gerçek Wasmtime ile çalışır: 50.000 fuel, 64 KiB linear memory, epoch backstop, kapalı WASI ve tek authorized-home scalar import uygulanır. Uygulanmayan CPU-ms/host RSS garantisi veya arbitrary upload iddiası yoktur. Upstream Rust 49.0.1/Python 49.0.0 yayın farkı resmî kaynaktan doğrulandı; etkilenen optional proposals kapatıldı ve gerçek call_ref compile reddi eklendi. 17 Server, 4 Flutter ve gerçek Flutter→TCP Core→Wasmtime kapısı geçti; root 17 testi ve normal runnerı bağımsız doğruladı. Wheel artifact/manifest/signature içerir. F11 CI bekliyor tablosuna taşındı; 39 özellik geniş CI bekliyor, yalnız F59 aktif geliştirme. Kabul sayaçları değişmedi. [F11 kanıtı](testing/f11-mini-plugin-truthful-boundary-2026-09-30.md).
 
 ### 30 Eylül F33 gerçek Client/Core kabulü ve kuyruk ayrımı
 

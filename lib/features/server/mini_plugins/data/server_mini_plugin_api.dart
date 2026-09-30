@@ -20,7 +20,7 @@ final class ServerMiniPluginApi {
     final json = serverObject(await api.request('GET', _root, token: token));
     final instances = json['instances'];
     if (json.length != 4 ||
-        json['schemaVersion'] != 2 ||
+        json['schemaVersion'] != 3 ||
         json['maximumInstances'] != 64 ||
         json['maximumRunning'] != 8 ||
         instances is! List ||

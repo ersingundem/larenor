@@ -178,7 +178,33 @@ final class _AiCore {
       'hostPathsAvailable': false,
     },
     'network': {'mode': 'deny_all', 'allowedDestinations': <Object?>[]},
+    'compute': {
+      'engine': 'wasmtime-49.0.0',
+      'fuelUnitsPerInvocation': 50000,
+      'epochDeadlineTicks': 1,
+      'epochIncrementAfterMilliseconds': 100,
+    },
+    'memory': {
+      'maxLinearBytes': 65536,
+      'maximumMemories': 1,
+      'maximumTables': 0,
+    },
     'output': {'maxBytesPerInvocation': 1024},
+  };
+  Map<String, Object?> get runtime => {
+    'artifactId': 'home-resource-count',
+    'artifactVersion': 1,
+    'artifactSha256': malformed == 'F11Artifact'
+        ? 'c' * 64
+        : '7bdd159c4e384d2413d04b0bbf6ee8b26c4ea179c089258269e44accee04a8bf',
+    'manifestSha256':
+        'd9d6888d352881fc02d0123160345648417621b6943c6a98212a25ced1578a28',
+    'manifestSignatureAlgorithm': 'Ed25519',
+    'manifestSignatureVerified': true,
+    'abi': 'larenor.mini-plugin.v1',
+    'engine': 'wasmtime-49.0.0',
+    'allowedImports': ['larenor.current_home_resource_count()->i32'],
+    'wasiEnabled': false,
   };
   Map<String, Object?> get denials => {
     'crossHomeAccess': false,
@@ -187,13 +213,13 @@ final class _AiCore {
     'arbitraryCodeAvailable': false,
   };
   Map<String, Object?> plugin({bool stopped = false}) => {
-    'schemaVersion': 2,
+    'schemaVersion': 3,
     'id': _pluginId,
     'revision': stopped ? 2 : 1,
     'templateId': 'home-resource-count',
     'displayName': 'Resource count',
     'state': stopped ? 'stopped' : 'running',
-    'executionClass': 'builtin_metadata_v2',
+    'executionClass': 'signed_packaged_wasm_v1',
     'capabilities': ['home.resource_count.read'],
     'limits': limits,
     'denials': denials,
@@ -310,18 +336,18 @@ final class _AiCore {
     }
     if (path.endsWith('$plugins/catalog')) {
       return _json(request, {
-        'schemaVersion': legacyMiniPluginContract ? 1 : 2,
+        'schemaVersion': legacyMiniPluginContract ? 1 : 3,
         'catalogVersion': legacyMiniPluginContract
             ? 'mini-plugin-catalog-v1'
-            : 'mini-plugin-catalog-v2',
+            : 'mini-plugin-catalog-v3',
         'templates': [
           {
-            'schemaVersion': legacyMiniPluginContract ? 1 : 2,
+            'schemaVersion': legacyMiniPluginContract ? 1 : 3,
             'id': 'home-resource-count',
             'displayName': 'Home resource count',
             'executionClass': legacyMiniPluginContract
                 ? 'builtin_bounded_v1'
-                : 'builtin_metadata_v2',
+                : 'signed_packaged_wasm_v1',
             'capabilities': ['home.resource_count.read'],
             'limits': legacyMiniPluginContract
                 ? {
@@ -331,6 +357,7 @@ final class _AiCore {
                   }
                 : limits,
             'denials': denials,
+            if (!legacyMiniPluginContract) 'runtime': runtime,
             'operations': ['render', 'stop'],
             if (malformed == 'F11') 'secret': true,
           },
@@ -340,7 +367,7 @@ final class _AiCore {
     if (path.endsWith('$plugins/$_pluginId/render')) {
       return _json(request, {
         'result': {
-          'schemaVersion': 2,
+          'schemaVersion': 3,
           'pluginId': _pluginId,
           'pluginRevision': 1,
           'capability': 'home.resource_count.read',
@@ -349,8 +376,23 @@ final class _AiCore {
           'networkRequests': 0,
           'filesystemBytes': 0,
           'secretReads': 0,
-          'hostOperations': 0,
+          'hostCapabilityCalls': 1,
+          'hostManagementOperations': 0,
           'outputBytesMaximum': 1024,
+          'runtimeEvidence': {
+            'artifactSha256': malformed == 'F11Evidence' ? 'c' * 64 : '7bdd159c4e384d2413d04b0bbf6ee8b26c4ea179c089258269e44accee04a8bf',
+            'manifestSha256': 'd9d6888d352881fc02d0123160345648417621b6943c6a98212a25ced1578a28',
+            'manifestSignatureVerified': true,
+            'engine': 'wasmtime-49.0.0',
+            'fuelLimit': 50000,
+            'fuelConsumed': 2,
+            'linearMemoryLimitBytes': 65536,
+            'linearMemoryBytesObserved': 65536,
+            'epochDeadlineTicks': 1,
+            'epochIncrementAfterMilliseconds': 100,
+            'wasiEnabled': false,
+            'allowedImports': ['larenor.current_home_resource_count()->i32'],
+          },
         },
       });
     }
@@ -362,7 +404,7 @@ final class _AiCore {
     }
     if (path.endsWith(plugins)) {
       return _json(request, {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'instances': [plugin()],
         'maximumInstances': 64,
         'maximumRunning': 8,
@@ -502,6 +544,11 @@ void main() {
       core.malformed = null;
       core.legacyMiniPluginContract = true;
       await expectLater(api.catalog(), _invalidResponse());
+      core.legacyMiniPluginContract = false;
+      core.malformed = 'F11Artifact';
+      await expectLater(api.catalog(), _invalidResponse());
+      core.malformed = 'F11Evidence';
+      await expectLater(api.render(instance), _invalidResponse());
     }),
   );
 }

@@ -1,5 +1,10 @@
 import '../../domain/server_models.dart';
 
+const _artifactSha256 =
+    '7bdd159c4e384d2413d04b0bbf6ee8b26c4ea179c089258269e44accee04a8bf';
+const _manifestSha256 =
+    'd9d6888d352881fc02d0123160345648417621b6943c6a98212a25ced1578a28';
+
 Never _invalid() => throw const LarenorServerException('invalid_response');
 
 Map<Object?, Object?> _object(Object? raw, Set<String> keys) {
@@ -26,13 +31,30 @@ int _revision(Object? value) {
 }
 
 void _policy(Object? limits, Object? denials) {
-  final value = _object(limits, {'filesystem', 'network', 'output'});
+  final value = _object(limits, {
+    'filesystem',
+    'network',
+    'compute',
+    'memory',
+    'output',
+  });
   final filesystem = _object(value['filesystem'], {
     'mode',
     'scratchBytes',
     'hostPathsAvailable',
   });
   final network = _object(value['network'], {'mode', 'allowedDestinations'});
+  final compute = _object(value['compute'], {
+    'engine',
+    'fuelUnitsPerInvocation',
+    'epochDeadlineTicks',
+    'epochIncrementAfterMilliseconds',
+  });
+  final memory = _object(value['memory'], {
+    'maxLinearBytes',
+    'maximumMemories',
+    'maximumTables',
+  });
   final output = _object(value['output'], {'maxBytesPerInvocation'});
   final denied = _object(denials, {
     'crossHomeAccess',
@@ -46,8 +68,45 @@ void _policy(Object? limits, Object? denials) {
       network['mode'] != 'deny_all' ||
       network['allowedDestinations'] is! List ||
       (network['allowedDestinations'] as List).isNotEmpty ||
+      compute['engine'] != 'wasmtime-49.0.0' ||
+      compute['fuelUnitsPerInvocation'] != 50000 ||
+      compute['epochDeadlineTicks'] != 1 ||
+      compute['epochIncrementAfterMilliseconds'] != 100 ||
+      memory['maxLinearBytes'] != 65536 ||
+      memory['maximumMemories'] != 1 ||
+      memory['maximumTables'] != 0 ||
       output['maxBytesPerInvocation'] != 1024 ||
       denied.values.any((value) => value != false)) {
+    _invalid();
+  }
+}
+
+void _runtime(Object? raw) {
+  final value = _object(raw, {
+    'artifactId',
+    'artifactVersion',
+    'artifactSha256',
+    'manifestSha256',
+    'manifestSignatureAlgorithm',
+    'manifestSignatureVerified',
+    'abi',
+    'engine',
+    'allowedImports',
+    'wasiEnabled',
+  });
+  final imports = value['allowedImports'];
+  if (value['artifactId'] != 'home-resource-count' ||
+      value['artifactVersion'] != 1 ||
+      value['artifactSha256'] != _artifactSha256 ||
+      value['manifestSha256'] != _manifestSha256 ||
+      value['manifestSignatureAlgorithm'] != 'Ed25519' ||
+      value['manifestSignatureVerified'] != true ||
+      value['abi'] != 'larenor.mini-plugin.v1' ||
+      value['engine'] != 'wasmtime-49.0.0' ||
+      imports is! List ||
+      imports.length != 1 ||
+      imports.single != 'larenor.current_home_resource_count()->i32' ||
+      value['wasiEnabled'] != false) {
     _invalid();
   }
 }
@@ -70,8 +129,8 @@ final class ServerMiniPluginCatalog {
       'templates',
     });
     final templates = value['templates'];
-    if (value['schemaVersion'] != 2 ||
-        value['catalogVersion'] != 'mini-plugin-catalog-v2' ||
+    if (value['schemaVersion'] != 3 ||
+        value['catalogVersion'] != 'mini-plugin-catalog-v3' ||
         templates is! List ||
         templates.length != 1) {
       _invalid();
@@ -84,13 +143,14 @@ final class ServerMiniPluginCatalog {
       'capabilities',
       'limits',
       'denials',
+      'runtime',
       'operations',
     });
     final operations = template['operations'];
-    if (template['schemaVersion'] != 2 ||
+    if (template['schemaVersion'] != 3 ||
         template['id'] != 'home-resource-count' ||
         template['displayName'] != 'Home resource count' ||
-        template['executionClass'] != 'builtin_metadata_v2' ||
+        template['executionClass'] != 'signed_packaged_wasm_v1' ||
         operations is! List ||
         operations.length != 2 ||
         operations[0] != 'render' ||
@@ -99,6 +159,7 @@ final class ServerMiniPluginCatalog {
     }
     _capabilities(template['capabilities']);
     _policy(template['limits'], template['denials']);
+    _runtime(template['runtime']);
     return const ServerMiniPluginCatalog._();
   }
 }
@@ -128,9 +189,9 @@ final class ServerMiniPluginInstance {
     });
     final name = value['displayName'];
     final state = value['state'];
-    if (value['schemaVersion'] != 2 ||
+    if (value['schemaVersion'] != 3 ||
         value['templateId'] != 'home-resource-count' ||
-        value['executionClass'] != 'builtin_metadata_v2' ||
+        value['executionClass'] != 'signed_packaged_wasm_v1' ||
         name is! String ||
         name.isEmpty ||
         name.runes.length > 48 ||
@@ -160,6 +221,9 @@ final class ServerMiniPluginSnapshot {
     required this.pluginRevision,
     required this.resourceCount,
     required this.generatedAt,
+    required this.artifactSha256,
+    required this.fuelConsumed,
+    required this.linearMemoryBytesObserved,
   });
 
   factory ServerMiniPluginSnapshot.fromJson(Object? raw) {
@@ -173,12 +237,30 @@ final class ServerMiniPluginSnapshot {
       'networkRequests',
       'filesystemBytes',
       'secretReads',
-      'hostOperations',
+      'hostCapabilityCalls',
+      'hostManagementOperations',
       'outputBytesMaximum',
+      'runtimeEvidence',
     });
     final count = value['resourceCount'];
     final generated = value['generatedAt'];
-    if (value['schemaVersion'] != 2 ||
+    final evidence = _object(value['runtimeEvidence'], {
+      'artifactSha256',
+      'manifestSha256',
+      'manifestSignatureVerified',
+      'engine',
+      'fuelLimit',
+      'fuelConsumed',
+      'linearMemoryLimitBytes',
+      'linearMemoryBytesObserved',
+      'epochDeadlineTicks',
+      'epochIncrementAfterMilliseconds',
+      'wasiEnabled',
+      'allowedImports',
+    });
+    final fuelConsumed = evidence['fuelConsumed'];
+    final imports = evidence['allowedImports'];
+    if (value['schemaVersion'] != 3 ||
         value['capability'] != 'home.resource_count.read' ||
         count is! int ||
         count < 0 ||
@@ -188,8 +270,25 @@ final class ServerMiniPluginSnapshot {
         value['networkRequests'] != 0 ||
         value['filesystemBytes'] != 0 ||
         value['secretReads'] != 0 ||
-        value['hostOperations'] != 0 ||
-        value['outputBytesMaximum'] != 1024) {
+        value['hostCapabilityCalls'] != 1 ||
+        value['hostManagementOperations'] != 0 ||
+        value['outputBytesMaximum'] != 1024 ||
+        evidence['artifactSha256'] != _artifactSha256 ||
+        evidence['manifestSha256'] != _manifestSha256 ||
+        evidence['manifestSignatureVerified'] != true ||
+        evidence['engine'] != 'wasmtime-49.0.0' ||
+        evidence['fuelLimit'] != 50000 ||
+        fuelConsumed is! int ||
+        fuelConsumed < 1 ||
+        fuelConsumed > 50000 ||
+        evidence['linearMemoryLimitBytes'] != 65536 ||
+        evidence['linearMemoryBytesObserved'] != 65536 ||
+        evidence['epochDeadlineTicks'] != 1 ||
+        evidence['epochIncrementAfterMilliseconds'] != 100 ||
+        evidence['wasiEnabled'] != false ||
+        imports is! List ||
+        imports.length != 1 ||
+        imports.single != 'larenor.current_home_resource_count()->i32') {
       _invalid();
     }
     return ServerMiniPluginSnapshot._(
@@ -200,10 +299,16 @@ final class ServerMiniPluginSnapshot {
         (generated * 1000).round(),
         isUtc: true,
       ),
+      artifactSha256: evidence['artifactSha256'] as String,
+      fuelConsumed: fuelConsumed,
+      linearMemoryBytesObserved: evidence['linearMemoryBytesObserved'] as int,
     );
   }
 
-  final String pluginId;
-  final int pluginRevision, resourceCount;
+  final String pluginId, artifactSha256;
+  final int pluginRevision,
+      resourceCount,
+      fuelConsumed,
+      linearMemoryBytesObserved;
   final DateTime generatedAt;
 }

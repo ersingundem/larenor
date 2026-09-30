@@ -9,6 +9,7 @@ dependencies = [
   "uvicorn==0.52.4",
   "argon2-cffi==25.1.0",
   "cryptography==50.0.1",
+  "wasmtime==49.0.0",
 ]
 
 [dependency-groups]

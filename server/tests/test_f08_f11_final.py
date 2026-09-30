@@ -176,18 +176,49 @@ def test_f11_catalog_enforces_capabilities_limits_scope_and_stop(server):
     app, client, _settings, _clock = server
     admin = ready(server)
     root = _root(app, "mini-plugins")
+    context = app.state.core.context
+    resources = (
+        f"/api/v1/admin/home-resources/{context.coreId}/{context.homeId}"
+    )
+    created_resource = client.post(
+        resources,
+        headers=auth(admin),
+        json={"kind": "resource", "label": "Wasm-visible resource", "order": 0},
+    )
+    assert created_resource.status_code == 201, created_resource.text
     catalog = client.get(root + "/catalog", headers=auth(admin))
     assert catalog.status_code == 200
-    assert catalog.json()["schemaVersion"] == 2
-    assert catalog.json()["catalogVersion"] == "mini-plugin-catalog-v2"
+    assert catalog.json()["schemaVersion"] == 3
+    assert catalog.json()["catalogVersion"] == "mini-plugin-catalog-v3"
     template = catalog.json()["templates"][0]
-    assert template["schemaVersion"] == 2
-    assert template["executionClass"] == "builtin_metadata_v2"
+    assert template["schemaVersion"] == 3
+    assert template["executionClass"] == "signed_packaged_wasm_v1"
     assert template["capabilities"] == ["home.resource_count.read"]
-    assert set(template["limits"]) == {"network", "filesystem", "output"}
+    assert set(template["limits"]) == {
+        "network", "filesystem", "compute", "memory", "output"
+    }
     assert template["limits"]["network"] == {"mode": "deny_all", "allowedDestinations": []}
     assert template["limits"]["filesystem"]["hostPathsAvailable"] is False
     assert template["limits"]["output"] == {"maxBytesPerInvocation": 1024}
+    assert template["limits"]["compute"] == {
+        "engine": "wasmtime-49.0.0",
+        "fuelUnitsPerInvocation": 50000,
+        "epochDeadlineTicks": 1,
+        "epochIncrementAfterMilliseconds": 100,
+    }
+    assert template["limits"]["memory"] == {
+        "maxLinearBytes": 65536,
+        "maximumMemories": 1,
+        "maximumTables": 0,
+    }
+    runtime = template["runtime"]
+    assert runtime["manifestSignatureAlgorithm"] == "Ed25519"
+    assert runtime["manifestSignatureVerified"] is True
+    assert runtime["engine"] == "wasmtime-49.0.0"
+    assert runtime["wasiEnabled"] is False
+    assert runtime["allowedImports"] == [
+        "larenor.current_home_resource_count()->i32"
+    ]
     assert template["denials"] == {
         "crossHomeAccess": False, "secretsAvailable": False,
         "hostManagementAvailable": False, "arbitraryCodeAvailable": False,
@@ -198,18 +229,30 @@ def test_f11_catalog_enforces_capabilities_limits_scope_and_stop(server):
     created = client.post(root, headers=auth(admin), json=create)
     assert created.status_code == 201, created.text
     instance = created.json()["instance"]
-    assert instance["schemaVersion"] == 2
-    assert instance["executionClass"] == "builtin_metadata_v2"
+    assert instance["schemaVersion"] == 3
+    assert instance["executionClass"] == "signed_packaged_wasm_v1"
     assert client.post(root, headers=auth(admin), json=create).json() == created.json()
     render = client.post(f"{root}/{instance['id']}/render", headers=auth(admin), json={
         "schemaVersion": 1, "expectedRevision": 1,
     })
     assert render.status_code == 200
     result = render.json()["result"]
-    assert result["schemaVersion"] == 2
+    assert result["schemaVersion"] == 3
+    assert result["resourceCount"] == 1
     assert result["networkRequests"] == result["filesystemBytes"] == 0
-    assert result["secretReads"] == result["hostOperations"] == 0
+    assert result["secretReads"] == result["hostManagementOperations"] == 0
+    assert result["hostCapabilityCalls"] == 1
     assert result["outputBytesMaximum"] == 1024
+    evidence = result["runtimeEvidence"]
+    assert evidence["manifestSignatureVerified"] is True
+    assert evidence["engine"] == "wasmtime-49.0.0"
+    assert evidence["fuelLimit"] == 50000
+    assert 0 < evidence["fuelConsumed"] <= evidence["fuelLimit"]
+    assert evidence["linearMemoryLimitBytes"] == 65536
+    assert evidence["linearMemoryBytesObserved"] == 65536
+    assert evidence["epochDeadlineTicks"] == 1
+    assert evidence["epochIncrementAfterMilliseconds"] == 100
+    assert evidence["wasiEnabled"] is False
 
     stopped = client.post(f"{root}/{instance['id']}/stop", headers=auth(admin), json={
         "schemaVersion": 1, "requestKey": "mini-plugin-stop-key-0002", "expectedRevision": 1,

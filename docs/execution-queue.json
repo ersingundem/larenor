@@ -3805,7 +3805,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Sınırlı yetkili mini eklentiler",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3831,7 +3831,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION incelemesinde CPU/bellek limitlerinin in-process metadata renderer tarafından uygulanmadığı doğrulandı. Yanlış hard-limit iddiası sürümlü Server/Client sözleşmesinden kaldırılıyor; gerçek izolasyon ve tüm kabul kriterleri doğrulanmadan CI bekliyor veya kanıtla tamamlandı sayılmaz. Çıktı, yetki, stop, ev sınırı ve sabit katalog kapıları korunur."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Normal Flutter Client → gerçek TCP normal Core → imzalı/hash-sabitlenmiş Wasmtime 49.0.0 artifact render/stop yolu geçti. Gerçek fuel 50.000, 65.536 B linear memory ve epoch sınırı uygulanır; WASI/serbest dosya/ağ/host yönetimi kapalıdır. 17 Server, 4 Flutter loopback ve gerçek normal-Core Client kapısı geçti; root 17 Server ve gerçek runnerı bağımsız doğruladı. Üretilen wheel artifact/manifest/imzayı taşır. Rust 49.0.1 düzeltmesinin Python binding yayını henüz yok; etkilenen optional proposals kapalı ve call_ref gerçek engine tarafından reddedilir. Katalog sabittir, arbitrary upload yok; host RSS veya CPU-millisecond garantisi iddia edilmez. docs/testing/f11-mini-plugin-truthful-boundary-2026-09-30.md. Kabul sayaçları artmadı."
     },
     {
       "id": "F12",

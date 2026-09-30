@@ -5378,7 +5378,7 @@
   "serverMiniPluginStop": "Stop plugin",
   "serverMiniPluginEmpty": "No mini plugin instance exists. Add the packaged resource counter to start.",
   "serverMiniPluginOutput": "Latest bounded output",
-  "serverMiniPluginZeroEffects": "Network requests 0 · filesystem bytes 0 · secret reads 0 · host operations 0",
+  "serverMiniPluginZeroEffects": "Network requests 0 · filesystem bytes 0 · secret reads 0 · authorized home capability calls 1 · host management 0",
   "serverMiniPluginResourceCount": "Current home resources: {count}",
   "@serverMiniPluginResourceCount": {
     "placeholders": {

@@ -6,6 +6,15 @@ import uuid
 
 from ..errors import ApiError, StartupError
 from .models import CreateMiniPlugin, RenderMiniPlugin, StopMiniPlugin
+from .wasm_runtime import (
+    EPOCH_DEADLINE_TICKS,
+    EPOCH_INCREMENT_AFTER_SECONDS,
+    FUEL_LIMIT,
+    LINEAR_MEMORY_LIMIT_BYTES,
+    MiniPluginRuntimeError,
+    PackagedMiniPluginRuntime,
+    packaged_runtime_contract,
+)
 
 
 MAX_INSTANCES = 64
@@ -20,6 +29,19 @@ LIMITS = {
     "network": {
         "mode": "deny_all",
         "allowedDestinations": [],
+    },
+    "compute": {
+        "engine": "wasmtime-49.0.0",
+        "fuelUnitsPerInvocation": FUEL_LIMIT,
+        "epochDeadlineTicks": EPOCH_DEADLINE_TICKS,
+        "epochIncrementAfterMilliseconds": int(
+            EPOCH_INCREMENT_AFTER_SECONDS * 1000
+        ),
+    },
+    "memory": {
+        "maxLinearBytes": LINEAR_MEMORY_LIMIT_BYTES,
+        "maximumMemories": 1,
+        "maximumTables": 0,
     },
     "output": {"maxBytesPerInvocation": 1024},
 }
@@ -38,6 +60,10 @@ class MiniPluginService:
         self._key = hmac.new(
             key, b"larenor-mini-plugins-v1", hashlib.sha256
         ).digest()
+        try:
+            self._runtime = PackagedMiniPluginRuntime()
+        except MiniPluginRuntimeError:
+            raise StartupError("mini_plugin_runtime_invalid") from None
 
     def _tag(self, row):
         values = [
@@ -101,20 +127,20 @@ class MiniPluginService:
         except (sqlite3.Error, TypeError, ValueError):
             raise StartupError("mini_plugin_storage_invalid") from None
 
-    @staticmethod
-    def catalog():
+    def catalog(self):
         return {
-            "schemaVersion": 2,
-            "catalogVersion": "mini-plugin-catalog-v2",
+            "schemaVersion": 3,
+            "catalogVersion": "mini-plugin-catalog-v3",
             "templates": [
                 {
-                    "schemaVersion": 2,
+                    "schemaVersion": 3,
                     "id": "home-resource-count",
                     "displayName": "Home resource count",
-                    "executionClass": "builtin_metadata_v2",
+                    "executionClass": "signed_packaged_wasm_v1",
                     "capabilities": CAPABILITIES,
                     "limits": LIMITS,
                     "denials": DENIALS,
+                    "runtime": packaged_runtime_contract(),
                     "operations": ["render", "stop"],
                 }
             ],
@@ -123,13 +149,13 @@ class MiniPluginService:
     @staticmethod
     def _public(row):
         return {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "id": row["id"],
             "revision": row["revision"],
             "templateId": row["template_id"],
             "displayName": row["display_name"],
             "state": row["state"],
-            "executionClass": "builtin_metadata_v2",
+            "executionClass": "signed_packaged_wasm_v1",
             "capabilities": CAPABILITIES,
             "limits": LIMITS,
             "denials": DENIALS,
@@ -144,7 +170,7 @@ class MiniPluginService:
         ):
             rows = self._validate(connection)
             return {
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "instances": [self._public(row) for row in rows],
                 "maximumInstances": MAX_INSTANCES,
                 "maximumRunning": MAX_RUNNING,
@@ -247,18 +273,24 @@ class MiniPluginService:
             if row["state"] != "running":
                 raise ApiError("mini_plugin_stopped", 409)
             state = self.resources._state(connection)
+            try:
+                execution = self._runtime.execute(state["record_count"])
+            except MiniPluginRuntimeError as error:
+                raise ApiError(error.code, 503) from None
             result = {
-                "schemaVersion": 2,
+                "schemaVersion": 3,
                 "pluginId": row["id"],
                 "pluginRevision": row["revision"],
                 "capability": "home.resource_count.read",
-                "resourceCount": state["record_count"],
+                "resourceCount": execution.resource_count,
                 "generatedAt": float(self.settings.clock()),
                 "networkRequests": 0,
                 "filesystemBytes": 0,
                 "secretReads": 0,
-                "hostOperations": 0,
+                "hostCapabilityCalls": 1,
+                "hostManagementOperations": 0,
                 "outputBytesMaximum": LIMITS["output"]["maxBytesPerInvocation"],
+                "runtimeEvidence": execution.evidence.public(),
             }
             if len(json.dumps(result, separators=(",", ":")).encode()) > 1024:
                 raise ApiError("mini_plugin_output_limit", 413)

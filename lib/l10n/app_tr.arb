@@ -5019,7 +5019,7 @@
   "serverMiniPluginStop": "Eklentiyi durdur",
   "serverMiniPluginEmpty": "Henüz mini eklenti örneği yok. Başlamak için paketli kaynak sayacını ekleyin.",
   "serverMiniPluginOutput": "Son sınırlı çıktı",
-  "serverMiniPluginZeroEffects": "Ağ isteği 0 · dosya sistemi baytı 0 · anahtar okuması 0 · host işlemi 0",
+  "serverMiniPluginZeroEffects": "Ağ isteği 0 · dosya sistemi baytı 0 · anahtar okuması 0 · yetkili ev yeteneği çağrısı 1 · host yönetimi 0",
   "serverMiniPluginResourceCount": "Mevcut ev kaynakları: {count}",
   "@serverMiniPluginResourceCount": {
     "placeholders": {
