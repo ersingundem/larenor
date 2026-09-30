@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 Avahi komut uyumluluğu
+
+Run36790838898 exact525176a23 owned host adımında readiness receipt üretmeden düştü. Resmî Avahi seçenekleri Ubuntu executableın `--ipv4` desteklemediğini doğruladı; yalnız bu geçersiz argüman kaldırıldı. Exact interface, bounded stdout ve owned service name/type/domain/hostname/port kapıları korunur, farklı adres aileleri aynı exact kimlikte birleştirilir. Root22 host/dispatcher testi geçti. Değişen kaynakla hosted readiness hâlâ açık; F60 yeniden çalışılıyor, CI bekliyor ve kabul sayaçları değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).
+
 ### 1 Ekim F60 gerçek host keşif düzeltmesi
 
 Run36790356666 exactf8db9580 dispatcher/bağımlılık kurulumu geçti, fakat owned host mDNS gözleminde10sn sonra safe exit2 verdi; readiness receipt yok. Pinned Sunshine publisher mDNS instance için sunshine_name yerine runner hostname algoritmasını kullanıyor. Bounded Avahi stdout artık yalnız exact owned hostname/type/port resolved record ile kabul edilir; timeout tek başına başarı değildir. Root22 host/dispatcher ve47 policy testi geçti. Değişen kaynakla yeni hosted kabul gerekli; F60 yeniden çalışılıyor ve sayaçlar değişmedi. [Kanıt](testing/f60-sunshine-owned-host-2026-10-01.md).

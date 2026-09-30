@@ -9,9 +9,9 @@ backend, encoder, codec, or successful receipt.
 
 The executable refuses anything except an x86_64 GitHub-hosted Ubuntu 24.04
 runner. Its only CLI mode is `--readiness-only`; the emitted public object says
-`state: host_ready` and `streamAccepted: false`. A real hosted run has not been
-performed for this slice, so this document makes no Sunshine interoperability
-or streaming-success claim.
+`state: host_ready` and `streamAccepted: false`. The two actual hosted runs
+below failed before a readiness receipt; this document makes no Sunshine
+interoperability or streaming-success claim.
 
 `.github/workflows/f60-sunshine-owned-host.yml` is a manual, same-repository
 host smoke on `ubuntu-24.04`. It pins the reviewed checkout action, resolves and
@@ -126,7 +126,7 @@ last client, the full future gate must restart the same private instance before
 claiming an absence readback.
 
 The mDNS helper reads the single up default interface from `/proc/net/route`
-and invokes Avahi for IPv4 on only that interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and
+and invokes Avahi on only that interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and
 port47989; `sunshine_name=Larenor-F60-Owned` is only the NvHTTP display name. Multiple
 IPv4/IPv6 or interface observations of that exact service identity are deduped;
 a second hostname or port is rejected. Addresses are validated but never
@@ -178,7 +178,17 @@ counts clear. The helper now verifies exact owned hostname/port/type from
 bounded collected stdout even after subprocess.run kills and reaps a timed-out
 browser. Empty, foreign, malformed and oversized results remain rejected;
 timeout by itself is never readiness. Root22 host/dispatcher plus47 policy
-tests passed. Changed-source hosted readiness is still required.
+tests passed.
+
+Run36790838898 at exact525176a23 then failed before a readiness receipt. The
+Ubuntu Avahi executable does not support the supplied `--ipv4` argument, as
+confirmed by its [official option table](https://github.com/avahi/avahi/blob/master/avahi-utils/avahi-browse.c)
+and [Ubuntu 24.04 manual](https://manpages.ubuntu.com/manpages/noble/man1/avahi-browse.1.html).
+Only that unsupported argument was removed. The exact interface, bounded
+stdout and owned name/type/domain/hostname/port checks remain; multiple address
+families of the same service are deduplicated without publishing addresses.
+The focused argv regression now rejects reintroducing this argument. Root22
+host/dispatcher tests passed. Changed-source hosted readiness is still required.
 
 This slice does not yet prove Xvfb capture, CPU H.264 encoder initialization, emulator mDNS
 visibility, cryptographic pairing, NvHTTP catalog/launch, RTP transport,

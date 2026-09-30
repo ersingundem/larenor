@@ -543,6 +543,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
         self.assertIn("--resolve", argv)
         self.assertIn("--terminate", argv)
         self.assertIn("--interface=eth0", argv)
+        self.assertNotIn("--ipv4", argv)
 
     def test_mdns_timeout_without_exact_owned_resolution_fails_closed(self):
         timed_out = subprocess.TimeoutExpired(

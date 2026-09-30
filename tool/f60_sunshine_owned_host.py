@@ -1012,7 +1012,6 @@ def _observe_mdns() -> Dict[str, Any]:
                 "--resolve",
                 "--terminate",
                 "--no-db-lookup",
-                "--ipv4",
                 "--interface=" + interface,
                 "_nvstream._tcp",
             ],
