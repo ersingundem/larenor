@@ -15,7 +15,7 @@ class ServerTestShardsTest(unittest.TestCase):
         ).read_text()
         self.assertIn("shard: [0, 1, 2, 3]", workflow)
         self.assertIn("--root tests --count 4", workflow)
-        self.assertIn("timeout-minutes: 20", workflow)
+        self.assertIn("timeout-minutes: 30", workflow)
         self.assertNotIn("shard: [0, 1, 2]\n", workflow)
 
     def test_measured_weights_remain_valid_as_new_tests_join_the_suite(self):

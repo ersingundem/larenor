@@ -107,6 +107,8 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
                          r"^ReactiveCircus/android-emulator-runner@[0-9a-f]{40}$")
         self.assertIs(client["with"]["disable-linux-hw-accel"], True)
         script = client["with"]["script"]
+        self.assertTrue(script.startswith("set -eu\n"))
+        self.assertNotIn("pipefail", script)
         self.assertIn(":app:connectedDebugAndroidTest", script)
         self.assertIn("RdpPackagedHostAcceptanceTest", script)
         self.assertIn("rdpHost=10.0.2.2", script)
