@@ -47,3 +47,10 @@ class AcceptEnergyWindows(FrozenModel):
     observedAtMs: TimestampMs
     expiresAtMs: TimestampMs
     slots: list[AcceptedEnergyWindowSlot] = Field(min_length=1, max_length=192)
+
+
+class AuthorizeCurrentControl(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedServiceRevision: Revision
+    expectedAuthorityRevision: int = Field(ge=0, le=2**63 - 1)
+    enabled: bool

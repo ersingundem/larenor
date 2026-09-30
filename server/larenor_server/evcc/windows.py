@@ -318,3 +318,26 @@ class EvccEnergyWindowStore:
             manual_override=None,
         )
         return EvccEnergyProjection(row["accepted_revision"], inputs)
+
+    def is_single_current_window(
+        self, observation: EvccObservation, schedule_revision: int
+    ) -> bool:
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM evcc_energy_windows WHERE service_id=?",
+                (observation.service_id,),
+            ).fetchone()
+        if (
+            row is None
+            or row["service_revision"] != observation.service_revision
+            or row["accepted_revision"] != schedule_revision
+        ):
+            return False
+        value = self._decode(row)
+        now = self._clock()
+        return (
+            now < value.expires_at
+            and now - value.observed_at <= 300
+            and len(value.slots) == 1
+            and value.slots[0].start_at <= now < value.slots[0].end_at
+        )

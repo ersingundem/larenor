@@ -97,8 +97,8 @@ They do not accept Larenor F46's tuple of individually selected current slots,
 and their GET response does not echo Larenor's plan hash. Treating a successful
 POST or an unrelated evcc plan as that hash would create a false receipt.
 
-An eventual control adapter has exact per-effect readback options, but it needs
-a durable scheduler rather than the current immediate all-slots gateway:
+Larenor now supports one bounded control case from those exact per-effect
+readback options:
 
 - a current limit can be written with
   `POST /api/loadpoints/{id}/maxcurrent/{current}` and checked in a fresh
@@ -110,11 +110,31 @@ a durable scheduler rather than the current immediate all-slots gateway:
   target time, duration, power, and rate windows.
 
 None of those reads proves that every future Larenor current slot has executed.
-A production write path must persist the accepted Larenor schedule, dispatch
-only the slot current at execution time, bind it to the exact service revision
-and loadpoint index, and record each fresh upstream setpoint readback. Until
-that scheduler exists, Core supplies no charger gateway and never returns a
-verified F46 command receipt.
+The production adapter therefore enables `canControl` only when the accepted
+schedule contains exactly one slot that is active now and the exact loadpoint
+is currently connected and charging. An admin must separately
+authorize the exact selected evcc service revision and loadpoint with CAS at
+`PUT .../loadpoints/{index}/current-control`. Service-revision drift disables
+the authority until it is explicitly replaced. The admin-only `GET` at the same
+path exposes only authority revision, authorized and current service revisions,
+enabled state, and `missing`, `current`, or `service_revision_changed`; it does
+not return an endpoint, API key, or accepted window contents.
+
+Before the adapter sends the fixed max-current POST, it stores an HMAC-authenticated
+effect reservation bound to the exact plan hash, service revision, loadpoint,
+charger revision, schedule revision, and target current. It then reads fresh
+`/api/state` and accepts only the same loadpoint's exact `maxCurrent`. A verified
+F46 receipt is created only after that readback. If the effect is durably
+verified but the planner receipt was interrupted before completion, the
+command-result GET performs another upstream readback before completing it.
+An ambiguous transport result remains uncertain: a later matching setpoint is
+not accepted as causal proof, and the same plan hash is not automatically
+posted again.
+
+Future or multi-slot plans remain read-only. Supporting them requires a durable
+scheduler that dispatches only the slot current at execution time and records
+each upstream setpoint readback; evcc still provides no all-slots plan-hash
+receipt.
 
 The delivered F46 projection is planning-only and read-only. Charger facts come
 from evcc. Future tariff, solar-surplus, and F48 home-budget facts enter normal
@@ -144,5 +164,6 @@ while `recorder/statistics_during_period` returns recorded aggregate periods
 ([recorder command](https://github.com/home-assistant/core/blob/ef2bc757e639324e3e106c125016a0542fd1d9a9/homeassistant/components/recorder/websocket_api.py#L217-L311)).
 Past consumption is not relabeled as future load, solar production is not
 relabeled as surplus, and the current meter value is not repeated into future
-slots. With a fresh accepted record, F46 advertises `canPlan: true` and
-`canControl: false`; without one, it stays unavailable.
+slots. With a fresh accepted record, F46 advertises `canPlan: true`.
+`canControl` additionally requires the explicit current-control authority and
+the exact one-slot active-now shape above; without those facts it stays false.

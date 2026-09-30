@@ -310,7 +310,22 @@ class EvChargeRuntime:
             command_id=body.commandId,
             expected_plan_hash=body.expectedPlanHash,
         )
+        if value.status == "awaiting_readback" and callable(
+            getattr(self.planner._charger, "readback_authorized", None)
+        ):
+            value = self.planner.readback(
+                actor, authority=authority, command_id=body.commandId
+            )
         return {"schemaVersion": 1, "receipt": self._receipt(value, authority)}
+
+    def result(self, actor, core_id, home_id, charger_id, command_id):
+        snapshot, _device = self._snapshot(
+            actor, core_id, home_id, charger_id, control=True
+        )
+        value = self.planner.readback(
+            actor, authority=snapshot.authority, command_id=command_id
+        )
+        return {"schemaVersion": 1, "receipt": self._receipt(value, snapshot.authority)}
 
     @staticmethod
     def _receipt(value, authority):

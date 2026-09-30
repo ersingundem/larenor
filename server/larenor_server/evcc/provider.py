@@ -586,8 +586,9 @@ class EvccPowerBudgetProvider:
 
 
 class EvccChargeProvider:
-    def __init__(self, binding, cache, energy_windows):
+    def __init__(self, binding, cache, energy_windows, control_authority=None):
         self._binding, self._cache, self._energy_windows = binding, cache, energy_windows
+        self._control_authority = control_authority
 
     @staticmethod
     def _charger_id(service_id, index):
@@ -614,6 +615,19 @@ class EvccChargeProvider:
             and item.voltage is not None
         )
 
+    def _control_authorized(self, observation, projection, charger_id):
+        checker = getattr(self._control_authority, "authorized", None)
+        indexes = [
+            item.index
+            for item in observation.loadpoints
+            if self._charger_id(observation.service_id, item.index) == charger_id
+        ]
+        return (
+            callable(checker)
+            and len(indexes) == 1
+            and checker(observation, indexes[0], projection.schedule_revision) is True
+        )
+
     def capability(self):
         try:
             self._binding.assert_current()
@@ -635,8 +649,13 @@ class EvccChargeProvider:
                 return ChargeProviderCapability(
                     "unavailable", "evcc", False, False, "provider_unreachable"
                 )
+            can_control = any(
+                self._control_authorized(observation, projection, item.charger_id)
+                for item in devices
+            )
             return ChargeProviderCapability(
-                "ready", "evcc", True, False, "charger_read_only", devices
+                "ready", "evcc", True, can_control,
+                "ready" if can_control else "charger_read_only", devices
             )
         except Exception:
             return ChargeProviderCapability(
@@ -694,7 +713,9 @@ class EvccChargeProvider:
                     == charger_id
                 ),
                 device.battery_capacity_wh,
-                False,
+                self._control_authorized(
+                    observation, projection, device.charger_id
+                ),
             ),
             inputs,
         )
@@ -709,6 +730,7 @@ class EvccRuntimeProviders:
         *,
         clock,
         energy_windows: EnergyWindowSource | None = None,
+        control_authority=None,
         transport_factory=None,
     ):
         if not isinstance(binding, EvccBinding) or (
@@ -719,7 +741,9 @@ class EvccRuntimeProviders:
         reader = EvccHttpReader(clock, transport_factory=transport_factory)
         cache = _SnapshotCache(reader, binding.connection)
         self.power_budget = EvccPowerBudgetProvider(binding, cache)
-        self.ev_charging = EvccChargeProvider(binding, cache, energy_windows)
+        self.ev_charging = EvccChargeProvider(
+            binding, cache, energy_windows, control_authority
+        )
 
 
 class _ResolvedChargeProvider:
@@ -815,6 +839,7 @@ class EvccRuntimeResolver:
         *,
         clock,
         energy_windows: EnergyWindowSource | None = None,
+        control_authority=None,
         transport_factory=None,
     ):
         if not callable(binding_resolver):
@@ -822,6 +847,7 @@ class EvccRuntimeResolver:
         self._binding_resolver = binding_resolver
         self._clock = clock
         self._energy_windows = energy_windows
+        self._control_authority = control_authority
         self._transport_factory = transport_factory
         self.ev_charging = _ResolvedChargeProvider(self)
         self.power_budget = _ResolvedPowerBudgetProvider(self)
@@ -836,5 +862,6 @@ class EvccRuntimeResolver:
             binding,
             clock=self._clock,
             energy_windows=self._energy_windows,
+            control_authority=self._control_authority,
             transport_factory=self._transport_factory,
         )

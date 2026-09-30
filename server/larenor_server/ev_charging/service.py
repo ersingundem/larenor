@@ -768,10 +768,18 @@ class ChargePlanner:
                 occurred_at=now,
             )
         try:
-            self._charger.apply(
-                plan_hash=preview.plan_hash,
-                slots=tuple(asdict(slot) for slot in preview.slots),
-            )
+            apply_authorized = getattr(self._charger, "apply_authorized", None)
+            if callable(apply_authorized):
+                apply_authorized(
+                    authority,
+                    plan_hash=preview.plan_hash,
+                    slots=tuple(asdict(slot) for slot in preview.slots),
+                )
+            else:
+                self._charger.apply(
+                    plan_hash=preview.plan_hash,
+                    slots=tuple(asdict(slot) for slot in preview.slots),
+                )
             action = "awaiting_readback"
         except Exception:  # noqa: BLE001 -- hardware result is deliberately uncertain.
             action = "confirm_uncertain"
@@ -828,7 +836,14 @@ class ChargePlanner:
             current = self._command_status(connection, scope, command_id)
             if current == "verified":
                 return self._receipt(connection, row, scope)
-            observed = self._charger.readback()
+            readback_authorized = getattr(
+                self._charger, "readback_authorized", None
+            )
+            observed = (
+                readback_authorized(authority, plan_hash=row["plan_hash"])
+                if callable(readback_authorized)
+                else self._charger.readback()
+            )
             action = (
                 "verified"
                 if observed is not None

@@ -3,7 +3,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import auth, ready
+from conftest import auth, login, ready
 from larenor_server.app import create_app
 from larenor_server.auth import Principal
 from larenor_server.ev_charging.service import EnergyInputs, EnergySlot, ProviderState
@@ -83,6 +83,17 @@ class Transport:
 
     def request(self, method, path, headers=None, body=None, **kwargs):
         self.calls.append((self.base_url, method, path, dict(headers or {}), body, kwargs))
+        before_send = kwargs.get("before_send")
+        if before_send is not None:
+            before_send()
+        if method == "POST" and "/maxcurrent/" in path:
+            target = int(path.rsplit("/", 1)[1])
+            self.payload["loadpoints"][0]["maxCurrent"] = target
+            return ProbeResponse(
+                200,
+                (("Content-Type", "application/json; charset=utf-8"),),
+                str(target).encode(),
+            )
         return ProbeResponse(
             200,
             (("Content-Type", "application/json; charset=utf-8"),),
@@ -322,7 +333,32 @@ def test_no_vehicle_capacity_means_no_plannable_charger():
 def test_verified_single_evcc_service_is_discovered_without_restart(server, monkeypatch):
     app, client, settings, clock = server
     pair = ready(server)
+    temporary_password = "Synthetic temporary evcc password 2026"
+    created_member = client.post(
+        "/api/v1/admin/users",
+        headers=auth(pair),
+        json={
+            "username": "evcc.member",
+            "role": "member",
+            "initialPassword": temporary_password,
+        },
+    )
+    assert created_member.status_code == 201, created_member.text
+    initial_member = login(
+        client, "evcc.member", temporary_password, device="EVCC member test"
+    ).json()
+    activated_member = client.post(
+        "/api/v1/auth/password",
+        headers=auth(initial_member),
+        json={
+            "currentPassword": temporary_password,
+            "newPassword": "Synthetic permanent evcc password 2026",
+        },
+    )
+    assert activated_member.status_code == 200, activated_member.text
+    member = activated_member.json()
     monkeypatch.setattr("larenor_server.evcc.provider.ServiceTransport", Transport)
+    monkeypatch.setattr("larenor_server.evcc.control.ServiceTransport", Transport)
     assert (
         client.get("/api/v1/admin/power-budget", headers=auth(pair)).status_code
         == 503
@@ -386,6 +422,7 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     )
     assert accepted.status_code == 200, accepted.text
     assert accepted.json()["acceptedRevision"] == 1
+    assert client.get(accepted.request.url.path, headers=auth(member)).status_code == 403
     conflict_body = json.loads(accepted.request.content)
     conflict_body["expectedAcceptedRevision"] = 0
     conflict = client.put(
@@ -405,6 +442,18 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     }
     assert "slots" not in metadata.text
     assert "-50000" not in metadata.text
+    clock.now += 301
+    stale_metadata = client.get(accepted.request.url.path, headers=auth(pair))
+    assert stale_metadata.json() == {
+        "schemaVersion": 1,
+        "acceptedRevision": 1,
+        "acceptedServiceRevision": 1,
+        "currentServiceRevision": 1,
+        "status": "stale",
+    }
+    assert "slots" not in stale_metadata.text
+    assert "-50000" not in stale_metadata.text
+    clock.now -= 301
     updated = client.patch(
         f"/api/v1/admin/services/{service['id']}",
         headers=auth(pair),
@@ -436,12 +485,73 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     )
     assert replaced.status_code == 200, replaced.text
     assert replaced.json()["acceptedRevision"] == 2
+    control_url = (
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/providers/evcc/"
+        f"{service['id']}/loadpoints/1/current-control"
+    )
+    missing_control = client.get(control_url, headers=auth(pair))
+    assert missing_control.json() == {
+        "schemaVersion": 1,
+        "authorityRevision": 0,
+        "authorizedServiceRevision": None,
+        "currentServiceRevision": 2,
+        "enabled": False,
+        "status": "missing",
+    }
+    authorized = client.put(
+        control_url,
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedServiceRevision": 2,
+            "expectedAuthorityRevision": 0,
+            "enabled": True,
+        },
+    )
+    assert authorized.status_code == 200, authorized.text
+    assert authorized.json()["authorityRevision"] == 1
+    assert client.get(control_url).status_code == 401
+    assert client.get(control_url, headers=auth(member)).status_code == 403
+    assert (
+        client.put(
+            control_url,
+            headers=auth(member),
+            json={
+                "schemaVersion": 1,
+                "expectedServiceRevision": 2,
+                "expectedAuthorityRevision": 1,
+                "enabled": False,
+            },
+        ).status_code
+        == 403
+    )
+    current_control = client.get(control_url, headers=auth(pair))
+    assert current_control.json() == {
+        "schemaVersion": 1,
+        "authorityRevision": 1,
+        "authorizedServiceRevision": 2,
+        "currentServiceRevision": 2,
+        "enabled": True,
+        "status": "current",
+    }
+    assert "apiKey" not in current_control.text
+    assert "baseUrl" not in current_control.text
+    assert "slots" not in current_control.text
+    Transport.payload["loadpoints"][0]["charging"] = False
+    assert (
+        client.get(
+            f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/capability",
+            headers=auth(pair),
+        ).json()["canControl"]
+        is False
+    )
+    Transport.payload["loadpoints"][0]["charging"] = True
     capability = client.get(
         f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/capability",
         headers=auth(pair),
     ).json()
     assert capability["canPlan"] is True
-    assert capability["canControl"] is False
+    assert capability["canControl"] is True
     charger = capability["chargers"][0]
     preview = client.post(
         f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/chargers/"
@@ -460,16 +570,110 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     )
     assert preview.status_code == 201, preview.text
     assert preview.json()["preview"]["slots"][0]["tariffMicrosPerKwh"] == -50_000
+    plan = preview.json()["preview"]
+    command_body = {
+        "schemaVersion": 1,
+        "previewId": "e" * 32,
+        "commandId": "f" * 32,
+        "expectedPlanHash": plan["planHash"],
+        "expectedChargerRevision": charger["chargerRevision"],
+        "expectedScheduleRevision": 2,
+    }
+    command_url = (
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/chargers/"
+        f"{charger['chargerId']}/commands"
+    )
+    receipt = client.post(
+        command_url, headers=auth(pair), json=command_body
+    )
+    assert receipt.status_code == 201, receipt.text
+    assert receipt.json()["receipt"]["status"] == "verified"
+    assert sum(
+        call[1:3] == ("POST", "/api/loadpoints/1/maxcurrent/16")
+        for call in Transport.calls
+    ) == 1
+    repeated = client.post(command_url, headers=auth(pair), json=command_body)
+    assert repeated.status_code == 201, repeated.text
+    assert repeated.json() == receipt.json()
+    assert sum(
+        call[1:3] == ("POST", "/api/loadpoints/1/maxcurrent/16")
+        for call in Transport.calls
+    ) == 1
+    result = client.get(
+        f"/api/v1/ev-charging/{context.coreId}/{context.homeId}/chargers/"
+        f"{charger['chargerId']}/commands/{'f' * 32}",
+        headers=auth(pair),
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["receipt"]["status"] == "verified"
+    control = app.state.core.evcc_current_control
+    provider_snapshot = app.state.core.ev_charging.provider.snapshot(
+        actor_id=principal.id,
+        session_family_id=principal.family_id,
+        charger_id=charger["chargerId"],
+    )
+    control._save_effect(plan["planHash"], "uncertain", None)
+    assert (
+        control.readback_authorized(
+            provider_snapshot.authority, plan_hash=plan["planHash"]
+        )
+        is None
+    )
+    control._save_effect(plan["planHash"], "verified", 16)
+    revised = client.patch(
+        f"/api/v1/admin/services/{service['id']}",
+        headers=auth(pair),
+        json={
+            "expectedRevision": 2,
+            "name": "Revised home energy",
+            "baseUrl": service["baseUrl"],
+        },
+    )
+    assert revised.status_code == 200, revised.text
+    assert revised.json()["service"]["revision"] == 3
+    drifted_control = client.get(control_url, headers=auth(pair))
+    assert drifted_control.json() == {
+        "schemaVersion": 1,
+        "authorityRevision": 1,
+        "authorizedServiceRevision": 2,
+        "currentServiceRevision": 3,
+        "enabled": False,
+        "status": "service_revision_changed",
+    }
+    assert "apiKey" not in drifted_control.text
+    assert "baseUrl" not in drifted_control.text
+    replacement_body["expectedServiceRevision"] = 3
+    replacement_body["expectedAcceptedRevision"] = 2
+    replaced_again = client.put(
+        accepted.request.url.path,
+        headers=auth(pair),
+        json=replacement_body,
+    )
+    assert replaced_again.status_code == 200, replaced_again.text
+    assert replaced_again.json()["acceptedRevision"] == 3
+    reauthorized = client.put(
+        control_url,
+        headers=auth(pair),
+        json={
+            "schemaVersion": 1,
+            "expectedServiceRevision": 3,
+            "expectedAuthorityRevision": 1,
+            "enabled": True,
+        },
+    )
+    assert reauthorized.status_code == 200, reauthorized.text
+    assert reauthorized.json()["authorityRevision"] == 2
     with TestClient(create_app(settings)) as restarted:
         persisted = restarted.app.state.core.ev_charging.provider.capability()
         assert persisted.can_plan is True
-        assert persisted.can_control is False
+        assert persisted.can_control is True
 
 
 def test_second_verified_evcc_service_retires_unique_runtime_binding(server, monkeypatch):
     app, client, _settings, _clock = server
     pair = ready(server)
     monkeypatch.setattr("larenor_server.evcc.provider.ServiceTransport", Transport)
+    monkeypatch.setattr("larenor_server.evcc.control.ServiceTransport", Transport)
     principal = app.state.core.auth.authenticate(pair["accessToken"])
 
     def create_verified(name):

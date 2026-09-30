@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path
 
 from ..auth import Principal
 from ..core import CoreServices
@@ -9,7 +9,12 @@ from ..errors import ApiError
 from ..evcc import AcceptedEnergyWindows, AcceptedWindowSlot
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .http_models import AcceptEnergyWindows, ConfirmCharge, PreviewCharge
+from .http_models import (
+    AcceptEnergyWindows,
+    AuthorizeCurrentControl,
+    ConfirmCharge,
+    PreviewCharge,
+)
 
 Core = Annotated[CoreServices, Depends(get_core)]
 User = Annotated[Principal, Depends(require_ready_user)]
@@ -51,6 +56,20 @@ def confirm(
     core: Core,
 ):
     return core.ev_charging.confirm(actor, core_id, home_id, charger_id, body)
+
+
+@router.get(ROOT + "/chargers/{charger_id}/commands/{command_id}")
+def command_result(
+    core_id: Identity,
+    home_id: Identity,
+    charger_id: Identity,
+    command_id: Identity,
+    actor: User,
+    core: Core,
+):
+    return core.ev_charging.result(
+        actor, core_id, home_id, charger_id, command_id
+    )
 
 
 @router.put(ROOT + "/providers/evcc/{service_id}/energy-windows")
@@ -104,4 +123,54 @@ def accepted_energy_window_metadata(
     return {
         "schemaVersion": 1,
         **core.evcc_energy_windows.metadata(actor, service_id=service_id),
+    }
+
+
+@router.put(
+    ROOT + "/providers/evcc/{service_id}/loadpoints/{loadpoint_index}/current-control"
+)
+def authorize_current_control(
+    core_id: Identity,
+    home_id: Identity,
+    service_id: Identity,
+    loadpoint_index: Annotated[int, Path(ge=1, le=16)],
+    body: AuthorizeCurrentControl,
+    actor: Admin,
+    core: Core,
+):
+    if (core_id, home_id) != (core.context.coreId, core.context.homeId):
+        raise ApiError("not_found", 404)
+    if core.evcc_current_control is None:
+        raise ApiError("ev_charge_provider_unavailable", 503)
+    revision = core.evcc_current_control.authorize(
+        actor,
+        service_id=service_id,
+        service_revision=body.expectedServiceRevision,
+        loadpoint_index=loadpoint_index,
+        expected_authority_revision=body.expectedAuthorityRevision,
+        enabled=body.enabled,
+    )
+    return {"schemaVersion": 1, "authorityRevision": revision}
+
+
+@router.get(
+    ROOT + "/providers/evcc/{service_id}/loadpoints/{loadpoint_index}/current-control"
+)
+def current_control_metadata(
+    core_id: Identity,
+    home_id: Identity,
+    service_id: Identity,
+    loadpoint_index: Annotated[int, Path(ge=1, le=16)],
+    actor: Admin,
+    core: Core,
+):
+    if (core_id, home_id) != (core.context.coreId, core.context.homeId):
+        raise ApiError("not_found", 404)
+    if core.evcc_current_control is None:
+        raise ApiError("ev_charge_provider_unavailable", 503)
+    return {
+        "schemaVersion": 1,
+        **core.evcc_current_control.metadata(
+            actor, service_id=service_id, loadpoint_index=loadpoint_index
+        ),
     }

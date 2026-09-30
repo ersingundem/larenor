@@ -209,8 +209,10 @@ from .ev_charging.schema import migrate_ev_charging
 from .evcc import (
     EvccBinding,
     EvccConnection,
+    EvccCurrentControl,
     EvccEnergyWindowStore,
     EvccRuntimeResolver,
+    migrate_evcc_current_control,
     migrate_evcc_energy_windows,
 )
 from .epaper_snapshots.schema import migrate_epaper_snapshots
@@ -536,6 +538,7 @@ class CoreServices:
                 migrate_room_comfort(connection)
                 migrate_ev_charging(connection)
                 migrate_evcc_energy_windows(connection)
+                migrate_evcc_current_control(connection)
                 migrate_epaper_snapshots(connection)
                 migrate_room_presence(connection)
                 migrate_home_documents(connection)
@@ -879,6 +882,7 @@ class CoreServices:
                 services=self.services,
             )
             self.evcc_energy_windows.validate_storage()
+            self.evcc_current_control = None
             evcc_runtime = None
             if (
                 self._ev_charge_provider is None
@@ -929,10 +933,24 @@ class CoreServices:
                         ),
                     )
 
+                self.evcc_current_control = EvccCurrentControl(
+                    self.db,
+                    audit_key=hmac.new(
+                        key,
+                        b"larenor:evcc-current-control:v1:audit",
+                        hashlib.sha256,
+                    ).digest(),
+                    clock=settings.clock,
+                    services=self.services,
+                    binding_resolver=evcc_binding,
+                    energy_windows=self.evcc_energy_windows,
+                )
+                self.evcc_current_control.validate_storage()
                 evcc_runtime = EvccRuntimeResolver(
                     evcc_binding,
                     clock=settings.clock,
                     energy_windows=self.evcc_energy_windows,
+                    control_authority=self.evcc_current_control,
                 )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(
@@ -942,7 +960,7 @@ class CoreServices:
                     key,
                     self.context,
                     evcc_runtime.ev_charging,
-                    None,
+                    self.evcc_current_control,
                 )
             if self._power_budget_provider is None and evcc_runtime is not None:
                 self.power_budget = build_power_budget_gateway(

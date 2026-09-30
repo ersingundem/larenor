@@ -15,6 +15,7 @@ from .windows import (
     EvccEnergyWindowStore,
     migrate_evcc_energy_windows,
 )
+from .control import EvccCurrentControl, migrate_evcc_current_control
 
 __all__ = [
     "EvccBinding",
@@ -28,4 +29,6 @@ __all__ = [
     "AcceptedWindowSlot",
     "EvccEnergyWindowStore",
     "migrate_evcc_energy_windows",
+    "EvccCurrentControl",
+    "migrate_evcc_current_control",
 ]
