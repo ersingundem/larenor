@@ -191,13 +191,11 @@ def test_actual_sqlite_and_unix_roundtrip_sends_six_fixed_requests(tmp_path, sou
     rid = data['plan'].resources[0].resourceId
     path = tmp_path / 'create'
     stored = None
-    durable_states = []
+    authorization_states = []
     def reply(request, _calls):
         nonlocal stored
         line, raw = request
         if line.startswith('POST '):
-            with sqlite3.connect(path / 'journal.sqlite') as db:
-                durable_states.append(db.execute('SELECT state FROM resources').fetchone()[0])
             value = json.loads(raw)
             stored = {'Name': value['Name'], 'Driver': value['Driver'], 'Scope': 'local',
                 'Options': {}, 'Labels': value['Labels'], 'Mountpoint': '/synthetic/DO-NOT-EXPOSE'}
@@ -210,13 +208,24 @@ def test_actual_sqlite_and_unix_roundtrip_sends_six_fixed_requests(tmp_path, sou
                 + f'{len(body):x}\r\n'.encode() + body + b'\r\n0\r\n\r\n')
         return response(stored)
     with VolumeCreateJournal(path, initialize=True) as j:
+        def authorize_create():
+            # Observe the committed journal immediately before the POST gate on
+            # the caller thread. Reading SQLite from the synthetic socket
+            # thread could consume the transport's two-second idle budget while
+            # a loaded runner schedules the journal owner, obscuring the state
+            # this test is meant to prove.
+            with sqlite3.connect(path / 'journal.sqlite') as db:
+                authorization_states.append(
+                    db.execute('SELECT state FROM resources').fetchone()[0])
+            return True
         # Source/revision authorization runs after /version and shares the
         # transport's ten-second total budget. Keep the synthetic peer alive
         # for that full gate instead of applying its shorter lifecycle default.
         with engine_server(reply, platform=platform, request_timeout=11) as (endpoint, calls):
             engine = UnixVolumeCreator(endpoint, peer_uid=lambda _: os.getuid())
-            result = module.JournaledVolumeCreates(j, engine).apply(**data, resource_id=rid, authorize_create=lambda: True)
+            result = module.JournaledVolumeCreates(j, engine).apply(
+                **data, resource_id=rid, authorize_create=authorize_create)
     assert result.state == 'observed_requires_bootstrap'
-    assert durable_states == ['mutating']
+    assert authorization_states == ['prepared', 'mutating']
     assert [line.split(' ', 1)[0] for line, _ in calls] == ['GET', 'GET', 'GET', 'POST', 'GET', 'GET']
     assert b'DO-NOT-EXPOSE' not in (path / 'journal.sqlite').read_bytes()

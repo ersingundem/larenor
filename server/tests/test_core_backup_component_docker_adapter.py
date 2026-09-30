@@ -122,7 +122,10 @@ def test_sources_join_exact_container_mount_volume_receipts_and_host_identity(tm
             "GET /version HTTP/1.1",
             "GET /v1.47/volumes/" + receipt.volumes[1].intent.binding.resource.name + " HTTP/1.1",
         ]
-        assert authority.revalidate(sources, time.monotonic() + 1) is True
+        # The deadline guards production authority work; it is not a scheduler
+        # benchmark. Leave enough wall time for a loaded CI runner to schedule
+        # the SQLite-backed revalidation while preserving the same exact data.
+        assert authority.revalidate(sources, time.monotonic() + 10) is True
 
 
 @pytest.mark.parametrize("damage", ["container", "volume", "target", "source"])
