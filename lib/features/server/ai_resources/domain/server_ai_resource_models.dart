@@ -79,6 +79,8 @@ final class AiResourceCapacity {
     required this.systemLoadPercent,
     required this.measuredAt,
     required this.mediaActive,
+    required this.workerAvailable,
+    required this.enforcement,
   });
 
   factory AiResourceCapacity.fromJson(Object? value) {
@@ -92,8 +94,15 @@ final class AiResourceCapacity {
       'systemLoadPercent',
       'measuredAt',
       'mediaActive',
+      'workerAvailable',
+      'enforcement',
     });
-    if (json['mediaActive'] is! bool) {
+    final enforcement = json['enforcement'];
+    if (json['mediaActive'] is! bool ||
+        json['workerAvailable'] is! bool ||
+        !{'unavailable', 'systemdCgroupV2'}.contains(enforcement) ||
+        (json['workerAvailable'] == true) !=
+            (enforcement == 'systemdCgroupV2')) {
       throw const LarenorServerException('invalid_response');
     }
     return AiResourceCapacity._(
@@ -106,6 +115,8 @@ final class AiResourceCapacity {
       systemLoadPercent: _integer(json['systemLoadPercent'], 0, 100),
       measuredAt: _finite(json['measuredAt']),
       mediaActive: json['mediaActive'] as bool,
+      workerAvailable: json['workerAvailable'] as bool,
+      enforcement: enforcement as String,
     );
   }
 
@@ -116,24 +127,122 @@ final class AiResourceCapacity {
       allocatedCpuPercent;
   final int processMemoryMb, systemLoadPercent;
   final double measuredAt;
-  final bool mediaActive;
+  final bool mediaActive, workerAvailable;
+  final String enforcement;
 }
 
 enum AiResourceJobState {
   queued,
+  dispatching,
   running,
   blocked,
+  cancelRequested,
   cancelled,
-  completed;
+  completed,
+  failed,
+  uncertain;
 
   static AiResourceJobState parse(Object? value) => switch (value) {
     'queued' => queued,
+    'dispatching' => dispatching,
     'running' => running,
     'blocked' => blocked,
+    'cancel_requested' => cancelRequested,
     'cancelled' => cancelled,
     'completed' => completed,
+    'failed' => failed,
+    'uncertain' => uncertain,
     _ => throw const LarenorServerException('invalid_response'),
   };
+}
+
+final class AiResourceExecution {
+  const AiResourceExecution._({
+    required this.dispatchId,
+    required this.provider,
+    required this.phase,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.resultCode,
+    required this.exitCode,
+    required this.memoryPeakMb,
+    required this.cpuMillis,
+    required this.outputSha256,
+    required this.outputBytes,
+  });
+
+  factory AiResourceExecution.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'schemaVersion',
+      'dispatchId',
+      'provider',
+      'phase',
+      'startedAt',
+      'finishedAt',
+      'resultCode',
+      'exitCode',
+      'memoryPeakMb',
+      'cpuMillis',
+      'outputSha256',
+      'outputBytes',
+    });
+    final dispatchId = json['dispatchId'];
+    final provider = json['provider'];
+    final phase = json['phase'];
+    final resultCode = json['resultCode'];
+    final outputSha256 = json['outputSha256'];
+    final outputBytes = json['outputBytes'];
+    if (json['schemaVersion'] != 1 ||
+        dispatchId is! String ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(dispatchId) ||
+        provider is! String ||
+        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$').hasMatch(provider) ||
+        !{
+          'reserved',
+          'starting',
+          'running',
+          'cancel_requested',
+          'succeeded',
+          'failed',
+          'cancelled',
+          'uncertain',
+        }.contains(phase) ||
+        (resultCode != null &&
+            !{
+              'succeeded',
+              'provider_failed',
+              'resource_limit',
+              'cancelled',
+              'runtime_lost',
+            }.contains(resultCode)) ||
+        (outputSha256 != null &&
+            (outputSha256 is! String ||
+                !RegExp(r'^[0-9a-f]{64}$').hasMatch(outputSha256))) ||
+        (outputSha256 == null) != (outputBytes == null)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    double? timestamp(Object? raw) => raw == null ? null : _finite(raw);
+    int? integer(Object? raw, int max) =>
+        raw == null ? null : _integer(raw, 0, max);
+    return AiResourceExecution._(
+      dispatchId: dispatchId,
+      provider: provider,
+      phase: phase as String,
+      startedAt: timestamp(json['startedAt']),
+      finishedAt: timestamp(json['finishedAt']),
+      resultCode: resultCode as String?,
+      exitCode: integer(json['exitCode'], 255),
+      memoryPeakMb: integer(json['memoryPeakMb'], 1048576),
+      cpuMillis: integer(json['cpuMillis'], 9007199254740991),
+      outputSha256: outputSha256 as String?,
+      outputBytes: integer(outputBytes, 1048576),
+    );
+  }
+
+  final String dispatchId, provider, phase;
+  final double? startedAt, finishedAt;
+  final String? resultCode, outputSha256;
+  final int? exitCode, memoryPeakMb, cpuMillis, outputBytes;
 }
 
 final class AiResourceJob {
@@ -147,6 +256,7 @@ final class AiResourceJob {
     required this.cpuPercent,
     required this.state,
     required this.reason,
+    required this.execution,
     required this.ownedByCurrentSession,
     required this.createdAt,
     required this.updatedAt,
@@ -164,6 +274,7 @@ final class AiResourceJob {
       'cpuPercent',
       'state',
       'reason',
+      'execution',
       'ownedByCurrentSession',
       'createdAt',
       'updatedAt',
@@ -181,8 +292,30 @@ final class AiResourceJob {
               'mediaActive',
               'quotaExceeded',
               'higherPriorityWork',
+              'workerUnavailable',
             }.contains(reason)) ||
         json['ownedByCurrentSession'] is! bool) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final state = AiResourceJobState.parse(json['state']);
+    final execution = json['execution'] == null
+        ? null
+        : AiResourceExecution.fromJson(json['execution']);
+    final coherent = switch (state) {
+      AiResourceJobState.queued ||
+      AiResourceJobState.blocked => execution == null,
+      AiResourceJobState.dispatching =>
+        execution != null && {'reserved', 'starting'}.contains(execution.phase),
+      AiResourceJobState.running => execution?.phase == 'running',
+      AiResourceJobState.cancelRequested =>
+        execution?.phase == 'cancel_requested',
+      AiResourceJobState.cancelled =>
+        execution == null || execution.phase == 'cancelled',
+      AiResourceJobState.completed => execution?.phase == 'succeeded',
+      AiResourceJobState.failed => execution?.phase == 'failed',
+      AiResourceJobState.uncertain => execution?.phase == 'uncertain',
+    };
+    if (!coherent) {
       throw const LarenorServerException('invalid_response');
     }
     return AiResourceJob._(
@@ -193,8 +326,9 @@ final class AiResourceJob {
       priority: _integer(json['priority'], 0, 100),
       memoryMb: _integer(json['memoryMb'], 64, 1048576),
       cpuPercent: _integer(json['cpuPercent'], 1, 100),
-      state: AiResourceJobState.parse(json['state']),
+      state: state,
       reason: reason as String?,
+      execution: execution,
       ownedByCurrentSession: json['ownedByCurrentSession'] as bool,
       createdAt: _finite(json['createdAt']),
       updatedAt: _finite(json['updatedAt']),
@@ -205,10 +339,14 @@ final class AiResourceJob {
   final int revision, priority, memoryMb, cpuPercent;
   final AiResourceJobState state;
   final String? reason;
+  final AiResourceExecution? execution;
   final bool ownedByCurrentSession;
   final double createdAt, updatedAt;
   bool get canCancel =>
       state == AiResourceJobState.running ||
+      state == AiResourceJobState.dispatching ||
+      state == AiResourceJobState.cancelRequested ||
+      state == AiResourceJobState.uncertain ||
       state == AiResourceJobState.queued ||
       state == AiResourceJobState.blocked;
 }

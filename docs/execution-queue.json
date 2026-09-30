@@ -3547,7 +3547,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Yapay zekâ kaynak yöneticisi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3572,7 +3572,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: queued işler yalnız response içinde running görünüyor; gerçek worker admission/dispatch ve CPU/RAM sınırı uygulaması yok. Gerçek consumer ve OS limit/readback kapatılacak."
+      "reason": "Kalıcı reserve/start/cancel/terminal journal, gerçek standalone provider ve systemd cgroup CPU/RAM/pids/runtime sınırı ile normal Core dispatcher bağlandı. 31 Server geçti, actual Linux gate macOS üzerinde 1 skip; 4 Flutter ve analyze temiz. Required server-test aggregate actual Ubuntu systemd cgroup gate geçmeden yeşil olmaz. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Linux exact HEAD CI ve geniş kabul açık; model inference/household donanım kabulü iddia edilmedi, sayaç artmadı."
     },
     {
       "id": "F04",

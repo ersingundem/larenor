@@ -4783,5 +4783,10 @@
   "floorPlanEditorUnsaved": "Kaydedilmemiş değişiklikler",
   "floorPlanEditorNeedRoom": "Kaydetmeden önce bir kat ekleyin ve doğrulanmış en az bir odayı çizin.",
   "serverImmutableBackupDownload": "Bu şifreli kurtarma noktasını kaydet",
-  "serverImmutableBackupLimit": "Korunan uzak kopyalar en fazla 64 MiB şifreli arşiv destekler. Boş Core’u sunucu kurtarma komutuyla geri yüklemek için bir kopya indirin."
+  "serverImmutableBackupLimit": "Korunan uzak kopyalar en fazla 64 MiB şifreli arşiv destekler. Boş Core’u sunucu kurtarma komutuyla geri yüklemek için bir kopya indirin.",
+  "serverAiResourcesWorkerUnavailable": "Doğrulanmış bağımsız yerel yapay zekâ işçisi kullanılamıyor. İşler kuyrukta kalır.",
+  "serverAiResourcesDispatching": "Korunan çalışma ortamında başlatılıyor",
+  "serverAiResourcesCancelling": "İptal bekleniyor",
+  "serverAiResourcesFailed": "Sağlayıcı başarısız oldu",
+  "serverAiResourcesUncertain": "Çalışma durumu belirsiz"
 }

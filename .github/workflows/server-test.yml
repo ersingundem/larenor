@@ -12,6 +12,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  f08-linux-cgroup:
+    name: f08-linux-cgroup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare isolated pinned Python tooling
+        run: |
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/larenor-f08-venv" >> "$GITHUB_ENV"
+          echo "UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/larenor-f08-python" >> "$GITHUB_ENV"
+          python3 -m venv "$RUNNER_TEMP/larenor-f08-tools"
+          "$RUNNER_TEMP/larenor-f08-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
+          echo "$RUNNER_TEMP/larenor-f08-tools/bin" >> "$GITHUB_PATH"
+
+      - name: Install the reviewed Server dependency lock
+        working-directory: server
+        run: uv sync --locked --python 3.12.14
+
+      - name: Prove actual systemd cgroup enforcement and receipt cleanup
+        working-directory: server
+        env:
+          LARENOR_F08_SYSTEMD_ACCEPTANCE: "1"
+          LARENOR_F08_SYSTEMD_MANAGER: system
+        run: |
+          sudo --preserve-env=LARENOR_F08_SYSTEMD_ACCEPTANCE,LARENOR_F08_SYSTEMD_MANAGER \
+            "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
+            tests/test_f08_systemd_runtime.py::test_actual_systemd_cgroup_runs_standalone_provider_and_reads_receipt
+
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}
     strategy:
@@ -119,7 +150,7 @@ jobs:
   server-test:
     name: server-test
     if: always()
-    needs: server-test-shard
+    needs: [server-test-shard, f08-linux-cgroup]
     permissions:
       contents: read
       pull-requests: read
@@ -132,5 +163,11 @@ jobs:
       - name: Require every deterministic Server shard
         env:
           SHARD_RESULT: ${{ needs.server-test-shard.result }}
+          F08_CGROUP_RESULT: ${{ needs.f08-linux-cgroup.result }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 tool/required_ci_aggregate.py server
+        run: |
+          python3 tool/required_ci_aggregate.py server
+          if [ "$F08_CGROUP_RESULT" != "success" ]; then
+            echo "F08 Linux cgroup gate did not pass: $F08_CGROUP_RESULT"
+            exit 1
+          fi

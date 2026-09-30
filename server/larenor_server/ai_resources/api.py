@@ -43,14 +43,7 @@ def cancel(core_id: Identity, home_id: Identity, job_id: Identity, body: ChangeA
     return core.ai_resources.cancel(actor, core_id, home_id, job_id, body)
 
 
-@router.post(ROOT + "/jobs/{job_id}/complete")
-def complete(core_id: Identity, home_id: Identity, job_id: Identity, body: ChangeAiJob,
-             actor: Ready, core: Core):
-    return core.ai_resources.complete(actor, core_id, home_id, job_id, body)
-
-
 @router.put(ROOT + "/media-activity")
 def media_activity(core_id: Identity, home_id: Identity, body: ReportMediaActivity,
                    actor: Ready, core: Core):
     return core.ai_resources.media_activity(actor, core_id, home_id, body)
-

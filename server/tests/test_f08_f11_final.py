@@ -37,7 +37,9 @@ def test_f08_real_measurement_media_pressure_priority_and_cancellation(server):
     first = client.post(root + "/jobs", headers=auth(member), json=body)
     assert first.status_code == 200, first.text
     job = first.json()["jobs"][0]
-    assert job["state"] == "running" and job["ownedByCurrentSession"] is True
+    assert job["state"] == "blocked" and job["reason"] == "workerUnavailable"
+    assert job["ownedByCurrentSession"] is True
+    assert first.json()["capacity"]["workerAvailable"] is False
     assert client.post(root + "/jobs", headers=auth(member), json=body).json()["jobs"][0]["id"] == job["id"]
     conflict = client.post(root + "/jobs", headers=auth(member), json={**body, "label": "Changed"})
     assert conflict.status_code == 409
@@ -50,7 +52,7 @@ def test_f08_real_measurement_media_pressure_priority_and_cancellation(server):
     pressured_job = pressured.json()["jobs"][0]
     assert pressured.json()["capacity"]["mediaActive"] is True
     assert pressured.json()["capacity"]["effectiveCpuPercent"] == 25
-    assert pressured_job["state"] == "blocked" and pressured_job["reason"] == "mediaActive"
+    assert pressured_job["state"] == "blocked" and pressured_job["reason"] == "workerUnavailable"
 
     cancelled = client.post(
         f"{root}/jobs/{job['id']}/cancel", headers=auth(member),

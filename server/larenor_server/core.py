@@ -16,6 +16,7 @@ from .automation_drafts.schema import migrate_automation_drafts
 from .automation_drafts.service import AutomationDraftService
 from .ai_resources.schema import migrate_ai_resources
 from .ai_resources.service import AiResourceService
+from .ai_resources.runtime import build_ai_job_runtime
 from .ai_memory.schema import migrate_ai_memory
 from .ai_memory.service import AiMemoryService
 from .evidence_diagnostics.schema import migrate_evidence_diagnostics
@@ -714,7 +715,8 @@ class CoreServices:
             )
             self.tablet_fleet.validate_storage()
             self.ai_resources = AiResourceService(
-                self.db, self.auth, settings, key, self.context
+                self.db, self.auth, settings, key, self.context,
+                runtime=build_ai_job_runtime(settings.ai_worker_config),
             )
             self.ai_resources.validate_storage()
             self.ai_memory = AiMemoryService(

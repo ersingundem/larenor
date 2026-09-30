@@ -38,6 +38,7 @@ class Settings:
     media_archive_authority_socket: Path | None = None
     mesh_center_worker_socket: Path | None = None
     mesh_center_worker_uid: int = 0
+    ai_worker_config: Path | None = None
     private_event_ffmpeg: Path | None = None
     private_event_ffprobe: Path | None = None
 
@@ -84,6 +85,7 @@ class Settings:
             self.media_archive_action_worker_socket,
             self.media_archive_authority_socket,
             self.mesh_center_worker_socket,
+            self.ai_worker_config,
         )
         for path in paths:
             if path is not None and (
@@ -216,6 +218,10 @@ class Settings:
                 ),
                 mesh_center_worker_uid=int(
                     os.environ.get("LARENOR_MESH_WORKER_UID", "0")
+                ),
+                ai_worker_config=(
+                    Path(os.environ["LARENOR_AI_WORKER_CONFIG"])
+                    if os.environ.get("LARENOR_AI_WORKER_CONFIG") else None
                 ),
                 private_event_ffmpeg=(
                     Path(os.environ["LARENOR_PRIVATE_EVENT_FFMPEG"])

@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 3 | 1 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 4 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 4 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F08 | Yapay zekâ kaynak yöneticisi | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -38,22 +38,22 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
 | 1 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
-| 2 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
-| 3 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
-| 4 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
-| 5 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
-| 6 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 7 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
-| 8 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08 |
-| 9 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08 |
-| 10 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
-| 11 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
-| 12 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F08 |
-| 13 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F08 |
-| 14 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08 |
-| 15 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F08 |
-| 16 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F08 |
-| 17 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F08 |
+| 2 | F01 | Konuşarak otomasyon taslağı | Başlanabilir | — |
+| 3 | F09 | Görülebilir, süreli AI hafızası | Başlanabilir | — |
+| 4 | F07 | Evin alışılmış düzeninden sapmalar | Başlanabilir | — |
+| 5 | F10 | Kanıta dayalı arıza yardımcısı | Başlanabilir | — |
+| 6 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
+| 7 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 8 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
+| 9 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
+| 10 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 11 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
+| 12 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
+| 13 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
+| 14 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
+| 15 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
+| 16 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 17 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
 | 18 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
 | 19 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 20 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
@@ -141,6 +141,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
+| F08 | Yapay zekâ kaynak yöneticisi | Uygulama tamamlandı · test bekliyor | — |
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
 | F02 | Otomasyonun deneme haftası | Uygulama tamamlandı · test bekliyor | — |
 | F03 | Geçmişte otomasyon sınaması | Uygulama tamamlandı · test bekliyor | — |

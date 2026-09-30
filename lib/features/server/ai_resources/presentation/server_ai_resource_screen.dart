@@ -187,7 +187,9 @@ class _ServerAiResourceScreenState
     return SettingsSection(
       header: Text(l10n.serverAiResourcesCapacity),
       footer: Text(
-        value.mediaActive
+        !value.workerAvailable
+            ? l10n.serverAiResourcesWorkerUnavailable
+            : value.mediaActive
             ? l10n.serverAiResourcesMediaActive
             : l10n.serverAiResourcesMediaIdle,
       ),
@@ -301,19 +303,25 @@ class _ServerAiResourceScreenState
     );
   }
 
-  String _state(AppLocalizations l10n, AiResourceJob job) =>
-      switch (job.reason) {
-        'insufficientHardware' => l10n.serverAiResourcesInsufficientHardware,
-        'mediaActive' => l10n.serverAiResourcesMediaThrottled,
-        'quotaExceeded' ||
-        'higherPriorityWork' => l10n.serverAiResourcesWaiting,
-        _ => switch (job.state) {
-          AiResourceJobState.running => l10n.serverAiResourcesRunning,
-          AiResourceJobState.completed => l10n.serverAiResourcesCompleted,
-          AiResourceJobState.cancelled => l10n.serverAiResourcesCancelled,
-          _ => l10n.serverAiResourcesWaiting,
-        },
-      };
+  String _state(
+    AppLocalizations l10n,
+    AiResourceJob job,
+  ) => switch (job.reason) {
+    'insufficientHardware' => l10n.serverAiResourcesInsufficientHardware,
+    'workerUnavailable' => l10n.serverAiResourcesWorkerUnavailable,
+    'mediaActive' => l10n.serverAiResourcesMediaThrottled,
+    'quotaExceeded' || 'higherPriorityWork' => l10n.serverAiResourcesWaiting,
+    _ => switch (job.state) {
+      AiResourceJobState.running => l10n.serverAiResourcesRunning,
+      AiResourceJobState.dispatching => l10n.serverAiResourcesDispatching,
+      AiResourceJobState.cancelRequested => l10n.serverAiResourcesCancelling,
+      AiResourceJobState.completed => l10n.serverAiResourcesCompleted,
+      AiResourceJobState.cancelled => l10n.serverAiResourcesCancelled,
+      AiResourceJobState.failed => l10n.serverAiResourcesFailed,
+      AiResourceJobState.uncertain => l10n.serverAiResourcesUncertain,
+      _ => l10n.serverAiResourcesWaiting,
+    },
+  };
 
   @override
   void dispose() {

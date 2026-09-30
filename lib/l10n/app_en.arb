@@ -5136,5 +5136,10 @@
   "floorPlanEditorUnsaved": "Unsaved changes",
   "floorPlanEditorNeedRoom": "Add a floor and draw at least one verified room before saving.",
   "serverImmutableBackupDownload": "Save this encrypted restore point",
-  "serverImmutableBackupLimit": "Protected remote copies support encrypted archives up to 64 MiB. Download a copy to restore an empty Core with the server recovery command."
+  "serverImmutableBackupLimit": "Protected remote copies support encrypted archives up to 64 MiB. Download a copy to restore an empty Core with the server recovery command.",
+  "serverAiResourcesWorkerUnavailable": "No verified standalone local AI worker is available. Jobs remain queued.",
+  "serverAiResourcesDispatching": "Starting in protected runtime",
+  "serverAiResourcesCancelling": "Cancellation pending",
+  "serverAiResourcesFailed": "Provider failed",
+  "serverAiResourcesUncertain": "Runtime status uncertain"
 }
