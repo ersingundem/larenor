@@ -74,7 +74,9 @@ Larenor grant kullanan istemci yolu gerçek ve bağlıdır.
 
 F33 adlandırılmış gerçek Flutter→normal Core TCP ve ayrı Core/Client restart kabulünü geçti. Kiler transaction/receipt ve Client digest hataları giderildi; 7 Server, 17 Flutter ve iki gerçek Client fazı doğrulandı. F33 `awaiting_ci` durumundadır; tablet/native notification kapıları ayrıca açıktır.
 
-F40, F46, F48 ve F59 henüz bu sınıflandırmayı karşılamaz.
-F40'ın Core ve Flutter kapıları ayrı seamlerdir. F46 ve F48'in kendi kanıt
-dokümanları tam Client→normal Core→servis kabulünü açık bırakır. F59'un kullanılabilir Client kayıt/servis seçme akışı eksiktir ve aktif geliştirmeye alınmıştır; birleşik Client→Core→provider kabulü de açık kalır. Bunları
+F46 adlandırılmış gerçek Flutter→normal Core→owned evcc TCP ve ayrı Core/Client restart kapısını geçti. 26 Server, 11 Flutter ve iki gerçek Client fazı tek upstream POST/lost ACK/readback davranışını doğruladı; F46 `awaiting_ci` durumundadır.
+
+F40, F48 ve F59 henüz bu sınıflandırmayı karşılamaz.
+F40'ın Core ve Flutter kapıları ayrı seamlerdir. F48'in kendi kanıt
+dokümanı tam Client→normal Core→servis kabulünü açık bırakır. F59'un kullanılabilir Client kayıt/servis seçme akışı eksiktir ve aktif geliştirmeye alınmıştır; birleşik Client→Core→provider kabulü de açık kalır. Bunları
 sırf test sayısı veya dosya varlığı nedeniyle ilerletmek doğru olmaz.

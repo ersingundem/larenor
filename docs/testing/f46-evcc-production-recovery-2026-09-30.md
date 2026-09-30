@@ -8,4 +8,4 @@ Ajan doğrulaması: `test_f46_ev_charge_planner.py`, `test_f46_ev_charge_http.py
 
 Resmî sözleşme: [evcc pinned HTTP kaynak kodu](https://github.com/evcc-io/evcc/blob/077c093e5fdc375a9f2b1bc360b4d7ba38eaae46/server/http.go), GET `/api/state` ve POST `/api/loadpoints/{id}/maxcurrent/{value}`.
 
-Bu isolated provider kanıtıdır; tam Client→normal Core→TCP servis çalıştırması, birleşik final paketleri, exact HEAD CI ve fiziksel cihaz kabulü açık. Kuyruk uygulama tamamlandı tablosunda kalır; kabul sayaçları artmaz.
+Bu isolated provider kanıtının ardından [adlandırılmış gerçek Client→normal Core→TCP evcc ve restart kapısı](f46-normal-core-tcp-acceptance-2026-09-30.md) geçti. F46 CI bekliyor tablosundadır; birleşik final paketleri, exact HEAD geniş CI ve fiziksel cihaz kabulü açık. Kabul sayaçları artmaz.

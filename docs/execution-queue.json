@@ -4868,7 +4868,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4892,7 +4892,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek evcc providerKind ve negatif tarife Client parse yolu düzeltildi. Kayıp ACK aynı commandId ile GET readback üzerinden uzlaşır ve yeniden gönderilmez; socket gönderiminden önce taze /api/state cihaz/tarife/saat yetkisi kontrol edilir. Makbuz hedef/gözlenen amper ve gözlem zamanını gösterir. Normal create_app→gerçek TCP evcc 16→8 A/revizyon değişimi/kayıp ACK/tek POST/no-write kapısı dahil 27 Server ve 11 Flutter testi, odaklı analyze geçti; tam Client→Core→servis ve exact HEAD CI kabulü açık."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Gerçek Flutter Client→normal Uvicorn Core→owned TCP evcc negative tariff/16→8 A preview, lost ACK, aynı command replay, GET exact readback ve ayrı Core/Client restart sonrası kalıcı verified receipt kapısını geçti. Runner tek upstream POST ve dispatch öncesi taze state okumasını bağımsız doğrular. Root 26 Server, 11 Flutter ve iki gerçek Client fazını doğruladı; analyze temiz. Fixture tariff/energy-window setup gerçek utility feed kabulü değildir; fiziksel EV/tarife kapıları MANUAL kaydında açık. docs/testing/f46-normal-core-tcp-acceptance-2026-09-30.md. Sayaç artırılmadı."
     },
     {
       "id": "F47",
