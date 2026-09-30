@@ -11,6 +11,7 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/mesh_center_management_api.dart';
 import '../data/mesh_center_management_controller.dart';
+import '../domain/mesh_center_models.dart';
 import 'mesh_center_management_screen.dart';
 
 const _routeId = '55555555555555555555555555555556';
@@ -109,14 +110,22 @@ class _MeshCenterRouteState extends ConsumerState<MeshCenterRoute> {
     );
     _api = api;
     try {
-      final snapshot = await api.bootstrap();
+      final threadAuthority = await api.bootstrapThreadAuthority();
+      MeshCenterSnapshot? snapshot;
+      try {
+        snapshot = await api.bootstrap();
+      } catch (_) {
+        // Thread diagnostics is session-derived and remains available when the
+        // optional Zigbee provider has not been configured or is offline.
+      }
       if (!_current(generation) || !identical(_api, api)) {
         api.retire();
         return;
       }
       final controller = MeshCenterManagementController(
         api: api,
-        authority: snapshot.authority,
+        authority: snapshot?.authority,
+        threadAuthority: threadAuthority,
         isCurrent: () => _current(generation) && identical(_api, api),
       );
       setState(() {

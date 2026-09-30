@@ -4706,7 +4706,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4730,7 +4730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Uygulama 9cfffc59 ile tamamlandı: exact authority/revision bağlı doğal dil araması, atomik kaynak reconcile ile silinen klip temizliği, bounded sayfalama/filtreler ve HMAC doğrulamalı yanlış sonuç düzeltme günlüğü hazır; 11 server ve 12 Flutter testi geçti, tam CI/son kabul bekliyor."
+      "reason": "FINAL.FUNCTION normal kurulum incelemesinde F41 yalnız enjekte edilmiş immutable index ile çalışıyordu. Gerçek HA Frigate kamera registry eşleştirmesi, yetkili Frigate /api/events ve /api/events/search, kalıcı şifreli kaynak ayarı, gerçek kayıt revizyonu/silinen kayıt temizliği ve admin kurulum ekranı uygulanıyor. Eski sözleşme testleri normal Client→Core→Frigate kabulünün yerine geçmez; kapsamlı kabul ve CI açık."
     },
     {
       "id": "F44",
@@ -4968,7 +4968,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4994,7 +4994,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "acce3cad8 normal Core runtimeını UID-pinned private worker ve bounded gerçek MQTT observation yoluna bağladı; broker açılışta kapalı olsa da aynı Core yeniden gözlemle toparlanıyor. 60 server testi geçti. Varsayılan Zigbee2MQTT OTA imza/image manifest sunmadığı için gerçek provider-managed OTA ayrı protokolle geliştiriliyor; Thread read-only teşhisi, tam kabul/CI ve fiziksel ağ kapıları açık."
+      "reason": "Normal Core gerçek Zigbee2MQTT inventory/provider-managed OTA ve HA Thread WebSocket tanı kaynakları uygulandı. Thread session authority bağımsızdır: Zigbee hiç kurulmamış veya 503 olsa da gerçek kaynak configure/read ekranı açılır; uydurma mesh revizyonu yoktur. HMAC/şifreli kalıcı kaynak, güncel admin/service CAS, yalnız salt okunur dataset/router özeti ve tek gönderimli OTA günlüğü korunur. Thread diliminde 67 Server, 16 Flutter ve odaklı analyze geçti; tam Client→Core→servis/matris ve exact HEAD CI kabulü, fiziksel MANUAL kapıları açık."
     },
     {
       "id": "F56",

@@ -101,6 +101,7 @@ from .meal_plans.repository import MealPlanRepository
 from .meal_plans.schema import migrate_meal_plans
 from .mesh_center.core_provider import build_core_zigbee2mqtt_provider
 from .mesh_center.runtime import build_mesh_center_gateway
+from .mesh_center.thread_diagnostics_service import ThreadDiagnosticsService
 from .personal_profiles.repository import PersonalProfileRepository
 from .personal_profiles.schema import migrate_personal_profiles
 from .plugins.arr_config_job_schema import migrate_arr_configurations
@@ -793,6 +794,14 @@ class CoreServices:
                     data_dir=settings.data_dir,
                     clock=settings.clock,
                 )
+            )
+            self.thread_diagnostics = ThreadDiagnosticsService(
+                self.db,
+                self.auth,
+                lambda: self.services,
+                self.context,
+                key,
+                settings.data_dir,
             )
             self.room_comfort = RoomComfortService(
                 self.db,

@@ -19,12 +19,19 @@ final class MeshCenterManagementController extends ChangeNotifier {
   MeshCenterManagementController({
     required this.api,
     required this.authority,
+    ThreadDiagnosticsClientAuthority? threadAuthority,
     required this.isCurrent,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now;
+  }) : threadAuthority =
+           threadAuthority ??
+           (authority == null
+               ? null
+               : ThreadDiagnosticsClientAuthority.fromMesh(authority)),
+       _clock = clock ?? DateTime.now;
 
   final MeshCenterManagementApi api;
-  final MeshClientAuthority authority;
+  final MeshClientAuthority? authority;
+  final ThreadDiagnosticsClientAuthority? threadAuthority;
   final bool Function() isCurrent;
   final DateTime Function() _clock;
   int _epoch = 0;
@@ -37,9 +44,17 @@ final class MeshCenterManagementController extends ChangeNotifier {
   MeshFirmwareUpdateResult? lastResult;
   MeshManagedOtaPreview? pendingManagedPreview;
   MeshManagedOtaResult? lastManagedResult;
+  ThreadDiagnosticsConfiguration? threadConfiguration;
+  ThreadDiagnosticsSnapshot? threadDiagnostics;
+  bool threadDiagnosticsUnavailable = false;
+  bool threadDiagnosticsBusy = false;
 
   bool _current() {
-    if (_disposed || !_interactive || !authority.isBounded) return false;
+    if (_disposed ||
+        !_interactive ||
+        !(authority?.isBounded == true || threadAuthority?.isBounded == true)) {
+      return false;
+    }
     try {
       return isCurrent();
     } catch (_) {
@@ -49,10 +64,13 @@ final class MeshCenterManagementController extends ChangeNotifier {
 
   bool _operationCurrent(int operation) => operation == _epoch && _current();
   bool get canAct => _current() && state != MeshCenterManagementState.busy;
+  bool get supportsThreadDiagnostics =>
+      api is ThreadDiagnosticsManagementApi &&
+      threadAuthority?.isBounded == true;
   bool canUpdateDevice(MeshClientDevice device) =>
       canAct &&
-      authority.admin &&
-      authority.canUpdate &&
+      authority?.admin == true &&
+      authority?.canUpdate == true &&
       snapshot?.devices.contains(device) == true &&
       device.canOfferUpdateAt(_clock());
 
@@ -60,8 +78,8 @@ final class MeshCenterManagementController extends ChangeNotifier {
     final now = _clock();
     return canAct &&
         api is ManagedOtaManagementApi &&
-        authority.admin &&
-        authority.canUpdate &&
+        authority?.admin == true &&
+        authority?.canUpdate == true &&
         snapshot?.devices.contains(device) == true &&
         device.protocol == MeshProtocol.zigbee &&
         device.reachable &&
@@ -79,6 +97,10 @@ final class MeshCenterManagementController extends ChangeNotifier {
     lastResult = null;
     pendingManagedPreview = null;
     lastManagedResult = null;
+    threadConfiguration = null;
+    threadDiagnostics = null;
+    threadDiagnosticsUnavailable = false;
+    threadDiagnosticsBusy = false;
     state = MeshCenterManagementState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -103,34 +125,142 @@ final class MeshCenterManagementController extends ChangeNotifier {
     lastResult = null;
     pendingManagedPreview = null;
     lastManagedResult = null;
+    threadConfiguration = null;
+    threadDiagnostics = null;
+    threadDiagnosticsUnavailable = false;
+    threadDiagnosticsBusy = false;
     state = MeshCenterManagementState.loading;
     notifyListeners();
+    final threadLoad = _loadThreadSupport(operation);
+    final meshAuthority = authority;
+    if (meshAuthority == null) {
+      state = MeshCenterManagementState.failed;
+    } else {
+      try {
+        final response = await api.load(meshAuthority);
+        if (!_operationCurrent(operation)) {
+          _stale();
+          return;
+        }
+        if (response.authority != meshAuthority ||
+            !response.isCoherentAt(_clock())) {
+          state = MeshCenterManagementState.failed;
+        } else {
+          snapshot = response;
+          state = MeshCenterManagementState.ready;
+        }
+      } catch (_) {
+        if (!_operationCurrent(operation)) {
+          _stale();
+          return;
+        }
+        state = MeshCenterManagementState.failed;
+      }
+    }
+    await threadLoad;
+    if (!_operationCurrent(operation)) {
+      _stale();
+      return;
+    }
+    if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _loadThreadSupport(int operation) async {
+    final authority = threadAuthority;
+    if (api is! ThreadDiagnosticsManagementApi || authority == null) return;
+    final thread = api as ThreadDiagnosticsManagementApi;
     try {
-      final response = await api.load(authority);
+      final configuration = await thread.loadThreadConfiguration(authority);
+      if (!_operationCurrent(operation)) {
+        return;
+      }
+      threadConfiguration = configuration;
+      final binding = configuration.binding;
+      if (binding == null) return;
+      final diagnostics = await thread.loadThreadDiagnostics(authority);
+      if (!_operationCurrent(operation)) return;
+      final now = _clock();
+      if (diagnostics.bindingRevision != binding.revision ||
+          diagnostics.serviceId != binding.serviceId ||
+          diagnostics.serviceRevision != binding.serviceRevision ||
+          diagnostics.capturedAt.isAfter(now) ||
+          now.difference(diagnostics.capturedAt) > const Duration(minutes: 5)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      threadDiagnostics = diagnostics;
+    } catch (_) {
+      if (_operationCurrent(operation)) {
+        threadDiagnostics = null;
+        threadDiagnosticsUnavailable = true;
+      }
+    }
+  }
+
+  Future<void> configureThreadDiagnostics(ThreadServiceOption service) async {
+    final configuration = threadConfiguration;
+    final authority = threadAuthority;
+    if (api is! ThreadDiagnosticsManagementApi ||
+        authority == null ||
+        !_current() ||
+        configuration == null ||
+        threadDiagnosticsBusy ||
+        !configuration.services.contains(service)) {
+      return;
+    }
+    final operation = ++_epoch;
+    threadDiagnosticsBusy = true;
+    threadDiagnosticsUnavailable = false;
+    notifyListeners();
+    try {
+      final thread = api as ThreadDiagnosticsManagementApi;
+      final binding = await thread.configureThreadDiagnostics(
+        authority,
+        service: service,
+        expectedRevision: configuration.binding?.revision,
+      );
       if (!_operationCurrent(operation)) {
         _stale();
         return;
       }
-      if (response.authority != authority || !response.isCoherentAt(_clock())) {
-        state = MeshCenterManagementState.failed;
-      } else {
-        snapshot = response;
-        state = MeshCenterManagementState.ready;
+      threadConfiguration = ThreadDiagnosticsConfiguration(
+        binding: binding,
+        services: configuration.services,
+      );
+      final diagnostics = await thread.loadThreadDiagnostics(authority);
+      if (!_operationCurrent(operation)) {
+        _stale();
+        return;
       }
+      final now = _clock();
+      if (diagnostics.bindingRevision != binding.revision ||
+          diagnostics.serviceId != binding.serviceId ||
+          diagnostics.serviceRevision != binding.serviceRevision ||
+          diagnostics.capturedAt.isAfter(now) ||
+          now.difference(diagnostics.capturedAt) > const Duration(minutes: 5)) {
+        throw const LarenorServerException('invalid_response');
+      }
+      threadDiagnostics = diagnostics;
     } catch (_) {
       if (!_operationCurrent(operation)) {
         _stale();
         return;
       }
-      state = MeshCenterManagementState.failed;
+      threadDiagnostics = null;
+      threadDiagnosticsUnavailable = true;
+    } finally {
+      if (_operationCurrent(operation)) {
+        threadDiagnosticsBusy = false;
+      }
     }
     if (!_disposed) notifyListeners();
   }
 
   Future<void> previewUpdate(MeshClientDevice device) async {
+    final authority = this.authority;
     final currentSnapshot = snapshot;
     final offer = device.update;
-    if (!canUpdateDevice(device) ||
+    if (authority == null ||
+        !canUpdateDevice(device) ||
         (state != MeshCenterManagementState.ready &&
             state != MeshCenterManagementState.verified) ||
         currentSnapshot == null ||
@@ -177,8 +307,10 @@ final class MeshCenterManagementController extends ChangeNotifier {
   }
 
   Future<void> previewManagedUpdate(MeshClientDevice device) async {
+    final authority = this.authority;
     final currentSnapshot = snapshot;
-    if (api is! ManagedOtaManagementApi ||
+    if (authority == null ||
+        api is! ManagedOtaManagementApi ||
         !canCheckManagedUpdate(device) ||
         (state != MeshCenterManagementState.ready &&
             state != MeshCenterManagementState.verified) ||
@@ -256,8 +388,10 @@ final class MeshCenterManagementController extends ChangeNotifier {
       await _confirmManagedPending(managedPreview);
       return;
     }
+    final authority = this.authority;
     final preview = pendingPreview;
-    if (!_current() ||
+    if (authority == null ||
+        !_current() ||
         state != MeshCenterManagementState.awaitingConfirmation ||
         preview == null ||
         !preview.expiresAt.isAfter(_clock())) {
@@ -308,7 +442,9 @@ final class MeshCenterManagementController extends ChangeNotifier {
   }
 
   Future<void> _confirmManagedPending(MeshManagedOtaPreview preview) async {
-    if (api is! ManagedOtaManagementApi ||
+    final authority = this.authority;
+    if (authority == null ||
+        api is! ManagedOtaManagementApi ||
         !_current() ||
         state != MeshCenterManagementState.awaitingConfirmation ||
         !preview.expiresAt.isAfter(_clock())) {
@@ -379,6 +515,10 @@ final class MeshCenterManagementController extends ChangeNotifier {
     lastResult = null;
     pendingManagedPreview = null;
     lastManagedResult = null;
+    threadConfiguration = null;
+    threadDiagnostics = null;
+    threadDiagnosticsUnavailable = false;
+    threadDiagnosticsBusy = false;
     super.dispose();
   }
 }

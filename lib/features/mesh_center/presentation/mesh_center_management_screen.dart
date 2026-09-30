@@ -85,6 +85,34 @@ final class _MeshStrings {
       : '${device.name} will update only with verified firmware and the current network revisions. Success requires exact readback.';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Güncelle' : 'Update';
+  String get threadDiagnostics => tr ? 'Thread tanısı' : 'Thread diagnostics';
+  String get threadUnavailable => tr
+      ? 'Home Assistant Thread tanısı şu anda kullanılamıyor.'
+      : 'Home Assistant Thread diagnostics are currently unavailable.';
+  String get threadNotConfigured => tr
+      ? 'Doğrulanmış bir Home Assistant bağlantısı seçin.'
+      : 'Select a verified Home Assistant connection.';
+  String get threadNoService => tr
+      ? 'Doğrulanmış Home Assistant bağlantısı yok.'
+      : 'No verified Home Assistant connection is available.';
+  String get configureThread => tr
+      ? 'Home Assistant bağlantısını seç'
+      : 'Select Home Assistant connection';
+  String threadSummary(ThreadDiagnosticsSnapshot value) {
+    String? preferred;
+    for (final item in value.datasets) {
+      if (item.preferred) {
+        preferred = '${item.networkName} · ${item.channel}';
+        break;
+      }
+    }
+    if (tr) {
+      return '${preferred ?? 'Tercih edilen ağ yok'} · '
+          '${value.routers.length} sınır yönlendirici';
+    }
+    return '${preferred ?? 'No preferred network'} · '
+        '${value.routers.length} border routers';
+  }
 }
 
 class MeshCenterManagementScreen extends StatefulWidget {
@@ -196,6 +224,33 @@ class _MeshCenterManagementScreenState
     );
   }
 
+  Future<void> _configureThread() async {
+    final services =
+        widget.controller.threadConfiguration?.services ?? const [];
+    if (services.isEmpty || widget.controller.threadDiagnosticsBusy) return;
+    final selected = await showCupertinoModalPopup<ThreadServiceOption>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(_MeshStrings.of(context).configureThread),
+        actions: [
+          for (final service in services)
+            CupertinoActionSheetAction(
+              key: ValueKey('thread-service-${service.serviceId}'),
+              onPressed: () => Navigator.of(sheetContext).pop(service),
+              child: Text(service.name),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(_MeshStrings.of(context).cancel),
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      await widget.controller.configureThreadDiagnostics(selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = _MeshStrings.of(context);
@@ -265,6 +320,78 @@ class _MeshCenterManagementScreenState
               },
             ),
           ),
+        if (controller.supportsThreadDiagnostics)
+          SliverToBoxAdapter(
+            child: _ThreadDiagnosticsSection(
+              controller: controller,
+              strings: strings,
+              onConfigure: _configureThread,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ThreadDiagnosticsSection extends StatelessWidget {
+  const _ThreadDiagnosticsSection({
+    required this.controller,
+    required this.strings,
+    required this.onConfigure,
+  });
+  final MeshCenterManagementController controller;
+  final _MeshStrings strings;
+  final VoidCallback onConfigure;
+
+  @override
+  Widget build(BuildContext context) {
+    final configuration = controller.threadConfiguration;
+    final diagnostics = controller.threadDiagnostics;
+    final status = controller.threadDiagnosticsUnavailable
+        ? strings.threadUnavailable
+        : diagnostics != null
+        ? strings.threadSummary(diagnostics)
+        : configuration?.binding == null
+        ? strings.threadNotConfigured
+        : strings.loading;
+    final canConfigure =
+        configuration != null &&
+        configuration.services.isNotEmpty &&
+        !controller.threadDiagnosticsBusy;
+    return SettingsSection(
+      header: Text(strings.threadDiagnostics),
+      footer: Text(strings.readOnly),
+      children: [
+        Semantics(
+          key: const ValueKey('thread-diagnostics-status'),
+          container: true,
+          readOnly: true,
+          label: status,
+          child: ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  const Icon(CupertinoIcons.antenna_radiowaves_left_right),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(status)),
+                  if (controller.threadDiagnosticsBusy)
+                    const CupertinoActivityIndicator(),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SettingsActionTile(
+          buttonKey: const ValueKey('thread-diagnostics-configure'),
+          leading: const Icon(CupertinoIcons.link),
+          title: Text(
+            configuration?.services.isEmpty ?? false
+                ? strings.threadNoService
+                : strings.configureThread,
+          ),
+          onTap: canConfigure ? onConfigure : null,
+        ),
       ],
     );
   }

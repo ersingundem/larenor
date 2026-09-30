@@ -27,6 +27,17 @@ const _authority = MeshClientAuthority(
   canUpdate: true,
 );
 
+const _threadAuthority = ThreadDiagnosticsClientAuthority(
+  coreId: '11111111111111111111111111111111',
+  homeId: '22222222222222222222222222222222',
+  accountId: '33333333333333333333333333333333',
+  sessionFamilyId: '44444444444444444444444444444444',
+  routeId: '55555555555555555555555555555555',
+  sessionRevision: 3,
+  routeRevision: 2,
+  admin: true,
+);
+
 MeshCenterSnapshot _snapshot({bool reachable = true}) => MeshCenterSnapshot(
   authority: _authority,
   topologyRevision: 'topology-r8',
@@ -214,20 +225,37 @@ MeshCenterSnapshot _managedSnapshot() => MeshCenterSnapshot(
 );
 
 final class _ManagedApi
-    implements MeshCenterManagementApi, ManagedOtaManagementApi {
+    implements
+        MeshCenterManagementApi,
+        ManagedOtaManagementApi,
+        ThreadDiagnosticsManagementApi {
   final snapshot = _managedSnapshot();
   var checks = 0;
   var previews = 0;
   var confirms = 0;
   var readbacks = 0;
   var waits = 0;
+  var threadConfigs = 0;
+  var threadSaves = 0;
+  var threadReads = 0;
+  var meshLoadFails = false;
   var uncertain = false;
   var confirmTimesOut = false;
   MeshManagedOtaPreview? lastPreview;
+  ThreadDiagnosticsBinding? threadBinding;
+  final threadService = const ThreadServiceOption(
+    serviceId: 'c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9',
+    serviceRevision: 4,
+    name: 'Home Assistant',
+  );
 
   @override
-  Future<MeshCenterSnapshot> load(MeshClientAuthority authority) async =>
-      snapshot;
+  Future<MeshCenterSnapshot> load(MeshClientAuthority authority) async {
+    if (meshLoadFails) {
+      throw const LarenorServerException('mesh_provider_unavailable');
+    }
+    return snapshot;
+  }
 
   @override
   Future<MeshManagedOtaAvailability> checkManagedOta(
@@ -322,6 +350,64 @@ final class _ManagedApi
   }
 
   @override
+  Future<ThreadDiagnosticsConfiguration> loadThreadConfiguration(
+    ThreadDiagnosticsClientAuthority authority,
+  ) async {
+    threadConfigs++;
+    return ThreadDiagnosticsConfiguration(
+      binding: threadBinding,
+      services: [threadService],
+    );
+  }
+
+  @override
+  Future<ThreadDiagnosticsBinding> configureThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority, {
+    required ThreadServiceOption service,
+    required int? expectedRevision,
+  }) async {
+    threadSaves++;
+    return threadBinding = ThreadDiagnosticsBinding(
+      revision: (expectedRevision ?? 0) + 1,
+      serviceId: service.serviceId,
+      serviceRevision: service.serviceRevision,
+    );
+  }
+
+  @override
+  Future<ThreadDiagnosticsSnapshot> loadThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority,
+  ) async {
+    threadReads++;
+    return ThreadDiagnosticsSnapshot(
+      bindingRevision: threadBinding!.revision,
+      serviceId: threadBinding!.serviceId,
+      serviceRevision: threadBinding!.serviceRevision,
+      capturedAt: DateTime.utc(2026, 9, 21, 10, 1),
+      datasets: const [
+        ThreadDatasetSummary(
+          datasetId: 'd9d9d9d9d9d9d9d9d9d9d9d9d9d9d9d9',
+          networkName: 'Home Thread',
+          channel: 15,
+          preferred: true,
+          source: 'otbr',
+        ),
+      ],
+      routers: const [
+        ThreadRouterSummary(
+          routerId: 'e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9',
+          networkName: 'Home Thread',
+          brand: 'homeassistant',
+          modelName: 'OTBR',
+          threadVersion: '1.3.0',
+          vendorName: 'Home Assistant',
+          unconfigured: false,
+        ),
+      ],
+    );
+  }
+
+  @override
   Future<MeshFirmwareUpdatePreview> preview(
     MeshClientAuthority authority, {
     required MeshCenterSnapshot snapshot,
@@ -350,6 +436,7 @@ void main() {
       final controller = MeshCenterManagementController(
         api: api,
         authority: _authority,
+        threadAuthority: _threadAuthority,
         isCurrent: () => true,
         clock: () => DateTime.utc(2026, 9, 21, 10, 1),
       );
@@ -389,6 +476,7 @@ void main() {
       final controller = MeshCenterManagementController(
         api: api,
         authority: _authority,
+        threadAuthority: _threadAuthority,
         isCurrent: () => true,
         clock: () => DateTime.utc(2026, 9, 21, 10, 1),
       );
@@ -414,6 +502,7 @@ void main() {
     final controller = MeshCenterManagementController(
       api: api,
       authority: _authority,
+      threadAuthority: _threadAuthority,
       isCurrent: () => true,
       clock: () => DateTime.utc(2026, 9, 21, 10, 1),
     );
@@ -435,6 +524,75 @@ void main() {
     expect(api.readbacks, 1);
   });
 
+  testWidgets('admin selects verified HA source and reads Thread diagnostics', (
+    tester,
+  ) async {
+    final api = _ManagedApi();
+    final controller = MeshCenterManagementController(
+      api: api,
+      authority: _authority,
+      threadAuthority: _threadAuthority,
+      isCurrent: () => true,
+      clock: () => DateTime.utc(2026, 9, 21, 10, 2),
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      CupertinoApp(home: MeshCenterManagementScreen(controller: controller)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Select Home Assistant connection'), findsOneWidget);
+    final configure = find.byKey(
+      const ValueKey('thread-diagnostics-configure'),
+    );
+    await tester.ensureVisible(configure);
+    await tester.tap(configure);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Home Assistant').last);
+    await tester.pumpAndSettle();
+
+    expect(api.threadSaves, 1);
+    expect(api.threadReads, 1);
+    expect(find.textContaining('Home Thread · 15'), findsOneWidget);
+    expect(find.textContaining('1 border routers'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Thread diagnostics remain configurable while Zigbee observation fails',
+    (tester) async {
+      final api = _ManagedApi()..meshLoadFails = true;
+      final controller = MeshCenterManagementController(
+        api: api,
+        authority: _authority,
+        threadAuthority: _threadAuthority,
+        isCurrent: () => true,
+        clock: () => DateTime.utc(2026, 9, 21, 10, 2),
+      );
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        CupertinoApp(home: MeshCenterManagementScreen(controller: controller)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.state, MeshCenterManagementState.failed);
+      expect(controller.snapshot, isNull);
+      expect(api.threadConfigs, 1);
+      final configure = find.byKey(
+        const ValueKey('thread-diagnostics-configure'),
+      );
+      expect(configure, findsOneWidget);
+      await tester.ensureVisible(configure);
+      await tester.tap(configure);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Home Assistant').last);
+      await tester.pumpAndSettle();
+
+      expect(api.threadSaves, 1);
+      expect(api.threadReads, 1);
+      expect(find.textContaining('Home Thread · 15'), findsOneWidget);
+    },
+  );
+
   test(
     'topology and update state are exact, advisory, and stale-safe',
     () async {
@@ -443,6 +601,7 @@ void main() {
       final controller = MeshCenterManagementController(
         api: api,
         authority: _authority,
+        threadAuthority: _threadAuthority,
         isCurrent: () => current,
         clock: () => DateTime.utc(2026, 9, 21, 10, 1),
       );
@@ -478,6 +637,7 @@ void main() {
       final controller = MeshCenterManagementController(
         api: api,
         authority: _authority,
+        threadAuthority: _threadAuthority,
         isCurrent: () => current,
         clock: () => DateTime.utc(2026, 9, 21, 10, 1),
       );

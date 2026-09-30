@@ -369,6 +369,7 @@ void main() {
           return _json({
             'accessToken': 'a' * 43,
             'refreshToken': 'b' * 43,
+            'sessionFamilyId': family,
             'expiresIn': 3600,
             'user': {
               'id': accountId,
@@ -455,6 +456,145 @@ void main() {
     },
   );
 
+  test(
+    'HTTP adapter binds Thread configuration and redacted diagnostics',
+    () async {
+      const serviceId = 'cccccccccccccccccccccccccccccccc';
+      final requests = <http.Request>[];
+      final account = await _account((request) async {
+        requests.add(request);
+        if (request.url.path.endsWith('/auth/login')) {
+          return _json({
+            'accessToken': 'a' * 43,
+            'refreshToken': 'b' * 43,
+            'sessionFamilyId': family,
+            'expiresIn': 3600,
+            'user': {
+              'id': accountId,
+              'username': 'admin',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/admin/mesh-center/$core/$home')) {
+          return _json({'snapshot': _snapshot});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/thread-diagnostics/configuration')) {
+          return _json({
+            'configuration': {
+              'schemaVersion': 1,
+              'coreId': core,
+              'homeId': home,
+              'binding': null,
+              'services': [
+                {
+                  'schemaVersion': 1,
+                  'serviceId': serviceId,
+                  'serviceRevision': 4,
+                  'name': 'Home Assistant',
+                },
+              ],
+            },
+          });
+        }
+        if (request.method == 'PUT' &&
+            request.url.path.endsWith('/thread-diagnostics/configuration')) {
+          expect(jsonDecode(request.body), {
+            'schemaVersion': 1,
+            'expectedRevision': null,
+            'serviceId': serviceId,
+            'expectedServiceRevision': 4,
+          });
+          return _json({
+            'binding': {
+              'schemaVersion': 1,
+              'revision': 1,
+              'coreId': core,
+              'homeId': home,
+              'serviceId': serviceId,
+              'serviceRevision': 4,
+            },
+          });
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/thread-diagnostics')) {
+          return _json({
+            'diagnostics': {
+              'schemaVersion': 1,
+              'coreId': core,
+              'homeId': home,
+              'bindingRevision': 1,
+              'serviceId': serviceId,
+              'serviceRevision': 4,
+              'capturedAtMs': _now,
+              'readOnly': true,
+              'datasets': [
+                {
+                  'schemaVersion': 1,
+                  'datasetId': 'dddddddddddddddddddddddddddddddd',
+                  'networkName': 'Home Thread',
+                  'channel': 15,
+                  'preferred': true,
+                  'source': 'otbr',
+                },
+              ],
+              'routers': [
+                {
+                  'schemaVersion': 1,
+                  'routerId': 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                  'networkName': 'Home Thread',
+                  'brand': 'homeassistant',
+                  'modelName': 'OTBR',
+                  'threadVersion': '1.3.0',
+                  'vendorName': 'Home Assistant',
+                  'unconfigured': false,
+                },
+              ],
+            },
+          });
+        }
+        throw StateError(
+          'unexpected route ${request.method} ${request.url.path}',
+        );
+      });
+      addTearDown(account.dispose);
+      final api = CoreMeshCenterManagementApi(
+        account: account,
+        routeId: routeId,
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => true,
+      );
+      final threadAuthority = await api.bootstrapThreadAuthority();
+      final snapshot = await api.bootstrap();
+      expect(snapshot.authority.coreId, threadAuthority.coreId);
+      final configuration = await api.loadThreadConfiguration(threadAuthority);
+      final binding = await api.configureThreadDiagnostics(
+        threadAuthority,
+        service: configuration.services.single,
+        expectedRevision: configuration.binding?.revision,
+      );
+      final diagnostics = await api.loadThreadDiagnostics(threadAuthority);
+
+      expect(binding.revision, 1);
+      expect(diagnostics.bindingRevision, binding.revision);
+      expect(diagnostics.datasets.single.networkName, 'Home Thread');
+      expect(diagnostics.routers.single.modelName, 'OTBR');
+      expect(
+        requests.where(
+          (request) => request.url.path.contains('thread-diagnostics'),
+        ),
+        hasLength(3),
+      );
+    },
+  );
+
   test('HTTP adapter binds exact mesh snapshot update and readback', () async {
     final requests = <http.Request>[];
     late String requestId;
@@ -464,6 +604,7 @@ void main() {
         return _json({
           'accessToken': 'a' * 43,
           'refreshToken': 'b' * 43,
+          'sessionFamilyId': family,
           'expiresIn': 3600,
           'user': {
             'id': accountId,
@@ -550,6 +691,7 @@ void main() {
         return _json({
           'accessToken': 'a' * 43,
           'refreshToken': 'b' * 43,
+          'sessionFamilyId': family,
           'expiresIn': 3600,
           'user': {
             'id': accountId,

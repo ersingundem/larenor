@@ -56,9 +56,28 @@ abstract interface class ManagedOtaManagementApi {
   });
 }
 
+abstract interface class ThreadDiagnosticsManagementApi {
+  Future<ThreadDiagnosticsConfiguration> loadThreadConfiguration(
+    ThreadDiagnosticsClientAuthority authority,
+  );
+
+  Future<ThreadDiagnosticsBinding> configureThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority, {
+    required ThreadServiceOption service,
+    required int? expectedRevision,
+  });
+
+  Future<ThreadDiagnosticsSnapshot> loadThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority,
+  );
+}
+
 /// Authenticated, route-owned bridge to the F55 Core contract.
 final class CoreMeshCenterManagementApi
-    implements MeshCenterManagementApi, ManagedOtaManagementApi {
+    implements
+        MeshCenterManagementApi,
+        ManagedOtaManagementApi,
+        ThreadDiagnosticsManagementApi {
   CoreMeshCenterManagementApi({
     required this.account,
     required this.routeId,
@@ -83,20 +102,24 @@ final class CoreMeshCenterManagementApi
   final DateTime Function() _clock;
   final Future<void> Function(Duration) _delay;
   ServerSession? _session;
+  ThreadDiagnosticsClientAuthority? _threadAuthority;
   MeshCenterSnapshot? _snapshot;
   Map<String, dynamic>? _topology;
   Map<String, dynamic>? _catalog;
   bool _bootstrapPending = false;
+  bool _meshBootstrapPending = false;
   bool _retired = false;
   final Map<String, MeshFirmwareUpdatePreview> _previews = {};
   final Map<String, MeshManagedOtaPreview> _managedPreviews = {};
 
   ServerSession? get boundSession => _session;
   MeshClientAuthority? get authority => _snapshot?.authority;
+  ThreadDiagnosticsClientAuthority? get threadAuthority => _threadAuthority;
 
   void retire() {
     _retired = true;
     _session = null;
+    _threadAuthority = null;
     _snapshot = null;
     _topology = null;
     _catalog = null;
@@ -155,39 +178,73 @@ final class CoreMeshCenterManagementApi
   String _base(ServerContext context) =>
       '/admin/mesh-center/${context.coreId}/${context.homeId}';
 
-  Future<MeshCenterSnapshot> bootstrap() async {
+  Future<ThreadDiagnosticsClientAuthority> bootstrapThreadAuthority() async {
     _check();
+    final existing = _threadAuthority;
+    if (existing != null) return existing;
     if (_session != null || _bootstrapPending) {
       throw const LarenorServerException('cancelled');
     }
     _bootstrapPending = true;
     try {
-      final value = await account.withSession((api, session) async {
+      final value = await account.withSession((_, session) async {
         _check();
         final context = session.context;
-        if (!session.user.canAdminister || context == null) {
+        final family = session.sessionFamilyId;
+        if (!session.user.canAdminister || context == null || family == null) {
           throw const LarenorServerException('forbidden');
         }
-        _session = session;
-        return _decodeSnapshot(
-          _envelope(
-            await api.request(
-              'GET',
-              _base(context),
-              token: session.accessToken,
-            ),
-            'snapshot',
-          ),
-          session,
+        final authority = ThreadDiagnosticsClientAuthority(
+          coreId: context.coreId,
+          homeId: context.homeId,
+          accountId: session.user.id,
+          sessionFamilyId: family,
+          routeId: routeId,
+          sessionRevision: sessionRevision,
+          routeRevision: routeRevision,
+          admin: true,
         );
+        if (!authority.isBounded) {
+          throw const LarenorServerException('invalid_response');
+        }
+        _session = session;
+        return authority;
       });
-      _snapshot = value;
+      _threadAuthority = value;
       return value;
     } catch (_) {
       retire();
       rethrow;
     } finally {
       _bootstrapPending = false;
+    }
+  }
+
+  Future<MeshCenterSnapshot> bootstrap() async {
+    _check();
+    if (_session == null) await bootstrapThreadAuthority();
+    if (_meshBootstrapPending) {
+      throw const LarenorServerException('cancelled');
+    }
+    _meshBootstrapPending = true;
+    try {
+      final value = await _bound(
+        (api, session) async => _decodeSnapshot(
+          _envelope(
+            await api.request(
+              'GET',
+              _base(session.context!),
+              token: session.accessToken,
+            ),
+            'snapshot',
+          ),
+          session,
+        ),
+      );
+      _snapshot = value;
+      return value;
+    } finally {
+      _meshBootstrapPending = false;
     }
   }
 
@@ -706,6 +763,239 @@ final class CoreMeshCenterManagementApi
       await _delay(_managedOtaPollInterval);
     }
   }
+
+  @override
+  Future<ThreadDiagnosticsConfiguration> loadThreadConfiguration(
+    ThreadDiagnosticsClientAuthority authority,
+  ) => _bound((api, session) async {
+    if (_threadAuthority != authority) {
+      throw const LarenorServerException('cancelled');
+    }
+    final value = _envelope(
+      await api.request(
+        'GET',
+        '${_base(session.context!)}/thread-diagnostics/configuration',
+        token: session.accessToken,
+      ),
+      'configuration',
+    );
+    return _threadConfiguration(value, authority);
+  });
+
+  @override
+  Future<ThreadDiagnosticsBinding> configureThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority, {
+    required ThreadServiceOption service,
+    required int? expectedRevision,
+  }) => _bound((api, session) async {
+    if (_threadAuthority != authority) {
+      throw const LarenorServerException('cancelled');
+    }
+    final value = _envelope(
+      await api.request(
+        'PUT',
+        '${_base(session.context!)}/thread-diagnostics/configuration',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'expectedRevision': expectedRevision,
+          'serviceId': service.serviceId,
+          'expectedServiceRevision': service.serviceRevision,
+        },
+      ),
+      'binding',
+    );
+    final binding = _threadBinding(value, authority);
+    if (binding.revision != (expectedRevision ?? 0) + 1 ||
+        binding.serviceId != service.serviceId ||
+        binding.serviceRevision != service.serviceRevision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return binding;
+  });
+
+  @override
+  Future<ThreadDiagnosticsSnapshot> loadThreadDiagnostics(
+    ThreadDiagnosticsClientAuthority authority,
+  ) => _bound((api, session) async {
+    if (_threadAuthority != authority) {
+      throw const LarenorServerException('cancelled');
+    }
+    final value = _envelope(
+      await api.request(
+        'GET',
+        '${_base(session.context!)}/thread-diagnostics',
+        token: session.accessToken,
+      ),
+      'diagnostics',
+    );
+    return _threadDiagnostics(value, authority);
+  });
+}
+
+ThreadDiagnosticsBinding _threadBinding(
+  Map<String, dynamic> value,
+  ThreadDiagnosticsClientAuthority authority,
+) {
+  _exact(value, {
+    'schemaVersion',
+    'revision',
+    'coreId',
+    'homeId',
+    'serviceId',
+    'serviceRevision',
+  });
+  if (value['schemaVersion'] != 1 ||
+      _identity(value['coreId']) != authority.coreId ||
+      _identity(value['homeId']) != authority.homeId) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return ThreadDiagnosticsBinding(
+    revision: _integer(value['revision'], min: 1),
+    serviceId: _identity(value['serviceId']),
+    serviceRevision: _integer(value['serviceRevision'], min: 1),
+  );
+}
+
+ThreadDiagnosticsConfiguration _threadConfiguration(
+  Map<String, dynamic> value,
+  ThreadDiagnosticsClientAuthority authority,
+) {
+  _exact(value, {'schemaVersion', 'coreId', 'homeId', 'binding', 'services'});
+  if (value['schemaVersion'] != 1 ||
+      _identity(value['coreId']) != authority.coreId ||
+      _identity(value['homeId']) != authority.homeId) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final rawServices = value['services'];
+  if (rawServices is! List || rawServices.length > 128) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final services = rawServices
+      .map((raw) {
+        final item = serverObject(raw);
+        _exact(item, {'schemaVersion', 'serviceId', 'serviceRevision', 'name'});
+        if (item['schemaVersion'] != 1) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return ThreadServiceOption(
+          serviceId: _identity(item['serviceId']),
+          serviceRevision: _integer(item['serviceRevision'], min: 1),
+          name: _text(item['name'], 80),
+        );
+      })
+      .toList(growable: false);
+  if (services.map((item) => item.serviceId).toSet().length !=
+      services.length) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final rawBinding = value['binding'];
+  return ThreadDiagnosticsConfiguration(
+    binding: rawBinding == null
+        ? null
+        : _threadBinding(serverObject(rawBinding), authority),
+    services: services,
+  );
+}
+
+ThreadDiagnosticsSnapshot _threadDiagnostics(
+  Map<String, dynamic> value,
+  ThreadDiagnosticsClientAuthority authority,
+) {
+  _exact(value, {
+    'schemaVersion',
+    'coreId',
+    'homeId',
+    'bindingRevision',
+    'serviceId',
+    'serviceRevision',
+    'capturedAtMs',
+    'readOnly',
+    'datasets',
+    'routers',
+  });
+  if (value['schemaVersion'] != 1 ||
+      value['readOnly'] != true ||
+      _identity(value['coreId']) != authority.coreId ||
+      _identity(value['homeId']) != authority.homeId) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final rawDatasets = value['datasets'];
+  final rawRouters = value['routers'];
+  if (rawDatasets is! List ||
+      rawDatasets.length > 64 ||
+      rawRouters is! List ||
+      rawRouters.length > 128) {
+    throw const LarenorServerException('invalid_response');
+  }
+  final datasets = rawDatasets
+      .map((raw) {
+        final item = serverObject(raw);
+        _exact(item, {
+          'schemaVersion',
+          'datasetId',
+          'networkName',
+          'channel',
+          'preferred',
+          'source',
+        });
+        final channel = _integer(item['channel'], min: 11, max: 26);
+        if (item['schemaVersion'] != 1 || item['preferred'] is! bool) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return ThreadDatasetSummary(
+          datasetId: _identity(item['datasetId']),
+          networkName: _text(item['networkName'], 64),
+          channel: channel,
+          preferred: item['preferred'] as bool,
+          source: _text(item['source'], 64),
+        );
+      })
+      .toList(growable: false);
+  String? optionalText(Object? raw, int maximum) =>
+      raw == null ? null : _text(raw, maximum);
+  final routers = rawRouters
+      .map((raw) {
+        final item = serverObject(raw);
+        _exact(item, {
+          'schemaVersion',
+          'routerId',
+          'networkName',
+          'brand',
+          'modelName',
+          'threadVersion',
+          'vendorName',
+          'unconfigured',
+        });
+        final unconfigured = item['unconfigured'];
+        if (item['schemaVersion'] != 1 ||
+            unconfigured != null && unconfigured is! bool) {
+          throw const LarenorServerException('invalid_response');
+        }
+        return ThreadRouterSummary(
+          routerId: _identity(item['routerId']),
+          networkName: optionalText(item['networkName'], 64),
+          brand: optionalText(item['brand'], 64),
+          modelName: optionalText(item['modelName'], 64),
+          threadVersion: optionalText(item['threadVersion'], 32),
+          vendorName: optionalText(item['vendorName'], 64),
+          unconfigured: unconfigured as bool?,
+        );
+      })
+      .toList(growable: false);
+  if (datasets.map((item) => item.datasetId).toSet().length !=
+          datasets.length ||
+      routers.map((item) => item.routerId).toSet().length != routers.length) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return ThreadDiagnosticsSnapshot(
+    bindingRevision: _integer(value['bindingRevision'], min: 1),
+    serviceId: _identity(value['serviceId']),
+    serviceRevision: _integer(value['serviceRevision'], min: 1),
+    capturedAt: _time(value['capturedAtMs']),
+    datasets: datasets,
+    routers: routers,
+  );
 }
 
 Map<String, dynamic> _authorityJson(MeshClientAuthority value) => {

@@ -15,6 +15,7 @@ from .managed_ota import (
     ManagedOtaConfirmRequest,
     ManagedOtaPreviewRequest,
 )
+from .thread_diagnostics_service import ThreadDiagnosticsBindingInput
 
 Admin = Annotated[Principal, Depends(require_admin)]
 ROOT = "/admin/mesh-center/{core_id}/{home_id}"
@@ -43,6 +44,13 @@ def _gateway(request: Request):
     if gateway is None:
         raise ApiError("mesh_provider_unavailable", 503)
     return gateway
+
+
+def _thread_diagnostics(request: Request):
+    service = getattr(request.app.state.core, "thread_diagnostics", None)
+    if service is None:
+        raise ApiError("thread_diagnostics_unavailable", 503)
+    return service
 
 
 @router.get(ROOT)
@@ -143,5 +151,48 @@ def managed_ota_result(
     return {
         "result": _gateway(request).managed_ota_result(
             actor, core_id, home_id, request_id
+        )
+    }
+
+
+@router.get(ROOT + "/thread-diagnostics/configuration")
+def thread_diagnostics_configuration(
+    core_id: Identity,
+    home_id: Identity,
+    actor: Admin,
+    request: Request,
+):
+    service = _thread_diagnostics(request)
+    configuration = service.configuration(actor)
+    if (configuration.coreId, configuration.homeId) != (core_id, home_id):
+        raise ApiError("not_found", 404)
+    return {"configuration": configuration}
+
+
+@router.put(ROOT + "/thread-diagnostics/configuration")
+def configure_thread_diagnostics(
+    core_id: Identity,
+    home_id: Identity,
+    body: ThreadDiagnosticsBindingInput,
+    actor: Admin,
+    request: Request,
+):
+    service = _thread_diagnostics(request)
+    configuration = service.configuration(actor)
+    if (configuration.coreId, configuration.homeId) != (core_id, home_id):
+        raise ApiError("not_found", 404)
+    return {"binding": service.configure(actor, body)}
+
+
+@router.get(ROOT + "/thread-diagnostics")
+def thread_diagnostics(
+    core_id: Identity,
+    home_id: Identity,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "diagnostics": _thread_diagnostics(request).observe(
+            actor, core_id, home_id
         )
     }

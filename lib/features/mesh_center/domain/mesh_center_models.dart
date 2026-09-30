@@ -9,6 +9,79 @@ enum MeshHealthState { healthy, degraded, unavailable }
 enum MeshUpdateStatus { confirmed, uncertain }
 
 @immutable
+final class ThreadDiagnosticsClientAuthority {
+  const ThreadDiagnosticsClientAuthority({
+    required this.coreId,
+    required this.homeId,
+    required this.accountId,
+    required this.sessionFamilyId,
+    required this.routeId,
+    required this.sessionRevision,
+    required this.routeRevision,
+    required this.admin,
+  });
+
+  factory ThreadDiagnosticsClientAuthority.fromMesh(
+    MeshClientAuthority authority,
+  ) => ThreadDiagnosticsClientAuthority(
+    coreId: authority.coreId,
+    homeId: authority.homeId,
+    accountId: authority.accountId,
+    sessionFamilyId: authority.sessionFamilyId,
+    routeId: authority.routeId,
+    sessionRevision: authority.sessionRevision,
+    routeRevision: authority.routeRevision,
+    admin: authority.admin,
+  );
+
+  final String coreId;
+  final String homeId;
+  final String accountId;
+  final String sessionFamilyId;
+  final String routeId;
+  final int sessionRevision;
+  final int routeRevision;
+  final bool admin;
+
+  bool get isBounded =>
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(coreId) &&
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(homeId) &&
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(accountId) &&
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(sessionFamilyId) &&
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(routeId) &&
+      sessionRevision >= 0 &&
+      routeRevision >= 0 &&
+      admin;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ThreadDiagnosticsClientAuthority &&
+      coreId == other.coreId &&
+      homeId == other.homeId &&
+      accountId == other.accountId &&
+      sessionFamilyId == other.sessionFamilyId &&
+      routeId == other.routeId &&
+      sessionRevision == other.sessionRevision &&
+      routeRevision == other.routeRevision &&
+      admin == other.admin;
+
+  @override
+  int get hashCode => Object.hash(
+    coreId,
+    homeId,
+    accountId,
+    sessionFamilyId,
+    routeId,
+    sessionRevision,
+    routeRevision,
+    admin,
+  );
+
+  @override
+  String toString() => 'ThreadDiagnosticsClientAuthority(redacted)';
+}
+
+@immutable
 final class MeshClientAuthority {
   const MeshClientAuthority({
     required this.coreId,
@@ -562,4 +635,83 @@ final class MeshManagedOtaResult {
       int.parse(providerRevision!) > int.parse(preview.providerRevision) &&
       installedFileVersion == preview.latestFileVersion &&
       completedAt != null;
+}
+
+@immutable
+final class ThreadServiceOption {
+  const ThreadServiceOption({
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.name,
+  });
+  final String serviceId, name;
+  final int serviceRevision;
+}
+
+@immutable
+final class ThreadDiagnosticsBinding {
+  const ThreadDiagnosticsBinding({
+    required this.revision,
+    required this.serviceId,
+    required this.serviceRevision,
+  });
+  final int revision, serviceRevision;
+  final String serviceId;
+}
+
+@immutable
+final class ThreadDiagnosticsConfiguration {
+  const ThreadDiagnosticsConfiguration({
+    required this.binding,
+    required this.services,
+  });
+  final ThreadDiagnosticsBinding? binding;
+  final List<ThreadServiceOption> services;
+}
+
+@immutable
+final class ThreadDatasetSummary {
+  const ThreadDatasetSummary({
+    required this.datasetId,
+    required this.networkName,
+    required this.channel,
+    required this.preferred,
+    required this.source,
+  });
+  final String datasetId, networkName, source;
+  final int channel;
+  final bool preferred;
+}
+
+@immutable
+final class ThreadRouterSummary {
+  const ThreadRouterSummary({
+    required this.routerId,
+    required this.networkName,
+    required this.brand,
+    required this.modelName,
+    required this.threadVersion,
+    required this.vendorName,
+    required this.unconfigured,
+  });
+  final String routerId;
+  final String? networkName, brand, modelName, threadVersion, vendorName;
+  final bool? unconfigured;
+}
+
+@immutable
+final class ThreadDiagnosticsSnapshot {
+  const ThreadDiagnosticsSnapshot({
+    required this.bindingRevision,
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.capturedAt,
+    required this.datasets,
+    required this.routers,
+  });
+  final int bindingRevision, serviceRevision;
+  final String serviceId;
+  final DateTime capturedAt;
+  final List<ThreadDatasetSummary> datasets;
+  final List<ThreadRouterSummary> routers;
 }
