@@ -3902,7 +3902,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Birden fazla ev, bağımsız Core",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3929,7 +3929,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sürümlü ve 16 profille sınırlı Secure Storage çoklu ev kasası, legacy oturum geçişi, gecikmiş callbackleri emekli eden güvenli Core değişimi, kimliğe göre tam ProviderScope remount, Core/ev/hesap kapsamlı medya önbellekleri, pasif güncel runtime araması, kaynak kimliğini koruyan v3 replacement restore ve mevcut profili atomik yeniden bağlama, iki Core oturumunu ayrı ayrı doğrulayan evler arası yetki kapısı ve etkin Core başına F17 kurtarma hedefi bağlantısı f49d783c, 7a1c3485, 68894e05, ef26d9bb, 61b648ad, bbc49a36 ve 01bee407 ile uygulandı. Python compile, l10n üretimi ve odaklı Flutter analyze temiz; özellik testleri, bağımsız inceleme, iki izole gerçek Core E2E ve exact-head CI final toplu doğrulama evresinde açık."
+      "reason": "İki bağımsız normal TCP Core ve gerçek Flutter account/profile/services akışı iki ayrı Core/home/private service/token kapsamını, owned Jellyfin GET/System/Info exact probe ve cross-home authority reddini geçti. Client registry restart sonrası Core A fiziksel kapalıyken Core B çalışır, A failure profilleri silmez ve B recovery geçer. 47 Flutter, 177 Server ve gerçek iki faz geçerli; root runnerı bağımsız doğruladı. Geniş exact HEAD CI ve gerçek ev/Headscale/servis MANUAL koşulları açık. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "G06",
@@ -4513,7 +4513,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ortak ev masrafları",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4537,7 +4537,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama commit d4d35617: şifreli append-only masraf/ödeme defteri, deterministic borç settlement, overpayment ve para birimi reddi, exact yetki/idempotency/revision, restart zincir doğrulaması, borç-alacak görünümü, admin payer, beş para birimi ve kopyalanabilir CSV dışa aktarım tamamlandı. Focused py_compile, gerçek SQLite smoke, Dart format ve Flutter analyze geçti; dedicated test ve CI kanıtı final doğrulama kapısında bekliyor."
+      "reason": "FINAL.FUNCTION kabul incelemesinde para birimi/paylaştırma/payment/export yolu mevcut ancak düzenleme geçmişi yoktur. Aktif geliştirme: eski şifreli kaydı değiştirmeden replacesId ile append-only masraf düzeltme, current payer/admin/members/CAS yetkisi, terminal kayıtlarla gerçek balance ve kullanılabilir EN/TR Client edit akışı. Gerçek Client→normal Core/restart ve focused kabul geçmeden CI bekliyor yapılmaz."
     },
     {
       "id": "F38",

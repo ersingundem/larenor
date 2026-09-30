@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 45 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; kalan özelliklerin gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 46 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F19 gerçek iki Core kabulü
+
+Gerçek Client iki bağımsız normal Core/home için ayrı profil/token/service kapsamını ve owned Jellyfin exact authenticated probe yolunu geçti. Registry restart sonrası Core A kapalıyken B çalışır; A failure profilleri silmez ve B recovery geçer. 47 Flutter, 177 Server ve iki gerçek faz doğrulandı; root birleşik runnerı ayrıca geçti. F19 CI bekliyor tablosuna taşındı: 46 özellik broad CI bekliyor; F37 eksik edit-history nedeniyle aktif geliştirmede. [F19 kanıtı](testing/f19-two-normal-core-acceptance-2026-09-30.md).
 
 ### 30 Eylül host installer güvenli hata aşaması
 

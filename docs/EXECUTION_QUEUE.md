@@ -15,9 +15,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 1 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 7 | 0 |
-| G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 0 | 3 | 0 |
+| G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 2 | 0 | 8 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 3 | 0 | 5 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 1 | 5 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F37 | Ortak ev masrafları | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,7 +37,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Başlanabilir | — |
+| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G07 |
 | 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -120,11 +120,9 @@ Tamamlanan ve test/CI bekleyen işler
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
-| F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
-| F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
@@ -145,6 +143,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F11 | Sınırlı yetkili mini eklentiler | CI bekliyor | — |
 | F12 | Yetkili MCP kapısı | CI bekliyor | — |
 | F14 | Süreli destek oturumu | CI bekliyor | — |
+| F19 | Birden fazla ev, bağımsız Core | CI bekliyor | — |
 | F24 | Akıllı altyazı ve dil tercihleri | CI bekliyor | — |
 | F25 | Jenerik ve kapanış atlama | CI bekliyor | — |
 | F22 | Kendi televizyon kanalların | CI bekliyor | — |
