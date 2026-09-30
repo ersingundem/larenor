@@ -17,6 +17,8 @@ class PrivateEventShareController extends ChangeNotifier {
   EventRedactionPreview? _preview;
   EventShareDownload? _download;
   CreatedPrivateEventShare? _created;
+  PrivateEventShareSetup? _setup;
+  PrivateEventShareConsent? _consent;
   int _epoch = 0;
   String? _pendingCommand;
 
@@ -25,6 +27,8 @@ class PrivateEventShareController extends ChangeNotifier {
   EventRedactionPreview? get previewResult => _preview;
   EventShareDownload? get downloadResult => _download;
   CreatedPrivateEventShare? get createdShare => _created;
+  PrivateEventShareSetup? get setupResult => _setup;
+  PrivateEventShareConsent? get consentResult => _consent;
 
   void _set(EventShareState value) {
     _state = value;
@@ -46,6 +50,58 @@ class PrivateEventShareController extends ChangeNotifier {
         return;
       }
       _snapshot = value;
+      if (_api case final PrivateEventShareSetupApi setupApi) {
+        try {
+          _setup = await setupApi.setup();
+        } catch (_) {
+          _setup = null;
+        }
+        if (epoch != _epoch) return;
+      }
+      _set(EventShareState.ready);
+    } on TimeoutException {
+      if (epoch == _epoch) _set(EventShareState.offline);
+    } catch (_) {
+      if (epoch == _epoch) _set(EventShareState.error);
+    }
+  }
+
+  Future<void> configurePolicy(PrivateEventSharePolicyDraft draft) async {
+    if (_state != EventShareState.ready ||
+        _api is! PrivateEventShareSetupApi ||
+        _pendingCommand != null) {
+      return;
+    }
+    final api = _api as PrivateEventShareSetupApi;
+    final epoch = _epoch;
+    _set(EventShareState.busy);
+    try {
+      _setup = await api.configurePolicy(draft);
+      if (epoch != _epoch) return;
+      _consent = null;
+      _preview = null;
+      _set(EventShareState.ready);
+    } on TimeoutException {
+      if (epoch == _epoch) _set(EventShareState.offline);
+    } catch (_) {
+      if (epoch == _epoch) _set(EventShareState.error);
+    }
+  }
+
+  Future<void> acceptConsent(PrivateEventSharePolicyDraft draft) async {
+    if (_state != EventShareState.ready ||
+        _api is! PrivateEventShareSetupApi ||
+        _pendingCommand != null) {
+      return;
+    }
+    final api = _api as PrivateEventShareSetupApi;
+    final epoch = _epoch;
+    _consent = null;
+    _preview = null;
+    _set(EventShareState.busy);
+    try {
+      _consent = await api.acceptConsent(draft);
+      if (epoch != _epoch) return;
       _set(EventShareState.ready);
     } on TimeoutException {
       if (epoch == _epoch) _set(EventShareState.offline);
@@ -98,6 +154,8 @@ class PrivateEventShareController extends ChangeNotifier {
       );
       if (epoch != _epoch) return;
       _pendingCommand = null;
+      _consent = null;
+      _preview = null;
       await load();
     } on TimeoutException {
       if (epoch == _epoch) _set(EventShareState.uncertain);
@@ -175,6 +233,8 @@ class PrivateEventShareController extends ChangeNotifier {
     _preview = null;
     _download = null;
     _created = null;
+    _setup = null;
+    _consent = null;
     _set(EventShareState.idle);
   }
 }

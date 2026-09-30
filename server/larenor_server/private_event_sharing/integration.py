@@ -27,7 +27,7 @@ class RedactedEventArtifact:
 
 AuthorityResolver = Callable[[Principal, str, str], EventShareAuthority]
 ConsentResolver = Callable[[Principal, str], EventShareConsent]
-EventReader = Callable[[EventShareAuthority, int], bytes]
+EventReader = Callable[[Principal, EventShareAuthority, int], bytes]
 RedactionWorker = Callable[
     [EventShareAuthority, bytes, tuple[str, ...], tuple[str, ...], int],
     RedactedEventArtifact,
@@ -156,7 +156,7 @@ class PrivateEventShareService:
         if len(masks) != len(body.masks) or len(metadata) != len(body.removedMetadata):
             raise ApiError("invalid_request", 400)
         try:
-            source = self._event_reader(authority, 64 * 1024 * 1024)
+            source = self._event_reader(actor, authority, 64 * 1024 * 1024)
             artifact = self._redaction_worker(
                 authority, source, masks, metadata, 64 * 1024 * 1024
             )
@@ -166,6 +166,8 @@ class PrivateEventShareService:
             raise ApiError("share_unavailable", 503) from None
         if not isinstance(artifact, RedactedEventArtifact):
             raise ApiError("transformation_unverified", 409)
+        if self._authority(actor, core_id, home_id, camera_id, event_id) != authority:
+            raise ApiError("authority_changed", 409)
         try:
             transformation = self.store.prepare_transformation(
                 authority=authority,
@@ -194,6 +196,8 @@ class PrivateEventShareService:
     ):
         authority = self._authority(actor, core_id, home_id, camera_id, event_id)
         self._check(body, authority)
+        if not authority.can_share:
+            raise ApiError("forbidden", 403)
         try:
             consent = self._consent_resolver(actor, body.consentId)
         except ApiError:
@@ -203,7 +207,7 @@ class PrivateEventShareService:
         if not isinstance(consent, EventShareConsent):
             raise ApiError("consent_scope_changed", 409)
         try:
-            source = self._event_reader(authority, 64 * 1024 * 1024)
+            source = self._event_reader(actor, authority, 64 * 1024 * 1024)
         except ApiError:
             raise
         except Exception:
@@ -229,6 +233,15 @@ class PrivateEventShareService:
             )
         ):
             raise ApiError("transformation_unverified", 409)
+        if self._authority(actor, core_id, home_id, camera_id, event_id) != authority:
+            raise ApiError("authority_changed", 409)
+        try:
+            if self._consent_resolver(actor, body.consentId) != consent:
+                raise ApiError("consent_scope_changed", 409)
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("consent_scope_changed", 409) from None
         command = {
             "action": "create",
             "commandId": body.commandId,

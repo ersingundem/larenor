@@ -4675,7 +4675,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4699,7 +4699,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION içinde gerçek Frigate olay yetkisi, sabit FFmpeg full-frame maskeleme, metadata temizliği ve şifreli private artifact sağlayıcısı geliştiriliyor. F41 kalıcı mühür/gerçek klip temeli 8 normal Core/TCP testiyle doğrulandı; targeted face/plate modeli yoksa desteklenmiş gibi gösterilmez. Client, tam provider kabulü ve exact HEAD CI açık."
+      "reason": "Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md."
     },
     {
       "id": "F41",

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../shared/network/server_bound_client.dart';
 import '../../server/data/larenor_server_api.dart';
+import '../../server/admin/domain/server_admin_models.dart';
 import '../../server/domain/server_models.dart';
 import '../domain/private_event_share_models.dart';
 import 'private_event_share_api.dart';
@@ -18,7 +19,8 @@ typedef PrivateEventDownloadAdapter = Future<EventShareDownload> Function({
   required String accessId,
 });
 
-final class PrivateEventShareAccountApi implements PrivateEventShareApi {
+final class PrivateEventShareAccountApi
+    implements PrivateEventShareApi, PrivateEventShareSetupApi {
   PrivateEventShareAccountApi(
     LarenorServerApi api,
     this._session, {
@@ -53,6 +55,8 @@ final class PrivateEventShareAccountApi implements PrivateEventShareApi {
   ServerContext get _context => _session.context!;
   String get _root =>
       '/private-event-sharing/${_context.coreId}/${_context.homeId}/$cameraId/$eventId';
+  String get _policyRoot =>
+      '/admin/private-event-sharing/${_context.coreId}/${_context.homeId}/policy';
 
   void _check() {
     if (!_retired && _session.context != null && _isCurrent()) return;
@@ -89,6 +93,189 @@ final class PrivateEventShareAccountApi implements PrivateEventShareApi {
     'sessionRevision': value.sessionRevision,
     'expectedShareRevision': value.shareRevision,
   };
+
+  @override
+  Future<PrivateEventShareSetup> setup() async {
+    _check();
+    final responses = await Future.wait([
+      _api.request('GET', _policyRoot, token: _session.accessToken),
+      _api.request('GET', '/admin/users', token: _session.accessToken),
+    ]);
+    _check();
+    final usersJson = _map(responses[1]);
+    _exact(usersJson, const {'users'});
+    final rawUsers = _list(usersJson['users']);
+    if (rawUsers.isEmpty || rawUsers.length > 256) {
+      throw const FormatException('invalid_response');
+    }
+    final users = rawUsers
+        .map((value) => AdminUser.fromJson(_map(value)))
+        .where((value) => !value.disabled && !value.mustChangePassword)
+        .map(
+          (value) => PrivateEventShareMember(
+            id: value.id,
+            username: value.username,
+            canGrant: value.role == ServerRole.admin,
+          ),
+        )
+        .toList(growable: false);
+    if (users.isEmpty ||
+        users.map((value) => value.id).toSet().length != users.length ||
+        !users.any((value) => value.id == _session.user.id)) {
+      throw const FormatException('invalid_response');
+    }
+    return PrivateEventShareSetup(
+      currentUserId: _session.user.id,
+      members: users,
+      policy: _policyFrom(_map(responses[0])),
+    );
+  }
+
+  @override
+  Future<PrivateEventShareSetup> configurePolicy(
+    PrivateEventSharePolicyDraft draft,
+  ) async {
+    final current = await setup();
+    _validatePolicyDraft(draft, current);
+    final json = _map(
+      await _api.request(
+        'PUT',
+        _policyRoot,
+        token: _session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'expectedRevision': current.policy.revision,
+          'active': true,
+          'grantorIds': [current.currentUserId],
+          'recipientIds': [draft.recipientId],
+          'purposes': [draft.purpose.trim()],
+          'accessModes': [_accessModeWire(draft.accessMode)],
+          'maxTtlSeconds': draft.ttlSeconds,
+          'requiredMasks': const ['face', 'license_plate'],
+          'requiredMetadata': const [
+            'device_serial',
+            'gps',
+            'camera_name',
+            'network_address',
+          ],
+          'redactionMode': 'full_frame_blur',
+        },
+      ),
+    );
+    _check();
+    final policy = _policyFrom(json);
+    if (!policy.configured || policy.revision != current.policy.revision + 1) {
+      throw const FormatException('invalid_response');
+    }
+    _authority = null;
+    return PrivateEventShareSetup(
+      currentUserId: current.currentUserId,
+      members: current.members,
+      policy: policy,
+    );
+  }
+
+  @override
+  Future<PrivateEventShareConsent> acceptConsent(
+    PrivateEventSharePolicyDraft draft,
+  ) async {
+    final current = await setup();
+    _validatePolicyDraft(draft, current);
+    final policy = current.policy;
+    if (!policy.configured ||
+        !policy.active ||
+        !policy.grantorIds.contains(current.currentUserId) ||
+        !policy.recipientIds.contains(draft.recipientId) ||
+        !policy.purposes.contains(draft.purpose.trim()) ||
+        !policy.accessModes.contains(draft.accessMode) ||
+        draft.ttlSeconds > policy.maxTtlSeconds ||
+        !policy.fullFrameOnly) {
+      throw const LarenorServerException('consent_scope_changed');
+    }
+    final authority = await _loadAuthority();
+    if (!authority.canShare) {
+      throw const LarenorServerException('forbidden');
+    }
+    // The protocol carries an absolute expiry. Leave a narrow transport/clock
+    // margin so an exact policy maximum is not exceeded while the request is in
+    // flight; larger device clock drift still fails closed at Core.
+    final consentSeconds = draft.ttlSeconds > 90 ? draft.ttlSeconds - 30 : 60;
+    final expires = DateTime.now().toUtc().add(
+      Duration(seconds: consentSeconds),
+    );
+    final json = _map(
+      await _api.request(
+        'POST',
+        '$_root/consents',
+        token: _session.accessToken,
+        body: {
+          ..._scope(authority),
+          'expectedPolicyRevision': policy.revision,
+          'recipientId': draft.recipientId,
+          'purpose': draft.purpose.trim(),
+          'expiresAt': expires.millisecondsSinceEpoch / 1000,
+          'accessMode': _accessModeWire(draft.accessMode),
+          'masks': policy.requiredMasks.map(_mask).toList(),
+          'removedMetadata': policy.requiredMetadata.map(_metadata).toList(),
+        },
+      ),
+    );
+    _check();
+    _exact(json, const {
+      'schemaVersion',
+      'consentId',
+      'revision',
+      'recipientId',
+      'purpose',
+      'accessMode',
+      'expiresAt',
+      'requiredMasks',
+      'requiredMetadata',
+    });
+    if (json['schemaVersion'] != 1 ||
+        json['recipientId'] != draft.recipientId ||
+        json['purpose'] != draft.purpose.trim() ||
+        _accessMode(json['accessMode']) != draft.accessMode) {
+      throw const FormatException('invalid_response');
+    }
+    final consent = PrivateEventShareConsent(
+      id: _id(json['consentId']),
+      revision: _revision(json['revision']),
+      recipientId: _id(json['recipientId']),
+      purpose: _text(json['purpose'], 200),
+      accessMode: _accessMode(json['accessMode']),
+      expiresAt: _time(json['expiresAt']),
+      masks: _list(json['requiredMasks']).map(_maskValue).toSet(),
+      removedMetadata: _list(json['requiredMetadata'])
+          .map(_metadataValue)
+          .toSet(),
+    );
+    if (consent.expiresAt.isAfter(expires) ||
+        !consent.expiresAt.isAfter(DateTime.now().toUtc()) ||
+        consent.masks.length != policy.requiredMasks.length ||
+        !consent.masks.containsAll(policy.requiredMasks) ||
+        consent.removedMetadata.length != policy.requiredMetadata.length ||
+        !consent.removedMetadata.containsAll(policy.requiredMetadata)) {
+      throw const FormatException('invalid_response');
+    }
+    return consent;
+  }
+
+  void _validatePolicyDraft(
+    PrivateEventSharePolicyDraft draft,
+    PrivateEventShareSetup current,
+  ) {
+    if (!current.members.any((value) => value.id == draft.recipientId) ||
+        !current.members.any(
+          (value) => value.id == current.currentUserId && value.canGrant,
+        ) ||
+        draft.purpose.trim().isEmpty ||
+        draft.purpose.trim().length > 200 ||
+        draft.ttlSeconds < 60 ||
+        draft.ttlSeconds > 604800) {
+      throw const LarenorServerException('invalid_request');
+    }
+  }
 
   @override
   Future<EventShareSnapshot> snapshot() async {
@@ -602,6 +789,104 @@ EventShareAccessMode _accessMode(Object? value) => switch (value) {
   'time_bound' => EventShareAccessMode.timeBound,
   _ => throw const FormatException('invalid_response'),
 };
+
+String _accessModeWire(EventShareAccessMode value) =>
+    value == EventShareAccessMode.oneTime ? 'one_time' : 'time_bound';
+
+PrivateEventSharePolicy _policyFrom(Map<String, dynamic> value) {
+  if (value['configured'] == false) {
+    _exact(value, const {'schemaVersion', 'revision', 'configured'});
+    if (value['schemaVersion'] != 1 || value['revision'] != 0) {
+      throw const FormatException('invalid_response');
+    }
+    return PrivateEventSharePolicy(
+      revision: 0,
+      configured: false,
+      active: false,
+      grantorIds: const [],
+      recipientIds: const [],
+      purposes: const [],
+      accessModes: const {},
+      maxTtlSeconds: 0,
+      requiredMasks: const {},
+      requiredMetadata: const {},
+      fullFrameOnly: false,
+    );
+  }
+  _exact(value, const {
+    'schemaVersion',
+    'revision',
+    'configured',
+    'active',
+    'grantorIds',
+    'recipientIds',
+    'purposes',
+    'accessModes',
+    'maxTtlSeconds',
+    'requiredMasks',
+    'requiredMetadata',
+    'redactionMode',
+    'capability',
+  });
+  final capability = _map(value['capability']);
+  _exact(capability, const {
+    'schemaVersion',
+    'mode',
+    'targetedRecognition',
+    'coversEntireFrame',
+  });
+  final fullFrameOnly =
+      capability['schemaVersion'] == 1 &&
+      capability['mode'] == 'full_frame_blur' &&
+      capability['targetedRecognition'] == false &&
+      capability['coversEntireFrame'] == true &&
+      value['redactionMode'] == 'full_frame_blur';
+  if (value['schemaVersion'] != 1 ||
+      value['configured'] != true ||
+      value['active'] is! bool ||
+      value['maxTtlSeconds'] is! int ||
+      !fullFrameOnly) {
+    throw const FormatException('invalid_response');
+  }
+  final grantors = _list(value['grantorIds']).map(_id).toList();
+  final recipients = _list(value['recipientIds']).map(_id).toList();
+  final purposes = _list(value['purposes'])
+      .map((item) => _text(item, 200))
+      .toList();
+  final accessModes = _list(value['accessModes']).map(_accessMode).toSet();
+  final masks = _list(value['requiredMasks']).map(_maskValue).toSet();
+  final metadata = _list(value['requiredMetadata']).map(_metadataValue).toSet();
+  final ttl = value['maxTtlSeconds'] as int;
+  if (grantors.isEmpty ||
+      grantors.length > 128 ||
+      grantors.toSet().length != grantors.length ||
+      recipients.isEmpty ||
+      recipients.length > 128 ||
+      recipients.toSet().length != recipients.length ||
+      purposes.isEmpty ||
+      purposes.length > 16 ||
+      purposes.toSet().length != purposes.length ||
+      accessModes.isEmpty ||
+      masks.isEmpty ||
+      metadata.isEmpty ||
+      ttl < 60 ||
+      ttl > 604800) {
+    throw const FormatException('invalid_response');
+  }
+  return PrivateEventSharePolicy(
+    revision: _revision(value['revision']),
+    configured: true,
+    active: _bool(value['active']),
+    grantorIds: grantors,
+    recipientIds: recipients,
+    purposes: purposes,
+    accessModes: accessModes,
+    maxTtlSeconds: ttl,
+    requiredMasks: masks,
+    requiredMetadata: metadata,
+    fullFrameOnly: fullFrameOnly,
+  );
+}
 
 DateTime _time(Object? v) {
   if (v is! num || !v.isFinite || v <= 0) {

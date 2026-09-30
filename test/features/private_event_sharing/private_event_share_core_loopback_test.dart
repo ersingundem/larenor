@@ -32,6 +32,7 @@ const _outputDigest =
     '2222222222222222222222222222222222222222222222222222222222222222';
 const _proof =
     '3333333333333333333333333333333333333333333333333333333333333333';
+const _consent = 'ffffffffffffffffffffffffffffffff';
 
 final class _ShareCore {
   _ShareCore._(this.server) {
@@ -42,6 +43,8 @@ final class _ShareCore {
   final bytes = utf8.encode('redacted-event-bytes-without-private-metadata');
   int revision = 1;
   bool created = false, consumed = false, revoked = false;
+  bool policyConfigured = false;
+  int consents = 0;
   int downloads = 0, oneTimeDenials = 0, revokeDenials = 0, expiryDenials = 0;
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
@@ -65,7 +68,31 @@ final class _ShareCore {
       return _error(request, 401);
     }
     final root = '/api/v1/private-event-sharing/$_core/$_home/$_camera/$_event';
+    final policyRoot =
+        '/api/v1/admin/private-event-sharing/$_core/$_home/policy';
     final path = request.uri.path;
+    if (request.method == 'GET' && path == '/api/v1/admin/users') {
+      return _json(request, {
+        'users': [
+          _user(_account, 'admin', 'admin'),
+          _user(_recipient, 'reviewer', 'member'),
+        ],
+      });
+    }
+    if (request.method == 'GET' && path == policyRoot) {
+      return _json(request, _policy());
+    }
+    if (request.method == 'PUT' && path == policyRoot) {
+      final body = await _body(request);
+      if (body['expectedRevision'] != 0 ||
+          body['grantorIds'].toString() != '[$_account]' ||
+          body['recipientIds'].toString() != '[$_recipient]' ||
+          body['redactionMode'] != 'full_frame_blur') {
+        return _error(request, 400);
+      }
+      policyConfigured = true;
+      return _json(request, _policy());
+    }
     if (request.method == 'GET' && path == '$root/context') {
       return _json(request, _authority());
     }
@@ -92,8 +119,9 @@ final class _ShareCore {
     if (request.method == 'POST' && path == '$root/preview') {
       final body = await _body(request);
       if (body['expectedShareRevision'] != revision ||
-          body['masks'].toString() != '[face]' ||
-          body['removedMetadata'].toString() != '[gps]') {
+          body['masks'].toString() != '[face, license_plate]' ||
+          body['removedMetadata'].toString() !=
+              '[device_serial, gps, camera_name, network_address]') {
         return _error(request, 400);
       }
       return _json(request, {
@@ -104,11 +132,43 @@ final class _ShareCore {
           'outputArtifactId': _artifact,
           'pipelineId': _pipeline,
           'pipelineRevision': 5,
-          'masks': ['face'],
-          'removedMetadata': ['gps'],
+          'masks': ['face', 'license_plate'],
+          'removedMetadata': [
+            'device_serial',
+            'gps',
+            'camera_name',
+            'network_address',
+          ],
           'proof': _proof,
         },
       });
+    }
+    if (request.method == 'POST' && path == '$root/consents') {
+      final body = await _body(request);
+      if (!policyConfigured ||
+          body['expectedPolicyRevision'] != 1 ||
+          body['recipientId'] != _recipient ||
+          body['purpose'] != 'incident review' ||
+          body['masks'].toString() != '[face, license_plate]') {
+        return _error(request, 409);
+      }
+      consents++;
+      return _json(request, {
+        'schemaVersion': 1,
+        'consentId': _consent,
+        'revision': 1,
+        'recipientId': _recipient,
+        'purpose': 'incident review',
+        'accessMode': 'one_time',
+        'expiresAt': body['expiresAt'],
+        'requiredMasks': ['face', 'license_plate'],
+        'requiredMetadata': [
+          'device_serial',
+          'gps',
+          'camera_name',
+          'network_address',
+        ],
+      }, 201);
     }
     if (request.method == 'POST' && path == '$root/shares') {
       final body = await _body(request);
@@ -200,6 +260,44 @@ final class _ShareCore {
     'canShare': true,
   };
 
+  Map<String, dynamic> _user(String id, String username, String role) => {
+    'id': id,
+    'username': username,
+    'role': role,
+    'disabled': false,
+    'mustChangePassword': false,
+    'revision': 1,
+    'createdAt': '2026-09-30T10:00:00Z',
+  };
+
+  Map<String, dynamic> _policy() => policyConfigured
+      ? {
+          'schemaVersion': 1,
+          'revision': 1,
+          'configured': true,
+          'active': true,
+          'grantorIds': [_account],
+          'recipientIds': [_recipient],
+          'purposes': ['incident review'],
+          'accessModes': ['one_time'],
+          'maxTtlSeconds': 3600,
+          'requiredMasks': ['face', 'license_plate'],
+          'requiredMetadata': [
+            'device_serial',
+            'gps',
+            'camera_name',
+            'network_address',
+          ],
+          'redactionMode': 'full_frame_blur',
+          'capability': {
+            'schemaVersion': 1,
+            'mode': 'full_frame_blur',
+            'targetedRecognition': false,
+            'coversEntireFrame': true,
+          },
+        }
+      : {'schemaVersion': 1, 'revision': 0, 'configured': false};
+
   Map<String, dynamic> _wireShare() => {
     'id': _share,
     'recipientId': _recipient,
@@ -258,16 +356,12 @@ ServerSession _session(String baseUrl) => ServerSession(
   ),
 );
 
-EventShareDraft _draft() => EventShareDraft.tryCreate(
-  consentId: 'consent.2026.09',
-  consentRevision: 1,
+PrivateEventSharePolicyDraft _policyDraft() => PrivateEventSharePolicyDraft(
   recipientId: _recipient,
   purpose: 'incident review',
   ttlSeconds: 3600,
   accessMode: EventShareAccessMode.oneTime,
-  masks: const {EventShareMask.face},
-  removedMetadata: const {EventShareMetadata.gps},
-)!;
+);
 
 Matcher _unavailable() => throwsA(
   isA<LarenorServerException>().having(
@@ -292,7 +386,13 @@ void main() {
       eventId: _event,
       isCurrent: () => true,
     );
-    final draft = _draft();
+    final initial = await api.setup();
+    expect(initial.policy.configured, isFalse);
+    final configured = await api.configurePolicy(_policyDraft());
+    expect(configured.policy.fullFrameOnly, isTrue);
+    final consent = await api.acceptConsent(_policyDraft());
+    expect(core.consents, 1);
+    final draft = consent.draftFor(_policyDraft())!;
 
     final preview = await api.preview(draft);
     expect(preview.covers(draft), isTrue);

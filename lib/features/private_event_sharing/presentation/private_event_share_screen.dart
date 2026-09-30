@@ -16,13 +16,13 @@ class PrivateEventShareScreen extends StatefulWidget {
 }
 
 class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
-  final _recipient = TextEditingController();
-  final _consent = TextEditingController();
-  final _consentRevision = TextEditingController(text: '1');
   final _accessToken = TextEditingController();
   final _purpose = TextEditingController();
-  final _masks = <EventShareMask>{EventShareMask.face};
-  final _metadata = <EventShareMetadata>{
+  static const _masks = <EventShareMask>{
+    EventShareMask.face,
+    EventShareMask.licensePlate,
+  };
+  static const _metadata = <EventShareMetadata>{
     EventShareMetadata.deviceSerial,
     EventShareMetadata.gps,
     EventShareMetadata.cameraName,
@@ -31,13 +31,13 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
   EventShareAccessMode _mode = EventShareAccessMode.oneTime;
   int _ttl = 3600;
   bool _revealCreatedToken = false;
+  bool _consentConfirmed = false;
+  String? _selectedRecipient;
+  int? _setupRevision;
 
   @override
   void initState() {
     super.initState();
-    _recipient.addListener(_changed);
-    _consent.addListener(_changed);
-    _consentRevision.addListener(_changed);
     _accessToken.addListener(_changed);
     _purpose.addListener(_changed);
     widget.controller.addListener(_changed);
@@ -45,6 +45,36 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
   }
 
   void _changed() {
+    final setup = widget.controller.setupResult;
+    if (setup != null && _setupRevision != setup.policy.revision) {
+      _setupRevision = setup.policy.revision;
+      String? configuredRecipient;
+      for (final id in setup.policy.recipientIds) {
+        if (setup.members.any((member) => member.id == id)) {
+          configuredRecipient = id;
+          break;
+        }
+      }
+      String? otherRecipient;
+      for (final member in setup.members) {
+        if (member.id != setup.currentUserId) {
+          otherRecipient = member.id;
+          break;
+        }
+      }
+      _selectedRecipient =
+          configuredRecipient ?? otherRecipient ?? setup.currentUserId;
+      if (_purpose.text.trim().isEmpty && setup.policy.purposes.isNotEmpty) {
+        _purpose.text = setup.policy.purposes.first;
+      }
+      if (setup.policy.accessModes.length == 1) {
+        _mode = setup.policy.accessModes.single;
+      }
+      if (const {3600, 86400, 604800}.contains(setup.policy.maxTtlSeconds)) {
+        _ttl = setup.policy.maxTtlSeconds;
+      }
+      _consentConfirmed = false;
+    }
     if (mounted) setState(() {});
   }
 
@@ -64,29 +94,32 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
   void dispose() {
     widget.controller.removeListener(_changed);
     widget.controller.cancel();
-    _recipient.removeListener(_changed);
-    _consent.removeListener(_changed);
-    _consentRevision.removeListener(_changed);
     _accessToken.removeListener(_changed);
     _purpose.removeListener(_changed);
-    _recipient.dispose();
-    _consent.dispose();
-    _consentRevision.dispose();
     _accessToken.dispose();
     _purpose.dispose();
     super.dispose();
   }
 
-  EventShareDraft? get _draft => EventShareDraft.tryCreate(
-    consentId: _consent.text,
-    consentRevision: int.tryParse(_consentRevision.text) ?? 0,
-    recipientId: _recipient.text,
-    purpose: _purpose.text,
-    ttlSeconds: _ttl,
-    accessMode: _mode,
-    masks: _masks,
-    removedMetadata: _metadata,
-  );
+  PrivateEventSharePolicyDraft? get _policyDraft {
+    final recipient = _selectedRecipient;
+    final purpose = _purpose.text.trim();
+    if (recipient == null || purpose.isEmpty || purpose.length > 200) {
+      return null;
+    }
+    return PrivateEventSharePolicyDraft(
+      recipientId: recipient,
+      purpose: purpose,
+      ttlSeconds: _ttl,
+      accessMode: _mode,
+    );
+  }
+
+  EventShareDraft? get _draft {
+    final policy = _policyDraft;
+    if (policy == null) return null;
+    return widget.controller.consentResult?.draftFor(policy);
+  }
 
   bool get _ready => widget.controller.state == EventShareState.ready;
 
@@ -115,10 +148,7 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _Panel(
-            title: _l10n.privateEventShareRecipientPurpose,
-            child: _editor(),
-          ),
+          _Panel(title: _l10n.privateEventShareSetupTitle, child: _editor()),
           const SizedBox(height: 16),
           _Panel(
             title: _l10n.privateEventShareRedactionPreview,
@@ -136,25 +166,20 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
   Widget _editor() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      CupertinoTextField(
-        controller: _consent,
-        maxLength: 128,
-        placeholder: _l10n.privateEventShareConsentId,
+      Text(
+        _l10n.privateEventShareFullFrameExplanation,
+        key: const ValueKey('private-event-full-frame-explanation'),
       ),
+      const SizedBox(height: 12),
+      Text(
+        _l10n.privateEventShareRecipientPurpose,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 6),
+      _members(),
       const SizedBox(height: 10),
       CupertinoTextField(
-        controller: _consentRevision,
-        keyboardType: TextInputType.number,
-        placeholder: _l10n.privateEventShareConsentRevision,
-      ),
-      const SizedBox(height: 10),
-      CupertinoTextField(
-        controller: _recipient,
-        maxLength: 128,
-        placeholder: _l10n.privateEventShareRecipientId,
-      ),
-      const SizedBox(height: 10),
-      CupertinoTextField(
+        key: const ValueKey('private-event-purpose'),
         controller: _purpose,
         maxLength: 200,
         placeholder: _l10n.privateEventSharePurpose,
@@ -184,26 +209,57 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
       ),
       const SizedBox(height: 14),
       Text(
-        _l10n.privateEventShareRequiredMasks,
+        _l10n.privateEventShareFullFrameCoverage,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      _choices<EventShareMask>(
-        values: EventShareMask.values,
-        selected: _masks,
-        label: _maskLabel,
-      ),
+      Text(_l10n.privateEventShareMasks(_masks.map(_maskLabel).join(', '))),
       const SizedBox(height: 14),
       Text(
         _l10n.privateEventShareRemoveMetadata,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      _choices<EventShareMetadata>(
-        values: EventShareMetadata.values,
-        selected: _metadata,
-        label: _metadataLabel,
+      Text(
+        _l10n.privateEventShareRemovedMetadata(
+          _metadata.map(_metadataLabel).join(', '),
+        ),
       ),
       const SizedBox(height: 14),
       CupertinoButton.filled(
+        key: const ValueKey('private-event-save-policy'),
+        onPressed: _policyDraft == null || !_ready
+            ? null
+            : () => widget.controller.configurePolicy(_policyDraft!),
+        child: Text(_l10n.privateEventShareSavePolicy),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          CupertinoSwitch(
+            key: const ValueKey('private-event-consent-switch'),
+            value: _consentConfirmed,
+            onChanged: _policyMatches && _ready
+                ? (value) => setState(() => _consentConfirmed = value)
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(_l10n.privateEventShareConsentExplanation)),
+        ],
+      ),
+      CupertinoButton(
+        key: const ValueKey('private-event-record-consent'),
+        onPressed: !_consentConfirmed || !_policyMatches || !_ready
+            ? null
+            : () => widget.controller.acceptConsent(_policyDraft!),
+        child: Text(_l10n.privateEventShareRecordConsent),
+      ),
+      if (_draft != null)
+        Text(
+          _l10n.privateEventShareConsentRecorded,
+          key: const ValueKey('private-event-consent-recorded'),
+        ),
+      const SizedBox(height: 10),
+      CupertinoButton.filled(
+        key: const ValueKey('private-event-create-preview'),
         onPressed: _draft == null || !_ready
             ? null
             : () => widget.controller.preview(_draft!),
@@ -212,27 +268,48 @@ class _PrivateEventShareScreenState extends State<PrivateEventShareScreen> {
     ],
   );
 
-  Widget _choices<T>({
-    required List<T> values,
-    required Set<T> selected,
-    required String Function(T) label,
-  }) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      for (final value in values)
-        CupertinoButton(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          color: selected.contains(value)
-              ? CupertinoColors.activeBlue
-              : CupertinoColors.systemGrey5,
-          onPressed: () => setState(() {
-            if (!selected.remove(value)) selected.add(value);
-          }),
-          child: Text(label(value)),
-        ),
-    ],
-  );
+  bool get _policyMatches {
+    final setup = widget.controller.setupResult;
+    final draft = _policyDraft;
+    if (setup == null || draft == null) return false;
+    final policy = setup.policy;
+    return policy.configured &&
+        policy.active &&
+        policy.fullFrameOnly &&
+        policy.grantorIds.contains(setup.currentUserId) &&
+        policy.recipientIds.contains(draft.recipientId) &&
+        policy.purposes.contains(draft.purpose) &&
+        policy.accessModes.contains(draft.accessMode) &&
+        policy.maxTtlSeconds >= draft.ttlSeconds &&
+        policy.requiredMasks.containsAll(_masks) &&
+        policy.requiredMetadata.containsAll(_metadata);
+  }
+
+  Widget _members() {
+    final setup = widget.controller.setupResult;
+    if (setup == null) return Text(_l10n.privateEventShareSetupUnavailable);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final member in setup.members)
+          CupertinoButton(
+            key: ValueKey('private-event-recipient-${member.id}'),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            color: _selectedRecipient == member.id
+                ? CupertinoColors.activeBlue
+                : CupertinoColors.systemGrey5,
+            onPressed: _ready
+                ? () => setState(() {
+                    _selectedRecipient = member.id;
+                    _consentConfirmed = false;
+                  })
+                : null,
+            child: Text(member.username),
+          ),
+      ],
+    );
+  }
 
   Widget _preview() {
     final preview = widget.controller.previewResult;

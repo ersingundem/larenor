@@ -342,6 +342,18 @@ class PrivateEventShareStore:
     def prepare_transformation(self, **values) -> dict:
         return prepare_transformation(self._transformation_key, **values)
 
+    def current_revision(
+        self, core_id: str, home_id: str, camera_id: str, event_id: str
+    ) -> int:
+        scope = (core_id, home_id, camera_id, event_id)
+        if any(not _identifier(value) for value in scope):
+            raise ApiError("invalid_request", 400)
+        with self.database.connection() as connection:
+            state = self._state(connection, scope)
+            if state is not None:
+                self._verified(connection, scope)
+            return 1 if state is None else state["revision"]
+
     def _fingerprint(self, domain: bytes, value: bytes) -> str:
         return hmac.new(
             self._audit_key,

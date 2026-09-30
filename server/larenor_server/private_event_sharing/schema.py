@@ -53,6 +53,16 @@ INDEXES = {
     "private_event_share_history": "CREATE INDEX private_event_share_history ON private_event_share_events(core_id,home_id,camera_id,event_id,sequence)",
 }
 
+PROVIDER_OBJECTS = {
+    "private_event_share_policy",
+    "private_event_share_bindings",
+    "private_event_share_consents",
+    "private_event_share_artifacts",
+    "private_event_share_binding_expiry",
+    "private_event_share_consent_scope",
+    "private_event_share_artifact_expiry",
+}
+
 
 def migrate_private_event_sharing(connection: sqlite3.Connection) -> None:
     try:
@@ -64,6 +74,10 @@ def migrate_private_event_sharing(connection: sqlite3.Connection) -> None:
             "name GLOB 'private_event_share*' OR tbl_name GLOB 'private_event_share*'"
         ).fetchall()
         actual = {row["name"]: row for row in rows if row["sql"] is not None}
+        own = set(TABLES) | set(INDEXES)
+        if set(actual) - own - PROVIDER_OBJECTS:
+            raise ValueError("unknown_private_event_share_storage")
+        actual = {name: row for name, row in actual.items() if name in own}
         if marker is None:
             if actual:
                 raise ValueError("unmarked_private_event_share_storage")

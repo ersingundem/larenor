@@ -4,6 +4,111 @@ enum EventShareMask { face, licensePlate }
 
 enum EventShareMetadata { deviceSerial, gps, cameraName, networkAddress }
 
+class PrivateEventShareMember {
+  const PrivateEventShareMember({
+    required this.id,
+    required this.username,
+    required this.canGrant,
+  });
+
+  final String id, username;
+  final bool canGrant;
+}
+
+class PrivateEventSharePolicy {
+  PrivateEventSharePolicy({
+    required this.revision,
+    required this.configured,
+    required this.active,
+    required List<String> grantorIds,
+    required List<String> recipientIds,
+    required List<String> purposes,
+    required Set<EventShareAccessMode> accessModes,
+    required this.maxTtlSeconds,
+    required Set<EventShareMask> requiredMasks,
+    required Set<EventShareMetadata> requiredMetadata,
+    required this.fullFrameOnly,
+  }) : grantorIds = List.unmodifiable(grantorIds),
+       recipientIds = List.unmodifiable(recipientIds),
+       purposes = List.unmodifiable(purposes),
+       accessModes = Set.unmodifiable(accessModes),
+       requiredMasks = Set.unmodifiable(requiredMasks),
+       requiredMetadata = Set.unmodifiable(requiredMetadata);
+
+  final int revision, maxTtlSeconds;
+  final bool configured, active, fullFrameOnly;
+  final List<String> grantorIds, recipientIds, purposes;
+  final Set<EventShareAccessMode> accessModes;
+  final Set<EventShareMask> requiredMasks;
+  final Set<EventShareMetadata> requiredMetadata;
+}
+
+class PrivateEventShareSetup {
+  PrivateEventShareSetup({
+    required this.currentUserId,
+    required List<PrivateEventShareMember> members,
+    required this.policy,
+  }) : members = List.unmodifiable(members);
+
+  final String currentUserId;
+  final List<PrivateEventShareMember> members;
+  final PrivateEventSharePolicy policy;
+}
+
+class PrivateEventSharePolicyDraft {
+  PrivateEventSharePolicyDraft({
+    required this.recipientId,
+    required this.purpose,
+    required this.ttlSeconds,
+    required this.accessMode,
+  });
+
+  final String recipientId, purpose;
+  final int ttlSeconds;
+  final EventShareAccessMode accessMode;
+}
+
+class PrivateEventShareConsent {
+  PrivateEventShareConsent({
+    required this.id,
+    required this.revision,
+    required this.recipientId,
+    required this.purpose,
+    required this.accessMode,
+    required this.expiresAt,
+    required Set<EventShareMask> masks,
+    required Set<EventShareMetadata> removedMetadata,
+  }) : masks = Set.unmodifiable(masks),
+       removedMetadata = Set.unmodifiable(removedMetadata);
+
+  final String id, recipientId, purpose;
+  final int revision;
+  final EventShareAccessMode accessMode;
+  final DateTime expiresAt;
+  final Set<EventShareMask> masks;
+  final Set<EventShareMetadata> removedMetadata;
+
+  EventShareDraft? draftFor(PrivateEventSharePolicyDraft value) {
+    final remaining = expiresAt.difference(DateTime.now().toUtc()).inSeconds;
+    if (recipientId != value.recipientId ||
+        purpose != value.purpose.trim() ||
+        accessMode != value.accessMode ||
+        remaining < 30) {
+      return null;
+    }
+    return EventShareDraft.tryCreate(
+      consentId: id,
+      consentRevision: revision,
+      recipientId: recipientId,
+      purpose: purpose,
+      ttlSeconds: remaining.clamp(60, value.ttlSeconds).toInt(),
+      accessMode: accessMode,
+      masks: masks,
+      removedMetadata: removedMetadata,
+    );
+  }
+}
+
 class EventShareAuthority {
   const EventShareAuthority({
     required this.coreId,

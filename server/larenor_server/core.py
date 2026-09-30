@@ -262,8 +262,11 @@ from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .camera_visual_sensors.frigate import FrigateVisualSensorProvider
 from .private_event_sharing import (
+    CorePrivateEventSharingProvider,
+    FfmpegFullFrameRedactor,
     PrivateEventShareService,
     PrivateEventShareStore,
+    migrate_private_event_share_provider,
     migrate_private_event_sharing,
 )
 from .vault import VaultService
@@ -570,6 +573,7 @@ class CoreServices:
                 migrate_game_streaming(connection)
                 migrate_camera_visual_sensors(connection)
                 migrate_private_event_sharing(connection)
+                migrate_private_event_share_provider(connection)
                 migrate_services(connection)
                 migrate_irrigation_source(connection)
                 migrate_core_audit(connection, key, self.context)
@@ -762,21 +766,46 @@ class CoreServices:
                 ).digest(),
                 clock=settings.clock,
             )
-            unavailable = self._private_event_share_provider_unavailable
+            self.private_event_share_provider = CorePrivateEventSharingProvider(
+                self,
+                self.db,
+                key,
+                self.context,
+                self.private_event_share_store,
+                lambda: self.camera_search_runtime,
+                clock=settings.clock,
+            )
+            if settings.private_event_ffmpeg is not None:
+                self.private_event_share_provider.redaction_worker = (
+                    FfmpegFullFrameRedactor(
+                        settings.private_event_ffmpeg,
+                        settings.private_event_ffprobe,
+                        settings.data_dir / "private-event-redaction-work",
+                        self.private_event_share_provider.store,
+                        settings.clock,
+                    )
+                )
             self.private_event_sharing = PrivateEventShareService(
                 self.private_event_share_store,
                 authority_resolver=(
-                    self._private_event_share_authority_resolver or unavailable
+                    self._private_event_share_authority_resolver
+                    or self.private_event_share_provider.authority
                 ),
                 consent_resolver=(
-                    self._private_event_share_consent_resolver or unavailable
+                    self._private_event_share_consent_resolver
+                    or self.private_event_share_provider.consent_resolver
                 ),
-                event_reader=self._private_event_share_event_reader or unavailable,
+                event_reader=(
+                    self._private_event_share_event_reader
+                    or self.private_event_share_provider.event_reader
+                ),
                 redaction_worker=(
-                    self._private_event_share_redaction_worker or unavailable
+                    self._private_event_share_redaction_worker
+                    or self.private_event_share_provider.redact
                 ),
                 artifact_reader=(
-                    self._private_event_share_artifact_reader or unavailable
+                    self._private_event_share_artifact_reader
+                    or self.private_event_share_provider.artifact_reader
                 ),
             )
             self.sound_event_source_store = SoundSourceStore(

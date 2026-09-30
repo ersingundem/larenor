@@ -38,6 +38,8 @@ class Settings:
     media_archive_authority_socket: Path | None = None
     mesh_center_worker_socket: Path | None = None
     mesh_center_worker_uid: int = 0
+    private_event_ffmpeg: Path | None = None
+    private_event_ffprobe: Path | None = None
 
     def __post_init__(self):
         worker_uids = (
@@ -120,6 +122,23 @@ class Settings:
                 and (self.media_archive_worker_socket is None
                      or self.media_archive_action_worker_socket is None)):
             raise ValueError("invalid_worker_configuration")
+        redaction_binaries = (self.private_event_ffmpeg, self.private_event_ffprobe)
+        if any(value is None for value in redaction_binaries) and any(
+            value is not None for value in redaction_binaries
+        ):
+            raise ValueError("invalid_private_event_configuration")
+        if any(
+            not isinstance(value, Path)
+            or not value.is_absolute()
+            or ".." in value.parts
+            or any(ord(char) < 32 or ord(char) == 127 for char in str(value))
+            for value in redaction_binaries
+            if value is not None
+        ) or (
+            self.private_event_ffmpeg is not None
+            and self.private_event_ffmpeg == self.private_event_ffprobe
+        ):
+            raise ValueError("invalid_private_event_configuration")
 
     @property
     def database_file(self) -> Path:
@@ -197,6 +216,14 @@ class Settings:
                 ),
                 mesh_center_worker_uid=int(
                     os.environ.get("LARENOR_MESH_WORKER_UID", "0")
+                ),
+                private_event_ffmpeg=(
+                    Path(os.environ["LARENOR_PRIVATE_EVENT_FFMPEG"])
+                    if os.environ.get("LARENOR_PRIVATE_EVENT_FFMPEG") else None
+                ),
+                private_event_ffprobe=(
+                    Path(os.environ["LARENOR_PRIVATE_EVENT_FFPROBE"])
+                    if os.environ.get("LARENOR_PRIVATE_EVENT_FFPROBE") else None
                 ),
             )
         except ValueError:

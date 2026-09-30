@@ -23,3 +23,15 @@ abstract interface class PrivateEventShareApi {
     required String accessId,
   });
 }
+
+abstract interface class PrivateEventShareSetupApi {
+  Future<PrivateEventShareSetup> setup();
+
+  Future<PrivateEventShareSetup> configurePolicy(
+    PrivateEventSharePolicyDraft draft,
+  );
+
+  Future<PrivateEventShareConsent> acceptConsent(
+    PrivateEventSharePolicyDraft draft,
+  );
+}

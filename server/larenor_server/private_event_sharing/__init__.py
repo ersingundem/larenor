@@ -2,6 +2,8 @@
 
 from .integration import PrivateEventShareService, RedactedEventArtifact
 from .schema import migrate_private_event_sharing
+from .provider_schema import migrate_private_event_share_provider
+from .provider import CorePrivateEventSharingProvider, FfmpegFullFrameRedactor
 from .service import (
     EventShareAuthority,
     EventShareConsent,
@@ -19,6 +21,9 @@ __all__ = [
     "PrivateEventShareStore",
     "RedactedEventArtifact",
     "migrate_private_event_sharing",
+    "migrate_private_event_share_provider",
+    "CorePrivateEventSharingProvider",
+    "FfmpegFullFrameRedactor",
     "prepare_transformation",
     "transformation_proof",
 ]
