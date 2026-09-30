@@ -89,3 +89,5 @@ F19 iki bağımsız gerçek Core, gerçek Client registry ve owned Jellyfin TCP 
 F13 actual Client→normal Core→owned RFC1918 HA iki yaşamında configure/restart/revoke ve exact iki GET/sıfır üçüncü çağrı kapısını geçti; `awaiting_ci`. Fiziksel ağ ve broad exact CI açık kalır.
 
 F04 gerçek Client/normal Core/owned HA iki yaşamında manual→rule suppression, durable receipt ve exact replay kapısını geçti. Provider exact bir POST kalır; external observation non-authoritative. 5 Server/analyze geçti, root F04/F26 9 focused testi doğruladı; geniş exact CI bekler. Kanıt: `f04-normal-core-rule-arbitration-2026-09-30.md`.
+
+F26 gerçek adapter/controller→normal Core→production JellyfinClient PlaybackInfo kapısında exact bir authenticated negotiation POST yaptı; playback mutation yok. 4 Server, 3 Flutter, Android bridge JVM/analyze geçti; Client 6/12/7 bounds kapalıdır. Reported evidence verified sayılmaz; geniş CI ve fiziksel codec/HDR/ağ açık. Kanıt: `f26-normal-core-playback-quality-2026-09-30.md`.

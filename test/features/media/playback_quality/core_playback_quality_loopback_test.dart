@@ -16,21 +16,29 @@ const _accountId = '33333333333333333333333333333333';
 const _familyId = '44444444444444444444444444444444';
 
 final class _QualityCore {
-  _QualityCore._(this.server, {this.wrongFamily = false}) {
+  _QualityCore._(
+    this.server, {
+    this.wrongFamily = false,
+    this.extraRecommendations = 0,
+  }) {
     unawaited(_serve());
   }
 
   final HttpServer server;
   final bool wrongFamily;
+  final int extraRecommendations;
   String? path;
   String? authorization;
   Map<String, dynamic>? body;
 
-  static Future<_QualityCore> start({bool wrongFamily = false}) async =>
-      _QualityCore._(
-        await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
-        wrongFamily: wrongFamily,
-      );
+  static Future<_QualityCore> start({
+    bool wrongFamily = false,
+    int extraRecommendations = 0,
+  }) async => _QualityCore._(
+    await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+    wrongFamily: wrongFamily,
+    extraRecommendations: extraRecommendations,
+  );
 
   String get baseUrl => 'http://127.0.0.1:${server.port}';
 
@@ -83,6 +91,13 @@ final class _QualityCore {
             'maxBitrateBps': null,
             'processingLoad': 'medium',
           },
+          for (var index = 0; index < extraRecommendations; index++)
+            {
+              'schemaVersion': 1,
+              'code': 'inspect_receiver',
+              'maxBitrateBps': null,
+              'processingLoad': 'unknown',
+            },
         ],
       };
       request.response
@@ -205,4 +220,30 @@ void main() {
       ),
     );
   });
+
+  test(
+    'production quality client rejects more recommendations than Core can emit',
+    () async {
+      final core = await _QualityCore.start(extraRecommendations: 6);
+      addTearDown(() => core.server.close(force: true));
+      final session = _session(core);
+      final api = LarenorServerApi(endpoint: session.endpoint);
+      addTearDown(api.close);
+
+      await expectLater(
+        CorePlaybackQualityApi(
+          api,
+          session,
+          requestId: () => _requestId,
+        ).advise(_qualityRequest),
+        throwsA(
+          isA<LarenorServerException>().having(
+            (error) => error.code,
+            'code',
+            'invalid_response',
+          ),
+        ),
+      );
+    },
+  );
 }

@@ -245,7 +245,7 @@ final class CorePlaybackQualityAdvice {
       'hdr',
     });
     if (evidence['schemaVersion'] != 1) throw _invalid;
-    final recommendations = _list(value['recommendations'], maximum: 8)
+    final recommendations = _list(value['recommendations'], maximum: 7)
         .map((raw) {
           final item = _object(raw, const {
             'schemaVersion',
@@ -276,8 +276,8 @@ final class CorePlaybackQualityAdvice {
       networkEvidence: _state(evidence['network']),
       receiverEvidence: _state(evidence['receiver']),
       hdrEvidence: _state(evidence['hdr']),
-      gaps: _codes(value['gaps'], maximum: 16),
-      reasons: _codes(value['reasons'], maximum: 16),
+      gaps: _codes(value['gaps'], maximum: 6),
+      reasons: _codes(value['reasons'], maximum: 12),
       recommendations: List.unmodifiable(recommendations),
     );
   }

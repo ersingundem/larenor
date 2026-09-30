@@ -3973,7 +3973,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Oynatma kalitesi danışmanı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3998,7 +3998,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Jellyfin kaynak kararı ile codec/bitrate/çözünürlük/HDR kanıtı, Android decoder/ekran/ağ bağlantı tahmini ve uzak Jellyfin oturum gözlemi sürümlü, bounded ve fail-closed sözleşmelerle tamamlandı. Core yalnız direct play/remux/transcode tavsiyesi verir; eksik telemetriyi açık gap olarak döndürür, ölçülmüş ağ hızı veya fiziksel alıcı kabulü iddia etmez ve kaliteyi otomatik değiştirmez. Testler kullanıcı terciğiyle son doğrulama kapısına bırakıldı; gerçek Jellyfin/Android alıcı E2E, bağımsız inceleme, exact-head CI ve fiziksel codec/HDR/ağ kabulü henüz tamamlanmadı."
+      "reason": "Gerçek Flutter PlaybackQuality adapter/controller/account session→normal TCP Core→production JellyfinClient→owned authenticated POST /Items/movie-1/PlaybackInfo kapısı geçti; exact bir negotiation, sıfır playback/quality mutation. Android bounded DTO reported codec/HDR/link kanıtını verified yapmaz; conservative 14 Mbps transcode/gaps ve route retirement doğrulandı. Client 6/12/7 response sınırları Server ile eşlendi; hostile 8. recommendation invalid_response. 4 Server, 3 Flutter+1 runner-only skip, AndroidPlaybackCapabilityBridgeTest gerçek JVM BUILD SUCCESSFUL ve analyze temiz; root F04/F26 9 Server testi geçti. Geniş exact CI ve fiziksel decoder/HDR/sustained network MANUAL açık. Kanıt: docs/testing/f26-normal-core-playback-quality-2026-09-30.md."
     },
     {
       "id": "F25",
