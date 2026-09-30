@@ -44,7 +44,7 @@ def _sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _config(tmp_path):
+def _config(tmp_path, *, manager="user"):
     state = tmp_path / "state"
     state.mkdir(mode=0o700)
     systemd_run = _executable(tmp_path / "systemd-run")
@@ -56,7 +56,7 @@ def _config(tmp_path):
     source = tmp_path / "runtime.json"
     source.write_text(json.dumps({
         "schemaVersion": 1,
-        "manager": "user",
+        "manager": manager,
         "systemdRun": str(systemd_run),
         "systemctl": str(systemctl),
         "stateRoot": str(state),
@@ -96,6 +96,7 @@ def test_fixed_provider_uses_systemd_cgroup_limits_and_durable_descriptor(tmp_pa
     assert "--property=MemorySwapMax=0" in start
     assert "--property=TasksMax=12" in start
     assert "--property=KillMode=control-group" in start
+    assert "--property=ProtectKernelModules=yes" not in start
     assert f"--property=InaccessiblePaths=/run/user/{os.geteuid()}/bus" in start
     assert "--property=RemainAfterExit=yes" in start
     assert f"--property=BindPaths={state}" in start
@@ -117,6 +118,20 @@ def test_fixed_provider_uses_systemd_cgroup_limits_and_durable_descriptor(tmp_pa
         "outputPath": str(state / ("2" * 32 + ".output")),
         "receiptPath": str(state / ("2" * 32 + ".receipt")),
     }
+
+
+def test_system_manager_keeps_kernel_module_capability_bounding_set_drop(tmp_path):
+    source, _state = _config(tmp_path, manager="system")
+    runner = Runner()
+    runtime = SystemdAiJobRuntime(
+        AiRuntimeConfig.load(source), runner=runner, platform="linux",
+    )
+    runtime.start(_dispatch())
+    start = next(
+        call for call, _timeout in runner.calls if str(call[0]).endswith("systemd-run")
+    )
+    assert "--property=ProtectKernelModules=yes" in start
+    assert not any(value == "--user" for value in start)
 
 
 def test_observation_reports_actual_terminal_metrics_and_cancel_uses_exact_unit(tmp_path):

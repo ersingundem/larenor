@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F08 gerçek Linux başlangıç düzeltmesi
+
+Exact Linux `36746628951` koşusu sağlayıcı başlamadan `218/EXIT_CAPABILITIES` ile duruyordu. systemd v255 kaynak incelemesi, user manager'ın `ProtectKernelModules` için capability bounding set düşürmesini yapamadığını doğruladı. Bu seçenek yalnız system manager'da korunur; user manager dedicated unprivileged UID, NoNewPrivileges, namespace ve cgroup limitlerini korur. 21 odaklı runtime/paket/IPC testi geçti; 4 gerçek Linux kapısı macOS'ta açıkça atlandı. Yeni exact Linux sonucu henüz bekleniyor; yerel testler Linux kabulü sayılmıyor. [systemd kaynak kanıtı](https://github.com/systemd/systemd/blob/v255/src/core/unit.c).
+
 ### 30 Eylül exact Security CI ve F49 kuyruk kanıtı
 
 `fd6a6a4246c8c7824c63763e17ec5773d2e0a62d` için [Security CI 36747936989](https://github.com/ersingundem/larenor/actions/runs/36747936989) platform-policy, secret-scan ve dependency-scan kapılarının tümünü geçti. Bu yalnız Security kanıtıdır; Server/Linux/Android ve tüm FINAL kabulü yerine geçmez. F49'un adlandırılmış gerçek Flutter→normal Core→TCP HA/OpenSprinkler kabulü doğrulandı ve CI bekliyor grubuna taşındı. Artık 36 özellik geniş CI bekliyor; F11/F12 geliştirmede. 37/127 ve 3/63 sayaçları değişmedi.

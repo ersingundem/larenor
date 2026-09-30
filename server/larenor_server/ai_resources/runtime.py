@@ -471,7 +471,18 @@ class SystemdAiJobRuntime:
                 if self.config.manager == "user" else []
             ),
             "--property=ProtectControlGroups=yes",
-            "--property=ProtectKernelModules=yes",
+            # ProtectKernelModules= also asks systemd to remove CAP_SYS_MODULE
+            # from the process bounding set.  A user manager has no
+            # CAP_SETPCAP with which to perform PR_CAPBSET_DROP and fails the
+            # unit at 218/EXIT_CAPABILITIES before exec.  The user manager and
+            # its jobs already run as the dedicated unprivileged worker UID;
+            # module loading requires CAP_SYS_MODULE in the initial user
+            # namespace.  Keep the stronger bounding-set drop for system
+            # manager deployments only.
+            *(
+                ["--property=ProtectKernelModules=yes"]
+                if self.config.manager == "system" else []
+            ),
             "--property=ProtectKernelTunables=yes",
             f"--property=BindPaths={self.config.state_root}",
             f"--property=BindReadOnlyPaths={provider.executable}",
