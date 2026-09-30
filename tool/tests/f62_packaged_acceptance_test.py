@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -10,6 +11,15 @@ from tool import f62_packaged_acceptance as runner
 
 
 class PackagedRdpReceiptTest(unittest.TestCase):
+    @staticmethod
+    def _failure_xml(*, exception_type="java.lang.AssertionError", body=""):
+        return (
+            '<testsuite tests="1" skipped="0" failures="1" errors="0">'
+            f'<testcase classname="{runner.TEST_CLASS}" '
+            f'name="{runner.TEST_NAME}"><failure type="{exception_type}">'
+            f'{body}</failure></testcase></testsuite>'
+        )
+
     def test_owned_host_package_versions_are_bounded_and_explicit(self):
         values = {
             "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
@@ -156,6 +166,248 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     package_digest="b" * 64,
                 ),
             )
+
+    def test_failure_diagnostic_exposes_only_known_type_and_owned_frames(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            report = directory / "TEST-device.xml"
+            secret = "dispose-password-should-never-publish"
+            report.write_text(self._failure_xml(body=(
+                "java.lang.AssertionError: " + secret + "\n"
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                "nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose("
+                "RdpPackagedHostAcceptanceTest.kt:92)\n"
+                " at unowned.example.Client.run(/home/runner/Secret.kt:44)\n"
+                " at com.ersingundem.larenor.rdp.Forged.run(Forged.kt:7)\n"
+            )))
+
+            diagnostic = runner.failure_diagnostic(directory)
+
+            self.assertEqual(diagnostic, {
+                "code": "instrumentation_test_failure",
+                "exceptionType": "java.lang.AssertionError",
+                "frames": [{
+                    "file": "RdpPackagedHostAcceptanceTest.kt", "line": 92,
+                }],
+                "counts": {
+                    "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+                },
+            })
+            public = json.dumps(diagnostic)
+            self.assertNotIn(secret, public)
+            self.assertNotIn("/home/runner", public)
+            self.assertNotIn("Forged.kt", public)
+
+    def test_failure_diagnostic_maps_unknown_or_unusable_reports_to_static_codes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_missing",
+            )
+            report = directory / "TEST-device.xml"
+            report.write_text("<broken")
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_malformed",
+            )
+            report.write_text(self._failure_xml(
+                exception_type="private.SecretException",
+                body="private.SecretException: token=do-not-publish",
+            ))
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["exceptionType"], "unclassified")
+            self.assertNotIn("SecretException", json.dumps(diagnostic))
+            (directory / "TEST-stale.xml").write_text(
+                self._failure_xml(body="java.lang.AssertionError"),
+            )
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_ambiguous",
+            )
+
+    def test_packaged_production_frame_is_retained_without_message(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            (directory / "TEST-device.xml").write_text(self._failure_xml(body=(
+                "java.lang.IllegalStateException: private-password\n"
+                " at com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime."
+                "open(RdpPackagedRuntime.kt:112)"
+            )))
+            diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["frames"], [{
+                "file": "RdpPackagedRuntime.kt", "line": 112,
+            }])
+            self.assertNotIn("private-password", json.dumps(diagnostic))
+
+    def test_failure_frames_are_deduplicated_bounded_and_require_regular_xml(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            report = directory / "TEST-device.xml"
+            lines = [
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                f"run(RdpPackagedHostAcceptanceTest.kt:{line})"
+                for line in range(1, 11)
+            ]
+            lines.append(lines[0])
+            report.write_text(self._failure_xml(body="\n".join(lines)))
+            frames = runner.failure_diagnostic(directory)["frames"]
+            self.assertEqual(len(frames), 8)
+            self.assertEqual(frames[0], {
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 1,
+            })
+            self.assertEqual(frames[-1]["line"], 8)
+
+            report.unlink()
+            target = directory / "private.xml"
+            target.write_text(self._failure_xml())
+            report.symlink_to(target)
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_malformed",
+            )
+            report.unlink()
+            target.unlink()
+            report.write_bytes(b"x" * (runner._MAX_REPORT_BYTES + 1))
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_malformed",
+            )
+            report.write_text(
+                '<!DOCTYPE x [<!ENTITY private "do-not-expand">]>'
+                + self._failure_xml(body="&private;"),
+            )
+            self.assertEqual(
+                runner.failure_diagnostic(directory)["code"],
+                "instrumentation_report_malformed",
+            )
+
+    def test_failure_receipt_is_canonical_private_and_removes_raw_report(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            reports = root / "reports"
+            reports.mkdir()
+            report = reports / "TEST-device.xml"
+            report.write_text(self._failure_xml(body=(
+                "java.lang.AssertionError: private-message\n"
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                "run(RdpPackagedHostAcceptanceTest.kt:105)"
+            )))
+            diagnostic = runner.failure_diagnostic(reports)
+            versions = {
+                "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
+                "winpr3-utils": "3.8.0+dfsg-3build3",
+            }
+            with (
+                mock.patch.object(runner, "source_revision", return_value="a" * 40),
+                mock.patch.object(
+                    runner, "package_receipt_digest", return_value="b" * 64,
+                ),
+            ):
+                path = runner.publish_public_failure(
+                    diagnostic, root, versions, reports,
+                )
+            payload = json.loads(path.read_text())
+            self.assertEqual(payload["result"], "failed")
+            self.assertEqual(payload["diagnostic"], diagnostic)
+            self.assertFalse(report.exists())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            serialized = path.read_text()
+            self.assertNotIn("private-message", serialized)
+            self.assertNotIn(str(root), serialized)
+
+    def test_failure_receipt_rejects_raw_or_unowned_diagnostic_fields(self):
+        versions = {
+            "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
+            "winpr3-utils": "3.8.0+dfsg-3build3",
+        }
+        for diagnostic in (
+            {"code": "instrumentation_test_failure",
+             "exceptionType": "java.lang.AssertionError", "frames": [],
+             "message": "secret"},
+            {"code": "instrumentation_test_failure",
+             "exceptionType": "private.SecretException", "frames": []},
+            {"code": "instrumentation_test_failure",
+             "exceptionType": "java.lang.AssertionError",
+             "frames": [{"file": "/tmp/Secret.kt", "line": 1}]},
+            {"code": "instrumentation_test_failure",
+             "exceptionType": "java.lang.AssertionError", "frames": []},
+            {"code": "instrumentation_report_missing",
+             "exceptionType": "unclassified", "frames": [],
+             "counts": {
+                 "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+             }},
+        ):
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    versions, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=diagnostic,
+                )
+
+    def test_workflow_uploads_only_bounded_failure_json_on_failure(self):
+        workflow = json.loads(
+            (runner.ROOT / ".github/workflows/freerdp-android-native.yml")
+            .read_text()
+        )
+        step = next(
+            value for value in workflow["jobs"]["package"]["steps"]
+            if value.get("name") == "Upload bounded native failure diagnostics"
+        )
+        self.assertEqual(step["if"], "failure() && matrix.abi == 'x86_64'")
+        self.assertEqual(
+            step["with"]["path"],
+            "${{ runner.temp }}/freerdp-public-acceptance/failure.json",
+        )
+        self.assertEqual(step["with"]["if-no-files-found"], "error")
+        self.assertNotIn("TEST-", json.dumps(step))
+
+    def test_failed_instrumentation_publishes_diagnostic_and_suppresses_gradle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            reports = root / "reports"
+            reports.mkdir()
+            report = reports / "TEST-device.xml"
+            failure_xml = self._failure_xml(body=(
+                "java.lang.AssertionError: disposable-password\n"
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                "run(RdpPackagedHostAcceptanceTest.kt:114)"
+            ))
+
+            def failed_process(*_args, **_kwargs):
+                report.write_text(failure_xml)
+                return SimpleNamespace(returncode=1)
+            environment = {
+                "RUNNER_TEMP": str(root),
+                "RDP_ACCEPTANCE_PASSWORD": "disposable-password",
+                "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+                "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+            }
+            with (
+                mock.patch.dict(os.environ, environment, clear=False),
+                mock.patch.object(runner, "REPORTS", reports),
+                mock.patch.object(
+                    runner, "materialized_gradle_command", return_value=["java"],
+                ),
+                mock.patch.object(
+                    runner.subprocess, "run",
+                    side_effect=failed_process,
+                ) as process,
+                mock.patch.object(
+                    runner, "_provenance", return_value=("a" * 40, "b" * 64),
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    runner.AcceptanceFailure, "public diagnostics written",
+                ):
+                    runner.main()
+            kwargs = process.call_args.kwargs
+            self.assertIs(kwargs["stdout"], runner.subprocess.DEVNULL)
+            self.assertIs(kwargs["stderr"], runner.subprocess.DEVNULL)
+            self.assertFalse(report.exists())
+            failure = root / "freerdp-public-acceptance/failure.json"
+            payload = failure.read_text()
+            self.assertIn("RdpPackagedHostAcceptanceTest.kt", payload)
+            self.assertNotIn("disposable-password", payload)
 
 
 if __name__ == "__main__":

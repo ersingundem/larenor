@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
@@ -39,6 +40,45 @@ TEST_NAME = "nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose"
 REPORTS = ROOT / "build/app/outputs/androidTest-results/connected/debug"
 PACKAGE_RECEIPT = ROOT / "android/app/freerdp/receipt.json"
 _DIGEST = re.compile(r"[0-9a-f]{64}")
+_MAX_REPORT_BYTES = 1024 * 1024
+_MAX_FRAMES = 8
+_FAILURE_CODES = frozenset({
+    "instrumentation_launch_unavailable",
+    "instrumentation_timeout",
+    "instrumentation_report_missing",
+    "instrumentation_report_ambiguous",
+    "instrumentation_report_malformed",
+    "instrumentation_report_identity_mismatch",
+    "instrumentation_test_failure",
+    "instrumentation_test_error",
+})
+_KNOWN_EXCEPTION_TYPES = frozenset({
+    "com.ersingundem.larenor.rdp.RdpNativeFailure",
+    "java.lang.AssertionError",
+    "java.lang.IllegalStateException",
+    "java.lang.NullPointerException",
+    "java.lang.RuntimeException",
+    "java.lang.SecurityException",
+    "java.lang.UnsupportedOperationException",
+    "java.util.concurrent.TimeoutException",
+    "kotlin.KotlinNullPointerException",
+    "org.junit.ComparisonFailure",
+    "org.junit.runners.model.TestTimedOutException",
+})
+_OWNED_FRAME = re.compile(
+    r"\s*at (com\.ersingundem\.larenor\.rdp\.[A-Za-z0-9_.$]+)"
+    r"\(([A-Za-z][A-Za-z0-9_]{0,127}\.(?:kt|java)):(\d{1,6})\)\s*"
+)
+_OWNED_SOURCE_FILES = frozenset(
+    path.name
+    for source_root in (
+        ROOT / "android/app/src/main/kotlin/com/ersingundem/larenor/rdp",
+        ROOT / "android/app/src/freerdp/kotlin/com/ersingundem/larenor/rdp",
+        ROOT / "android/app/src/freerdpAndroidTest/kotlin/com/ersingundem/larenor/rdp",
+    )
+    for path in source_root.rglob("*")
+    if path.suffix in {".kt", ".java"} and path.is_file()
+)
 
 
 class AcceptanceFailure(RuntimeError):
@@ -102,6 +142,150 @@ def acceptance_receipt(
     }
 
 
+def _static_diagnostic(code: str) -> dict[str, object]:
+    if code not in _FAILURE_CODES:
+        raise AcceptanceFailure("packaged RDP failure code is unavailable")
+    return {"code": code, "exceptionType": "unclassified", "frames": []}
+
+
+def _failure_element_diagnostic(
+    element: ET.Element,
+    *,
+    code: str,
+    counts: dict[str, int],
+) -> dict[str, object]:
+    raw_type = element.attrib.get("type", "")
+    text = "".join(element.itertext())
+    if raw_type not in _KNOWN_EXCEPTION_TYPES:
+        first = text.splitlines()[0].strip() if text.splitlines() else ""
+        candidate = first.split(":", 1)[0]
+        raw_type = candidate if candidate in _KNOWN_EXCEPTION_TYPES else "unclassified"
+    frames: list[dict[str, object]] = []
+    seen: set[tuple[str, int]] = set()
+    for line in text.splitlines():
+        match = _OWNED_FRAME.fullmatch(line)
+        if match is None:
+            continue
+        class_name, filename, raw_line = match.groups()
+        source_line = int(raw_line)
+        simple_class = class_name.rsplit(".", 1)[0].rsplit(".", 1)[-1]
+        simple_class = simple_class.split("$", 1)[0]
+        source_class = filename.rsplit(".", 1)[0]
+        key = (filename, source_line)
+        if (filename not in _OWNED_SOURCE_FILES or source_line < 1
+                or source_line > 1_000_000 or key in seen
+                or simple_class not in {source_class, source_class + "Kt"}):
+            continue
+        seen.add(key)
+        frames.append({"file": filename, "line": source_line})
+        if len(frames) == _MAX_FRAMES:
+            break
+    return {
+        "code": code,
+        "exceptionType": raw_type,
+        "frames": frames,
+        "counts": counts,
+    }
+
+
+def failure_diagnostic(directory: Path | None = None) -> dict[str, object]:
+    directory = REPORTS if directory is None else directory
+    reports = list(directory.rglob("TEST-*.xml"))
+    if not reports:
+        return _static_diagnostic("instrumentation_report_missing")
+    if len(reports) != 1:
+        return _static_diagnostic("instrumentation_report_ambiguous")
+    report = reports[0]
+    try:
+        metadata = report.lstat()
+        if (not stat.S_ISREG(metadata.st_mode)
+                or not 1 <= metadata.st_size <= _MAX_REPORT_BYTES):
+            raise ValueError()
+        raw = report.read_bytes()
+        if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+            raise ValueError()
+        suite = ET.fromstring(raw)
+        counts = {
+            key: int(suite.attrib[key])
+            for key in ("tests", "skipped", "failures", "errors")
+        }
+    except (OSError, ET.ParseError, KeyError, ValueError, TypeError):
+        return _static_diagnostic("instrumentation_report_malformed")
+    cases = list(suite.iter("testcase"))
+    if (suite.tag != "testsuite" or counts["tests"] != 1
+            or counts["skipped"] != 0 or len(cases) != 1
+            or cases[0].attrib.get("classname") != TEST_CLASS
+            or cases[0].attrib.get("name") != TEST_NAME):
+        return _static_diagnostic("instrumentation_report_identity_mismatch")
+    failures = list(cases[0].findall("failure"))
+    errors = list(cases[0].findall("error"))
+    if (counts == {"tests": 1, "skipped": 0, "failures": 1, "errors": 0}
+            and len(failures) == 1 and not errors):
+        return _failure_element_diagnostic(
+            failures[0], code="instrumentation_test_failure", counts=counts)
+    if (counts == {"tests": 1, "skipped": 0, "failures": 0, "errors": 1}
+            and len(errors) == 1 and not failures):
+        return _failure_element_diagnostic(
+            errors[0], code="instrumentation_test_error", counts=counts)
+    return _static_diagnostic("instrumentation_report_malformed")
+
+
+def failure_receipt(
+    package_versions: dict[str, str],
+    *,
+    revision: str,
+    package_digest: str,
+    diagnostic: dict[str, object],
+) -> dict[str, object]:
+    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise AcceptanceFailure("packaged RDP source revision is unavailable")
+    if _DIGEST.fullmatch(package_digest) is None:
+        raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
+    if set(diagnostic) not in ({"code", "exceptionType", "frames"}, {
+            "code", "exceptionType", "frames", "counts"}):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    code = diagnostic.get("code")
+    exception_type = diagnostic.get("exceptionType")
+    frames = diagnostic.get("frames")
+    if (code not in _FAILURE_CODES
+            or exception_type not in {*_KNOWN_EXCEPTION_TYPES, "unclassified"}
+            or type(frames) is not list or len(frames) > _MAX_FRAMES):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    for frame in frames:
+        if (type(frame) is not dict or set(frame) != {"file", "line"}
+                or frame["file"] not in _OWNED_SOURCE_FILES
+                or type(frame["line"]) is not int
+                or not 1 <= frame["line"] <= 1_000_000):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    counts = diagnostic.get("counts")
+    if counts is not None and (type(counts) is not dict
+            or set(counts) != {"tests", "skipped", "failures", "errors"}
+            or any(type(value) is not int or not 0 <= value <= 1
+                   for value in counts.values())):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    expected_counts = {
+        "instrumentation_test_failure": {
+            "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+        },
+        "instrumentation_test_error": {
+            "tests": 1, "skipped": 0, "failures": 0, "errors": 1,
+        },
+    }
+    if ((code in expected_counts) != (counts is not None)
+            or counts is not None and counts != expected_counts[code]):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    return {
+        "schemaVersion": 1,
+        "sourceRevision": revision,
+        "packageReceiptSha256": package_digest,
+        "testClass": TEST_CLASS,
+        "testName": TEST_NAME,
+        "ownedHostPackages": package_versions,
+        "result": "failed",
+        "diagnostic": diagnostic,
+    }
+
+
 def verify_reports(directory: Path = REPORTS) -> Path:
     reports = list(directory.rglob("TEST-*.xml"))
     if len(reports) != 1:
@@ -144,20 +328,7 @@ def write_public_receipt(path: Path, receipt: dict[str, object]) -> None:
         raise AcceptanceFailure("packaged RDP public receipt could not be written") from error
 
 
-def publish_public_receipt(
-    report: Path,
-    runner_temp: Path,
-    package_versions: dict[str, str],
-) -> Path:
-    try:
-        revision = source_revision(ROOT)
-    except NativeAcceptanceReceiptError:
-        raise AcceptanceFailure("packaged RDP source revision is unavailable") from None
-    receipt = acceptance_receipt(
-        package_versions,
-        revision=revision,
-        package_digest=package_receipt_digest(),
-    )
+def _public_output(runner_temp: Path) -> Path:
     output = runner_temp / "freerdp-public-acceptance"
     try:
         output.mkdir(mode=0o700)
@@ -166,6 +337,29 @@ def publish_public_receipt(
         raise AcceptanceFailure(
             "packaged RDP public receipt directory could not be created"
         ) from error
+    return output
+
+
+def _provenance() -> tuple[str, str]:
+    try:
+        revision = source_revision(ROOT)
+    except NativeAcceptanceReceiptError:
+        raise AcceptanceFailure("packaged RDP source revision is unavailable") from None
+    return revision, package_receipt_digest()
+
+
+def publish_public_receipt(
+    report: Path,
+    runner_temp: Path,
+    package_versions: dict[str, str],
+) -> Path:
+    revision, package_digest = _provenance()
+    receipt = acceptance_receipt(
+        package_versions,
+        revision=revision,
+        package_digest=package_digest,
+    )
+    output = _public_output(runner_temp)
     destination = output / "receipt.json"
     write_public_receipt(destination, receipt)
     try:
@@ -173,6 +367,44 @@ def publish_public_receipt(
     except OSError as error:
         raise AcceptanceFailure("packaged RDP raw report could not be removed") from error
     return destination
+
+
+def publish_public_failure(
+    diagnostic: dict[str, object],
+    runner_temp: Path,
+    package_versions: dict[str, str],
+    directory: Path | None = None,
+) -> Path:
+    directory = REPORTS if directory is None else directory
+    revision, package_digest = _provenance()
+    receipt = failure_receipt(
+        package_versions,
+        revision=revision,
+        package_digest=package_digest,
+        diagnostic=diagnostic,
+    )
+    output = _public_output(runner_temp)
+    destination = output / "failure.json"
+    write_public_receipt(destination, receipt)
+    try:
+        for report in directory.rglob("TEST-*.xml"):
+            report.unlink()
+    except OSError as error:
+        raise AcceptanceFailure(
+            "packaged RDP raw failure report could not be removed"
+        ) from error
+    return destination
+
+
+def _publish_failed_run(
+    runner_temp: Path,
+    package_versions: dict[str, str],
+    *,
+    code: str | None = None,
+) -> None:
+    diagnostic = (failure_diagnostic() if code is None
+                  else _static_diagnostic(code))
+    publish_public_failure(diagnostic, runner_temp, package_versions)
 
 
 def main() -> int:
@@ -204,16 +436,37 @@ def main() -> int:
                     f"-Pandroid.testInstrumentationRunnerArguments.rdpPassword={password}",
                 ],
                 cwd=ROOT / "android", check=False, timeout=1200,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
-    except (AndroidAcceptanceGradleError, OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
         # TimeoutExpired includes argv, including the disposable credential.
-        raise AcceptanceFailure("packaged RDP instrumentation could not complete") from None
+        _publish_failed_run(
+            runner_temp, package_versions, code="instrumentation_timeout")
+        raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
+    except (AndroidAcceptanceGradleError, OSError):
+        _publish_failed_run(
+            runner_temp, package_versions,
+            code="instrumentation_launch_unavailable",
+        )
+        raise AcceptanceFailure(
+            "packaged RDP instrumentation could not start") from None
     if result.returncode:
-        raise AcceptanceFailure("packaged RDP instrumentation failed")
-    report = verify_reports()
+        _publish_failed_run(runner_temp, package_versions)
+        raise AcceptanceFailure(
+            "packaged RDP instrumentation failed; public diagnostics written")
+    try:
+        report = verify_reports()
+    except AcceptanceFailure:
+        _publish_failed_run(runner_temp, package_versions)
+        raise AcceptanceFailure(
+            "packaged RDP report failed; public diagnostics written") from None
     publish_public_receipt(report, runner_temp, package_versions)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except AcceptanceFailure as error:
+        print(f"F62_ACCEPTANCE_FAILURE:{error}", file=sys.stderr)
+        raise SystemExit(1) from None

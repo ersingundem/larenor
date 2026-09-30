@@ -5295,7 +5295,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Receipted FreeRDP Android iki ABI AAR/APK üretimi var; eski exact ebf00c06 run36768544534 app/test runner classpath çatışmasında instrumentation öncesi durdu. Dar debugRuntime dependency hizası gerçek dependencyInsight ile doğrulandı. Yeni exact packaged Android→NLA bir test/sıfır skip receipt tamamlanmadan uygulanmış kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX MANUAL açık. Kanıt: docs/testing/f62-freerdp-native-acceptance-2026-09-30.md."
+      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Exact f5b382ce/run36772277001 arm64 AAR/APKyi; x86 AAR/APK, NLA host ve emulatoru geçti, named instrumentation çalıştı fakat altı saniyede düştü. Saklanan log assertionı göstermediği için runtime nedeni henüz bilinmiyor. Source/package bağlı, yalnız allowlisted exception ve owned filename/line içeren bounded failure receipt eklendi; root 28 araç testi geçti. Yeni exact gerçek Android→NLA bir test/sıfır skip receipt tamamlanmadan uygulanmış kalır, CI bekliyor sayılmaz. Windows/RD Gateway/ileri kanallar/IME/DeX MANUAL açık. Kanıt: docs/testing/f62-safe-native-failure-diagnostics-2026-09-30.md."
     },
     {
       "id": "F61",

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül RDP gerçek native hata kanıtı
+
+Exact f5b382ce/run36772277001 arm64 paket/APK ve x86 paket/APK/NLA/emulator kapılarını geçti; named instrumentation çalıştı ve altı saniyede başarısız oldu. Saklanan log assertionı taşımadığı için neden varsayılmadı. Yeni runner yalnız exact source/package digest, static hata, allowlisted exception ve owned filename/line içeren bounded public failure receipt üretir; raw mesaj/credential/log/XML yayımlanmaz. Root paket runtime kaynaklarını da tanı kapsamına ekledi ve 28 araç testini geçti. F62 uygulanmış/native kabul bekliyor kalır; CI bekliyor veya done sayılmadı. [Tanı kanıtı](testing/f62-safe-native-failure-diagnostics-2026-09-30.md).
+
 ### 30 Eylül gerçek VNC protokol hatası ve SSH hosted kabulü
 
 VNC exact f5b382ce/run36772273119 gerçek TigerVNC testine ulaştı ve TLS öncesi plaintext ready byteının eksikliğini buldu. Resmî TigerVNC1.13.1 sırasıyla düzeltildi; root 3 production native test/0 skip geçti. Yeni exact TigerVNC receipt açık, F61 CI bekliyor sayılmadı. SSH run36772281257 aynı exact source üzerinde güçlü yedi native test/sıfır skip receipt, normal Core, gerçek OpenSSH/SFTP/tunnel ve Android APK/contract adımlarını yeşil bitirdi; root public receipt SHA ve sayıları doğruladı. Geniş son HEAD CI ve fiziksel MANUAL açık; 37/127 ve 3/63 korunur. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md), [SSH kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).
