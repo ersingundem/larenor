@@ -12,9 +12,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 1 | 0 | 0 | 0 |
-| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 1 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 0 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 1 | 1 | 0 | 0 |
+| G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 2 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 2 | 1 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
@@ -29,7 +29,9 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F51 | Etkileşimli ev kat planı | Çalışılıyor | — |
+| F17 | Yedekleri silmeye kapalı kurtarma hedefi | Çalışılıyor | — |
+| F08 | Yapay zekâ kaynak yöneticisi | Çalışılıyor | — |
+| F02 | Otomasyonun deneme haftası | Çalışılıyor | — |
 | F23 | Canlı TV ve kayıt merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -38,35 +40,32 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | Başlanabilir | — |
-| 2 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
-| 3 | F08 | Yapay zekâ kaynak yöneticisi | Başlanabilir | — |
-| 4 | F02 | Otomasyonun deneme haftası | Başlanabilir | — |
-| 5 | F24 | Akıllı altyazı ve dil tercihleri | Başlanabilir | — |
-| 6 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
-| 7 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
-| 8 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
-| 9 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
-| 10 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 11 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
-| 12 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03 |
-| 13 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08 |
-| 14 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
-| 15 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
-| 16 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F08 |
-| 17 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F08 |
-| 18 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08 |
-| 19 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F08 |
-| 20 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F08 |
-| 21 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F08 |
-| 22 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F03 |
-| 23 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G03, G04, G06, G07, G08, G09 |
-| 24 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 25 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 26 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 27 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 28 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 29 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 1 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
+| 2 | F24 | Akıllı altyazı ve dil tercihleri | Başlanabilir | — |
+| 3 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
+| 4 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 5 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
+| 6 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
+| 7 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 8 | F03 | Geçmişte otomasyon sınaması | Bağımlılık bekliyor | F02 |
+| 9 | F01 | Konuşarak otomasyon taslağı | Bağımlılık bekliyor | F08, F02, F03 |
+| 10 | F09 | Görülebilir, süreli AI hafızası | Bağımlılık bekliyor | F08 |
+| 11 | F07 | Evin alışılmış düzeninden sapmalar | Bağımlılık bekliyor | F08 |
+| 12 | F10 | Kanıta dayalı arıza yardımcısı | Bağımlılık bekliyor | F08 |
+| 13 | F30 | Medya arşivi sağlık ve yer tasarrufu | Bağımlılık bekliyor | F08 |
+| 14 | F35 | Ev belgeleri ve garanti hatırlatmaları | Bağımlılık bekliyor | F08 |
+| 15 | F38 | Aile anıları ve fotoğraf araması | Bağımlılık bekliyor | F08 |
+| 16 | F41 | Kamera kayıtlarında doğal dille arama | Bağımlılık bekliyor | F08 |
+| 17 | F44 | Kameradan görsel sensörler | Bağımlılık bekliyor | F08 |
+| 18 | F45 | Havlama ve gürültü olayları | Bağımlılık bekliyor | F08 |
+| 19 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F03 |
+| 20 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
+| 21 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 22 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 23 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 24 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 25 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 26 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
@@ -144,6 +143,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F16 | Otomatik kurtarma tatbikatı | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
+| F51 | Etkileşimli ev kat planı | Uygulama tamamlandı · test bekliyor | — |
 | F52 | DeX'te iki ekrana farklı görev | Uygulama tamamlandı · test bekliyor | — |
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
 | F11 | Sınırlı yetkili mini eklentiler | Uygulama tamamlandı · test bekliyor | — |

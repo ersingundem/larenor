@@ -162,7 +162,11 @@ final class _FloorPlanRouteState extends ConsumerState<FloorPlanRoute>
     final strings = FloorPlanStrings.fromLocalizations(localizations);
     final controller = _controller;
     if (controller != null && _current()) {
-      return FloorPlanScreen(controller: controller, strings: strings);
+      return FloorPlanScreen(
+        controller: controller,
+        strings: strings,
+        canEdit: _home?.account.session?.user.canAdminister == true,
+      );
     }
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),

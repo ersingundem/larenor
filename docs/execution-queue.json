@@ -3351,7 +3351,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Yedekleri silmeye kapalı kurtarma hedefi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3374,7 +3374,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: özel /v1/append endpointinin deploy edilen serverı yok; resmî restic REST backend ile uyumlu append-only adapter/readback/recovery gerekli."
+      "reason": "FINAL.FUNCTION: gerçek Larenor HTTPS append-only hedefi, kalıcı kota/retention ve ayrı recovery download geliştiriliyor; özel protokol restic REST olarak sunulmuyor. Client şifreli uzak kopya indirme ve deploy kabulü tamamlanacak."
     },
     {
       "id": "F18",
@@ -3481,7 +3481,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Etkileşimli ev kat planı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3504,7 +3504,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: görüntüleme/live/eylem var fakat Client oda ve cihaz yerleştirme editörü yok. Admin gerçek registry catalog + tüm revizyon CAS + inline yerleştirme/onarım yolu geliştiriliyor."
+      "reason": "Gerçek Core registry catalog, admin dört-revizyon CAS ve inline Client kat/oda/cihaz yerleştirme/onarım editörü uygulandı. Odaklı Server ve Flutter testleri geçti; docs/testing/f51-floor-plan-editor-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor; fiziksel ev ölçümü ayrı."
     },
     {
       "id": "F52",
@@ -3547,7 +3547,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Yapay zekâ kaynak yöneticisi",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3611,7 +3611,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",

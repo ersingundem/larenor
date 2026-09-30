@@ -13,6 +13,7 @@ from ..auth import Principal
 from ..errors import ApiError
 from ..home_assistant import schema as ha_schema
 from ..home_resources.models import ActorFacts
+from ..home_resources.schema import MAX_RECORDS
 from .service import (
     ENTITY_STATES,
     MAX_STATE_AGE_SECONDS,
@@ -325,6 +326,86 @@ class FloorPlanRuntime:
                 return None
             raise
         return result["snapshot"]
+
+    def editor(self, actor: Principal, core_id: str, home_id: str):
+        """Current authorized placement catalog, without polling any device."""
+        self.auth.rate_limit([("floor_plan_editor_read", actor.id, 60)])
+        try:
+            with self.database.connection() as connection:
+                connection.execute("BEGIN")
+                current = self._current(connection, actor, core_id, home_id)
+                authority = current.authority
+                if not authority.can_edit:
+                    raise ApiError("forbidden", 403)
+                stored = self.service.edit_snapshot(
+                    actor, authority=authority, connection=connection
+                )
+                rows = connection.execute(
+                    "SELECT * FROM home_resource_records ORDER BY id LIMIT ?",
+                    (MAX_RECORDS + 1,),
+                ).fetchall()
+                if len(rows) > MAX_RECORDS:
+                    raise ValueError("invalid_registry_bounds")
+                rooms, targets, resources = [], [], {}
+                for row in rows:
+                    ref, data = self.resources._decode(row)
+                    self.resources._require(current.facts, row, ref, data, "read")
+                    if ref.kind == "room":
+                        rooms.append({"roomId": ref.id, "label": data.label,
+                                      "revision": row["revision"]})
+                    else:
+                        resources[ref.id] = data
+                        targets.append({"targetKind": "resource", "targetId": ref.id,
+                                        "targetRevision": row["revision"],
+                                        "label": data.label})
+                by_entity = {}
+                for row, binding in current.bindings:
+                    by_entity.setdefault(binding.entityId, []).append((row, binding))
+                for entity_id, matches in sorted(by_entity.items()):
+                    if len(matches) != 1:
+                        continue
+                    row, binding = matches[0]
+                    resource = resources.get(row["resource_id"])
+                    if resource is None:
+                        raise ValueError("invalid_binding_resource")
+                    targets.append({"targetKind": "entity", "targetId": entity_id,
+                                    "targetRevision": binding.revision,
+                                    "label": resource.label})
+                return {"schemaVersion": 1, "layoutRevision": authority.layout_revision,
+                        "entityRegistryRevision": authority.entity_registry_revision,
+                        "resourceRevision": authority.resource_revision,
+                        "grantRevision": authority.grant_revision,
+                        "layout": None if stored is None else stored.layout,
+                        "rooms": rooms, "targets": targets}
+        except ApiError:
+            raise
+        except (InvalidTag, ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def replace_editor(self, actor: Principal, core_id: str, home_id: str, body):
+        authority = self.authority(actor, core_id, home_id)
+        if not authority.can_edit:
+            raise ApiError("forbidden", 403)
+        if (body.expectedEntityRegistryRevision != authority.entity_registry_revision
+                or body.expectedResourceRevision != authority.resource_revision
+                or body.expectedGrantRevision != authority.grant_revision):
+            raise ApiError("floor_plan_authority_changed", 409)
+        layout = body.to_domain()
+        with self.database.connection() as connection:
+            connection.execute("BEGIN")
+            current = self._current(connection, actor, core_id, home_id)
+            if current.authority != authority:
+                raise ApiError("floor_plan_authority_changed", 409)
+            for room in layout.rooms:
+                row, ref, data = self.resources._target(connection, room.room_id)
+                if ref.kind != "room" or room.label != data.label:
+                    raise ApiError("floor_plan_authority_changed", 409)
+                self.resources._require(current.facts, row, ref, data, "read")
+        return self.service.replace_layout(
+            actor, authority=authority, request_id=body.requestId,
+            expected_layout_revision=body.expectedLayoutRevision,
+            layout=layout,
+        )
 
     def replace(self, actor: Principal, core_id: str, home_id: str, body):
         authority = self.authority(actor, core_id, home_id)

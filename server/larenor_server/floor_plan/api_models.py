@@ -149,6 +149,40 @@ class ReplaceLayoutRequest(FrozenModel):
         return self.layout.to_domain()
 
 
+class EditorReplaceRequest(ReplaceLayoutRequest):
+    expectedEntityRegistryRevision: Revision
+    expectedResourceRevision: Revision
+    expectedGrantRevision: Revision
+
+
+class EditorRoomModel(FrozenModel):
+    roomId: Identity
+    label: SafeLabel
+    revision: Revision
+
+    _safe_label = field_validator("label")(FloorModel.safe_label.__func__)
+
+
+class EditorTargetModel(FrozenModel):
+    targetKind: Literal["entity", "resource"]
+    targetId: LayoutId
+    targetRevision: Revision
+    label: SafeLabel
+
+    _safe_label = field_validator("label")(FloorModel.safe_label.__func__)
+
+
+class EditorResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    layoutRevision: LayoutRevision
+    entityRegistryRevision: Revision
+    resourceRevision: Revision
+    grantRevision: Revision
+    layout: LayoutModel | None
+    rooms: list[EditorRoomModel] = Field(max_length=512)
+    targets: list[EditorTargetModel] = Field(max_length=768)
+
+
 class ReceiptModel(FrozenModel):
     requestId: Identity
     revision: Revision

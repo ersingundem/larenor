@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/floor_plan/data/floor_plan_api.dart';
+import 'package:larenor/features/floor_plan/domain/floor_plan_editor_models.dart';
 import 'package:larenor/features/floor_plan/domain/floor_plan_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
@@ -16,6 +17,8 @@ const _account = '33333333333333333333333333333333';
 const _resource = '44444444444444444444444444444444';
 const _binding = '55555555555555555555555555555555';
 const _request = '66666666666666666666666666666666';
+const _editorRequest = '77777777777777777777777777777777';
+const _catalogRoom = '88888888888888888888888888888888';
 const _access = 'floor_plan_loopback_access_token_12345678901';
 
 final class _Store implements ServerSessionPersistence {
@@ -32,7 +35,7 @@ final class _FloorPlanCore {
   }
 
   final HttpServer server;
-  int reads = 0, actions = 0;
+  int reads = 0, actions = 0, editorReads = 0, editorSaves = 0;
   Completer<void>? entered, barrier;
   String get baseUrl => 'http://127.0.0.1:${server.port}';
 
@@ -77,6 +80,34 @@ final class _FloorPlanCore {
       });
     }
     final root = '/api/v1/floor-plan/$_core/$_home';
+    if (request.method == 'GET' && path == '$root/editor') {
+      editorReads++;
+      return _json(request, _editor());
+    }
+    if (request.method == 'PUT' && path == '$root/editor') {
+      editorSaves++;
+      final body = await _body(request);
+      final layout = body['layout'] as Map<String, dynamic>?;
+      final anchor = (layout?['anchors'] as List?)?.singleOrNull;
+      final vectors = layout?['vectors'] as List?;
+      if (body['requestId'] != _editorRequest ||
+          body['expectedLayoutRevision'] != 7 ||
+          body['expectedEntityRegistryRevision'] != 11 ||
+          body['expectedResourceRevision'] != 13 ||
+          body['expectedGrantRevision'] != 17 ||
+          anchor is! Map<String, dynamic> ||
+          anchor['rotation'] != 0.0 ||
+          vectors?.length != 1) {
+        return _error(request, 409);
+      }
+      return _json(request, {
+        'receipt': {
+          'requestId': _editorRequest,
+          'revision': 8,
+          'status': 'saved',
+        },
+      });
+    }
     if (request.method == 'GET' && path == root) {
       reads++;
       entered?.complete();
@@ -171,6 +202,26 @@ final class _FloorPlanCore {
     ],
     'projectionLimit': 512,
     'projectionTruncated': false,
+  };
+
+  Map<String, dynamic> _editor() => {
+    'schemaVersion': 1,
+    'layoutRevision': 7,
+    'entityRegistryRevision': 11,
+    'resourceRevision': 13,
+    'grantRevision': 17,
+    'layout': _snapshot()['layout'],
+    'rooms': [
+      {'roomId': _catalogRoom, 'label': 'Office', 'revision': 37},
+    ],
+    'targets': [
+      {
+        'targetKind': 'entity',
+        'targetId': 'light.office',
+        'targetRevision': 41,
+        'label': 'Office light',
+      },
+    ],
   };
 
   Map<String, dynamic> _receipt() => {
@@ -272,6 +323,32 @@ void main() {
       expect((core.reads, core.actions), (1, 1));
     },
   );
+
+  test('production account client reads and saves editor over TCP', () async {
+    final core = await _FloorPlanCore.start();
+    addTearDown(core.close);
+    final account = await _signIn(core);
+    addTearDown(account.dispose);
+    final gateway = FloorPlanAccountGateway(
+      account: account,
+      context: account.session!.context!,
+      isCurrent: () => true,
+    );
+    addTearDown(gateway.close);
+    final catalog = await gateway.readEditor();
+    expect(catalog.rooms.single.id, _catalogRoom);
+    expect(catalog.targets.single.id, 'light.office');
+    expect(catalog.layout!.vectors.single.id, 'wall');
+    final receipt = await gateway.saveEditor(
+      FloorPlanEditorSaveRequest.forCatalog(
+        requestId: _editorRequest,
+        catalog: catalog,
+        layout: catalog.layout!,
+      ),
+    );
+    expect(receipt.revision, 8);
+    expect((core.editorReads, core.editorSaves), (1, 1));
+  });
 
   test(
     'late floor plan is cancelled after account authority changes',

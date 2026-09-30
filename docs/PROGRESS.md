@@ -1,9 +1,9 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Bağımsız gerçek runtime denetiminde F01/F02/F03/F07/F08/F10/F17/F18 ve medya worker/Live TV/OCR/kat planı yollarında eksikler bulundu; kuyrukta yeniden uygulama işi olarak izleniyor. F23 ve F51 geliştiriliyor; F58 gerçek OpenEPaperLink yolu 10 Server, 13 Flutter ve 1 gerçek Client TCP/WS kabulüyle uygulandı; diğer tamamlanmış dilimler geniş kabul/CI tablosunda. F57 gerçek Flutter→normal Core→HA TCP/WS ve offline rıza iptali geçti. Tüm FINAL maddelerinden sonra kullanıcı tarafından istenen CORE.WEB işi eklendi; fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Bağımsız gerçek runtime denetiminde F01/F02/F03/F07/F08/F10/F17/F18 ve medya worker/Live TV/OCR/kat planı yollarında eksikler bulundu; kuyrukta yeniden uygulama işi olarak izleniyor. F02/F08/F17/F23 geliştiriliyor; F51 gerçek oda/cihaz yerleştirme editörü uygulandı ve geniş kabul/CI bekliyor; F58 gerçek OpenEPaperLink yolu 10 Server, 13 Flutter ve 1 gerçek Client TCP/WS kabulüyle uygulandı; diğer tamamlanmış dilimler geniş kabul/CI tablosunda. F57 gerçek Flutter→normal Core→HA TCP/WS ve offline rıza iptali geçti. Tüm FINAL maddelerinden sonra kullanıcı tarafından istenen CORE.WEB işi eklendi; fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
-Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/126 iş (%29,4; eşit ağırlıklı sayaç)
+Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
 S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
 S06.3 kaynak temeli  ████████████████████  6/6 alt adım
 S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
@@ -51,7 +51,7 @@ bekleyecek; aynı anda ikinci final maddesi alınmayacak. Sayaçlar **37/126
 
 `61fa2835` doğrulanmış Proxmox VM/LXC hedefini admin ekranından seçip recovery politikasına kaydeder; 14 Flutter testi geçti. `b1fedff0` evcc bağlantısını her istekte güncel doğrulanmış servisten kurar ve negatif tarifeleri explicit, kalıcı enerji pencerelerinde korur; admin metadata GET revizyon değişiminden sonra CAS yenilemeyi sağlar. `d8daf8f7` gerçek Zigbee envanterinin bilinmeyen alanlarını uydurmadan gösterir ve kesilmiş OTA gönderimini belirsiz makbuzla durdurur. `97ddbf19` korunmuş orijinali yalnız başarılı dönüşüm kanıtı, güncel yetki ve kalıcı silme niyetiyle temizler; 126 odaklı Server regresyonu geçti. Bu commitler tek çalışma dalına gönderildi; kapsamlı yazılım kabulü ve exact HEAD CI açık olduğundan **37/126** ile **3/63** sayaçları artmadı.
 
-### 27 Eylül F08 yapay zekâ kaynak yöneticisi — uygulama tamamlandı, test bekliyor
+### 27 Eylül F08 tarihsel uygulama kaydı — 30 Eylül runtime boşluğu nedeniyle yeniden açıldı
 
 F08 Core üzerinde HMAC ile bütünlüğü korunan kalıcı kaynak politikası ve iş
 kuyruğu kurdu. Bellek, CPU ve eşzamanlı iş sınırları; öncelik, idempotent istek

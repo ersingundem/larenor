@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
+import '../data/floor_plan_api.dart';
 import '../data/floor_plan_controller.dart';
+import '../data/floor_plan_editor_controller.dart';
 import '../domain/floor_plan_models.dart';
+import 'floor_plan_editor.dart';
 
 final class FloorPlanStrings {
   const FloorPlanStrings({
@@ -33,6 +36,7 @@ final class FloorPlanStrings {
     this.actionFailed = 'The command could not be sent',
     this.projectionTruncated =
         'Some device states are unavailable until the next refresh.',
+    this.edit = 'Edit layout',
   });
   factory FloorPlanStrings.fromLocalizations(AppLocalizations value) =>
       FloorPlanStrings(
@@ -58,12 +62,14 @@ final class FloorPlanStrings {
         actionRejected: value.floorPlanActionRejected,
         actionFailed: value.floorPlanActionFailed,
         projectionTruncated: value.floorPlanProjectionTruncated,
+        edit: value.floorPlanEdit,
       );
   final String title, loading, empty, offline, stale, invalid;
   final String refresh, zoomIn, zoomOut, accessibleRooms, floors;
   final String live, projectionStale, unavailable, turnOn, turnOff;
   final String actionWorking, actionUncertain, actionSucceeded;
   final String actionRejected, actionFailed, projectionTruncated;
+  final String edit;
 }
 
 final class FloorPlanScreen extends StatefulWidget {
@@ -71,9 +77,11 @@ final class FloorPlanScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.strings,
+    this.canEdit = false,
   });
   final FloorPlanController controller;
   final FloorPlanStrings strings;
+  final bool canEdit;
 
   @override
   State<FloorPlanScreen> createState() => _FloorPlanScreenState();
@@ -84,6 +92,8 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
   double _scale = 1;
   String? _selectedFloorId;
   String? _selectedAnchorId;
+  FloorPlanEditorController? _editor;
+  bool _editing = false;
 
   @override
   void initState() {
@@ -95,8 +105,41 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
 
   @override
   void dispose() {
+    _editor?.retire();
+    _editor?.dispose();
     _transform.dispose();
     super.dispose();
+  }
+
+  void _startEditor() {
+    if (_editing ||
+        !widget.canEdit ||
+        !widget.controller.canEditLayout ||
+        widget.controller.gateway is! FloorPlanEditorGateway) {
+      return;
+    }
+    final editor = FloorPlanEditorController(
+      gateway: widget.controller.gateway as FloorPlanEditorGateway,
+      isCurrent: () => mounted && _editing,
+      actionSafe: () => mounted && _editing && widget.controller.canEditLayout,
+    );
+    setState(() {
+      _editor = editor;
+      _editing = true;
+    });
+    unawaited(editor.load());
+  }
+
+  void _stopEditor() {
+    final editor = _editor;
+    if (!_editing && editor == null) return;
+    setState(() {
+      _editing = false;
+      _editor = null;
+    });
+    editor?.retire();
+    editor?.dispose();
+    unawaited(widget.controller.load());
   }
 
   void _zoom(double delta) {
@@ -187,6 +230,13 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
         listenable: widget.controller,
         builder: (context, _) => LayoutBuilder(
           builder: (context, constraints) {
+            final editor = _editor;
+            if (_editing && editor != null) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: FloorPlanEditor(controller: editor, onDone: _stopEditor),
+              );
+            }
             final snapshot = widget.controller.snapshot;
             final controls = _controls();
             final content = snapshot == null
@@ -252,6 +302,13 @@ final class _FloorPlanScreenState extends State<FloorPlanScreen> {
               widget.strings.zoomOut,
               () => _zoom(-0.25),
             ),
+            if (widget.canEdit &&
+                widget.controller.gateway is FloorPlanEditorGateway)
+              _button(
+                const ValueKey('floor-plan-edit'),
+                widget.strings.edit,
+                widget.controller.canEditLayout ? _startEditor : null,
+              ),
           ],
         ),
       ),

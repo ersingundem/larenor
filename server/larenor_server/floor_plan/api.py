@@ -13,6 +13,8 @@ from .api_models import (
     ActionRequest,
     ActionResponse,
     ExportResponse,
+    EditorResponse,
+    EditorReplaceRequest,
     HistoryResponse,
     LayoutModel,
     LayoutResponse,
@@ -30,6 +32,21 @@ router = APIRouter(tags=["Interactive floor plan"], responses={
     for status in (400, 401, 403, 404, 408, 409, 413, 429, 502, 503)
 })
 ROOT = "/floor-plan/{core_id}/{home_id}"
+
+
+@router.get(ROOT + "/editor", response_model=EditorResponse)
+def editor(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
+    result = core.floor_plan.editor(actor, core_id, home_id)
+    layout = result["layout"]
+    return {**result, "layout": None if layout is None else LayoutModel.from_domain(layout)}
+
+
+@router.put(ROOT + "/editor", response_model=ReceiptResponse)
+def replace_editor(core_id: Identity, home_id: Identity, body: EditorReplaceRequest,
+                   actor: Admin, core: Core):
+    receipt = core.floor_plan.replace_editor(actor, core_id, home_id, body)
+    return {"receipt": ReceiptModel(requestId=receipt.request_id,
+                                    revision=receipt.revision, status=receipt.status)}
 
 
 async def observe(request: Request, operation):

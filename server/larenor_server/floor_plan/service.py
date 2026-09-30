@@ -601,6 +601,36 @@ class FloorPlanService:
             )
             return LayoutReceipt(request_id, revision)
 
+    def edit_snapshot(
+        self,
+        actor: Principal,
+        *,
+        authority: FloorPlanAuthority,
+        connection: sqlite3.Connection,
+    ) -> StoredLayout | None:
+        """Admin repair path: authenticate stored geometry even after target drift.
+
+        It does not grant stale anchors read/action authority. Only replace_layout
+        can publish repaired geometry, after validating every current target.
+        """
+        self._authorize(actor, authority, edit=True)
+        self._verify_authority(connection, actor, authority, edit=True)
+        scope = self._scope(authority)
+        self._verified_history(connection, scope)
+        row = connection.execute(
+            "SELECT * FROM floor_plan_layouts WHERE core_id=? AND home_id=?", scope
+        ).fetchone()
+        if row is None:
+            return None
+        if row["revision"] != authority.layout_revision:
+            raise ApiError("floor_plan_revision_changed", 409)
+        if (row["core_revision"] != authority.core_revision
+                or row["home_revision"] != authority.home_revision):
+            raise ApiError("floor_plan_authority_changed", 409)
+        layout = self._decode_layout(row["payload"])
+        self._validate_layout(layout)
+        return StoredLayout(row["revision"], layout)
+
     def read(
         self,
         actor: Principal,

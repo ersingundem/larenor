@@ -1,0 +1,7 @@
+# F51 kat planı editörü — 30 Eylül 2026
+
+Normal Core composition admin editor GET/PUT yolu gerçek HomeResources oda/cihaz ve Home Assistant binding kataloğunu okur. Yerleşim kaydı layout/entity/resource/grant revizyonlarına CAS ile bağlıdır; oda kimliği ve etiketi güncel kayıtla eşleşir. Güncel kaydı kaybolan eski plan sadece onarım için okunabilir; canlı eylem yetkisi kazanmaz.
+
+Client aynı rota içinde inline Cupertino editör sunar: kat ekle/yeniden adlandır/sırala/sil, gerçek oda seçimi ve polygon vertex taşıma, gerçek hedef yerleştirme/taşıma/yeniden bağlama/silme. Vektörler ve rotation korunur. Boş ev için sahte kat/oda üretilmez. Hesap/ev/rota/foreground değişimi veya bekleyen/belirsiz cihaz komutu düzenlemeyi durdurur; conflict otomatik yeniden gönderilmez. EN/TR etiketleri ve erişilebilir kontrol alternatifi vardır.
+
+Doğrulama: `PYTHONPATH=server server/.venv/bin/python -m pytest -q server/tests/test_f51_floor_plan_editor.py server/tests/test_f51_floor_plan_http.py`; `flutter test test/features/floor_plan`; scoped Flutter analyze. Python testleri normal Core ve gerçek kayıtları kullanır. Dart loopback testi gerçek TCP üzerinde Client gateway sözleşmesini sınar, Python Core process testi yerine geçmez. Sonuç: 9 Server testi, 13 Flutter testi geçti; scoped analyze temiz. Tam current-HEAD CI ve geniş Client→normal Core kabulü FINAL.FUNCTION kapanış kapısında açık kalır. Fiziksel ev ölçümü veya cihaz etkisi bu editör testlerinden çıkarılmaz.

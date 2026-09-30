@@ -1,6 +1,7 @@
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
+import '../domain/floor_plan_editor_models.dart';
 import '../domain/floor_plan_models.dart';
 
 abstract interface class FloorPlanGateway {
@@ -14,7 +15,13 @@ abstract interface class FloorPlanActionGateway implements FloorPlanGateway {
   });
 }
 
-final class FloorPlanApi implements FloorPlanActionGateway {
+abstract interface class FloorPlanEditorGateway {
+  Future<FloorPlanEditorCatalog> readEditor();
+  Future<FloorPlanEditorReceipt> saveEditor(FloorPlanEditorSaveRequest request);
+}
+
+final class FloorPlanApi
+    implements FloorPlanActionGateway, FloorPlanEditorGateway {
   const FloorPlanApi(this._api, this._token, this._context);
   final LarenorServerApi _api;
   final String _token;
@@ -44,9 +51,34 @@ final class FloorPlanApi implements FloorPlanActionGateway {
     expectedSnapshot: expectedSnapshot,
     expectedRequest: request,
   );
+
+  @override
+  Future<FloorPlanEditorCatalog> readEditor() async =>
+      FloorPlanEditorCatalog.fromResponse(
+        await _api.request(
+          'GET',
+          '/floor-plan/${_context.coreId}/${_context.homeId}/editor',
+          token: _token,
+        ),
+        expected: _context,
+      );
+
+  @override
+  Future<FloorPlanEditorReceipt> saveEditor(
+    FloorPlanEditorSaveRequest request,
+  ) async => FloorPlanEditorReceipt.fromResponse(
+    await _api.request(
+      'PUT',
+      '/floor-plan/${_context.coreId}/${_context.homeId}/editor',
+      token: _token,
+      body: request.toJson(),
+    ),
+    expectedRequestId: request.requestId,
+  );
 }
 
-final class FloorPlanAccountGateway implements FloorPlanActionGateway {
+final class FloorPlanAccountGateway
+    implements FloorPlanActionGateway, FloorPlanEditorGateway {
   FloorPlanAccountGateway({
     required this.account,
     required this.context,
@@ -117,6 +149,64 @@ final class FloorPlanAccountGateway implements FloorPlanActionGateway {
       throw const LarenorServerException('cancelled');
     }
     return result;
+  }
+
+  @override
+  Future<FloorPlanEditorCatalog> readEditor() async {
+    final session = await _adminSession();
+    final result = await FloorPlanApi(
+      _api,
+      session.accessToken,
+      context,
+    ).readEditor();
+    _afterEditorIo();
+    return result;
+  }
+
+  @override
+  Future<FloorPlanEditorReceipt> saveEditor(
+    FloorPlanEditorSaveRequest request,
+  ) async {
+    final session = await _adminSession();
+    if (request.catalog.context != context) {
+      throw const LarenorServerException('cancelled');
+    }
+    final result = await FloorPlanApi(
+      _api,
+      session.accessToken,
+      context,
+    ).saveEditor(request);
+    _afterEditorIo();
+    return result;
+  }
+
+  Future<ServerSession> _adminSession() async {
+    if (_closed || !isCurrent() || !account.isCurrent(_generation)) {
+      throw const LarenorServerException('cancelled');
+    }
+    final session = await account.ensureSession();
+    if (_closed ||
+        !isCurrent() ||
+        !account.isCurrent(_generation) ||
+        session.context != context ||
+        session.endpoint.baseUrl != _endpoint.baseUrl) {
+      throw const LarenorServerException('cancelled');
+    }
+    if (!session.user.canAdminister) {
+      throw const LarenorServerException('forbidden');
+    }
+    return session;
+  }
+
+  void _afterEditorIo() {
+    if (_closed ||
+        !isCurrent() ||
+        !account.isCurrent(_generation) ||
+        account.session?.context != context ||
+        account.session?.endpoint.baseUrl != _endpoint.baseUrl ||
+        account.session?.user.canAdminister != true) {
+      throw const LarenorServerException('cancelled');
+    }
   }
 
   void close() {

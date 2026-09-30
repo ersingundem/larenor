@@ -30,6 +30,13 @@ final class FloorPlanController extends ChangeNotifier {
   String? actionAnchorId;
   FloorPlanActionRequest? _pendingAction;
 
+  bool get canEditLayout =>
+      !_retired &&
+      !busy &&
+      !actionBusy &&
+      _pendingAction == null &&
+      actionState != FloorPlanActionState.uncertain;
+
   static String _randomId() {
     final random = Random.secure();
     return List.generate(
