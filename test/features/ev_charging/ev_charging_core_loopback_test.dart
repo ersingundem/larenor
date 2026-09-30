@@ -25,7 +25,8 @@ final class _EvCore {
   }
 
   final HttpServer server;
-  int capabilityCalls = 0, previewCalls = 0, confirmCalls = 0, effects = 0;
+  int capabilityCalls = 0, previewCalls = 0, confirmCalls = 0, resultCalls = 0;
+  int effects = 0;
   Completer<void>? previewEntered, previewBarrier;
   final appliedCommands = <String>{};
 
@@ -103,8 +104,36 @@ final class _EvCore {
           'planHash': _hash,
           'status': 'uncertain',
           'applyCount': 1,
+          'targetCurrentAmp': 16,
+          'observedCurrentAmp': null,
+          'observedAtMs': null,
         },
       }, 201);
+    }
+    if (request.method == 'GET' &&
+        request.uri.path == '$root/chargers/$_charger/commands/$_command') {
+      resultCalls++;
+      return _json(request, {
+        'schemaVersion': 1,
+        'receipt': {
+          'schemaVersion': 1,
+          'coreId': _core,
+          'homeId': _home,
+          'chargerId': _charger,
+          'accountId': _account,
+          'sessionFamilyId': _family,
+          'chargerRevision': 4,
+          'scheduleRevision': 7,
+          'commandId': _command,
+          'previewId': _preview,
+          'planHash': _hash,
+          'status': 'verified',
+          'applyCount': 1,
+          'targetCurrentAmp': 16,
+          'observedCurrentAmp': 16,
+          'observedAtMs': 1790757000000,
+        },
+      });
     }
     return _json(request, {
       'error': {'code': 'not_found'},
@@ -116,7 +145,7 @@ final class _EvCore {
     'coreId': _core,
     'homeId': _home,
     'state': 'ready',
-    'providerKind': 'ocpp',
+    'providerKind': 'evcc',
     'canPlan': true,
     'canControl': true,
     'reason': 'ready',
@@ -163,7 +192,7 @@ final class _EvCore {
         'endAtMs': 1790758800000,
         'currentAmp': 16,
         'energyWh': 11000,
-        'tariffMicrosPerKwh': 110000,
+        'tariffMicrosPerKwh': -50000,
         'solarSurplusW': 4000,
       },
       {
@@ -245,6 +274,7 @@ void main() {
     expect(plan.requiredWh, 16000);
     expect(plan.slots, hasLength(2));
     expect(plan.slots.first.currentAmp, 16);
+    expect(plan.slots.first.tariffMicrosPerKwh, -50000);
 
     final receipt = await api.confirm(plan, _command);
     expect(receipt.status, 'uncertain');
@@ -255,6 +285,16 @@ void main() {
     expect(replay.status, receipt.status);
     expect(core.confirmCalls, 2);
     expect(core.effects, 1, reason: 'Core command identity is idempotent');
+
+    final result = await api.result(plan, _command);
+    expect(result.status, 'verified');
+    expect(result.targetCurrentAmp, 16);
+    expect(result.observedCurrentAmp, 16);
+    expect(
+      result.observedAt,
+      DateTime.fromMillisecondsSinceEpoch(1790757000000, isUtc: true),
+    );
+    expect(core.resultCalls, 1);
   });
 
   test('late plan is discarded after route authority changes', () async {

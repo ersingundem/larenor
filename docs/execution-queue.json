@@ -4868,7 +4868,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4892,7 +4892,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION gerçek evcc Client incelemesinde providerKind ve negatif tarife parse hataları, kayıp ACK command kimliği, dispatch öncesi taze cihaz kontrolü ve I/O sonrası yetki eksikleri bulundu. Gerçek charger yürütme/readback ve normal TCP kabulü düzeltiliyor; geniş kabul/CI açık."
+      "reason": "Gerçek evcc providerKind ve negatif tarife Client parse yolu düzeltildi. Kayıp ACK aynı commandId ile GET readback üzerinden uzlaşır ve yeniden gönderilmez; socket gönderiminden önce taze /api/state cihaz/tarife/saat yetkisi kontrol edilir. Makbuz hedef/gözlenen amper ve gözlem zamanını gösterir. Normal create_app→gerçek TCP evcc 16→8 A/revizyon değişimi/kayıp ACK/tek POST/no-write kapısı dahil 27 Server ve 11 Flutter testi, odaklı analyze geçti; tam Client→Core→servis ve exact HEAD CI kabulü açık."
     },
     {
       "id": "F47",

@@ -606,8 +606,19 @@ class EvccCurrentControl:
         try:
             def assert_control_current():
                 binding.assert_current()
-                if not self.authorized(
-                    observation, index, authority.schedule_revision
+                fresh = EvccHttpReader(
+                    self._clock, transport_factory=factory
+                ).state(binding.connection)
+                binding.assert_current()
+                loadpoints = [item for item in fresh.loadpoints if item.index == index]
+                if (
+                    fresh.service_id != observation.service_id
+                    or fresh.service_revision != observation.service_revision
+                    or len(loadpoints) != 1
+                    or loadpoints[0].revision != authority.charger_revision
+                    or not self.authorized(
+                        fresh, index, authority.schedule_revision
+                    )
                 ):
                     raise EvccProviderError("provider_read_only")
 
@@ -635,11 +646,30 @@ class EvccCurrentControl:
             or row["schedule_revision"] != authority.schedule_revision
         ):
             raise EvccProviderError("provider_snapshot_changed")
-        if row["status"] != "verified":
-            return None
         observed = self._observe(binding, row["loadpoint_index"])
         status = "verified" if observed == row["target_current_amp"] else "mismatch"
+        self._save_effect(plan_hash, status, observed)
         return plan_hash if status == "verified" else None
+
+    def receipt_evidence_authorized(self, authority, *, plan_hash):
+        with self.database.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM evcc_current_effects WHERE plan_hash=?", (plan_hash,)
+            ).fetchone()
+        self._verify_effect(row)
+        if (
+            row["charger_id"] != authority.charger_id
+            or row["charger_revision"] != authority.charger_revision
+            or row["schedule_revision"] != authority.schedule_revision
+        ):
+            raise EvccProviderError("provider_snapshot_changed")
+        return {
+            "target_current_amp": row["target_current_amp"],
+            "observed_current_amp": row["observed_current_amp"],
+            "observed_at": row["updated_at"]
+            if row["observed_current_amp"] is not None
+            else None,
+        }
 
     def apply(self, *, plan_hash, slots):
         raise EvccProviderError("provider_read_only")

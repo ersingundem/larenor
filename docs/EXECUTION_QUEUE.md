@@ -19,7 +19,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 1 | 1 | 0 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 3 | 2 | 0 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 1 | 0 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
@@ -31,7 +31,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | F41 | Kamera kayıtlarında doğal dille arama | Çalışılıyor | — |
 | F50 | Oda konforu ve havalandırma planı | Çalışılıyor | — |
-| F46 | Elektrikli araç şarj planlayıcısı | Çalışılıyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | Çalışılıyor | — |
 
 Bekleyen tüm işler
@@ -162,6 +161,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
+| F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
 | F47 | Güneş ve ev bataryası öncelikleri | Uygulama tamamlandı · test bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Uygulama tamamlandı · test bekliyor | — |

@@ -73,8 +73,13 @@ final class EvChargeReceipt {
     required this.previewId,
     required this.planHash,
     required this.status,
+    this.targetCurrentAmp,
+    this.observedCurrentAmp,
+    this.observedAt,
   });
   final String commandId, previewId, planHash, status;
+  final int? targetCurrentAmp, observedCurrentAmp;
+  final DateTime? observedAt;
 }
 
 abstract interface class EvChargingGateway {
@@ -86,5 +91,6 @@ abstract interface class EvChargingGateway {
     required int targetSoc,
   });
   Future<EvChargeReceipt> confirm(EvChargePlan plan, String commandId);
+  Future<EvChargeReceipt> result(EvChargePlan plan, String commandId);
   void retire();
 }

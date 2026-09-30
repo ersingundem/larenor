@@ -18,7 +18,10 @@ final charger = EvChargerCapability(
 );
 
 final class Gateway implements EvChargingGateway {
-  int loads = 0, previews = 0, confirms = 0;
+  Gateway({this.loseAck = false});
+  final bool loseAck;
+  int loads = 0, previews = 0, confirms = 0, results = 0;
+  String? submittedCommandId;
   @override
   Future<EvChargeCapability> capability() async {
     loads++;
@@ -69,11 +72,28 @@ final class Gateway implements EvChargingGateway {
   @override
   Future<EvChargeReceipt> confirm(EvChargePlan plan, String commandId) async {
     confirms++;
+    submittedCommandId = commandId;
+    if (loseAck) throw StateError('lost_ack');
     return EvChargeReceipt(
       commandId: commandId,
       previewId: plan.previewId,
       planHash: plan.planHash,
       status: 'awaiting_readback',
+    );
+  }
+
+  @override
+  Future<EvChargeReceipt> result(EvChargePlan plan, String commandId) async {
+    results++;
+    if (commandId != submittedCommandId) throw StateError('wrong_command');
+    return EvChargeReceipt(
+      commandId: commandId,
+      previewId: plan.previewId,
+      planHash: plan.planHash,
+      status: 'verified',
+      targetCurrentAmp: 16,
+      observedCurrentAmp: 16,
+      observedAt: DateTime.utc(2026, 9, 21, 0, 1),
     );
   }
 
@@ -84,14 +104,17 @@ final class Gateway implements EvChargingGateway {
 Future<Gateway> mount(
   WidgetTester tester,
   EvChargingStrings strings,
-  double width,
-) async {
+  double width, {
+  bool loseAck = false,
+  Iterable<String>? ids,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 1200);
   tester.platformDispatcher.textScaleFactorTestValue = 2;
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  final gateway = Gateway();
+  final gateway = Gateway(loseAck: loseAck);
+  final values = ids?.iterator;
   await tester.pumpWidget(
     CupertinoApp(
       home: EvChargingScreen(
@@ -99,7 +122,11 @@ Future<Gateway> mount(
         controller: EvChargingController(
           gateway: gateway,
           isCurrent: () => true,
-          id: () => '6' * 32,
+          id: () {
+            if (values == null) return '6' * 32;
+            if (!values.moveNext()) throw StateError('no_id');
+            return values.current;
+          },
           now: () => DateTime.utc(2026, 9, 21),
         ),
       ),
@@ -156,6 +183,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(gateway.confirms, 1);
     expect(find.text(EvChargingStrings.en.uncertain), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ev-charge-refresh')));
+    await tester.pumpAndSettle();
+    expect(gateway.results, 1);
+    expect(find.text(EvChargingStrings.en.ready), findsWidgets);
   });
 
   testWidgets('changing a goal invalidates its exact preview', (tester) async {
@@ -168,4 +199,37 @@ void main() {
     expect(find.byKey(const ValueKey('ev-charge-confirm')), findsNothing);
     expect(gateway.confirms, 0);
   });
+
+  testWidgets(
+    'lost ACK keeps the submitted command id for GET reconciliation',
+    (tester) async {
+      final gateway = await mount(
+        tester,
+        EvChargingStrings.en,
+        1280,
+        loseAck: true,
+        ids: ['1' * 32, '2' * 32, '3' * 32],
+      );
+      await tester.tap(find.byKey(const ValueKey('ev-charge-preview')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('ev-charge-confirm')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(CupertinoAlertDialog),
+          matching: find.text(EvChargingStrings.en.confirm),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(gateway.submittedCommandId, '2' * 32);
+      expect(find.text(EvChargingStrings.en.uncertain), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('ev-charge-refresh')));
+      await tester.pumpAndSettle();
+      expect(gateway.results, 1);
+      expect(
+        find.textContaining(EvChargingStrings.en.chargerLimit),
+        findsOneWidget,
+      );
+    },
+  );
 }

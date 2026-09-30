@@ -31,6 +31,10 @@ final class EvChargingController extends ChangeNotifier {
 
   Future<void> refresh() async {
     if (busy || !current) return;
+    if (plan != null && receipt != null && receipt!.status != 'verified') {
+      await reconcile();
+      return;
+    }
     final operation = ++epoch;
     busy = true;
     failure = null;
@@ -114,11 +118,12 @@ final class EvChargingController extends ChangeNotifier {
       return;
     }
     final operation = ++epoch;
+    final commandId = id();
     busy = true;
     failure = null;
     notifyListeners();
     try {
-      final result = await gateway.confirm(value, id());
+      final result = await gateway.confirm(value, commandId);
       if (operation != epoch ||
           !current ||
           result.previewId != value.previewId ||
@@ -130,11 +135,41 @@ final class EvChargingController extends ChangeNotifier {
     } catch (_) {
       if (operation == epoch && current) {
         receipt = EvChargeReceipt(
-          commandId: id(),
+          commandId: commandId,
           previewId: value.previewId,
           planHash: value.planHash,
           status: 'uncertain',
         );
+      }
+    } finally {
+      if (operation == epoch && !retired) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> reconcile() async {
+    final value = plan, pending = receipt;
+    if (busy || !current || value == null || pending == null) return;
+    final operation = ++epoch;
+    busy = true;
+    failure = null;
+    notifyListeners();
+    try {
+      final result = await gateway.result(value, pending.commandId);
+      if (operation != epoch ||
+          !current ||
+          result.commandId != pending.commandId ||
+          result.previewId != value.previewId ||
+          result.planHash != value.planHash) {
+        if (!retired) failure = EvChargingFailure.stale;
+        return;
+      }
+      receipt = result;
+    } catch (_) {
+      if (operation == epoch && current) {
+        failure = EvChargingFailure.unavailable;
       }
     } finally {
       if (operation == epoch && !retired) {

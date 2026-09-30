@@ -301,7 +301,20 @@ class EvChargeRuntime:
             body.expectedChargerRevision != authority.charger_revision
             or body.expectedScheduleRevision != authority.schedule_revision
         ):
-            raise ApiError("energy_authority_changed", 409)
+            try:
+                retained = self.planner.retained_authority(
+                    actor, authority=authority, command_id=body.commandId
+                )
+            except ApiError as error:
+                if error.code == "not_found":
+                    raise ApiError("energy_authority_changed", 409) from None
+                raise
+            if (
+                body.expectedChargerRevision != retained.charger_revision
+                or body.expectedScheduleRevision != retained.schedule_revision
+            ):
+                raise ApiError("energy_authority_changed", 409)
+            authority = retained
         value = self.planner.confirm(
             actor,
             authority=authority,
@@ -310,25 +323,41 @@ class EvChargeRuntime:
             command_id=body.commandId,
             expected_plan_hash=body.expectedPlanHash,
         )
+        self._actor(actor)
         if value.status == "awaiting_readback" and callable(
             getattr(self.planner._charger, "readback_authorized", None)
         ):
             value = self.planner.readback(
                 actor, authority=authority, command_id=body.commandId
             )
+        self._actor(actor)
         return {"schemaVersion": 1, "receipt": self._receipt(value, authority)}
 
     def result(self, actor, core_id, home_id, charger_id, command_id):
         snapshot, _device = self._snapshot(
             actor, core_id, home_id, charger_id, control=True
         )
-        value = self.planner.readback(
+        authority = self.planner.retained_authority(
             actor, authority=snapshot.authority, command_id=command_id
         )
-        return {"schemaVersion": 1, "receipt": self._receipt(value, snapshot.authority)}
+        value = self.planner.readback(
+            actor, authority=authority, command_id=command_id
+        )
+        self._actor(actor)
+        return {"schemaVersion": 1, "receipt": self._receipt(value, authority)}
 
-    @staticmethod
-    def _receipt(value, authority):
+    def _receipt(self, value, authority):
+        evidence = None
+        evidence_reader = getattr(
+            self.planner._charger, "receipt_evidence_authorized", None
+        )
+        if callable(evidence_reader):
+            evidence = evidence_reader(authority, plan_hash=value.plan_hash)
+        if not isinstance(evidence, dict):
+            evidence = {}
+        target = evidence.get("target_current_amp")
+        observed = evidence.get("observed_current_amp")
+        observed_at = evidence.get("observed_at")
         return {
             "schemaVersion": 1,
             "coreId": authority.core_id,
@@ -343,4 +372,9 @@ class EvChargeRuntime:
             "planHash": value.plan_hash,
             "status": value.status,
             "applyCount": value.apply_count,
+            "targetCurrentAmp": target if type(target) is int else None,
+            "observedCurrentAmp": observed if type(observed) is int else None,
+            "observedAtMs": round(observed_at * 1000)
+            if type(observed_at) in (int, float)
+            else None,
         }

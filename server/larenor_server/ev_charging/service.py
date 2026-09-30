@@ -6,7 +6,7 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Protocol
 
 from ..auth import Principal
@@ -159,6 +159,7 @@ class ChargePreview:
     schedule_revision: int
     tariff_revision: int
     power_budget_revision: int
+    max_current_amp: int | None
     required_wh: int
     slots: tuple[PlannedChargeSlot, ...]
     provider_status: dict[str, str]
@@ -457,6 +458,7 @@ class ChargePlanner:
             ):
                 raise StartupError("ev_charge_preview_invalid")
             value = json.loads(row["payload"])
+            value.setdefault("max_current_amp", None)
             slots = tuple(PlannedChargeSlot(**slot) for slot in value.pop("slots"))
             return ChargePreview(
                 id=row["id"], plan_hash=row["plan_hash"], slots=slots, **value
@@ -553,6 +555,7 @@ class ChargePlanner:
             "schedule_revision": authority.schedule_revision,
             "tariff_revision": authority.tariff_revision,
             "power_budget_revision": authority.power_budget_revision,
+            "max_current_amp": authority.max_current_amp,
             "required_wh": required_wh,
             "slots": [asdict(slot) for slot in planned],
             "provider_status": statuses,
@@ -836,14 +839,28 @@ class ChargePlanner:
             current = self._command_status(connection, scope, command_id)
             if current == "verified":
                 return self._receipt(connection, row, scope)
-            readback_authorized = getattr(
-                self._charger, "readback_authorized", None
-            )
-            observed = (
-                readback_authorized(authority, plan_hash=row["plan_hash"])
-                if callable(readback_authorized)
-                else self._charger.readback()
-            )
+            plan_hash = row["plan_hash"]
+        readback_authorized = getattr(self._charger, "readback_authorized", None)
+        observed = (
+            readback_authorized(authority, plan_hash=plan_hash)
+            if callable(readback_authorized)
+            else self._charger.readback()
+        )
+        with self.database.transaction() as connection:
+            self._verified_history(connection, scope)
+            row = connection.execute(
+                "SELECT * FROM ev_charge_commands WHERE command_id=?", (command_id,)
+            ).fetchone()
+            if (
+                row is None
+                or row["account_id"] != actor.id
+                or (row["core_id"], row["home_id"], row["charger_id"]) != scope
+                or row["plan_hash"] != plan_hash
+            ):
+                raise ApiError("energy_authority_changed", 409)
+            current = self._command_status(connection, scope, command_id)
+            if current == "verified":
+                return self._receipt(connection, row, scope)
             action = (
                 "verified"
                 if observed is not None
@@ -863,6 +880,60 @@ class ChargePlanner:
                 occurred_at=self._clock(),
             )
             return self._receipt(connection, row, scope)
+
+    def retained_authority(
+        self,
+        actor: Principal,
+        *,
+        authority: ChargeAuthority,
+        command_id: str,
+    ) -> ChargeAuthority:
+        """Recover only command-mutated authority fields from the sealed preview."""
+        self._authorize(actor, authority)
+        scope = self._scope(authority)
+        with self.database.transaction() as connection:
+            self._verified_history(connection, scope)
+            row = connection.execute(
+                "SELECT * FROM ev_charge_commands WHERE command_id=?", (command_id,)
+            ).fetchone()
+            if (
+                row is None
+                or row["account_id"] != actor.id
+                or (row["core_id"], row["home_id"], row["charger_id"]) != scope
+            ):
+                raise ApiError("not_found", 404)
+            self._receipt(connection, row, scope)
+            preview_row = connection.execute(
+                "SELECT * FROM ev_charge_previews WHERE id=?", (row["preview_id"],)
+            ).fetchone()
+            if preview_row is None:
+                raise StartupError("ev_charge_preview_invalid")
+            preview = self._preview_from_row(preview_row)
+        if (
+            preview.plan_hash != row["plan_hash"]
+            or preview.schedule_revision != authority.schedule_revision
+            or type(preview.max_current_amp) is not int
+        ):
+            raise ApiError("energy_authority_changed", 409)
+        retained = replace(
+            authority,
+            charger_revision=preview.charger_revision,
+            max_current_amp=preview.max_current_amp,
+        )
+        expected_request_hash = self._fingerprint(
+            b"confirm",
+            _canonical(
+                [
+                    asdict(retained),
+                    row["preview_id"],
+                    command_id,
+                    row["plan_hash"],
+                ]
+            ),
+        )
+        if not hmac.compare_digest(row["request_hash"], expected_request_hash):
+            raise ApiError("energy_authority_changed", 409)
+        return retained
 
     def history(
         self,

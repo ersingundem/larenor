@@ -678,6 +678,9 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
     )
     assert receipt.status_code == 201, receipt.text
     assert receipt.json()["receipt"]["status"] == "verified"
+    assert receipt.json()["receipt"]["targetCurrentAmp"] == 16
+    assert receipt.json()["receipt"]["observedCurrentAmp"] == 16
+    assert receipt.json()["receipt"]["observedAtMs"] == round(clock.now * 1000)
     assert sum(
         call[1:3] == ("POST", "/api/loadpoints/1/maxcurrent/16")
         for call in Transport.calls
@@ -707,7 +710,7 @@ def test_verified_single_evcc_service_is_discovered_without_restart(server, monk
         control.readback_authorized(
             provider_snapshot.authority, plan_hash=plan["planHash"]
         )
-        is None
+        == plan["planHash"]
     )
     control._save_effect(plan["planHash"], "verified", 16)
     revised = client.patch(

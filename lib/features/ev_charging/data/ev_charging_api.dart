@@ -70,7 +70,13 @@ final class EvChargingApi implements EvChargingGateway {
     if (canPlan is! bool ||
         canControl is! bool ||
         provider is! String ||
-        !const {'ocpp', 'vehicle_api', 'manual', 'none'}.contains(provider) ||
+        !const {
+          'ocpp',
+          'vehicle_api',
+          'evcc',
+          'manual',
+          'none',
+        }.contains(provider) ||
         reason is! String ||
         chargers.map((item) => item.id).toSet().length != chargers.length ||
         (state != EvCapabilityState.ready &&
@@ -267,7 +273,7 @@ final class EvChargingApi implements EvChargingGateway {
         energy < 1 ||
         energy > 500000 ||
         tariff is! int ||
-        tariff < 0 ||
+        tariff < -10000000 ||
         tariff > 10000000 ||
         solar is! int ||
         solar < 0 ||
@@ -304,48 +310,92 @@ final class EvChargingApi implements EvChargingGateway {
         if (body.length != 2 || body['schemaVersion'] != 1) {
           throw const LarenorServerException('invalid_response');
         }
-        final value = serverObject(body['receipt']);
-        _exact(value, const {
-          'schemaVersion',
-          'coreId',
-          'homeId',
-          'chargerId',
-          'accountId',
-          'sessionFamilyId',
-          'chargerRevision',
-          'scheduleRevision',
-          'commandId',
-          'previewId',
-          'planHash',
-          'status',
-          'applyCount',
-        });
-        if (value['schemaVersion'] != 1 ||
-            value['coreId'] != plan.coreId ||
-            value['homeId'] != plan.homeId ||
-            value['chargerId'] != plan.chargerId ||
-            value['accountId'] != plan.accountId ||
-            value['sessionFamilyId'] != plan.sessionFamilyId ||
-            value['chargerRevision'] != plan.chargerRevision ||
-            value['scheduleRevision'] != plan.scheduleRevision ||
-            value['commandId'] != commandId ||
-            value['previewId'] != plan.previewId ||
-            value['planHash'] != plan.planHash ||
-            !const {
-              'uncertain',
-              'awaiting_readback',
-              'verified',
-            }.contains(value['status']) ||
-            value['applyCount'] != 1) {
+        return _receipt(body['receipt'], plan: plan, commandId: commandId);
+      });
+
+  @override
+  Future<EvChargeReceipt> result(EvChargePlan plan, String commandId) =>
+      _run(() async {
+        final body = serverObject(
+          await _api.request(
+            'GET',
+            '$_root/chargers/${plan.chargerId}/commands/$commandId',
+            token: _session.accessToken,
+          ),
+        );
+        if (body.length != 2 || body['schemaVersion'] != 1) {
           throw const LarenorServerException('invalid_response');
         }
-        return EvChargeReceipt(
-          commandId: commandId,
-          previewId: plan.previewId,
-          planHash: plan.planHash,
-          status: value['status'] as String,
-        );
+        return _receipt(body['receipt'], plan: plan, commandId: commandId);
       });
+
+  EvChargeReceipt _receipt(
+    Object? raw, {
+    required EvChargePlan plan,
+    required String commandId,
+  }) {
+    final value = serverObject(raw);
+    _exact(value, const {
+      'schemaVersion',
+      'coreId',
+      'homeId',
+      'chargerId',
+      'accountId',
+      'sessionFamilyId',
+      'chargerRevision',
+      'scheduleRevision',
+      'commandId',
+      'previewId',
+      'planHash',
+      'status',
+      'applyCount',
+      'targetCurrentAmp',
+      'observedCurrentAmp',
+      'observedAtMs',
+    });
+    final target = value['targetCurrentAmp'];
+    final observed = value['observedCurrentAmp'];
+    final observedAt = value['observedAtMs'];
+    if (value['schemaVersion'] != 1 ||
+        value['coreId'] != plan.coreId ||
+        value['homeId'] != plan.homeId ||
+        value['chargerId'] != plan.chargerId ||
+        value['accountId'] != plan.accountId ||
+        value['sessionFamilyId'] != plan.sessionFamilyId ||
+        value['chargerRevision'] != plan.chargerRevision ||
+        value['scheduleRevision'] != plan.scheduleRevision ||
+        value['commandId'] != commandId ||
+        value['previewId'] != plan.previewId ||
+        value['planHash'] != plan.planHash ||
+        !const {
+          'uncertain',
+          'awaiting_readback',
+          'verified',
+        }.contains(value['status']) ||
+        value['applyCount'] != 1 ||
+        (target != null && (target is! int || target < 1 || target > 80)) ||
+        (observed != null &&
+            (observed is! int || observed < 1 || observed > 80)) ||
+        (observedAt != null && (observedAt is! int || observedAt < 1)) ||
+        ((observed == null) != (observedAt == null)) ||
+        (observed != null && target == null) ||
+        (value['status'] == 'verified' &&
+            target != null &&
+            observed != target)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return EvChargeReceipt(
+      commandId: commandId,
+      previewId: plan.previewId,
+      planHash: plan.planHash,
+      status: value['status'] as String,
+      targetCurrentAmp: target as int?,
+      observedCurrentAmp: observed as int?,
+      observedAt: observedAt == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(observedAt as int, isUtc: true),
+    );
+  }
 
   @override
   void retire() => _retired = true;
@@ -401,6 +451,9 @@ final class AccountEvChargingGateway implements EvChargingGateway {
   @override
   Future<EvChargeReceipt> confirm(EvChargePlan plan, String commandId) =>
       _run((api) => api.confirm(plan, commandId));
+  @override
+  Future<EvChargeReceipt> result(EvChargePlan plan, String commandId) =>
+      _run((api) => api.result(plan, commandId));
   @override
   void retire() => _retired = true;
 }

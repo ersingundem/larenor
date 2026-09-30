@@ -29,6 +29,8 @@ final class EvChargingStrings {
     required this.current,
     required this.required,
     required this.noChargers,
+    required this.chargerLimit,
+    required this.readbackAt,
   });
   final String title,
       refresh,
@@ -48,11 +50,12 @@ final class EvChargingStrings {
       current,
       required,
       noChargers;
+  final String chargerLimit, readbackAt;
   static const en = EvChargingStrings(
     title: 'EV charging',
     refresh: 'Refresh charger status',
     unavailable: 'Charging status is unavailable.',
-    providerMissing: 'No verified OCPP or vehicle provider is connected. Planning and control stay disabled.',
+    providerMissing: 'No verified EV charging provider is connected. Planning and control stay disabled.',
     target: 'Target battery',
     departure: 'Departure in',
     hours: 'hours',
@@ -68,12 +71,14 @@ final class EvChargingStrings {
     current: 'Current battery',
     required: 'Planned energy',
     noChargers: 'No supported charger is available.',
+    chargerLimit: 'Charger limit readback',
+    readbackAt: 'Read back at',
   );
   static const tr = EvChargingStrings(
     title: 'Elektrikli araç şarjı',
     refresh: 'Şarj durumunu yenile',
     unavailable: 'Şarj durumuna ulaşılamıyor.',
-    providerMissing: 'Doğrulanmış OCPP veya araç sağlayıcısı bağlı değil. Planlama ve kontrol kapalı kalır.',
+    providerMissing: 'Doğrulanmış elektrikli araç şarj sağlayıcısı bağlı değil. Planlama ve kontrol kapalı kalır.',
     target: 'Hedef batarya',
     departure: 'Ayrılışa',
     hours: 'saat',
@@ -89,6 +94,8 @@ final class EvChargingStrings {
     current: 'Mevcut batarya',
     required: 'Planlanan enerji',
     noChargers: 'Desteklenen şarj cihazı yok.',
+    chargerLimit: 'Şarj sınırı geri okuması',
+    readbackAt: 'Okuma zamanı',
   );
 }
 
@@ -342,12 +349,7 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
           ),
         ),
       if (widget.controller.receipt case final receipt?)
-        _message(
-          receipt.status == 'verified'
-              ? widget.strings.ready
-              : widget.strings.uncertain,
-          live: true,
-        ),
+        _message(_receiptMessage(receipt), live: true),
     ];
     if (width >= 1000 && cards.length >= 2) {
       return Wrap(
@@ -368,6 +370,18 @@ class _EvChargingScreenState extends State<EvChargingScreen> {
         ],
       ],
     );
+  }
+
+  String _receiptMessage(EvChargeReceipt receipt) {
+    final status = receipt.status == 'verified'
+        ? widget.strings.ready
+        : widget.strings.uncertain;
+    final observed = receipt.observedCurrentAmp;
+    final observedAt = receipt.observedAt;
+    if (observed == null || observedAt == null) return status;
+    final time = observedAt.toLocal().toIso8601String();
+    return '$status. ${widget.strings.chargerLimit}: '
+        '$observed A. ${widget.strings.readbackAt}: $time';
   }
 
   Widget _card({required Key key, required Widget child}) => DecoratedBox(
