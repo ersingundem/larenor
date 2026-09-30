@@ -18,14 +18,13 @@ enum AndroidNotificationPermission {
 enum AndroidBackgroundDeliveryState { pending, active }
 
 enum AndroidNotificationRecoveryReason {
-  serviceStartDenied,
-  bootStartDenied,
-  bootRecoveryRequired,
-  invalidStart,
+  workScheduleUnavailable,
   deliveryUnavailable,
   notificationPermissionRevoked,
   deliveryStateUnavailable,
   deliveryAuthorityRejected,
+  deliveryAuthorityChanged,
+  deliveryLeaseRenewalRequired,
   deliveryProtocolRejected,
 }
 
@@ -258,12 +257,8 @@ final class AndroidLocalNotificationPlatform
   AndroidNotificationRecoveryReason? _recoveryReason(Object? raw) =>
       switch (raw) {
         null => null,
-        'serviceStartDenied' =>
-          AndroidNotificationRecoveryReason.serviceStartDenied,
-        'bootStartDenied' => AndroidNotificationRecoveryReason.bootStartDenied,
-        'bootRecoveryRequired' =>
-          AndroidNotificationRecoveryReason.bootRecoveryRequired,
-        'invalidStart' => AndroidNotificationRecoveryReason.invalidStart,
+        'workScheduleUnavailable' =>
+          AndroidNotificationRecoveryReason.workScheduleUnavailable,
         'deliveryUnavailable' =>
           AndroidNotificationRecoveryReason.deliveryUnavailable,
         'notificationPermissionRevoked' =>
@@ -272,6 +267,10 @@ final class AndroidLocalNotificationPlatform
           AndroidNotificationRecoveryReason.deliveryStateUnavailable,
         'deliveryAuthorityRejected' =>
           AndroidNotificationRecoveryReason.deliveryAuthorityRejected,
+        'deliveryAuthorityChanged' =>
+          AndroidNotificationRecoveryReason.deliveryAuthorityChanged,
+        'deliveryLeaseRenewalRequired' =>
+          AndroidNotificationRecoveryReason.deliveryLeaseRenewalRequired,
         'deliveryProtocolRejected' =>
           AndroidNotificationRecoveryReason.deliveryProtocolRejected,
         _ => _failure('invalid_response'),

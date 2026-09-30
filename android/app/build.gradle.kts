@@ -128,6 +128,8 @@ dependencies {
     implementation("com.android.tools.build:apksig:9.1.0")
     implementation("androidx.webkit:webkit:1.15.0")
     implementation("androidx.health.connect:connect-client:1.1.0")
+    // Official stable AndroidX scheduler for durable, reboot-persistent work.
+    implementation("androidx.work:work-runtime:2.12.0")
     // CameraX preview only: PRODUCT.CAMERA has no analyzer, capture or recorder.
     implementation("androidx.camera:camera-camera2:1.6.1")
     implementation("androidx.camera:camera-lifecycle:1.6.1")
@@ -142,5 +144,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.5.0")
+    testImplementation("com.squareup.okhttp3:okhttp-tls:5.5.0")
+    testImplementation("androidx.work:work-testing:2.12.0")
     testImplementation("org.robolectric:robolectric:4.17")
 }

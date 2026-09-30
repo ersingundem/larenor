@@ -71,6 +71,28 @@ Map<String, Object?> status({String permission = 'granted'}) => {
   'deliveryMode': 'foregroundPull',
 };
 
+Map<String, Object?> workerStatus(String? recoveryReason) => {
+  'schemaVersion': 2,
+  'supported': true,
+  'permission': 'granted',
+  'channelVersion': 1,
+  'channelEnabled': true,
+  'bindingId': 'a' * 64,
+  'subscriptionRevision': 3,
+  'lastSequence': 7,
+  'batteryOptimizationExempt': false,
+  'deliveryMode': 'backgroundLease',
+  'backgroundDelivery': {
+    'state': 'active',
+    'leaseId': 'b' * 32,
+    'leaseRevision': 5,
+    'subscriptionRevision': 3,
+    'credentialFingerprint': 'c' * 64,
+    'expiresAt': 1790812800.0,
+  },
+  'recovery': {'required': recoveryReason != null, 'reason': recoveryReason},
+};
+
 Matcher failure(String code) =>
     isA<LarenorServerException>().having((error) => error.code, 'code', code);
 
@@ -171,6 +193,43 @@ void main() {
     expect(value.permission, AndroidNotificationPermission.unsupported);
     expect(value.canPresent, isFalse);
   });
+
+  test(
+    'strict status accepts every production Worker recovery reason',
+    () async {
+      const reasons = {
+        'workScheduleUnavailable':
+            AndroidNotificationRecoveryReason.workScheduleUnavailable,
+        'deliveryUnavailable':
+            AndroidNotificationRecoveryReason.deliveryUnavailable,
+        'notificationPermissionRevoked':
+            AndroidNotificationRecoveryReason.notificationPermissionRevoked,
+        'deliveryStateUnavailable':
+            AndroidNotificationRecoveryReason.deliveryStateUnavailable,
+        'deliveryAuthorityRejected':
+            AndroidNotificationRecoveryReason.deliveryAuthorityRejected,
+        'deliveryAuthorityChanged':
+            AndroidNotificationRecoveryReason.deliveryAuthorityChanged,
+        'deliveryLeaseRenewalRequired':
+            AndroidNotificationRecoveryReason.deliveryLeaseRenewalRequired,
+        'deliveryProtocolRejected':
+            AndroidNotificationRecoveryReason.deliveryProtocolRejected,
+      };
+      final platform = AndroidLocalNotificationPlatform(
+        methods: channel,
+        supported: true,
+      );
+      for (final reason in reasons.entries) {
+        messenger.setMockMethodCallHandler(
+          channel,
+          (_) async => workerStatus(reason.key),
+        );
+        final parsed = await platform.probe(current: () => true);
+        expect(parsed.recoveryRequired, isTrue);
+        expect(parsed.recoveryReason, reason.value);
+      }
+    },
+  );
 
   test('tap envelope keeps exact account revision and event authority', () {
     final tap = LocalNotificationTap.fromJson({

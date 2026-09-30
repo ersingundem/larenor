@@ -2,7 +2,7 @@
 
 Bu dilim Android teslim motoru veya dış bir bildirim servisi kurmaz. Core içinde
 ağ çıkışı olmayan, istemcinin kimliği doğrulanmış HTTPS oturumuyla çektiği kalıcı
-bir bildirim kutusu kurar. Böylece sonraki Android alıcı/foreground-service işi,
+bir bildirim kutusu kurar. Böylece sonraki Android alıcı/WorkManager işi,
 Google servislerine veya ayrı bir ntfy kurulumuna sözleşme düzeyinde bağımlı
 olmadan ilerleyebilir.
 
@@ -23,13 +23,16 @@ olmadan ilerleyebilir.
    okunma durumunu korur. `private` olayın kilit ekranı projeksiyonu başlık,
    içerik ve hedef rotayı açığa çıkarmaz.
 
-## Bu dilimde açık kalanlar
+## Bu temel dilimden sonra tamamlananlar
 
-- F54 kuyruk işi kapanmaz: B5, B3 ve F05 bağımlılıkları ile gerçek Android
-  Client alıcısı, bildirim izni, güvenli hedefe dönüş, foreground-service/OEM
-  güç davranışı ve Huawei cihaz kabulü henüz yoktur.
-- Core dışarı bağlantı açmaz ve push yaptığını iddia etmez. Android istemcinin
-  uzun poll/SSE/yerel ağ yeniden bağlanma stratejisi sonraki bağımsız dilimdir.
+- Bu temel dilimde gerçek Android Client alıcısı, bildirim izni, güvenli hedefe
+  dönüş ve arka plan zamanlaması yoktu. Sonraki üretim dilimi Google servisleri
+  veya uygulama foreground service'i kullanmadan WorkManager ile gecikmeli,
+  kalıcı ve sınırlı teslim ekledi. Güncel kanıt
+  `f54-normal-core-native-delivery-2026-09-30.md` dosyasındadır.
+- Core dışarı bağlantı açmaz ve push yaptığını iddia etmez. Android istemcisi
+  her WorkManager çalışmasında sabit, kimlik bilgisine özel HTTPS GET yapar;
+  gerçek zamanlı veya kesin teslim süresi iddia edilmez.
 - Fiziksel cihaz ve 24 saat pil ölçümü yalnız `MANUAL.*` kanıtıyla kapanabilir.
 
 ## Kanıt

@@ -2947,7 +2947,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Yönetilen profil dağıtımı ve filo bağı",
-      "status": "implemented",
+      "status": "reworking",
       "dependsOn": [
         "K07",
         "K12",
@@ -2969,7 +2969,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "İmzalı sürümlü profil, dry-run/canary dağıtımı, Device Owner yetkili kurulum, bounded geçmiş ve monoton revizyonlu restore Core ve Client akışına bağlandı (84cecaea, 59e3358d, 59b3e9d5, 9ca5383a). Özellik testleri, bağımsız inceleme, exact-head CI ve gerçek DPC/OEM cihaz kabulü son doğrulama kapısında bekliyor."
+      "reason": "Bağımsız 30 Eylül production incelemesi ManagedClientInstaller terminal sonucunun private preferences içinde kalıp hiçbir production reader tarafından okunmadığını buldu. Bridge session.commit sonrası yalnız submitted döndürüyor; gerçek PackageInstaller terminal status ve installed package version/signature readback receipt eksik. Bu yüzden kurulum yazılımı tamamlandı veya CI bekliyor sayılmıyor. Exact nonce/session/package receipt, restart/unknown no auto-submit ve confirmed installed readback aktif düzeltmede; fiziksel Device Owner/DPC/OEM MANUAL açık."
     },
     {
       "id": "POC",
@@ -3418,7 +3418,7 @@
       "kind": "task",
       "parent": "G03",
       "title": "Google servislerinden bağımsız bildirim",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3431,9 +3431,9 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json"
       ],
-      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. ntfy yaklaşımı kalıcı bildirimli foreground service gerektirebilir; kapatılırsa teslim gecikebilir. Ayrı ntfy uygulaması zorunlu hedef değil. Huawei/OEM Android ve güç davranışı cihazda sınanır.",
+      "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. GMS-free WorkManager unique one-time ve en az 15dk periyodik bounded çekim kullanır; Android/Doze/OEM geciktirebilir, anlık teslim veya sürekli foreground-service iddiası yok. Ayrı ntfy uygulaması zorunlu hedef değil.",
       "acceptance": [
-        "Kayıp/tekrar/yeniden bağlantı, bildirim izni ve güvenli hedefe dönüş sınanır; hassas içerik kilit ekranında korunur. OEM güç kısıtları ve gerekebilen sürekli servis bildirimi cihazda doğrulanır",
+        "Kayıp/tekrar/yeniden bağlantı, bildirim izni ve güvenli hedefe dönüş sınanır; hassas içerik kilit ekranında korunur. Android periyodik zamanlaması, reboot ve OEM güç gecikmesi ayrı fiziksel kapıda doğrulanır.",
         "Sürümlü sözleşme, gerçek Client→izole Core/servis E2E, yetki/iptal/bozuk veya geç cevap, limitler ve tam commit CI kanıtı; ilgili fiziksel koşul MANUAL.* matrisinde açık kalır; yazılım kabulü donanım kabulü değildir."
       ],
       "requiredEvidence": [
@@ -3443,7 +3443,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek normal HTTPS Core→native delivery/restart/revoke kapısı kalıcı iptal 410 ayrımıyla geçti. Resmi Android incelemesi genel ev uyarısı pollinginin remoteMessaging FGS türüne uymadığını buldu. GMS-free WorkManager bounded periodic teslimine geçiş aktif: en az 15dk Android planlaması, açık gecikme/Doze nedeni, foreground inbox korunur; sonsuz FGS/yanlış policy iddiası yok. Tam worker kapısı, geniş CI ve fiziksel permission/trust/OEM MANUAL açık."
+      "reason": "Normal HTTPS Core→actual WorkManager scheduler/production Worker iki executionı sealed restart/dedupe ve gerçek server DELETE revoke sonrası credential/owned-alert clear ile geçti. Yanlış remoteMessaging FGS/custom boot yolu kaldırıldı; unique immediate+15dk periodic, max3 transient retry, iki ek catch-up page, exact 401/403/410 retirement ve 409 renewal ayrımı tamamlandı. Async enqueue failure yalnız exact current leaseye recovery yazar; eski callback yeni authorityyi bozmaz. Root actual native1pass, 5 TLS CLI ve 2 overlay testi; agent14 Kotlin, 34 Flutter+1 fixture skip, iki foreground normalCore lifetime ve scoped analyze geçti. Geniş exact HEAD CI, fiziksel permission/reboot/Doze/OEM/Keystore ve trusted operator hostname MANUAL açık. Kanıt: docs/testing/f54-normal-core-native-delivery-2026-09-30.md."
     },
     {
       "id": "F53",

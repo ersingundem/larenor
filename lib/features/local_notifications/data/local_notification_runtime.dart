@@ -63,8 +63,11 @@ final class LocalNotificationRuntimeCoordinator extends ChangeNotifier {
   bool get enabled => _enabled;
   bool get platformBusy => _platformBusy;
   bool get permissionPending => _permissionPending;
+  bool get backgroundEndpointUsesTls =>
+      _capture()?.session.endpoint.uri.scheme == 'https';
   bool get canEnableBackground =>
       _capture() != null &&
+      backgroundEndpointUsesTls &&
       !_platformBusy &&
       controller.loaded &&
       !controller.busy &&

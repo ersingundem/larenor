@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 56 seçili özellik ve K10/K12 CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 Android teslim politikası ve F63 kasa izolasyonu geliştirmede; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 57 seçili özellik ve K10/K12 CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 profil silme ve K13 gerçek kurulum sonucu geliştirmede; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F54 zamanlanmış Android teslim kabulü
+
+Google servislerinden bağımsız bildirim artık unique WorkManager immediate ve en az 15dk periyodik iş kullanır; yanlış remoteMessaging FGS ve özel boot receiver kaldırıldı. Root gerçek HTTPS Core→production Worker scheduler/store/renderer restart, dedupe ve Core DELETE revoke kabulünü geçti; 14 Kotlin, 34 Flutter, iki foreground normal Core lifetime ve analyze geçti. Async enqueue failure exact authorityyle görünür recovery olur; eski callback yeni leaseyi bozmaz. F54 CI bekliyor tablosuna taşındı: 57 seçili özellik; kabul sayaçları değişmedi. Android izin/reboot/Doze/OEM/Keystore/trust fiziksel kapıları açık. K13 submittedın terminal sonuç sayıldığı gerçek boşluk nedeniyle yeniden çalışılıyor. [F54 kanıtı](testing/f54-normal-core-native-delivery-2026-09-30.md).
 
 ### 30 Eylül F61 gerçek VNC host kapısı
 

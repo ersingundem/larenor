@@ -241,6 +241,8 @@ class _LocalNotificationScreenState
                       backgroundFailure: runtime.backgroundFailure,
                       backgroundOutcomeUnknown:
                           runtime.backgroundOutcomeUnknown,
+                      backgroundEndpointUsesTls:
+                          runtime.backgroundEndpointUsesTls,
                       onRequestPermission:
                           runtime.platformBusy || !_routeCurrent()
                           ? null

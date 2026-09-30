@@ -14,6 +14,7 @@ class LocalNotificationPlatformCard extends StatelessWidget {
     required this.onOpenPowerSettings,
     required this.backgroundFailure,
     required this.backgroundOutcomeUnknown,
+    this.backgroundEndpointUsesTls = true,
     required this.onEnableBackground,
     required this.onMaintainBackground,
     required this.onDisableBackground,
@@ -25,6 +26,7 @@ class LocalNotificationPlatformCard extends StatelessWidget {
   final VoidCallback? onOpenPowerSettings;
   final String? backgroundFailure;
   final bool backgroundOutcomeUnknown;
+  final bool backgroundEndpointUsesTls;
   final VoidCallback? onEnableBackground;
   final VoidCallback? onMaintainBackground;
   final VoidCallback? onDisableBackground;
@@ -55,6 +57,8 @@ class LocalNotificationPlatformCard extends StatelessWidget {
         ? l10n.localNotificationsBackgroundOutcomeUnknown
         : backgroundFailure != null
         ? l10n.localNotificationsBackgroundError
+        : status.canPresent && background == null && !backgroundEndpointUsesTls
+        ? l10n.localNotificationsBackgroundHttpsRequired
         : status.recoveryRequired
         ? l10n.localNotificationsBackgroundRecovery
         : background?.state == AndroidBackgroundDeliveryState.pending
@@ -115,7 +119,9 @@ class LocalNotificationPlatformCard extends StatelessWidget {
                 CupertinoButton.filled(
                   key: const ValueKey('notification-background-enable'),
                   minimumSize: const Size(48, 48),
-                  onPressed: onEnableBackground,
+                  onPressed: backgroundEndpointUsesTls
+                      ? onEnableBackground
+                      : null,
                   child: Text(l10n.localNotificationsBackgroundEnable),
                 ),
               if (background != null)

@@ -49,6 +49,11 @@ class LocalNotificationBridge(
 
     init {
         renderer.createChannel()
+        // WorkManager survives process death/reboot. Re-enqueueing by unique
+        // name also migrates an already active lease from the former service.
+        deliveryStore.load()?.takeIf { it.active }?.let {
+            LocalNotificationDeliveryWork.schedule(activity, it, deliveryStore)
+        }
         methods.setMethodCallHandler(this)
         events.setStreamHandler(this)
         handleIntent(activity.intent)
@@ -59,7 +64,6 @@ class LocalNotificationBridge(
 
     fun setResumed(value: Boolean) {
         resumed = value
-        LocalNotificationDeliveryRuntime.setActivityForeground(value)
         if (!value) cancelPermission("cancelled")
     }
 
@@ -81,12 +85,12 @@ class LocalNotificationBridge(
         val hadSealedRecord = deliveryStore.hasSealedRecord()
         val delivery = deliveryStore.load()
         if (hadSealedRecord && delivery == null) {
-            LocalNotificationDeliveryRuntime.markRecovery(activity, "deliveryStateUnavailable")
+            LocalNotificationDeliveryWork.markRecovery(activity, "deliveryStateUnavailable")
         }
         val recoveryRequired = store.getBoolean("recovery_required", false)
         val storedReason = store.getString("recovery_reason", null)
         val recoveryReason = if (!recoveryRequired) null else storedReason
-            ?.takeIf(LocalNotificationDeliveryRuntime.RECOVERY_REASONS::contains)
+            ?.takeIf(LocalNotificationDeliveryWork.RECOVERY_REASONS::contains)
             ?: "deliveryStateUnavailable"
         return mapOf(
             "schemaVersion" to 2,
@@ -210,7 +214,7 @@ class LocalNotificationBridge(
         val subscription = text(value["subscriptionId"], HEX_32)
         val revision = positive(value["subscriptionRevision"])
         var stopDelivery = false
-        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             val oldBinding = store.getString("binding_id", null)
             val oldSubscription = store.getString("subscription_id", null)
             val oldRevision = store.getLong("subscription_revision", 0L)
@@ -230,7 +234,7 @@ class LocalNotificationBridge(
                 .putBoolean("recovery_required", false)
                 .apply()
         }
-        if (stopDelivery) LocalNotificationDeliveryRuntime.stop(activity)
+        if (stopDelivery) LocalNotificationDeliveryWork.stop(activity)
     }
 
     private fun reconcile(value: Map<*, *>) {
@@ -253,7 +257,7 @@ class LocalNotificationBridge(
             if (event.sequence <= previous) throw NotificationRejected("outOfOrder")
             previous = event.sequence
         }
-        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             renderer.reconcile(binding, revision, parsed)
         }
     }
@@ -270,7 +274,7 @@ class LocalNotificationBridge(
         val expiresAt = finitePositive(value["expiresAt"])
         val now = System.currentTimeMillis() / 1000.0
         require(expiresAt >= now + 60 && expiresAt <= now + 30 * 24 * 60 * 60)
-        return synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        return synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             if (bindingId != store.getString("binding_id", null) ||
                 subscriptionId != store.getString("subscription_id", null) ||
                 subscriptionRevision != store.getLong("subscription_revision", 0L)
@@ -338,7 +342,7 @@ class LocalNotificationBridge(
         val fingerprint = text(value["credentialFingerprint"], HEX_64)
         val expiresAt = finitePositive(value["expiresAt"])
         val now = System.currentTimeMillis() / 1000.0
-        val active = synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        val active = synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             val pending = deliveryStore.load() ?: throw NotificationRejected("stale")
             if (pending.active && pending.leaseId == leaseId &&
                 pending.credentialFingerprint == fingerprint
@@ -368,8 +372,10 @@ class LocalNotificationBridge(
                 ).also(deliveryStore::save)
             }
         }
-        LocalNotificationDeliveryRuntime.clearRecovery(activity)
-        if (!LocalNotificationDeliveryRuntime.start(activity)) throw NotificationRejected("unavailable")
+        LocalNotificationDeliveryWork.clearRecovery(activity)
+        if (!LocalNotificationDeliveryWork.schedule(activity, active, deliveryStore)) {
+            throw NotificationRejected("unavailable")
+        }
         return deliveryActivation(active)
     }
 
@@ -385,7 +391,7 @@ class LocalNotificationBridge(
         require(value["schemaVersion"] == 1)
         val leaseId = text(value["leaseId"], HEX_32)
         val expectedRevision = positive(value["expectedLeaseRevision"])
-        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             val record = deliveryStore.load()
             if (record == null && leaseId == store.getString("revoked_delivery_lease_id", null) &&
                 expectedRevision == store.getLong("revoked_delivery_lease_revision", 0L)
@@ -400,8 +406,8 @@ class LocalNotificationBridge(
             if (!deliveryStore.clearIf(leaseId, expectedRevision)) throw NotificationRejected("stale")
             renderer.clearPostedNotifications()
         }
-        LocalNotificationDeliveryRuntime.stop(activity)
-        LocalNotificationDeliveryRuntime.clearRecovery(activity)
+        LocalNotificationDeliveryWork.stop(activity)
+        LocalNotificationDeliveryWork.clearRecovery(activity)
     }
 
     private fun cancelPreparedBackgroundDelivery(value: Map<*, *>) {
@@ -409,7 +415,7 @@ class LocalNotificationBridge(
         val leaseId = text(value["leaseId"], HEX_32)
         val fingerprint = text(value["credentialFingerprint"], HEX_64)
         val subscriptionRevision = positive(value["expectedSubscriptionRevision"])
-        synchronized(LocalNotificationDeliveryRuntime.LIFECYCLE_LOCK) {
+        synchronized(LocalNotificationDeliveryWork.LIFECYCLE_LOCK) {
             val pending = deliveryStore.load()
             if (pending?.phase == "pending" && pending.leaseId == leaseId &&
                 pending.credentialFingerprint == fingerprint &&
@@ -423,7 +429,7 @@ class LocalNotificationBridge(
                 if (!deliveryStore.clearPending(leaseId, fingerprint, subscriptionRevision)) {
                     throw NotificationRejected("stale")
                 }
-                LocalNotificationDeliveryRuntime.clearRecovery(activity)
+                LocalNotificationDeliveryWork.clearRecovery(activity)
                 return
             }
             if (pending == null &&

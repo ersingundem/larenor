@@ -105,6 +105,9 @@ class LocalNotificationBridgeTest {
             assertEquals("Larenor", notification.extras.getString("android.title"))
             assertFalse(notification.extras.toString().contains("Secret"))
             assertEquals(android.app.Notification.VISIBILITY_PRIVATE, notification.visibility)
+            assertNotNull(notification.publicVersion)
+            assertEquals("Larenor", notification.publicVersion.extras.getString("android.title"))
+            assertFalse(notification.publicVersion.extras.toString().contains("Secret"))
             val tap = Shadows.shadowOf(notification.contentIntent).savedIntent
             assertTrue(bridge.handleIntent(Intent(tap)))
             assertEquals(1, sink.values.size)
@@ -160,7 +163,7 @@ class LocalNotificationBridgeTest {
         } finally { bridge.dispose(); activity.pause().stop().destroy() }
     }
 
-    @Test fun bootOnlyMarksBoundedRecoveryAndPowerActionNeverRequestsExemption() {
+    @Test fun corruptedDeliveryMarksBoundedRecoveryAndPowerActionNeverRequestsExemption() {
         val activity = activity(); val messenger = Messenger()
         val manager = activity.get().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(NotificationChannel(
@@ -169,14 +172,12 @@ class LocalNotificationBridgeTest {
         try {
             assertNotNull(manager.getNotificationChannel(LocalNotificationBridge.CHANNEL_ID))
             assertNull(manager.getNotificationChannel("larenor_local_notifications_v0"))
-            // A reboot without a provisioned background lease is normal. Seed a
-            // truncated sealed record so the receiver exercises its bounded
+            // Seed a truncated sealed record so status exercises its bounded
             // recovery path instead of reviving a stale credential.
             activity.get().getSharedPreferences(
                 "larenor_local_notification_delivery_store_v1",
                 Context.MODE_PRIVATE,
             ).edit().putString("ciphertext", "invalid").commit()
-            LocalNotificationBootReceiver().onReceive(activity.get(), Intent(Intent.ACTION_BOOT_COMPLETED))
             assertEquals(
                 true,
                 ((messenger.call("probe").value as Map<*, *>)["recovery"] as Map<*, *>)["required"],

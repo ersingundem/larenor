@@ -1,0 +1,33 @@
+{
+  "services": {
+    "larenor-core": {
+      "command": [
+        "--host", "0.0.0.0",
+        "--port", "8098",
+        "--tls-cert", "/tls/server.pem",
+        "--tls-key", "/tls/server.key"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/var/lib/larenor-server/core/tls",
+          "target": "/tls",
+          "read_only": true,
+          "bind": {"create_host_path": false}
+        }
+      ],
+      "healthcheck": {
+        "interval": "30s",
+        "timeout": "5s",
+        "start_period": "20s",
+        "retries": 3,
+        "test": [
+          "CMD",
+          "/opt/larenor/.venv/bin/python",
+          "-c",
+          "import json,ssl,urllib.request; c=ssl.create_default_context(cafile='/tls/server.pem'); c.check_hostname=False; c.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN; r=urllib.request.urlopen('https://127.0.0.1:8098/api/v1/health', context=c, timeout=3); assert r.status == 200 and json.load(r)['service'] == 'larenor-server'"
+        ]
+      }
+    }
+  }
+}

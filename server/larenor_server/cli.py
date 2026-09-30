@@ -1,4 +1,5 @@
 import argparse
+import ssl
 import sys
 import time
 from contextlib import nullcontext
@@ -19,6 +20,25 @@ from .core_backups.service import MAX_BUNDLE_BYTES
 from .errors import ApiError, StartupError
 from .files import private_read, private_read_mutable
 from .runtime import create_configured_app
+
+
+_MAX_TLS_PEM_BYTES = 64 * 1024
+
+
+def _validate_tls_configuration(cert_path: Path, key_path: Path) -> None:
+    """Validate private, bounded PEM inputs and their certificate/key pairing."""
+    key_material = None
+    try:
+        private_read(cert_path, _MAX_TLS_PEM_BYTES)
+        key_material = private_read_mutable(key_path, _MAX_TLS_PEM_BYTES)
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    except (OSError, ssl.SSLError, ValueError):
+        raise StartupError("tls_configuration_invalid") from None
+    finally:
+        if key_material is not None:
+            key_material[:] = b"\0" * len(key_material)
 
 
 def _decode_restore_passphrase(encoded: bytearray) -> str:
@@ -47,6 +67,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Larenor Server API")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8098)
+    parser.add_argument("--tls-cert", type=Path, metavar="FILE")
+    parser.add_argument("--tls-key", type=Path, metavar="FILE")
     parser.add_argument("--initialize-only", action="store_true")
     parser.add_argument("--restore", type=Path, metavar="BUNDLE")
     parser.add_argument("--restore-passphrase-file", type=Path, metavar="FILE")
@@ -59,6 +81,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if (args.restore is None) != (args.restore_passphrase_file is None):
         parser.error("--restore and --restore-passphrase-file must be used together")
+    if (args.tls_cert is None) != (args.tls_key is None):
+        parser.error("--tls-cert and --tls-key must be used together")
     component_values = (
         args.component_restore_container_journal,
         args.component_restore_volume_journal,
@@ -72,6 +96,8 @@ def main(argv=None) -> int:
     ):
         parser.error("component restore authority must be complete")
     try:
+        if args.tls_cert is not None:
+            _validate_tls_configuration(args.tls_cert, args.tls_key)
         settings = Settings.from_environment()
         if args.restore is not None:
             runtime_context = nullcontext(None)
@@ -128,18 +154,24 @@ def main(argv=None) -> int:
         )
     if args.initialize_only:
         return 0
-    uvicorn.run(
-        app,
-        host=args.host,
-        port=args.port,
-        workers=1,
-        access_log=False,
-        proxy_headers=False,
-        server_header=False,
-        limit_concurrency=32,
-        timeout_keep_alive=5,
-        h11_max_incomplete_event_size=16384,
-    )
+    options = {
+        "host": args.host,
+        "port": args.port,
+        "workers": 1,
+        "access_log": False,
+        "proxy_headers": False,
+        "server_header": False,
+        "limit_concurrency": 32,
+        "timeout_keep_alive": 5,
+        "h11_max_incomplete_event_size": 16384,
+    }
+    if args.tls_cert is not None:
+        options.update(
+            ssl_certfile=str(args.tls_cert),
+            ssl_keyfile=str(args.tls_key),
+            ssl_version=ssl.PROTOCOL_TLS_SERVER,
+        )
+    uvicorn.run(app, **options)
     return 0
 
 

@@ -30,7 +30,11 @@ internal data class LocalNotificationDeliveryRecord(
 }
 
 /** Keeps delivery credentials encrypted by a non-exportable Android Keystore key. */
-internal class LocalNotificationDeliveryStore(context: Context) {
+internal class LocalNotificationDeliveryStore(
+    context: Context,
+    // Tests can supply a local AES key; production always uses Android Keystore.
+    private val testKeyProvider: ((Boolean) -> SecretKey)? = null,
+) {
     companion object {
         private const val STORE = "larenor_local_notification_delivery_store_v1"
         private const val KEY_ALIAS = "larenor_local_notification_delivery_key_v1"
@@ -51,7 +55,7 @@ internal class LocalNotificationDeliveryStore(context: Context) {
         if (ciphertext == null || iv == null) return@synchronized invalidate()
         try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, key(false), GCMParameterSpec(128, decode(iv)))
+            cipher.init(Cipher.DECRYPT_MODE, testKeyProvider?.invoke(false) ?: key(false), GCMParameterSpec(128, decode(iv)))
             cipher.updateAAD(AAD.toByteArray(Charsets.UTF_8))
             decodeRecord(JSONObject(String(cipher.doFinal(decode(ciphertext)), Charsets.UTF_8)))
         } catch (_: Exception) {
@@ -62,7 +66,7 @@ internal class LocalNotificationDeliveryStore(context: Context) {
     fun save(record: LocalNotificationDeliveryRecord) = synchronized(lock) {
         val plain = encodeRecord(record).toString().toByteArray(Charsets.UTF_8)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, key(true))
+        cipher.init(Cipher.ENCRYPT_MODE, testKeyProvider?.invoke(true) ?: key(true))
         cipher.updateAAD(AAD.toByteArray(Charsets.UTF_8))
         val encrypted = cipher.doFinal(plain)
         if (!preferences.edit()

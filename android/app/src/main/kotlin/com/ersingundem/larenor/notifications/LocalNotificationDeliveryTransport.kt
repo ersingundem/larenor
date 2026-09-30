@@ -15,16 +15,40 @@ internal sealed interface DeliveryPullResult {
     data class Success(val events: List<LocalNotificationRenderEvent>, val more: Boolean) : DeliveryPullResult
     data object AuthorityRejected : DeliveryPullResult
     data object AuthorityChanged : DeliveryPullResult
+    data object LeaseRenewalRequired : DeliveryPullResult
     data object TransientFailure : DeliveryPullResult
     data object ProtocolRejected : DeliveryPullResult
 }
 
 /** Credential-isolated GET transport for the projection-only delivery endpoint. */
-internal class LocalNotificationDeliveryTransport {
+internal class LocalNotificationDeliveryTransport(
+    baseClient: OkHttpClient? = null,
+) {
     companion object {
         private const val MAX_BYTES = 65_536
         private const val LIMIT = 50
         private const val CREDENTIAL_HEADER = "X-Larenor-Delivery-Credential"
+
+        private fun hardenedClient(baseClient: OkHttpClient?) =
+            (baseClient?.newBuilder() ?: OkHttpClient.Builder())
+            .cookieJar(CookieJar.NO_COOKIES)
+            .authenticator(Authenticator.NONE)
+            .proxyAuthenticator(Authenticator.NONE)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .retryOnConnectionFailure(false)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.method != "GET" || request.header("Authorization") != null ||
+                    request.header("Cookie") != null || request.header("Proxy-Authorization") != null ||
+                    request.headers(CREDENTIAL_HEADER).size != 1
+                ) throw IOException("delivery_request_rejected")
+                chain.proceed(request)
+            }
+            .build()
 
         fun validateBaseUrl(value: String): String {
             val trimmed = value.trim()
@@ -37,25 +61,7 @@ internal class LocalNotificationDeliveryTransport {
         }
     }
 
-    private val client = OkHttpClient.Builder()
-        .cookieJar(CookieJar.NO_COOKIES)
-        .authenticator(Authenticator.NONE)
-        .proxyAuthenticator(Authenticator.NONE)
-        .followRedirects(false)
-        .followSslRedirects(false)
-        .retryOnConnectionFailure(false)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(30, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            val request = chain.request()
-            if (request.method != "GET" || request.header("Authorization") != null ||
-                request.header("Cookie") != null || request.header("Proxy-Authorization") != null ||
-                request.headers(CREDENTIAL_HEADER).size != 1
-            ) throw IOException("delivery_request_rejected")
-            chain.proceed(request)
-        }
-        .build()
+    private val client = hardenedClient(baseClient)
 
     fun pull(record: LocalNotificationDeliveryRecord): DeliveryPullResult {
         val url = try {
@@ -73,7 +79,8 @@ internal class LocalNotificationDeliveryTransport {
                     200 -> parse(record, response.header("Content-Type"), response.header("Content-Encoding"),
                         response.body.byteStream().use(::readBounded))
                     401, 403, 410 -> DeliveryPullResult.AuthorityRejected
-                    404, 409 -> DeliveryPullResult.AuthorityChanged
+                    404 -> DeliveryPullResult.AuthorityChanged
+                    409 -> DeliveryPullResult.LeaseRenewalRequired
                     408, 425, 429, in 500..599 -> DeliveryPullResult.TransientFailure
                     else -> DeliveryPullResult.ProtocolRejected
                 }

@@ -74,4 +74,107 @@ void main() {
       );
     }
   }
+
+  testWidgets('plain HTTP keeps the inbox but disables background delivery', (
+    tester,
+  ) async {
+    var enables = 0;
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: CupertinoPageScaffold(
+          child: LocalNotificationPlatformCard(
+            status: const AndroidNotificationStatus(
+              permission: AndroidNotificationPermission.granted,
+              channelEnabled: true,
+              recoveryRequired: false,
+              batteryOptimizationExempt: false,
+              deliveryMode: 'foregroundPull',
+            ),
+            onRequestPermission: null,
+            onOpenNotificationSettings: null,
+            onOpenPowerSettings: null,
+            backgroundFailure: null,
+            backgroundOutcomeUnknown: false,
+            backgroundEndpointUsesTls: false,
+            onEnableBackground: () => enables++,
+            onMaintainBackground: null,
+            onDisableBackground: null,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Background delivery requires a trusted HTTPS Core address. '
+        'The in-app inbox remains available over this connection.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('notification-background-enable')),
+      warnIfMissed: false,
+    );
+    expect(enables, 0);
+  });
+
+  for (final (locale, text) in const [
+    (
+      Locale('en'),
+      'Delayed background delivery is scheduled through a scoped Core lease. '
+          'Android decides the run time; immediate delivery is not guaranteed.',
+    ),
+    (
+      Locale('tr'),
+      'Gecikmeli arka plan teslimi kapsamı sınırlı bir Core kirasıyla '
+          'zamanlandı. Çalışma zamanını Android belirler; anında teslim garanti '
+          'edilmez.',
+    ),
+  ]) {
+    testWidgets(
+      'active background status states delayed Android scheduling in ${locale.languageCode}',
+      (tester) async {
+        await tester.pumpWidget(
+          CupertinoApp(
+            locale: locale,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: CupertinoPageScaffold(
+              child: LocalNotificationPlatformCard(
+                status: AndroidNotificationStatus(
+                  permission: AndroidNotificationPermission.granted,
+                  channelEnabled: true,
+                  recoveryRequired: false,
+                  batteryOptimizationExempt: false,
+                  deliveryMode: 'backgroundLease',
+                  backgroundDelivery: AndroidBackgroundDelivery(
+                    state: AndroidBackgroundDeliveryState.active,
+                    leaseId: 'a' * 32,
+                    leaseRevision: 3,
+                    subscriptionRevision: 4,
+                    credentialFingerprint: 'b' * 64,
+                    expiresAt: DateTime.utc(2026, 10, 1),
+                  ),
+                ),
+                onRequestPermission: null,
+                onOpenNotificationSettings: null,
+                onOpenPowerSettings: null,
+                backgroundFailure: null,
+                backgroundOutcomeUnknown: false,
+                onEnableBackground: null,
+                onMaintainBackground: null,
+                onDisableBackground: null,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining(text), findsOneWidget);
+      },
+    );
+  }
 }
