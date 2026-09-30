@@ -233,6 +233,29 @@ def _wheel_rows(directory: Path):
     return rows
 
 
+def _merge_uv_project_wheel(build_output: Path, wheelhouse: Path):
+    """Admit only uv's exact marker plus one built Larenor wheel."""
+    entries = tuple(sorted(build_output.iterdir(), key=lambda item: item.name))
+    marker = build_output / ".gitignore"
+    wheels = tuple(item for item in entries if item.suffix == ".whl")
+    if (
+        len(entries) != 2
+        or marker not in entries
+        or marker.is_symlink()
+        or not marker.is_file()
+        or marker.stat().st_nlink != 1
+        or marker.read_bytes() != b"*"
+        or len(wheels) != 1
+        or wheels[0].is_symlink()
+        or not wheels[0].is_file()
+        or wheels[0].stat().st_nlink != 1
+        or not wheels[0].name.lower().startswith("larenor_server-")
+        or (wheelhouse / wheels[0].name).exists()
+    ):
+        raise RuntimeError("server_project_wheel_invalid")
+    wheels[0].rename(wheelhouse / wheels[0].name)
+
+
 def build(*, root: Path, work: Path, uv: Path, python: Path,
           source_revision: str, platform_name: str):
     root = root.resolve()
@@ -252,10 +275,17 @@ def build(*, root: Path, work: Path, uv: Path, python: Path,
         raise RuntimeError("host_package_arguments_invalid")
     work.mkdir(mode=0o755)
     server_wheels = work / "server-wheels"
+    server_project_wheel = work / "server-project-wheel"
     unmanic_wheels = work / "unmanic-wheels"
     source_root = work / "source"
     frontend_root = work / "frontend-source"
-    for path in (server_wheels, unmanic_wheels, source_root, frontend_root):
+    for path in (
+        server_wheels,
+        server_project_wheel,
+        unmanic_wheels,
+        source_root,
+        frontend_root,
+    ):
         path.mkdir(mode=0o755)
     node_version, npm_version = _frontend_tool_versions()
 
@@ -281,8 +311,9 @@ def build(*, root: Path, work: Path, uv: Path, python: Path,
     ])
     _run([
         uv, "build", "--wheel", "--python", python,
-        "--out-dir", server_wheels, root / "server",
+        "--out-dir", server_project_wheel, root / "server",
     ])
+    _merge_uv_project_wheel(server_project_wheel, server_wheels)
 
     archive = work / "unmanic-source.tar.gz"
     _download_archive(archive)

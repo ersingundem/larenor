@@ -122,6 +122,29 @@ def test_frontend_build_tool_versions_match_upstream_engines(monkeypatch):
         package._frontend_tool_versions()
 
 
+def test_uv_project_wheel_marker_is_verified_outside_the_bundle(tmp_path):
+    output = tmp_path / "uv-output"
+    wheels = tmp_path / "wheels"
+    output.mkdir()
+    wheels.mkdir()
+    (output / ".gitignore").write_bytes(b"*")
+    wheel = output / "larenor_server-0.1.0-py3-none-any.whl"
+    wheel.write_bytes(b"wheel")
+
+    package._merge_uv_project_wheel(output, wheels)
+    assert not wheel.exists()
+    assert (wheels / wheel.name).read_bytes() == b"wheel"
+    assert (output / ".gitignore").read_bytes() == b"*"
+
+    foreign = tmp_path / "foreign-output"
+    foreign.mkdir()
+    (foreign / ".gitignore").write_bytes(b"*")
+    (foreign / wheel.name).write_bytes(b"wheel")
+    (foreign / "unexpected.txt").write_text("not admitted")
+    with pytest.raises(RuntimeError, match="server_project_wheel_invalid"):
+        package._merge_uv_project_wheel(foreign, wheels)
+
+
 def test_committed_unmanic_lock_pins_every_upstream_runtime_dependency_with_hashes():
     lock = (
         ROOT / "deploy/larenor-server/host_workers/unmanic-requirements.lock"

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host wheelhouse kabulündeki gerçek marker düzeltmesi
+
+Exact `e89dac174feaef6e9249390c758668ee3642adb0` host CI `36751825371` gerçek upstream wheel üretimini geçti; pinned `uv build` çıktı dizinine eklediği exact tek-byte `.gitignore` nedeniyle strict offline bundle wheelhouse reddedildi. Builder uv proje çıktısını ayrı dizine alır, yalnız exact marker ve tek regular Larenor wheel biçimini kabul eder, yalnız wheel'i bundle dizinine taşır. Strict bundle doğrulaması gevşetilmedi. Root F40 ve host paket odaklı toplam 16 testi doğruladı. Yeni exact host koşusu bu gerçek düzeltmeden sonra çalıştırılacak.
+
 ### 30 Eylül F46 gerçek EV Client/Core/evcc kabulü
 
 Gerçek Flutter → normal Uvicorn Core → owned evcc TCP yolunda negatif tarife, 16→8 A plan/confirm, kayıp ACK, aynı command kimliğiyle tek POST ve GET exact readback geçti. Ayrı Core/Client restart sonrası aynı synthetic session family yeniden doğrulandı ve kalıcı verified makbuz okundu. 26 Server, 11 Flutter, iki gerçek Client fazı ve analyze geçti; fiziksel EV/utility feed kabulü iddia edilmedi. F46 CI bekliyor tablosuna taşındı; 40 özellik geniş CI bekliyor, F59 aktif geliştirme. Kabul sayaçları değişmedi. [Adlandırılmış kabul](testing/f46-normal-core-tcp-acceptance-2026-09-30.md).
