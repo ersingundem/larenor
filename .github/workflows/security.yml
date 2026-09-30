@@ -1,8 +1,9 @@
 name: Security
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/project-completion-100]
   pull_request:
   schedule:
     - cron: "0 6 * * 1"
