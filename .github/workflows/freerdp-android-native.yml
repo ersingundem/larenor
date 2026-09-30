@@ -127,7 +127,7 @@
             "emulator-options": "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none",
             "disable-animations": true,
             "disable-spellchecker": true,
-            "disable-linux-hw-accel": false,
+            "disable-linux-hw-accel": true,
             "script": "set -euo pipefail\ncd android\n./gradlew --no-daemon :app:connectedDebugAndroidTest \\\n  -Pandroid.testInstrumentationRunnerArguments.class=com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpHost=10.0.2.2 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPort=3390 \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpUsername=larenor \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR \\\n  -Pandroid.testInstrumentationRunnerArguments.rdpPassword=\"$RDP_ACCEPTANCE_PASSWORD\"\n"
           }
         },

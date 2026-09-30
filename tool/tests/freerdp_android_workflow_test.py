@@ -105,6 +105,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(client["if"], "matrix.abi == 'x86_64'")
         self.assertRegex(client["uses"],
                          r"^ReactiveCircus/android-emulator-runner@[0-9a-f]{40}$")
+        self.assertIs(client["with"]["disable-linux-hw-accel"], True)
         script = client["with"]["script"]
         self.assertIn(":app:connectedDebugAndroidTest", script)
         self.assertIn("RdpPackagedHostAcceptanceTest", script)
