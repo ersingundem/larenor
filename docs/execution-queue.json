@@ -3863,7 +3863,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor."
+      "reason": "Core ve Client uygulaması tamamlandı; yetki, iptal, bozuk/geç cevap, limit ve tam CI kanıtları son test aşamasını bekliyor. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
     },
     {
       "id": "F14",
@@ -3895,7 +3895,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık."
+      "reason": "Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
     },
     {
       "id": "F19",
