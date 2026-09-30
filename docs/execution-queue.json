@@ -5338,7 +5338,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Run36772273119 exact f5b382ce gerçek TigerVNC testine ulaştı; üretim istemci TLS hazır byteını okumadığı için inspect başarısız oldu. TigerVNC1.13.1 resmî kaynak sırasına göre düzeltildi; root üç production loopback/no-TLS-on-reject native testi sıfır skip/failure ile geçti. Yeni exact gerçek hosted class/method bir test/sıfır skip receipt olmadan CI bekliyor sayılmaz. Fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
+      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Exact 2cf908b2/run36774361551 gerçek X509Vnc/SPKI/auth ve ilk 800x600 framebufferı aldı; ilk-frame renk çeşitliliği assertionında fixtureın solid rootu nedeniyle düştü. Disposable X.Org xsetroot -mod iki-renk patternı eklendi; üretim TLS/backend/assertion gevşetilmedi. Root 9 VNC policy, toplam 45 VNC/kuyruk/progress araç testini geçti. Yeni exact gerçek TigerVNC bir named test/sıfır skip receipt bitmeden uygulanmış kalır; geniş CI ve fiziksel keyboard/IME/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
     },
     {
       "id": "FINAL",

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül VNC ilk gerçek frame fixture düzeltmesi
+
+Exact 2cf908b2/run36774361551 gerçek X509Vnc/SPKI/auth üzerinden ilk 800x600 framei aldı; fixtureın solid rootu ilk-frame çeşitlilik assertionını geçirmedi. Disposable xsetroot artık resmî X.Org -mod iki-renk patternını test öncesi boyar. Üretim TLS/backend veya native assertion değişmedi. Root 9 VNC policy, toplam 45 VNC/kuyruk/progress araç testini geçti. Yeni exact hosted sonuç açık; F61 CI bekliyor/done sayılmadı. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül F47 geçmiş rezerv incelemesi kabulü
 
 Gerçek Flutter Client→normal Core→owned evcc/HA iki yaşamı root tarafından tekrar geçti; 18 F47 Server ve F47/F28 ortak 37 Flutter testi geçti, scoped analyze temiz. Pinned evcc socTemp slot-start geçmişi current reserve ile karşılaştırılır; eksik forecast/multiple battery ve tarihsel reserve/capacity/manual tercih açık unknown kalır. Normal gözlem ilerlemesi sahte conflict üretmez, policy/service/authority drift reddedilir. F47 CI bekliyor tablosuna taşındı: 55 seçili özellik, toplam 64 iş; 37/127 ve 3/63 kabul sayacı değişmedi. Fiziksel inverter MANUAL açık. [Kabul kanıtı](testing/f47-reserve-backtest-2026-09-30.md).

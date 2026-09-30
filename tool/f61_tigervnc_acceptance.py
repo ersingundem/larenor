@@ -311,7 +311,18 @@ def main() -> int:
             wait_for_display(display, xdpyinfo, xvnc_process)
             wait_for_port(address, port, xvnc_process)
             subprocess.run(
-                [xsetroot, "-display", display, "-solid", "#315a9c"],
+                [
+                    xsetroot,
+                    "-display",
+                    display,
+                    "-mod",
+                    "8",
+                    "8",
+                    "-fg",
+                    "#315a9c",
+                    "-bg",
+                    "#f5c842",
+                ],
                 check=True,
                 timeout=10,
             )

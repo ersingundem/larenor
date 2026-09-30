@@ -143,3 +143,5 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
 7. **F63 — güçlü named exact CI geçti:** run `36772281257`, exact `f5b382cec7e3d4ced65535e8e538e696fbb3fec6`, gerçek Linux SSH/SFTP/tunnel, normal Core/no-replay, Android APK ve kontrat adımlarını yeşil bitirdi. Root güçlü yedi named test/sıfır skip/sourceRevision receiptini indirdi ve doğruladı. Geniş sonraki HEAD CI ve fiziksel MANUAL ayrıca açık.
 
 K09 ve PRODUCT.CAMERA root bağımsız software kapıları kapandı; CI bekliyor tablosundalar. Bu hosted receipts fiziksel cihaz kanıtı değildir. VNC/RDP/SSH hedef hostları, DeX/IME, kamera donanımı, MQTT broker deploymentı ve household ağ davranışı ilgili `MANUAL.*` kapılarında ayrıca kalır. FINAL.FUNCTION yalnız gerçek yazılım açıkları kapanınca ilerler; ikinci FINAL aktif değildir.
+
+F61 subsequent exact `2cf908b2` / run `36774361551` completed X509Vnc and returned the first 800×600 frame. The deterministic multicolor fixture repair closes only its initial solid-frame precondition; the full native lifecycle receipt still requires a new hosted run.

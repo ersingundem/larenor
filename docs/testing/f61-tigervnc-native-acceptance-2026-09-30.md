@@ -179,3 +179,32 @@ type error before native tests. The final narrow Kotlin run excluded
 `:app:compileFlutterBuildDebug` and passed in 14 seconds; it is native protocol
 evidence, not a new full application build. A new exact hosted TigerVNC receipt
 is still required. F61 remains implemented/awaiting native validation.
+
+## Hosted first-frame fixture repair
+
+[Run 36774361551](https://github.com/ersingundem/larenor/actions/runs/36774361551)
+on exact `2cf908b21d6253e120e9b84d89b7ad92fc86a41b` reached the owned TigerVNC
+server, completed X509Vnc negotiation and produced the first 800 by 600 frame.
+The single acceptance method then failed at its first-frame diversity assertion.
+This was after the earlier VeNCrypt readiness repair; the server log confirmed
+the requested VeNCrypt and X509Vnc security types and the requested 32-bit pixel
+format.
+
+The fixture only painted a solid root color. The xterm visibility check proved
+that a window had been mapped, but it did not guarantee that the server's first
+full framebuffer response contained that window's later paint. The test's
+requirement for more than four distinct byte values was therefore stronger than
+the fixture it controlled. The runner now uses X.Org's documented
+[`xsetroot -mod` pattern with foreground and background colors](https://xorg.freedesktop.org/archive/X11R7.0/doc/html/xsetroot.1.html)
+to paint a fixed two-color 8 by 8 root before launching Gradle. That makes the
+first full frame deterministically non-solid while leaving the later xterm
+input-change assertion independent. TLS, SPKI pinning, password authentication
+and the production VNC backend are unchanged.
+
+The runner/workflow policy suite now has 9 passing tests, including a regression
+that requires both fixed colors and rejects the former solid-root command.
+Python compilation and whitespace validation also pass. No hosted rerun was
+started from this workspace; a new source-bound run is still required for the
+actual TigerVNC receipt.
+
+Root independently passed 9 VNC workflow policy tests and 45 combined VNC/queue/commit-progress tests; Python compilation and exact diff check passed. The new fixture requires a fresh exact hosted receipt; no passing native acceptance is inferred from the previous first-frame observation.

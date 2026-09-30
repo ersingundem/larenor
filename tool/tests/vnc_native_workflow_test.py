@@ -131,6 +131,24 @@ class VncNativeWorkflowTest(unittest.TestCase):
         self.assertNotIn("shell=True", self.runner)
         self.assertNotIn('"--name"', self.runner)
 
+    def test_runner_paints_a_deterministic_multicolor_first_frame(self):
+        painted_root = self.runner[self.runner.index("[\n                    xsetroot,") :]
+        painted_root = painted_root[: painted_root.index("],") + 2]
+        for value in (
+            '"-display"',
+            '"-mod"',
+            '"8"',
+            '"-fg"',
+            '"#315a9c"',
+            '"-bg"',
+            '"#f5c842"',
+        ):
+            self.assertIn(value, painted_root)
+        self.assertNotIn(
+            '[xsetroot, "-display", display, "-solid", "#315a9c"]',
+            self.runner,
+        )
+
     def test_only_f61_paths_trigger_the_workflow(self):
         paths = self.workflow["on"]["pull_request"]["paths"]
         self.assertTrue(paths)
