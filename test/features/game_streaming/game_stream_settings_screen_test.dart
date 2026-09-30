@@ -53,6 +53,25 @@ final class _FailingProviderPort
       Future.error(const GameStreamException('provider_launch_failed'));
 }
 
+final class _PendingProviderPort extends _FailingProviderPort {
+  final launches = <Completer<AndroidGameStreamProviderLaunch>>[];
+
+  @override
+  Future<AndroidGameStreamProviderLaunch> openProvider() {
+    final pending = Completer<AndroidGameStreamProviderLaunch>();
+    launches.add(pending);
+    return pending.future;
+  }
+
+  void complete(int index) => launches[index].complete(
+    const AndroidGameStreamProviderLaunch(
+      provider: 'moonlight',
+      engineRevision: 'moonlight-1202',
+      handoffOnly: true,
+    ),
+  );
+}
+
 Future<AppInteractionController> _mount(
   WidgetTester tester, {
   required Widget child,
@@ -253,7 +272,9 @@ void main() {
       );
       final screen = find.byType(GameStreamSettingsScreen);
       final l10n = AppLocalizations.of(tester.element(screen));
-      expect(find.text(l10n.gameStreamingAvailable), findsOneWidget);
+      expect(find.text(l10n.gameStreamingAvailable), findsNothing);
+      expect(find.textContaining('Moonlight is installed'), findsOneWidget);
+      expect(find.text(l10n.gameStreamingBoundaryBody), findsNothing);
       await tester.tap(find.byKey(const ValueKey('game-stream-open-provider')));
       await tester.pumpAndSettle();
       final error = find.byKey(const ValueKey('game-stream-provider-error'));
@@ -263,8 +284,73 @@ void main() {
         tester.getSemantics(error).label,
         contains('Moonlight could not be opened'),
       );
-      expect(find.text(l10n.gameStreamingAvailable), findsOneWidget);
+      expect(find.text(l10n.gameStreamingAvailable), findsNothing);
+      expect(find.textContaining('Moonlight is installed'), findsOneWidget);
       expect(find.text(l10n.gameStreamingError), findsNothing);
+    },
+  );
+
+  testWidgets('external launch retirement does not lock the next visit', (
+    tester,
+  ) async {
+    final port = _PendingProviderPort();
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSettingsScreen(port: port, gateCurrent: () => true),
+    );
+    final open = find.byKey(const ValueKey('game-stream-open-provider'));
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await tester.pump();
+    expect(port.launches, hasLength(1));
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    final refresh = find.byKey(const ValueKey('game-stream-refresh'));
+    await Scrollable.ensureVisible(tester.element(refresh), alignment: 0.5);
+    await tester.tap(refresh);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await tester.pump();
+    expect(port.launches, hasLength(2));
+    expect(find.text('Opening Moonlight…'), findsOneWidget);
+
+    port.complete(0);
+    await tester.pump();
+    expect(find.text('Opening Moonlight…'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('game-stream-provider-error')),
+      findsNothing,
+    );
+    port.complete(1);
+    await tester.pumpAndSettle();
+    expect(find.text('Open Moonlight'), findsOneWidget);
+  });
+
+  testWidgets(
+    'retired gate cannot dispatch an external launch from an old tap',
+    (tester) async {
+      var current = true;
+      final port = _PendingProviderPort();
+      await _mount(
+        tester,
+        language: 'tr',
+        width: 1280,
+        child: GameStreamSettingsScreen(port: port, gateCurrent: () => current),
+      );
+      expect(find.textContaining('Moonlight kurulu'), findsOneWidget);
+      final open = find.byKey(const ValueKey('game-stream-open-provider'));
+      await tester.ensureVisible(open);
+      current = false;
+      // The already-rendered tap closure is still enabled until a rebuild.
+      await tester.tap(open);
+      await tester.pump();
+      expect(port.launches, isEmpty);
+      expect(tester.takeException(), isNull);
     },
   );
 }

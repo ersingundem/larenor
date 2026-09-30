@@ -109,6 +109,9 @@ class _GameStreamSettingsScreenState
   void _invalidate({required bool clearStatus}) {
     _generation += 1;
     _loading = false;
+    // Opening another app normally retires this route before its method-channel
+    // reply arrives. That old attempt must not leave the next visit busy.
+    _openingProvider = false;
     if (clearStatus) {
       _capabilities = null;
       _hosts = null;
@@ -198,6 +201,7 @@ class _GameStreamSettingsScreenState
     }
     final providerPort = provider as GameStreamProviderPort;
     final generation = _generation;
+    if (!_current(generation)) return;
     setState(() {
       _openingProvider = true;
       _providerError = false;
@@ -237,7 +241,9 @@ class _GameStreamSettingsScreenState
         : _error != null
         ? l10n.gameStreamingError
         : _capabilities?.available == true
-        ? l10n.gameStreamingAvailable
+        ? _capabilities?.handoffOnly == true
+              ? copy.handoffAvailable
+              : l10n.gameStreamingAvailable
         : _capabilities != null
         ? l10n.gameStreamingUnavailable
         : l10n.gameStreamingNotChecked;
@@ -246,7 +252,9 @@ class _GameStreamSettingsScreenState
         : _error != null
         ? CupertinoColors.systemRed
         : _capabilities?.available == true
-        ? CupertinoColors.systemGreen
+        ? _capabilities?.handoffOnly == true
+              ? CupertinoColors.systemBlue
+              : CupertinoColors.systemGreen
         : _capabilities != null
         ? CupertinoColors.systemOrange
         : CupertinoColors.secondaryLabel;
@@ -288,7 +296,9 @@ class _GameStreamSettingsScreenState
                     children: [
                       Icon(
                         _capabilities?.available == true
-                            ? CupertinoIcons.checkmark_circle_fill
+                            ? _capabilities?.handoffOnly == true
+                                  ? CupertinoIcons.arrow_up_right_square
+                                  : CupertinoIcons.checkmark_circle_fill
                             : CupertinoIcons.game_controller_solid,
                         color: statusColor.resolveFrom(context),
                       ),
@@ -426,8 +436,8 @@ class _GameStreamSettingsScreenState
                             ),
                           ),
                           const Icon(
-                            CupertinoIcons.checkmark_shield_fill,
-                            color: CupertinoColors.systemGreen,
+                            CupertinoIcons.info_circle,
+                            color: CupertinoColors.secondaryLabel,
                           ),
                         ],
                       ),
@@ -445,7 +455,11 @@ class _GameStreamSettingsScreenState
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(l10n.gameStreamingBoundaryBody),
+              child: Text(
+                capabilities?.handoffOnly == true
+                    ? copy.handoffBoundary
+                    : l10n.gameStreamingBoundaryBody,
+              ),
             ),
           ],
         ),
@@ -462,6 +476,7 @@ final class _GameStreamCopy {
     required this.version,
     required this.unknown,
     required this.handoffBoundary,
+    required this.handoffAvailable,
     required this.configuredHosts,
     required this.hostsBoundary,
     required this.hostReadFailed,
@@ -476,6 +491,7 @@ final class _GameStreamCopy {
   final String version;
   final String unknown;
   final String handoffBoundary;
+  final String handoffAvailable;
   final String configuredHosts;
   final String hostsBoundary;
   final String hostReadFailed;
@@ -492,6 +508,8 @@ final class _GameStreamCopy {
     provider: 'Sağlayıcı',
     version: 'Sürüm',
     unknown: 'bilinmiyor',
+    handoffAvailable:
+        'Moonlight kurulu; eşleme ve oynatma Moonlight içinde açılır.',
     handoffBoundary:
         'Larenor yalnız kurulu Moonlight istemcisini doğrular ve açar. '
         'Eşleme, yayın, görüntü, ses ve giriş yaşam döngüsü Moonlight tarafından yönetilir; '
@@ -513,6 +531,8 @@ final class _GameStreamCopy {
     provider: 'Provider',
     version: 'Version',
     unknown: 'unknown',
+    handoffAvailable:
+        'Moonlight is installed; pairing and playback open in Moonlight.',
     handoffBoundary:
         'Larenor only verifies and opens the installed Moonlight client. '
         'Moonlight owns pairing, streaming, video, audio and input lifecycle; '

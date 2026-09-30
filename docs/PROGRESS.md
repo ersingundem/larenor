@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F60 gerçek motor ile harici uygulama ayrımı
+
+Moonlight kurulu bilgisi artık Larenor native motoru veya doğrulanmış host eşlemesi gibi gösterilmiyor. Harici uygulamaya geçiş Larenoru pause ettikten sonra geciken yanıt bir sonraki açılışı kilitlemez; stale tap native çağrı yapmaz, eski yanıt successor busy durumunu bozmaz. Root 9 widget testi ve scoped analyze geçti. Resmî Moonlight manifest/shortcut ve Sunshine API incelemesiyle pairing/native playback açığı korunur; F60 yeniden çalışılıyor kalır, sayaç artmaz. [Kanıt ve upstream sınırı](testing/f60-real-runtime-boundaries-2026-09-30.md).
+
 ### 30 Eylül native hosted kabul kapılarının dar düzeltmeleri
 
 VNC generated Flutter önkoşullarını kurar ve exact bir class/method/sıfır skip JUnit receipt ister. RDP gerçek dependencyInsight ile app/test runner sürümünü yalnız receipted debug buildde hizalar; kabul artifacti yalnız sourceRevision, paket digest ve host sürümlerini içerir. SSH exact yedi test, loading/completion lifecycle ve observed host kimliklerini doğrular; root doğrudan workflow entrypointindeki PYTHONPATH bağımlılığını da düzeltti. Üç ajan diliminde root 43 focused Python testini ve py_compile/diff-checki geçti. Yeni exact hosted koşular gerekli; sayaçlar artırılmadı. [RDP bağımlılık kanıtı](testing/f62-android-test-resolution-2026-09-30.md), [SSH receipt](testing/f63-normal-core-openssh-2026-09-30.md), [VNC receipt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
