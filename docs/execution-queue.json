@@ -5338,7 +5338,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Normal Core yönetilen profil/secure-store/logout ve 34 focused test kapısı geçti. Exact 2cf908b2/run36774361551 gerçek X509Vnc/SPKI/auth ve ilk 800x600 framebufferı aldı; ilk-frame renk çeşitliliği assertionında fixtureın solid rootu nedeniyle düştü. Disposable X.Org xsetroot -mod iki-renk patternı eklendi; üretim TLS/backend/assertion gevşetilmedi. Root 9 VNC policy, toplam 45 VNC/kuyruk/progress araç testini geçti. Yeni exact gerçek TigerVNC bir named test/sıfır skip receipt bitmeden uygulanmış kalır; geniş CI ve fiziksel keyboard/IME/DeX MANUAL açık. Kanıt: docs/testing/f61-tigervnc-native-acceptance-2026-09-30.md."
+      "reason": "Uygulama tamamlandı, gerçek native test bekliyor: normal Core managed-profile authority kabulü geçti. Exact 2a585d3c TigerVNC run36776598508 first-frame assertionında düştü; root gerçek TLS regressionında ExtendedDesktopSize metadata-only mesajını yanlış boş kare yayınlama/screen ID kaybı hatasını bulup düzeltti. 49 native test/1 kasıtlı Linux skip, 4 gerçek TLS test0skip ve 9 policy geçti. Yeni exact TigerVNC tek method/sıfır skip receipt olmadan CI bekliyor veya done sayılmaz."
     },
     {
       "id": "FINAL",

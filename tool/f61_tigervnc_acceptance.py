@@ -300,6 +300,7 @@ def main() -> int:
                         "-AcceptCutText",
                         "-UseBlacklist=0",
                         "-ac",
+                        "-noreset",
                         "-nolisten",
                         "tcp",
                     ],
@@ -310,22 +311,6 @@ def main() -> int:
                 )
             wait_for_display(display, xdpyinfo, xvnc_process)
             wait_for_port(address, port, xvnc_process)
-            subprocess.run(
-                [
-                    xsetroot,
-                    "-display",
-                    display,
-                    "-mod",
-                    "8",
-                    "8",
-                    "-fg",
-                    "#315a9c",
-                    "-bg",
-                    "#f5c842",
-                ],
-                check=True,
-                timeout=10,
-            )
             with xterm_log.open("wb") as output:
                 xterm_process = subprocess.Popen(
                     [
@@ -362,6 +347,24 @@ def main() -> int:
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+            # Keep an X client alive before painting; -noreset also prevents readiness
+            # probes closing the last connection from resetting the owned display.
+            subprocess.run(
+                [
+                    xsetroot,
+                    "-display",
+                    display,
+                    "-mod",
+                    "8",
+                    "8",
+                    "-fg",
+                    "#315a9c",
+                    "-bg",
+                    "#f5c842",
+                ],
+                check=True,
                 timeout=10,
             )
 

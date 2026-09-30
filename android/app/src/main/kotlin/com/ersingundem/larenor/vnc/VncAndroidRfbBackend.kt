@@ -128,6 +128,8 @@ internal class VncAndroidRfbBackend(
             connection.readUnsignedByte() // padding
             val rectangles = connection.readUnsignedShort()
             if (rectangles !in 1..256) throw VncNativeFailure("framebufferUnavailable")
+            var containsPixels = false
+            var containsDesktopMetadata = false
             repeat(rectangles) {
                 val x = connection.readUnsignedShort()
                 val y = connection.readUnsignedShort()
@@ -135,14 +137,18 @@ internal class VncAndroidRfbBackend(
                 val rectangleHeight = connection.readUnsignedShort()
                 val encoding = connection.readInt()
                 if (encoding == DESKTOP_SIZE_ENCODING) {
-                    connection.skipExtendedDesktopSize()
-                    resizeFramebuffer(rectangleWidth, rectangleHeight)
+                    containsDesktopMetadata = true
+                    if (containsPixels) throw VncNativeFailure("framebufferUnavailable")
+                    if (connection.readExtendedDesktopSize(x, y, rectangleWidth, rectangleHeight)) {
+                        synchronized(lock) { resizeFramebuffer(rectangleWidth, rectangleHeight) }
+                    }
                     return@repeat
                 }
-                if (encoding != RAW_ENCODING || rectangleWidth == 0 || rectangleHeight == 0 ||
+                if (containsDesktopMetadata || encoding != RAW_ENCODING || rectangleWidth == 0 || rectangleHeight == 0 ||
                     x + rectangleWidth > width || y + rectangleHeight > height ||
                     rectangleWidth.toLong() * rectangleHeight * 4 > MAX_FRAME_BYTES
                 ) throw VncNativeFailure("framebufferUnavailable")
+                containsPixels = true
                 val row = ByteArray(rectangleWidth * 4)
                 try {
                     repeat(rectangleHeight) { rowIndex ->
@@ -162,6 +168,17 @@ internal class VncAndroidRfbBackend(
                     row.fill(0)
                 }
             }
+            if (!containsPixels) {
+                // ExtendedDesktopSize is a separate control update, never a decoded frame.
+                // A non-incremental reply would solicit the same metadata forever. The
+                // server retains the invalidated pixels for the next incremental request.
+                synchronized(lock) {
+                    if (!waitingForAck && !closed.get()) {
+                        connection.requestFramebuffer(width, height, incremental = true)
+                    }
+                }
+                return
+            }
             val pixels: ByteArray
             val next: Long
             synchronized(lock) {
@@ -180,6 +197,7 @@ internal class VncAndroidRfbBackend(
             if (nextWidth !in 1..MAX_DIMENSION || nextHeight !in 1..MAX_DIMENSION ||
                 nextWidth.toLong() * nextHeight * 4 > MAX_FRAME_BYTES
             ) throw VncNativeFailure("framebufferUnavailable")
+            if (width == nextWidth && height == nextHeight) return
             framebuffer.fill(0)
             width = nextWidth
             height = nextHeight
@@ -195,7 +213,8 @@ internal class VncAndroidRfbBackend(
 
         override fun resize(width: Int, height: Int): Boolean = synchronized(lock) {
             if (closed.get() || waitingForAck || width !in 640..MAX_DIMENSION ||
-                height !in 480..MAX_DIMENSION || width.toLong() * height * 4 > MAX_FRAME_BYTES
+                height !in 480..MAX_DIMENSION || width.toLong() * height * 4 > MAX_FRAME_BYTES ||
+                !connection.supportsDesktopSize()
             ) return@synchronized false
             connection.setDesktopSize(width, height)
             true
@@ -370,19 +389,53 @@ internal class VncAndroidRfbBackend(
             (width ushr 8).toByte(), width.toByte(), (height ushr 8).toByte(), height.toByte(),
         ))
 
-        fun setDesktopSize(width: Int, height: Int) = write(byteArrayOf(
+        private var desktopScreenId: Int? = null
+        private var desktopScreenFlags = 0
+
+        fun supportsDesktopSize() = desktopScreenId != null
+
+        fun setDesktopSize(width: Int, height: Int) {
+            val id = desktopScreenId ?: throw VncNativeFailure("framebufferUnavailable")
+            write(byteArrayOf(
             251.toByte(), 0, (width ushr 8).toByte(), width.toByte(),
             (height ushr 8).toByte(), height.toByte(), 1, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            (width ushr 8).toByte(), width.toByte(), (height ushr 8).toByte(), height.toByte(),
+            (id ushr 24).toByte(), (id ushr 16).toByte(), (id ushr 8).toByte(), id.toByte(),
             0, 0, 0, 0,
-        ))
+            (width ushr 8).toByte(), width.toByte(), (height ushr 8).toByte(), height.toByte(),
+            (desktopScreenFlags ushr 24).toByte(), (desktopScreenFlags ushr 16).toByte(),
+            (desktopScreenFlags ushr 8).toByte(), desktopScreenFlags.toByte(),
+            ))
+        }
 
-        fun skipExtendedDesktopSize() {
+        fun readExtendedDesktopSize(reason: Int, status: Int, width: Int, height: Int): Boolean {
+            if (reason !in 0..2 || (reason == 1 && status !in 0..3)) {
+                throw VncNativeFailure("framebufferUnavailable")
+            }
             val count = readUnsignedByte()
             readBytes(3).fill(0)
-            if (count !in 1..16) throw VncNativeFailure("framebufferUnavailable")
-            readBytes(count * 16).fill(0)
+            if (count !in 0..16) throw VncNativeFailure("framebufferUnavailable")
+            val accepted = reason != 1 || status == 0
+            val ids = mutableSetOf<Int>()
+            var firstId = 0
+            var firstFlags = 0
+            repeat(count) { index ->
+                val id = readInt()
+                val x = readUnsignedShort()
+                val y = readUnsignedShort()
+                val screenWidth = readUnsignedShort()
+                val screenHeight = readUnsignedShort()
+                val flags = readInt()
+                if (accepted && (!ids.add(id) || screenWidth == 0 || screenHeight == 0 ||
+                    x + screenWidth > width || y + screenHeight > height)) {
+                    throw VncNativeFailure("framebufferUnavailable")
+                }
+                if (index == 0) { firstId = id; firstFlags = flags }
+            }
+            if (!accepted) return false // Error replies have undefined layout fields.
+            if (count == 0) throw VncNativeFailure("framebufferUnavailable")
+            desktopScreenId = firstId
+            desktopScreenFlags = firstFlags
+            return true
         }
 
         fun pointer(x: Int, y: Int, buttons: Int) = write(byteArrayOf(

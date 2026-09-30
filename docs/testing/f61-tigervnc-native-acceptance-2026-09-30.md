@@ -208,3 +208,42 @@ started from this workspace; a new source-bound run is still required for the
 actual TigerVNC receipt.
 
 Root independently passed 9 VNC workflow policy tests and 45 combined VNC/queue/commit-progress tests; Python compilation and exact diff check passed. The new fixture requires a fresh exact hosted receipt; no passing native acceptance is inferred from the previous first-frame observation.
+
+## ExtendedDesktopSize control update repair — 1 October
+
+[Run 36776598508](https://github.com/ersingundem/larenor/actions/runs/36776598508)
+on exact `2a585d3c77b99fb323c9dbd791d4e7e62b11e731` still failed the initial
+frame diversity assertion. Painting the owned root alone did not close it.
+Root then reproduced a production parser defect with an actual owned TLS peer:
+a standalone ExtendedDesktopSize update was published as a zero-filled frame,
+and its screen ID was discarded. The regression failed at the pixel-array
+assertion before the production repair. This supersedes the earlier inference
+that the hosted failure was solely a solid-root fixture precondition.
+
+The [RFB protocol's ExtendedDesktopSize semantics](https://github.com/rfbproto/rfbproto/blob/master/rfbproto.rst)
+require metadata and pixel updates to be separate, preserve framebuffer contents
+when dimensions do not change, honor resize refusal, and preserve screen IDs.
+The parser now consumes and validates bounded layout metadata without publishing
+a frame or consuming a Flutter ACK. Its next request is incremental: repeatedly
+sending non-incremental requests after metadata would solicit metadata forever.
+Accepted size changes invalidate the old pixels; refused sizes leave them
+intact. A SetDesktopSize request is allowed only after observed extension
+support and carries the actual screen ID/flags. Mixed metadata/pixel updates
+fail closed.
+
+The owned X fixture now paints after the long-lived xterm is visible and uses
+[`-noreset`](https://xorg.freedesktop.org/releases/X11R6.9.0/doc/html/Xserver.1.html)
+to prevent the last short-lived readiness connection from resetting the display.
+These fixture changes do not relax any production pixel/input/resize assertions.
+
+Root native Gradle gate passed: 49 tests, 1 intentional Linux/TigerVNC skip,
+0 failures/errors. The four actual owned TLS tests all executed with 0 skips:
+frame/input, metadata without false frames, screen ID 42 preservation, accepted
+resize, refused resize preserving previously decoded pixels, and both rejected
+TLS readiness values. The archived exact class report is
+`/tmp/larenor-root-vnc-metadata-result.xml`; final log is
+`/tmp/larenor-root-vnc-metadata-final.log`. The gate excluded Flutter build to
+avoid the concurrent F60 implementation, so it is native software evidence,
+not a new full application build. Nine workflow policy tests also passed.
+F61 remains implemented/awaiting actual hosted TigerVNC validation until the
+exact one-method/no-skip receipt passes.

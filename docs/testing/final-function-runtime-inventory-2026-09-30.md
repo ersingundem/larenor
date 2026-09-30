@@ -145,3 +145,5 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
 K09 ve PRODUCT.CAMERA root bağımsız software kapıları kapandı; CI bekliyor tablosundalar. Bu hosted receipts fiziksel cihaz kanıtı değildir. VNC/RDP/SSH hedef hostları, DeX/IME, kamera donanımı, MQTT broker deploymentı ve household ağ davranışı ilgili `MANUAL.*` kapılarında ayrıca kalır. FINAL.FUNCTION yalnız gerçek yazılım açıkları kapanınca ilerler; ikinci FINAL aktif değildir.
 
 F61 subsequent exact `2cf908b2` / run `36774361551` completed X509Vnc and returned the first 800×600 frame. The deterministic multicolor fixture repair closes only its initial solid-frame precondition; the full native lifecycle receipt still requires a new hosted run.
+
+Exact 2a585d3c/run36776598508 still failed first-frame diversity. Root reproduced and fixed actual ExtendedDesktopSize control-message/false-frame and screen-ID behavior; 4 real TLS/0skip,49 native/1 intentional Linux skip and9 policy tests passed. A fresh exact TigerVNC receipt remains open; fixture-only inference is superseded.

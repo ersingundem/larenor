@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F61 gerçek RFB boyut bildirimi düzeltmesi
+
+Actual TigerVNC exact2a585d3c koşusu ilk kare kontrolünde tekrar düştü. Root gerçek TLS peer ile metadata-only ExtendedDesktopSize mesajının yanlış boş kare yayınlanmasını RED olarak üretti; production parser artık metadata/gerçek pixels ayrımını, screen ID, resize refusal ve framebuffer korunmasını uygular. 49 native test (1 kasıtlı Linux skip), 4 gerçek TLS/0skip ve9 policy geçti. F61 yeni actual hosted receipt bekler; CI bekliyor yapılmadı, sayaçlar değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 1 Ekim F60 gerçek gömülü Moonlight paket kanıtı
 
 Exact Moonlight12.2 ve recursive kaynaklardan iki temiz AAR aynı SHA-256 üretti; root doğru AAR/receipt çiftini, kaynak lockunu ve izole gerçek APK içindeki DEX/iki ABI native eşleşmesini bağımsız doğruladı. 6 odaklı paket testi geçti. Bu paket/link kanıtı F60'ı CI bekliyor yapmaz: üretim eşleme/katalog, Core/native yetki ve oynatma/stop/revoke entegrasyonu geliştirmede. 57 seçili özellik/toplam66 CI bekliyor ve 37/127,3/63 kabul sayaçları değişmedi. [Paket kanıtı](testing/f60-moonlight-android-package-2026-09-30.md).

@@ -79,8 +79,15 @@ class VncProductionLoopbackTest {
     }
 
     @Test
-    fun productionBridgeCompletesPinnedRfbFrameInputResizeAndDisconnectAgainstOwnedHost() {
-        val fixture = OwnedRfbFixture()
+    fun productionBridgeCompletesPinnedRfbFrameInputResizeAndDisconnectAgainstOwnedHost() =
+        exerciseOwnedBridge(rejectResize = false)
+
+    @Test
+    fun rejectedResizeKeepsTheLastPixelsAndContinuesWithoutPublishingMetadata() =
+        exerciseOwnedBridge(rejectResize = true)
+
+    private fun exerciseOwnedBridge(rejectResize: Boolean) {
+        val fixture = OwnedRfbFixture(rejectResize = rejectResize)
         val bridge = VncNativeBridge(Messenger())
         val sink = Sink()
         try {
@@ -123,11 +130,23 @@ class VncProductionLoopbackTest {
                 "binding" to binding(), "width" to 800, "height" to 600,
             )), Result())
 
+            pumpUntil { sink.values.size == 2 }
+            val resized = sink.values.last()
+            assertEquals(if (rejectResize) 2 else 800, resized["width"])
+            assertEquals(if (rejectResize) 2 else 600, resized["height"])
+            val resizedPixels = resized["pixels"] as ByteArray
+            val expected = EXPECTED_FRAME.copyOf()
+            if (rejectResize) byteArrayOf(90, 80, 70, 0xff.toByte()).copyInto(expected, 12)
+            assertArrayEquals(expected, resizedPixels.copyOfRange(0, expected.size))
+            bridge.onMethodCall(MethodCall("ackFrame", mapOf(
+                "binding" to binding(), "sequence" to 2L,
+            )), Result())
+
             assertTrue(fixture.finished.await(5, TimeUnit.SECONDS))
             fixture.failure.get()?.let { throw AssertionError("Owned RFB fixture failed", it) }
             pumpUntil { sink.error != null }
             assertEquals("connectionFailed", sink.error)
-            assertEquals(listOf("ack", "pointer", "text", "resize"), fixture.observed)
+            assertEquals(listOf("ack", "pointer", "text", "resize", "resizeAck"), fixture.observed)
         } finally {
             bridge.dispose()
             fixture.close()
@@ -193,7 +212,10 @@ class VncProductionLoopbackTest {
         assertTrue("Timed out waiting for production VNC bridge", condition())
     }
 
-    private class OwnedRfbFixture(private val tlsReadiness: Int = 1) : AutoCloseable {
+    private class OwnedRfbFixture(
+        private val tlsReadiness: Int = 1,
+        private val rejectResize: Boolean = false,
+    ) : AutoCloseable {
         val address: Inet4Address = NetworkInterface.getNetworkInterfaces().toList()
             .flatMap { it.inetAddresses.toList() }
             .filterIsInstance<Inet4Address>()
@@ -273,6 +295,12 @@ class VncProductionLoopbackTest {
                     assertEquals(11, input.readNBytes(11).size)
                     assertEquals(3, input.readUnsignedByte())
                     assertEquals(9, input.readNBytes(9).size)
+                    // ExtendedDesktopSize is a separate, metadata-only update. It must never
+                    // become the first zero-filled frame or consume a Flutter frame ACK.
+                    writeDesktopSize(output, 0, 2, 2)
+                    assertEquals(3, input.readUnsignedByte())
+                    assertEquals(1, input.readUnsignedByte())
+                    assertEquals(8, input.readNBytes(8).size)
                     writeFrame(output)
 
                     assertEquals(3, input.readUnsignedByte())
@@ -287,8 +315,20 @@ class VncProductionLoopbackTest {
                     }
                     observed += "text"
                     assertEquals(251, input.readUnsignedByte())
-                    assertEquals(23, input.readNBytes(23).size)
+                    val resize = input.readNBytes(23)
+                    assertEquals(23, resize.size)
+                    assertEquals(42, ByteBuffer.wrap(resize, 7, 4).int)
                     observed += "resize"
+                    if (rejectResize) writeDesktopSize(output, 1, 0, 0, status = 1)
+                    else writeDesktopSize(output, 1, 800, 600)
+                    assertEquals(3, input.readUnsignedByte())
+                    assertEquals(1, input.readUnsignedByte())
+                    assertEquals(8, input.readNBytes(8).size)
+                    if (rejectResize) writeFrame(output, partial = true)
+                    else writeFrame(output, 800, 600)
+                    assertEquals(3, input.readUnsignedByte())
+                    assertEquals(9, input.readNBytes(9).size)
+                    observed += "resizeAck"
                 }
             }
         }
@@ -307,16 +347,43 @@ class VncProductionLoopbackTest {
             output.flush()
         }
 
-        private fun writeFrame(output: DataOutputStream) {
+        private fun writeDesktopSize(
+            output: DataOutputStream, reason: Int, width: Int, height: Int, status: Int = 0,
+        ) {
             output.writeByte(0)
             output.writeByte(0)
             output.writeShort(1)
-            output.writeShort(0)
-            output.writeShort(0)
-            output.writeShort(2)
-            output.writeShort(2)
+            output.writeShort(reason)
+            output.writeShort(status)
+            output.writeShort(width)
+            output.writeShort(height)
+            output.writeInt(-308)
+            output.writeByte(if (status == 0) 1 else 0)
+            output.write(byteArrayOf(0, 0, 0))
+            if (status == 0) {
+                output.writeInt(42)
+                output.writeShort(0)
+                output.writeShort(0)
+                output.writeShort(width)
+                output.writeShort(height)
+                output.writeInt(0)
+            }
+            output.flush()
+        }
+
+        private fun writeFrame(
+            output: DataOutputStream, width: Int = 2, height: Int = 2, partial: Boolean = false,
+        ) {
+            output.writeByte(0)
+            output.writeByte(0)
+            output.writeShort(1)
+            output.writeShort(if (partial) 1 else 0)
+            output.writeShort(if (partial) 1 else 0)
+            output.writeShort(if (partial) 1 else width)
+            output.writeShort(if (partial) 1 else height)
             output.writeInt(0)
-            output.write(SERVER_FRAME)
+            output.write(if (partial) byteArrayOf(90, 80, 70, 0) else SERVER_FRAME)
+            if (width * height > 4) output.write(ByteArray((width * height - 4) * 4))
             output.flush()
         }
 

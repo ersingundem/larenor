@@ -110,6 +110,7 @@ class VncNativeWorkflowTest(unittest.TestCase):
             '"-SendCutText"',
             '"-AcceptCutText"',
             '"-UseBlacklist=0"',
+            '"-noreset"',
             '"-class",\n                        "LarenorF61Fixture"',
             '"--class",\n                    "^LarenorF61Fixture$"',
             '"--noprofile"',
@@ -148,6 +149,7 @@ class VncNativeWorkflowTest(unittest.TestCase):
             '[xsetroot, "-display", display, "-solid", "#315a9c"]',
             self.runner,
         )
+        self.assertLess(self.runner.index('"windowfocus"'), self.runner.index("[\n                    xsetroot,"))
 
     def test_only_f61_paths_trigger_the_workflow(self):
         paths = self.workflow["on"]["pull_request"]["paths"]
