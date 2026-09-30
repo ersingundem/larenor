@@ -2947,7 +2947,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Yönetilen profil dağıtımı ve filo bağı",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K07",
         "K12",
@@ -2969,7 +2969,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Bağımsız 30 Eylül production incelemesi ManagedClientInstaller terminal sonucunun private preferences içinde kalıp hiçbir production reader tarafından okunmadığını buldu. Bridge session.commit sonrası yalnız submitted döndürüyor; gerçek PackageInstaller terminal status ve installed package version/signature readback receipt eksik. Bu yüzden kurulum yazılımı tamamlandı veya CI bekliyor sayılmıyor. Exact nonce/session/package receipt, restart/unknown no auto-submit ve confirmed installed readback aktif düzeltmede; fiziksel Device Owner/DPC/OEM MANUAL açık."
+      "reason": "Kurulum gönderimi terminal başarı değildir: private durable nonce+caller/session/package/version/cert ledger ve gerçek PackageManager installed version/single cert readback üretime bağlandı. Precommit hata failed, commit attempt sonrası belirsizlik unknown ve restart no second dispatch; terminal callback exception race ile bozulmaz. Receiver foreign/stale nonce/session/package reddeder. Root 68 Flutter ve focused Android20 passed, analyze temiz; exact Device Owner gate korunur. K07/F53 exact profil dağıtımı/revision ACK/restore kapıları ile yazılım incelemesi tamamlandı; exact HEAD CI bekliyor, fiziksel DPC/OEM signed-install MANUAL açık. Kanıt: docs/testing/k13-managed-install-receipt-2026-09-30.md."
     },
     {
       "id": "POC",

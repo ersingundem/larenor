@@ -9,7 +9,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 11 | 0 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
-| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 4 | 1 | 4 | 0 |
+| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 4 | 0 | 5 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| K13 | Yönetilen profil dağıtımı ve filo bağı | Yeniden çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -115,6 +115,7 @@ Tamamlanan ve test/CI bekleyen işler
 | PRODUCT.HEALTH | Kişisel sağlık ve tartı sağlayıcı yazılım sınırı | CI bekliyor | — |
 | K10 | Hareket, karanlık ve cihaz sensörleri | CI bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | CI bekliyor | — |
+| K13 | Yönetilen profil dağıtımı ve filo bağı | CI bekliyor | — |
 | F13 | Bileşen bazında internet izinleri | CI bekliyor | — |
 | F15 | Doğrulanabilir bileşen güncellemeleri | CI bekliyor | — |
 | F20 | Değiştirilmesi fark edilen işlem günlüğü | CI bekliyor | — |

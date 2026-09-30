@@ -28,6 +28,11 @@ enum ClientUpdatePhase {
   ready,
   installing,
   systemPromptOpened,
+  managedInstallPending,
+  managedInstallConfirmed,
+  managedInstallFailed,
+  managedInstallCancelled,
+  managedInstallUnknown,
 }
 
 class ClientUpdateController extends ChangeNotifier {
@@ -109,6 +114,19 @@ class ClientUpdateController extends ChangeNotifier {
     final snapshot = await _api.snapshot();
     _check(epoch);
     _snapshot = snapshot;
+    if (_phase == ClientUpdatePhase.idle) {
+      _phase = switch (snapshot.managedInstallReceipt?.status) {
+        ManagedInstallReceiptStatus.confirmed =>
+          ClientUpdatePhase.managedInstallConfirmed,
+        ManagedInstallReceiptStatus.failed =>
+          ClientUpdatePhase.managedInstallFailed,
+        ManagedInstallReceiptStatus.cancelled =>
+          ClientUpdatePhase.managedInstallCancelled,
+        ManagedInstallReceiptStatus.unknown =>
+          ClientUpdatePhase.managedInstallUnknown,
+        null => ClientUpdatePhase.idle,
+      };
+    }
     notifyListeners();
   }
 
@@ -227,7 +245,7 @@ class ClientUpdateController extends ChangeNotifier {
       if (!_disposed && source.isCurrent()) {
         _phase = outcome == ClientInstallOutcome.systemPromptOpened
             ? ClientUpdatePhase.systemPromptOpened
-            : ClientUpdatePhase.installing;
+            : ClientUpdatePhase.managedInstallPending;
       }
       return outcome;
     } catch (e) {

@@ -268,7 +268,10 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
     final update = _update;
     final release = _available;
     final snapshot = update?.snapshot;
-    final compatible = release != null && snapshot?.accepts(release) == true;
+    final compatible =
+        release != null &&
+        snapshot?.accepts(release) == true &&
+        snapshot?.managedInstallReceipt?.blocksDispatch != true;
     final busy = _checking || update?.busy == true;
     final enabled = _active && _signedIn && !busy;
     final progress = update?.transfer;
@@ -284,6 +287,18 @@ class _ClientUpdatesScreenState extends MediaSessionState<ClientUpdatesScreen> {
             ClientUpdatePhase.installing ||
             ClientUpdatePhase.systemPromptOpened =>
               l10n.clientUpdatesInstallerOpened,
+            ClientUpdatePhase.managedInstallPending =>
+              l10n.clientUpdatesManagedPending,
+            ClientUpdatePhase.managedInstallConfirmed =>
+              compatible
+                  ? l10n.clientUpdatesAvailable
+                  : l10n.clientUpdatesManagedConfirmed,
+            ClientUpdatePhase.managedInstallFailed =>
+              l10n.clientUpdatesManagedFailed,
+            ClientUpdatePhase.managedInstallCancelled =>
+              l10n.clientUpdatesCancelled,
+            ClientUpdatePhase.managedInstallUnknown =>
+              l10n.clientUpdatesManagedUnknown,
             _ =>
               !_checked
                   ? l10n.clientUpdatesNotChecked

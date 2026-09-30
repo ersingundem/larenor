@@ -63,7 +63,9 @@ class ClientUpdaterBridge(private val activity: Activity, messenger: BinaryMesse
                         "certificateSha256" to installed.certificates.toList(), "sdkInt" to installed.sdkInt,
                         "canRequestPackageInstalls" to activity.packageManager.canRequestPackageInstalls(),
                         "deviceOwner" to managedInstaller.available(),
-                        "resumed" to resumed, "focused" to activity.window.decorView.hasWindowFocus(), "interactionEpoch" to interactionEpoch))
+                        "resumed" to resumed, "focused" to activity.window.decorView.hasWindowFocus(),
+                        "interactionEpoch" to interactionEpoch,
+                        "managedInstallReceipt" to managedInstaller.receipt()))
                 }
                 "activateSession", "invalidate", "cancel" -> {
                     val raw = args(call.arguments, 1); val id = string(raw, "sessionId")
@@ -129,9 +131,13 @@ class ClientUpdaterBridge(private val activity: Activity, messenger: BinaryMesse
                                 try {
                                     if (!managedInstaller.available()) throw UpdateFailure("permission")
                                     val file = coordinator.consumeInstall(work)
-                                    val sessionId = managedInstaller.submit(file, work.release)
+                                    val receipt = managedInstaller.submit(file, work.release, work.sessionId)
                                     file.delete()
-                                    result.success(mapOf("outcome" to "managedInstallSubmitted", "sessionId" to sessionId))
+                                    result.success(mapOf(
+                                        "outcome" to "managedInstallPending",
+                                        "requestId" to receipt.requestId,
+                                        "installerSessionId" to receipt.installerSessionId,
+                                    ))
                                 } catch (e: Exception) { coordinator.failed(work); error(result, e) }
                             }
                         } catch (e: Exception) { coordinator.failed(work); handler.post { error(result, e) } }

@@ -148,13 +148,15 @@ class AndroidClientUpdateApi extends ClientUpdateApi {
       'interactionEpoch': interactionEpoch,
     }, const Duration(minutes: 2));
     if (raw is! Map ||
-        raw.length != 2 ||
-        raw['outcome'] != 'managedInstallSubmitted' ||
-        raw['sessionId'] is! int ||
-        (raw['sessionId'] as int) < 0) {
+        raw.length != 3 ||
+        raw['outcome'] != 'managedInstallPending' ||
+        raw['requestId'] is! String ||
+        !RegExp(r'^[a-f0-9]{32}$').hasMatch(raw['requestId'] as String) ||
+        raw['installerSessionId'] is! int ||
+        (raw['installerSessionId'] as int) < 0) {
       throw const ClientUpdateException(ClientUpdateFailure.unavailable);
     }
-    return ClientInstallOutcome.managedInstallSubmitted;
+    return ClientInstallOutcome.managedInstallPending;
   }
 
   @override

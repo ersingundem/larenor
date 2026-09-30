@@ -134,7 +134,8 @@ class InstalledClientSnapshot {
       deviceOwner = false,
       resumed = false,
       focused = false,
-      interactionEpoch = 0;
+      interactionEpoch = 0,
+      managedInstallReceipt = null;
   InstalledClientSnapshot._({
     required this.versionCode,
     required this.versionName,
@@ -145,6 +146,7 @@ class InstalledClientSnapshot {
     required this.resumed,
     required this.focused,
     required this.interactionEpoch,
+    required this.managedInstallReceipt,
   }) : supported = true,
        certificateSha256 = Set.unmodifiable(certificates);
   final bool supported,
@@ -155,9 +157,10 @@ class InstalledClientSnapshot {
   final int versionCode, sdkInt, interactionEpoch;
   final String versionName;
   final Set<String> certificateSha256;
+  final ManagedInstallReceipt? managedInstallReceipt;
   factory InstalledClientSnapshot.fromChannel(Object? raw) {
     if (raw is! Map ||
-        raw.length != 11 ||
+        raw.length != 12 ||
         raw['supported'] != true ||
         raw['applicationId'] != ClientRelease.applicationId) {
       _invalid();
@@ -169,7 +172,10 @@ class InstalledClientSnapshot {
         certs.any((v) => v is! String || !_hex.hasMatch(v))) {
       _invalid();
     }
-    return InstalledClientSnapshot._(
+    final receipt = raw['managedInstallReceipt'] == null
+        ? null
+        : ManagedInstallReceipt.fromChannel(raw['managedInstallReceipt']);
+    final snapshot = InstalledClientSnapshot._(
       versionCode: _int(raw, 'versionCode', 1, 2147483647),
       versionName: _text(raw, 'versionName', 80),
       certificates: certs.cast<String>().map((v) => v.toLowerCase()).toSet(),
@@ -179,7 +185,16 @@ class InstalledClientSnapshot {
       resumed: _bool(raw, 'resumed'),
       focused: _bool(raw, 'focused'),
       interactionEpoch: _int(raw, 'interactionEpoch', 0, 9007199254740991),
+      managedInstallReceipt: receipt,
     );
+    if (receipt?.confirmed == true &&
+        (snapshot.versionCode != receipt!.expectedVersionCode ||
+            !snapshot.certificateSha256.contains(
+              receipt.observedCertificateSha256,
+            ))) {
+      _invalid();
+    }
+    return snapshot;
   }
   bool accepts(ClientRelease release) =>
       supported &&
@@ -187,6 +202,71 @@ class InstalledClientSnapshot {
       release.minSdk <= sdkInt &&
       certificateSha256.length == 1 &&
       certificateSha256.contains(release.certificateSha256);
+}
+
+enum ManagedInstallReceiptStatus { confirmed, failed, cancelled, unknown }
+
+class ManagedInstallReceipt {
+  const ManagedInstallReceipt._({
+    required this.requestId,
+    required this.installerSessionId,
+    required this.expectedVersionCode,
+    required this.status,
+    required this.observedVersionCode,
+    required this.observedCertificateSha256,
+    required this.observedAtEpochMs,
+  });
+
+  final String requestId;
+  final int installerSessionId, expectedVersionCode, observedAtEpochMs;
+  final ManagedInstallReceiptStatus status;
+  final int? observedVersionCode;
+  final String? observedCertificateSha256;
+
+  bool get blocksDispatch => status == ManagedInstallReceiptStatus.unknown;
+  bool get confirmed => status == ManagedInstallReceiptStatus.confirmed;
+
+  factory ManagedInstallReceipt.fromChannel(Object? raw) {
+    if (raw is! Map ||
+        raw.length != 9 ||
+        raw['schemaVersion'] != 1 ||
+        raw['applicationId'] != ClientRelease.applicationId) {
+      _invalid();
+    }
+    final requestId = _text(raw, 'requestId', 32);
+    final status = ManagedInstallReceiptStatus.values
+        .where((candidate) => candidate.name == raw['status'])
+        .firstOrNull;
+    final observedVersion = raw['observedVersionCode'];
+    final observedCertificate = raw['observedCertificateSha256'];
+    if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(requestId) ||
+        status == null ||
+        (observedVersion != null &&
+            (observedVersion is! int ||
+                observedVersion < 1 ||
+                observedVersion > 2147483647)) ||
+        (observedCertificate != null &&
+            (observedCertificate is! String ||
+                !_hex.hasMatch(observedCertificate))) ||
+        ((observedVersion == null) != (observedCertificate == null))) {
+      _invalid();
+    }
+    final expectedVersion = _int(raw, 'expectedVersionCode', 1, 2147483647);
+    if (status == ManagedInstallReceiptStatus.confirmed &&
+        (observedVersion != expectedVersion || observedCertificate == null)) {
+      _invalid();
+    }
+    return ManagedInstallReceipt._(
+      requestId: requestId,
+      installerSessionId: _int(raw, 'installerSessionId', 0, 2147483647),
+      expectedVersionCode: expectedVersion,
+      status: status,
+      observedVersionCode: observedVersion as int?,
+      observedCertificateSha256: (observedCertificate as String?)
+          ?.toLowerCase(),
+      observedAtEpochMs: _int(raw, 'observedAtEpochMs', 0, 9007199254740991),
+    );
+  }
 }
 
 class StagedClientUpdate {
@@ -239,4 +319,4 @@ class ClientUpdateProgress {
   }
 }
 
-enum ClientInstallOutcome { systemPromptOpened, managedInstallSubmitted }
+enum ClientInstallOutcome { systemPromptOpened, managedInstallPending }

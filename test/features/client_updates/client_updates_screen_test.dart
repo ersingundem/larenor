@@ -198,6 +198,52 @@ void main() {
     },
   );
 
+  testWidgets('managed dispatch is pending and never shown as completed', (
+    tester,
+  ) async {
+    api.deviceOwner = true;
+    await mount(tester);
+    await press(tester, 'updates-download');
+    await press(tester, 'updates-install');
+    expect(api.installs, 1);
+    expect(
+      find.text(
+        'Managed installation was submitted. Completion has not been confirmed yet.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('completed and the installed version'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('unknown managed receipt blocks another installation dispatch', (
+    tester,
+  ) async {
+    api.deviceOwner = true;
+    api.managedInstallReceipt = {
+      'schemaVersion': 1,
+      'requestId': '5' * 32,
+      'installerSessionId': 52,
+      'applicationId': ClientRelease.applicationId,
+      'expectedVersionCode': 20,
+      'status': 'unknown',
+      'observedVersionCode': null,
+      'observedCertificateSha256': null,
+      'observedAtEpochMs': 1800000000000,
+    };
+    await mount(tester);
+    expect(
+      find.textContaining('will not submit it again automatically'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('updates-download')), findsNothing);
+    expect(find.byKey(const ValueKey('updates-install')), findsNothing);
+    expect(api.downloads, 0);
+    expect(api.installs, 0);
+  });
+
   testWidgets(
     'signed-out screen cannot read releases or invoke native actions',
     (tester) async {

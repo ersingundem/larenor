@@ -24,7 +24,10 @@ Map<String, Object> releaseJson() => {
   'publishedAt': '2026-09-05T10:00:00Z',
   'releaseNotes': 'Synthetic release',
 };
-Map<String, Object> installedJson({bool permission = true}) => {
+Map<String, Object?> installedJson({
+  bool permission = true,
+  bool deviceOwner = false,
+}) => {
   'supported': true,
   'applicationId': ClientRelease.applicationId,
   'versionCode': 19,
@@ -32,10 +35,11 @@ Map<String, Object> installedJson({bool permission = true}) => {
   'certificateSha256': ['a' * 64],
   'sdkInt': 35,
   'canRequestPackageInstalls': permission,
-  'deviceOwner': false,
+  'deviceOwner': deviceOwner,
   'resumed': true,
   'focused': true,
   'interactionEpoch': 7,
+  'managedInstallReceipt': null,
 };
 Matcher fails(ClientUpdateFailure failure) => throwsA(
   isA<ClientUpdateException>().having(
@@ -52,6 +56,8 @@ class FakeApi extends ClientUpdateApi {
   Completer<StagedClientUpdate>? pending;
   Completer<InstalledClientSnapshot>? pendingSnapshot;
   bool permission = true;
+  bool deviceOwner = false;
+  Object? managedInstallReceipt;
   @override
   Stream<ClientUpdateProgress> get progress => events.stream;
   @override
@@ -61,9 +67,10 @@ class FakeApi extends ClientUpdateApi {
 
   @override
   Future<InstalledClientSnapshot> snapshot() async => pendingSnapshot == null
-      ? InstalledClientSnapshot.fromChannel(
-          installedJson(permission: permission),
-        )
+      ? InstalledClientSnapshot.fromChannel({
+          ...installedJson(permission: permission, deviceOwner: deviceOwner),
+          'managedInstallReceipt': managedInstallReceipt,
+        })
       : await pendingSnapshot!.future;
   @override
   Future<StagedClientUpdate> download({
@@ -102,6 +109,16 @@ class FakeApi extends ClientUpdateApi {
   }) async {
     installs++;
     return ClientInstallOutcome.systemPromptOpened;
+  }
+
+  @override
+  Future<ClientInstallOutcome> installManaged(
+    String sessionId,
+    StagedClientUpdate staged, {
+    required int interactionEpoch,
+  }) async {
+    installs++;
+    return ClientInstallOutcome.managedInstallPending;
   }
 
   @override
@@ -147,6 +164,57 @@ void main() {
         );
       },
     );
+    test('managed receipt is strict and success requires exact readback', () {
+      final confirmed = InstalledClientSnapshot.fromChannel({
+        ...installedJson(),
+        'versionCode': 20,
+        'managedInstallReceipt': {
+          'schemaVersion': 1,
+          'requestId': '1' * 32,
+          'installerSessionId': 41,
+          'applicationId': ClientRelease.applicationId,
+          'expectedVersionCode': 20,
+          'status': 'confirmed',
+          'observedVersionCode': 20,
+          'observedCertificateSha256': 'a' * 64,
+          'observedAtEpochMs': 1800000000000,
+        },
+      }).managedInstallReceipt!;
+      expect(confirmed.confirmed, isTrue);
+      expect(confirmed.blocksDispatch, isFalse);
+      final unknown = InstalledClientSnapshot.fromChannel({
+        ...installedJson(),
+        'managedInstallReceipt': {
+          'schemaVersion': 1,
+          'requestId': '2' * 32,
+          'installerSessionId': 42,
+          'applicationId': ClientRelease.applicationId,
+          'expectedVersionCode': 20,
+          'status': 'unknown',
+          'observedVersionCode': null,
+          'observedCertificateSha256': null,
+          'observedAtEpochMs': 1800000000000,
+        },
+      }).managedInstallReceipt!;
+      expect(unknown.blocksDispatch, isTrue);
+      expect(
+        () => InstalledClientSnapshot.fromChannel({
+          ...installedJson(),
+          'managedInstallReceipt': {
+            'schemaVersion': 1,
+            'requestId': '3' * 32,
+            'installerSessionId': 43,
+            'applicationId': ClientRelease.applicationId,
+            'expectedVersionCode': 20,
+            'status': 'confirmed',
+            'observedVersionCode': 19,
+            'observedCertificateSha256': 'a' * 64,
+            'observedAtEpochMs': 1800000000000,
+          },
+        }),
+        fails(ClientUpdateFailure.invalidMetadata),
+      );
+    });
     for (final change in <Map<String, Object>>[
       {'schemaVersion': 2},
       {'applicationId': 'other.app'},
@@ -321,6 +389,21 @@ void main() {
       expect(api.installs, 1);
     });
     test(
+      'managed dispatch remains pending until a confirmed receipt',
+      () async {
+        controller.setVisible(true);
+        api.deviceOwner = true;
+        await controller.download(ClientRelease.fromJson(releaseJson()));
+        expect(
+          await controller.install(),
+          ClientInstallOutcome.managedInstallPending,
+        );
+        expect(controller.phase, ClientUpdatePhase.managedInstallPending);
+        expect(api.installs, 1);
+        expect(controller.staged, isNull);
+      },
+    );
+    test(
       'duplicate download and foreign or older progress are rejected',
       () async {
         controller.setVisible(true);
@@ -490,5 +573,31 @@ void main() {
         ClientInstallOutcome.systemPromptOpened,
       );
     });
+    test(
+      'managed install parses only an exact pending receipt identity',
+      () async {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'installManaged');
+          return {
+            'outcome': 'managedInstallPending',
+            'requestId': '4' * 32,
+            'installerSessionId': 51,
+          };
+        });
+        final api = AndroidClientUpdateApi(methods: channel, isAndroid: true);
+        expect(
+          await api.installManaged(
+            'synthetic-session',
+            const StagedClientUpdate(
+              id: '00000000-0000-4000-8000-000000000000',
+              versionCode: 20,
+              sizeBytes: 100,
+            ),
+            interactionEpoch: 7,
+          ),
+          ClientInstallOutcome.managedInstallPending,
+        );
+      },
+    );
   });
 }

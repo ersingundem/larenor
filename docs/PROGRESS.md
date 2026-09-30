@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K12 ve PRODUCT.HEALTH/PROVIDERS CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 gerçek kurulum sonucu geliştirmede; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 58 seçili özellik ile K10/K12/K13 ve PRODUCT.HEALTH/PROVIDERS CI bekliyor tablosunda. F52/F53 gerçek Client/Core kabulü geçti; F54 gerçek HTTPS Core/Android WorkManager kabulü geçti; F63 gerçek Core/OpenSSH ve profil silme/yerel temizlik kabulü geçti; K13 terminal kurulum sonucu ve belirsiz gönderim kapanışı geçti; kalan gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host exact 888dfd46 Linux kurulu Core/IPC/systemd ve cleanup kabul CIı yeşil. Güncel exact HEAD geniş CI henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül K13 terminal kurulum sonucu kabulü
+
+PackageInstaller gönderimi artık yalnız pending gösterir. Exact nonce/session/package callbackinden sonra kurulu sürüm ve tek imza sertifikası PackageManagerdan doğrulanırsa confirmed olur. Commit attempt sonrası hata unknown kalır, restart ikinci gönderime izin vermez; geç exception terminal sonucu bozmaz. Root 68 Flutter ve Android20 focused kapısını geçti, scoped analyze temiz. K13 CI bekliyor tablosuna taşındı; fiziksel Device Owner/DPC/OEM kabulü MANUAL açık, sayaçlar değişmedi. [K13 kanıtı](testing/k13-managed-install-receipt-2026-09-30.md).
 
 ### 30 Eylül PRODUCT.PROVIDERS birleşik yazılım kabulü
 

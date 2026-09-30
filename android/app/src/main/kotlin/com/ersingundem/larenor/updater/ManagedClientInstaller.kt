@@ -11,11 +11,13 @@ import java.io.File
 
 internal class ManagedClientInstaller(private val context: Context) {
     private val policy = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+    private val ledger = ManagedInstallLedger(context)
 
     fun available(): Boolean = policy.isDeviceOwnerApp(context.packageName)
 
-    fun submit(file: File, release: ClientRelease): Int {
+    fun submit(file: File, release: ClientRelease, callerSessionId: String): ManagedInstallRecord {
         if (!available()) throw UpdateFailure("permission")
+        ledger.requireDispatchAvailable()
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(ClientRelease.APPLICATION_ID)
@@ -25,6 +27,13 @@ internal class ManagedClientInstaller(private val context: Context) {
             }
         }
         val sessionId = installer.createSession(params)
+        val record = try {
+            ledger.recordSubmission(callerSessionId, sessionId, release)
+        } catch (failure: Exception) {
+            runCatching { installer.abandonSession(sessionId) }
+            throw failure
+        }
+        var commitAttempted = false
         try {
             installer.openSession(sessionId).use { session ->
                 file.inputStream().use { input ->
@@ -35,7 +44,7 @@ internal class ManagedClientInstaller(private val context: Context) {
                 }
                 val intent = Intent(context, ManagedInstallStatusReceiver::class.java).apply {
                     action = ManagedInstallStatusReceiver.ACTION
-                    putExtra(ManagedInstallStatusReceiver.EXTRA_EXPECTED_VERSION, release.versionCode)
+                    putExtra(ManagedInstallStatusReceiver.EXTRA_REQUEST_ID, record.requestId)
                 }
                 val sender = PendingIntent.getBroadcast(
                     context,
@@ -43,42 +52,36 @@ internal class ManagedClientInstaller(private val context: Context) {
                     intent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
                 ).intentSender
+                // From this point an exception cannot prove that PackageInstaller
+                // rejected the effect. A missing callback remains unknown and
+                // blocks a second dispatch across process restart.
+                commitAttempted = true
                 session.commit(sender)
             }
-            return sessionId
+            return record
         } catch (failure: Exception) {
             runCatching { installer.abandonSession(sessionId) }
+            if (commitAttempted) {
+                ledger.recordCommitUncertain(record)
+            } else {
+                ledger.recordPreCommitFailure(record)
+            }
             throw UpdateFailure("unavailable")
         }
     }
+
+    fun receipt(): Map<String, Any?>? = ledger.publicReceipt()
 }
 
 class ManagedInstallStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION) return
-        val status = intent.getIntExtra(
-            PackageInstaller.EXTRA_STATUS,
-            PackageInstaller.STATUS_FAILURE,
-        )
-        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
-        val expectedVersion = intent.getLongExtra(EXTRA_EXPECTED_VERSION, -1)
-        val safeStatus = when (status) {
-            PackageInstaller.STATUS_SUCCESS -> "succeeded"
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> "denied"
-            PackageInstaller.STATUS_FAILURE_ABORTED -> "cancelled"
-            else -> "failed"
+        ManagedInstallLedger(context.applicationContext).acceptStatus(intent) {
+            AndroidApkVerifier(context.applicationContext).installed()
         }
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-            .putString("status", safeStatus)
-            .putInt("sessionId", sessionId)
-            .putLong("expectedVersion", expectedVersion)
-            .putLong("observedAt", System.currentTimeMillis())
-            .apply()
     }
 
     companion object {
         const val ACTION = "com.ersingundem.larenor.MANAGED_INSTALL_STATUS"
-        const val EXTRA_EXPECTED_VERSION = "expectedVersion"
-        const val PREFERENCES = "managed_client_install"
+        const val EXTRA_REQUEST_ID = "requestId"
     }
 }
