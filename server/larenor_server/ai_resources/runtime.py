@@ -252,12 +252,15 @@ class AiRuntimeObservation:
 
 
 class _SubprocessRunner:
+    def __init__(self, environment):
+        self.environment = environment
+
     def __call__(self, arguments, timeout):
         return subprocess.run(
             arguments, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, close_fds=True, timeout=timeout,
             check=False, text=True, encoding="utf-8", errors="strict",
-            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"},
+            env=self.environment,
         )
 
 
@@ -293,7 +296,14 @@ class SystemdAiJobRuntime:
         if type(config) is not AiRuntimeConfig:
             raise AiRuntimeError("invalid_runtime_configuration")
         self.config = config
-        self._runner = runner or _SubprocessRunner()
+        environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
+        if config.manager == "user":
+            runtime_directory = f"/run/user/{os.geteuid()}"
+            environment.update({
+                "XDG_RUNTIME_DIR": runtime_directory,
+                "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime_directory}/bus",
+            })
+        self._runner = runner or _SubprocessRunner(environment)
         self._platform = sys.platform if platform is None else platform
         self._providers = {provider.kind: provider for provider in config.providers}
         self._identity_cache = {}
@@ -456,6 +466,10 @@ class SystemdAiJobRuntime:
             "--property=PrivateTmp=yes", "--property=RestrictSUIDSGID=yes",
             "--property=PrivateNetwork=yes",
             "--property=RestrictAddressFamilies=AF_UNIX",
+            *(
+                [f"--property=InaccessiblePaths=/run/user/{os.geteuid()}/bus"]
+                if self.config.manager == "user" else []
+            ),
             "--property=ProtectControlGroups=yes",
             "--property=ProtectKernelModules=yes",
             "--property=ProtectKernelTunables=yes",
@@ -631,7 +645,18 @@ class SystemdAiJobRuntime:
             raise AiRuntimeError() from None
 
 
-def build_ai_job_runtime(config_path):
+def build_ai_job_runtime(
+    config_path, *, worker_socket=None, worker_uid=0, socket_gid=None,
+):
+    if worker_socket is not None:
+        try:
+            from .worker_ipc import AiWorkerClient
+            return AiWorkerClient(
+                worker_socket, owner_uid=worker_uid, peer_uid=worker_uid,
+                socket_gid=os.getegid() if socket_gid is None else socket_gid,
+            )
+        except AiRuntimeError:
+            return UnavailableAiJobRuntime()
     if config_path is None:
         return UnavailableAiJobRuntime()
     try:

@@ -40,6 +40,9 @@ class Settings:
     mesh_center_worker_socket: Path | None = None
     mesh_center_worker_uid: int = 0
     ai_worker_config: Path | None = None
+    ai_worker_socket: Path | None = None
+    ai_worker_uid: int = 0
+    ai_worker_socket_gid: int | None = None
     private_event_ffmpeg: Path | None = None
     private_event_ffprobe: Path | None = None
     home_document_tesseract: Path | None = None
@@ -55,6 +58,7 @@ class Settings:
             self.media_archive_worker_uid,
             self.media_archive_action_worker_uid,
             self.mesh_center_worker_uid,
+            self.ai_worker_uid,
         )
         if any(
             type(value) is not int or not 0 <= value < 2**31
@@ -64,6 +68,14 @@ class Settings:
         if (self.media_archive_socket_gid is not None
                 and (type(self.media_archive_socket_gid) is not int
                      or not 0 <= self.media_archive_socket_gid < 2**31)):
+            raise ValueError("invalid_worker_configuration")
+        if (self.ai_worker_socket_gid is not None
+                and (type(self.ai_worker_socket_gid) is not int
+                     or not 0 <= self.ai_worker_socket_gid < 2**31)):
+            raise ValueError("invalid_worker_configuration")
+        if ((self.ai_worker_socket is None) != (self.ai_worker_socket_gid is None)
+                or self.ai_worker_socket is not None
+                and self.ai_worker_config is not None):
             raise ValueError("invalid_worker_configuration")
         proxmox_paths = (
             self.proxmox_power_worker_socket,
@@ -93,6 +105,7 @@ class Settings:
             self.media_archive_authority_socket,
             self.mesh_center_worker_socket,
             self.ai_worker_config,
+            self.ai_worker_socket,
             self.home_document_tesseract,
             self.home_document_pdftoppm,
         )
@@ -249,6 +262,15 @@ class Settings:
                 ai_worker_config=(
                     Path(os.environ["LARENOR_AI_WORKER_CONFIG"])
                     if os.environ.get("LARENOR_AI_WORKER_CONFIG") else None
+                ),
+                ai_worker_socket=(
+                    Path(os.environ["LARENOR_AI_WORKER_SOCKET"])
+                    if os.environ.get("LARENOR_AI_WORKER_SOCKET") else None
+                ),
+                ai_worker_uid=int(os.environ.get("LARENOR_AI_WORKER_UID", "0")),
+                ai_worker_socket_gid=(
+                    int(os.environ["LARENOR_AI_WORKER_SOCKET_GID"])
+                    if os.environ.get("LARENOR_AI_WORKER_SOCKET_GID") else None
                 ),
                 home_document_tesseract=(
                     Path(os.environ["LARENOR_HOME_DOCUMENT_TESSERACT"])

@@ -1,0 +1,33 @@
+[Unit]
+Description=Larenor private systemd AI runtime worker
+After=user@10003.service
+Requires=user@10003.service
+ConditionPathIsSocket=/run/user/10003/bus
+ConditionPathIsReadWrite=/var/lib/larenor-server/host-workers/ai
+
+[Service]
+Type=simple
+User=10003
+Group=10003
+SupplementaryGroups=10002
+UMask=0007
+Environment=XDG_RUNTIME_DIR=/run/user/10003
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10003/bus
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-ai-worker --config /etc/larenor-server/host-workers/ai/runtime.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/ai/runtime.sock --core-uid 10001 --socket-gid 10002 --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-ai-worker --config /etc/larenor-server/host-workers/ai/runtime.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/ai/runtime.sock --core-uid 10001 --socket-gid 10002
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/larenor-server/core/data/host-workers/ipc/ai /var/lib/larenor-server/host-workers/ai
+
+[Install]
+WantedBy=multi-user.target

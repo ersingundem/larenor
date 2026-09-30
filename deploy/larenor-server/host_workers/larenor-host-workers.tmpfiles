@@ -4,6 +4,7 @@ d /var/lib/larenor-server/core/data/host-workers/ipc 0750 10001 larenor-ipc -
 d /var/lib/larenor-server/core/data/host-workers/ipc/root 0750 root larenor-ipc -
 d /var/lib/larenor-server/core/data/host-workers/ipc/archive 0750 1000 larenor-ipc -
 d /var/lib/larenor-server/core/data/host-workers/ipc/core 0750 10001 larenor-ipc -
+d /var/lib/larenor-server/core/data/host-workers/ipc/ai 0770 10001 larenor-ipc -
 d /var/lib/larenor-server/host-workers/installation 0700 root root -
 d /var/lib/larenor-server/host-workers/installation/resources 0700 root root -
 d /var/lib/larenor-server/host-workers/installation/volumes 0700 root root -
@@ -21,6 +22,8 @@ d /var/lib/larenor-server/host-workers/archive/unmanic/cache 0700 1000 1000 -
 d /var/lib/larenor-server/host-workers/archive/unmanic/plugins 0700 1000 1000 -
 d /var/lib/larenor-server/host-workers/archive/unmanic/logs 0700 1000 1000 -
 d /var/lib/larenor-server/host-workers/archive/unmanic/userdata 0700 1000 1000 -
-d /etc/larenor-server/host-workers 0710 root root -
+d /var/lib/larenor-server/host-workers/ai 0700 larenor-ai larenor-ai -
+d /etc/larenor-server/host-workers 0711 root root -
 d /etc/larenor-server/host-workers/root 0700 root root -
 d /etc/larenor-server/host-workers/archive 0700 1000 1000 -
+d /etc/larenor-server/host-workers/ai 0700 larenor-ai larenor-ai -

@@ -15,6 +15,7 @@ UNITS = (
     "larenor-unmanic-provision.service",
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
+    "larenor-ai-worker.service",
 )
 
 

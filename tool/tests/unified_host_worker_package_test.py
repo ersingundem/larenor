@@ -107,8 +107,9 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         preflight = (root / "larenor-preflight-worker.service").read_text()
         installation = (root / "larenor-installation-worker.service").read_text()
         archive = (root / "larenor-media-archive-worker.service").read_text()
+        ai = (root / "larenor-ai-worker.service").read_text()
         unmanic = (root / "larenor-unmanic.service").read_text()
-        for unit in (preflight, installation, archive, unmanic):
+        for unit in (preflight, installation, archive, ai, unmanic):
             self.assertIn("NoNewPrivileges=yes", unit)
             self.assertIn("ProtectSystem=strict", unit)
             self.assertIn("Restart=on-failure", unit)
@@ -121,6 +122,13 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("--check-config", archive)
         self.assertIn("--address 127.0.0.1", unmanic)
         self.assertIn("Requires=larenor-unmanic.service", archive)
+        self.assertIn("User=10003", ai)
+        self.assertIn("Group=10003", ai)
+        self.assertIn("SupplementaryGroups=10002", ai)
+        self.assertIn("XDG_RUNTIME_DIR=/run/user/10003", ai)
+        self.assertIn("DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10003/bus", ai)
+        self.assertNotIn("User=root", ai)
+        self.assertIn("--check-config", ai)
         provision = (root / "larenor-unmanic-provision.service").read_text()
         self.assertIn("User=1000", provision)
         self.assertIn("RestrictAddressFamilies=AF_UNIX", provision)
@@ -129,6 +137,24 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("install_plugin_from_path_on_disk", helper)
         self.assertIn('"larenor_archive_encoder"', helper)
         self.assertIn('"larenor_archive_terminal"', helper)
+
+    def test_ai_worker_has_exact_private_identity_state_and_activation_contract(self):
+        root = MODULE.parent
+        sysusers = (root / "larenor-host-workers.sysusers").read_text()
+        tmpfiles = (root / "larenor-host-workers.tmpfiles").read_text()
+        self.assertIn("g larenor-ai 10003", sysusers)
+        self.assertIn("u larenor-ai 10003:10003", sysusers)
+        self.assertIn("m larenor-ai larenor-ipc", sysusers)
+        self.assertIn(
+            "d /var/lib/larenor-server/core/data/host-workers/ipc/ai 0770 10001 larenor-ipc",
+            tmpfiles,
+        )
+        self.assertIn(
+            "d /var/lib/larenor-server/host-workers/ai 0700 larenor-ai larenor-ai",
+            tmpfiles,
+        )
+        self.assertIn((package.CONFIG / "ai/runtime.json", 10003), package.PRIVATE_CONFIGS)
+        self.assertIn("larenor-ai-worker.service", package.UNITS)
 
     def test_unified_core_reuses_data_mount_for_ipc_and_preserves_host_docker_boundary(self):
         compose = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
@@ -143,6 +169,10 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertEqual(core["environment"]["LARENOR_INSTALLATION_WORKER_UID"], "0")
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_WORKER_UID"], "1000")
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_SOCKET_GID"], "10002")
+        self.assertEqual(core["environment"]["LARENOR_AI_WORKER_UID"], "10003")
+        self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET_GID"], "10002")
+        self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET"],
+                         "/data/host-workers/ipc/ai/runtime.sock")
         self.assertTrue(all(
             port.startswith("127.0.0.1:")
             for name in ("larenor-jellyfin", "larenor-sonarr",

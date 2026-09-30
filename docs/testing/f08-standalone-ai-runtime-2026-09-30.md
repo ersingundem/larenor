@@ -7,12 +7,42 @@ each supported job kind to one fixed standalone executable and exact SHA-256
 identities for that executable and its model/artifact files. Missing or invalid
 configuration is reported as `workerUnavailable`; queued rows remain queued.
 
-The worker runs as a transient systemd service, so the provider process and all
+Normal deployment keeps systemd authority on the host. Core never receives the
+private provider catalog and does not bind the host D-Bus: it calls a dedicated
+UID 10003 host worker through a mode `0660`, GID 10002 Unix socket. Both ends
+check `SO_PEERCRED`; the worker accepts only Core UID 10001 and Core checks the
+socket owner and group before every request. The worker uses the UID 10003 user
+manager at `/run/user/10003/bus`; it does not receive root or unrestricted
+polkit authority. Missing linger, user bus, controller delegation, socket, or
+provider identity leaves the capability unavailable.
+
+The reviewed host package installs `larenor-ai` as UID/GID 10003, adds only
+supplementary IPC GID 10002, and creates these fixed paths:
+
+- private catalog: `/etc/larenor-server/host-workers/ai/runtime.json`, owner
+  10003 and mode `0600`;
+- runtime state: `/var/lib/larenor-server/host-workers/ai`, owner 10003 and
+  mode `0700`;
+- host socket: `/var/lib/larenor-server/core/data/host-workers/ipc/ai/runtime.sock`;
+- Core socket: `/data/host-workers/ipc/ai/runtime.sock`.
+
+The catalog must select `manager: "user"`, `/usr/bin/systemd-run`,
+`/usr/bin/systemctl`, the fixed state directory, and at least one real
+standalone provider whose executable and every model artifact have exact
+SHA-256 values. The package never creates that private catalog or chooses a
+model. Explicit package activation enables linger for `larenor-ai`, starts
+`user@10003.service`, checks the private catalog through that user bus, and
+only then enables `larenor-ai-worker.service`. Normal Core composition carries
+only the socket, UID, and GID; it has no provider path or D-Bus mount.
+
+The worker runs each job as a transient systemd service, so the provider process and all
 of its children share the same cgroup. The service is created with `CPUQuota`,
 `MemoryMax`, `MemorySwapMax=0`, `TasksMax`, and `RuntimeMaxSec`, plus a private
 network and restricted filesystem view. This does not claim that a separate
 Ollama or other daemon is bounded: production providers must perform inference
-inside the launched service. The runtime reads `MemoryPeak`, `CPUUsageNSec`,
+inside the launched service. The provider unit cannot access the user-manager
+bus path, so it cannot create a sibling transient unit outside its assigned
+cgroup. The runtime reads `MemoryPeak`, `CPUUsageNSec`,
 exit status, and systemd result from the exact unit. A successful job also
 requires a provider receipt and output file whose job, dispatch, provider,
 length, and SHA-256 all match. `RemainAfterExit` keeps a fast successful unit
@@ -41,6 +71,7 @@ The focused local gate is:
 cd server
 uv run pytest -q \
   tests/test_f08_systemd_runtime.py \
+  tests/test_f08_ai_worker_ipc.py \
   tests/test_f08_ai_runtime_dispatch.py \
   tests/test_f08_f11_final.py
 ```
@@ -57,20 +88,22 @@ The mandatory Linux deployment gate is opt-in:
 cd server
 LARENOR_F08_SYSTEMD_ACCEPTANCE=1 \
   uv run pytest -q \
-  tests/test_f08_systemd_runtime.py::test_actual_systemd_cgroup_runs_standalone_provider_and_reads_receipt
+  tests/test_f08_ai_worker_ipc.py::test_actual_uid10003_user_manager_runs_through_uid10001_ipc
 ```
 
-That gate uses the actual configured systemd manager, launches the standalone fixture
-as a real process, reads back `MemoryMax`, `MemorySwapMax`, `TasksMax`, and
-`CPUQuotaPerSecUSec`, then requires nonzero CPU accounting, bounded peak memory,
-and a verified provider receipt. Deployment remains unavailable until this gate
+That gate creates the same unprivileged user-manager boundary as deployment,
+starts the host worker as UID 10003, and calls it from a UID 10001 process with
+only supplementary IPC GID 10002. The provider is a real process in the user
+manager cgroup; the client requires its terminal metrics and verified receipt,
+then releases the exact unit. Deployment remains unavailable until this gate
 passes on the target Linux host with delegated CPU, memory, and pids controllers.
 The fixture proves the process boundary only; it is deliberately not presented
 as inference or a supported production model.
 
 CI runs the same test as the isolated `f08-linux-cgroup` job in
-`.github/workflows/server-test.yml`. The hosted Ubuntu runner uses the system
-manager under `sudo` only for this synthetic fixture. The required
+`.github/workflows/server-test.yml`. Root is used only to create the isolated
+UIDs, groups, and linger user manager; the worker and transient provider remain
+UID 10003 and the client remains UID 10001. The required
 `server-test` aggregate fails unless that job passes, and the test verifies the
 transient unit is collected and its private dispatch files are removed.
 
@@ -86,3 +119,6 @@ Primary contracts:
   <https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html>
 - `systemctl show` and `stop` provide bounded unit readback and cancellation:
   <https://www.freedesktop.org/software/systemd/man/latest/systemctl.html>
+- `loginctl enable-linger` starts a user manager at boot and keeps it after the
+  last login session ends:
+  <https://www.freedesktop.org/software/systemd/man/latest/loginctl.html>

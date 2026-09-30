@@ -727,7 +727,12 @@ class CoreServices:
             self.tablet_fleet.validate_storage()
             self.ai_resources = AiResourceService(
                 self.db, self.auth, settings, key, self.context,
-                runtime=build_ai_job_runtime(settings.ai_worker_config),
+                runtime=build_ai_job_runtime(
+                    settings.ai_worker_config,
+                    worker_socket=settings.ai_worker_socket,
+                    worker_uid=settings.ai_worker_uid,
+                    socket_gid=settings.ai_worker_socket_gid,
+                ),
             )
             self.ai_resources.validate_storage()
             self.ai_memory = AiMemoryService(

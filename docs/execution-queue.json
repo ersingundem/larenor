@@ -3572,7 +3572,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kalıcı reserve/start/cancel/terminal journal, gerçek standalone provider ve systemd cgroup CPU/RAM/pids/runtime sınırı ile normal Core dispatcher bağlandı. 31 Server geçti, actual Linux gate macOS üzerinde 1 skip; 4 Flutter ve analyze temiz. Required server-test aggregate actual Ubuntu systemd cgroup gate geçmeden yeşil olmaz. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Linux exact HEAD CI ve geniş kabul açık; model inference/household donanım kabulü iddia edilmedi, sayaç artmadı. Normal Docker Core systemd erişimi ayrı host IPC bağlantısıyla tamamlanıyor; native test geçişi container composition kabulü değildir."
+      "reason": "Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md."
     },
     {
       "id": "F04",

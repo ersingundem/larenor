@@ -96,6 +96,7 @@ def test_fixed_provider_uses_systemd_cgroup_limits_and_durable_descriptor(tmp_pa
     assert "--property=MemorySwapMax=0" in start
     assert "--property=TasksMax=12" in start
     assert "--property=KillMode=control-group" in start
+    assert f"--property=InaccessiblePaths=/run/user/{os.geteuid()}/bus" in start
     assert "--property=RemainAfterExit=yes" in start
     assert f"--property=BindPaths={state}" in start
     assert any(value.startswith("--property=BindReadOnlyPaths=")
@@ -165,6 +166,18 @@ def test_runtime_is_unavailable_off_linux_and_rejects_mutable_catalog(tmp_path):
     os.chmod(source, 0o644)
     with pytest.raises(AiRuntimeError, match="invalid_runtime_configuration"):
         AiRuntimeConfig.load(source)
+
+
+def test_user_manager_uses_only_the_exact_runtime_bus_environment(tmp_path):
+    source, _state = _config(tmp_path)
+    runtime = SystemdAiJobRuntime(AiRuntimeConfig.load(source), platform="linux")
+    assert runtime._runner.environment == {
+        "PATH": "/usr/bin:/bin",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "XDG_RUNTIME_DIR": f"/run/user/{os.geteuid()}",
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{os.geteuid()}/bus",
+    }
 
 
 def test_worker_becomes_unavailable_when_allowlisted_artifact_identity_changes(tmp_path):

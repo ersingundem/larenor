@@ -45,6 +45,7 @@ ASSETS = {
     "larenor-unmanic-provision.service": (Path("/etc/systemd/system/larenor-unmanic-provision.service"), 0o644),
     "unmanic_provision.py": (Path("/usr/libexec/larenor-unmanic-provision"), 0o755),
     "larenor-media-archive-worker.service": (Path("/etc/systemd/system/larenor-media-archive-worker.service"), 0o644),
+    "larenor-ai-worker.service": (Path("/etc/systemd/system/larenor-ai-worker.service"), 0o644),
 }
 PRIVATE_CONFIGS = (
     (CONFIG / "root/preflight.json", 0),
@@ -54,6 +55,7 @@ PRIVATE_CONFIGS = (
     (CONFIG / "archive/callback.key", 1000),
     (CONFIG / "archive/encoder.json", 1000),
     (CONFIG / "archive/callback.json", 1000),
+    (CONFIG / "ai/runtime.json", 10003),
 )
 UNITS = (
     "larenor-preflight-worker.service",
@@ -61,6 +63,7 @@ UNITS = (
     "larenor-unmanic-provision.service",
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
+    "larenor-ai-worker.service",
 )
 
 
@@ -320,6 +323,14 @@ def install(bundle, python=Path("/usr/bin/python3")):
         if ipc.gr_gid != 10002 or grp.getgrgid(10002).gr_name != "larenor-ipc":
             raise KeyError()
         pwd.getpwuid(1000)
+        ai = pwd.getpwnam("larenor-ai")
+        ai_group = grp.getgrnam("larenor-ai")
+        if (ai.pw_uid != 10003 or ai.pw_gid != 10003
+                or ai_group.gr_gid != 10003
+                or pwd.getpwuid(10003).pw_name != "larenor-ai"
+                or grp.getgrgid(10003).gr_name != "larenor-ai"
+                or 10002 not in os.getgrouplist("larenor-ai", 10003)):
+            raise KeyError()
     except KeyError:
         raise HostWorkerPackageError("host_identity_invalid") from None
     _run(["/usr/bin/systemd-tmpfiles", "--create", "/usr/lib/tmpfiles.d/larenor-host-workers.conf"])
@@ -361,6 +372,28 @@ def activate():
           "--socket-gid", "10002", "--check-config"])
     _run([str(server / "larenor-media-archive-worker"), "--config",
           str(CONFIG / "archive/runtime.json"), "--check-config"])
+    _run(["/usr/bin/loginctl", "enable-linger", "larenor-ai"])
+    _run(["/usr/bin/systemctl", "start", "user@10003.service"])
+    try:
+        runtime_directory = os.stat("/run/user/10003", follow_symlinks=False)
+        bus = os.stat("/run/user/10003/bus", follow_symlinks=False)
+        if (not stat.S_ISDIR(runtime_directory.st_mode)
+                or runtime_directory.st_uid != 10003
+                or stat.S_IMODE(runtime_directory.st_mode) != 0o700
+                or not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != 10003):
+            raise OSError()
+    except OSError:
+        raise HostWorkerPackageError("host_identity_invalid") from None
+    _run([
+        "/usr/sbin/runuser", "--user", "larenor-ai", "--group", "larenor-ai",
+        "--supp-group", "larenor-ipc", "--", "/usr/bin/env",
+        "XDG_RUNTIME_DIR=/run/user/10003",
+        "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10003/bus",
+        str(server / "larenor-ai-worker"), "--config",
+        str(CONFIG / "ai/runtime.json"), "--socket",
+        str(IPC / "ai/runtime.sock"), "--core-uid", "10001",
+        "--socket-gid", "10002", "--check-config",
+    ])
     _run(["/usr/bin/systemctl", "enable", "--now", *UNITS], timeout=180)
 
 

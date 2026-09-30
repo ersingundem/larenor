@@ -33,15 +33,26 @@ jobs:
         working-directory: server
         run: uv sync --locked --python 3.12.14
 
-      - name: Prove actual systemd cgroup enforcement and receipt cleanup
+      - name: Prepare the dedicated unprivileged AI user manager
+        run: |
+          sudo groupadd --gid 10001 larenor-core
+          sudo useradd --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin larenor-core
+          sudo groupadd --gid 10002 larenor-ipc
+          sudo groupadd --gid 10003 larenor-ai
+          sudo useradd --uid 10003 --gid 10003 --groups 10002 --create-home --home-dir /var/lib/larenor-ai --shell /usr/sbin/nologin larenor-ai
+          sudo loginctl enable-linger larenor-ai
+          sudo systemctl start user@10003.service
+          test -S /run/user/10003/bus
+          chmod -R a+rX "$UV_PROJECT_ENVIRONMENT"
+
+      - name: Prove Core UID IPC to the actual user-manager cgroup runtime
         working-directory: server
         env:
           LARENOR_F08_SYSTEMD_ACCEPTANCE: "1"
-          LARENOR_F08_SYSTEMD_MANAGER: system
         run: |
-          sudo --preserve-env=LARENOR_F08_SYSTEMD_ACCEPTANCE,LARENOR_F08_SYSTEMD_MANAGER \
+          sudo --preserve-env=LARENOR_F08_SYSTEMD_ACCEPTANCE \
             "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
-            tests/test_f08_systemd_runtime.py::test_actual_systemd_cgroup_runs_standalone_provider_and_reads_receipt
+            tests/test_f08_ai_worker_ipc.py::test_actual_uid10003_user_manager_runs_through_uid10001_ipc
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F08 normal Core → gerçek host AI yürütücüsü
+
+Docker Core, özel peer UID doğrulamalı Unix IPC üzerinden ayrı UID10003 worker ve systemd user manager’a bağlandı. Kaynak sınırı, gerçek process receipt ve kalıcı iptal/release korunuyor; config ve host paket kurulum akışı tamamlandı. 42 Server ve 6 paket testi geçti; 3 actual Linux kapısı macOS üzerinde skip, required Ubuntu CI bekliyor. [Kanıt](testing/f08-standalone-ai-runtime-2026-09-30.md). Model ve fiziksel hedef kabulü açık; sayaç değişmedi.
+
 ### 30 Eylül F38 doğru albüm kaynağı
 
 Immich çok-albümlü arama sonuçları ilk albüme yanlış atanmıyor; her albüm ayrı aranıp sonuçlar kaynaklarını koruyarak birleştiriliyor. 40 Server ve 1 gerçek Flutter→normal Core→TCP Immich kabulü geçti, analyze temiz. [Kanıt](testing/f38-normal-source-2026-09-30.md). Geniş exact HEAD CI bekliyor; sayaç değişmedi.

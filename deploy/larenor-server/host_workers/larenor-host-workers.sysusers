@@ -1,1 +1,4 @@
 g larenor-ipc 10002 - -
+g larenor-ai 10003 - -
+u larenor-ai 10003:10003 "Larenor AI worker" /var/lib/larenor-server/host-workers/ai /usr/sbin/nologin
+m larenor-ai larenor-ipc
