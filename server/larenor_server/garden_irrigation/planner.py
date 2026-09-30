@@ -35,9 +35,13 @@ class IrrigationPlanner:
         except ValueError:
             raise ApiError("invalid_request") from None
         try:
-            current = IrrigationAuthority.model_validate(
-                self._resolve_authority(value.accountId)
-            )
+            try:
+                resolved = self._resolve_authority(value)
+            except (TypeError, KeyError, AttributeError):
+                resolved = self._resolve_authority(value.accountId)
+            if resolved is None:
+                resolved = self._resolve_authority(value.accountId)
+            current = IrrigationAuthority.model_validate(resolved)
         except Exception:  # noqa: BLE001 -- external state must fail closed.
             raise ApiError("forbidden", 403) from None
         if current != value:

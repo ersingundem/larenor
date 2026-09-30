@@ -204,6 +204,8 @@ from .mesh_center.runtime import build_mesh_center_gateway
 from .room_comfort.schema import migrate_room_comfort
 from .room_comfort.service import RoomComfortService
 from .garden_irrigation.runtime import build_irrigation_gateway
+from .garden_irrigation.home_assistant import HomeAssistantIrrigationProvider
+from .garden_irrigation.source_schema import migrate_irrigation_source
 from .energy_priorities.service import EnergyPriorityService
 from .ev_charging.runtime import EvChargeRuntime
 from .ev_charging.schema import migrate_ev_charging
@@ -554,6 +556,7 @@ class CoreServices:
                 migrate_camera_visual_sensors(connection)
                 migrate_private_event_sharing(connection)
                 migrate_services(connection)
+                migrate_irrigation_source(connection)
                 migrate_core_audit(connection, key, self.context)
                 migrate_workshop(connection)
                 migrate_component_egress(connection, self.context, key)
@@ -797,12 +800,23 @@ class CoreServices:
                 worker=self._room_comfort_worker,
             )
             self.room_comfort.validate_storage()
-            self.irrigation = (
-                None
-                if self._irrigation_provider is None
-                else build_irrigation_gateway(
-                    self._irrigation_provider, clock=settings.clock
+            irrigation_provider = self._irrigation_provider
+            if irrigation_provider is None:
+                irrigation_provider = HomeAssistantIrrigationProvider(
+                    self.db,
+                    self.auth,
+                    settings,
+                    key,
+                    self.context,
+                    lambda connection, service_id, revision: (
+                        self.services._home_assistant_connection(
+                            connection, service_id, revision
+                        )
+                    ),
+                    self.home_resources,
                 )
+            self.irrigation = build_irrigation_gateway(
+                irrigation_provider, clock=settings.clock
             )
             self.epaper = EpaperManagement(
                 self.db, self.auth, settings, key, self.context)

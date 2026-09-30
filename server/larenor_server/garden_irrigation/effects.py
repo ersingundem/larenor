@@ -73,8 +73,14 @@ class IrrigationCoordinator:
         except ValueError:
             raise ApiError("invalid_request") from None
         try:
+            try:
+                resolved = self._resolve_authority(authority)
+            except (TypeError, KeyError, AttributeError):
+                resolved = self._resolve_authority(authority.accountId)
+            if resolved is None:
+                resolved = self._resolve_authority(authority.accountId)
             current_authority = IrrigationAuthority.model_validate(
-                self._resolve_authority(authority.accountId)
+                resolved
             )
             current_policy = IrrigationPolicy.model_validate(
                 self._resolve_policy(plan.policyId)
@@ -533,9 +539,13 @@ class IrrigationCoordinator:
     def _authority_only(self, rawAuthority):
         try:
             authority = IrrigationAuthority.model_validate(rawAuthority)
-            current = IrrigationAuthority.model_validate(
-                self._resolve_authority(authority.accountId)
-            )
+            try:
+                resolved = self._resolve_authority(authority)
+            except (TypeError, KeyError, AttributeError):
+                resolved = self._resolve_authority(authority.accountId)
+            if resolved is None:
+                resolved = self._resolve_authority(authority.accountId)
+            current = IrrigationAuthority.model_validate(resolved)
         except Exception:
             raise ApiError("forbidden", 403) from None
         if current != authority:

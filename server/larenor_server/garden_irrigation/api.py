@@ -15,6 +15,7 @@ from .models import (
     IrrigationPreviewRequest,
     IrrigationStopRequest,
 )
+from .source_models import HomeAssistantIrrigationSourceInput
 
 Admin = Annotated[Principal, Depends(require_admin)]
 
@@ -40,6 +41,23 @@ def snapshot(actor: Admin, request: Request):
     if gateway is None:
         raise ApiError("irrigation_provider_unavailable", 503)
     return {"snapshot": gateway.snapshot(actor)}
+
+
+@router.get("/admin/irrigation-budget/source")
+def source(actor: Admin, request: Request):
+    return {"schemaVersion": 1, "source": _gateway(request).configuration(actor)}
+
+
+@router.put("/admin/irrigation-budget/source")
+def put_source(
+    body: HomeAssistantIrrigationSourceInput,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "schemaVersion": 1,
+        "source": _gateway(request).configure(actor, body),
+    }
 
 
 def _gateway(request):

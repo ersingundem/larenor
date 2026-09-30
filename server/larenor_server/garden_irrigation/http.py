@@ -18,9 +18,10 @@ MAX_LIVE_PLANS = 64
 
 
 class IrrigationHttpGateway:
-    def __init__(self, *, planner, provider, clock_ms):
+    def __init__(self, *, planner, provider, clock_ms, authority_resolver=None):
         self._planner = planner
         self._provider = provider
+        self._authority_resolver = authority_resolver or provider.authority
         self._clock_ms = clock_ms
         self._plans = OrderedDict()
         self._preview_plans = OrderedDict()
@@ -30,8 +31,10 @@ class IrrigationHttpGateway:
 
     def _load(self, actor):
         try:
+            actor_authority = getattr(self._provider, "authority_for_actor", None)
             authority = IrrigationAuthority.model_validate(
-                self._provider.authority(actor.id)
+                actor_authority(actor) if callable(actor_authority)
+                else self._provider.authority(actor.id)
             )
             policy = self._provider.policy(authority)
             policy_model = IrrigationPolicy.model_validate(policy)
@@ -150,7 +153,7 @@ class IrrigationHttpGateway:
                 )
                 self._coordinator = IrrigationCoordinator(
                     audit=audit,
-                    authorityResolver=self._provider.authority,
+                    authorityResolver=self._authority_resolver,
                     policyResolver=self._provider.policy_by_id,
                     planResolver=self._plan,
                 )
@@ -243,8 +246,10 @@ class IrrigationHttpGateway:
 
     def _control_context(self, actor):
         try:
+            actor_authority = getattr(self._provider, "authority_for_actor", None)
             authority = IrrigationAuthority.model_validate(
-                self._provider.authority(actor.id)
+                actor_authority(actor) if callable(actor_authority)
+                else self._provider.authority(actor.id)
             )
             policy = IrrigationPolicy.model_validate(
                 self._provider.policy(authority)
@@ -263,3 +268,15 @@ class IrrigationHttpGateway:
             raise ApiError("revision_conflict", 409)
         self._ensure_control(actor, authority, policy)
         return authority, policy
+
+    def configuration(self, actor):
+        method = getattr(self._provider, "configuration", None)
+        if not callable(method):
+            raise ApiError("irrigation_source_unavailable", 503)
+        return method(actor)
+
+    def configure(self, actor, body):
+        method = getattr(self._provider, "configure", None)
+        if not callable(method):
+            raise ApiError("irrigation_source_unavailable", 503)
+        return method(actor, body)
