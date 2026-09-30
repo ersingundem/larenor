@@ -96,8 +96,10 @@ final class IngredientDeductionPreview {
       draft.completedStep,
       draft.stepRevision,
       draft.expectedPantryRevision,
-      for (final item in sorted)
-        [item.stockItemId, item.quantityMicros, item.unit.wire],
+      [
+        for (final item in sorted)
+          [item.stockItemId, item.quantityMicros, item.unit.wire],
+      ],
     ]);
     return IngredientDeductionPreview._(
       idempotencyKey: sha256.convert(utf8.encode(canonical)).toString(),

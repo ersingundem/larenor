@@ -54,6 +54,10 @@ void main() {
     expect(first.stepRevision, 4);
     expect(first.expectedPantryRevision, 12);
     expect(
+      first.idempotencyKey,
+      'bb286ec3f0fe2418c2c4eb54b4aaeadb93c82b13e0277cc604d9286a6ff18195',
+    );
+    expect(
       () => IngredientDeductionPreview.fromDraft(
         IngredientDeductionDraft(
           accountId: 'account-a',

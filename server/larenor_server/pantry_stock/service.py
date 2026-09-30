@@ -26,10 +26,12 @@ class PantryStockService:
         if (core_id, home_id) != (self.scope.coreId, self.scope.homeId):
             raise ApiError('not_found', 404)
 
-    def _actor(self, connection, actor, core_id, home_id, *, write=False):
+    def _rate_limit(self, actor, *, write=False):
         self.auth.rate_limit([
             ('pantry_stock_write' if write else 'pantry_stock_read',
              actor.id, 120)])
+
+    def _actor(self, connection, actor, core_id, home_id):
         self.auth.assert_current(connection, actor)
         self._scope(core_id, home_id)
         row = connection.execute(
@@ -84,6 +86,7 @@ class PantryStockService:
             raise StartupError('pantry_stock_storage_invalid') from None
 
     def snapshot(self, actor, core_id, home_id):
+        self._rate_limit(actor)
         try:
             with self.db.connection() as connection:
                 self._actor(connection, actor, core_id, home_id)
@@ -103,9 +106,10 @@ class PantryStockService:
         return self._mutate(actor, core_id, home_id, body, 'undo')
 
     def _mutate(self, actor, core_id, home_id, body, operation):
+        self._rate_limit(actor, write=True)
         try:
             with self.db.transaction() as connection:
-                self._actor(connection, actor, core_id, home_id, write=True)
+                self._actor(connection, actor, core_id, home_id)
                 ledger = self._read(connection)
                 if operation == 'receive':
                     receipt = ledger.receive(

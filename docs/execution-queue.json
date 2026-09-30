@@ -3572,7 +3572,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek normal Docker Core → özel Unix IPC → UID10003 host worker → systemd user-manager cgroup provider yolu paketlendi; Core UID10001/IPC GID10002 ve exact peer kimliği korunur. Kalıcı dispatch/iptal/terminal receipt/release gerçek OS readback ile bağlandı. 42 odaklı Server testi geçti, macOS üzerinde 3 gerçek Linux kapısı skip; 6 paket testi ve lock kontrolü geçti. Required actual Ubuntu user-manager/cgroup CI zorunlu; production model ve fiziksel hedef kabulü açık, sayaç artmadı. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Exact 09a912b4002f062757583df24f499731f507432c F08 Linux CI 36750577813 başarılı: ayrı UID IPC, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Bu dar Linux koşusu geniş güncel commit CI veya gerçek model kabulü değildir. docs/testing/f08-linux-cgroup-acceptance-2026-09-30.md."
     },
     {
       "id": "F04",
@@ -4356,7 +4356,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Büyük ekran pişirme asistanı",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4380,7 +4380,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama tamamlandı: gerçek Client→Core oturum yaşam döngüsü, tablet çalışma alanı, kalıcı çoklu zamanlayıcı bildirimi ve atomik/idempotent kiler düşümü 55b347c69fccf57df65b6dded9f92ed96e08534d ile gönderildi. Flutter 17/17, sunucu F33+kiler 6/6 ve hedefli analiz geçti; tam commit CI ve final fonksiyonellik geçişi bekleniyor."
+      "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Gerçek Flutter Client → normal Uvicorn Core ile oturum/adım, atomik kiler düşümü, idempotent replay ve ayrı Core/Client restart sonrası kalıcı makbuz doğrulandı. Gerçek kapının bulduğu nested write transaction, strict JSON receipt restore ve Client canonical digest hataları düzeltildi. 7 Server, 17 Flutter testi ve iki gerçek TCP Client fazı geçti; root 7 Server ve birleşik runnerı bağımsız doğruladı. Tablet/native bildirim ve fiziksel mutfak kabulü MANUAL kayıtlarında açık; sayaç artırılmadı. docs/testing/f33-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "F34",
@@ -5095,7 +5095,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5119,7 +5119,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core OctoPrint/Moonraker gerçek iş/durum/heater actual-target izlemi ve kalıcı sıcaklık görünümü uygulandı. Exact-job user-confirmed pause/cancel tek gönderimlidir; kayıp ACK yeniden gönderilmez ve gerçek provider GET sonucu makbuzla karşılaştırılır. 20 odaklı server ve 18 Flutter testi geçti. Bilinmeyen kapı/filament/termal/EStop koşulları uydurulmaz; keyfi G-code veya başlatma yok. Tam birleşik Client→Core→provider ve exact HEAD CI docs/testing/f59-real-provider-2026-09-30.md kaydında açık."
+      "reason": "FINAL.FUNCTION gerçek kullanım incelemesinde WorkshopScreen üzerinde yeni yazıcı kaydetme/servis seçme akışının olmadığı görüldü. Aktif geliştirme: mevcut doğrulanmış OctoPrint/Moonraker servisini seçen Client akışı, current-home/admin yetkili Core catalog/register-from-service ve fresh gerçek provider gözleminden türetilen başlangıç durumu. Caller job/safety beyanı kabul kanıtı sayılmaz. Birleşik gerçek Client→normal Core→owned printer TCP, restart ve tek gönderim kapısı geçmeden CI bekliyor sayılmaz; fiziksel yazıcı güvenliği MANUAL kaydında kalır."
     },
     {
       "id": "F60",

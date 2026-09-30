@@ -17,10 +17,10 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 7 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 1 | 1 | 2 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 2 | 0 | 8 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 2 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 5 | 0 | 3 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 0 | 3 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 1 | 0 | 5 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -30,6 +30,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | F11 | Sınırlı yetkili mini eklentiler | Çalışılıyor | — |
+| F59 | 3D yazıcı ve atölye merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -37,7 +38,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
-| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G05 |
+| 1 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G05, G10 |
 | 2 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 3 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 4 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -125,14 +126,12 @@ Tamamlanan ve test/CI bekleyen işler
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
-| F33 | Büyük ekran pişirme asistanı | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F37 | Ortak ev masrafları | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F40 | Ortak kaynak rezervasyonu | Uygulama tamamlandı · test bekliyor | — |
 | F48 | Ev güç bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | Uygulama tamamlandı · test bekliyor | — |
-| F59 | 3D yazıcı ve atölye merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
@@ -158,6 +157,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F28 | Sesli kitap ve podcast merkezi | CI bekliyor | — |
 | F29 | Parti DJ'i ve ortak şarkı oylaması | CI bekliyor | — |
 | F30 | Medya arşivi sağlık ve yer tasarrufu | CI bekliyor | — |
+| F33 | Büyük ekran pişirme asistanı | CI bekliyor | — |
 | F35 | Ev belgeleri ve garanti hatırlatmaları | CI bekliyor | — |
 | F38 | Aile anıları ve fotoğraf araması | CI bekliyor | — |
 | F43 | Evdeyken kamera kayıt profili | CI bekliyor | — |

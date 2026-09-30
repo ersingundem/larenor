@@ -10,7 +10,7 @@ F01–F21 ve F22–F44 iki bağımsız ajan tarafından salt okunur incelendi.
 | F01 | Kapanmış: Android on-device STT/TTS ve güncel HA hedefli taslak/confirm akışı bağlandı | 10 native + 11 Flutter + 3 Server + 1 gerçek Flutter→normal Core→TCP HA kapısı geçti; model/cihaz ve exact-head CI açık |
 | F02/F03 | Kapanmış: normal Core gerçek HA registry ve trace/list/get kaynağını kullanıyor; Client gerçek olay iddiası kabul edilmiyor | 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kapısı geçti; uzun gerçek geçmiş/DST ve exact-head CI açık |
 | F07 | Kapanmış: authenticated HA entity registry + bounded REST history, sealed provenance ve yeterli-baseline kapısı var | F07/F10 ortak kapısında 13 Server + 1 gerçek Flutter→normal Core→HA TCP/WS geçti; household baseline kalitesi manuel |
-| F08 | Kapanmış production composition: Docker Core→özel IPC→UID10003 worker→systemd user-manager cgroup dispatch/cancel/readback yolu paketlendi | 42 Server + 6 package geçti, 3 gerçek Linux kapısı macOS'ta skip; zorunlu Ubuntu cgroup stress/exact-head ve gerçek model açık |
+| F08 | Kapanmış production composition: Docker Core→özel IPC→UID10003 worker→systemd user-manager cgroup dispatch/cancel/readback yolu paketlendi | 42 Server + 6 package geçti; exact 09a912b4 Linux CI 36750577813 gerçek ayrı UID/cgroup stress/release kapısını geçti; geniş güncel HEAD CI ve gerçek model açık |
 | F10 | Kapanmış: Core registry/provider kimliğini ve history'yi çözüyor; arbitrary Client sources sentetik ve repair preview-only | F07/F10 ortak 13 Server + gerçek Flutter/normal Core/HA kapısı geçti; fiziksel diagnosis doğruluğu manuel |
 | F11 | Açık: v2 Server/Client sözleşmesinden uygulanmayan CPU 50 ms/1 MiB iddiası kaldırıldı; renderer gerçek 1 KiB çıktı sınırını korur | Tam CPU/bellek izolasyonlu runtime hâlâ geliştirmede; 4 Server/4 Flutter ve analyze geçti, stop/tamper/ev sınırı korunur |
 | F12 | Kapanmış transport/lifecycle: custom bearer JSON-RPC route `notifications/initialized`→empty 202, bounded protocol negotiation/standard `_meta`, Origin/protocol header kontrolü ve standart JSON-RPC hata zarflarını uygular | 8 F12 + 12 ortak boundary testi ve normal Uvicorn Core'a bağlanan official Python MCP SDK 2.2.0 initialize→initialized→tools/list→live revoke kapısı geçti. Yetki bilinçli olarak admin-provisioned bearer + exact client header'dır; OAuth Protected Resource Metadata/`WWW-Authenticate` yoktur ve generic OAuth istemci uyumu iddia edilmez |
@@ -72,9 +72,9 @@ sonrası 401'i gözledi. Standart OAuth
 discovery desteklenmediği ürün sözleşmesinde açıkça yazılıdır; preconfigured
 Larenor grant kullanan istemci yolu gerçek ve bağlıdır.
 
-F33, F40, F46, F48 ve F59 henüz bu sınıflandırmayı karşılamaz. F33'ün 17
-Flutter/6 Server sonucu için adlandırılmış birleşik normal-Core runner yoktur.
+F33 adlandırılmış gerçek Flutter→normal Core TCP ve ayrı Core/Client restart kabulünü geçti. Kiler transaction/receipt ve Client digest hataları giderildi; 7 Server, 17 Flutter ve iki gerçek Client fazı doğrulandı. F33 `awaiting_ci` durumundadır; tablet/native notification kapıları ayrıca açıktır.
+
+F40, F46, F48 ve F59 henüz bu sınıflandırmayı karşılamaz.
 F40'ın Core ve Flutter kapıları ayrı seamlerdir. F46 ve F48'in kendi kanıt
-dokümanları tam Client→normal Core→servis kabulünü açık bırakır. F59'un canlı
-kuyruk gerekçesi de birleşik Client→Core→provider yolunu açık bırakır. Bunları
+dokümanları tam Client→normal Core→servis kabulünü açık bırakır. F59'un kullanılabilir Client kayıt/servis seçme akışı eksiktir ve aktif geliştirmeye alınmıştır; birleşik Client→Core→provider kabulü de açık kalır. Bunları
 sırf test sayısı veya dosya varlığı nedeniyle ilerletmek doğru olmaz.

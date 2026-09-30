@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 37 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 gerçek MCP lifecycle/transport kabulü geçti; F11 CPU/bellek izolasyonu geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 38 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F12 ve F33 gerçek Client/Core kabulü geçti; F11 izolasyonu ve F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F33 gerçek Client/Core kabulü ve kuyruk ayrımı
+
+Kiler nested write transaction, JSON receipt restore ve Client canonical digest hataları gerçek TCP akışında bulunup düzeltildi. Gerçek Flutter → normal Core kapısı oturum/adım, atomik düşüm, tekrar gönderimde tek tüketim ve ayrı Core/Client restart sonrası kalıcı makbuzu doğruladı. 7 Server, 17 Flutter ve iki gerçek Client fazı geçti; root Server ve birleşik runnerı bağımsız doğruladı. F33 CI bekliyor tablosuna taşındı: 38 özellik geniş CI bekliyor; yalnız F11/F59 aktif geliştirme. F59 yazıcı kaydı UI eksikliği nedeniyle geliştirmeye alındı. 37/127 ve 3/63 kabul sayaçları değişmedi. [F33 kanıtı](testing/f33-normal-core-acceptance-2026-09-30.md).
 
 ### 30 Eylül exact F08 Linux kabulü ve Unmanic frontend kaynağı
 

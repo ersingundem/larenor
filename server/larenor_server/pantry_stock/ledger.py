@@ -314,7 +314,14 @@ class PantryLedger:
                 request_id = ledger._identity(raw['requestId'])
             except PantryConflict:
                 raise ValueError('invalid_pantry_state') from None
-            receipt = StockReceipt.model_validate(raw['receipt'])
+            raw_receipt = raw['receipt']
+            if (type(raw_receipt) is not dict or
+                    type(raw_receipt.get('allocations')) is not list):
+                raise ValueError('invalid_pantry_state')
+            receipt = StockReceipt.model_validate({
+                **raw_receipt,
+                'allocations': tuple(raw_receipt['allocations']),
+            })
             if (request_id != receipt.requestId or
                     request_id in ledger._receipts or
                     receipt.revision in revisions or
