@@ -36,9 +36,13 @@ class EnergyPriorityService:
         worker=None,
         inverter=None,
         reserve_control=None,
+        home_revision_provider=None,
     ):
         self.db, self.auth, self.settings = db, auth, settings
         self.context, self.provider, self.worker = context, provider, worker
+        self._home_revision_provider = home_revision_provider or (lambda: 1)
+        if not callable(self._home_revision_provider):
+            raise ValueError("invalid_home_revision_provider")
         self.inverter = (
             None if inverter is None else InverterCapability.model_validate(inverter)
         )
@@ -73,11 +77,19 @@ class EnergyPriorityService:
         if row is None or row["disabled"] or row["must_change_password"]:
             raise ApiError("forbidden", 403)
         selected = self.inverter if capability is None else capability
+        try:
+            home_revision = self._home_revision_provider()
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("server_unavailable", 503) from None
+        if type(home_revision) is not int or not 1 <= home_revision <= 2**63 - 1:
+            raise ApiError("server_unavailable", 503)
         authority = EnergyAuthority(
             schemaVersion=1,
             coreId=self.context.coreId,
             homeId=self.context.homeId,
-            homeRevision=1,
+            homeRevision=home_revision,
             accountId=actor.id,
             accountRevision=row["revision"],
             memberRevision=row["revision"],

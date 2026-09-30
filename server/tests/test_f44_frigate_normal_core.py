@@ -66,6 +66,31 @@ def test_normal_core_actual_classified_webp_hysteresis_restart_and_staleness(ser
     assert not any(method == 'POST' for method, _path in upstream.calls)
 
 
+def test_normal_provider_binds_observation_to_actual_home_registry_revision(
+        server, visual, monkeypatch):
+    upstream, _pair, _root, _value = visual
+    bind(server, visual)
+    core = server[0].state.core
+    with core.db.connection() as connection:
+        connection.execute('BEGIN')
+        home_revision = core.home_resources._state(connection)['revision']
+    assert home_revision > 1
+    captured = {}
+    original = core.camera_visual_sensors._engine.ingest
+
+    def ingest(authority, rule, batch):
+        captured.update(authority=authority, batch=batch)
+        return original(authority, rule, batch)
+
+    monkeypatch.setattr(core.camera_visual_sensors._engine, 'ingest', ingest)
+    server[3].now += 2
+    upstream.attempt(server[3].now)
+    response = refresh(server, visual)
+    assert response.status_code == 200, response.text
+    assert captured['authority'].homeRevision == home_revision
+    assert captured['batch'].homeRevision == home_revision
+
+
 @pytest.mark.parametrize('change', ['untrained', 'multiple_cameras', 'bad_crop'])
 def test_untrained_or_ambiguous_camera_model_cannot_bind(server, visual, change):
     upstream, pair, root, value = visual

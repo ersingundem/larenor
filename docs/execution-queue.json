@@ -4737,7 +4737,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Kameradan görsel sensörler",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4761,7 +4761,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. Yeniden açılan gerçek production bağımlılığı bekleniyor: F08."
+      "reason": "Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
     },
     {
       "id": "F45",
@@ -4899,7 +4899,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "pending",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. Yeniden açılan gerçek production bağımlılığı bekleniyor: F03."
+      "reason": "Gerçek evcc batarya/forecast ve admin kaynak UI, resmi HA Fronius minimum rezerv yüzdesi, kalıcı tek gönderim/causal readback ve kayıp ACK restart uzlaştırma uygulandı. Watt/direction kontrolü desteklenmiş gibi sunulmuyor. Registry ve yetki socket gönderimi öncesi tekrar doğrulanır. 16 Flutter testi ve focused analyze geçti; geniş yazılım kabulü, gerçek Client→normal Core→TCP sağlayıcı kapısı ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
     },
     {
       "id": "F49",

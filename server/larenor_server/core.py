@@ -999,6 +999,17 @@ class CoreServices:
             self.evcc_current_control = None
             self.evcc_battery_bindings = None
             evcc_runtime = None
+
+            def home_resource_revision():
+                with self.db.connection() as connection:
+                    connection.execute("BEGIN")
+                    self.home_resources._check_context(
+                        connection,
+                        self.context.coreId,
+                        self.context.homeId,
+                    )
+                    return self.home_resources._state(connection)["revision"]
+
             if (
                 self._ev_charge_provider is None
                 or self._power_budget_provider is None
@@ -1036,7 +1047,7 @@ class CoreServices:
                         core_id=self.context.coreId,
                         home_id=self.context.homeId,
                         core_revision=self.context.schemaVersion,
-                        home_revision=self.context.schemaVersion,
+                        home_revision=home_resource_revision(),
                         account_revision=evcc_account_revision,
                         connection=EvccConnection(
                             service_id=service_id,
@@ -1110,6 +1121,7 @@ class CoreServices:
                 self._energy_priority_inverter_worker,
                 self._energy_priority_inverter_capability,
                 self.fronius_reserve_control,
+                home_revision_provider=home_resource_revision,
             )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(

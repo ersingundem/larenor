@@ -327,7 +327,7 @@ class CameraVisualSensorService:
             raise ApiError("visual_sensor_storage_unavailable", 503) from None
 
     def observe(self, actor, core_id, home_id, rule_id, value, *,
-                cancelled=lambda: False):
+                authority=None, cancelled=lambda: False):
         body = SubmitVisualSensorObservation.model_validate(value)
         self._scope(core_id, home_id)
         if cancelled():
@@ -355,20 +355,35 @@ class CameraVisualSensorService:
                         or now_ms - body.batch.capturedAtMs > maximum_age
                         or body.batch.evidence.expiresAtMs <= now_ms):
                     raise ApiError("visual_sensor_observation_stale", 409)
-                authority = CameraVisualAuthority(
-                    schemaVersion=1, coreId=self.scope.coreId,
-                    homeId=self.scope.homeId, homeRevision=1,
-                    accountId=actor.id, accountRevision=actor_row["revision"],
-                    memberRevision=actor_row["revision"],
-                    sessionFamilyId=actor.family_id, role="admin",
-                    accessibleCameraIds=sorted(
-                        {item.cameraId for item in rules.values()}),
-                    active=True, canManageVisualSensors=True,
-                )
-                self._authorities[actor.id] = authority
+                if authority is None:
+                    current_authority = CameraVisualAuthority(
+                        schemaVersion=1, coreId=self.scope.coreId,
+                        homeId=self.scope.homeId, homeRevision=1,
+                        accountId=actor.id, accountRevision=actor_row["revision"],
+                        memberRevision=actor_row["revision"],
+                        sessionFamilyId=actor.family_id, role="admin",
+                        accessibleCameraIds=sorted(
+                            {item.cameraId for item in rules.values()}),
+                        active=True, canManageVisualSensors=True,
+                    )
+                else:
+                    current_authority = CameraVisualAuthority.model_validate(authority)
+                    if (
+                        current_authority.coreId != self.scope.coreId
+                        or current_authority.homeId != self.scope.homeId
+                        or current_authority.accountId != actor.id
+                        or current_authority.accountRevision != actor_row["revision"]
+                        or current_authority.sessionFamilyId != actor.family_id
+                        or current_authority.role != "admin"
+                        or not current_authority.active
+                        or not current_authority.canManageVisualSensors
+                        or rule.cameraId not in current_authority.accessibleCameraIds
+                    ):
+                        raise ApiError("revision_conflict", 409)
+                self._authorities[actor.id] = current_authority
                 self._rules = rules
                 before = self._engine.checkpoint()
-                reading = self._engine.ingest(authority, rule, body.batch)
+                reading = self._engine.ingest(current_authority, rule, body.batch)
                 if cancelled():
                     self._engine.restore(before)
                     raise ApiError("request_cancelled", 408)

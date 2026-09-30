@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F44/F47 gerçek ev revizyonu
+
+Frigate gözlemleri ve evcc enerji girdileri actual Home Resource Registry revizyonunu taşıyor; schemaVersion veya sabit 1 authority olarak kullanılmıyor. Kamera 21, enerji/evcc 25 Server regresyonu geçti. [Kamera kanıtı](testing/f44-real-frigate-classification-2026-09-30.md), [enerji kanıtı](testing/f47-solar-battery-priorities-core.tdd.md). Geniş CI ve fiziksel provider kabulü açık; sayaç değişmedi.
+
 ### 30 Eylül F08 normal Core → gerçek host AI yürütücüsü
 
 Docker Core, özel peer UID doğrulamalı Unix IPC üzerinden ayrı UID10003 worker ve systemd user manager’a bağlandı. Kaynak sınırı, gerçek process receipt ve kalıcı iptal/release korunuyor; config ve host paket kurulum akışı tamamlandı. 42 Server ve 6 paket testi geçti; 3 actual Linux kapısı macOS üzerinde skip, required Ubuntu CI bekliyor. [Kanıt](testing/f08-standalone-ai-runtime-2026-09-30.md). Model ve fiziksel hedef kabulü açık; sayaç değişmedi.

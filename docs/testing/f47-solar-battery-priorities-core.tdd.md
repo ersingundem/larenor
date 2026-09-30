@@ -17,6 +17,13 @@ service revision, observed battery-catalog revision, backup reserve percentage,
 and bounded charge/discharge limits. A service or battery-catalog change closes
 the provider until a new binding is accepted.
 
+The energy authority and evcc projection now read the authenticated Home
+Resource Registry's current monotonic revision at each request boundary. They
+no longer substitute the Core schema version or a constant. If the registry
+changes between authority creation, provider I/O and the final snapshot, the
+authority/input revision comparison fails closed rather than publishing a plan
+against a different home inventory.
+
 The existing accepted energy-window record gained optional solar energy, home
 load energy, and export tariff values. F46 remains compatible with old window
 records, while F47 requires all three values and uniform contiguous 5–60 minute
@@ -123,6 +130,11 @@ the operation becomes unavailable/uncertain and no POST reaches the provider.
 The five Fronius tests passed; the Flutter feature set passed 16 tests and
 focused analyze. The broader F47/F48/evcc check found one active F46 normal
 confirm failure; that separate source/charger repair is in progress.
+
+The follow-up revision regressions create a real registry resource first, then
+prove both an injected provider and the normal evcc battery composition publish
+that exact current registry revision in authority and inputs. The focused
+F47/evcc provider set passed **25 tests**; focused F44 passed separately.
 
 These tests include adapter seams for evcc transport and Home Assistant registry.
 They do not establish a fully unmodified Client→normal Core→TCP evcc/HA gate.

@@ -131,6 +131,13 @@ def test_normal_core_binds_live_battery_to_sealed_reserve_and_forecast(
     app = create_app(settings)
     with TestClient(app) as client:
         pair = ready((app, client, settings, clock))
+        context = app.state.core.context
+        resource = client.post(
+            f"/api/v1/admin/home-resources/{context.coreId}/{context.homeId}",
+            headers=auth(pair),
+            json={"kind": "resource", "label": "Battery", "order": 0},
+        )
+        assert resource.status_code == 201, resource.text
         created = client.post(
             "/api/v1/admin/services",
             headers=auth(pair),
@@ -151,7 +158,6 @@ def test_normal_core_binds_live_battery_to_sealed_reserve_and_forecast(
             state="reachable",
             version="0.214.1",
         )
-        context = app.state.core.context
         root = f"/api/v1/energy-priorities/{context.coreId}/{context.homeId}"
         binding_url = f"{root}/providers/evcc/{service['id']}/battery-binding"
         metadata = client.get(binding_url, headers=auth(pair))
@@ -206,6 +212,14 @@ def test_normal_core_binds_live_battery_to_sealed_reserve_and_forecast(
         snapshot = client.get(root, headers=auth(pair))
         assert snapshot.status_code == 200, snapshot.text
         body = snapshot.json()
+        with app.state.core.db.connection() as connection:
+            connection.execute("BEGIN")
+            actual_home_revision = app.state.core.home_resources._state(connection)[
+                "revision"
+            ]
+        assert actual_home_revision > 1
+        assert body["authority"]["homeRevision"] == actual_home_revision
+        assert body["inputs"]["homeRevision"] == actual_home_revision
         assert body["inputs"]["battery"]["capacityWh"] == 10_000
         assert body["inputs"]["battery"]["stateOfChargeWh"] == 5_500
         assert body["inputs"]["reserve"]["backupReservePercent"] == 40

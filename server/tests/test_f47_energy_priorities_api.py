@@ -154,6 +154,32 @@ def test_authenticated_plan_exposes_exact_advisory_and_percentage_reserve(tmp_pa
         assert body["plan"]["slots"][0]["action"] == "charge"
 
 
+def test_normal_core_energy_authority_uses_actual_home_registry_revision(tmp_path):
+    provider = Provider()
+    app, settings, client = _open(tmp_path, provider)
+    with client:
+        pair = _ready(client, settings)
+        context = app.state.core.context
+        created = client.post(
+            f"/api/v1/admin/home-resources/{context.coreId}/{context.homeId}",
+            headers=auth(pair),
+            json={"kind": "resource", "label": "Battery", "order": 0},
+        )
+        assert created.status_code == 201, created.text
+        with app.state.core.db.connection() as connection:
+            connection.execute("BEGIN")
+            actual_revision = app.state.core.home_resources._state(connection)[
+                "revision"
+            ]
+        assert actual_revision > 1
+        root = f"/api/v1/energy-priorities/{context.coreId}/{context.homeId}"
+        response = client.get(root, headers=auth(pair))
+        assert response.status_code == 200, response.text
+        value = response.json()
+        assert value["authority"]["homeRevision"] == actual_revision
+        assert value["inputs"]["homeRevision"] == actual_revision
+
+
 def test_preview_is_capability_gated_and_stale_provider_revision_fails_closed(tmp_path):
     provider = Provider()
     app, settings, client = _open(tmp_path, provider)

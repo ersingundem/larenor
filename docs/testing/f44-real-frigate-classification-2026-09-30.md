@@ -31,6 +31,12 @@ ve [0.17.1 çıkarım kodu](https://github.com/blakeblackshear/frigate/blob/v0.1
 incelendi. Frigate tüm kararlı yüzde 100 örnekleri saklamadığı için bu adapter,
 eski örneği yeni durum gibi göstermek yerine bilinmiyor durumunu korur.
 
+Gözlemdeki `homeRevision` artık sabit veya şema sürümünden türetilmez. Kaynak
+okumasının hemen öncesi ve sonrasında doğrulanan kamera arama otoritesinin gerçek
+Home Resource Registry revizyonu hem sınıflandırma batch'ine hem de reducer
+otoritesine aynen taşınır. Hesap, session family, kamera izni veya ev revizyonu
+değişirse ikisi eşleşmez ve gözlem saklanmaz.
+
 Doğrulama:
 
 - F44 reducer/API ve 13 yeni normal Core/TCP sağlayıcı testi: **22 geçti**.
@@ -44,6 +50,9 @@ Doğrulama:
   hazırlar, runtime nonroot/kurulumsuz kalır. Son imaj her iki binary'yi nonroot
   olarak çalıştırır. Bu yerel hostta Docker yok; iki mimaride exact-image build,
   smoke ve final exact HEAD CI henüz kabul edildi sayılmaz.
+- Ek normal-Core regresyonu, birden büyük gerçek registry revizyonunun hem batch
+  hem reducer otoritesinde aynı olduğunu doğrular. Odaklı F44 reducer ve gerçek
+  Frigate sağlayıcı koşusu **21 geçti**; `py_compile` temizdir.
 
 Fiziksel kamera, gerçek eğitimin doğruluğu/gece-gündüz çeşitliliği ve native UI
 kabulü ayrı kapılardır. Bu sensör erişim kontrolü/kilit açma kimliği değildir.

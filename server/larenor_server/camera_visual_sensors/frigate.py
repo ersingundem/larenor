@@ -21,7 +21,13 @@ from ..errors import ApiError, StartupError
 from ..home_resources.models import FrozenModel, Identity
 from ..media_archive_actions.verifier import MediaArchiveOutputVerifier, ArchiveVerificationError
 from .http_models import ConfigureVisualSensorRule, SubmitVisualSensorObservation, VisualEngineCapability
-from .models import Detection, DetectionBatch, EvidenceDescriptor, VisualSensorRule
+from .models import (
+    CameraVisualAuthority,
+    Detection,
+    DetectionBatch,
+    EvidenceDescriptor,
+    VisualSensorRule,
+)
 
 _NAME = re.compile(r"[A-Za-z0-9_]{1,80}\Z")
 _FILE = re.compile(r"none-none-(\d{1,12}(?:\.\d{1,9})?)-([A-Za-z0-9_]{1,80})-(0(?:\.\d{1,8})?|1(?:\.0{1,8})?)\.webp\Z")
@@ -295,14 +301,28 @@ class FrigateVisualSensorProvider:
             observation = SubmitVisualSensorObservation(schemaVersion=1, expectedRuleRevision=rule.ruleRevision,
                 capability=capability, batch=DetectionBatch(schemaVersion=1,
                     requestId=self.runtime._opaque('visual-attempt', rule_id + ':' + name + ':' + digest),
-                    coreId=core_id, homeId=home_id, homeRevision=1, cameraId=rule.cameraId,
+                    coreId=core_id, homeId=home_id, homeRevision=fresh[2].homeRevision, cameraId=rule.cameraId,
                     captureRevision=captured, pipelineId=rule.pipelineId, pipelineRevision=rule.pipelineRevision,
                     modelId=rule.modelId, modelRevision=rule.modelRevision, capturedAtMs=captured,
                     providerStatus='ready', frameStatus='complete', evidence=EvidenceDescriptor(
                         schemaVersion=1, digest=digest, byteLength=len(response.body), mediaType='image/webp',
                         expiresAtMs=captured + rule.evidenceRetentionMs),
                     detections=[Detection(schemaVersion=1, label=label, confidenceBps=confidence, count=1)]))
-            self.service.observe(actor, core_id, home_id, rule_id, observation, cancelled=cancelled)
+            authority = CameraVisualAuthority(
+                schemaVersion=1, coreId=fresh[2].coreId,
+                homeId=fresh[2].homeId, homeRevision=fresh[2].homeRevision,
+                accountId=fresh[2].accountId,
+                accountRevision=fresh[2].accountRevision,
+                memberRevision=fresh[2].memberRevision,
+                sessionFamilyId=fresh[2].sessionFamilyId,
+                role=fresh[2].role,
+                accessibleCameraIds=fresh[2].accessibleCameraIds,
+                active=fresh[2].active,
+                canManageVisualSensors=True,
+            )
+            self.service.observe(
+                actor, core_id, home_id, rule_id, observation,
+                authority=authority, cancelled=cancelled)
             return self.service.summary(actor, core_id, home_id)
 
     def summary(self, actor, core_id, home_id, *, cancelled=lambda: False):
