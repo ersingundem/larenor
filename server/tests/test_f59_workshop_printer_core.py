@@ -150,8 +150,27 @@ def test_octoprint_and_moonraker_share_a_secret_free_provider_boundary(server):
         assert SECRET not in str(printer)
 
 
-def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server):
+def test_admin_preview_confirm_is_bounded_idempotent_and_dispatches_once(server):
     app, client, settings, clock = server
+    class Provider:
+        calls = []
+
+        def capability(self, actor, binding, printer_id):
+            return {"schemaVersion": 1, "providerRevision": 3,
+                    "supportedActions": ["pause", "cancel"],
+                    "observedAt": clock.now}
+
+        def execute(self, actor, binding, command):
+            self.calls.append(command["commandId"])
+            return {"schemaVersion": 1, "commandId": command["commandId"],
+                    "printerId": command["printerId"], "action": command["action"],
+                    "providerRevision": command["providerRevision"],
+                    "jobRevision": command["expectedJobRevision"] + 1,
+                    "jobState": "paused", "connectivity": "online",
+                    "observedAt": clock.now}
+
+    provider = Provider()
+    app.state.core.workshop.provider = provider
     owner = ready(server)
     service = octoprint(client, owner, app)
     printer = register(client, owner, app, clock, service)
@@ -183,7 +202,8 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server
     assert confirmed.status_code == 201
     receipt = confirmed.json()["receipt"]
     assert receipt["state"] == "recorded"
-    assert receipt["effect"] == "notDispatched"
+    assert receipt["effect"] == "applied"
+    assert len(provider.calls) == 1
 
     changed = client.post(endpoint, headers=auth(delegate), json={
         **body, "action": "cancel",
@@ -218,6 +238,7 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server
         json={"schemaVersion": 1, "confirmationToken": pending["confirmationToken"]},
     )
     assert retry.json() == confirmed.json()
+    assert len(provider.calls) == 1
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 1
     with TestClient(create_app(settings)) as restarted:
@@ -227,6 +248,46 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_never_dispatches(server
         )
         assert history.status_code == 200
         assert history.json()["intents"] == [receipt]
+
+
+def test_missing_provider_cannot_offer_actions_or_record_a_noop_confirmation(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+    printer = register(client, admin, app, clock, service)
+    assert printer["availableActions"] == []
+    endpoint = root(app) + f"/printers/{printer['ref']['id']}/previews"
+    rejected = client.post(endpoint, headers=auth(admin), json=preview_body(printer))
+    assert rejected.status_code == 503
+    assert rejected.json()["error"]["code"] == "workshop_provider_unavailable"
+    with app.state.core.db.connection() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM workshop_effects").fetchone()[0] == 0
+
+
+def test_provider_removed_after_preview_cannot_create_a_noop_intent(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+    printer = register(client, admin, app, clock, service)
+
+    class Provider:
+        def capability(self, *_args):
+            return {"schemaVersion": 1, "providerRevision": 3,
+                    "supportedActions": ["pause", "cancel"], "observedAt": clock.now}
+
+        def execute(self, *_args):
+            pytest.fail("a removed provider must never receive a command")
+
+    app.state.core.workshop.provider = Provider()
+    endpoint = root(app) + f"/printers/{printer['ref']['id']}/previews"
+    pending = client.post(endpoint, headers=auth(admin), json=preview_body(printer)).json()["preview"]
+    app.state.core.workshop.provider = None
+    rejected = client.post(endpoint + f"/{pending['id']}/confirm", headers=auth(admin),
+        json={"schemaVersion": 1, "confirmationToken": pending["confirmationToken"]})
+    assert rejected.status_code == 503
+    with app.state.core.db.connection() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 0
 
 
 def test_hazard_offline_or_stale_state_blocks_every_intent_fail_closed(server):

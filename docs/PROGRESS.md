@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. FINAL.FUNCTION incelemesi F30 medya arşivi yolunda paketli read/action worker ve deploy bağlantısının bulunmadığını, genel hedef listesinin keep/delete rollerini kaybettiğini ve orijinal durumunun işlemden önce doğrulanmış gösterildiğini ortaya çıkardı. F30 yeniden aktif geliştirmeye alındı; tipli hedef ve dürüst yaşam döngüsü düzeltmesi başladı. Bu üretim boşluğu kapanmadan `FINAL.FUNCTION` yeniden CI kapısına, `FINAL.UI` veya başka bir final maddesine geçmeyecek. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
+**Son durum: 30 Eylül 2026, tek çalışma dalı `codex/project-completion-100` — 37/126 kuyruk işi ve 3/63 seçili özellik kabul edildi. FINAL.FUNCTION incelemesi F30 medya arşivi yolunda paketli read/action worker ve deploy bağlantısının bulunmadığını, genel hedef listesinin keep/delete rollerini kaybettiğini ve orijinal durumunun işlemden önce doğrulanmış gösterildiğini ortaya çıkardı. F30, F18 ve F59 yeniden aktif geliştirmeye alındı. F30 kalıcı worker günlüğü ve tipli hedefleri uygulandı; F18 kesilmiş etki uzlaştırması ile F59 gerçek yazıcı yolu tamamlanıyor. F46/F48/F55 üretim provider eksikleri ve F47’nin F48 bağımlılığı kuyrukta açık uygulama işi olarak düzeltildi. Bu üretim boşluğu kapanmadan `FINAL.FUNCTION` yeniden CI kapısına, `FINAL.UI` veya başka bir final maddesine geçmeyecek. Fiziksel medya alıcıları ile Huawei/DeX/TalkBack/OEM/DPC, IR köprüsü, gerçek UPS/host ve gerçek broker kurulumu ayrı MANUAL kapılarda kaldı.** [Güncel teslim sırası, bağımlılıklar ve manuel kapılar](current-delivery-plan-2026-09-21.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/126 iş (%29,4; eşit ağırlıklı sayaç)
@@ -31,7 +31,7 @@ workflow tabanı `52b30612` dahil 323 commit'i doğruladı. Ayrıntılı komut v
 [FINAL.FUNCTION kabul kaydında](testing/final-function-acceptance-2026-09-30.md)
 tutuluyor.
 
-`FINAL.FUNCTION` incelemesi **F30 üretim boşluğu nedeniyle yeniden çalışılıyor**.
+`FINAL.FUNCTION` incelemesi **F30 ve ek production composition boşlukları nedeniyle yeniden çalışılıyor**. 30 Eylül canlı denetiminde F18 kesilmiş hedef adımının tekrar gönderilebildiği, F59 sağlayıcısız onayın etki üretmeden kaydedildiği ve F46/F48/F55 concrete runtime sağlayıcılarının eksik olduğu doğrulandı. İlgili kuyruk maddeleri uygulama işi olarak yeniden açıldı; önceki tarihli uygulama kayıtları kapanış kanıtı değildir.
 Unmanic/Jellyfin resmî sözleşmesi, tipli hedefler, gerçek read/action worker,
 yeniden başlatma/iptal/uzlaştırma ve Client→Core→worker kabulü tamamlandıktan
 sonra tam paketler ile exact-head CI yeniden çalışacak. Bu sırada `FINAL.UI`,

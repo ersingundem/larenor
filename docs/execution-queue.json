@@ -3381,7 +3381,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3405,7 +3405,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Sürümlü UPS politikası, şifreli kaynak anahtarı, sahte/eski/yinelenen olay reddi, ağır iş kapısı, drain ve SQLite checkpoint, bağımlılık sıralı kapanış, kararlı güçten sonra ters açılış, kalıcı adım makbuzları, restart/retry kurtarması ve Flutter yönetim ekranı ec0cfc3b, 7b971db4 ve cabd9324 ile uygulandı. Sözleşme smoke'u, failed-run restart smoke'u, Python compile ve odaklı Flutter analyze temiz; özellik testleri, bağımsız son inceleme, exact-head CI ve gerçek UPS/host kabulü final doğrulama evresinde açık."
+      "reason": "30 Eylül production incelemesi, normal runtime executor bağlamadığını ve kesilmiş executing hedef adımlarını startup sırasında queued yaparak dış etkiyi yeniden gönderebildiğini buldu. Kalıcı belirsiz sonuç/uzlaştırma ve gerçek executor composition aktif düzeltiliyor; fiziksel UPS/host kabulü MANUAL kapısında."
     },
     {
       "id": "G03",
@@ -4837,7 +4837,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4861,14 +4861,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Taze sayaç/tarife revizyonu, kritik yük koruması, öncelikli ve hold-until salınım önlemeli bounded planlama ile HMAC zincirli preview/command/readback temeli önceki commitlerde hazırdı. 421554ea, salt okunur sağlayıcıları koruyarak yalnız açık manuel capability ve cihaz başına doğrulanmış iletişim kaybı davranışı için önizleme→açık kullanıcı onayı→tek uygulama→readback yolunu açtı; aynı önizlemenin ikinci farklı komutla tekrarı kapanır ve belirsiz sonuç körlemesine yeniden gönderilmez. Manuel endpoint smoke’u verified ve tekrar 409 verdi; mevcut 5 F48 testi ile dar Flutter analizi temiz. Gerçek sayaç/uyumlu şarj yükü E2E, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
+      "reason": "Plan, önizleme, tek gönderim ve readback sözleşmeleri hazır; 30 Eylül incelemesi normal runtime güç bütçesi sağlayıcısının None olduğunu doğruladı. Gerçek evcc/sayaç/yük adapteri ve üretim composition uygulama eksiğidir; bu boşluk yalnız test/CI bekleyişi değildir."
     },
     {
       "id": "F46",
       "kind": "task",
       "parent": "G09",
       "title": "Elektrikli araç şarj planlayıcısı",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4892,14 +4892,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Önceki commitlerde sürümlü yetki, tarife/güneş/güç bütçesi sağlayıcıları, tazelik-revizyon doğrulaması, manuel üstüne alma koruması, HMAC önizleme/komut/denetim zinciri, tek gönderim ve readback hazırdı. 9080e59d çoklu şarj cihazı seçimi, açık kullanıcı onayı, önizleme iptali, manuel üstüne alma açıklaması ve kayıp yanıtı yeniden göndermek yerine uncertain makbuzla uzlaştırma akışını tamamladı. Dar Flutter analizi temiz; gerçek araç/şarj cihazı E2E, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
+      "reason": "Şarj planı ve kullanıcı onayı sözleşmeleri hazır; 30 Eylül incelemesi normal runtime evcc state provider ve charger adapterinin bulunmadığını doğruladı. F48 gerçek güç bütçesi kaynağından sonra production şarj adapteri/composition ve izole E2E tamamlanacak."
     },
     {
       "id": "F47",
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,7 +4923,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Güneş ve ev bataryası öncelikleri güncel tahmin ufku, zamanlanmış plan, inverter capability ve yalnız güncel slot için güvenli preview ile uygulandı; 6 sunucu ve 8 Flutter testi ile focused analyze geçti, tam CI bekliyor."
+      "reason": "Güneş/batarya planlama ve kullanıcı akışı önceki commitlerde hazır. 30 Eylül incelemesinde F48 production kaynak adapteri eksik bulundu; F48 uygulama bağımlılığı tamamlanmadan F47 uygulama/entegrasyon kabulü kapanamaz."
     },
     {
       "id": "F49",
@@ -4968,7 +4968,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Zigbee/Thread ağ ve güncelleme merkezi",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4994,7 +4994,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Zigbee/Thread merkezi gerçek provider sınırı, salt okunur sağlık, imzalı Zigbee OTA, exact readback ve doğrulanmış koordinatör yedek durumu ile uygulandı; 9 sunucu ve 8 Flutter testi ile focused analyze geçti, tam CI bekliyor."
+      "reason": "Mesh topology/catalog/update gateway sözleşmeleri hazır; 30 Eylül incelemesi normal runtime için concrete ZHA/Zigbee2MQTT sağlayıcısının bulunmadığını doğruladı. Gerçek snapshot/OTA adapteri ve production composition tamamlanmadan uygulama tamamlandı sayılmaz."
     },
     {
       "id": "F56",
@@ -5095,7 +5095,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5119,7 +5119,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek OctoPrint/Moonraker provider capability, tek seferlik pause/cancel dispatch, exact iş durumu readback ve kayıp ACK sonrası no-replay sonucu uygulandı; server 16 focused test, Flutter 15/15, analyze, provider dispatch/replay smoke ve compile geçti. Fiziksel yazıcı kabulü ile tam CI bekliyor."
+      "reason": "30 Eylül production incelemesi sağlayıcı None iken onayın notDispatched kaydedildiğini buldu. Sağlayıcısız preview/confirm artık 503, kullanılabilir işlem listesi boş; tek gönderim ve exact readback için 5 focused Server testi geçti. Gerçek OctoPrint/Moonraker durum/komut adapteri ve normal runtime composition tamamlanmadan uygulama tamamlandı sayılmaz."
     },
     {
       "id": "F60",

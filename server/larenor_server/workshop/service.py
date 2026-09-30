@@ -45,7 +45,7 @@ class _Pending:
 
 
 class WorkshopService:
-    """No-execution authority for monitored printers and reviewed intents."""
+    """Printer authority with confirmed commands and exact provider readback."""
 
     def __init__(self, db, auth, settings, key, context, services, provider=None):
         self.db, self.auth, self.settings = db, auth, settings
@@ -248,7 +248,7 @@ class WorkshopService:
 
     def _capability(self, actor, binding, printer_id, action, now):
         if self.provider is None:
-            return None
+            raise ApiError("workshop_provider_unavailable", 503)
         resolver = getattr(self.provider, "capability", None)
         executor = getattr(self.provider, "execute", None)
         if not callable(resolver) or not callable(executor):
@@ -325,7 +325,11 @@ class WorkshopService:
                 "observedAt": row["observed_at"],
                 "freshness": "current" if self._fresh(row, now) else "stale",
             },
-            "availableActions": self._available_actions(row, now),
+            "availableActions": (
+                self._available_actions(row, now)
+                if callable(getattr(self.provider, "capability", None))
+                and callable(getattr(self.provider, "execute", None)) else []
+            ),
         }}
 
     @staticmethod
@@ -789,28 +793,21 @@ class WorkshopService:
                     saved = connection.execute(
                         "SELECT * FROM workshop_intents WHERE id=?", (intent_id,)
                     ).fetchone()
-                    if capability is not None:
-                        command = WorkshopCommand(
-                            schemaVersion=1,
-                            commandId=uuid.uuid4().hex,
-                            actorId=actor.id,
-                            printerId=printer_id,
-                            serviceId=row["service_id"],
-                            serviceRevision=command_body.expectedServiceRevision,
-                            providerRevision=capability.providerRevision,
-                            expectedJobRevision=command_body.expectedJobRevision,
-                            action=command_body.action,
-                        )
-                        self._insert_pending_effect(
-                            connection, intent_id, command, now
-                        )
-                        effect = self._seal_pending_effect(connection, intent_id)
-                        dispatch = (binding, saved, command)
-                        response = {
-                            "receipt": self._public_intent(saved, effect)
-                        }
-                    else:
-                        response = {"receipt": self._public_intent(saved)}
+                    command = WorkshopCommand(
+                        schemaVersion=1,
+                        commandId=uuid.uuid4().hex,
+                        actorId=actor.id,
+                        printerId=printer_id,
+                        serviceId=row["service_id"],
+                        serviceRevision=command_body.expectedServiceRevision,
+                        providerRevision=capability.providerRevision,
+                        expectedJobRevision=command_body.expectedJobRevision,
+                        action=command_body.action,
+                    )
+                    self._insert_pending_effect(connection, intent_id, command, now)
+                    effect = self._seal_pending_effect(connection, intent_id)
+                    dispatch = (binding, saved, command)
+                    response = {"receipt": self._public_intent(saved, effect)}
                 if dispatch is not None:
                     binding, saved, command = dispatch
                     return self._dispatch(actor, binding, saved, command)

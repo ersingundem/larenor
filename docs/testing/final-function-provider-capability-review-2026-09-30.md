@@ -157,3 +157,28 @@ kabulüne dayanamaz; transcode için eşleşen orijinal kopya, doğrulanmış da
 Bu dilim packaged collector, protected file store, sağlayıcı effect handler,
 iptal/callback yaşam döngüsü veya gerçek Client→Core→worker kabulünü tek başına
 tamamlamaz; F30 aktif geliştirmede kalır.
+
+## Ek production akışı bulguları
+
+30 Eylül canlı kaynak incelemesi, arayüz/gateway varlığının concrete normal
+runtime composition kanıtı olmadığını gösterdi:
+
+- F18 startup sırasında hedefli `executing` adımı `queued` yapıyordu; etki
+  sonrası kayıp makbuzda aynı kapatma/başlatma yeniden gönderilebilirdi.
+  Normal runtime için güç executor bağlantısı da eksikti.
+- F46/F48 normal runtime içinde evcc/şarj/sayaç adapteri, F55 içinde
+  ZHA/Zigbee2MQTT topology/catalog/OTA adapteri bulunmadı.
+- F59 sağlayıcısız preview/confirm, dış etki üretmeden `notDispatched` intent
+  kaydediyordu. Bu fallback kaldırıldı; sağlayıcı yoksa işlem sunulmaz ve
+  preview/confirm 503 döner. Önizleme sonrası sağlayıcı kaybı da boş intent
+  oluşturamaz. Gerçek adapter ve production composition hâlâ uygulama işidir.
+
+F18/F59 aktif, F46/F48/F55 ve F47'nin F48 uygulama bağımlılığı bekleyen
+kuyruğa taşındı. Kabul sayaçları değişmedi.
+
+Resmî dayanaklar: [NUT kapatma sıralaması](https://networkupstools.org/docs/man/upsmon.conf.html),
+[evcc chargers](https://docs.evcc.io/en/reference/configuration/chargers/),
+[evcc loadpoints](https://docs.evcc.io/en/reference/configuration/loadpoints/),
+[ZHA](https://www.home-assistant.io/integrations/zha/),
+[Zigbee2MQTT OTA](https://www.zigbee2mqtt.io/guide/usage/ota_updates.html),
+[OctoPrint job komutları ve durum okuma](https://docs.octoprint.org/en/main/api/job.html).
