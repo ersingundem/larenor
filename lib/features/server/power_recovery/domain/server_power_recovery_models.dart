@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 import '../../domain/server_models.dart';
 
 DateTime _time(Object? value) {
@@ -133,6 +137,16 @@ final class ProxmoxPowerProviderRef {
   final int guestId;
   final int statusRevision;
 
+  String get targetId => sha256
+      .convert(
+        ascii.encode(
+          'larenor-proxmox-target-v1:$installationId:$resourceId:'
+          '$node:$guestKind:$guestId',
+        ),
+      )
+      .toString()
+      .substring(0, 32);
+
   Map<String, Object?> toJson() => {
     'contractVersion': 1,
     'provider': 'proxmox',
@@ -182,6 +196,7 @@ final class PowerRecoveryTarget {
     final order = json['shutdownOrder'];
     final start = json['startOnRestore'];
     final timeout = json['timeoutSeconds'];
+    final targetId = _identity(json['targetId']);
     final providerRef = json['providerRef'] == null
         ? null
         : ProxmoxPowerProviderRef.fromJson(json['providerRef']);
@@ -201,11 +216,14 @@ final class PowerRecoveryTarget {
         start is! bool ||
         timeout is! int ||
         timeout < 5 ||
-        timeout > 300) {
+        timeout > 300 ||
+        providerRef != null &&
+            (kind != PowerTargetKind.proxmoxGuest ||
+                targetId != providerRef.targetId)) {
       throw const LarenorServerException('invalid_response');
     }
     return PowerRecoveryTarget(
-      targetId: _identity(json['targetId']),
+      targetId: targetId,
       label: label,
       kind: kind,
       shutdownOrder: order,
@@ -223,20 +241,27 @@ final class PowerRecoveryTarget {
   final int timeoutSeconds;
   final ProxmoxPowerProviderRef? providerRef;
 
-  Map<String, Object?> toJson() => {
-    'targetId': targetId,
-    'label': label,
-    'kind': switch (kind) {
-      PowerTargetKind.service => 'service',
-      PowerTargetKind.proxmoxGuest => 'proxmoxGuest',
-      PowerTargetKind.networkDevice => 'networkDevice',
-      PowerTargetKind.coreHost => 'coreHost',
-    },
-    'shutdownOrder': shutdownOrder,
-    'startOnRestore': startOnRestore,
-    'timeoutSeconds': timeoutSeconds,
-    'providerRef': providerRef?.toJson(),
-  };
+  Map<String, Object?> toJson() {
+    if (providerRef != null &&
+        (kind != PowerTargetKind.proxmoxGuest ||
+            targetId != providerRef!.targetId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    return {
+      'targetId': targetId,
+      'label': label,
+      'kind': switch (kind) {
+        PowerTargetKind.service => 'service',
+        PowerTargetKind.proxmoxGuest => 'proxmoxGuest',
+        PowerTargetKind.networkDevice => 'networkDevice',
+        PowerTargetKind.coreHost => 'coreHost',
+      },
+      'shutdownOrder': shutdownOrder,
+      'startOnRestore': startOnRestore,
+      'timeoutSeconds': timeoutSeconds,
+      'providerRef': providerRef?.toJson(),
+    };
+  }
 }
 
 final class PowerRecoveryPolicy {

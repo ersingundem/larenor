@@ -11,11 +11,13 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/theme/typography.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../../shared/widgets/settings_section.dart';
+import '../../../home_resources/domain/home_resource_models.dart';
 import '../../../media/hub/presentation/media_session_state.dart';
 import '../../../settings/providers/settings_providers.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_power_recovery_controller.dart';
+import '../data/server_power_target_provisioning.dart';
 import '../domain/server_power_recovery_models.dart';
 
 final class _TargetDraft {
@@ -26,6 +28,7 @@ final class _TargetDraft {
     int order = 10,
     this.start = true,
     int timeout = 30,
+    this.providerRef,
   }) : label = TextEditingController(text: label),
        order = TextEditingController(text: '$order'),
        timeout = TextEditingController(text: '$timeout');
@@ -36,6 +39,7 @@ final class _TargetDraft {
   final TextEditingController timeout;
   PowerTargetKind kind;
   bool start;
+  final ProxmoxPowerProviderRef? providerRef;
 
   void dispose() {
     label.dispose();
@@ -56,6 +60,8 @@ class _ServerPowerRecoveryScreenState
     extends MediaSessionState<ServerPowerRecoveryScreen> {
   late final ServerAccountController _account;
   late final ServerPowerRecoveryController _power;
+  late final ServerPowerTargetProvisioningController _provisioning;
+  late final Listenable _view;
   late final int _accountEpoch;
   final _source = TextEditingController();
   final _sourceToken = TextEditingController();
@@ -64,7 +70,7 @@ class _ServerPowerRecoveryScreenState
   final _targets = <_TargetDraft>[];
   ValueListenable<TickerModeData>? _ticker;
   bool _visible = true, _expired = false, _loaded = false, _pinReady = false;
-  bool _wasCurrent = true, _invalid = false;
+  bool _wasCurrent = true, _invalid = false, _choosingProxmox = false;
 
   bool get _active =>
       !_expired &&
@@ -83,6 +89,8 @@ class _ServerPowerRecoveryScreenState
     _account = ref.read(serverAccountControllerProvider);
     _accountEpoch = _account.generation;
     _power = ServerPowerRecoveryController(_account);
+    _provisioning = ServerPowerTargetProvisioningController(_account);
+    _view = Listenable.merge([_power, _provisioning]);
     _account.addListener(_accountChanged);
     _targets.add(_TargetDraft(id: _id()));
   }
@@ -132,6 +140,7 @@ class _ServerPowerRecoveryScreenState
     sessionGeneration++;
     _sourceToken.clear();
     _power.invalidate();
+    _provisioning.invalidate();
   }
 
   bool Function() _capture() {
@@ -140,7 +149,11 @@ class _ServerPowerRecoveryScreenState
   }
 
   Future<void> _load() async {
-    await _power.load(current: _capture());
+    final current = _capture();
+    await Future.wait([
+      _power.load(current: current),
+      _provisioning.load(current: current),
+    ]);
     if (!mounted || !_active) return;
     final policy = _power.value?.policy;
     if (policy == null) return;
@@ -161,6 +174,7 @@ class _ServerPowerRecoveryScreenState
             order: target.shutdownOrder,
             start: target.startOnRestore,
             timeout: target.timeoutSeconds,
+            providerRef: target.providerRef,
           ),
         ),
       );
@@ -181,7 +195,9 @@ class _ServerPowerRecoveryScreenState
           order > 1000 ||
           timeout == null ||
           timeout < 5 ||
-          timeout > 300) {
+          timeout > 300 ||
+          draft.kind == PowerTargetKind.proxmoxGuest &&
+              draft.providerRef == null) {
         return null;
       }
       values.add(
@@ -192,6 +208,7 @@ class _ServerPowerRecoveryScreenState
           shutdownOrder: order,
           startOnRestore: draft.start,
           timeoutSeconds: timeout,
+          providerRef: draft.providerRef,
         ),
       );
     }
@@ -205,6 +222,54 @@ class _ServerPowerRecoveryScreenState
       return null;
     }
     return values;
+  }
+
+  int _nextOrder() {
+    final used = _targets
+        .map((target) => int.tryParse(target.order.text.trim()))
+        .whereType<int>()
+        .toSet();
+    for (var value = 10; value <= 1000; value += 10) {
+      if (!used.contains(value)) return value;
+    }
+    for (var value = 1; value <= 1000; value++) {
+      if (!used.contains(value)) return value;
+    }
+    return 1000;
+  }
+
+  Future<void> _selectProxmox(HomeResourceRecord resource) async {
+    if (_provisioning.busy || !mounted || !_active || _targets.length >= 64) {
+      return;
+    }
+    final providerRef = await _provisioning.provision(
+      resource: resource,
+      current: _capture(),
+    );
+    if (providerRef == null || !mounted || !_active || _targets.length >= 64) {
+      return;
+    }
+    if (_targets.any((target) => target.id == providerRef.targetId)) {
+      setState(() => _invalid = true);
+      return;
+    }
+    final draft = _TargetDraft(
+      id: providerRef.targetId,
+      label: resource.label,
+      kind: PowerTargetKind.proxmoxGuest,
+      order: _nextOrder(),
+      providerRef: providerRef,
+    );
+    setState(() {
+      _invalid = false;
+      _choosingProxmox = false;
+      if (_targets.length == 1 && _targets.single.label.text.trim().isEmpty) {
+        _targets.single.dispose();
+        _targets[0] = draft;
+      } else {
+        _targets.add(draft);
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -254,6 +319,7 @@ class _ServerPowerRecoveryScreenState
       target.dispose();
     }
     _power.dispose();
+    _provisioning.dispose();
     super.dispose();
   }
 
@@ -281,13 +347,15 @@ class _ServerPowerRecoveryScreenState
         trailing: CupertinoButton(
           key: const ValueKey('server-power-recovery-refresh'),
           padding: EdgeInsets.zero,
-          onPressed: _active && !_power.busy ? _load : null,
+          onPressed: _active && !_power.busy && !_provisioning.busy
+              ? _load
+              : null,
           child: const Icon(CupertinoIcons.refresh),
         ),
       ),
       child: SafeArea(
         child: ListenableBuilder(
-          listenable: _power,
+          listenable: _view,
           builder: (context, _) {
             if (!_active) {
               return Center(child: Text(l10n.serverOpenFromSettings));
@@ -299,7 +367,8 @@ class _ServerPowerRecoveryScreenState
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   children: [
-                    if (_power.busy) const CupertinoActivityIndicator(),
+                    if (_power.busy || _provisioning.busy)
+                      const CupertinoActivityIndicator(),
                     if (_power.failure != null)
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -426,6 +495,44 @@ class _ServerPowerRecoveryScreenState
       for (var index = 0; index < _targets.length; index++)
         _target(l10n, _targets[index], index),
       CupertinoButton(
+        key: const ValueKey('server-power-recovery-add-proxmox'),
+        onPressed:
+            !_power.busy &&
+                !_provisioning.busy &&
+                _targets.length < 64 &&
+                _provisioning.resources.isNotEmpty
+            ? () => setState(() => _choosingProxmox = !_choosingProxmox)
+            : null,
+        child: Text(l10n.serverPowerRecoveryAddProxmox),
+      ),
+      if (_choosingProxmox) ...[
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Text(
+            l10n.serverPowerRecoveryChooseResource,
+            style: AppText.headline,
+          ),
+        ),
+        for (final item in _provisioning.resources)
+          CupertinoButton(
+            key: ValueKey('server-power-recovery-resource-${item.id}'),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            onPressed: _provisioning.busy ? null : () => _selectProxmox(item),
+            child: Text(item.label),
+          ),
+      ],
+      if (!_provisioning.busy && _provisioning.resources.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Text(l10n.serverPowerRecoveryNoProxmoxResources),
+        ),
+      if (_provisioning.failure != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Text(l10n.serverPowerRecoveryProvisioningFailed),
+        ),
+      CupertinoButton(
         key: const ValueKey('server-power-recovery-add-target'),
         onPressed: _targets.length < 64
             ? () => setState(
@@ -446,7 +553,7 @@ class _ServerPowerRecoveryScreenState
         ),
       CupertinoButton.filled(
         key: const ValueKey('server-power-recovery-save'),
-        onPressed: !_power.busy ? _save : null,
+        onPressed: !_power.busy && !_provisioning.busy ? _save : null,
         child: Text(l10n.serverPowerRecoverySave),
       ),
       const SizedBox(height: 12),
@@ -482,29 +589,40 @@ class _ServerPowerRecoveryScreenState
               draft.label,
               'power-label-$index',
             ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: CupertinoSlidingSegmentedControl<PowerTargetKind>(
-                groupValue: draft.kind,
-                children: {
-                  PowerTargetKind.service: Text(
-                    l10n.serverPowerRecoveryKindService,
-                  ),
-                  PowerTargetKind.proxmoxGuest: Text(
-                    l10n.serverPowerRecoveryKindGuest,
-                  ),
-                  PowerTargetKind.networkDevice: Text(
-                    l10n.serverPowerRecoveryKindNetwork,
-                  ),
-                  PowerTargetKind.coreHost: Text(
-                    l10n.serverPowerRecoveryKindCore,
-                  ),
-                },
-                onValueChanged: (value) {
-                  if (value != null) setState(() => draft.kind = value);
-                },
+            if (draft.kind == PowerTargetKind.proxmoxGuest)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  draft.providerRef == null
+                      ? l10n.serverPowerRecoveryProxmoxUnverified
+                      : l10n.serverPowerRecoveryProxmoxTarget(
+                          draft.providerRef!.node,
+                          draft.providerRef!.guestKind.toUpperCase(),
+                          draft.providerRef!.guestId,
+                        ),
+                ),
+              )
+            else
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: CupertinoSlidingSegmentedControl<PowerTargetKind>(
+                  groupValue: draft.kind,
+                  children: {
+                    PowerTargetKind.service: Text(
+                      l10n.serverPowerRecoveryKindService,
+                    ),
+                    PowerTargetKind.networkDevice: Text(
+                      l10n.serverPowerRecoveryKindNetwork,
+                    ),
+                    PowerTargetKind.coreHost: Text(
+                      l10n.serverPowerRecoveryKindCore,
+                    ),
+                  },
+                  onValueChanged: (value) {
+                    if (value != null) setState(() => draft.kind = value);
+                  },
+                ),
               ),
-            ),
             Row(
               children: [
                 Expanded(

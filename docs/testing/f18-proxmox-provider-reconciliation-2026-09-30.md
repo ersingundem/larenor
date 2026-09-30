@@ -35,5 +35,14 @@ GET ve komut tek kalan deadline bütçesini paylaşır; geç gelen uzlaştırma 
 kabul edilmez. Yeni ekran ve model kontrollerinde 4 Flutter testi geçti; ilgili
 Flutter analyze temiz. Genişletilmiş güç paketlerinde 67 Python testi geçti.
 
-Açık teslim işleri: normal kurulum yoluyla hedef seçimi ve gerçek UPS/Proxmox
-ortam kabulü. Fiziksel ev sistemine bu dilimde mutation gönderilmedi.
+Normal admin ekranı artık yazılabilir Core resource kaydından doğrulanmış
+Proxmox hedefi ekliyor. Singleton target discovery, exact service revision ve
+`proxmox_command_worker` egress grant'i okunuyor; deterministik hedef ID'si
+sunucuyla aynı formülden üretiliyor. ProviderRef normal politika PUT'unda
+saklanıyor. Belirsiz çoklu guest eşleşmesi reddediliyor; eski sağlayıcı bağı
+olmayan guest hazır gösterilmiyor. Kullanıcı akışı testleri hiçbir cihaz
+mutation isteği gönderilmediğini de kontrol ediyor. Politika en fazla 64 hedef
+alıyor. 14 Flutter testi ve ilgili analyze temiz; 21 odaklı Python testi geçti.
+
+Açık teslim işleri: gerçek UPS/Proxmox ortam kabulü. Fiziksel ev sistemine bu
+dilimde mutation gönderilmedi.

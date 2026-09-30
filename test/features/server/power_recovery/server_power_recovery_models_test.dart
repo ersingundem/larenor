@@ -1,10 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/power_recovery/domain/server_power_recovery_models.dart';
 
 void main() {
   test('versioned Proxmox provider reference round trips exact authority', () {
     final target = PowerRecoveryTarget.fromJson({
-      'targetId': '11111111111111111111111111111111',
+      'targetId': '7ce5a7aabfcae2763e9ddeaa0828431c',
       'label': 'Lab VM',
       'kind': 'proxmoxGuest',
       'shutdownOrder': 1,
@@ -35,7 +36,16 @@ void main() {
 
     expect(target.providerRef?.resourceId, '55555555555555555555555555555555');
     expect(target.providerRef?.egressRevision, 9);
+    expect(target.providerRef?.targetId, target.targetId);
     expect(target.toJson()['providerRef'], target.providerRef?.toJson());
+
+    expect(
+      () => PowerRecoveryTarget.fromJson({
+        ...target.toJson(),
+        'targetId': '11111111111111111111111111111111',
+      }),
+      throwsA(isA<LarenorServerException>()),
+    );
   });
 
   test(
