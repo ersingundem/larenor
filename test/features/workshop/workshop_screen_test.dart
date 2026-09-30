@@ -9,12 +9,13 @@ WorkshopPrinter printer({
   required String id,
   required bool safe,
   bool unknownSensors = false,
+  String? name,
 }) => WorkshopPrinter(
   coreId: 'a' * 32,
   homeId: 'b' * 32,
   id: id * 32,
   revision: 4,
-  name: safe ? 'Workshop One' : 'Workshop Two',
+  name: name ?? (safe ? 'Workshop One' : 'Workshop Two'),
   service: WorkshopServiceRef(id: 'e' * 32, revision: 3),
   job: WorkshopJob(
     revision: 7,
@@ -89,10 +90,24 @@ WorkshopIntentReceipt receiptFor(WorkshopPreview preview) =>
     );
 
 final class _Gateway implements WorkshopGateway {
-  _Gateway([this.printers]);
+  _Gateway([this.printers, this.services = const []]);
 
   final List<WorkshopPrinter>? printers;
-  int confirmations = 0;
+  final List<WorkshopServiceCandidate> services;
+  int confirmations = 0, registrations = 0;
+  @override
+  Future<List<WorkshopServiceCandidate>> catalog() async => services;
+
+  @override
+  Future<WorkshopPrinter> register({
+    required WorkshopServiceCandidate service,
+    required String name,
+    required String registrationId,
+  }) async {
+    registrations++;
+    return printer(id: registrationId[0], safe: true, name: name);
+  }
+
   @override
   Future<List<WorkshopPrinter>> load() async =>
       printers ?? [safePrinter(), hazardPrinter()];
@@ -117,20 +132,21 @@ Future<_Gateway> _pump(
   required double width,
   required WorkshopStrings strings,
   List<WorkshopPrinter>? printers,
+  List<WorkshopServiceCandidate> services = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 900);
   tester.platformDispatcher.textScaleFactorTestValue = 2;
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  final gateway = _Gateway(printers);
+  final gateway = _Gateway(printers, services);
   await tester.pumpWidget(
     CupertinoApp(
       home: WorkshopScreen(
         controller: WorkshopController(
           gateway: gateway,
           isCurrent: () => true,
-          requestKey: () => 'pause-request-key-0001',
+          requestKey: () => 'd' * 32,
         ),
         strings: strings,
       ),
@@ -141,6 +157,33 @@ Future<_Gateway> _pump(
 }
 
 void main() {
+  testWidgets('empty workshop registers an actual catalog service inline', (
+    tester,
+  ) async {
+    final service = WorkshopServiceCandidate(
+      id: 'e' * 32,
+      revision: 3,
+      name: 'Actual OctoPrint',
+      kind: 'octoprint',
+    );
+    final gateway = await _pump(
+      tester,
+      width: 600,
+      strings: WorkshopStrings.en,
+      printers: const [],
+      services: [service],
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('workshop-printer-name')),
+      'Kitchen printer',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('workshop-register-e')));
+    await tester.pumpAndSettle();
+    expect(gateway.registrations, 1);
+    expect(find.text('Kitchen printer'), findsOneWidget);
+  });
+
   for (final entry in [
     (WorkshopStrings.en, 'en'),
     (WorkshopStrings.tr, 'tr'),

@@ -117,6 +117,60 @@ http.Response response(Object value, [int status = 200]) => http.Response(
 
 void main() {
   test(
+    'catalog registration sends identity only and accepts provider state',
+    () async {
+      final requests = <http.Request>[];
+      final transport = LarenorServerApi(
+        endpoint: session().endpoint,
+        client: MockClient((request) async {
+          requests.add(request);
+          if (request.method == 'GET') {
+            return response({
+              'schemaVersion': 1,
+              'services': [
+                {
+                  'id': 'e' * 32,
+                  'revision': 3,
+                  'name': 'Actual OctoPrint',
+                  'kind': 'octoprint',
+                },
+              ],
+            });
+          }
+          return response({'printer': printerJson()}, 201);
+        }),
+      );
+      addTearDown(transport.close);
+      final api = WorkshopApi(transport, session(), isCurrent: () => true);
+      final service = (await api.catalog()).single;
+      final saved = await api.register(
+        service: service,
+        name: ' Workshop printer ',
+        registrationId: 'd' * 32,
+      );
+      expect(saved.material.remainingGrams, 280);
+      expect(jsonDecode(requests.last.body), {
+        'schemaVersion': 1,
+        'registrationId': 'd' * 32,
+        'name': 'Workshop printer',
+        'serviceId': 'e' * 32,
+        'expectedServiceRevision': 3,
+      });
+      final wire = requests.last.body.toLowerCase();
+      for (final forbidden in [
+        'job',
+        'material',
+        'safety',
+        'temperature',
+        'apikey',
+        'baseurl',
+      ]) {
+        expect(wire, isNot(contains(forbidden)));
+      }
+    },
+  );
+
+  test(
     'typed API keeps exact scope and sends only bounded action fields',
     () async {
       final requests = <http.Request>[];

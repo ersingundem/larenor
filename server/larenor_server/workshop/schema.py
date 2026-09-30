@@ -21,8 +21,8 @@ TABLES = {
         progress_permille INTEGER NOT NULL CHECK(progress_permille BETWEEN 0 AND 1000),
         remaining_seconds INTEGER,
         material_revision INTEGER NOT NULL CHECK(material_revision > 0),
-        material_kind TEXT NOT NULL CHECK(material_kind IN ('pla','petg','abs','tpu','asa','other')),
-        remaining_grams REAL NOT NULL CHECK(remaining_grams >= 0),
+        material_kind TEXT NOT NULL CHECK(material_kind IN ('pla','petg','abs','tpu','asa','other','unknown')),
+        remaining_grams REAL CHECK(remaining_grams IS NULL OR remaining_grams >= 0),
         safety_revision INTEGER NOT NULL CHECK(safety_revision > 0),
         connectivity TEXT NOT NULL CHECK(connectivity IN ('online','offline')),
         thermal TEXT NOT NULL CHECK(thermal IN ('normal','warning','runaway','unknown')),
@@ -64,9 +64,22 @@ TABLES = {
         FOREIGN KEY(intent_id) REFERENCES workshop_intents(id) ON DELETE CASCADE)""",
 }
 
-V2_TABLES = {
+V3_TABLES = {
     **TABLES,
     "workshop_printers": TABLES["workshop_printers"]
+    .replace(
+        "material_kind IN ('pla','petg','abs','tpu','asa','other','unknown')",
+        "material_kind IN ('pla','petg','abs','tpu','asa','other')",
+    )
+    .replace(
+        "remaining_grams REAL CHECK(remaining_grams IS NULL OR remaining_grams >= 0)",
+        "remaining_grams REAL NOT NULL CHECK(remaining_grams >= 0)",
+    ),
+}
+
+V2_TABLES = {
+    **V3_TABLES,
+    "workshop_printers": V3_TABLES["workshop_printers"]
     .replace(
         "thermal IN ('normal','warning','runaway','unknown')",
         "thermal IN ('normal','warning','runaway')",
@@ -123,10 +136,10 @@ def _valid_indexes(connection, tables):
 
 
 def _rebuild_v3(connection):
-    order = tuple(TABLES)
+    order = tuple(V3_TABLES)
     temporary = {name: name + "_v3_copy" for name in order}
     for name in order:
-        statement = TABLES[name].replace(
+        statement = V3_TABLES[name].replace(
             f"CREATE TABLE {name}", f"CREATE TABLE {temporary[name]}", 1
         )
         for parent, replacement in temporary.items():
@@ -150,6 +163,29 @@ def _rebuild_v3(connection):
             connection.execute(f"INSERT INTO {temporary[name]} SELECT * FROM {name}")
     for name in reversed(order):
         connection.execute(f"DROP TABLE {name}")
+    for statement in V3_TABLES.values():
+        connection.execute(statement)
+    for name in order:
+        connection.execute(f"INSERT INTO {name} SELECT * FROM {temporary[name]}")
+    for name in reversed(order):
+        connection.execute(f"DROP TABLE {temporary[name]}")
+
+
+def _rebuild_v4(connection):
+    order = tuple(TABLES)
+    temporary = {name: name + "_v4_copy" for name in order}
+    for name in order:
+        statement = TABLES[name].replace(
+            f"CREATE TABLE {name}", f"CREATE TABLE {temporary[name]}", 1
+        )
+        for parent, replacement in temporary.items():
+            statement = statement.replace(
+                f"REFERENCES {parent}(", f"REFERENCES {replacement}("
+            )
+        connection.execute(statement)
+        connection.execute(f"INSERT INTO {temporary[name]} SELECT * FROM {name}")
+    for name in reversed(order):
+        connection.execute(f"DROP TABLE {name}")
     for statement in TABLES.values():
         connection.execute(statement)
     for name in order:
@@ -170,7 +206,7 @@ def migrate_workshop(connection: sqlite3.Connection) -> None:
             for statement in TABLES.values():
                 connection.execute(statement)
             connection.execute(
-                "INSERT INTO metadata VALUES('workshop_schema','3')"
+                "INSERT INTO metadata VALUES('workshop_schema','4')"
             )
             return
         if marker["value"] == "1":
@@ -200,8 +236,19 @@ def migrate_workshop(connection: sqlite3.Connection) -> None:
             )
             marker = {"value": "3"}
             actual, _implicit = _schema_objects(connection)
+        if marker["value"] == "3":
+            if not _valid_tables(actual, V3_TABLES) or not _valid_indexes(
+                connection, V3_TABLES
+            ):
+                raise ValueError("invalid_workshop")
+            _rebuild_v4(connection)
+            connection.execute(
+                "UPDATE metadata SET value='4' WHERE key='workshop_schema'"
+            )
+            marker = {"value": "4"}
+            actual, _implicit = _schema_objects(connection)
         if (
-            marker["value"] != "3"
+            marker["value"] != "4"
             or not _valid_tables(actual, TABLES)
             or not _valid_indexes(connection, TABLES)
         ):

@@ -7,10 +7,11 @@ import 'package:larenor/features/workshop/domain/workshop_models.dart';
 WorkshopPrinter printer({
   bool safe = true,
   bool unknownSensors = false,
+  String? id,
 }) => WorkshopPrinter(
   coreId: 'a' * 32,
   homeId: 'b' * 32,
-  id: 'd' * 32,
+  id: id ?? 'd' * 32,
   revision: 4,
   name: 'Workshop printer',
   service: WorkshopServiceRef(id: 'e' * 32, revision: 3),
@@ -83,9 +84,27 @@ WorkshopIntentReceipt receiptFor(WorkshopPreview preview) =>
 
 final class _Gateway implements WorkshopGateway {
   List<WorkshopPrinter> values;
-  _Gateway(this.values);
-  int previews = 0, confirmations = 0;
+  _Gateway(this.values, {this.services = const []});
+  final List<WorkshopServiceCandidate> services;
+  int previews = 0, confirmations = 0, registrations = 0;
   Completer<List<WorkshopPrinter>>? delayedLoad;
+
+  @override
+  Future<List<WorkshopServiceCandidate>> catalog() async => services;
+
+  @override
+  Future<WorkshopPrinter> register({
+    required WorkshopServiceCandidate service,
+    required String name,
+    required String registrationId,
+  }) async {
+    registrations++;
+    expect(service.id, 'e' * 32);
+    expect(service.revision, 3);
+    expect(name, 'Workshop printer');
+    expect(registrationId, 'e' * 32);
+    return printer(id: registrationId);
+  }
 
   @override
   Future<List<WorkshopPrinter>> load() =>
@@ -112,6 +131,31 @@ final class _Gateway implements WorkshopGateway {
 }
 
 void main() {
+  test(
+    'registration uses one current catalog candidate and no client state',
+    () async {
+      final candidate = WorkshopServiceCandidate(
+        id: 'e' * 32,
+        revision: 3,
+        name: 'Actual OctoPrint',
+        kind: 'octoprint',
+      );
+      final gateway = _Gateway(const [], services: [candidate]);
+      final controller = WorkshopController(
+        gateway: gateway,
+        isCurrent: () => true,
+        requestKey: () => 'd' * 32,
+      );
+      await controller.refresh();
+      expect(
+        await controller.register(candidate, '  Workshop printer  '),
+        isTrue,
+      );
+      expect(gateway.registrations, 1);
+      expect(controller.printers.single.name, 'Workshop printer');
+    },
+  );
+
   test(
     'preview and confirmation are separate single-flight user actions',
     () async {

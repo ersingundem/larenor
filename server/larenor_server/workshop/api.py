@@ -13,10 +13,12 @@ from .models import (
     IntentResponse,
     PreviewIntent,
     PreviewResponse,
+    RegisterPrinterFromService,
     PrinterList,
     PrinterResponse,
     RegisterPrinter,
     UpdatePrinterState,
+    WorkshopCatalog,
 )
 
 
@@ -34,6 +36,26 @@ router = APIRouter(tags=["Workshop"], responses={
 def register(core_id: Identity, home_id: Identity, body: RegisterPrinter,
              actor: Admin, core: Core):
     return core.workshop.register(actor, core_id, home_id, body)
+
+
+@router.get(ROOT + "/catalog", response_model=WorkshopCatalog)
+def catalog(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
+    return core.workshop.catalog(actor, core_id, home_id)
+
+
+@router.post(
+    ROOT + "/printers/from-service",
+    status_code=201,
+    response_model=PrinterResponse,
+)
+def register_from_service(
+    core_id: Identity,
+    home_id: Identity,
+    body: RegisterPrinterFromService,
+    actor: Admin,
+    core: Core,
+):
+    return core.workshop.register_from_service(actor, core_id, home_id, body)
 
 
 @router.get(ROOT + "/printers", response_model=PrinterList)

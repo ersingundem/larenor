@@ -8,7 +8,7 @@ from ..models import StrictModel
 
 
 JobState = Literal["idle", "printing", "paused", "completed", "error"]
-MaterialKind = Literal["pla", "petg", "abs", "tpu", "asa", "other"]
+MaterialKind = Literal["pla", "petg", "abs", "tpu", "asa", "other", "unknown"]
 PrinterAction = Literal["pause", "cancel"]
 
 
@@ -56,9 +56,18 @@ class JobInput(StrictModel):
 
 class MaterialInput(StrictModel):
     kind: MaterialKind
-    remainingGrams: float = Field(ge=0, le=100_000)
+    remainingGrams: float | None = Field(default=None, ge=0, le=100_000)
 
-    _remaining = field_validator("remainingGrams", mode="before")(finite)
+    @field_validator("remainingGrams", mode="before")
+    @classmethod
+    def remaining(cls, value):
+        return None if value is None else finite(value)
+
+    @model_validator(mode="after")
+    def honest_unknown(self):
+        if (self.kind == "unknown") != (self.remainingGrams is None):
+            raise ValueError("invalid_material_observation")
+        return self
 
 
 class SafetyInput(StrictModel):
@@ -108,6 +117,26 @@ class RegisterPrinter(Versioned):
     safety: SafetyInput
 
     _name = field_validator("name")(safe_label)
+
+
+class RegisterPrinterFromService(Versioned):
+    registrationId: Identity
+    name: str = Field(min_length=1, max_length=80)
+    serviceId: Identity
+    expectedServiceRevision: Revision
+
+    _name = field_validator("name")(safe_label)
+
+
+class WorkshopServiceCandidate(StrictModel):
+    id: Identity
+    revision: Revision
+    name: str
+    kind: Literal["octoprint", "moonraker"]
+
+
+class WorkshopCatalog(Versioned):
+    services: list[WorkshopServiceCandidate] = Field(max_length=128)
 
 
 class UpdatePrinterState(Versioned):
@@ -267,6 +296,8 @@ class WorkshopProviderObservation(Versioned):
     temperatures: list[HeaterTemperature] = Field(default_factory=list, max_length=16)
     supportedActions: list[PrinterAction] = Field(max_length=2)
     observedAt: float
+    materialKind: Literal["unknown"] = "unknown"
+    remainingGrams: None = None
 
     _observed = field_validator("observedAt", mode="before")(finite)
 

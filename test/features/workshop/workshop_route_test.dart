@@ -56,6 +56,12 @@ void main() {
     fixture.respond = (request) async {
       if (request.method == 'GET' &&
           request.url.path.endsWith(
+            '/workshop/${'a' * 32}/${'b' * 32}/catalog',
+          )) {
+        return fixture.json({'schemaVersion': 1, 'services': []});
+      }
+      if (request.method == 'GET' &&
+          request.url.path.endsWith(
             '/workshop/${'a' * 32}/${'b' * 32}/printers',
           )) {
         return fixture.json({'schemaVersion': 1, 'printers': []});
@@ -96,10 +102,14 @@ void main() {
             final calls = fixture.calls.where(
               (call) => call.url.path.contains('/workshop/'),
             );
-            expect(calls, hasLength(1));
+            expect(calls, hasLength(2));
             expect(
-              calls.single.headers['authorization'],
-              'Bearer synthetic_admin_access_12345',
+              calls.every(
+                (call) =>
+                    call.headers['authorization'] ==
+                    'Bearer synthetic_admin_access_12345',
+              ),
+              isTrue,
             );
             expect(tester.takeException(), isNull);
           } finally {
@@ -131,7 +141,7 @@ void main() {
     await mount(tester, WorkshopRoute(gateCurrent: () => true), settle: false);
     await tester.pump();
     unawaited(fixture.account.signOut());
-    delayed.complete(fixture.json({'schemaVersion': 1, 'printers': []}));
+    delayed.complete(fixture.json({'schemaVersion': 1, 'services': []}));
     await tester.pumpAndSettle();
     expect(find.byType(WorkshopScreen), findsNothing);
     expect(tester.takeException(), isNull);

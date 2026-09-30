@@ -151,6 +151,61 @@ def test_octoprint_and_moonraker_share_a_secret_free_provider_boundary(server):
         assert SECRET not in str(printer)
 
 
+def test_provider_registration_rechecks_admin_after_network_io(server):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+
+    class RevokingProvider:
+        exact_observations = True
+
+        def observe(self, actor, binding, printer_id):
+            with app.state.core.db.transaction() as connection:
+                connection.execute(
+                    "UPDATE users SET disabled=1 WHERE id=?", (actor.id,)
+                )
+            return {
+                "schemaVersion": 1,
+                "providerRevision": 1,
+                "jobId": "9" * 32,
+                "jobState": "printing",
+                "progressPermille": 400,
+                "remainingSeconds": 600,
+                "connectivity": "online",
+                "thermal": "unknown",
+                "filament": "unknown",
+                "door": "unknown",
+                "emergency": "unknown",
+                "temperatures": [],
+                "supportedActions": ["pause", "cancel"],
+                "observedAt": clock.now,
+            }
+
+        def capability(self, *_args):
+            raise AssertionError("unexpected capability")
+
+        def execute(self, *_args):
+            raise AssertionError("unexpected execute")
+
+    app.state.core.workshop.provider = RevokingProvider()
+    response = client.post(
+        root(app) + "/printers/from-service",
+        headers=auth(admin),
+        json={
+            "schemaVersion": 1,
+            "registrationId": "8" * 32,
+            "name": "Revoked registration",
+            "serviceId": service["id"],
+            "expectedServiceRevision": service["revision"],
+        },
+    )
+    assert response.status_code == 401, response.text
+    with app.state.core.db.connection() as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM workshop_printers"
+        ).fetchone()[0] == 0
+
+
 def test_exact_provider_refreshes_upstream_job_and_persists_command_readback(server):
     app, client, _settings, clock = server
     admin = ready(server)
@@ -368,7 +423,7 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_dispatches_once(server)
         with restarted.app.state.core.db.connection() as connection:
             assert connection.execute(
                 "SELECT value FROM metadata WHERE key='workshop_schema'"
-            ).fetchone()[0] == "3"
+            ).fetchone()[0] == "4"
             migrated = {
                 table: [dict(row) for row in connection.execute(f"SELECT * FROM {table}")]
                 for table in tables

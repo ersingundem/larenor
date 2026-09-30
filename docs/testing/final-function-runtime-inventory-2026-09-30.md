@@ -80,6 +80,6 @@ F40 adlandırılmış gerçek Client→normal Core ve ayrı restart kapısında 
 
 F48 adlandırılmış gerçek Client→normal Core→owned evcc üç fazını ve 49 ilişkili Server testini geçti; etkilenen F46 gerçek runnerı root tarafından tekrar doğrulandı. Exact critical-load policy, son I/O actor/home/session drift, tek 6A/4140W readback ve restart hold kanıtıyla `awaiting_ci` durumundadır.
 
-F59 yeni service seçme/kayıt akışı root birleşik kabul doğrulamasını bekliyor; henüz CI bekliyor olarak sayılmadı.
+F59 authenticated service catalog ve inline Client kayıt akışı tamamlandı; job/material/safety taze gerçek provider GET gözleminden türetilir. Stable registration replay, mid-I/O admin revoke, tek pause dispatch/readback ve iki ayrı normal Core/Client ömrü root doğrulamasını geçti. `awaiting_ci`; filament grams/safety bilinmiyorsa unknown/null, fiziksel yazıcı ve broad CI kapıları ayrı.
 
 F20 adlandırılmış gerçek Flutter→normal Core TCP iki yaşamında pin/compare/rotate ve restart doğrulamasını geçti. Gerçek HMAC tamper sonrası startup fail/no reset root tarafından doğrulandı; exact checkpoint query transport boşluğu kapandı. `awaiting_ci`; fiziksel secure-storage ve geniş exact CI ayrı.

@@ -5,6 +5,25 @@ Normal Core bileşimi `WorkshopHttpProvider` kullanır. Credential-bound
 gider; redirect, proxy, cookie, retry ve genel G-code yüzeyi yoktur. Bu kanıt
 çalışmasında gerçek ev yazıcısına istek ya da mutation yapılmadı.
 
+Yeni kurulum yolu admin'in güncel, doğrulanmış OctoPrint/Moonraker hizmet
+kataloğundan seçim yapmasını ister. Client yalnız `registrationId`, yazıcı adı,
+`serviceId` ve beklenen service revision gönderir. Job, material, sıcaklık ve
+stop yetkisi taze sağlayıcı GET'lerinden türetilir; base URL ve API anahtarı
+Client'a dönmez. OctoPrint/Moonraker'ın genel API'leri kalan filament miktarı
+sunmadığı için ilk kayıt `material.kind=unknown` ve `remainingGrams=null`
+olarak saklanır; sahte sıfır gram üretilmez.
+
+Normal Client bir service'in tek yazıcısını aynı doğrulanmış service kimliğiyle
+kaydeder. Böylece HTTP acknowledgement kaybolsa veya Client yeniden başlasa da
+aynı ad/service birleşimi aynı registration kimliğiyle replay edilir; rastgele
+yeni kayıt ve çift yazıcı üretilmez.
+
+Aynı registration kimliğiyle kayıp ACK tekrarı, ad ve service authority aynıysa
+saklanmış kaydı döndürür. Bu replay upstream iş ilerlemesine bağlı değildir ve
+yeniden GET/POST üretmez. Yeni kimlik ise I/O öncesi ve sonrası aynı admin,
+home ve service revision'ını tekrar doğrular; SQLite transaction ağ I/O'su
+boyunca açık tutulmaz.
+
 ## Gözlem sözleşmesi
 
 OctoPrint gözlemi hem `GET /api/job` hem `GET /api/printer?exclude=sd`
@@ -66,15 +85,20 @@ komutu yoktur.
 
 ## Kanıt
 
-- Python provider/Core fixture paketi: **20 passed**. Buna gerçek loopback HTTP,
+- Python provider/Core fixture paketi: **21 passed**. Buna gerçek loopback HTTP,
   ilerleyen progress/azalan ETA, tek dispatch, kayıp ACK sonrası yeniden
   göndermeme, gerçek GET readback, sıcaklık persistence/ayrı revision,
-  exact-job drift ve v2->v3 veri/FK/seal koruyan şema geçişi dahildir.
-- Flutter API/controller/screen paketi: **13 passed**. Strict parser, sayısal
-  sıcaklık gösterimi, sağlayıcı action alt kümesi, bilinmeyen sensör uyarıları
-  ve offline/stale kapıları kapsanır. Route paketi önceki coherent ağaçta
-  **5 passed** idi; son tekrar eşzamanlı, kapsam dışı Mesh OTA API/controller
-  uyumsuzluğu yüzünden derlenemedi.
+  exact-job drift, katalogdan provider-derived kayıt, I/O sırasında admin
+  iptali, restart replay ve v2->v4 veri/FK/seal koruyan şema geçişi dahildir.
+- Flutter workshop paketi: **21 passed**, normal-runner gerektiren test tek
+  başına **1 skipped**. Strict katalog/kayıt body, inline EN/TR kayıt ekranı,
+  sayısal sıcaklık, bilinmeyen material/sensör uyarıları ve session/route
+  kapıları kapsanır.
+- `server/tests/support/f59_flutter_acceptance.py`: prepare ve restart
+  aşamalarının ikisi de **1 passed**. Gerçek Flutter production API'si iki ayrı
+  normal Core ömründe authenticated katalog→kayıt→preview→confirm→receipt
+  readback çalıştırdı; owned loopback OctoPrint TCP'de pause POST sayısı tam
+  **1** kaldı ve restart sonrası paused durum okundu.
 - Workshop domain/data/screen ve üç odaklı test dosyasında dar
   `flutter analyze`: **No issues found**.
 - `git diff --check` (F59 allowlist): temiz.

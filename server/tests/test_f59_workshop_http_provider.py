@@ -5,8 +5,10 @@ import socket
 import threading
 
 import pytest
+from fastapi.testclient import TestClient
 
 from larenor_server.auth import Principal
+from larenor_server.app import create_app
 from larenor_server.services.service import ServiceConnection
 from larenor_server.services.transport import ProbeResponse
 from larenor_server.workshop.provider import (
@@ -348,7 +350,7 @@ def test_provider_capability_is_the_exact_cached_observation_only():
 def test_normal_core_uses_loopback_octoprint_and_persists_exact_pause_readback(
     server,
 ):
-    app, client, _settings, clock = server
+    app, client, settings, clock = server
     upstream = {
         "state": "Printing",
         "completion": 10.0,
@@ -356,6 +358,7 @@ def test_normal_core_uses_loopback_octoprint_and_persists_exact_pause_readback(
         "actualC": 214.8,
         "posts": 0,
         "cancelPosts": 0,
+        "gets": 0,
     }
 
     class Handler(BaseHTTPRequestHandler):
@@ -372,6 +375,7 @@ def test_normal_core_uses_loopback_octoprint_and_persists_exact_pause_readback(
 
         def do_GET(self):
             assert self.headers.get("X-Api-Key") == API_KEY
+            upstream["gets"] += 1
             if self.path == "/api/job":
                 value = octoprint_job(
                     upstream["state"], upstream["completion"]
@@ -440,38 +444,38 @@ def test_normal_core_uses_loopback_octoprint_and_persists_exact_pause_readback(
             state="authenticated",
             version="1.10.3",
         )
-        registered_response = client.post(
-            f"/api/v1/workshop/{app.state.core.context.coreId}/"
-            f"{app.state.core.context.homeId}/printers",
-            headers=auth(admin),
-            json={
-                "schemaVersion": 1,
-                "registrationId": PRINTER_ID,
-                "name": "Loopback printer",
-                "serviceId": service["id"],
-                "expectedServiceRevision": service["revision"],
-                "job": {
-                    "jobId": "9" * 32,
-                    "state": "printing",
-                    "progressPermille": 0,
-                    "remainingSeconds": 700,
-                },
-                "material": {"kind": "pla", "remainingGrams": 250.0},
-                "safety": {
-                    "connectivity": "online",
-                    "thermal": "unknown",
-                    "filament": "unknown",
-                    "door": "unknown",
-                    "emergency": "unknown",
-                    "observedAt": clock.now,
-                },
-            },
-        )
-        assert registered_response.status_code == 201, registered_response.text
         root = (
             f"/api/v1/workshop/{app.state.core.context.coreId}/"
             f"{app.state.core.context.homeId}"
         )
+        catalog = client.get(root + "/catalog", headers=auth(admin))
+        assert catalog.status_code == 200, catalog.text
+        assert catalog.json() == {
+            "schemaVersion": 1,
+            "services": [{
+                "id": service["id"],
+                "revision": service["revision"],
+                "name": "Loopback OctoPrint",
+                "kind": "octoprint",
+            }],
+        }
+        registration = {
+            "schemaVersion": 1,
+            "registrationId": PRINTER_ID,
+            "name": "Loopback printer",
+            "serviceId": service["id"],
+            "expectedServiceRevision": service["revision"],
+        }
+        registered_response = client.post(
+            root + "/printers/from-service",
+            headers=auth(admin),
+            json=registration,
+        )
+        assert registered_response.status_code == 201, registered_response.text
+        registered = registered_response.json()["printer"]
+        assert registered["material"] == {
+            "revision": 1, "kind": "unknown", "remainingGrams": None,
+        }
         first = client.get(root + "/printers", headers=auth(admin)).json()[
             "printers"
         ][0]
@@ -590,6 +594,16 @@ def test_normal_core_uses_loopback_octoprint_and_persists_exact_pause_readback(
         assert uncertain_retry.json() == uncertain.json()
         assert upstream["posts"] == 2
         assert upstream["cancelPosts"] == 1
+        get_count = upstream["gets"]
+        with TestClient(create_app(settings)) as restarted:
+            replay = restarted.post(
+                root + "/printers/from-service",
+                headers=auth(admin),
+                json=registration,
+            )
+            assert replay.status_code == 201, replay.text
+            assert replay.json()["printer"]["ref"]["id"] == PRINTER_ID
+            assert upstream["gets"] == get_count
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -5095,7 +5095,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5119,7 +5119,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION gerçek kullanım incelemesinde WorkshopScreen üzerinde yeni yazıcı kaydetme/servis seçme akışının olmadığı görüldü. Aktif geliştirme: mevcut doğrulanmış OctoPrint/Moonraker servisini seçen Client akışı, current-home/admin yetkili Core catalog/register-from-service ve fresh gerçek provider gözleminden türetilen başlangıç durumu. Caller job/safety beyanı kabul kanıtı sayılmaz. Birleşik gerçek Client→normal Core→owned printer TCP, restart ve tek gönderim kapısı geçmeden CI bekliyor sayılmaz; fiziksel yazıcı güvenliği MANUAL kaydında kalır."
+      "reason": "Gerçek authenticated service catalog→Client inline selection→provider-derived yazıcı kaydı→preview/confirm→receipt readback normal TCP Core ve owned OctoPrint üzerinde geçti. Client stable service registration kimliği kayıp ACK/restart replayini çift kayıt olmadan korur; mid-I/O admin revoke sıfır persisted row verir. Gerçek API filament grams sağlamadığı için schema v4 honest unknown/null saklar; caller safety/job beyanı başlangıç kanıtı değildir. 21 Server, 21 Flutter ve iki gerçek normal Core/Client fazı geçti; root Server selection ve gerçek runnerı doğruladı. Geniş exact HEAD CI ve fiziksel yazıcı/sensör güvenliği MANUAL kapısı açık. Kanıt: docs/testing/f59-real-provider-2026-09-30.md."
     },
     {
       "id": "F60",

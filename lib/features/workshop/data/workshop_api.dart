@@ -41,6 +41,27 @@ final class WorkshopApi implements WorkshopGateway {
   }
 
   @override
+  Future<List<WorkshopServiceCandidate>> catalog() => _operation(() async {
+    final body = serverObject(
+      await _api.request('GET', '$_root/catalog', token: _session.accessToken),
+    );
+    if (body.length != 2 || body['schemaVersion'] != 1) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final values = body['services'];
+    if (values is! List || values.length > 128) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final result = values
+        .map(WorkshopServiceCandidate.fromJson)
+        .toList(growable: false);
+    if (result.map((value) => value.id).toSet().length != result.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return List.unmodifiable(result);
+  });
+
+  @override
   Future<List<WorkshopPrinter>> load() => _operation(() async {
     final body = serverObject(
       await _api.request('GET', '$_root/printers', token: _session.accessToken),
@@ -60,6 +81,46 @@ final class WorkshopApi implements WorkshopGateway {
       throw const LarenorServerException('invalid_response');
     }
     return List.unmodifiable(result);
+  });
+
+  @override
+  Future<WorkshopPrinter> register({
+    required WorkshopServiceCandidate service,
+    required String name,
+    required String registrationId,
+  }) => _operation(() async {
+    final normalized = name.trim();
+    if (normalized.isEmpty ||
+        normalized.length > 80 ||
+        normalized.codeUnits.any((unit) => unit < 0x20 || unit == 0x7f) ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(registrationId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final response = serverObject(
+      await _api.request(
+        'POST',
+        '$_root/printers/from-service',
+        token: _session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'registrationId': registrationId,
+          'name': normalized,
+          'serviceId': service.id,
+          'expectedServiceRevision': service.revision,
+        },
+      ),
+    );
+    if (response.length != 1 || !response.containsKey('printer')) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final printer = WorkshopPrinter.fromJson(response['printer'], _context);
+    if (printer.id != registrationId ||
+        printer.name != normalized ||
+        printer.service.id != service.id ||
+        printer.service.revision != service.revision) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return printer;
   });
 
   @override
@@ -254,7 +315,24 @@ final class AccountWorkshopGateway implements WorkshopGateway {
   }
 
   @override
+  Future<List<WorkshopServiceCandidate>> catalog() =>
+      _run((api) => api.catalog());
+
+  @override
   Future<List<WorkshopPrinter>> load() => _run((api) => api.load());
+
+  @override
+  Future<WorkshopPrinter> register({
+    required WorkshopServiceCandidate service,
+    required String name,
+    required String registrationId,
+  }) => _run(
+    (api) => api.register(
+      service: service,
+      name: name,
+      registrationId: registrationId,
+    ),
+  );
 
   @override
   Future<WorkshopPreview> preview({

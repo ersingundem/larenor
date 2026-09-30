@@ -11,11 +11,13 @@ import uuid
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
+from ..services.service import MAX_SERVICES
 from . import schema
 from .models import (
     ConfirmIntent,
     PreviewIntent,
     RegisterPrinter,
+    RegisterPrinterFromService,
     TemperatureStateView,
     UpdatePrinterState,
     WorkshopCommand,
@@ -204,9 +206,14 @@ class WorkshopService:
             or row["remaining_seconds"] is not None
             and (type(row["remaining_seconds"]) is not int
                  or not 0 <= row["remaining_seconds"] <= 31_536_000)
-            or row["material_kind"] not in {"pla", "petg", "abs", "tpu", "asa", "other"}
-            or not self._finite(row["remaining_grams"])
-            or not 0 <= row["remaining_grams"] <= 100_000
+            or row["material_kind"] not in {
+                "pla", "petg", "abs", "tpu", "asa", "other", "unknown"
+            }
+            or (row["material_kind"] == "unknown") !=
+            (row["remaining_grams"] is None)
+            or row["remaining_grams"] is not None
+            and (not self._finite(row["remaining_grams"])
+                 or not 0 <= row["remaining_grams"] <= 100_000)
             or row["connectivity"] not in {"online", "offline"}
             or row["thermal"] not in {"normal", "warning", "runaway", "unknown"}
             or row["filament"] not in {"available", "low", "runout", "unknown"}
@@ -510,6 +517,146 @@ class WorkshopService:
             "emergency": body.safety.emergency,
             "observed_at": body.safety.observedAt,
         }
+
+    def catalog(self, actor, core_id, home_id):
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                self._actor(connection, actor)
+                rows = connection.execute(
+                    "SELECT * FROM service_connections ORDER BY id LIMIT ?",
+                    (MAX_SERVICES + 1,),
+                ).fetchall()
+                if len(rows) > MAX_SERVICES:
+                    raise ValueError("workshop_service_limit")
+                services = []
+                for row in rows:
+                    record = self.services._decode(row)
+                    if (
+                        record["kind"] in {"octoprint", "moonraker"}
+                        and set(record["credentials"]) == {"apiKey"}
+                        and record["verification"]["state"] == "authenticated"
+                    ):
+                        services.append({
+                            "id": row["id"],
+                            "revision": row["revision"],
+                            "name": record["name"],
+                            "kind": record["kind"],
+                        })
+                services.sort(key=lambda item: (item["name"].casefold(), item["id"]))
+                return {"schemaVersion": 1, "services": services}
+        except ApiError:
+            raise
+        except (ValueError, sqlite3.Error):
+            raise ApiError("workshop_storage_unavailable", 503) from None
+
+    def _registration_replay(self, row, body, now):
+        if row is None:
+            return None
+        self._validate_printer(row)
+        if (
+            row["name"] != body.name
+            or row["service_id"] != body.serviceId
+            or row["service_revision"] != body.expectedServiceRevision
+        ):
+            raise ApiError("workshop_registration_replay", 409)
+        return self._public_printer(row, now)
+
+    def register_from_service(self, actor, core_id, home_id, value):
+        body = RegisterPrinterFromService.model_validate(value)
+        now = float(self.settings.clock())
+        try:
+            with self._transaction(actor, core_id, home_id) as connection:
+                self._actor(connection, actor)
+                old = connection.execute(
+                    "SELECT * FROM workshop_printers WHERE id=?",
+                    (body.registrationId,),
+                ).fetchone()
+                replay = self._registration_replay(old, body, now)
+                if replay is not None:
+                    return replay
+                binding = self._binding(
+                    connection, body.serviceId, body.expectedServiceRevision
+                )
+
+            observation = self._observation(
+                actor, binding, {"id": body.registrationId}, now
+            )
+            now = float(self.settings.clock())
+            if (
+                observation.observedAt > now + 5
+                or now - observation.observedAt > _SAFETY_TTL_SECONDS
+            ):
+                raise ApiError("workshop_provider_unverified", 409)
+
+            with self._transaction(actor, core_id, home_id, write=True) as connection:
+                self._actor(connection, actor)
+                old = connection.execute(
+                    "SELECT * FROM workshop_printers WHERE id=?",
+                    (body.registrationId,),
+                ).fetchone()
+                replay = self._registration_replay(old, body, now)
+                if replay is not None:
+                    return replay
+                self._binding(
+                    connection, body.serviceId, body.expectedServiceRevision
+                )
+                if connection.execute(
+                    "SELECT COUNT(*) FROM workshop_printers"
+                ).fetchone()[0] >= schema.MAX_PRINTERS:
+                    raise ApiError("workshop_limit_reached", 409)
+                row = {
+                    "id": body.registrationId,
+                    "owner_id": actor.id,
+                    "family_id": actor.family_id,
+                    "revision": 1,
+                    "service_id": body.serviceId,
+                    "service_revision": body.expectedServiceRevision,
+                    "name": body.name,
+                    "job_revision": 1,
+                    "job_id": observation.jobId,
+                    "job_state": observation.jobState,
+                    "progress_permille": observation.progressPermille,
+                    "remaining_seconds": observation.remainingSeconds,
+                    "material_revision": 1,
+                    "material_kind": observation.materialKind,
+                    "remaining_grams": observation.remainingGrams,
+                    "safety_revision": 1,
+                    "connectivity": observation.connectivity,
+                    "thermal": observation.thermal,
+                    "filament": observation.filament,
+                    "door": observation.door,
+                    "emergency": observation.emergency,
+                    "observed_at": observation.observedAt,
+                    "temperature_revision": 1,
+                    "temperatures_json": self._temperatures_json(
+                        observation.temperatures
+                    ),
+                    "updated_at": now,
+                }
+                row["envelope_tag"] = self._printer_tag(row)
+                columns = (
+                    "id", "owner_id", "family_id", "revision", "service_id",
+                    "service_revision", "name", "job_revision", "job_id",
+                    "job_state", "progress_permille", "remaining_seconds",
+                    "material_revision", "material_kind", "remaining_grams",
+                    "safety_revision", "connectivity", "thermal", "filament",
+                    "door", "emergency", "observed_at", "temperature_revision",
+                    "temperatures_json", "updated_at", "envelope_tag",
+                )
+                connection.execute(
+                    "INSERT INTO workshop_printers VALUES("
+                    + ",".join("?" for _ in columns)
+                    + ")",
+                    tuple(row[name] for name in columns),
+                )
+                saved = self._printer(connection, body.registrationId)
+                return self._public_printer(
+                    saved, now, observation.supportedActions
+                )
+        except ApiError:
+            raise
+        except (ValueError, sqlite3.Error):
+            raise ApiError("workshop_storage_unavailable", 503) from None
 
     def register(self, actor, core_id, home_id, value):
         body = RegisterPrinter.model_validate(value)

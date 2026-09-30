@@ -42,6 +42,11 @@ final class WorkshopStrings {
     required this.intentRecorded,
     required this.actionApplied,
     required this.locked,
+    required this.addPrinter,
+    required this.printerName,
+    required this.register,
+    required this.noServices,
+    required this.materialUnknown,
   });
 
   final String title, refresh, loading, empty, unavailable, stale;
@@ -54,6 +59,7 @@ final class WorkshopStrings {
   final String previewPause, previewCancel, confirmTitle, confirmBody;
   final String confirm, dismiss, intentRecorded, actionApplied;
   final String locked;
+  final String addPrinter, printerName, register, noServices, materialUnknown;
 
   static const en = WorkshopStrings(
     title: 'Workshop',
@@ -88,6 +94,11 @@ final class WorkshopStrings {
     intentRecorded: 'Request recorded. Delivery has not been claimed.',
     actionApplied: 'Printer confirmed the requested state.',
     locked: 'Unlock Settings and verify an administrator Core session to manage workshop printers.',
+    addPrinter: 'Add a printer',
+    printerName: 'Printer name',
+    register: 'Register',
+    noServices: 'No authenticated OctoPrint or Moonraker service is available.',
+    materialUnknown: 'Not reported by provider',
   );
 
   static const tr = WorkshopStrings(
@@ -123,6 +134,11 @@ final class WorkshopStrings {
     intentRecorded: 'İstek kaydedildi. İletildiği iddia edilmedi.',
     actionApplied: 'Yazıcı istenen durumu doğruladı.',
     locked: 'Atölye yazıcılarını yönetmek için Ayarlar kilidini açın ve yönetici Core oturumunu doğrulayın.',
+    addPrinter: 'Yazıcı ekle',
+    printerName: 'Yazıcı adı',
+    register: 'Kaydet',
+    noServices: 'Doğrulanmış OctoPrint veya Moonraker hizmeti yok.',
+    materialUnknown: 'Sağlayıcı bildirmiyor',
   );
 }
 
@@ -143,6 +159,7 @@ class WorkshopScreen extends StatefulWidget {
 class _WorkshopScreenState extends State<WorkshopScreen>
     with WidgetsBindingObserver {
   bool _foreground = true;
+  final _name = TextEditingController();
 
   bool get _routeCurrent =>
       mounted &&
@@ -173,7 +190,14 @@ class _WorkshopScreenState extends State<WorkshopScreen>
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_changed);
     widget.controller.dispose();
+    _name.dispose();
     super.dispose();
+  }
+
+  Future<void> _register(WorkshopServiceCandidate service) async {
+    if (!_routeCurrent) return;
+    final saved = await widget.controller.register(service, _name.text);
+    if (saved && mounted && _routeCurrent) _name.clear();
   }
 
   Future<void> _request(WorkshopPrinter printer, WorkshopAction action) async {
@@ -272,7 +296,14 @@ class _WorkshopScreenState extends State<WorkshopScreen>
       );
     }
     if (controller.loaded && controller.printers.isEmpty) {
-      return _Status(icon: CupertinoIcons.cube_box, text: widget.strings.empty);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Status(icon: CupertinoIcons.cube_box, text: widget.strings.empty),
+          const SizedBox(height: 20),
+          _setup(),
+        ],
+      );
     }
     final columns = width >= 1000 ? 2 : 1;
     final gap = 20.0;
@@ -284,6 +315,8 @@ class _WorkshopScreenState extends State<WorkshopScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _setup(),
+        const SizedBox(height: 20),
         if (controller.lastReceipt != null)
           Semantics(
             liveRegion: true,
@@ -318,6 +351,55 @@ class _WorkshopScreenState extends State<WorkshopScreen>
       ],
     );
   }
+
+  Widget _setup() => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AppColors.surface.resolveFrom(context),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: CupertinoColors.separator.resolveFrom(context)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(widget.strings.addPrinter, style: AppText.title2),
+          const SizedBox(height: 12),
+          CupertinoTextField(
+            key: const ValueKey('workshop-printer-name'),
+            controller: _name,
+            placeholder: widget.strings.printerName,
+            maxLength: 80,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 12),
+          if (widget.controller.services.isEmpty)
+            Text(widget.strings.noServices, style: AppText.body)
+          else
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final service in widget.controller.services)
+                  CupertinoButton.filled(
+                    key: ValueKey('workshop-register-${service.id[0]}'),
+                    minimumSize: const Size(48, 48),
+                    onPressed:
+                        widget.controller.busy ||
+                            !_routeCurrent ||
+                            _name.text.trim().isEmpty
+                        ? null
+                        : () => _register(service),
+                    child: Text(
+                      '${widget.strings.register} • ${service.name} (${service.kind})',
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _Status extends StatelessWidget {
@@ -405,8 +487,9 @@ class _PrinterCard extends StatelessWidget {
             ),
             _Detail(
               icon: CupertinoIcons.cube_box,
-              text:
-                  '${strings.material}: ${printer.material.remainingGrams.toStringAsFixed(0)} g',
+              text: printer.material.remainingGrams == null
+                  ? '${strings.material}: ${strings.materialUnknown}'
+                  : '${strings.material}: ${printer.material.remainingGrams!.toStringAsFixed(0)} g',
             ),
             for (final heater in printer.temperature.heaters)
               _Detail(

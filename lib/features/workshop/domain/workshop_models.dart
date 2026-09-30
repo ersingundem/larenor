@@ -58,7 +58,7 @@ enum WorkshopAction { pause, cancel }
 
 enum WorkshopJobState { idle, printing, paused, completed, error }
 
-enum WorkshopMaterialKind { pla, petg, abs, tpu, asa, other }
+enum WorkshopMaterialKind { pla, petg, abs, tpu, asa, other, unknown }
 
 enum WorkshopConnectivity { online, offline }
 
@@ -87,6 +87,31 @@ final class WorkshopServiceRef {
 }
 
 @immutable
+final class WorkshopServiceCandidate {
+  const WorkshopServiceCandidate({
+    required this.id,
+    required this.revision,
+    required this.name,
+    required this.kind,
+  });
+
+  factory WorkshopServiceCandidate.fromJson(Object? json) {
+    final value = _closed(json, {'id', 'revision', 'name', 'kind'});
+    final kind = value['kind'];
+    if (kind != 'octoprint' && kind != 'moonraker') _invalid();
+    return WorkshopServiceCandidate(
+      id: _identity(value['id']),
+      revision: _revision(value['revision']),
+      name: _text(value['name'], 80),
+      kind: kind as String,
+    );
+  }
+
+  final String id, name, kind;
+  final int revision;
+}
+
+@immutable
 final class WorkshopJob {
   const WorkshopJob({
     required this.revision,
@@ -111,7 +136,7 @@ final class WorkshopMaterial {
   });
   final int revision;
   final WorkshopMaterialKind kind;
-  final double remainingGrams;
+  final double? remainingGrams;
 }
 
 @immutable
@@ -353,6 +378,25 @@ final class WorkshopPrinter {
         actions.toSet().length != actions.length) {
       _invalid();
     }
+    final materialKind = _enum(
+      value: material['kind'],
+      values: const {
+        'pla': WorkshopMaterialKind.pla,
+        'petg': WorkshopMaterialKind.petg,
+        'abs': WorkshopMaterialKind.abs,
+        'tpu': WorkshopMaterialKind.tpu,
+        'asa': WorkshopMaterialKind.asa,
+        'other': WorkshopMaterialKind.other,
+        'unknown': WorkshopMaterialKind.unknown,
+      },
+    );
+    final remainingGrams = material['remainingGrams'] == null
+        ? null
+        : _number(material['remainingGrams'], maximum: 100000);
+    if ((materialKind == WorkshopMaterialKind.unknown) !=
+        (remainingGrams == null)) {
+      _invalid();
+    }
     return WorkshopPrinter(
       coreId: context.coreId,
       homeId: context.homeId,
@@ -372,18 +416,8 @@ final class WorkshopPrinter {
       ),
       material: WorkshopMaterial(
         revision: _revision(material['revision']),
-        kind: _enum(
-          value: material['kind'],
-          values: const {
-            'pla': WorkshopMaterialKind.pla,
-            'petg': WorkshopMaterialKind.petg,
-            'abs': WorkshopMaterialKind.abs,
-            'tpu': WorkshopMaterialKind.tpu,
-            'asa': WorkshopMaterialKind.asa,
-            'other': WorkshopMaterialKind.other,
-          },
-        ),
-        remainingGrams: _number(material['remainingGrams'], maximum: 100000),
+        kind: materialKind,
+        remainingGrams: remainingGrams,
       ),
       safety: parsedSafety,
       temperature: WorkshopTemperature(
@@ -735,7 +769,15 @@ final class WorkshopExecution {
 /// Implementations own cancellation; callers must never retry a write after an
 /// uncertain acknowledgement.
 abstract interface class WorkshopGateway {
+  Future<List<WorkshopServiceCandidate>> catalog();
+
   Future<List<WorkshopPrinter>> load();
+
+  Future<WorkshopPrinter> register({
+    required WorkshopServiceCandidate service,
+    required String name,
+    required String registrationId,
+  });
 
   Future<WorkshopPreview> preview({
     required WorkshopPrinter printer,
