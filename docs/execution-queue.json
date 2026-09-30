@@ -4643,7 +4643,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Evdeyken kamera kayıt profili",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4668,14 +4668,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "e9f8cf9b exact readback revizyonu/modu, 60 saniyelik apply tazeliği, 5 dakikalık sağlayıcı fact sınırı, 20 saniyelik Client timeout ve 15 dakikalık idempotent geri alma ekledi. Aradaki manuel/provider değişikliği korunur; ACK kaybı, bozuk yanıt, readback uyuşmazlığı ve kısmi geri alma kamera bazında görünür. Paket kanıtı: 11 Python ve 8 Flutter testi, hedefli analiz ve partial→rollback smoke temiz; gerçek kamera/provider, bağımsız inceleme ve exact-head CI final doğrulama evresinde açık."
+      "reason": "30 Eylül normal composition denetimi kamera profil gatewayinin yalnız injected provider ile kurulduğunu doğruladı; önceki saf koordinatör testleri üretim kamera bağlantısını kanıtlamıyor. Gerçek HA kayıt/algılama resource binding, taze presence, gerçek switch command ve readback, kalıcı no-repeat executor geliştiriliyor; mikrofon/kamera donanımı kapatılmış sayılmaz. Tam Client→Core→provider ve exact HEAD CI açık."
     },
     {
       "id": "F42",
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4699,14 +4699,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Redaction preview, alıcı/TTL/scope, revoke, erişim audit, exact revision/idempotency ve gerçek byte artifact indirme akışı uygulandı; provider smoke, restart, 503 fail-closed ve focused analyze geçti. Eski sözleşme testleri ile tam CI kabulü bekliyor."
+      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Redaction preview, alıcı/TTL/scope, revoke, erişim audit, exact revision/idempotency ve gerçek byte artifact indirme akışı uygulandı; provider smoke, restart, 503 fail-closed ve focused analyze geçti. Eski sözleşme testleri ile tam CI kabulü bekliyor."
     },
     {
       "id": "F41",
       "kind": "task",
       "parent": "G08",
       "title": "Kamera kayıtlarında doğal dille arama",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4730,14 +4730,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama 9cfffc59 ile tamamlandı: exact authority/revision bağlı doğal dil araması, atomik kaynak reconcile ile silinen klip temizliği, bounded sayfalama/filtreler ve HMAC doğrulamalı yanlış sonuç düzeltme günlüğü hazır; 11 server ve 12 Flutter testi geçti, tam CI/son kabul bekliyor."
+      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Uygulama 9cfffc59 ile tamamlandı: exact authority/revision bağlı doğal dil araması, atomik kaynak reconcile ile silinen klip temizliği, bounded sayfalama/filtreler ve HMAC doğrulamalı yanlış sonuç düzeltme günlüğü hazır; 11 server ve 12 Flutter testi geçti, tam CI/son kabul bekliyor."
     },
     {
       "id": "F44",
       "kind": "task",
       "parent": "G08",
       "title": "Kameradan görsel sensörler",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4761,14 +4761,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kamera görsel sensörleri sürümlü metadata gözlemi, model/capability/güven/tazelik, yanlış kare ve restart-safe HMAC checkpoint ile uygulandı; 9 sunucu ve 13 Flutter testi ile focused analyze geçti, tam CI bekliyor."
+      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Kamera görsel sensörleri sürümlü metadata gözlemi, model/capability/güven/tazelik, yanlış kare ve restart-safe HMAC checkpoint ile uygulandı; 9 sunucu ve 13 Flutter testi ile focused analyze geçti, tam CI bekliyor."
     },
     {
       "id": "F45",
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "implemented",
+      "status": "pending",
       "dependsOn": [
         "B0",
         "B5",
@@ -4793,7 +4793,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Havlama ve gürültü olayları strict source capability, consent, sınıf/süre/tazelik, sessize alma, bildirim politikası ve yanlış alarm geri bildirimiyle uygulandı; 6 sunucu ve 9 Flutter testi ile focused analyze geçti, tam CI ve gerçek classifier/bildirim provider kabulü bekliyor."
+      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Havlama ve gürültü olayları strict source capability, consent, sınıf/süre/tazelik, sessize alma, bildirim politikası ve yanlış alarm geri bildirimiyle uygulandı; 6 sunucu ve 9 Flutter testi ile focused analyze geçti, tam CI ve gerçek classifier/bildirim provider kabulü bekliyor."
     },
     {
       "id": "G09",
@@ -4837,7 +4837,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4861,7 +4861,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek evcc /api/state üzerinden taze sayaç ve yük okuma normal Core runtimeına bağlı. b1fedff0 exact-one servis seçimini her istekte yeniliyor; revizyon değişimi ve ikinci servis belirsizliği kontrolü kapatıyor. Negatif tarifeler korunuyor, gerçek gelecekteki headroom uydurulmuyor. Yük azaltma/manuel kontrol, nedensel readback, iletişim kaybı ve tam kabul/CI kapıları geliştiriliyor."
+      "reason": "69b54bbb gerçek evcc current-control yetkisini F48 planına bağladı: gerçek ölçülen voltaj/faz/minimum akım ve upstream öncelik korunur; açık admin yetkisi olmayan/kritik yükler salt okunur. Kalıcı dispatch niyeti ve 5 dakikalık restart hold, sabit maxcurrent POST ve exact maxCurrent+chargePower readback uygulandı; 23 odaklı server, 38 ilişkili server ve 18 Flutter testi geçti. Tam Client→Core→servis ve exact HEAD CI kabulü docs/testing/f48-evcc-manual-power-control-2026-09-30.md kaydında açık."
     },
     {
       "id": "F46",
@@ -4899,7 +4899,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4923,14 +4923,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Güneş/batarya planlama ve kullanıcı akışı hazır. F48 gerçek sayaç okuması uygulandı ancak kontrol ve nedensel kabul hâlâ aktif; F47 inverter/batarya actual capability ve rezerv kaynak bağlantısı bu uygulama bağımlılığı sonrası kapanacak. Görünen tahminler doğrulanmış fiziksel batarya kabiliyeti sayılmaz."
+      "reason": "F48 gerçek manuel kontrol dilimi 69b54bbb ile uygulandı. F47 fresh evcc inverter/batarya kataloğu, gerçek SoC/kapasite ve açık kalıcı rezerv kaynak bağlantısı geliştiriliyor; statik tahminler gerçek batarya kabiliyeti sayılmıyor. Normal evcc targetPowerW limit sözleşmesi sunmadığından salt mode değişimi inverter kontrolü olarak doğrulanmayacak. Tam kabul ve exact HEAD CI açık."
     },
     {
       "id": "F49",
       "kind": "task",
       "parent": "G09",
       "title": "Bahçe sulama ve su bütçesi",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4955,7 +4955,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek controller capability, günlük bütçe, preview-confirm, canlı safety yenilemesi, akış/kapalı vana kanıtı ve bağlantı kesilmesinde doğrulanmış safe-stop uygulandı; server 8/8, Flutter 7/7, analyze ve HTTP smoke geçti. Fiziksel vana/flow kabulü ve tam CI bekliyor."
+      "reason": "30 Eylül normal composition denetiminde sulama providerı varsayılan Core içinde yok. HA kaynak/bölge/hava/toprak ve gerçek vana okuması ile kalıcı açık ayarlar; ardından süre/akış makbuzunu gerçekten sunan kontrolcü adapteri geliştiriliyor. Genel HA valve süre/flow kanıtı vermez; verified_control olarak sunulmayacak. Tam Client→Core→provider, güvenli stop/no-flow ve exact HEAD CI açık."
     },
     {
       "id": "G10",
@@ -5095,7 +5095,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5119,7 +5119,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek OctoPrint/Moonraker read-only durum/iş/sıcaklık adapteri normal runtimea bağlı; sağlayıcısız onay artık başarılı gösterilmiyor. Tek gönderimli confirmed pause/cancel, exact readback, yeniden başlatma/iptal ve Client→Core kabulü tamamlanacak. Keyfi G-code veya baskı başlatma ilk kapsamda yok; gerçek yazıcı doğrulaması MANUAL kapısında."
+      "reason": "Normal Core OctoPrint/Moonraker gerçek iş/durum/heater actual-target izlemi ve kalıcı sıcaklık görünümü uygulandı. Exact-job user-confirmed pause/cancel tek gönderimlidir; kayıp ACK yeniden gönderilmez ve gerçek provider GET sonucu makbuzla karşılaştırılır. 20 odaklı server ve 18 Flutter testi geçti. Bilinmeyen kapı/filament/termal/EStop koşulları uydurulmaz; keyfi G-code veya başlatma yok. Tam birleşik Client→Core→provider ve exact HEAD CI docs/testing/f59-real-provider-2026-09-30.md kaydında açık."
     },
     {
       "id": "F60",

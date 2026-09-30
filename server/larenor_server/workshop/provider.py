@@ -19,6 +19,7 @@ from .models import WorkshopCommand
 
 
 _IDENTITY = re.compile(r"[0-9a-f]{32}\Z")
+_HEATER_OBJECT = re.compile(r"(?:extruder[0-9]*|heater_bed)\Z")
 _CACHE_LIMIT = 128
 _CACHE_TTL = 30.0
 _TIMEOUT = 5.0
@@ -100,6 +101,35 @@ def _optional_seconds(value):
     if value is None:
         return None
     return min(31_536_000, int(_finite(value, maximum=31_536_000)))
+
+
+def _target_temperature(value):
+    if value is None:
+        return None
+    return _finite(value, minimum=-273.15, maximum=1000.0)
+
+
+def _temperatures(value, *, expected=None, actual_key="actual"):
+    if type(value) is not dict or len(value) > 16:
+        raise WorkshopProviderError("provider_protocol_changed")
+    result = []
+    for name, item in value.items():
+        name = _text(name, 128)
+        if name == "history" or type(item) is not dict:
+            raise WorkshopProviderError("provider_protocol_changed")
+        if actual_key not in item or "target" not in item:
+            raise WorkshopProviderError("provider_protocol_changed")
+        result.append({
+            "name": name,
+            "actualC": _finite(
+                item[actual_key], minimum=-273.15, maximum=1000.0
+            ),
+            "targetC": _target_temperature(item["target"]),
+        })
+    result.sort(key=lambda item: item["name"])
+    if expected is not None and [item["name"] for item in result] != sorted(expected):
+        raise WorkshopProviderError("provider_protocol_changed")
+    return result
 
 
 def _text(value, maximum=1024, *, empty=False):
@@ -225,6 +255,28 @@ class WorkshopHttpProvider:
         except (KeyError, TypeError):
             raise WorkshopProviderError("provider_protocol_changed") from None
 
+        printer = _object(self._request(
+            binding, "GET", "/api/printer", query={"exclude": "sd"}
+        ))
+        try:
+            printer_state = printer["state"]
+            temperatures = printer["temperature"]
+            if type(printer_state) is not dict:
+                raise KeyError
+            printer_text = _text(printer_state["text"], 80)
+            flags = printer_state["flags"]
+            if type(flags) is not dict:
+                raise KeyError
+            flag_names = (
+                "operational", "paused", "printing", "cancelling",
+                "pausing", "error", "ready", "closedOrError",
+            )
+            if any(type(flags.get(name)) is not bool for name in flag_names):
+                raise KeyError
+            temperatures = _temperatures(temperatures)
+        except (KeyError, TypeError):
+            raise WorkshopProviderError("provider_protocol_changed") from None
+
         states = {
             "Printing": "printing", "Pausing": "printing",
             "Paused": "paused", "Cancelling": "printing",
@@ -232,6 +284,21 @@ class WorkshopHttpProvider:
             "Offline after error": "error", "Error": "error",
         }
         if state_text not in states:
+            raise WorkshopProviderError("provider_protocol_changed")
+        expected_flag = {
+            "Printing": "printing",
+            "Pausing": "pausing",
+            "Paused": "paused",
+            "Cancelling": "cancelling",
+            "Operational": "operational",
+            "Offline": "closedOrError",
+            "Offline after error": "closedOrError",
+            "Error": "error",
+        }[state_text]
+        # Both endpoints document textual state as presentation text with a
+        # non-exhaustive vocabulary.  Bind the snapshot to each text value,
+        # but use the stable state flag to corroborate the job state.
+        if flags[expected_flag] is not True:
             raise WorkshopProviderError("provider_protocol_changed")
         state = states[state_text]
         active = state in {"printing", "paused"}
@@ -262,9 +329,9 @@ class WorkshopHttpProvider:
         remaining = _optional_seconds(progress.get("printTimeLeft"))
         if state == "idle":
             permille, remaining = 0, None
-        connectivity = "offline" if state_text.startswith("Offline") else "online"
-        thermal = "warning" if state == "error" else "normal"
-        emergency = "triggered" if state == "error" else "clear"
+        connectivity = "offline" if flags["closedOrError"] else "online"
+        thermal = "unknown"
+        emergency = "unknown"
         supported = []
         if state_text == "Printing":
             supported = ["pause", "cancel"]
@@ -272,14 +339,17 @@ class WorkshopHttpProvider:
             supported = ["cancel"]
         raw = {
             "kind": "octoprint", "identity": identity, "state": state_text,
-            "connectivity": connectivity, "thermal": thermal,
-            "emergency": emergency,
+            "connectivity": connectivity, "printerState": printer_text,
         }
         return self._observation(raw, state, identity, permille, remaining,
-                                 connectivity, thermal, emergency, supported)
+                                 connectivity, thermal, emergency, temperatures,
+                                 supported)
 
     def _moonraker_object(self, binding):
-        query = {"print_stats": "", "virtual_sdcard": "", "webhooks": ""}
+        query = {
+            "print_stats": "", "virtual_sdcard": "", "webhooks": "",
+            "heaters": "available_heaters",
+        }
         envelope = _object(self._request(
             binding, "GET", "/printer/objects/query", query=query
         ))
@@ -290,14 +360,50 @@ class WorkshopHttpProvider:
             webhooks = status["webhooks"]
             virtual = status["virtual_sdcard"]
             stats = status["print_stats"]
-            if not all(type(item) is dict for item in (result, status, webhooks, virtual, stats)):
+            heaters = status["heaters"]
+            if not all(
+                type(item) is dict
+                for item in (result, status, webhooks, virtual, stats, heaters)
+            ):
                 raise KeyError
             klippy = _text(webhooks["state"], 32)
             state_text = _text(stats["state"], 32)
             filename = _text(stats.get("filename", ""), 2048, empty=True)
             progress = _finite(virtual["progress"], maximum=1.0)
+            available_heaters = heaters["available_heaters"]
+            if (
+                type(available_heaters) is not list
+                or len(available_heaters) > 16
+                or any(not isinstance(item, str) for item in available_heaters)
+                or len(set(available_heaters)) != len(available_heaters)
+            ):
+                raise KeyError
+            safe_heaters = sorted(
+                _text(item, 128)
+                for item in available_heaters
+                if _HEATER_OBJECT.fullmatch(item) is not None
+            )
         except (KeyError, TypeError):
             raise WorkshopProviderError("provider_protocol_changed") from None
+        temperatures = []
+        if safe_heaters:
+            thermal_envelope = _object(self._request(
+                binding,
+                "GET",
+                "/printer/objects/query",
+                query={name: "temperature,target" for name in safe_heaters},
+            ))
+            try:
+                thermal_result = thermal_envelope["result"]
+                thermal_status = thermal_result["status"]
+                _finite(thermal_result["eventtime"])
+                temperatures = _temperatures(
+                    thermal_status,
+                    expected=safe_heaters,
+                    actual_key="temperature",
+                )
+            except (KeyError, TypeError):
+                raise WorkshopProviderError("provider_protocol_changed") from None
         states = {
             "standby": "idle", "printing": "printing", "paused": "paused",
             "complete": "completed", "cancelled": "completed", "error": "error",
@@ -332,8 +438,8 @@ class WorkshopHttpProvider:
         if state == "idle":
             permille, remaining = 0, None
         connectivity = "online" if klippy == "ready" else "offline"
-        thermal = "normal" if klippy == "ready" and state != "error" else "warning"
-        emergency = "clear" if klippy == "ready" and state != "error" else "triggered"
+        thermal = "unknown"
+        emergency = "unknown"
         supported = []
         if connectivity == "online" and state_text == "printing":
             supported = ["pause", "cancel"]
@@ -342,13 +448,14 @@ class WorkshopHttpProvider:
         raw = {
             "kind": "moonraker", "identity": identity,
             "state": state_text, "connectivity": connectivity,
-            "thermal": thermal, "emergency": emergency,
+            "heaterObjects": safe_heaters,
         }
         return self._observation(raw, state, identity, permille, remaining,
-                                 connectivity, thermal, emergency, supported)
+                                 connectivity, thermal, emergency, temperatures,
+                                 supported)
 
     def _observation(self, raw, state, identity, permille, remaining,
-                     connectivity, thermal, emergency, supported):
+                     connectivity, thermal, emergency, temperatures, supported):
         observed_at = float(self._clock())
         if not math.isfinite(observed_at):
             raise WorkshopProviderError("provider_unavailable")
@@ -365,6 +472,7 @@ class WorkshopHttpProvider:
             "filament": "unknown",
             "door": "unknown",
             "emergency": emergency,
+            "temperatures": temperatures,
             "supportedActions": supported,
             "observedAt": observed_at,
         }

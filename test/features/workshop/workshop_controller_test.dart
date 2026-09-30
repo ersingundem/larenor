@@ -4,7 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/workshop/data/workshop_controller.dart';
 import 'package:larenor/features/workshop/domain/workshop_models.dart';
 
-WorkshopPrinter printer({bool safe = true}) => WorkshopPrinter(
+WorkshopPrinter printer({
+  bool safe = true,
+  bool unknownSensors = false,
+}) => WorkshopPrinter(
   coreId: 'a' * 32,
   homeId: 'b' * 32,
   id: 'd' * 32,
@@ -28,12 +31,22 @@ WorkshopPrinter printer({bool safe = true}) => WorkshopPrinter(
     connectivity: safe
         ? WorkshopConnectivity.online
         : WorkshopConnectivity.offline,
-    thermal: WorkshopThermal.normal,
-    filament: WorkshopFilament.available,
-    door: WorkshopDoor.closed,
-    emergency: WorkshopEmergency.clear,
+    thermal: unknownSensors ? WorkshopThermal.unknown : WorkshopThermal.normal,
+    filament: unknownSensors
+        ? WorkshopFilament.unknown
+        : WorkshopFilament.available,
+    door: unknownSensors ? WorkshopDoor.unknown : WorkshopDoor.closed,
+    emergency: unknownSensors
+        ? WorkshopEmergency.unknown
+        : WorkshopEmergency.clear,
     observedAt: DateTime.utc(2026, 9, 21),
     freshness: WorkshopFreshness.current,
+  ),
+  temperature: const WorkshopTemperature(
+    revision: 6,
+    heaters: [
+      WorkshopHeaterTemperature(name: 'tool0', actualC: 214.8, targetC: 220),
+    ],
   ),
   availableActions: safe
       ? const [WorkshopAction.pause, WorkshopAction.cancel]
@@ -128,7 +141,7 @@ void main() {
   );
 
   test(
-    'hazard state and late authority never create or accept an action',
+    'offline state and late authority never create or accept an action',
     () async {
       var current = true;
       final gateway = _Gateway([printer(safe: false)]);
@@ -157,4 +170,23 @@ void main() {
       expect(controller.failure, WorkshopFailure.staleAuthority);
     },
   );
+
+  test('unknown sensors do not hide a current provider stop action', () async {
+    final gateway = _Gateway([printer(unknownSensors: true)]);
+    final controller = WorkshopController(
+      gateway: gateway,
+      isCurrent: () => true,
+      requestKey: () => 'pause-request-key-0003',
+    );
+    await controller.refresh();
+    expect(controller.printers.single.safety.safe, isFalse);
+    expect(
+      await controller.requestAction(
+        controller.printers.single,
+        WorkshopAction.pause,
+      ),
+      isNotNull,
+    );
+    expect(gateway.previews, 1);
+  });
 }

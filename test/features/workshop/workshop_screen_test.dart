@@ -5,43 +5,60 @@ import 'package:larenor/features/workshop/data/workshop_controller.dart';
 import 'package:larenor/features/workshop/domain/workshop_models.dart';
 import 'package:larenor/features/workshop/presentation/workshop_screen.dart';
 
-WorkshopPrinter printer({required String id, required bool safe}) =>
-    WorkshopPrinter(
-      coreId: 'a' * 32,
-      homeId: 'b' * 32,
-      id: id * 32,
-      revision: 4,
-      name: safe ? 'Workshop One' : 'Workshop Two',
-      service: WorkshopServiceRef(id: 'e' * 32, revision: 3),
-      job: WorkshopJob(
-        revision: 7,
-        id: 'f' * 32,
-        state: WorkshopJobState.printing,
-        progressPermille: 420,
-        remainingSeconds: 900,
-      ),
-      material: const WorkshopMaterial(
-        revision: 5,
-        kind: WorkshopMaterialKind.pla,
-        remainingGrams: 280,
-      ),
-      safety: WorkshopSafety(
-        revision: 9,
-        connectivity: WorkshopConnectivity.online,
-        thermal: safe ? WorkshopThermal.normal : WorkshopThermal.runaway,
-        filament: WorkshopFilament.available,
-        door: WorkshopDoor.closed,
-        emergency: WorkshopEmergency.clear,
-        observedAt: DateTime.utc(2026, 9, 21),
-        freshness: WorkshopFreshness.current,
-      ),
-      availableActions: safe
-          ? const [WorkshopAction.pause, WorkshopAction.cancel]
-          : const [],
-    );
+WorkshopPrinter printer({
+  required String id,
+  required bool safe,
+  bool unknownSensors = false,
+}) => WorkshopPrinter(
+  coreId: 'a' * 32,
+  homeId: 'b' * 32,
+  id: id * 32,
+  revision: 4,
+  name: safe ? 'Workshop One' : 'Workshop Two',
+  service: WorkshopServiceRef(id: 'e' * 32, revision: 3),
+  job: WorkshopJob(
+    revision: 7,
+    id: 'f' * 32,
+    state: WorkshopJobState.printing,
+    progressPermille: 420,
+    remainingSeconds: 900,
+  ),
+  material: const WorkshopMaterial(
+    revision: 5,
+    kind: WorkshopMaterialKind.pla,
+    remainingGrams: 280,
+  ),
+  safety: WorkshopSafety(
+    revision: 9,
+    connectivity: WorkshopConnectivity.online,
+    thermal: unknownSensors
+        ? WorkshopThermal.unknown
+        : safe
+        ? WorkshopThermal.normal
+        : WorkshopThermal.runaway,
+    filament: unknownSensors
+        ? WorkshopFilament.unknown
+        : WorkshopFilament.available,
+    door: unknownSensors ? WorkshopDoor.unknown : WorkshopDoor.closed,
+    emergency: unknownSensors
+        ? WorkshopEmergency.unknown
+        : WorkshopEmergency.clear,
+    observedAt: DateTime.utc(2026, 9, 21),
+    freshness: WorkshopFreshness.current,
+  ),
+  temperature: const WorkshopTemperature(
+    revision: 6,
+    heaters: [
+      WorkshopHeaterTemperature(name: 'tool0', actualC: 214.8, targetC: 220),
+    ],
+  ),
+  availableActions: const [WorkshopAction.pause, WorkshopAction.cancel],
+);
 
 WorkshopPrinter safePrinter() => printer(id: 'a', safe: true);
 WorkshopPrinter hazardPrinter() => printer(id: 'b', safe: false);
+WorkshopPrinter unknownPrinter() =>
+    printer(id: 'c', safe: false, unknownSensors: true);
 
 WorkshopPreview previewFor(WorkshopPrinter printer, WorkshopAction action) =>
     WorkshopPreview(
@@ -72,12 +89,13 @@ WorkshopIntentReceipt receiptFor(WorkshopPreview preview) =>
     );
 
 final class _Gateway implements WorkshopGateway {
+  _Gateway([this.printers]);
+
+  final List<WorkshopPrinter>? printers;
   int confirmations = 0;
   @override
-  Future<List<WorkshopPrinter>> load() async => [
-    safePrinter(),
-    hazardPrinter(),
-  ];
+  Future<List<WorkshopPrinter>> load() async =>
+      printers ?? [safePrinter(), hazardPrinter()];
   @override
   Future<WorkshopPreview> preview({
     required WorkshopPrinter printer,
@@ -98,13 +116,14 @@ Future<_Gateway> _pump(
   WidgetTester tester, {
   required double width,
   required WorkshopStrings strings,
+  List<WorkshopPrinter>? printers,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(width, 900);
   tester.platformDispatcher.textScaleFactorTestValue = 2;
   addTearDown(tester.view.reset);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-  final gateway = _Gateway();
+  final gateway = _Gateway(printers);
   await tester.pumpWidget(
     CupertinoApp(
       home: WorkshopScreen(
@@ -156,6 +175,28 @@ void main() {
       });
     }
   }
+
+  testWidgets('unknown physical sensors stay visible beside stop actions', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      width: 600,
+      strings: WorkshopStrings.en,
+      printers: [unknownPrinter()],
+    );
+    for (final warning in [
+      WorkshopStrings.en.thermalUnknown,
+      WorkshopStrings.en.filamentUnknown,
+      WorkshopStrings.en.doorUnknown,
+      WorkshopStrings.en.emergencyUnknown,
+    ]) {
+      expect(find.text(warning), findsOneWidget);
+    }
+    expect(find.textContaining('214.8 °C → 220.0 °C'), findsOneWidget);
+    expect(find.byKey(const ValueKey('workshop-pause-c')), findsOneWidget);
+    expect(find.byKey(const ValueKey('workshop-cancel-c')), findsOneWidget);
+  });
 
   testWidgets('keyboard and TalkBack keep confirmation explicit', (
     tester,

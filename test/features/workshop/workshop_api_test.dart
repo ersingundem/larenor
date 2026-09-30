@@ -60,6 +60,13 @@ Map<String, Object?> printerJson({
     'observedAt': 1788609600.0,
     'freshness': freshness,
   },
+  'temperature': {
+    'revision': 6,
+    'heaters': [
+      {'name': 'bed', 'actualC': 60.1, 'targetC': null},
+      {'name': 'tool0', 'actualC': 214.8, 'targetC': 220.0},
+    ],
+  },
   'availableActions': actions,
 };
 
@@ -204,6 +211,22 @@ void main() {
     );
   });
 
+  test('unknown physical sensors allow only the provider stop subset', () {
+    final value = printerJson(
+      thermal: 'unknown',
+      filament: 'unknown',
+      door: 'unknown',
+      emergency: 'unknown',
+      actions: const ['cancel'],
+    );
+    final printer = WorkshopPrinter.fromJson(value, context());
+    expect(printer.safety.safe, isFalse);
+    expect(printer.safety.stoppingEligible, isTrue);
+    expect(printer.temperature.heaters.last.actualC, 214.8);
+    expect(printer.temperature.heaters.last.targetC, 220.0);
+    expect(printer.availableActions, const [WorkshopAction.cancel]);
+  });
+
   test('foreign, secret-bearing or unsafe action projections fail closed', () {
     for (final mutation
         in <Map<String, Object?> Function(Map<String, Object?>)>[
@@ -218,6 +241,15 @@ void main() {
           (value) => {
             ...value,
             'credentials': {'apiKey': 'secret'},
+          },
+          (value) => {
+            ...value,
+            'temperature': {
+              'revision': 6,
+              'heaters': [
+                {'name': 'tool0', 'actualC': 1000.1, 'targetC': 220.0},
+              ],
+            },
           },
           (value) => {
             ...value,

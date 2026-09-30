@@ -16,6 +16,7 @@ from .models import (
     ConfirmIntent,
     PreviewIntent,
     RegisterPrinter,
+    TemperatureStateView,
     UpdatePrinterState,
     WorkshopCommand,
     WorkshopCommandReadback,
@@ -82,7 +83,31 @@ class WorkshopService:
         self._scope(core_id, home_id)
         return self.db.transaction() if write else self.db.connection()
 
-    def _printer_tag(self, row):
+    @staticmethod
+    def _temperatures_json(heaters):
+        return json.dumps(
+            [heater.model_dump(mode="json") for heater in heaters],
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+
+    @staticmethod
+    def _temperature_state(row):
+        try:
+            raw = json.loads(row["temperatures_json"])
+            value = TemperatureStateView.model_validate({
+                "revision": row["temperature_revision"],
+                "heaters": raw,
+            })
+        except Exception:
+            raise ValueError("invalid_workshop_temperature") from None
+        if WorkshopService._temperatures_json(value.heaters) != row["temperatures_json"]:
+            raise ValueError("invalid_workshop_temperature")
+        return value
+
+    def _printer_tag(self, row, *, include_temperature=True):
         fields = [
             self.scope.coreId, self.scope.homeId, row["id"], row["owner_id"],
             row["family_id"], row["revision"], row["service_id"],
@@ -92,8 +117,11 @@ class WorkshopService:
             row["material_kind"], row["remaining_grams"],
             row["safety_revision"], row["connectivity"], row["thermal"],
             row["filament"], row["door"], row["emergency"],
-            row["observed_at"], row["updated_at"],
+            row["observed_at"],
         ]
+        if include_temperature:
+            fields.extend((row["temperature_revision"], row["temperatures_json"]))
+        fields.append(row["updated_at"])
         encoded = json.dumps(
             fields, ensure_ascii=False, separators=(",", ":"), allow_nan=False
         ).encode("utf-8")
@@ -134,6 +162,22 @@ class WorkshopService:
         ).hexdigest()
 
     def _validate_printer(self, row):
+        temperature = self._temperature_state(row) if row is not None else None
+        current_tag = (
+            row is not None
+            and isinstance(row["envelope_tag"], str)
+            and hmac.compare_digest(row["envelope_tag"], self._printer_tag(row))
+        )
+        legacy_tag = (
+            temperature is not None
+            and temperature.revision == 1
+            and not temperature.heaters
+            and isinstance(row["envelope_tag"], str)
+            and hmac.compare_digest(
+                row["envelope_tag"],
+                self._printer_tag(row, include_temperature=False),
+            )
+        )
         if (
             row is None
             or any(not isinstance(row[name], str) for name in (
@@ -151,6 +195,7 @@ class WorkshopService:
                    for name in (
                        "revision", "service_revision", "job_revision",
                        "material_revision", "safety_revision",
+                       "temperature_revision",
                    ))
             or row["job_state"] not in {"idle", "printing", "paused", "completed", "error"}
             or (row["job_state"] == "idle") != (row["job_id"] is None)
@@ -163,15 +208,15 @@ class WorkshopService:
             or not self._finite(row["remaining_grams"])
             or not 0 <= row["remaining_grams"] <= 100_000
             or row["connectivity"] not in {"online", "offline"}
-            or row["thermal"] not in {"normal", "warning", "runaway"}
+            or row["thermal"] not in {"normal", "warning", "runaway", "unknown"}
             or row["filament"] not in {"available", "low", "runout", "unknown"}
             or row["door"] not in {"closed", "open", "unknown"}
-            or row["emergency"] not in {"clear", "triggered"}
+            or row["emergency"] not in {"clear", "triggered", "unknown"}
             or not self._finite(row["observed_at"])
             or not self._finite(row["updated_at"])
             or row["observed_at"] > row["updated_at"] + 5
             or _DIGEST.fullmatch(row["envelope_tag"]) is None
-            or not hmac.compare_digest(row["envelope_tag"], self._printer_tag(row))
+            or not (current_tag or legacy_tag)
         ):
             raise ValueError("invalid_workshop_printer")
         safe_label(row["name"])
@@ -271,6 +316,7 @@ class WorkshopService:
     def _apply_observation(self, connection, row, observation, now):
         if observation is None:
             return row
+        temperature_json = self._temperatures_json(observation.temperatures)
         fields = {
             "job_id": observation.jobId,
             "job_state": observation.jobState,
@@ -281,6 +327,7 @@ class WorkshopService:
             "filament": observation.filament,
             "door": observation.door,
             "emergency": observation.emergency,
+            "temperatures_json": temperature_json,
         }
         job_changed = any(row[name] != fields[name] for name in (
             "job_id", "job_state", "progress_permille", "remaining_seconds",
@@ -288,11 +335,12 @@ class WorkshopService:
         safety_changed = any(row[name] != fields[name] for name in (
             "connectivity", "thermal", "filament", "door", "emergency",
         ))
+        temperature_changed = row["temperatures_json"] != temperature_json
         # Refreshing the freshness timestamp for every HTTP read would make a
         # reviewed preview stale before its confirmation.  Renew it only when
         # state changed or half of the safety TTL has elapsed.
         renew = (
-            job_changed or safety_changed
+            job_changed or safety_changed or temperature_changed
             or observation.observedAt - row["observed_at"] >= _SAFETY_TTL_SECONDS / 2
         )
         if not renew:
@@ -303,6 +351,9 @@ class WorkshopService:
             revision=row["revision"] + 1,
             job_revision=row["job_revision"] + (1 if job_changed else 0),
             safety_revision=row["safety_revision"] + 1,
+            temperature_revision=(
+                row["temperature_revision"] + (1 if temperature_changed else 0)
+            ),
             observed_at=observation.observedAt,
             updated_at=now,
         )
@@ -311,14 +362,16 @@ class WorkshopService:
             "UPDATE workshop_printers SET revision=?,job_revision=?,job_id=?,job_state=?,"
             "progress_permille=?,remaining_seconds=?,safety_revision=?,connectivity=?,"
             "thermal=?,filament=?,door=?,emergency=?,observed_at=?,updated_at=?,"
-            "envelope_tag=? WHERE id=? AND revision=?",
+            "temperature_revision=?,temperatures_json=?,envelope_tag=? "
+            "WHERE id=? AND revision=?",
             (
                 changed["revision"], changed["job_revision"], changed["job_id"],
                 changed["job_state"], changed["progress_permille"],
                 changed["remaining_seconds"], changed["safety_revision"],
                 changed["connectivity"], changed["thermal"], changed["filament"],
                 changed["door"], changed["emergency"], changed["observed_at"],
-                changed["updated_at"], changed["envelope_tag"], row["id"],
+                changed["updated_at"], changed["temperature_revision"],
+                changed["temperatures_json"], changed["envelope_tag"], row["id"],
                 row["revision"],
             ),
         )
@@ -392,13 +445,11 @@ class WorkshopService:
         )
 
     def _available_actions(self, row, now):
-        if not self._fresh(row, now) or any((
-            row["connectivity"] != "online",
-            row["thermal"] != "normal",
-            row["filament"] not in {"available", "low"},
-            row["door"] != "closed",
-            row["emergency"] != "clear",
-        )):
+        if (
+            not self._fresh(row, now)
+            or row["connectivity"] != "online"
+            or row["job_id"] is None
+        ):
             return []
         if row["job_state"] == "printing":
             return ["pause", "cancel"]
@@ -408,6 +459,7 @@ class WorkshopService:
 
     def _public_printer(self, row, now, provider_actions=None):
         self._validate_printer(row)
+        temperature = self._temperature_state(row)
         return {"printer": {
             "schemaVersion": 1,
             "ref": {**self.scope.model_dump(), "kind": "workshop_printer", "id": row["id"]},
@@ -430,6 +482,7 @@ class WorkshopService:
                 "observedAt": row["observed_at"],
                 "freshness": "current" if self._fresh(row, now) else "stale",
             },
+            "temperature": temperature.model_dump(mode="json"),
             "availableActions": (
                 [action for action in self._available_actions(row, now)
                  if provider_actions is None or action in provider_actions]
@@ -495,19 +548,22 @@ class WorkshopService:
                     "job_revision": 1,
                     "material_revision": 1,
                     "safety_revision": 1,
+                    "temperature_revision": 1,
+                    "temperatures_json": "[]",
                     **requested,
                     "updated_at": now,
                 }
                 row["envelope_tag"] = self._printer_tag(row)
                 connection.execute(
-                    "INSERT INTO workshop_printers VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO workshop_printers VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     tuple(row[name] for name in (
                         "id", "owner_id", "family_id", "revision", "service_id",
                         "service_revision", "name", "job_revision", "job_id", "job_state",
                         "progress_permille", "remaining_seconds", "material_revision",
                         "material_kind", "remaining_grams", "safety_revision", "connectivity",
                         "thermal", "filament", "door", "emergency", "observed_at",
-                        "updated_at", "envelope_tag",
+                        "temperature_revision", "temperatures_json", "updated_at",
+                        "envelope_tag",
                     )),
                 )
                 saved = self._printer(connection, body.registrationId)

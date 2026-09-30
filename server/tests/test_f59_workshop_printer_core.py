@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from conftest import auth, ready
 from larenor_server.app import create_app
 from larenor_server.errors import StartupError
+from larenor_server.workshop import schema as workshop_schema
 from test_admin import activate, create as create_user
 
 
@@ -177,10 +178,10 @@ def test_exact_provider_refreshes_upstream_job_and_persists_command_readback(ser
                 "progressPermille": 410,
                 "remainingSeconds": 590,
                 "connectivity": "online",
-                "thermal": "normal",
-                "filament": "available",
-                "door": "closed",
-                "emergency": "clear",
+                "thermal": "unknown",
+                "filament": "unknown",
+                "door": "unknown",
+                "emergency": "unknown",
                 "supportedActions": (
                     ["pause", "cancel"] if self.state == "printing" else ["cancel"]
                 ),
@@ -330,6 +331,33 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_dispatches_once(server)
     assert len(provider.calls) == 1
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 1
+    tables = tuple(workshop_schema.V2_TABLES)
+    with app.state.core.db.transaction() as connection:
+        retained = {
+            table: [dict(row) for row in connection.execute(f"SELECT * FROM {table}")]
+            for table in tables
+        }
+        for row in retained["workshop_printers"]:
+            row["envelope_tag"] = app.state.core.workshop._printer_tag(
+                row, include_temperature=False
+            )
+            row.pop("temperature_revision")
+            row.pop("temperatures_json")
+        for table in reversed(tables):
+            connection.execute(f"DROP TABLE {table}")
+        for statement in workshop_schema.V2_TABLES.values():
+            connection.execute(statement)
+        for table in tables:
+            for row in retained[table]:
+                columns = tuple(row)
+                connection.execute(
+                    f"INSERT INTO {table} ({','.join(columns)}) VALUES "
+                    f"({','.join('?' for _ in columns)})",
+                    tuple(row[column] for column in columns),
+                )
+        connection.execute(
+            "UPDATE metadata SET value='2' WHERE key='workshop_schema'"
+        )
     with TestClient(create_app(settings)) as restarted:
         history = restarted.get(
             root(app) + f"/printers/{printer['ref']['id']}/intents",
@@ -337,6 +365,26 @@ def test_admin_preview_confirm_is_bounded_idempotent_and_dispatches_once(server)
         )
         assert history.status_code == 200
         assert history.json()["intents"] == [receipt]
+        with restarted.app.state.core.db.connection() as connection:
+            assert connection.execute(
+                "SELECT value FROM metadata WHERE key='workshop_schema'"
+            ).fetchone()[0] == "3"
+            migrated = {
+                table: [dict(row) for row in connection.execute(f"SELECT * FROM {table}")]
+                for table in tables
+            }
+            assert all(
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key not in {"temperature_revision", "temperatures_json"}
+                } == retained["workshop_printers"][index]
+                and row["temperature_revision"] == 1
+                and row["temperatures_json"] == "[]"
+                for index, row in enumerate(migrated["workshop_printers"])
+            )
+            assert migrated["workshop_intents"] == retained["workshop_intents"]
+            assert migrated["workshop_effects"] == retained["workshop_effects"]
 
 
 def test_missing_provider_cannot_offer_actions_or_record_a_noop_confirmation(server):
@@ -379,16 +427,66 @@ def test_provider_removed_after_preview_cannot_create_a_noop_intent(server):
         assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 0
 
 
-def test_hazard_offline_or_stale_state_blocks_every_intent_fail_closed(server):
+def test_lost_provider_ack_is_durable_unknown_and_never_resent(server):
+    app, client, settings, clock = server
+
+    class Provider:
+        calls = 0
+
+        def capability(self, *_args):
+            return {
+                "schemaVersion": 1,
+                "providerRevision": 3,
+                "supportedActions": ["pause", "cancel"],
+                "observedAt": clock.now,
+            }
+
+        def execute(self, *_args):
+            self.calls += 1
+            raise ConnectionError("fixture_lost_ack")
+
+    provider = Provider()
+    app.state.core.workshop.provider = provider
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+    printer = register(client, admin, app, clock, service)
+    endpoint = root(app) + f"/printers/{printer['ref']['id']}/previews"
+    pending = client.post(
+        endpoint, headers=auth(admin), json=preview_body(printer)
+    ).json()["preview"]
+    request = {
+        "schemaVersion": 1,
+        "confirmationToken": pending["confirmationToken"],
+    }
+    first = client.post(
+        endpoint + f"/{pending['id']}/confirm",
+        headers=auth(admin),
+        json=request,
+    )
+    assert first.status_code == 201, first.text
+    assert first.json()["receipt"]["effect"] == "unknown"
+    assert first.json()["receipt"]["execution"]["code"] == "worker_ack_unknown"
+    second = client.post(
+        endpoint + f"/{pending['id']}/confirm",
+        headers=auth(admin),
+        json=request,
+    )
+    assert second.json() == first.json()
+    assert provider.calls == 1
+    with TestClient(create_app(settings)) as restarted:
+        history = restarted.get(
+            root(app) + f"/printers/{printer['ref']['id']}/intents",
+            headers=auth(admin),
+        )
+        assert history.json()["intents"] == [first.json()["receipt"]]
+
+
+def test_offline_or_stale_state_blocks_every_intent_fail_closed(server):
     app, client, _settings, clock = server
     admin = ready(server)
     service = octoprint(client, admin, app)
     hazards = (
         {"connectivity": "offline"},
-        {"thermal": "runaway"},
-        {"filament": "runout"},
-        {"door": "open"},
-        {"emergency": "triggered"},
         {"observedAt": clock.now - 31},
     )
     for index, hazard in enumerate(hazards):
@@ -402,3 +500,47 @@ def test_hazard_offline_or_stale_state_blocks_every_intent_fail_closed(server):
         assert response.json()["error"]["code"] == "workshop_safety_blocked"
     with app.state.core.db.connection() as connection:
         assert connection.execute("SELECT COUNT(*) FROM workshop_intents").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("hazard", [
+    {"thermal": "runaway"},
+    {"filament": "runout"},
+    {"door": "open"},
+    {"emergency": "triggered"},
+    {
+        "thermal": "unknown",
+        "filament": "unknown",
+        "door": "unknown",
+        "emergency": "unknown",
+    },
+])
+def test_reported_or_unknown_hazard_does_not_hide_supported_stop_action(
+    server, hazard
+):
+    app, client, _settings, clock = server
+    admin = ready(server)
+    service = octoprint(client, admin, app)
+
+    class Provider:
+        def capability(self, *_args):
+            return {
+                "schemaVersion": 1,
+                "providerRevision": 3,
+                "supportedActions": ["pause", "cancel"],
+                "observedAt": clock.now,
+            }
+
+        def execute(self, *_args):
+            pytest.fail("a preview must not dispatch a stop command")
+
+    app.state.core.workshop.provider = Provider()
+    printer = register(client, admin, app, clock, service, **hazard)
+    pending = client.post(
+        root(app) + f"/printers/{printer['ref']['id']}/previews",
+        headers=auth(admin),
+        json=preview_body(printer),
+    )
+    assert pending.status_code == 201, pending.text
+    for name, value in hazard.items():
+        if name != "observedAt":
+            assert printer["safety"][name] == value

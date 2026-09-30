@@ -62,13 +62,13 @@ enum WorkshopMaterialKind { pla, petg, abs, tpu, asa, other }
 
 enum WorkshopConnectivity { online, offline }
 
-enum WorkshopThermal { normal, warning, runaway }
+enum WorkshopThermal { normal, warning, runaway, unknown }
 
 enum WorkshopFilament { available, low, runout, unknown }
 
 enum WorkshopDoor { closed, open, unknown }
 
-enum WorkshopEmergency { clear, triggered }
+enum WorkshopEmergency { clear, triggered, unknown }
 
 enum WorkshopFreshness { current, stale }
 
@@ -143,6 +143,29 @@ final class WorkshopSafety {
           filament == WorkshopFilament.low) &&
       door == WorkshopDoor.closed &&
       emergency == WorkshopEmergency.clear;
+
+  bool get stoppingEligible =>
+      freshness == WorkshopFreshness.current &&
+      connectivity == WorkshopConnectivity.online;
+}
+
+@immutable
+final class WorkshopHeaterTemperature {
+  const WorkshopHeaterTemperature({
+    required this.name,
+    required this.actualC,
+    required this.targetC,
+  });
+  final String name;
+  final double actualC;
+  final double? targetC;
+}
+
+@immutable
+final class WorkshopTemperature {
+  const WorkshopTemperature({required this.revision, required this.heaters});
+  final int revision;
+  final List<WorkshopHeaterTemperature> heaters;
 }
 
 @immutable
@@ -157,6 +180,7 @@ final class WorkshopPrinter {
     required this.job,
     required this.material,
     required this.safety,
+    required this.temperature,
     required this.availableActions,
   });
 
@@ -170,6 +194,7 @@ final class WorkshopPrinter {
       'job',
       'material',
       'safety',
+      'temperature',
       'availableActions',
     });
     final ref = _closed(value['ref'], {
@@ -204,6 +229,31 @@ final class WorkshopPrinter {
       'observedAt',
       'freshness',
     });
+    final temperature = _closed(value['temperature'], {'revision', 'heaters'});
+    final rawHeaters = temperature['heaters'];
+    if (rawHeaters is! List || rawHeaters.length > 16) _invalid();
+    final heaters = rawHeaters
+        .map((raw) {
+          final heater = _closed(raw, {'name', 'actualC', 'targetC'});
+          final target = heater['targetC'];
+          return WorkshopHeaterTemperature(
+            name: _text(heater['name'], 128),
+            actualC: _number(
+              heater['actualC'],
+              minimum: -273.15,
+              maximum: 1000,
+            ),
+            targetC: target == null
+                ? null
+                : _number(target, minimum: -273.15, maximum: 1000),
+          );
+        })
+        .toList(growable: false);
+    final heaterNames = heaters.map((heater) => heater.name).toList();
+    if (!listEquals(heaterNames, [...heaterNames]..sort()) ||
+        heaterNames.toSet().length != heaterNames.length) {
+      _invalid();
+    }
     final jobState = _enum(
       value: job['state'],
       values: const {
@@ -238,6 +288,7 @@ final class WorkshopPrinter {
           'normal': WorkshopThermal.normal,
           'warning': WorkshopThermal.warning,
           'runaway': WorkshopThermal.runaway,
+          'unknown': WorkshopThermal.unknown,
         },
       ),
       filament: _enum(
@@ -262,6 +313,7 @@ final class WorkshopPrinter {
         values: const {
           'clear': WorkshopEmergency.clear,
           'triggered': WorkshopEmergency.triggered,
+          'unknown': WorkshopEmergency.unknown,
         },
       ),
       observedAt: _time(safety['observedAt']),
@@ -286,7 +338,7 @@ final class WorkshopPrinter {
           ),
         )
         .toList(growable: false);
-    final expected = !parsedSafety.safe
+    final allowed = !parsedSafety.stoppingEligible || jobId == null
         ? const <WorkshopAction>[]
         : switch (jobState) {
             WorkshopJobState.printing => const [
@@ -296,7 +348,11 @@ final class WorkshopPrinter {
             WorkshopJobState.paused => const [WorkshopAction.cancel],
             _ => const <WorkshopAction>[],
           };
-    if (!listEquals(actions, expected)) _invalid();
+    final expected = allowed.where(actions.contains).toList(growable: false);
+    if (!listEquals(actions, expected) ||
+        actions.toSet().length != actions.length) {
+      _invalid();
+    }
     return WorkshopPrinter(
       coreId: context.coreId,
       homeId: context.homeId,
@@ -330,6 +386,10 @@ final class WorkshopPrinter {
         remainingGrams: _number(material['remainingGrams'], maximum: 100000),
       ),
       safety: parsedSafety,
+      temperature: WorkshopTemperature(
+        revision: _revision(temperature['revision']),
+        heaters: List.unmodifiable(heaters),
+      ),
       availableActions: List.unmodifiable(actions),
     );
   }
@@ -340,6 +400,7 @@ final class WorkshopPrinter {
   final WorkshopJob job;
   final WorkshopMaterial material;
   final WorkshopSafety safety;
+  final WorkshopTemperature temperature;
   final List<WorkshopAction> availableActions;
 
   bool sameAuthority(WorkshopPrinter other) =>

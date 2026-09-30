@@ -63,13 +63,39 @@ class MaterialInput(StrictModel):
 
 class SafetyInput(StrictModel):
     connectivity: Literal["online", "offline"]
-    thermal: Literal["normal", "warning", "runaway"]
+    thermal: Literal["normal", "warning", "runaway", "unknown"]
     filament: Literal["available", "low", "runout", "unknown"]
     door: Literal["closed", "open", "unknown"]
-    emergency: Literal["clear", "triggered"]
+    emergency: Literal["clear", "triggered", "unknown"]
     observedAt: float
 
     _observed = field_validator("observedAt", mode="before")(finite)
+
+
+class HeaterTemperature(StrictModel):
+    name: str = Field(min_length=1, max_length=128)
+    actualC: float = Field(ge=-273.15, le=1000)
+    targetC: float | None = Field(default=None, ge=-273.15, le=1000)
+
+    _name = field_validator("name")(safe_label)
+    _actual = field_validator("actualC", mode="before")(finite)
+
+    @field_validator("targetC", mode="before")
+    @classmethod
+    def target(cls, value):
+        return None if value is None else finite(value)
+
+
+class TemperatureStateView(StrictModel):
+    revision: Revision
+    heaters: list[HeaterTemperature] = Field(max_length=16)
+
+    @model_validator(mode="after")
+    def canonical(self):
+        names = [heater.name for heater in self.heaters]
+        if names != sorted(names) or len(set(names)) != len(names):
+            raise ValueError("invalid_heater_order")
+        return self
 
 
 class RegisterPrinter(Versioned):
@@ -145,6 +171,7 @@ class PrinterView(StrictModel):
     job: JobStateView
     material: MaterialStateView
     safety: SafetyStateView
+    temperature: TemperatureStateView
     availableActions: list[PrinterAction] = Field(max_length=2)
 
 
@@ -233,10 +260,11 @@ class WorkshopProviderObservation(Versioned):
     progressPermille: int = Field(ge=0, le=1000)
     remainingSeconds: int | None = Field(ge=0, le=31_536_000)
     connectivity: Literal["online", "offline"]
-    thermal: Literal["normal", "warning", "runaway"]
+    thermal: Literal["normal", "warning", "runaway", "unknown"]
     filament: Literal["available", "low", "runout", "unknown"]
     door: Literal["closed", "open", "unknown"]
-    emergency: Literal["clear", "triggered"]
+    emergency: Literal["clear", "triggered", "unknown"]
+    temperatures: list[HeaterTemperature] = Field(default_factory=list, max_length=16)
     supportedActions: list[PrinterAction] = Field(max_length=2)
     observedAt: float
 
@@ -248,6 +276,9 @@ class WorkshopProviderObservation(Versioned):
             raise ValueError("invalid_provider_job")
         if len(set(self.supportedActions)) != len(self.supportedActions):
             raise ValueError("duplicate_action")
+        names = [heater.name for heater in self.temperatures]
+        if names != sorted(names) or len(set(names)) != len(names):
+            raise ValueError("invalid_heater_order")
         allowed = (
             {"pause", "cancel"} if self.jobState == "printing"
             else {"cancel"} if self.jobState == "paused" else set()

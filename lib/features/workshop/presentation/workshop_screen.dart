@@ -22,10 +22,15 @@ final class WorkshopStrings {
     required this.staleReading,
     required this.thermalWarning,
     required this.thermalRunaway,
+    required this.thermalUnknown,
     required this.filamentLow,
     required this.filamentRunout,
+    required this.filamentUnknown,
     required this.doorOpen,
+    required this.doorUnknown,
     required this.emergency,
+    required this.emergencyUnknown,
+    required this.heaterTemperature,
     required this.progress,
     required this.material,
     required this.previewPause,
@@ -41,8 +46,11 @@ final class WorkshopStrings {
 
   final String title, refresh, loading, empty, unavailable, stale;
   final String actionUncertain, safe, offline, staleReading;
-  final String thermalWarning, thermalRunaway, filamentLow, filamentRunout;
-  final String doorOpen, emergency, progress, material;
+  final String thermalWarning, thermalRunaway, thermalUnknown;
+  final String filamentLow, filamentRunout, filamentUnknown;
+  final String doorOpen, doorUnknown, emergency, emergencyUnknown;
+  final String heaterTemperature;
+  final String progress, material;
   final String previewPause, previewCancel, confirmTitle, confirmBody;
   final String confirm, dismiss, intentRecorded, actionApplied;
   final String locked;
@@ -60,10 +68,15 @@ final class WorkshopStrings {
     staleReading: 'Safety reading is stale',
     thermalWarning: 'Temperature warning',
     thermalRunaway: 'Thermal runaway detected',
+    thermalUnknown: 'Thermal safety state is not reported',
     filamentLow: 'Filament is low',
     filamentRunout: 'Filament has run out',
+    filamentUnknown: 'Filament sensor state is not reported',
     doorOpen: 'Printer door is open',
+    doorUnknown: 'Printer door state is not reported',
     emergency: 'Emergency stop is active',
+    emergencyUnknown: 'Physical emergency-stop state is not reported',
+    heaterTemperature: 'Temperature',
     progress: 'Progress',
     material: 'Material remaining',
     previewPause: 'Review pause request',
@@ -90,10 +103,15 @@ final class WorkshopStrings {
     staleReading: 'Güvenlik ölçümü güncel değil',
     thermalWarning: 'Sıcaklık uyarısı',
     thermalRunaway: 'Kontrolsüz sıcaklık artışı algılandı',
+    thermalUnknown: 'Termal güvenlik durumu bildirilmiyor',
     filamentLow: 'Filament azalıyor',
     filamentRunout: 'Filament tükendi',
+    filamentUnknown: 'Filament sensörü durumu bildirilmiyor',
     doorOpen: 'Yazıcı kapağı açık',
+    doorUnknown: 'Yazıcı kapağı durumu bildirilmiyor',
     emergency: 'Acil durdurma etkin',
+    emergencyUnknown: 'Fiziksel acil durdurma durumu bildirilmiyor',
+    heaterTemperature: 'Sıcaklık',
     progress: 'İlerleme',
     material: 'Kalan malzeme',
     previewPause: 'Duraklatma isteğini incele',
@@ -350,10 +368,15 @@ class _PrinterCard extends StatelessWidget {
       if (safety.freshness == WorkshopFreshness.stale) strings.staleReading,
       if (safety.thermal == WorkshopThermal.warning) strings.thermalWarning,
       if (safety.thermal == WorkshopThermal.runaway) strings.thermalRunaway,
+      if (safety.thermal == WorkshopThermal.unknown) strings.thermalUnknown,
       if (safety.filament == WorkshopFilament.low) strings.filamentLow,
       if (safety.filament == WorkshopFilament.runout) strings.filamentRunout,
+      if (safety.filament == WorkshopFilament.unknown) strings.filamentUnknown,
       if (safety.door == WorkshopDoor.open) strings.doorOpen,
+      if (safety.door == WorkshopDoor.unknown) strings.doorUnknown,
       if (safety.emergency == WorkshopEmergency.triggered) strings.emergency,
+      if (safety.emergency == WorkshopEmergency.unknown)
+        strings.emergencyUnknown,
     ];
   }
 
@@ -385,6 +408,14 @@ class _PrinterCard extends StatelessWidget {
               text:
                   '${strings.material}: ${printer.material.remainingGrams.toStringAsFixed(0)} g',
             ),
+            for (final heater in printer.temperature.heaters)
+              _Detail(
+                icon: CupertinoIcons.thermometer,
+                text:
+                    '${strings.heaterTemperature} • ${heater.name}: '
+                    '${heater.actualC.toStringAsFixed(1)} °C'
+                    '${heater.targetC == null ? '' : ' → ${heater.targetC!.toStringAsFixed(1)} °C'}',
+              ),
             const SizedBox(height: 12),
             if (alerts.isEmpty)
               _Detail(

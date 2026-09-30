@@ -86,7 +86,7 @@ final class WorkshopController extends ChangeNotifier {
     WorkshopPrinter printer,
     WorkshopAction action,
   ) async {
-    if (_busy || !_current() || !printer.safety.safe) return null;
+    if (_busy || !_current() || !printer.safety.stoppingEligible) return null;
     final authoritative = _printers.where((value) => value.id == printer.id);
     if (authoritative.length != 1 ||
         !authoritative.single.sameAuthority(printer) ||
