@@ -1,0 +1,584 @@
+{
+  "schemaVersion": 2,
+  "assurance": "native_observed",
+  "limits": {
+    "maxSafeInteger": 9007199254740991,
+    "maxApps": 256,
+    "maxSessionSeconds": 3600,
+    "minApps": 0
+  },
+  "pairingIntent": {
+    "create": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/pairings",
+      "request": {
+        "schemaVersion": 2,
+        "requestKey": "pairing-request-0001",
+        "accountRevision": 7,
+        "expiresAt": 1788610200.0
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "11111111111111111111111111111111",
+        "revision": 1,
+        "state": "pending",
+        "pairingGrant": "22222222222222222222222222222222",
+        "expiresAt": 1788610200.0
+      }
+    },
+    "complete": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/pairings/{pairingId}/complete",
+      "request": {
+        "schemaVersion": 2,
+        "expectedPairingRevision": 1,
+        "pairingGrant": "22222222222222222222222222222222",
+        "observation": {
+          "schemaVersion": 1,
+          "receiptId": "33333333333333333333333333333333",
+          "nativeBindingId": "44444444444444444444444444444444",
+          "bindingRevision": 1,
+          "engineRevision": "moonlight-12.2-b48494cb",
+          "provider": "moonlight-nvhttp",
+          "state": "paired",
+          "hostObservationId": "55555555555555555555555555555555",
+          "name": "Owned Sunshine fixture",
+          "codecs": [
+            "h264",
+            "hevc"
+          ],
+          "maxWidth": 3840,
+          "maxHeight": 2160,
+          "maxFps": 120,
+          "catalogRevision": 1,
+          "catalogDigest": "4eaae18527a9abd5af0dbb06fed83156f9772e2340fb1a08065b2129248bf81f",
+          "apps": [
+            {
+              "observationId": "66666666666666666666666666666666",
+              "revision": 1,
+              "name": "Desktop"
+            }
+          ]
+        }
+      },
+      "response": {
+        "schemaVersion": 2,
+        "host": {
+          "schemaVersion": 2,
+          "id": "77777777777777777777777777777777",
+          "revision": 1,
+          "pairingRevision": 1,
+          "catalogRevision": 1,
+          "name": "Owned Sunshine fixture",
+          "assurance": "native_observed",
+          "active": true,
+          "codecs": [
+            "h264",
+            "hevc"
+          ],
+          "maxWidth": 3840,
+          "maxHeight": 2160,
+          "maxFps": 120
+        },
+        "apps": [
+          {
+            "schemaVersion": 2,
+            "id": "88888888888888888888888888888888",
+            "hostId": "77777777777777777777777777777777",
+            "revision": 1,
+            "name": "Desktop",
+            "active": true
+          }
+        ],
+        "registrationMapping": {
+          "nativeReceiptId": "33333333333333333333333333333333",
+          "hostId": "77777777777777777777777777777777",
+          "apps": [
+            {
+              "entryIndex": 0,
+              "appId": "88888888888888888888888888888888"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "catalog": {
+    "method": "GET",
+    "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/apps",
+    "response": {
+      "schemaVersion": 2,
+      "hostRevision": 1,
+      "pairingRevision": 1,
+      "catalogRevision": 1,
+      "apps": [
+        {
+          "schemaVersion": 2,
+          "id": "88888888888888888888888888888888",
+          "hostId": "77777777777777777777777777777777",
+          "revision": 1,
+          "name": "Desktop",
+          "active": true
+        }
+      ]
+    },
+    "refresh": {
+      "create": {
+        "method": "POST",
+        "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/catalog-observations",
+        "request": {
+          "schemaVersion": 2,
+          "requestKey": "catalog-request-0001",
+          "expectedHostRevision": 1,
+          "expectedPairingRevision": 1,
+          "expectedCatalogRevision": 1,
+          "accountRevision": 7,
+          "expiresAt": 1788610200.0
+        },
+        "firstResponseOnly": {
+          "schemaVersion": 2,
+          "id": "12121212121212121212121212121212",
+          "hostId": "77777777777777777777777777777777",
+          "revision": 1,
+          "state": "pending",
+          "catalogGrant": "13131313131313131313131313131313",
+          "expiresAt": 1788610200.0
+        }
+      },
+      "complete": {
+        "method": "POST",
+        "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/catalog-observations/{catalogObservationId}/complete",
+        "request": {
+          "schemaVersion": 2,
+          "expectedObservationRevision": 1,
+          "catalogGrant": "13131313131313131313131313131313",
+          "observation": {
+            "schemaVersion": 1,
+            "receiptId": "14141414141414141414141414141414",
+            "nativeBindingId": "44444444444444444444444444444444",
+            "bindingRevision": 1,
+            "catalogRevision": 2,
+            "catalogDigest": "4fd32d1a5a5611c9fb4b5fb3fde8ee7e1fb285a0b41f866df8eff0a87c4e8e3b",
+            "apps": [
+              {
+                "observationId": "66666666666666666666666666666666",
+                "revision": 2,
+                "name": "Desktop updated"
+              },
+              {
+                "observationId": "77777777777777777777777777777777",
+                "revision": 1,
+                "name": "New game"
+              }
+            ]
+          }
+        },
+        "response": {
+          "schemaVersion": 2,
+          "hostRevision": 1,
+          "pairingRevision": 1,
+          "catalogRevision": 2,
+          "apps": [
+            {
+              "schemaVersion": 2,
+              "id": "88888888888888888888888888888888",
+              "hostId": "77777777777777777777777777777777",
+              "revision": 2,
+              "name": "Desktop updated",
+              "active": true
+            },
+            {
+              "schemaVersion": 2,
+              "id": "ffffffffffffffffffffffffffffffff",
+              "hostId": "77777777777777777777777777777777",
+              "revision": 1,
+              "name": "New game",
+              "active": true
+            }
+          ],
+          "registrationMapping": {
+            "nativeReceiptId": "14141414141414141414141414141414",
+            "hostId": "77777777777777777777777777777777",
+            "apps": [
+              {
+                "entryIndex": 0,
+                "appId": "88888888888888888888888888888888"
+              },
+              {
+                "entryIndex": 1,
+                "appId": "ffffffffffffffffffffffffffffffff"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "emptyCatalogSemantics": "Pairing and refresh accept apps:[]; refresh retires every prior app and old-catalog session."
+  },
+  "session": {
+    "open": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/apps/{appId}/sessions",
+      "request": {
+        "schemaVersion": 2,
+        "requestKey": "session-request-0001",
+        "expectedHostRevision": 1,
+        "expectedPairingRevision": 1,
+        "expectedCatalogRevision": 1,
+        "expectedAppRevision": 1,
+        "accountRevision": 7,
+        "clientAuthority": {
+          "routeRevision": 4,
+          "lifecycleRevision": 5,
+          "displayRevision": 6,
+          "networkRevision": 7,
+          "policyRevision": 8
+        },
+        "expiresAt": 1788610200.0,
+        "selectedQuality": {
+          "codec": "hevc",
+          "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "codecRevision": 1,
+          "displayId": 0,
+          "displayRevision": 6,
+          "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "networkRevision": 7,
+          "policyId": "cccccccccccccccccccccccccccccccc",
+          "policyRevision": 8,
+          "widthPixels": 1920,
+          "heightPixels": 1080,
+          "framesPerSecond": 60,
+          "bitrateKbps": 20000,
+          "frameQueueDepth": 2,
+          "inputQueueDepth": 8,
+          "secureSurface": true
+        }
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "hostId": "77777777777777777777777777777777",
+        "appId": "88888888888888888888888888888888",
+        "revision": 1,
+        "state": "open",
+        "expiresAt": 1788610200.0,
+        "coreAuthority": {
+          "accountRevision": 7,
+          "hostRevision": 1,
+          "pairingRevision": 1,
+          "catalogRevision": 1,
+          "appRevision": 1,
+          "selectedQuality": {
+            "codec": "hevc",
+            "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "codecRevision": 1,
+            "displayId": 0,
+            "displayRevision": 6,
+            "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "networkRevision": 7,
+            "policyId": "cccccccccccccccccccccccccccccccc",
+            "policyRevision": 8,
+            "widthPixels": 1920,
+            "heightPixels": 1080,
+            "framesPerSecond": 60,
+            "bitrateKbps": 20000,
+            "frameQueueDepth": 2,
+            "inputQueueDepth": 8,
+            "secureSurface": true
+          }
+        },
+        "selectedQuality": {
+          "codec": "hevc",
+          "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "codecRevision": 1,
+          "displayId": 0,
+          "displayRevision": 6,
+          "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "networkRevision": 7,
+          "policyId": "cccccccccccccccccccccccccccccccc",
+          "policyRevision": 8,
+          "widthPixels": 1920,
+          "heightPixels": 1080,
+          "framesPerSecond": 60,
+          "bitrateKbps": 20000,
+          "frameQueueDepth": 2,
+          "inputQueueDepth": 8,
+          "secureSurface": true
+        },
+        "clientAuthority": {
+          "routeRevision": 4,
+          "lifecycleRevision": 5,
+          "displayRevision": 6,
+          "networkRevision": 7,
+          "policyRevision": 8
+        }
+      }
+    },
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/sessions/{sessionId}",
+      "response": {
+        "schemaVersion": 2,
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "hostId": "77777777777777777777777777777777",
+        "appId": "88888888888888888888888888888888",
+        "revision": 1,
+        "state": "open",
+        "expiresAt": 1788610200.0,
+        "coreAuthority": {
+          "accountRevision": 7,
+          "hostRevision": 1,
+          "pairingRevision": 1,
+          "catalogRevision": 1,
+          "appRevision": 1,
+          "selectedQuality": {
+            "codec": "hevc",
+            "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "codecRevision": 1,
+            "displayId": 0,
+            "displayRevision": 6,
+            "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "networkRevision": 7,
+            "policyId": "cccccccccccccccccccccccccccccccc",
+            "policyRevision": 8,
+            "widthPixels": 1920,
+            "heightPixels": 1080,
+            "framesPerSecond": 60,
+            "bitrateKbps": 20000,
+            "frameQueueDepth": 2,
+            "inputQueueDepth": 8,
+            "secureSurface": true
+          }
+        },
+        "selectedQuality": {
+          "codec": "hevc",
+          "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "codecRevision": 1,
+          "displayId": 0,
+          "displayRevision": 6,
+          "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "networkRevision": 7,
+          "policyId": "cccccccccccccccccccccccccccccccc",
+          "policyRevision": 8,
+          "widthPixels": 1920,
+          "heightPixels": 1080,
+          "framesPerSecond": 60,
+          "bitrateKbps": 20000,
+          "frameQueueDepth": 2,
+          "inputQueueDepth": 8,
+          "secureSurface": true
+        },
+        "clientAuthority": {
+          "routeRevision": 4,
+          "lifecycleRevision": 5,
+          "displayRevision": 6,
+          "networkRevision": 7,
+          "policyRevision": 8
+        }
+      }
+    },
+    "retire": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/sessions/{sessionId}/retire",
+      "request": {
+        "schemaVersion": 2,
+        "requestKey": "retire-request-0001",
+        "expectedSessionRevision": 1
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "hostId": "77777777777777777777777777777777",
+        "appId": "88888888888888888888888888888888",
+        "revision": 2,
+        "state": "retired",
+        "expiresAt": 1788610200.0,
+        "coreAuthority": {
+          "accountRevision": 7,
+          "hostRevision": 1,
+          "pairingRevision": 1,
+          "catalogRevision": 1,
+          "appRevision": 1,
+          "selectedQuality": {
+            "codec": "hevc",
+            "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "codecRevision": 1,
+            "displayId": 0,
+            "displayRevision": 6,
+            "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "networkRevision": 7,
+            "policyId": "cccccccccccccccccccccccccccccccc",
+            "policyRevision": 8,
+            "widthPixels": 1920,
+            "heightPixels": 1080,
+            "framesPerSecond": 60,
+            "bitrateKbps": 20000,
+            "frameQueueDepth": 2,
+            "inputQueueDepth": 8,
+            "secureSurface": true
+          }
+        },
+        "selectedQuality": {
+          "codec": "hevc",
+          "codecId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "codecRevision": 1,
+          "displayId": 0,
+          "displayRevision": 6,
+          "networkId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "networkRevision": 7,
+          "policyId": "cccccccccccccccccccccccccccccccc",
+          "policyRevision": 8,
+          "widthPixels": 1920,
+          "heightPixels": 1080,
+          "framesPerSecond": 60,
+          "bitrateKbps": 20000,
+          "frameQueueDepth": 2,
+          "inputQueueDepth": 8,
+          "secureSurface": true
+        },
+        "clientAuthority": {
+          "routeRevision": 4,
+          "lifecycleRevision": 5,
+          "displayRevision": 6,
+          "networkRevision": 7,
+          "policyRevision": 8
+        }
+      }
+    }
+  },
+  "command": {
+    "authorize": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/sessions/{sessionId}/commands",
+      "request": {
+        "schemaVersion": 2,
+        "requestKey": "command-request-0001",
+        "expectedSessionRevision": 1,
+        "intent": "stream"
+      },
+      "firstResponseOnly": {
+        "schemaVersion": 2,
+        "command": {
+          "schemaVersion": 2,
+          "id": "99999999999999999999999999999999",
+          "sessionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "intent": "stream",
+          "state": "authorized",
+          "result": null,
+          "observationKind": null,
+          "readbackRevision": null,
+          "createdAt": 1788609601.0,
+          "completedAt": null
+        },
+        "dispatchGrant": "cccccccccccccccccccccccccccccccc"
+      }
+    },
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/sessions/{sessionId}/commands/{commandId}",
+      "response": {
+        "schemaVersion": 2,
+        "id": "99999999999999999999999999999999",
+        "sessionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "intent": "stream",
+        "state": "authorized",
+        "result": null,
+        "observationKind": null,
+        "readbackRevision": null,
+        "createdAt": 1788609601.0,
+        "completedAt": null
+      }
+    },
+    "complete": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/sessions/{sessionId}/commands/{commandId}/complete",
+      "request": {
+        "schemaVersion": 2,
+        "expectedSessionRevision": 1,
+        "dispatchGrant": "cccccccccccccccccccccccccccccccc",
+        "state": "native_observed",
+        "result": "streaming",
+        "observationKind": "connectionStarted",
+        "readbackRevision": 12,
+        "nativeReceiptDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "99999999999999999999999999999999",
+        "sessionId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "intent": "stream",
+        "state": "native_observed",
+        "result": "streaming",
+        "observationKind": "connectionStarted",
+        "readbackRevision": 12,
+        "createdAt": 1788609601.0,
+        "completedAt": 1788609602.0
+      }
+    },
+    "observationKinds": {
+      "wake": "serverInfoOnline",
+      "launch": "currentGameMatched",
+      "stream": "connectionStarted",
+      "stop": "connectionTerminated",
+      "rejected": "nativeRejected",
+      "unknown": "unknown"
+    }
+  },
+  "revocation": {
+    "create": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/revoke",
+      "request": {
+        "schemaVersion": 2,
+        "requestKey": "revoke-request-0001",
+        "expectedHostRevision": 1,
+        "expectedPairingRevision": 1,
+        "expectedCatalogRevision": 1
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "hostId": "77777777777777777777777777777777",
+        "hostRevision": 2,
+        "state": "core_retired",
+        "createdAt": 1788609603.0,
+        "completedAt": null
+      }
+    },
+    "complete": {
+      "method": "POST",
+      "path": "/api/v1/game-streaming/{coreId}/{homeId}/hosts/{hostId}/revocations/{revocationId}/complete",
+      "request": {
+        "schemaVersion": 2,
+        "state": "local_cleared"
+      },
+      "response": {
+        "schemaVersion": 2,
+        "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "hostId": "77777777777777777777777777777777",
+        "hostRevision": 2,
+        "state": "local_cleared",
+        "createdAt": 1788609603.0,
+        "completedAt": 1788609604.0
+      }
+    }
+  },
+  "privacy": {
+    "neverPublic": [
+      "host address",
+      "pairing PIN",
+      "raw Sunshine host UUID",
+      "raw NvHTTP application ID",
+      "client certificate",
+      "client private key",
+      "server certificate",
+      "native binding handle"
+    ]
+  },
+  "oneUseGrantSemantics": {
+    "pairingGrant": "returned only on the first create response and consumed by exact completion",
+    "dispatchGrant": "returned only on first authorization; repeated authorization becomes unknown without a grant",
+    "restart": "authorized commands recover as unknown and are never regranted",
+    "catalogGrant": "returned only on first refresh-intent response; repeated intent never rereads the native catalog"
+  }
+}

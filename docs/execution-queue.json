@@ -5152,7 +5152,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact Moonlight 12.2 ve recursive native kaynakları sabitlendi; iki temiz build byte-identical AAR üretti ve izole gerçek APK DEX/native doğrulaması geçti. Bu yalnız paket/link kanıtıdır. Üretim Client eşleme/katalog, Core v2 one-use intent/grant, hesap/ev/family scoped native store ve gerçek Android playback/input/stop/revoke kabulü halen geliştirmede; handoffOnly sınırı tam özellik sayılmaz. CI veya fiziksel gecikme ölçümü diye kapatılmaz."
+      "reason": "Yeniden çalışılıyor: exact Moonlight12.2 recursive source/package, iki byte-identical AAR ve izole gerçek APK DEX/native kanıtı geçti. Corev2 current-family authority, Core-owned host/app/session/command, one-use pair/catalog/dispatch grants, canonical native catalog digest, empty/reordered/missing app retirement ve restart unknown/no-replay tamamlandı; root28focused+59related Server kapısını geçti. Client durable pair/catalog/revoke ve native v2 method/channel/lifecycle entegrasyonu geliştirmede. Bunlar gerçek Android playback/input/stop/revoke kabulü yerine sayılmaz; F60 henüz CI bekliyor/done değildir."
     },
     {
       "id": "G11",

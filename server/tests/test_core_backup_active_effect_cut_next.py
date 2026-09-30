@@ -8,18 +8,23 @@ PASSPHRASE = "Correct horse battery staple 2026"
 
 def _seed_game_command(connection, state, expires_at, *, session_state="open"):
     connection.execute(
-        "INSERT INTO game_stream_sessions VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO game_stream_sessions VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             "1" * 32,
             "2" * 32,
             "3" * 32,
             "4" * 32,
+            "a" * 32,
             1,
             "session-request",
             "5" * 64,
             "{}",
+            "{}",
             expires_at,
             session_state,
+            None,
+            None,
+            1.0,
             1.0,
             "6" * 64,
         ),
@@ -30,17 +35,24 @@ def _seed_game_command(connection, state, expires_at, *, session_state="open"):
         "unknown": "unknown",
         "rejected": "rejected",
     }[state]
+    stored_state = "native_observed" if state == "verified" else state
     connection.execute(
-        "INSERT INTO game_stream_commands VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO game_stream_commands VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             "7" * 32,
             "1" * 32,
             "command-request",
             "8" * 64,
             "stream",
-            state,
+            stored_state,
             result,
+            "connectionStarted" if state == "verified" else (
+                "unknown" if state == "unknown" else (
+                    "nativeRejected" if state == "rejected" else None)),
             7 if state == "verified" else None,
+            "b" * 64 if state in {"verified", "rejected"} else None,
+            "c" * 64 if state == "authorized" else None,
+            "d" * 64 if state != "authorized" else None,
             1.0,
             None if state == "authorized" else 2.0,
             "9" * 64,

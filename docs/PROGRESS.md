@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 Core v2 kalıcı yetki dilimi
+
+Core eşleme/katalog/dispatch için tek kullanımlık grant üretir; public host/app/session/command kimlikleri Core'a aittir. Current family sınırı, empty/reordered/missing katalog ve restart unknown/no replay tamamlandı. Root 28 odaklı ve backup/context/migration dahil 59 Server testini geçti. Client/native normal kanal, kalıcı pairing/catalog/revoke ve gerçek Sunshine kabulü geliştirmede; F60 CI bekliyor yapılmadı, sayaçlar değişmedi. [Core kanıtı](testing/f60-core-native-authority-v2-2026-10-01.md).
+
 ### 1 Ekim F61 owned-host zaman aşımı teşhisi
 
 Exacta7458639/run36779316558 named TigerVNC testi awaitFrame/pumpUntil zaman aşımında düştü; önceki kare çeşitliliği assertionı verilmedi, fakat hangi adımda beklediği kanıtlanamadı. Runner yalnız source-bound allowlisted dosya/satır ve bounded count teşhisi çıkarır; mesaj/gizli yol/ham JUnit yok. 12 policy/runner testi geçti. Gerçek native kabul açık kaldı; CI bekliyor tablosuna taşınmadı, sayaçlar değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).

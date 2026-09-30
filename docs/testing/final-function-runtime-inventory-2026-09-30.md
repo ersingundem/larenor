@@ -151,3 +151,5 @@ Exact 2a585d3c/run36776598508 still failed first-frame diversity. Root reproduce
 F62 exact e3ae7cb3/run36776341714 built both AAR/APKs but instrumentation failed with report identity mismatch. Named-method execution remains unproven. Failure-only bounded identity/counts/owned constructor diagnostic repair passed30 tests; success identity/no-skip receipt unchanged. Actual packaged native receipt remains open.
 
 F61 exact a7458639/run36779316558 now fails an owned frame wait at pumpUntil293 rather than the prior first-frame diversity assertion. Which wait timed out is unproven; failure-only source/count diagnostic tests12 passed, without changing the named one-test/no-skip success gate. Actual native acceptance stays open.
+
+F60 Core v2 current-family/one-use grants/canonical catalog/empty-retirement/restart-unknown slice independently passed28focused and59related Server checks. Client/native channel/lifecycle and durable pair/catalog/revoke recovery are still in progress; package or Core proof does not close F60.
