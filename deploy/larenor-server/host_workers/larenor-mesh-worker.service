@@ -1,0 +1,31 @@
+[Unit]
+Description=Larenor private Zigbee2MQTT broker worker
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsReadWrite=/var/lib/larenor-server/core/data/host-workers/ipc/mesh
+
+[Service]
+Type=simple
+User=10004
+Group=10004
+SupplementaryGroups=10002
+UMask=0007
+ExecStartPre=/opt/larenor-server-host/current/server/bin/larenor-mesh-worker --config /etc/larenor-server/host-workers/mesh/runtime.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/mesh/runtime.sock --core-uid 10001 --socket-gid 10002 --check-config
+ExecStart=/opt/larenor-server-host/current/server/bin/larenor-mesh-worker --config /etc/larenor-server/host-workers/mesh/runtime.json --socket /var/lib/larenor-server/core/data/host-workers/ipc/mesh/runtime.sock --core-uid 10001 --socket-gid 10002
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/larenor-server/host-workers/mesh
+ReadWritePaths=/var/lib/larenor-server/core/data/host-workers/ipc/mesh
+
+[Install]
+WantedBy=multi-user.target

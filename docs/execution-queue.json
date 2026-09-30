@@ -4994,7 +4994,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Zigbee2MQTT inventory/provider-managed OTA ve HA Thread WebSocket tanı kaynakları uygulandı. Thread session authority bağımsızdır: Zigbee hiç kurulmamış veya 503 olsa da gerçek kaynak configure/read ekranı açılır; uydurma mesh revizyonu yoktur. HMAC/şifreli kalıcı kaynak, güncel admin/service CAS, yalnız salt okunur dataset/router özeti ve tek gönderimli OTA günlüğü korunur. Thread diliminde 67 Server, 16 Flutter ve odaklı analyze geçti; tam Client→Core→servis/matris ve exact HEAD CI kabulü, fiziksel MANUAL kapıları açık."
+      "reason": "Normal Core gerçek Zigbee2MQTT ve HA Thread providerı yanında host UID10004/GID10002 özel IPC, owner-only broker policy ve unified worker unit/env bileşimi tamamlandı. 26 odaklı gerçek TCP broker→Unix IPC→normal Core ve 11 paket/runtime kabulü geçti. Distinct UID kernel-peer Linux kapısı ve exact HEAD geniş CI, fiziksel MANUAL kabulü açık; docs/testing/f55-mesh-host-worker-2026-09-30.md."
     },
     {
       "id": "F56",

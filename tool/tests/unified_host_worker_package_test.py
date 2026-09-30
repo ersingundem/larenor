@@ -108,8 +108,9 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         installation = (root / "larenor-installation-worker.service").read_text()
         archive = (root / "larenor-media-archive-worker.service").read_text()
         ai = (root / "larenor-ai-worker.service").read_text()
+        mesh = (root / "larenor-mesh-worker.service").read_text()
         unmanic = (root / "larenor-unmanic.service").read_text()
-        for unit in (preflight, installation, archive, ai, unmanic):
+        for unit in (preflight, installation, archive, ai, mesh, unmanic):
             self.assertIn("NoNewPrivileges=yes", unit)
             self.assertIn("ProtectSystem=strict", unit)
             self.assertIn("Restart=on-failure", unit)
@@ -129,6 +130,12 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn("DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10003/bus", ai)
         self.assertNotIn("User=root", ai)
         self.assertIn("--check-config", ai)
+        self.assertIn("User=10004", mesh)
+        self.assertIn("Group=10004", mesh)
+        self.assertIn("SupplementaryGroups=10002", mesh)
+        self.assertIn("--core-uid 10001 --socket-gid 10002", mesh)
+        self.assertIn("--check-config", mesh)
+        self.assertNotIn("User=root", mesh)
         provision = (root / "larenor-unmanic-provision.service").read_text()
         self.assertIn("User=1000", provision)
         self.assertIn("RestrictAddressFamilies=AF_UNIX", provision)
@@ -156,6 +163,20 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertIn((package.CONFIG / "ai/runtime.json", 10003), package.PRIVATE_CONFIGS)
         self.assertIn("larenor-ai-worker.service", package.UNITS)
 
+    def test_mesh_worker_has_exact_private_identity_and_configuration(self):
+        root = MODULE.parent
+        sysusers = (root / "larenor-host-workers.sysusers").read_text()
+        tmpfiles = (root / "larenor-host-workers.tmpfiles").read_text()
+        self.assertIn("g larenor-mesh 10004", sysusers)
+        self.assertIn("u larenor-mesh 10004:10004", sysusers)
+        self.assertIn("m larenor-mesh larenor-ipc", sysusers)
+        self.assertIn(
+            "d /var/lib/larenor-server/core/data/host-workers/ipc/mesh 0770 larenor-mesh larenor-ipc",
+            tmpfiles,
+        )
+        self.assertIn((package.CONFIG / "mesh/runtime.json", 10004), package.PRIVATE_CONFIGS)
+        self.assertIn("larenor-mesh-worker.service", package.UNITS)
+
     def test_unified_core_reuses_data_mount_for_ipc_and_preserves_host_docker_boundary(self):
         compose = json.loads((ROOT / "deploy/larenor-server/unified.compose.yaml").read_text())
         core = compose["services"]["larenor-core"]
@@ -173,6 +194,10 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_SOCKET"],
                          "/data/host-workers/ipc/ai/runtime.sock")
+        self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_UID"], "10004")
+        self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET_GID"], "10002")
+        self.assertEqual(core["environment"]["LARENOR_MESH_WORKER_SOCKET"],
+                         "/data/host-workers/ipc/mesh/runtime.sock")
         self.assertTrue(all(
             port.startswith("127.0.0.1:")
             for name in ("larenor-jellyfin", "larenor-sonarr",

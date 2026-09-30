@@ -46,6 +46,7 @@ ASSETS = {
     "unmanic_provision.py": (Path("/usr/libexec/larenor-unmanic-provision"), 0o755),
     "larenor-media-archive-worker.service": (Path("/etc/systemd/system/larenor-media-archive-worker.service"), 0o644),
     "larenor-ai-worker.service": (Path("/etc/systemd/system/larenor-ai-worker.service"), 0o644),
+    "larenor-mesh-worker.service": (Path("/etc/systemd/system/larenor-mesh-worker.service"), 0o644),
 }
 PRIVATE_CONFIGS = (
     (CONFIG / "root/preflight.json", 0),
@@ -56,6 +57,7 @@ PRIVATE_CONFIGS = (
     (CONFIG / "archive/encoder.json", 1000),
     (CONFIG / "archive/callback.json", 1000),
     (CONFIG / "ai/runtime.json", 10003),
+    (CONFIG / "mesh/runtime.json", 10004),
 )
 UNITS = (
     "larenor-preflight-worker.service",
@@ -64,6 +66,7 @@ UNITS = (
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
     "larenor-ai-worker.service",
+    "larenor-mesh-worker.service",
 )
 
 
@@ -231,6 +234,7 @@ def _validate_entrypoints(release):
         "server/bin/larenor-installation-worker",
         "server/bin/larenor-media-archive-worker",
         "server/bin/larenor-ai-worker",
+        "server/bin/larenor-mesh-worker",
         "server/bin/larenor-unmanic-callback-package",
         "unmanic/bin/unmanic",
     ):
@@ -340,11 +344,19 @@ def install(bundle, python=Path("/usr/bin/python3")):
         pwd.getpwuid(1000)
         ai = pwd.getpwnam("larenor-ai")
         ai_group = grp.getgrnam("larenor-ai")
+        mesh = pwd.getpwnam("larenor-mesh")
+        mesh_group = grp.getgrnam("larenor-mesh")
         if (ai.pw_uid != 10003 or ai.pw_gid != 10003
                 or ai_group.gr_gid != 10003
                 or pwd.getpwuid(10003).pw_name != "larenor-ai"
                 or grp.getgrgid(10003).gr_name != "larenor-ai"
                 or 10002 not in os.getgrouplist("larenor-ai", 10003)):
+            raise KeyError()
+        if (mesh.pw_uid != 10004 or mesh.pw_gid != 10004
+                or mesh_group.gr_gid != 10004
+                or pwd.getpwuid(10004).pw_name != "larenor-mesh"
+                or grp.getgrgid(10004).gr_name != "larenor-mesh"
+                or 10002 not in os.getgrouplist("larenor-mesh", 10004)):
             raise KeyError()
     except KeyError:
         raise HostWorkerPackageError("host_identity_invalid") from None
@@ -407,6 +419,14 @@ def activate():
         str(server / "larenor-ai-worker"), "--config",
         str(CONFIG / "ai/runtime.json"), "--socket",
         str(IPC / "ai/runtime.sock"), "--core-uid", "10001",
+        "--socket-gid", "10002", "--check-config",
+    ])
+    _run([
+        "/usr/sbin/runuser", "--user", "larenor-mesh", "--group", "larenor-mesh",
+        "--supp-group", "larenor-ipc", "--",
+        str(server / "larenor-mesh-worker"), "--config",
+        str(CONFIG / "mesh/runtime.json"), "--socket",
+        str(IPC / "mesh/runtime.sock"), "--core-uid", "10001",
         "--socket-gid", "10002", "--check-config",
     ])
     _run(["/usr/bin/systemctl", "enable", "--now", *UNITS], timeout=180)

@@ -95,6 +95,7 @@ def create_configured_app(settings: Settings, *, component_backup_boundary=None)
                 settings.mesh_center_worker_socket,
                 owner_uid=settings.mesh_center_worker_uid,
                 peer_uid=settings.mesh_center_worker_uid,
+                socket_gid=settings.mesh_center_worker_socket_gid,
             )
         )
         app = create_app(

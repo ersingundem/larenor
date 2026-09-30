@@ -3,6 +3,7 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+import time
 
 import pytest
 
@@ -16,6 +17,7 @@ UNITS = (
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
     "larenor-ai-worker.service",
+    "larenor-mesh-worker.service",
 )
 
 
@@ -25,6 +27,15 @@ def _hosted_root_gate():
             and os.environ.get("GITHUB_ACTIONS") == "true"
             and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
             and os.environ.get("LARENOR_HOST_WORKER_SYSTEMD_ACCEPTANCE") == "1")
+
+
+def _identity(uid, gid):
+    def apply():
+        os.setgroups([10002])
+        os.setgid(gid)
+        os.setuid(uid)
+
+    return apply
 
 
 @pytest.mark.skipif(not _hosted_root_gate(), reason="requires isolated hosted Linux root")
@@ -37,10 +48,58 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     installed = []
     prefix = Path("/opt/larenor-server-host")
     helper = Path("/usr/libexec/larenor-unmanic-provision")
-    assert not prefix.exists() and not helper.exists()
+    data_root = Path("/var/lib/larenor-server")
+    ipc = data_root / "core/data/host-workers/ipc/mesh"
+    mesh_process = None
+    assert not prefix.exists() and not helper.exists() and not data_root.exists()
     try:
         subprocess.run([sysusers, ASSETS / "larenor-host-workers.sysusers"],
                        check=True, timeout=20)
+        ancestors = (
+            (data_root, 0, 0, 0o755),
+            (data_root / "core", 10001, 10002, 0o750),
+            (data_root / "core/data", 10001, 10002, 0o750),
+            (data_root / "core/data/host-workers", 10001, 10002, 0o750),
+            (data_root / "core/data/host-workers/ipc", 10001, 10002, 0o750),
+            (ipc, 10004, 10002, 0o770),
+        )
+        for path, uid, gid, mode in ancestors:
+            path.mkdir(mode=mode)
+            os.chown(path, uid, gid)
+        socket_path = ipc / "runtime.sock"
+        proof = ROOT / "server/tests/support/f55_linux_mesh_ipc.py"
+        environment = {
+            "PATH": "/usr/bin:/bin",
+            "PYTHONPATH": str(ROOT / "server"),
+            "LANG": "C",
+            "LC_ALL": "C",
+        }
+        mesh_process = subprocess.Popen(
+            [ROOT / "server/.venv/bin/python", proof, "server", socket_path],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=environment,
+            preexec_fn=_identity(10004, 10004),
+        )
+        deadline = time.monotonic() + 5
+        while not socket_path.exists() and mesh_process.poll() is None:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+        detail = (
+            mesh_process.stderr.read().decode()
+            if mesh_process.poll() is not None
+            else "mesh_socket_not_ready"
+        )
+        assert socket_path.is_socket(), detail
+        subprocess.run(
+            [ROOT / "server/.venv/bin/python", proof, "client", socket_path],
+            check=True,
+            timeout=10,
+            env=environment,
+            preexec_fn=_identity(10001, 10001),
+        )
         current = prefix / "current"
         current.mkdir(parents=True)
         (current / "server").symlink_to(ROOT / "server/.venv", target_is_directory=True)
@@ -66,6 +125,14 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
                                    stdout=subprocess.PIPE).stdout.strip()
             assert shown == "loaded"
     finally:
+        if mesh_process is not None:
+            mesh_process.terminate()
+            try:
+                mesh_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                mesh_process.kill()
+                mesh_process.wait(timeout=5)
+        shutil.rmtree(data_root, ignore_errors=True)
         for target in installed:
             target.unlink(missing_ok=True)
         subprocess.run([systemctl, "daemon-reload"], check=False, timeout=20,

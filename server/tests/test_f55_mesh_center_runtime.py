@@ -140,6 +140,7 @@ def test_configured_worker_recovers_after_startup_outage_without_core_restart(
         clock=lambda: 2_000,
         mesh_center_worker_socket=root / "mesh.sock",
         mesh_center_worker_uid=os.geteuid(),
+        mesh_center_worker_socket_gid=os.getegid(),
     )
 
     app = create_configured_app(settings)
@@ -174,11 +175,13 @@ def test_mesh_worker_settings_are_exact_and_cannot_leave_orphan_uid(
     monkeypatch.setenv("LARENOR_KEY_FILE", str(root / "secrets/vault.key"))
     monkeypatch.setenv("LARENOR_MESH_WORKER_SOCKET", str(socket_path))
     monkeypatch.setenv("LARENOR_MESH_WORKER_UID", str(os.geteuid()))
+    monkeypatch.setenv("LARENOR_MESH_WORKER_SOCKET_GID", str(os.getegid()))
 
     settings = Settings.from_environment()
 
     assert settings.mesh_center_worker_socket == socket_path
     assert settings.mesh_center_worker_uid == os.geteuid()
+    assert settings.mesh_center_worker_socket_gid == os.getegid()
     monkeypatch.delenv("LARENOR_MESH_WORKER_SOCKET")
     with pytest.raises(StartupError, match="invalid_worker_configuration"):
         Settings.from_environment()

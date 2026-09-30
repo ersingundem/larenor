@@ -2,3 +2,6 @@ g larenor-ipc 10002 - -
 g larenor-ai 10003 - -
 u larenor-ai 10003:10003 "Larenor AI worker" /var/lib/larenor-server/host-workers/ai /usr/sbin/nologin
 m larenor-ai larenor-ipc
+g larenor-mesh 10004 - -
+u larenor-mesh 10004:10004 "Larenor mesh worker" /var/lib/larenor-server/host-workers/mesh /usr/sbin/nologin
+m larenor-mesh larenor-ipc

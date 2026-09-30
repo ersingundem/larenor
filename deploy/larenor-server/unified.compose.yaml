@@ -41,7 +41,10 @@
         "LARENOR_MEDIA_ARCHIVE_SOCKET_GID": "10002",
         "LARENOR_AI_WORKER_SOCKET": "/data/host-workers/ipc/ai/runtime.sock",
         "LARENOR_AI_WORKER_UID": "10003",
-        "LARENOR_AI_WORKER_SOCKET_GID": "10002"
+        "LARENOR_AI_WORKER_SOCKET_GID": "10002",
+        "LARENOR_MESH_WORKER_SOCKET": "/data/host-workers/ipc/mesh/runtime.sock",
+        "LARENOR_MESH_WORKER_UID": "10004",
+        "LARENOR_MESH_WORKER_SOCKET_GID": "10002"
       },
       "networks": {
         "control": {

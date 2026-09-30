@@ -38,7 +38,7 @@ class MqttBrokerConfig:
     tls: bool
     base_topic: str
     allowed_addresses: tuple[str, ...]
-    username: str | None = None
+    username: str | None = field(default=None, repr=False)
     password: str | None = field(default=None, repr=False)
 
     @classmethod

@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F55 gerçek host Zigbee worker
+
+Unified Core dedicated UID10004 worker’a gerçek broker/IPC üzerinden bağlanır; private MQTT config, kernel peer UID ve socket ancestor ownership doğrulanır. 26 provider/Core ve 11 paket/runtime testi geçti. Linux distinct UID ve geniş CI açık; fiziksel OTA uygulanmadı, sayaç değişmedi. [Kanıt](testing/f55-mesh-host-worker-2026-09-30.md).
+
 ### 30 Eylül host worker kurulum yolları
 
 Sanal ortam geçici dizinden taşınmıyor; actual console başlangıç komutları ve bağımlılıklar receipt yayınından önce doğrulanıyor. Gerçek offline pip/venv yol regresyonu geçti. Tam production bundle ve Linux servis kabulü açık; sayaç değişmedi. [Kanıt](testing/unified-host-workers-2026-09-30.md).

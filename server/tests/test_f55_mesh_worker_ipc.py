@@ -1,8 +1,10 @@
+import json
 import os
 from pathlib import Path
 import shutil
 import tempfile
 import threading
+import uuid
 
 import pytest
 
@@ -12,7 +14,10 @@ from larenor_server.mesh_center.worker_ipc import (
     Zigbee2MqttWorkerServer,
     _observation_from_wire,
 )
-from larenor_server.mesh_center.worker_runtime import config_from_environment
+from larenor_server.mesh_center.worker_runtime import (
+    config_from_environment,
+    config_from_file,
+)
 from larenor_server.mesh_center.zigbee2mqtt_provider import Zigbee2MqttObservation
 from larenor_server.mesh_center.managed_ota_transport import (
     ManagedOtaInstallEvidence,
@@ -30,6 +35,12 @@ def observation():
         deviceStates={"living/room": b'{"battery":83}'},
         availability={"living/room": b"online"},
     )
+
+
+def secure_directory(prefix):
+    directory = Path(tempfile.mkdtemp(prefix=prefix, dir=Path.home()))
+    os.chown(directory, os.geteuid(), os.getegid())
+    return directory
 
 
 class Observer:
@@ -72,10 +83,13 @@ class ManagedOta:
 
 
 def test_uid_private_worker_returns_only_bounded_observation():
-    directory = Path(tempfile.mkdtemp(prefix="mesh-", dir="/tmp"))
+    directory = secure_directory("mesh-")
     socket_path = directory / "mesh.sock"
     observer = Observer()
     server = Zigbee2MqttWorkerServer(socket_path, observer).bind()
+    socket_info = socket_path.stat()
+    assert socket_info.st_gid == os.getegid()
+    assert socket_info.st_mode & 0o777 == 0o660
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:
@@ -91,7 +105,7 @@ def test_uid_private_worker_returns_only_bounded_observation():
 
 
 def test_uid_private_worker_exposes_only_bounded_managed_ota_contract():
-    directory = Path(tempfile.mkdtemp(prefix="mesh-", dir="/tmp"))
+    directory = secure_directory("mesh-")
     socket_path = directory / "mesh.sock"
     managed = ManagedOta()
     server = Zigbee2MqttWorkerServer(
@@ -172,6 +186,38 @@ def test_worker_runtime_keeps_credentials_in_private_files(tmp_path):
     assert result.broker.username == "reader"
     assert result.broker.password == "secret"
     assert result.broker.allowed_addresses == ("192.168.1.10", "192.168.1.11")
+    assert result.socket_gid == os.getegid()
+    assert "secret" not in repr(result)
+
+
+def test_worker_loads_only_private_fixed_broker_configuration(tmp_path):
+    username = tmp_path / "mqtt-user"
+    password = tmp_path / "mqtt-password"
+    write_secret(username, "reader")
+    write_secret(password, "secret")
+    config = tmp_path / "runtime.json"
+    config.write_text(json.dumps({
+        "schemaVersion": 1,
+        "broker": {
+            "url": "mqtts://broker.internal:8883",
+            "baseTopic": "home/zigbee",
+            "allowedAddresses": ["192.168.1.10"],
+            "usernameFile": str(username),
+            "passwordFile": str(password),
+        },
+    }))
+    config.chmod(0o600)
+
+    result = config_from_file(
+        config,
+        Path("/tmp") / f"mesh-config-{uuid.uuid4().hex[:12]}.sock",
+        core_uid=10001,
+        socket_gid=os.getegid(),
+    )
+
+    assert result.core_uid == 10001
+    assert result.broker.username == "reader"
+    assert "reader" not in repr(result)
     assert "secret" not in repr(result)
 
 
@@ -194,11 +240,30 @@ def test_worker_runtime_rejects_world_readable_secret(tmp_path):
         )
 
 
-def test_worker_never_replaces_an_existing_socket_path(tmp_path):
-    path = tmp_path / "mesh.sock"
-    path.write_text("owned evidence")
+def test_worker_never_replaces_an_existing_socket_path():
+    directory = secure_directory("mesh-foreign-")
+    path = directory / "mesh.sock"
+    try:
+        path.write_text("owned evidence")
+        with pytest.raises(MeshWorkerError, match="worker_unavailable"):
+            Zigbee2MqttWorkerServer(path, Observer()).bind()
+        assert path.read_text() == "owned evidence"
+    finally:
+        shutil.rmtree(directory)
 
-    with pytest.raises(MeshWorkerError, match="worker_unavailable"):
-        Zigbee2MqttWorkerServer(path, Observer()).bind()
 
-    assert path.read_text() == "owned evidence"
+def test_worker_restart_replaces_only_its_verified_stale_socket():
+    directory = secure_directory("mesh-restart-")
+    path = directory / "mesh.sock"
+    first = Zigbee2MqttWorkerServer(path, Observer()).bind()
+    crashed, first._socket = first._socket, None
+    crashed.close()
+    assert path.is_socket()
+
+    replacement = Zigbee2MqttWorkerServer(path, Observer())
+    try:
+        replacement.bind()
+        assert path.is_socket()
+    finally:
+        replacement.close()
+        shutil.rmtree(directory)

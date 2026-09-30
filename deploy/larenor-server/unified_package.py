@@ -37,6 +37,9 @@ _HOST_WORKER_ENVIRONMENT = {
     "LARENOR_AI_WORKER_SOCKET": "/data/host-workers/ipc/ai/runtime.sock",
     "LARENOR_AI_WORKER_UID": "10003",
     "LARENOR_AI_WORKER_SOCKET_GID": "10002",
+    "LARENOR_MESH_WORKER_SOCKET": "/data/host-workers/ipc/mesh/runtime.sock",
+    "LARENOR_MESH_WORKER_UID": "10004",
+    "LARENOR_MESH_WORKER_SOCKET_GID": "10002",
 }
 _HOST_WORKER_PORTS = {
     "larenor-jellyfin": ["127.0.0.1:8096:8096"],
@@ -61,6 +64,7 @@ def _host_worker_runtime(service):
         "installationOwnerUid": 0,
         "archiveOwnerUid": 1000,
         "aiOwnerUid": 10003,
+        "meshOwnerUid": 10004,
         "coreOwnerUid": 10001,
         "ipcMount": "/data/host-workers/ipc",
     }

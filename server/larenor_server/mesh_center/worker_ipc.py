@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 from pathlib import Path
@@ -115,7 +116,7 @@ def _write_frame(stream, value, deadline):
         raise MeshWorkerError("worker_unavailable") from None
 
 
-def _safe_socket(path, owner_uid, *, existing):
+def _safe_socket(path, owner_uid, socket_gid, *, existing, trusted_uids=()):
     path = Path(path)
     if (
         not path.is_absolute()
@@ -124,14 +125,29 @@ def _safe_socket(path, owner_uid, *, existing):
     ):
         raise MeshWorkerError()
     try:
-        parent = path.parent.stat()
-        if parent.st_uid != owner_uid or parent.st_mode & 0o022:
+        allowed_uids = {0, owner_uid, os.geteuid(), *trusted_uids}
+        for ancestor in path.parents[1:]:
+            current = os.stat(ancestor, follow_symlinks=False)
+            if (
+                not stat.S_ISDIR(current.st_mode)
+                or current.st_uid not in allowed_uids
+                or current.st_mode & 0o022
+            ):
+                raise MeshWorkerError()
+        parent = os.stat(path.parent, follow_symlinks=False)
+        if (
+            parent.st_uid != owner_uid
+            or parent.st_gid != socket_gid
+            or parent.st_mode & 0o002
+            or not stat.S_ISDIR(parent.st_mode)
+        ):
             raise MeshWorkerError()
         if existing:
             current = path.stat(follow_symlinks=False)
             if (
                 current.st_uid != owner_uid
-                or current.st_mode & 0o077
+                or current.st_gid != socket_gid
+                or stat.S_IMODE(current.st_mode) != 0o660
                 or not stat.S_ISSOCK(current.st_mode)
             ):
                 raise MeshWorkerError()
@@ -314,10 +330,16 @@ def _install_from_wire(value):
 
 
 class Zigbee2MqttWorkerClient:
-    def __init__(self, path, *, owner_uid=None, peer_uid=None):
+    def __init__(self, path, *, owner_uid=None, peer_uid=None, socket_gid=None):
         self.path = Path(path)
         self.owner_uid = os.geteuid() if owner_uid is None else owner_uid
         self.peer_uid = self.owner_uid if peer_uid is None else peer_uid
+        self.socket_gid = os.getegid() if socket_gid is None else socket_gid
+        if any(
+            type(value) is not int or not 0 <= value < 2**31
+            for value in (self.owner_uid, self.peer_uid, self.socket_gid)
+        ):
+            raise MeshWorkerError("invalid_request")
 
     def observe(self, *, timeout=8.0):
         if (
@@ -326,7 +348,13 @@ class Zigbee2MqttWorkerClient:
             or not 0 < timeout <= MAX_DEADLINE_MS / 1_000
         ):
             raise MeshWorkerError("invalid_request")
-        _safe_socket(self.path, self.owner_uid, existing=True)
+        _safe_socket(
+            self.path,
+            self.owner_uid,
+            self.socket_gid,
+            existing=True,
+            trusted_uids=(self.peer_uid,),
+        )
         deadline = time.monotonic() + timeout
         request_id = uuid.uuid4().hex
         request = {
@@ -368,7 +396,13 @@ class Zigbee2MqttWorkerClient:
             or not 0 < timeout <= maximum / 1_000
         ):
             raise MeshWorkerError("invalid_request")
-        _safe_socket(self.path, self.owner_uid, existing=True)
+        _safe_socket(
+            self.path,
+            self.owner_uid,
+            self.socket_gid,
+            existing=True,
+            trusted_uids=(self.peer_uid,),
+        )
         deadline = time.monotonic() + timeout
         request_id = uuid.uuid4().hex
         request = {
@@ -459,25 +493,70 @@ class Zigbee2MqttWorkerClient:
 
 
 class Zigbee2MqttWorkerServer:
-    def __init__(self, path, observer, *, managed_ota=None, owner_uid=None, peer_uid=None):
+    def __init__(
+        self,
+        path,
+        observer,
+        *,
+        managed_ota=None,
+        owner_uid=None,
+        peer_uid=None,
+        socket_gid=None,
+    ):
         self.path = Path(path)
         self.observer = observer
         self.managed_ota = managed_ota
         self.owner_uid = os.geteuid() if owner_uid is None else owner_uid
         self.peer_uid = self.owner_uid if peer_uid is None else peer_uid
+        self.socket_gid = os.getegid() if socket_gid is None else socket_gid
         self._socket = None
         self._socket_identity = None
+        if os.geteuid() != self.owner_uid or any(
+            type(value) is not int or not 0 <= value < 2**31
+            for value in (self.owner_uid, self.peer_uid, self.socket_gid)
+        ):
+            raise MeshWorkerError("invalid_request")
 
     def bind(self):
-        _safe_socket(self.path, self.owner_uid, existing=False)
-        if os.path.lexists(self.path):
-            raise MeshWorkerError()
+        _safe_socket(
+            self.path,
+            self.owner_uid,
+            self.socket_gid,
+            existing=False,
+            trusted_uids=(self.peer_uid,),
+        )
         try:
+            if os.path.lexists(self.path):
+                current = os.stat(self.path, follow_symlinks=False)
+                identity = (current.st_dev, current.st_ino)
+                if (
+                    not stat.S_ISSOCK(current.st_mode)
+                    or current.st_uid != self.owner_uid
+                    or current.st_gid != self.socket_gid
+                    or stat.S_IMODE(current.st_mode) != 0o660
+                ):
+                    raise MeshWorkerError()
+                probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                try:
+                    probe.settimeout(0.2)
+                    probe.connect(str(self.path))
+                except OSError as error:
+                    if error.errno not in {errno.ECONNREFUSED, errno.ENOENT}:
+                        raise MeshWorkerError() from None
+                else:
+                    raise MeshWorkerError()
+                finally:
+                    probe.close()
+                checked = os.stat(self.path, follow_symlinks=False)
+                if identity != (checked.st_dev, checked.st_ino):
+                    raise MeshWorkerError()
+                self.path.unlink()
             server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             server.bind(str(self.path))
             info = os.lstat(self.path)
             self._socket_identity = (info.st_dev, info.st_ino)
-            os.chmod(self.path, 0o600)
+            os.chown(self.path, self.owner_uid, self.socket_gid)
+            os.chmod(self.path, 0o660)
             server.listen(8)
             self._socket = server
         except OSError:
