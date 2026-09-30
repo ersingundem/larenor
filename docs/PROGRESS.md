@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F61 resize bekleme sınırı
+
+Exact6b2a7577/run36781108349 güvenli teşhisi yalnız owned test satır150 ile çözünürlük değişiminden sonraki kare bekleyişini belirledi. Önceki ACKden gelen eski boyutlu ara karenin gerçek Flutter consumer gibi ACK edilmesi dar TLS regression ile doğrulandı: root 5 gerçek TLS/0skip ve54 workflow/kuyruk/progress testini geçti. Actual hosted receipt henüz başarısız. F61 test bekliyor kalır; 57 seçili/toplam66 CI bekliyor ve kabul sayaçları değişmedi. [Kanıt](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
+
 ### 1 Ekim F60 Core v2 kalıcı yetki dilimi
 
 Core eşleme/katalog/dispatch için tek kullanımlık grant üretir; public host/app/session/command kimlikleri Core'a aittir. Current family sınırı, empty/reordered/missing katalog ve restart unknown/no replay tamamlandı. Root 28 odaklı ve backup/context/migration dahil 59 Server testini geçti. Client/native normal kanal, kalıcı pairing/catalog/revoke ve gerçek Sunshine kabulü geliştirmede; F60 CI bekliyor yapılmadı, sayaçlar değişmedi. [Core kanıtı](testing/f60-core-native-authority-v2-2026-10-01.md).

@@ -269,3 +269,34 @@ Root passed 12 workflow/runner tests, including secret-bearing failure text,
 identity rejection and malformed-report limits. A fresh run of this changed
 source is required to locate the real timeout; the failed run was not blindly
 restarted. F61 stays implemented/awaiting native acceptance.
+
+## Located resized-frame timeout — 1 October
+
+[Run 36781108349](https://github.com/ersingundem/larenor/actions/runs/36781108349)
+on exact `6b2a7577cf720bb363b96a15be9a7625ebf03dcd` failed the original
+named test with counts 1 executed, 0 skipped, 1 failure and 0 errors. The bounded
+diagnostic retained owned test lines 293, 262 and 150. Line 150 is the await for
+the resized 960×720 framebuffer; the initial image and input steps reached this
+boundary. This is failed acceptance, not a passing protocol receipt.
+
+The acceptance consumer previously acknowledged only its chosen new-size frame.
+An old-size pixel reply can already be pending from the preceding incremental
+request when SetDesktopSize is sent. Such an intermediate frame must also be
+acknowledged: the normal Flutter surface acknowledges each presented frame, and
+production native backpressure intentionally allows one outstanding frame. The
+new bounded consumer path acknowledges each nonmatching intermediate sequence
+once while retaining the exact 960×720 pixel assertion. An owned TLS regression
+now sends an old-size frame before the metadata to exercise that ordering. This
+regression and a fresh hosted run must pass before the acceptance gap closes.
+No TLS, pin, authentication, image, input, resize, lifecycle or no-skip assertion
+is relaxed.
+
+Root independently passed all 5 production owned TLS tests with 0 skips, failures
+or errors, including the new outstanding-old-frame ordering regression. Native
+Kotlin/Java compilation succeeded; Flutter build was excluded because this is
+the focused protocol gate. Exact class XML is archived at
+`/tmp/larenor-root-f61-intermediate-ack-result.xml`, and final Gradle log at
+`/tmp/larenor-root-f61-intermediate-ack-final.log`. The first invocation failed
+before tests because an excluded Flutter task name no longer existed; it is not
+acceptance evidence. Root also passed 54 workflow/queue/progress tests. A fresh
+source-bound real TigerVNC one-method/zero-skip run is still required.

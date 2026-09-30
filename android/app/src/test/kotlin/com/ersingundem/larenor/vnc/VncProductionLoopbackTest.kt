@@ -86,8 +86,12 @@ class VncProductionLoopbackTest {
     fun rejectedResizeKeepsTheLastPixelsAndContinuesWithoutPublishingMetadata() =
         exerciseOwnedBridge(rejectResize = true)
 
-    private fun exerciseOwnedBridge(rejectResize: Boolean) {
-        val fixture = OwnedRfbFixture(rejectResize = rejectResize)
+    @Test
+    fun resizeAfterOutstandingOldSizePixelsContinuesWhenConsumerAcknowledgesThem() =
+        exerciseOwnedBridge(rejectResize = false, interveningFrame = true)
+
+    private fun exerciseOwnedBridge(rejectResize: Boolean, interveningFrame: Boolean = false) {
+        val fixture = OwnedRfbFixture(rejectResize = rejectResize, interveningFrame = interveningFrame)
         val bridge = VncNativeBridge(Messenger())
         val sink = Sink()
         try {
@@ -131,6 +135,19 @@ class VncProductionLoopbackTest {
             )), Result())
 
             pumpUntil { sink.values.size == 2 }
+            if (interveningFrame) {
+                val pending = sink.values.last()
+                assertEquals(2, pending["width"])
+                assertEquals(2, pending["height"])
+                assertArrayEquals(EXPECTED_FRAME, pending["pixels"] as ByteArray)
+                val intermediateAck = Result()
+                bridge.onMethodCall(MethodCall("ackFrame", mapOf(
+                    "binding" to binding(), "sequence" to 2L,
+                )), intermediateAck)
+                assertTrue(intermediateAck.completed)
+                assertNull(intermediateAck.error)
+                pumpUntil { sink.values.size == 3 }
+            }
             val resized = sink.values.last()
             assertEquals(if (rejectResize) 2 else 800, resized["width"])
             assertEquals(if (rejectResize) 2 else 600, resized["height"])
@@ -139,7 +156,7 @@ class VncProductionLoopbackTest {
             if (rejectResize) byteArrayOf(90, 80, 70, 0xff.toByte()).copyInto(expected, 12)
             assertArrayEquals(expected, resizedPixels.copyOfRange(0, expected.size))
             bridge.onMethodCall(MethodCall("ackFrame", mapOf(
-                "binding" to binding(), "sequence" to 2L,
+                "binding" to binding(), "sequence" to if (interveningFrame) 3L else 2L,
             )), Result())
 
             assertTrue(fixture.finished.await(5, TimeUnit.SECONDS))
@@ -215,6 +232,7 @@ class VncProductionLoopbackTest {
     private class OwnedRfbFixture(
         private val tlsReadiness: Int = 1,
         private val rejectResize: Boolean = false,
+        private val interveningFrame: Boolean = false,
     ) : AutoCloseable {
         val address: Inet4Address = NetworkInterface.getNetworkInterfaces().toList()
             .flatMap { it.inetAddresses.toList() }
@@ -319,11 +337,26 @@ class VncProductionLoopbackTest {
                     assertEquals(23, resize.size)
                     assertEquals(42, ByteBuffer.wrap(resize, 7, 4).int)
                     observed += "resize"
+                    if (interveningFrame) {
+                        // The preceding incremental request can still have a pixel reply
+                        // queued when SetDesktopSize is received. It consumes a real ACK.
+                        writeFrame(output)
+                    }
                     if (rejectResize) writeDesktopSize(output, 1, 0, 0, status = 1)
                     else writeDesktopSize(output, 1, 800, 600)
                     assertEquals(3, input.readUnsignedByte())
                     assertEquals(1, input.readUnsignedByte())
-                    assertEquals(8, input.readNBytes(8).size)
+                    val updateArea = input.readNBytes(8)
+                    assertEquals(8, updateArea.size)
+                    if (interveningFrame && ByteBuffer.wrap(updateArea, 4, 2).short.toInt() == 2) {
+                        // The old-size ACK can race with reading the metadata. Both
+                        // requests are legitimate; the metadata requests the new area.
+                        assertEquals(3, input.readUnsignedByte())
+                        assertEquals(1, input.readUnsignedByte())
+                        val resizedArea = input.readNBytes(8)
+                        assertEquals(800, ByteBuffer.wrap(resizedArea, 4, 2).short.toInt())
+                        assertEquals(600, ByteBuffer.wrap(resizedArea, 6, 2).short.toInt())
+                    }
                     if (rejectResize) writeFrame(output, partial = true)
                     else writeFrame(output, 800, 600)
                     assertEquals(3, input.readUnsignedByte())

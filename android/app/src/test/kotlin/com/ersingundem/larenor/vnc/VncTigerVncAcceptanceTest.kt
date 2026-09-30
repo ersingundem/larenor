@@ -152,6 +152,7 @@ class VncTigerVncAcceptanceTest {
                 firstRequest["requestId"] as String,
                 minimumCount = 3,
                 condition = { it["width"] == 960 && it["height"] == 720 },
+                consumeIntermediate = { acknowledge(bridge, firstBinding, it) },
             )
             assertEquals(960, resizedFrame["width"])
             assertEquals(720, resizedFrame["height"])
@@ -257,13 +258,26 @@ class VncTigerVncAcceptanceTest {
         sessionId: String,
         minimumCount: Int,
         condition: (Map<*, *>) -> Boolean = { true },
+        consumeIntermediate: ((Map<*, *>) -> Unit)? = null,
     ): Map<*, *> {
         var found: Map<*, *>? = null
+        val consumed = mutableSetOf<Any?>()
         pumpUntil {
             val candidates = synchronized(sink.values) {
                 sink.values.filter { it["sessionId"] == sessionId }
             }
-            found = candidates.drop(minimumCount - 1).firstOrNull(condition)
+            // Resize is asynchronous. A frame already requested by the preceding ACK may
+            // arrive at the old dimensions before ExtendedDesktopSize. The real Flutter
+            // consumer acknowledges every delivered frame, including this old-size frame.
+            for (candidate in candidates.drop(minimumCount - 1)) {
+                if (condition(candidate)) {
+                    found = candidate
+                    break
+                }
+                if (consumeIntermediate != null && consumed.add(candidate["sequence"])) {
+                    consumeIntermediate(candidate)
+                }
+            }
             candidates.size >= minimumCount && found != null
         }
         assertNull(sink.error)
