@@ -215,6 +215,7 @@ from .garden_irrigation.runtime import build_irrigation_gateway
 from .garden_irrigation.home_assistant import HomeAssistantIrrigationProvider
 from .garden_irrigation.source_schema import migrate_irrigation_source
 from .energy_priorities.service import EnergyPriorityService
+from .energy_priorities.history import EvccReserveHistoryProvider
 from .energy_priorities.fronius import (
     FroniusReserveControl,
     migrate_fronius_reserve_control,
@@ -1098,9 +1099,15 @@ class CoreServices:
                     battery_bindings=self.evcc_battery_bindings,
                     control_authority=self.evcc_current_control,
                 )
+            energy_priority_history = None
             energy_priority_provider = self._energy_priority_provider
             if energy_priority_provider is None and evcc_runtime is not None:
                 energy_priority_provider = evcc_runtime.energy_priorities
+            if evcc_runtime is not None:
+                energy_priority_history = EvccReserveHistoryProvider(
+                    evcc_binding,
+                    settings.clock,
+                )
             self.fronius_reserve_control = FroniusReserveControl(
                 self.db,
                 audit_key=hmac.new(
@@ -1128,6 +1135,7 @@ class CoreServices:
                 self._energy_priority_inverter_capability,
                 self.fronius_reserve_control,
                 home_revision_provider=home_resource_revision,
+                history_provider=energy_priority_history,
             )
             if self._ev_charge_provider is None and evcc_runtime is not None:
                 self.ev_charging = EvChargeRuntime(

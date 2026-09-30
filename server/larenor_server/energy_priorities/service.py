@@ -12,6 +12,7 @@ from .api_models import (
     PreviewReserveCommand,
 )
 from .commands import MAX_COMMANDS, InverterCommandManager
+from .history import analyze_reserve_history
 from .models import (
     EnergyAuthority,
     EnergyInputs,
@@ -37,6 +38,7 @@ class EnergyPriorityService:
         inverter=None,
         reserve_control=None,
         home_revision_provider=None,
+        history_provider=None,
     ):
         self.db, self.auth, self.settings = db, auth, settings
         self.context, self.provider, self.worker = context, provider, worker
@@ -47,6 +49,7 @@ class EnergyPriorityService:
             None if inverter is None else InverterCapability.model_validate(inverter)
         )
         self.reserve_control = reserve_control
+        self.history_provider = history_provider
         self._command_key = hmac.new(
             key, b"larenor:energy-reserve-confirmation:v1", hashlib.sha256
         ).digest()
@@ -195,6 +198,50 @@ class EnergyPriorityService:
             plan=plan,
             inverter=capability,
         )
+
+    def reserve_backtest(self, actor, core_id, home_id):
+        """Review recorded reserve samples without inferring missing intervals."""
+        if self.history_provider is None:
+            raise ApiError("energy_provider_unavailable", 503)
+        before = self.snapshot(actor, core_id, home_id)
+        try:
+            observation = self.history_provider.observe(before.authority)
+        except ApiError:
+            raise
+        except Exception:  # noqa: BLE001 -- private provider failures are redacted
+            raise ApiError("energy_provider_unavailable", 503) from None
+        after = self.snapshot(actor, core_id, home_id)
+        stable_before = (
+            before.authority,
+            before.inputs.battery.resourceId,
+            before.inputs.battery.providerRevision,
+            before.inputs.battery.capacityWh,
+            before.inputs.reserve,
+            before.inputs.manualOverride,
+        )
+        stable_after = (
+            after.authority,
+            after.inputs.battery.resourceId,
+            after.inputs.battery.providerRevision,
+            after.inputs.battery.capacityWh,
+            after.inputs.reserve,
+            after.inputs.manualOverride,
+        )
+        if stable_after != stable_before:
+            raise ApiError("revision_conflict", 409)
+        try:
+            assert_current = getattr(self.history_provider, "assert_current", None)
+            if not callable(assert_current):
+                raise ValueError("invalid_history_provider")
+            assert_current(after.authority, observation)
+            return analyze_reserve_history(
+                after.authority,
+                after.inputs,
+                after.plan,
+                observation,
+            )
+        except Exception:  # noqa: BLE001 -- never expose private history details
+            raise ApiError("energy_provider_unavailable", 503) from None
 
     def preview(self, actor, core_id, home_id, raw):
         body = PreviewEnergyCommand.model_validate(raw)

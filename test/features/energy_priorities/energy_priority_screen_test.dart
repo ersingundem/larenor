@@ -21,6 +21,9 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           final controller = EnergyPriorityController(
             api: fixture.FakeEnergyPriorityApi(),
+            backtestApi: fixture.FakeBacktestApi(
+              Future.value(fixture.backtest(fixture.snapshot())),
+            ),
             isCurrent: () => true,
           );
           await tester.pumpWidget(
@@ -42,6 +45,18 @@ void main() {
           await tester.pumpAndSettle();
           expect(
             find.byKey(const ValueKey('energy-reserve-percent')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('energy-reserve-backtest')),
+            findsOneWidget,
+          );
+          expect(
+            find.text(
+              locale.languageCode == 'tr'
+                  ? 'Kayıtlı rezerv incelemesi'
+                  : 'Recorded reserve review',
+            ),
             findsOneWidget,
           );
           final action = find.byKey(const ValueKey('energy-preview-action'));
@@ -98,6 +113,8 @@ void main() {
       find.byKey(const ValueKey('energy-preview-reserve')),
       findsOneWidget,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('energy-preview-reserve')));
     await tester.pumpAndSettle();
     expect(

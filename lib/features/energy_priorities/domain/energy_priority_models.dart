@@ -40,6 +40,8 @@ final class EnergyPrioritySnapshot {
     required this.inverterId,
     required this.inverterRevision,
     required this.reservePercent,
+    required this.reserveRevision,
+    required this.capacityWh,
     required this.stateOfChargePercent,
     required this.solarEnergyWh,
     required this.consumptionEnergyWh,
@@ -60,6 +62,7 @@ final class EnergyPrioritySnapshot {
   final String? inverterId;
   final int? inverterRevision;
   final int reservePercent, stateOfChargePercent;
+  final int reserveRevision, capacityWh;
   final int solarEnergyWh, consumptionEnergyWh, importPriceMicrosPerKwh;
   final List<EnergyPlanSlot> slots;
   final DateTime? meterCapturedAt, batteryCapturedAt, forecastGeneratedAt;
@@ -113,6 +116,98 @@ final class EnergyReserveSource {
   final String serviceId, name;
   final int serviceRevision, bindingRevision;
   final String? boundModel;
+}
+
+enum EnergyReserveBacktestStatus {
+  noSampleBelowReserve,
+  sampleBelowReserve,
+  uncertain,
+}
+
+enum EnergyReserveHistoryCoverage { complete, partial, missing }
+
+@immutable
+final class EnergyReserveBacktestSlot {
+  const EnergyReserveBacktestSlot({
+    required this.startsAt,
+    required this.endsAt,
+    required this.observedSocPercent,
+    required this.forecastRecorded,
+    required this.status,
+  });
+
+  final DateTime startsAt, endsAt;
+  final double? observedSocPercent;
+  final bool forecastRecorded;
+  final String status;
+}
+
+@immutable
+final class EnergyReserveBacktest {
+  const EnergyReserveBacktest({
+    required this.analysisDigest,
+    required this.historyDigest,
+    required this.coreId,
+    required this.homeId,
+    required this.accountId,
+    required this.sessionFamilyId,
+    required this.homeRevision,
+    required this.accountRevision,
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.batteryId,
+    required this.batteryRevision,
+    required this.batteryProviderRevision,
+    required this.reserveRevision,
+    required this.reservePercent,
+    required this.capacityWh,
+    required this.capturedAt,
+    required this.startsAt,
+    required this.endsAt,
+    required this.sampleCount,
+    required this.missingSampleCount,
+    required this.belowReserveSampleCount,
+    required this.forecastRecordCount,
+    required this.minimumObservedSocPercent,
+    required this.observedStatus,
+    required this.sampleCoverage,
+    required this.forecastCoverage,
+    required this.manualPreference,
+    required this.historicalCapacityCoverage,
+    required this.historicalReservePolicyCoverage,
+    required this.uncertaintyReasons,
+    required this.slots,
+  });
+
+  final String analysisDigest, historyDigest;
+  final String coreId, homeId, accountId, sessionFamilyId;
+  final int homeRevision, accountRevision;
+  final String serviceId, batteryId;
+  final int serviceRevision, batteryRevision, batteryProviderRevision;
+  final int reserveRevision, reservePercent, capacityWh;
+  final DateTime capturedAt, startsAt, endsAt;
+  final int sampleCount, missingSampleCount, belowReserveSampleCount;
+  final int forecastRecordCount;
+  final double? minimumObservedSocPercent;
+  final EnergyReserveBacktestStatus observedStatus;
+  final EnergyReserveHistoryCoverage sampleCoverage, forecastCoverage;
+  final String manualPreference;
+  final String historicalCapacityCoverage, historicalReservePolicyCoverage;
+  final List<String> uncertaintyReasons;
+  final List<EnergyReserveBacktestSlot> slots;
+
+  bool exactFor(EnergyPrioritySnapshot snapshot) =>
+      coreId == snapshot.coreId &&
+      homeId == snapshot.homeId &&
+      accountId == snapshot.accountId &&
+      sessionFamilyId == snapshot.sessionFamilyId &&
+      homeRevision == snapshot.homeRevision &&
+      accountRevision == snapshot.accountRevision &&
+      batteryId == snapshot.batteryId &&
+      batteryProviderRevision == snapshot.batteryProviderRevision &&
+      reserveRevision == snapshot.reserveRevision &&
+      reservePercent == snapshot.reservePercent &&
+      capacityWh == snapshot.capacityWh;
 }
 
 @immutable

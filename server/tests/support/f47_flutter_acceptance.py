@@ -1,6 +1,7 @@
 """Actual F47 Flutter -> normal Core -> owned evcc and HA TCP acceptance."""
 
 from copy import deepcopy
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 from threading import Thread
+from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -38,12 +40,52 @@ class EvccFixture:
 
             def do_GET(self):
                 try:
-                    assert self.path == "/api/state"
                     assert self.headers["Authorization"] == "Bearer " + owner.token
                     owner.calls.append(("GET", self.path))
-                    raw = json.dumps(
-                        deepcopy(owner.payload), separators=(",", ":")
-                    ).encode()
+                    parsed = urlsplit(self.path)
+                    if parsed.path == "/api/state":
+                        payload = deepcopy(owner.payload)
+                    else:
+                        assert parsed.path == "/api/history/energy"
+                        query = parse_qs(parsed.query, strict_parsing=True)
+                        assert set(query) == {
+                            "from", "to", "aggregate", "grouped", "group", "format"
+                        }
+                        assert query["aggregate"] == ["hour"]
+                        assert query["grouped"] == ["false"]
+                        assert query["format"] == ["json"]
+                        assert query["group"] in (["battery"], ["forecast"])
+                        start = datetime.fromisoformat(
+                            query["from"][0].replace("Z", "+00:00")
+                        )
+                        end = datetime.fromisoformat(
+                            query["to"][0].replace("Z", "+00:00")
+                        )
+                        assert end - start == timedelta(hours=168)
+                        group = query["group"][0]
+                        data = []
+                        for index in range(168):
+                            slot_start = start + timedelta(hours=index)
+                            item = {
+                                "start": slot_start.isoformat(
+                                    timespec="seconds"
+                                ).replace("+00:00", "Z"),
+                                "end": (slot_start + timedelta(hours=1))
+                                .isoformat(timespec="seconds")
+                                .replace("+00:00", "Z"),
+                                "energy": 100,
+                                "returnEnergy": 0,
+                            }
+                            if group == "battery":
+                                item["socTemp"] = 39 if index == 0 else 55
+                            data.append(item)
+                        payload = [{
+                            "title": group.title(),
+                            "group": group,
+                            "isTemp": False,
+                            "data": data,
+                        }]
+                    raw = json.dumps(payload, separators=(",", ":")).encode()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(raw)))
@@ -230,6 +272,11 @@ def main():
                 or not evcc.calls
                 or ha.post_count != 1
                 or ha.percent != 40
+                or len([
+                    call
+                    for call in evcc.calls
+                    if "/api/history/energy?" in call[1]
+                ]) != 6
             ):
                 raise RuntimeError("f47_provider_contract_failed")
         return 0

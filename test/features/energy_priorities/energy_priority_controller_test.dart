@@ -71,6 +71,93 @@ void main() {
     expect(controller.snapshot!.canSetReserve, isTrue);
     controller.dispose();
   });
+
+  test('historical reserve review is scoped and late results retire', () async {
+    final pending = Completer<EnergyReserveBacktest>();
+    final energy = FakeEnergyPriorityApi();
+    final history = FakeBacktestApi(pending.future);
+    var current = true;
+    final controller = EnergyPriorityController(
+      api: energy,
+      backtestApi: history,
+      isCurrent: () => current,
+    );
+    final load = controller.load();
+    await Future<void>.delayed(Duration.zero);
+    current = false;
+    controller.setInteractive(false);
+    pending.complete(backtest(snapshot()));
+    await load;
+    expect(controller.state, EnergyPriorityViewState.stale);
+    expect(controller.reserveBacktest, isNull);
+    controller.dispose();
+  });
+}
+
+EnergyReserveBacktest backtest(EnergyPrioritySnapshot value) =>
+    EnergyReserveBacktest(
+      analysisDigest: 'a' * 64,
+      historyDigest: 'b' * 64,
+      coreId: value.coreId,
+      homeId: value.homeId,
+      accountId: value.accountId,
+      sessionFamilyId: value.sessionFamilyId,
+      homeRevision: value.homeRevision,
+      accountRevision: value.accountRevision,
+      serviceId: 'c' * 32,
+      serviceRevision: 1,
+      batteryId: value.batteryId,
+      batteryRevision: value.batteryRevision,
+      batteryProviderRevision: value.batteryProviderRevision,
+      reserveRevision: 1,
+      reservePercent: value.reservePercent,
+      capacityWh: 10000,
+      capturedAt: DateTime.fromMillisecondsSinceEpoch(604800000, isUtc: true),
+      startsAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      endsAt: DateTime.fromMillisecondsSinceEpoch(604800000, isUtc: true),
+      sampleCount: 0,
+      missingSampleCount: 168,
+      belowReserveSampleCount: 0,
+      forecastRecordCount: 0,
+      minimumObservedSocPercent: null,
+      observedStatus: EnergyReserveBacktestStatus.uncertain,
+      sampleCoverage: EnergyReserveHistoryCoverage.missing,
+      forecastCoverage: EnergyReserveHistoryCoverage.missing,
+      manualPreference: 'none_current',
+      historicalCapacityCoverage: 'unavailable',
+      historicalReservePolicyCoverage: 'unavailable',
+      uncertaintyReasons: const [
+        'missing_battery_history',
+        'missing_forecast_history',
+        'historical_preferences_unavailable',
+        'historical_capacity_unavailable',
+        'historical_reserve_policy_unavailable',
+      ],
+      slots: List.generate(
+        168,
+        (index) => EnergyReserveBacktestSlot(
+          startsAt: DateTime.fromMillisecondsSinceEpoch(
+            index * 3600000,
+            isUtc: true,
+          ),
+          endsAt: DateTime.fromMillisecondsSinceEpoch(
+            (index + 1) * 3600000,
+            isUtc: true,
+          ),
+          observedSocPercent: null,
+          forecastRecorded: false,
+          status: 'missing',
+        ),
+      ),
+    );
+
+final class FakeBacktestApi implements EnergyReserveBacktestApi {
+  FakeBacktestApi(this.value);
+  final Future<EnergyReserveBacktest> value;
+  @override
+  Future<EnergyReserveBacktest> loadReserveBacktest(
+    EnergyPrioritySnapshot snapshot,
+  ) => value;
 }
 
 EnergyPrioritySnapshot snapshot({
@@ -98,6 +185,8 @@ EnergyPrioritySnapshot snapshot({
   inverterId: '77777777777777777777777777777777',
   inverterRevision: 1,
   reservePercent: 40,
+  reserveRevision: 1,
+  capacityWh: 10000,
   stateOfChargePercent: 50,
   solarEnergyWh: 3000,
   consumptionEnergyWh: 1000,

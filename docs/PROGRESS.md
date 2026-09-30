@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 54 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 63 iş CI bekliyor tablosunda. F22 otomatik kanal devamı, F28 gerçek uyku deadline duruşu, F47 history/backtest ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 55 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 64 iş CI bekliyor tablosunda. F22 kalıcı kanal devamı, F28 gönderim sırasında oturum devralma ve F60 Client eşleme/native oynatma eksikleri yeniden çalışılıyor; bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61/F62 gerçek native kabulü henüz kapanmadı. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F47 geçmiş rezerv incelemesi kabulü
+
+Gerçek Flutter Client→normal Core→owned evcc/HA iki yaşamı root tarafından tekrar geçti; 18 F47 Server ve F47/F28 ortak 37 Flutter testi geçti, scoped analyze temiz. Pinned evcc socTemp slot-start geçmişi current reserve ile karşılaştırılır; eksik forecast/multiple battery ve tarihsel reserve/capacity/manual tercih açık unknown kalır. Normal gözlem ilerlemesi sahte conflict üretmez, policy/service/authority drift reddedilir. F47 CI bekliyor tablosuna taşındı: 55 seçili özellik, toplam 64 iş; 37/127 ve 3/63 kabul sayacı değişmedi. Fiziksel inverter MANUAL açık. [Kabul kanıtı](testing/f47-reserve-backtest-2026-09-30.md).
 
 ### 30 Eylül RDP gerçek native hata kanıtı
 

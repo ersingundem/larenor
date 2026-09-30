@@ -5702,6 +5702,30 @@
   "energyPrioritySetupNoSource": "No authenticated Home Assistant connection is available.",
   "energyPrioritySetupFailed": "The inverter source could not be verified. Refresh before trying another write.",
   "energyPrioritySetupRefresh": "Read current source state",
+  "energyPriorityBacktestTitle": "Recorded reserve review",
+  "energyPriorityBacktestLoading": "Reading the last 168 completed hourly samples…",
+  "energyPriorityBacktestUnavailable": "Recorded reserve history is unavailable from the current verified energy source.",
+  "energyPriorityBacktestMultipleBatteries": "The verified source returned multiple battery series. Select or aggregate them in evcc before reviewing the reserve; Larenor will not guess which series to use.",
+  "energyPriorityBacktestBelow": "{samples} recorded slot-start sample(s) were below the configured reserve.",
+  "@energyPriorityBacktestBelow": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestClear": "All {samples} recorded slot-start samples were at or above the configured reserve.",
+  "@energyPriorityBacktestClear": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestUncertain": "Only {samples} of 168 slot-start samples were available, so reserve compliance is uncertain.",
+  "@energyPriorityBacktestUncertain": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestMinimum": "Lowest recorded slot-start SoC: {percent}%",
+  "@energyPriorityBacktestMinimum": {
+    "placeholders": {"percent": {"type": "String"}}
+  },
+  "energyPriorityBacktestForecastComplete": "A recorded forecast exists for every reviewed slot.",
+  "energyPriorityBacktestForecastPartial": "Recorded forecast coverage is incomplete.",
+  "energyPriorityBacktestForecastMissing": "No recorded forecast exists for the reviewed slots.",
+  "energyPriorityBacktestLimits": "This review compares exact slot-start SoC observations with the current reserve. It does not prove the reserve stayed above the limit between samples. Historical reserve settings, battery capacity, and manual preferences are unavailable.",
   "irrigationSetupAction": "Configure irrigation sources",
   "irrigationSetupTitle": "Irrigation sources",
   "irrigationSetupFailed": "The current source settings could not be verified or saved.",

@@ -19,6 +19,7 @@ from .api_models import (
 from .models import (
     InverterCommandPreview,
     InverterCommandResult,
+    ReserveBacktestResult,
     ReserveCommandPreview,
     ReserveCommandResult,
 )
@@ -39,6 +40,13 @@ router = APIRouter(
 @router.get(ROOT, response_model=EnergyPrioritySnapshot)
 def snapshot(core_id: Identity, home_id: Identity, actor: Ready, core: Core):
     return core.energy_priorities.snapshot(actor, core_id, home_id)
+
+
+@router.get(ROOT + "/reserve-backtest", response_model=ReserveBacktestResult)
+def reserve_backtest(
+    core_id: Identity, home_id: Identity, actor: Ready, core: Core
+):
+    return core.energy_priorities.reserve_backtest(actor, core_id, home_id)
 
 
 @router.post(ROOT + "/previews", status_code=201, response_model=InverterCommandPreview)

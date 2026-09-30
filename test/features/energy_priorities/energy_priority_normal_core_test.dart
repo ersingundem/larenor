@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/energy_priorities/data/core_energy_priority_api.dart';
 import 'package:larenor/features/energy_priorities/data/energy_priority_controller.dart';
+import 'package:larenor/features/energy_priorities/domain/energy_priority_models.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
@@ -80,6 +81,19 @@ void main() {
     expect(controller.snapshot!.stateOfChargePercent, 55);
     expect(controller.snapshot!.solarEnergyWh, 5000);
     expect(controller.snapshot!.consumptionEnergyWh, 1000);
+    expect(controller.reserveBacktestFailure, isNull);
+    expect(controller.reserveBacktest, isNotNull);
+    expect(
+      controller.reserveBacktest!.observedStatus,
+      EnergyReserveBacktestStatus.sampleBelowReserve,
+    );
+    expect(controller.reserveBacktest!.sampleCount, 168);
+    expect(controller.reserveBacktest!.belowReserveSampleCount, 1);
+    expect(controller.reserveBacktest!.forecastRecordCount, 168);
+    expect(
+      controller.reserveBacktest!.uncertaintyReasons,
+      contains('historical_preferences_unavailable'),
+    );
 
     if (phase == 'setup') {
       expect(controller.snapshot!.canSetReserve, isFalse);

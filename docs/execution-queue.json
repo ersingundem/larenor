@@ -4901,7 +4901,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Güneş ve ev bataryası öncelikleri",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4925,7 +4925,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: root normal Client→Core→evcc/HA reserve/restart/authority kabulü geçti; minimum rezerv politikasını geçmişte sınama/history-backtest yazılım yolu kabul kriterinde var ancak API/UI henüz yok. Mevcut tek gönderim/causal readback kanıtı korunur, gerçek inverter MANUAL ayrı."
+      "reason": "Root gerçek Flutter Client→normal Core TCP→owned evcc/HA iki yaşamını tekrar geçti; 18 F47 Server testi, F47/F28 ortak 37 Flutter testi ve scoped analyze temiz. Pinned evcc socTemp slot-start geçmişi 168 saat için ayrı battery/forecast okur; current minimum reserve ile recorded örnekleri karşılaştırır. Kapasite/reserve/manual tercih geçmişi ve örnekler arası sürekli uyum bilinmiyor olarak gösterilir; forecast boşluğu ve multiple series uydurulmaz. History sırasında normal clock/SoC gözlem ilerlemesi kabul edilir; policy/authority/battery/service drift reddedilir. Geniş exact HEAD CI bekliyor, fiziksel inverter MANUAL ayrı. Kanıt: docs/testing/f47-reserve-backtest-2026-09-30.md."
     },
     {
       "id": "F49",

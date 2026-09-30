@@ -5343,6 +5343,30 @@
   "energyPrioritySetupNoSource": "Kimliği doğrulanmış bir Home Assistant bağlantısı yok.",
   "energyPrioritySetupFailed": "İnverter kaynağı doğrulanamadı. Başka bir yazma denemeden önce güncel durumu okuyun.",
   "energyPrioritySetupRefresh": "Güncel kaynak durumunu oku",
+  "energyPriorityBacktestTitle": "Kayıtlı rezerv incelemesi",
+  "energyPriorityBacktestLoading": "Tamamlanmış son 168 saatlik örnek okunuyor…",
+  "energyPriorityBacktestUnavailable": "Güncel doğrulanmış enerji kaynağında kayıtlı rezerv geçmişi kullanılamıyor.",
+  "energyPriorityBacktestMultipleBatteries": "Doğrulanmış kaynak birden fazla batarya serisi döndürdü. Rezervi incelemeden önce evcc içinde bunları seçin veya birleştirin; Larenor hangi serinin kullanılacağını tahmin etmez.",
+  "energyPriorityBacktestBelow": "Kayıtlı {samples} zaman dilimi başlangıcı örneği yapılandırılmış rezervin altındaydı.",
+  "@energyPriorityBacktestBelow": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestClear": "Kayıtlı {samples} zaman dilimi başlangıcı örneğinin tamamı yapılandırılmış rezervde veya üzerindeydi.",
+  "@energyPriorityBacktestClear": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestUncertain": "168 zaman dilimi başlangıcı örneğinin yalnızca {samples} tanesi bulunduğu için rezerv uyumu belirsiz.",
+  "@energyPriorityBacktestUncertain": {
+    "placeholders": {"samples": {"type": "int"}}
+  },
+  "energyPriorityBacktestMinimum": "Kayıtlı en düşük zaman dilimi başlangıcı SoC: %{percent}",
+  "@energyPriorityBacktestMinimum": {
+    "placeholders": {"percent": {"type": "String"}}
+  },
+  "energyPriorityBacktestForecastComplete": "İncelenen her zaman dilimi için kayıtlı tahmin var.",
+  "energyPriorityBacktestForecastPartial": "Kayıtlı tahmin kapsamı eksik.",
+  "energyPriorityBacktestForecastMissing": "İncelenen zaman dilimleri için kayıtlı tahmin yok.",
+  "energyPriorityBacktestLimits": "Bu inceleme zaman dilimi başlangıcındaki kesin SoC gözlemlerini güncel rezervle karşılaştırır. Örnekler arasında rezervin sınırın üzerinde kaldığını kanıtlamaz. Geçmiş rezerv ayarları, batarya kapasitesi ve elle yapılan tercihler kullanılamaz.",
   "irrigationSetupAction": "Sulama kaynaklarını yapılandır",
   "irrigationSetupTitle": "Sulama kaynakları",
   "irrigationSetupFailed": "Güncel kaynak ayarları doğrulanamadı veya kaydedilemedi.",

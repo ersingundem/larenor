@@ -241,7 +241,105 @@ Map<String, Object?> _reserveResult(String requestId) => {
   'bindingRevision': 4,
 };
 
+Map<String, Object?> _backtest() => {
+  'schemaVersion': 1,
+  'analysisDigest': 'c' * 64,
+  'authority': {
+    'schemaVersion': 1,
+    'coreId': core,
+    'homeId': home,
+    'homeRevision': 1,
+    'accountId': accountId,
+    'accountRevision': 2,
+    'memberRevision': 2,
+    'sessionFamilyId': family,
+    'role': 'admin',
+    'active': true,
+    'canPlan': true,
+    'canControl': true,
+  },
+  'serviceId': 'd' * 32,
+  'serviceRevision': 4,
+  'batteryId': battery,
+  'batteryRevision': 8,
+  'batteryProviderRevision': 9,
+  'reserveRevision': 10,
+  'reservePercent': 40,
+  'capacityWh': 10000,
+  'historyDigest': 'e' * 64,
+  'capturedAtMs': 604800000,
+  'startsAtMs': 0,
+  'endsAtMs': 604800000,
+  'slotDurationSeconds': 3600,
+  'expectedSampleCount': 168,
+  'sampleCount': 168,
+  'missingSampleCount': 0,
+  'belowReserveSampleCount': 1,
+  'forecastRecordCount': 168,
+  'minimumObservedSocPercent': 39.0,
+  'observedStatus': 'sample_below_reserve',
+  'sampleCoverage': 'complete',
+  'forecastCoverage': 'complete',
+  'manualPreference': 'none_current',
+  'historicalPreferenceCoverage': 'unavailable',
+  'historicalCapacityCoverage': 'unavailable',
+  'historicalReservePolicyCoverage': 'unavailable',
+  'uncertaintyReasons': [
+    'historical_preferences_unavailable',
+    'historical_capacity_unavailable',
+    'historical_reserve_policy_unavailable',
+  ],
+  'slots': [
+    for (var index = 0; index < 168; index++)
+      {
+        'schemaVersion': 1,
+        'startsAtMs': index * 3600000,
+        'endsAtMs': (index + 1) * 3600000,
+        'observedSocPercent': index == 0 ? 39.0 : 55.0,
+        'forecastRecorded': true,
+        'status': index == 0 ? 'below' : 'above_or_equal',
+      },
+  ],
+};
+
 void main() {
+  test(
+    'backtest adapter accepts exact provenance and rejects malformed slots',
+    () async {
+      var malformed = false;
+      final account = await _account((request) async {
+        if (request.url.path.endsWith('/auth/login') ||
+            request.url.path.endsWith('/context')) {
+          return _session(request);
+        }
+        if (request.url.path.endsWith('/reserve-backtest')) {
+          final value = _backtest();
+          if (malformed) {
+            (value['slots'] as List).last['status'] = 'below';
+          }
+          return _json(value);
+        }
+        return _json(_snapshot());
+      });
+      addTearDown(account.dispose);
+      final api = CoreEnergyPriorityApi(
+        account: account,
+        isCurrent: () => true,
+      );
+      final snapshot = await api.load();
+      final result = await api.loadReserveBacktest(snapshot);
+      expect(result.sampleCount, 168);
+      expect(result.belowReserveSampleCount, 1);
+      expect(result.minimumObservedSocPercent, 39);
+      expect(result.exactFor(snapshot), isTrue);
+      malformed = true;
+      await expectLater(
+        api.loadReserveBacktest(snapshot),
+        throwsA(isA<LarenorServerException>()),
+      );
+    },
+  );
+
   test(
     'HTTP adapter verifies preview confirm and authenticated readback',
     () async {

@@ -13,6 +13,7 @@ from larenor_server.energy_priorities import (
     SolarForecastInput,
     TariffInput,
 )
+from larenor_server.energy_priorities.history import ReserveHistoryObservation
 
 METER, FORECAST, TARIFF = "5" * 32, "6" * 32, "7" * 32
 BATTERY, INVERTER = "8" * 32, "9" * 32
@@ -152,6 +153,46 @@ def test_authenticated_plan_exposes_exact_advisory_and_percentage_reserve(tmp_pa
         assert body["plan"]["advisory"] is True
         assert body["plan"]["automaticExecutionAllowed"] is False
         assert body["plan"]["slots"][0]["action"] == "charge"
+        unavailable = client.get(root + "/reserve-backtest", headers=auth(pair))
+        assert (unavailable.status_code, unavailable.json()["error"]["code"]) == (
+            503,
+            "energy_provider_unavailable",
+        )
+
+
+def test_backtest_rejects_policy_drift_during_history_read(tmp_path):
+    provider = Provider()
+    app, settings, client = _open(tmp_path, provider)
+
+    class History:
+        def observe(self, _authority):
+            provider.revision += 1
+            end = int(settings.clock() * 1000) // 3_600_000 * 3_600_000
+            return ReserveHistoryObservation(
+                "a" * 32,
+                1,
+                int(settings.clock() * 1000),
+                end - 168 * 3_600_000,
+                end,
+                0,
+                (),
+                frozenset(),
+                "0" * 64,
+            )
+
+        def assert_current(self, _authority, _observation):
+            raise AssertionError("policy drift must reject before final binding")
+
+    with client:
+        pair = _ready(client, settings)
+        app.state.core.energy_priorities.history_provider = History()
+        context = app.state.core.context
+        root = f"/api/v1/energy-priorities/{context.coreId}/{context.homeId}"
+        result = client.get(root + "/reserve-backtest", headers=auth(pair))
+        assert (result.status_code, result.json()["error"]["code"]) == (
+            409,
+            "revision_conflict",
+        )
 
 
 def test_normal_core_energy_authority_uses_actual_home_registry_revision(tmp_path):

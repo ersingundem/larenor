@@ -19,7 +19,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G06 — Medya ve müzik | 10 | 0 | 0 | 2 | 8 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
-| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 1 | 4 | 0 |
+| G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 2 | 0 | 1 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
@@ -31,7 +31,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | --- | --- | --- | --- |
 | F22 | Kendi televizyon kanalların | Yeniden çalışılıyor | — |
 | F28 | Sesli kitap ve podcast merkezi | Yeniden çalışılıyor | — |
-| F47 | Güneş ve ev bataryası öncelikleri | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
 
@@ -166,6 +165,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F50 | Oda konforu ve havalandırma planı | CI bekliyor | — |
 | F48 | Ev güç bütçesi | CI bekliyor | — |
 | F46 | Elektrikli araç şarj planlayıcısı | CI bekliyor | — |
+| F47 | Güneş ve ev bataryası öncelikleri | CI bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |

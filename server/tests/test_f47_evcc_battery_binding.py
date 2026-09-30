@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
@@ -14,20 +15,64 @@ from larenor_server.services.transport import ProbeResponse
 class Transport:
     calls = []
     payload = {}
+    history_clock = None
 
     def __init__(self, base_url, *, timeout, max_bytes):
         self.base_url = base_url
 
     def request(self, method, path, headers=None, body=None, **kwargs):
+        before_send = kwargs.get("before_send")
+        if before_send is not None:
+            before_send()
         self.calls.append((method, path, dict(headers or {}), body))
+        payload = self.payload
+        if path == "/api/history/energy":
+            query = kwargs["query_parameters"]
+            slot_end = (
+                datetime.fromisoformat(query["from"].replace("Z", "+00:00"))
+                + timedelta(hours=1)
+            ).isoformat(timespec="seconds").replace("+00:00", "Z")
+            assert (query["aggregate"], query["grouped"], query["format"]) == (
+                "hour",
+                "false",
+                "json",
+            )
+            payload = [
+                {
+                    "title": query["group"].title(),
+                    "group": query["group"],
+                    "isTemp": False,
+                    "data": [
+                        {
+                            "start": query["from"],
+                            "end": slot_end,
+                            "energy": 100,
+                            "returnEnergy": 0,
+                            **(
+                                {"socTemp": 39}
+                                if query["group"] == "battery"
+                                else {}
+                            ),
+                        }
+                    ],
+                }
+            ]
+            if self.history_clock is not None:
+                self.history_clock.now += 1
         return ProbeResponse(
             200,
             (("Content-Type", "application/json"),),
-            json.dumps(self.payload, separators=(",", ":")).encode(),
+            json.dumps(payload, separators=(",", ":")).encode(),
         )
 
     def close(self):
         pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
 
 
 def state():
@@ -118,7 +163,11 @@ def test_normal_core_binds_live_battery_to_sealed_reserve_and_forecast(
 ):
     Transport.calls = []
     Transport.payload = state()
+    Transport.history_clock = None
     monkeypatch.setattr("larenor_server.evcc.provider.ServiceTransport", Transport)
+    monkeypatch.setattr(
+        "larenor_server.energy_priorities.history.ServiceTransport", Transport
+    )
     clock = Clock()
     settings = Settings(
         tmp_path / "data",
@@ -228,6 +277,24 @@ def test_normal_core_binds_live_battery_to_sealed_reserve_and_forecast(
         assert body["inverter"]["writable"] is False
         assert body["authority"]["canControl"] is False
         assert all(call[:2] == ("GET", "/api/state") for call in Transport.calls)
+
+        Transport.history_clock = clock
+        before_history_clock = clock.now
+        backtest = client.get(root + "/reserve-backtest", headers=auth(pair))
+        Transport.history_clock = None
+        assert backtest.status_code == 200, backtest.text
+        assert clock.now == before_history_clock + 2
+        history = backtest.json()
+        assert history["observedStatus"] == "sample_below_reserve"
+        assert history["sampleCoverage"] == "partial"
+        assert history["forecastCoverage"] == "partial"
+        assert history["sampleCount"] == 1
+        assert history["belowReserveSampleCount"] == 1
+        assert history["forecastRecordCount"] == 1
+        assert history["historicalPreferenceCoverage"] == "unavailable"
+        assert [
+            call[1] for call in Transport.calls if call[1] == "/api/history/energy"
+        ] == ["/api/history/energy", "/api/history/energy"]
 
         clock.now += 1
         stable = client.get(root, headers=auth(pair))

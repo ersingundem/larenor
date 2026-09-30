@@ -26,6 +26,12 @@ abstract interface class EnergyReserveSetupApi {
   );
 }
 
+abstract interface class EnergyReserveBacktestApi {
+  Future<EnergyReserveBacktest> loadReserveBacktest(
+    EnergyPrioritySnapshot snapshot,
+  );
+}
+
 enum EnergyPriorityViewState {
   idle,
   loading,
@@ -42,10 +48,16 @@ final class EnergyPriorityController extends ChangeNotifier {
     required this.api,
     required this.isCurrent,
     this.reserveSetupApi,
-  });
+    EnergyReserveBacktestApi? backtestApi,
+  }) : backtestApi =
+           backtestApi ??
+           (api is EnergyReserveBacktestApi
+               ? api as EnergyReserveBacktestApi
+               : null);
   final EnergyPriorityApi api;
   final bool Function() isCurrent;
   final EnergyReserveSetupApi? reserveSetupApi;
+  final EnergyReserveBacktestApi? backtestApi;
   int _epoch = 0;
   bool _interactive = true, _disposed = false;
   EnergyPriorityViewState state = EnergyPriorityViewState.idle;
@@ -56,6 +68,9 @@ final class EnergyPriorityController extends ChangeNotifier {
   EnergyReserveSource? selectedReserveSource;
   bool reserveSetupBusy = false, reserveSetupNeedsRefresh = false;
   String? reserveSetupFailure;
+  EnergyReserveBacktest? reserveBacktest;
+  bool reserveBacktestBusy = false;
+  String? reserveBacktestFailure;
 
   bool _current() {
     if (_disposed || !_interactive) return false;
@@ -83,6 +98,9 @@ final class EnergyPriorityController extends ChangeNotifier {
     reserveSetupBusy = false;
     reserveSetupNeedsRefresh = false;
     reserveSetupFailure = null;
+    reserveBacktest = null;
+    reserveBacktestBusy = false;
+    reserveBacktestFailure = null;
     state = EnergyPriorityViewState.stale;
     if (!_disposed) notifyListeners();
   }
@@ -106,6 +124,9 @@ final class EnergyPriorityController extends ChangeNotifier {
     reserveSetupBusy = false;
     reserveSetupNeedsRefresh = false;
     reserveSetupFailure = null;
+    reserveBacktest = null;
+    reserveBacktestBusy = false;
+    reserveBacktestFailure = null;
     state = EnergyPriorityViewState.loading;
     notifyListeners();
     try {
@@ -114,6 +135,7 @@ final class EnergyPriorityController extends ChangeNotifier {
       snapshot = value;
       state = EnergyPriorityViewState.ready;
       if (!_disposed) notifyListeners();
+      await _loadReserveBacktest(operation, value);
       await _loadReserveSources(operation, value);
     } catch (_) {
       if (!_operationCurrent(operation)) return _stale();
@@ -121,6 +143,34 @@ final class EnergyPriorityController extends ChangeNotifier {
       state = EnergyPriorityViewState.failed;
     }
     if (!_disposed) notifyListeners();
+  }
+
+  Future<void> _loadReserveBacktest(
+    int operation,
+    EnergyPrioritySnapshot value,
+  ) async {
+    final reader = backtestApi;
+    if (reader == null) return;
+    reserveBacktestBusy = true;
+    reserveBacktestFailure = null;
+    if (!_disposed) notifyListeners();
+    try {
+      final result = await reader.loadReserveBacktest(value);
+      if (!_operationCurrent(operation)) return _stale();
+      if (!result.exactFor(value)) {
+        throw StateError('invalid_backtest_scope');
+      }
+      reserveBacktest = result;
+    } catch (_) {
+      if (!_operationCurrent(operation)) return _stale();
+      reserveBacktest = null;
+      reserveBacktestFailure = 'history_unavailable';
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        reserveBacktestBusy = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> _loadReserveSources(
@@ -333,6 +383,9 @@ final class EnergyPriorityController extends ChangeNotifier {
     reservePending = null;
     reserveSources = const [];
     selectedReserveSource = null;
+    reserveBacktest = null;
+    reserveBacktestBusy = false;
+    reserveBacktestFailure = null;
     super.dispose();
   }
 }

@@ -9,7 +9,10 @@ import '../domain/energy_priority_models.dart';
 import 'energy_priority_controller.dart';
 
 final class CoreEnergyPriorityApi
-    implements EnergyPriorityApi, EnergyReserveSetupApi {
+    implements
+        EnergyPriorityApi,
+        EnergyReserveSetupApi,
+        EnergyReserveBacktestApi {
   CoreEnergyPriorityApi({
     required this.account,
     required this.isCurrent,
@@ -81,6 +84,24 @@ final class CoreEnergyPriorityApi
     _boundSnapshot = value;
     _reserveSources = const [];
     return value;
+  });
+
+  @override
+  Future<EnergyReserveBacktest> loadReserveBacktest(
+    EnergyPrioritySnapshot snapshot,
+  ) => _run((api, session) async {
+    if (!identical(_boundSnapshot, snapshot)) {
+      throw const LarenorServerException('cancelled');
+    }
+    return _decodeReserveBacktest(
+      await api.request(
+        'GET',
+        '${_root(session)}/reserve-backtest',
+        token: session.accessToken,
+      ),
+      snapshot,
+      session,
+    );
   });
 
   @override
@@ -579,6 +600,8 @@ EnergyPrioritySnapshot _decodeSnapshot(Object? raw, ServerSession session) {
     inverterId: inverter == null ? null : _identity(inverter['inverterId']),
     inverterRevision: inverter == null ? null : _integer(inverter['revision']),
     reservePercent: _percent(reserve['backupReservePercent']),
+    reserveRevision: _integer(reserve['revision']),
+    capacityWh: capacity,
     stateOfChargePercent: (soc * 100 / capacity).round().clamp(0, 100),
     solarEnergyWh: solar.fold(0, (sum, value) => sum + value),
     consumptionEnergyWh: load.fold(0, (sum, value) => sum + value),
@@ -744,7 +767,6 @@ EnergyReservePreview _decodeReservePreview(
       value['inverterId'] != snapshot.inverterId ||
       value['inverterRevision'] != snapshot.inverterRevision ||
       value['batteryId'] != snapshot.batteryId ||
-      value['batteryRevision'] != snapshot.batteryRevision ||
       value['batteryProviderRevision'] != snapshot.batteryProviderRevision ||
       value['inputDigest'] != snapshot.inputDigest ||
       value['targetReservePercent'] != snapshot.reservePercent) {
@@ -760,7 +782,7 @@ EnergyReservePreview _decodeReservePreview(
     inverterId: snapshot.inverterId!,
     inverterRevision: snapshot.inverterRevision!,
     batteryId: snapshot.batteryId,
-    batteryRevision: snapshot.batteryRevision,
+    batteryRevision: _integer(value['batteryRevision']),
     batteryProviderRevision: snapshot.batteryProviderRevision,
     targetReservePercent: snapshot.reservePercent,
     confirmationToken: _digest(value['confirmationToken']),
@@ -792,6 +814,232 @@ EnergyReserveResult _decodeReserveResult(
     targetReservePercent: preview.targetReservePercent,
     observedReservePercent: observed == null ? null : _percent(observed),
     bindingRevision: _integer(value['bindingRevision']),
+  );
+}
+
+EnergyReserveBacktest _decodeReserveBacktest(
+  Object? raw,
+  EnergyPrioritySnapshot snapshot,
+  ServerSession session,
+) {
+  final value = _object(raw, const {
+    'schemaVersion',
+    'analysisDigest',
+    'authority',
+    'serviceId',
+    'serviceRevision',
+    'batteryId',
+    'batteryRevision',
+    'batteryProviderRevision',
+    'reserveRevision',
+    'reservePercent',
+    'capacityWh',
+    'historyDigest',
+    'capturedAtMs',
+    'startsAtMs',
+    'endsAtMs',
+    'slotDurationSeconds',
+    'expectedSampleCount',
+    'sampleCount',
+    'missingSampleCount',
+    'belowReserveSampleCount',
+    'forecastRecordCount',
+    'minimumObservedSocPercent',
+    'observedStatus',
+    'sampleCoverage',
+    'forecastCoverage',
+    'manualPreference',
+    'historicalPreferenceCoverage',
+    'historicalCapacityCoverage',
+    'historicalReservePolicyCoverage',
+    'uncertaintyReasons',
+    'slots',
+  });
+  final authority = _object(value['authority'], const {
+    'schemaVersion',
+    'coreId',
+    'homeId',
+    'homeRevision',
+    'accountId',
+    'accountRevision',
+    'memberRevision',
+    'sessionFamilyId',
+    'role',
+    'active',
+    'canPlan',
+    'canControl',
+  });
+  final rawSlots = value['slots'];
+  final rawReasons = value['uncertaintyReasons'];
+  if (rawSlots is! List || rawSlots.length != 168 || rawReasons is! List) {
+    throw _invalid;
+  }
+  const allowedReasons = {
+    'missing_battery_history',
+    'partial_battery_history',
+    'multiple_battery_series',
+    'missing_forecast_history',
+    'partial_forecast_history',
+    'historical_preferences_unavailable',
+    'historical_capacity_unavailable',
+    'historical_reserve_policy_unavailable',
+    'current_manual_preference',
+  };
+  final decodedReasons = rawReasons.map(_text).toList(growable: false);
+  if (decodedReasons.isEmpty ||
+      decodedReasons.length > 9 ||
+      decodedReasons.toSet().length != decodedReasons.length ||
+      decodedReasons.any((reason) => !allowedReasons.contains(reason))) {
+    throw _invalid;
+  }
+  final slots = rawSlots
+      .map((rawSlot) {
+        final slot = _object(rawSlot, const {
+          'schemaVersion',
+          'startsAtMs',
+          'endsAtMs',
+          'observedSocPercent',
+          'forecastRecorded',
+          'status',
+        });
+        final observed = slot['observedSocPercent'];
+        final status = _text(slot['status']);
+        final startsAt = _instant(slot['startsAtMs']);
+        final endsAt = _instant(slot['endsAtMs']);
+        final percent = observed == null ? null : _decimalPercent(observed);
+        if (slot['schemaVersion'] != 1 ||
+            endsAt.difference(startsAt) != const Duration(hours: 1) ||
+            slot['forecastRecorded'] is! bool ||
+            !const {'above_or_equal', 'below', 'missing'}.contains(status) ||
+            (percent == null) != (status == 'missing') ||
+            percent != null &&
+                ((status == 'below') != (percent < snapshot.reservePercent))) {
+          throw _invalid;
+        }
+        return EnergyReserveBacktestSlot(
+          startsAt: startsAt,
+          endsAt: endsAt,
+          observedSocPercent: percent,
+          forecastRecorded: slot['forecastRecorded'] as bool,
+          status: status,
+        );
+      })
+      .toList(growable: false);
+  final startsAt = _instant(value['startsAtMs']);
+  final endsAt = _instant(value['endsAtMs']);
+  final capturedAt = _instant(value['capturedAtMs']);
+  final sampleCount = _boundedCount(value['sampleCount']);
+  final missingCount = _boundedCount(value['missingSampleCount']);
+  final belowCount = _boundedCount(value['belowReserveSampleCount']);
+  final forecastCount = _boundedCount(value['forecastRecordCount']);
+  final observed = slots
+      .map((slot) => slot.observedSocPercent)
+      .whereType<double>()
+      .toList(growable: false);
+  final minimum = value['minimumObservedSocPercent'] == null
+      ? null
+      : _decimalPercent(value['minimumObservedSocPercent']);
+  final observedStatus = switch (value['observedStatus']) {
+    'no_sample_below_reserve' =>
+      EnergyReserveBacktestStatus.noSampleBelowReserve,
+    'sample_below_reserve' => EnergyReserveBacktestStatus.sampleBelowReserve,
+    'uncertain' => EnergyReserveBacktestStatus.uncertain,
+    _ => throw _invalid,
+  };
+  final sampleCoverage = _coverage(value['sampleCoverage']);
+  final forecastCoverage = _coverage(value['forecastCoverage']);
+  final context = session.context!;
+  final observedMinimum = observed.isEmpty
+      ? null
+      : observed.reduce((left, right) => left < right ? left : right);
+  if (value['schemaVersion'] != 1 ||
+      authority['schemaVersion'] != 1 ||
+      authority['coreId'] != context.coreId ||
+      authority['homeId'] != context.homeId ||
+      authority['homeRevision'] != snapshot.homeRevision ||
+      authority['accountId'] != session.user.id ||
+      authority['accountRevision'] != snapshot.accountRevision ||
+      authority['sessionFamilyId'] != snapshot.sessionFamilyId ||
+      authority['active'] != true ||
+      authority['canPlan'] != true ||
+      value['batteryId'] != snapshot.batteryId ||
+      value['batteryRevision'] != snapshot.batteryRevision ||
+      value['batteryProviderRevision'] != snapshot.batteryProviderRevision ||
+      value['reserveRevision'] != snapshot.reserveRevision ||
+      value['reservePercent'] != snapshot.reservePercent ||
+      value['capacityWh'] != snapshot.capacityWh ||
+      value['slotDurationSeconds'] != 3600 ||
+      value['expectedSampleCount'] != 168 ||
+      value['historicalPreferenceCoverage'] != 'unavailable' ||
+      value['historicalCapacityCoverage'] != 'unavailable' ||
+      value['historicalReservePolicyCoverage'] != 'unavailable' ||
+      _integer(authority['memberRevision']) < 1 ||
+      authority['role'] != session.user.role.name ||
+      authority['canControl'] != snapshot.canControl ||
+      !const {
+        'none_current',
+        'active_current',
+        'expired_current',
+      }.contains(value['manualPreference']) ||
+      endsAt.difference(startsAt) != const Duration(hours: 168) ||
+      capturedAt.isBefore(endsAt) ||
+      !capturedAt.isBefore(endsAt.add(const Duration(hours: 1))) ||
+      slots.first.startsAt != startsAt ||
+      slots.last.endsAt != endsAt ||
+      slots.indexed.any(
+        (entry) =>
+            entry.$1 > 0 && entry.$2.startsAt != slots[entry.$1 - 1].endsAt,
+      ) ||
+      sampleCount + missingCount != 168 ||
+      observed.length != sampleCount ||
+      observed.where((percent) => percent < snapshot.reservePercent).length !=
+          belowCount ||
+      slots.where((slot) => slot.forecastRecorded).length != forecastCount ||
+      observedMinimum != minimum ||
+      sampleCoverage != _coverageFor(sampleCount) ||
+      forecastCoverage != _coverageFor(forecastCount) ||
+      (belowCount > 0
+              ? EnergyReserveBacktestStatus.sampleBelowReserve
+              : sampleCount == 168
+              ? EnergyReserveBacktestStatus.noSampleBelowReserve
+              : EnergyReserveBacktestStatus.uncertain) !=
+          observedStatus) {
+    throw _invalid;
+  }
+  return EnergyReserveBacktest(
+    analysisDigest: _digest(value['analysisDigest']),
+    historyDigest: _digest(value['historyDigest']),
+    coreId: snapshot.coreId,
+    homeId: snapshot.homeId,
+    accountId: snapshot.accountId,
+    sessionFamilyId: snapshot.sessionFamilyId,
+    homeRevision: snapshot.homeRevision,
+    accountRevision: snapshot.accountRevision,
+    serviceId: _identity(value['serviceId']),
+    serviceRevision: _integer(value['serviceRevision']),
+    batteryId: snapshot.batteryId,
+    batteryRevision: snapshot.batteryRevision,
+    batteryProviderRevision: snapshot.batteryProviderRevision,
+    reserveRevision: _integer(value['reserveRevision']),
+    reservePercent: snapshot.reservePercent,
+    capacityWh: _integer(value['capacityWh']),
+    capturedAt: capturedAt,
+    startsAt: startsAt,
+    endsAt: endsAt,
+    sampleCount: sampleCount,
+    missingSampleCount: missingCount,
+    belowReserveSampleCount: belowCount,
+    forecastRecordCount: forecastCount,
+    minimumObservedSocPercent: minimum,
+    observedStatus: observedStatus,
+    sampleCoverage: sampleCoverage,
+    forecastCoverage: forecastCoverage,
+    manualPreference: value['manualPreference'] as String,
+    historicalCapacityCoverage: value['historicalCapacityCoverage'] as String,
+    historicalReservePolicyCoverage:
+        value['historicalReservePolicyCoverage'] as String,
+    uncertaintyReasons: List.unmodifiable(decodedReasons),
+    slots: List.unmodifiable(slots),
   );
 }
 
@@ -831,6 +1079,29 @@ DateTime _instant(Object? value) => DateTime.fromMillisecondsSinceEpoch(
   _integer(value, zero: true),
   isUtc: true,
 );
+double _decimalPercent(Object? value) {
+  if (value is! num || !value.isFinite || value < 0 || value > 100) {
+    throw _invalid;
+  }
+  return value.toDouble();
+}
+
+int _boundedCount(Object? value) {
+  if (value is! int || value < 0 || value > 168) throw _invalid;
+  return value;
+}
+
+EnergyReserveHistoryCoverage _coverage(Object? value) => switch (value) {
+  'complete' => EnergyReserveHistoryCoverage.complete,
+  'partial' => EnergyReserveHistoryCoverage.partial,
+  'missing' => EnergyReserveHistoryCoverage.missing,
+  _ => throw _invalid,
+};
+EnergyReserveHistoryCoverage _coverageFor(int count) => count == 0
+    ? EnergyReserveHistoryCoverage.missing
+    : count == 168
+    ? EnergyReserveHistoryCoverage.complete
+    : EnergyReserveHistoryCoverage.partial;
 int _durationSeconds(Object? value) {
   final seconds = _integer(value);
   if (seconds < 300 || seconds > 3600) throw _invalid;

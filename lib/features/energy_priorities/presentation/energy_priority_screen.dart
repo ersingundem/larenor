@@ -44,6 +44,26 @@ final class _Text {
   String get setupNoSource => value.energyPrioritySetupNoSource;
   String get setupFailed => value.energyPrioritySetupFailed;
   String get setupRefresh => value.energyPrioritySetupRefresh;
+  String get backtestTitle => value.energyPriorityBacktestTitle;
+  String get backtestLoading => value.energyPriorityBacktestLoading;
+  String get backtestUnavailable => value.energyPriorityBacktestUnavailable;
+  String get backtestMultipleBatteries =>
+      value.energyPriorityBacktestMultipleBatteries;
+  String backtestBelow(int samples) =>
+      value.energyPriorityBacktestBelow(samples);
+  String backtestClear(int samples) =>
+      value.energyPriorityBacktestClear(samples);
+  String backtestUncertain(int samples) =>
+      value.energyPriorityBacktestUncertain(samples);
+  String backtestMinimum(String percent) =>
+      value.energyPriorityBacktestMinimum(percent);
+  String get backtestForecastComplete =>
+      value.energyPriorityBacktestForecastComplete;
+  String get backtestForecastPartial =>
+      value.energyPriorityBacktestForecastPartial;
+  String get backtestForecastMissing =>
+      value.energyPriorityBacktestForecastMissing;
+  String get backtestLimits => value.energyPriorityBacktestLimits;
 }
 
 class EnergyPriorityScreen extends StatefulWidget {
@@ -110,6 +130,8 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
             children: [
               _Status(controller: controller, text: text),
               if (snapshot != null) _Summary(snapshot: snapshot, text: text),
+              if (snapshot != null)
+                _ReserveBacktest(controller: controller, text: text),
               if (snapshot != null) _Timeline(snapshot: snapshot, text: text),
               if (snapshot != null && !snapshot.canControl)
                 Padding(
@@ -200,6 +222,71 @@ class _EnergyPriorityScreenState extends State<EnergyPriorityScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReserveBacktest extends StatelessWidget {
+  const _ReserveBacktest({required this.controller, required this.text});
+  final EnergyPriorityController controller;
+  final _Text text;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controller.reserveBacktest;
+    final status = value == null
+        ? controller.reserveBacktestBusy
+              ? text.backtestLoading
+              : text.backtestUnavailable
+        : value.uncertaintyReasons.contains('multiple_battery_series')
+        ? text.backtestMultipleBatteries
+        : switch (value.observedStatus) {
+            EnergyReserveBacktestStatus.sampleBelowReserve =>
+              text.backtestBelow(value.belowReserveSampleCount),
+            EnergyReserveBacktestStatus.noSampleBelowReserve =>
+              text.backtestClear(value.sampleCount),
+            EnergyReserveBacktestStatus.uncertain => text.backtestUncertain(
+              value.sampleCount,
+            ),
+          };
+    final forecast = value == null
+        ? null
+        : switch (value.forecastCoverage) {
+            EnergyReserveHistoryCoverage.complete =>
+              text.backtestForecastComplete,
+            EnergyReserveHistoryCoverage.partial =>
+              text.backtestForecastPartial,
+            EnergyReserveHistoryCoverage.missing =>
+              text.backtestForecastMissing,
+          };
+    return Padding(
+      key: const ValueKey('energy-reserve-backtest'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            text.backtestTitle,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(status),
+          if (value?.minimumObservedSocPercent != null)
+            Text(
+              text.backtestMinimum(
+                value!.minimumObservedSocPercent!.toStringAsFixed(1),
+              ),
+            ),
+          if (forecast != null) Text(forecast),
+          const SizedBox(height: 6),
+          Text(text.backtestLimits, style: const TextStyle(fontSize: 13)),
+          if (controller.reserveBacktestBusy)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: CupertinoActivityIndicator(),
+            ),
+        ],
+      ),
     );
   }
 }
