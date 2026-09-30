@@ -78,6 +78,7 @@ final class _Api implements LegacyRemoteManagementApi {
   var previewCalls = 0;
   var confirmCalls = 0;
   var readbackCalls = 0;
+  bool uncertain = false;
 
   @override
   Future<List<LegacyRemoteDevice>> list(LegacyRemoteAuthority authority) =>
@@ -120,8 +121,10 @@ final class _Api implements LegacyRemoteManagementApi {
   LegacyRemoteCommandResult _result(LegacyRemoteCommandPreview preview) =>
       LegacyRemoteCommandResult(
         preview: preview,
-        status: LegacyRemoteDispatchStatus.dispatched,
-        deliveryVerified: true,
+        status: uncertain
+            ? LegacyRemoteDispatchStatus.uncertain
+            : LegacyRemoteDispatchStatus.dispatched,
+        deliveryVerified: !uncertain,
         deviceStateVerified: false,
       );
 
@@ -224,6 +227,35 @@ final class _SourceApi implements LegacyRemoteSourceSetupApi {
 }
 
 void main() {
+  test(
+    'uncertain delivery and learning are visible and never auto-replayed',
+    () async {
+      final api = _Api()..uncertain = true;
+      final controller = LegacyRemoteManagementController(
+        api: api,
+        authority: _authority,
+        isCurrent: () => true,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      final device = controller.devices.single;
+      await controller.preview(device, _command);
+      api.lastPreview = controller.pendingPreview;
+      await controller.confirmPending();
+      expect(controller.state, LegacyRemoteManagementState.uncertain);
+      expect(controller.lastResult?.deliveryVerified, isFalse);
+      await controller.confirmPending();
+      expect(api.confirmCalls, 1);
+      expect(api.readbackCalls, 1);
+      await controller.load();
+      await controller.learn(
+        controller.devices.single,
+        LegacyRemoteCommandKey.powerToggle,
+      );
+      expect(controller.state, LegacyRemoteManagementState.uncertain);
+      expect(controller.lastLearning?.learningVerified, isFalse);
+    },
+  );
   test('late device list cannot clear a newer verified list', () async {
     final api = _Api();
     final controller = LegacyRemoteManagementController(
@@ -288,7 +320,7 @@ void main() {
   );
 
   testWidgets(
-    'normal Home Assistant source setup is bounded and hides unsupported learn',
+    'normal Home Assistant source setup and named IR learning are bounded',
     (tester) async {
       final api = _Api();
       final sourceApi = _SourceApi();
@@ -314,7 +346,7 @@ void main() {
             'legacy-remote-learn-55555555555555555555555555555555',
           ),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       await tester.tap(find.byKey(const ValueKey('legacy-remote-add-source')));
       await tester.pumpAndSettle();

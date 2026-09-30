@@ -10,6 +10,7 @@ enum LegacyRemoteManagementState {
   awaitingConfirmation,
   busy,
   verified,
+  uncertain,
   failed,
   stale,
 }
@@ -178,7 +179,7 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     try {
       final result = await api.confirm(authority, preview);
       if (_obsoleteOrStale(operation)) return;
-      if (!result.isExactFor(preview)) {
+      if (!_matchesResult(result, preview)) {
         pendingPreview = null;
         state = LegacyRemoteManagementState.failed;
         notifyListeners();
@@ -189,13 +190,17 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
         requestId: preview.requestId,
       );
       if (_obsoleteOrStale(operation)) return;
-      if (!readback.isExactFor(preview)) {
+      if (!_matchesResult(readback, preview) ||
+          readback.status != result.status ||
+          readback.deliveryVerified != result.deliveryVerified) {
         pendingPreview = null;
         state = LegacyRemoteManagementState.failed;
       } else {
         pendingPreview = null;
         lastResult = readback;
-        state = LegacyRemoteManagementState.verified;
+        state = readback.deliveryVerified
+            ? LegacyRemoteManagementState.verified
+            : LegacyRemoteManagementState.uncertain;
       }
     } catch (_) {
       if (_obsoleteOrStale(operation)) return;
@@ -227,9 +232,14 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     try {
       final result = await api.learn(authority, device: device, key: key);
       if (_obsoleteOrStale(operation)) return;
-      if (!result.verified ||
-          !identical(result.device, device) ||
-          result.key != key) {
+      if (!identical(result.device, device) ||
+          result.key != key ||
+          (!result.verified &&
+              !(result.status == LegacyRemoteLearningStatus.uncertain &&
+                  !result.learningVerified &&
+                  result.bindingId == null &&
+                  result.profileRevision == null &&
+                  result.codeSetRevision == null))) {
         state = LegacyRemoteManagementState.failed;
       } else {
         lastLearning = result;
@@ -244,7 +254,9 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
           _devices
             ..clear()
             ..addAll(refreshed);
-          state = LegacyRemoteManagementState.verified;
+          state = result.verified
+              ? LegacyRemoteManagementState.verified
+              : LegacyRemoteManagementState.uncertain;
         }
       }
     } catch (_) {
@@ -253,6 +265,16 @@ final class LegacyRemoteManagementController extends ChangeNotifier {
     }
     if (!_disposed) notifyListeners();
   }
+
+  bool _matchesResult(
+    LegacyRemoteCommandResult result,
+    LegacyRemoteCommandPreview preview,
+  ) =>
+      identical(result.preview, preview) &&
+      !result.deviceStateVerified &&
+      (result.status == LegacyRemoteDispatchStatus.dispatched
+          ? result.deliveryVerified
+          : !result.deliveryVerified);
 
   @override
   void dispose() {

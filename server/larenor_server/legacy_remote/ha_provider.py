@@ -50,6 +50,7 @@ TIMEOUT_SECONDS = 5.0
 _ENTITY = re.compile(r"remote\.[a-z0-9_]{1,249}\Z")
 _HA_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 _NAME = re.compile(r"[^\x00-\x1f\x7f]{1,128}\Z")
+_COMMAND_KEYS = {"power_toggle", "power_on", "power_off", "volume_up", "volume_down", "mute", "channel_up", "channel_down", "input_next", "menu", "back", "up", "down", "left", "right", "select", "play", "pause", "stop"}
 
 
 class HomeAssistantRemoteCommand(FrozenModel):
@@ -88,6 +89,24 @@ class HomeAssistantRemoteSourceRequest(FrozenModel):
         names = [item.commandName for item in self.commands]
         if len(keys) != len(set(keys)) or len(names) != len(set(names)):
             raise ValueError("duplicate_remote_command")
+        return self
+
+
+class HomeAssistantRemoteCommandsRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    expectedRevision: Revision
+    expectedConfigurationTag: str = Field(pattern=r"^[0-9a-f]{64}$")
+    upsert: list[HomeAssistantRemoteCommand] = Field(default_factory=list, max_length=19)
+    remove: list[str] = Field(default_factory=list, max_length=19)
+
+    @model_validator(mode="after")
+    def exact_patch(self):
+        keys = [item.key for item in self.upsert]
+        if (not keys and not self.remove or len(keys) != len(set(keys))
+                or len(self.remove) != len(set(self.remove))
+                or not set(self.remove) <= _COMMAND_KEYS
+                or set(keys) & set(self.remove)):
+            raise ValueError("invalid_remote_command_patch")
         return self
 
 
@@ -329,11 +348,12 @@ class HomeAssistantLegacyRemoteProvider:
             headers["Content-Type"] = "application/json"
         return headers
 
-    def _request(self, service, method, path, *, body=None, guard=None):
+    def _request(self, service, method, path, *, body=None, guard=None,
+                 timeout=TIMEOUT_SECONDS):
         transport = None
         try:
             transport = self._transport_factory(
-                service.base_url, timeout=TIMEOUT_SECONDS, max_bytes=MAX_BYTES
+                service.base_url, timeout=timeout, max_bytes=MAX_BYTES
             )
             response = transport.request(
                 method, path, headers=self._headers(service, body is not None),
@@ -399,10 +419,12 @@ class HomeAssistantLegacyRemoteProvider:
             raise ApiError("remote_provider_unavailable", 503) from None
 
     def _provenance(self, service, entity_id, guard=None):
+        current_guard = guard if callable(guard) else lambda: None
         try:
             client = self._websocket_factory(service)
             with client.session(
-                timeout=TIMEOUT_SECONDS, before_io=guard, after_io=guard
+                timeout=TIMEOUT_SECONDS, before_io=current_guard,
+                after_io=current_guard
             ) as session:
                 entities = session.list_entity_registry()
                 devices = session.list_device_registry()
@@ -460,10 +482,23 @@ class HomeAssistantLegacyRemoteProvider:
             service = self._resolve_connection(
                 connection, request.serviceId, request.expectedServiceRevision
             )
-        provenance = self._provenance(service, request.entityId)
-        state = self._state(service, request.entityId)
+        authority = self._authority(actor.id, actor.family_id)
+        def guard():
+            if self._authority(actor.id, actor.family_id) != authority:
+                raise ApiError("revision_conflict", 409)
+            with self._db.connection() as connection:
+                self._services._assert_admin(connection, actor)
+                current = self._store.get(source_id, connection)
+                revision = 0 if current is None else current["revision"]
+                if revision != request.expectedRevision or self._resolve_connection(
+                    connection, request.serviceId, request.expectedServiceRevision
+                ) != service:
+                    raise ApiError("revision_conflict", 409)
+        provenance = self._provenance(service, request.entityId, guard)
+        state = self._state(service, request.entityId, guard)
         if state["state"] != "on":
             raise ApiError("remote_provider_unverified", 409)
+        guard()
         with self._db.transaction() as connection:
             self._services._assert_admin(connection, actor)
             service = self._resolve_connection(
@@ -488,6 +523,38 @@ class HomeAssistantLegacyRemoteProvider:
             "revision": next_revision,
             "configurationTag": self._store.projection_tag(accepted),
         }
+
+    def update_commands(self, actor, core_id, home_id, source_id, raw):
+        if (core_id, home_id) != (self._context.coreId, self._context.homeId):
+            raise ApiError("not_found", 404)
+        patch = HomeAssistantRemoteCommandsRequest.model_validate(raw)
+        with self._db.connection() as connection:
+            connection.execute("BEGIN")
+            self._services._assert_admin(connection, actor)
+            current = self._store.get(source_id, connection)
+            if current is None:
+                raise ApiError("not_found", 404)
+            if (current["revision"] != patch.expectedRevision or not secrets.compare_digest(
+                    self._store.projection_tag(current), patch.expectedConfigurationTag)):
+                raise ApiError("revision_conflict", 409)
+            before = current["request"]
+        commands = {item.key: item for item in before.commands}
+        if not set(patch.remove) <= commands.keys():
+            raise ApiError("revision_conflict", 409)
+        for key in patch.remove:
+            del commands[key]
+        for item in patch.upsert:
+            commands[item.key] = item
+        try:
+            request = HomeAssistantRemoteSourceRequest.model_validate({
+                **before.model_dump(), "expectedRevision": current["revision"],
+                "commands": list(commands.values()),
+            })
+        except ValueError:
+            raise ApiError("invalid_request") from None
+        # Reuse the normal registry/state verification and atomic source CAS.
+        # Private learned names are preserved and never returned to the client.
+        return self.configure(actor, core_id, home_id, source_id, request)
 
     def sources(self, actor, core_id, home_id):
         if (core_id, home_id) != (self._context.coreId, self._context.homeId):
@@ -520,8 +587,15 @@ class HomeAssistantLegacyRemoteProvider:
             service = self._resolve_connection(
                 connection, request.serviceId, request.expectedServiceRevision
             )
-        provenance = self._provenance(service, request.entityId)
-        state = self._state(service, request.entityId)
+        def guard():
+            with self._db.connection() as connection:
+                if self._store.get(source_id, connection) != source or self._resolve_connection(
+                    connection, request.serviceId, request.expectedServiceRevision
+                ) != service:
+                    raise ApiError("revision_conflict", 409)
+        provenance = self._provenance(service, request.entityId, guard)
+        state = self._state(service, request.entityId, guard)
+        guard()
         with self._db.connection() as connection:
             connection.execute("BEGIN")
             after_source = self._store.get(source_id, connection)
@@ -685,3 +759,62 @@ class HomeAssistantLegacyRemoteProvider:
         current, _service, state = self._resolved(source["sourceId"])
         if current != source or state["state"] != "on":
             raise ApiError("revision_conflict", 409)
+
+    def learn(self, command):
+        """Request one existing named IR key; HA cannot attest stored bytes."""
+        found = self._source_for_device(command.deviceId)
+        if found is None:
+            raise ApiError("remote_provider_unverified", 409)
+        source, device, profile = found
+        configured = next((item for item in source["request"].commands
+                           if item.key == command.key), None)
+        if configured is None or (
+            command.providerId, command.providerRevision, command.bridgeId,
+            command.bridgeRevision, command.deviceRevision, command.profileId,
+            command.profileRevision, command.codeSetId, command.codeSetRevision
+        ) != (
+            device.providerId, device.providerRevision, device.bridgeId,
+            device.bridgeRevision, device.revision, profile.profileId,
+            profile.revision, profile.codeSetId, profile.codeSetRevision
+        ):
+            raise ApiError("revision_conflict", 409)
+        authority = RemoteAuthority(
+            schemaVersion=1, coreId=command.coreId, homeId=command.homeId,
+            homeRevision=command.homeRevision, accountId=command.accountId,
+            accountRevision=command.accountRevision,
+            memberRevision=command.memberRevision,
+            sessionFamilyId=command.sessionFamilyId, active=True,
+            canControlLegacyRemote=True,
+        )
+        self._guard_emit(authority, source)
+        current, service, state = self._resolved(source["sourceId"])
+        features = state["attributes"].get("supported_features")
+        if (current != source or type(features) is not int
+                or not 0 <= features < 2**31 or not features & 1):
+            raise ApiError("remote_learning_unavailable", 409)
+        # Even an ambiguous learn can overwrite HA's code. Advance the source
+        # revision before I/O so previously approved send previews are stale.
+        with self._db.transaction() as connection:
+            if self._store.get(source["sourceId"], connection) != source:
+                raise ApiError("revision_conflict", 409)
+            if source["revision"] >= 2**63 - 2:
+                raise ApiError("revision_conflict", 409)
+            self._store.put(source["sourceId"], source["revision"] + 1,
+                            source["request"], source["provenance"], connection)
+        attempted_source = self._store.get(source["sourceId"])
+        raw = self._request(
+            service, "POST", "/api/services/remote/learn_command",
+            body=json.dumps({
+                "entity_id": source["request"].entityId,
+                "device": source["request"].learnedDeviceName,
+                "command": configured.commandName,
+                "command_type": "ir", "alternative": False,
+            }, separators=(",", ":")).encode("ascii"),
+            guard=lambda: self._guard_emit(authority, attempted_source),
+        )
+        if self._json(raw) != []:
+            raise ApiError("remote_provider_unavailable", 503)
+        self._guard_emit(authority, attempted_source)
+        # Broadlink swallows hardware/storage failures and offers no public
+        # learned-code readback. Never fabricate a verified learning receipt.
+        raise ApiError("remote_learning_unverifiable", 503)

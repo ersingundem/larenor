@@ -50,9 +50,20 @@ abstract interface class LegacyRemoteSourceSetupApi {
   });
 }
 
+abstract interface class LegacyRemoteCommandEditorApi {
+  Future<LegacyRemoteSourceBinding> updateSourceCommands({
+    required LegacyRemoteSourceBinding source,
+    required Map<LegacyRemoteCommandKey, String> upsert,
+    required Set<LegacyRemoteCommandKey> remove,
+  });
+}
+
 /// Authenticated, route-owned bridge to the F56 Core HTTP contract.
 final class CoreLegacyRemoteManagementApi
-    implements LegacyRemoteManagementApi, LegacyRemoteSourceSetupApi {
+    implements
+        LegacyRemoteManagementApi,
+        LegacyRemoteSourceSetupApi,
+        LegacyRemoteCommandEditorApi {
   CoreLegacyRemoteManagementApi({
     required this.account,
     required this.routeId,
@@ -350,6 +361,83 @@ final class CoreLegacyRemoteManagementApi
       value.runes.length <= 128 &&
       !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
 
+  @override
+  Future<LegacyRemoteSourceBinding> updateSourceCommands({
+    required LegacyRemoteSourceBinding source,
+    required Map<LegacyRemoteCommandKey, String> upsert,
+    required Set<LegacyRemoteCommandKey> remove,
+  }) => _bound((api, session) async {
+    if ((upsert.isEmpty && remove.isEmpty) ||
+        upsert.keys.any(remove.contains) ||
+        !remove.every(source.commandKeys.contains) ||
+        upsert.values.any(
+          (name) =>
+              !_safeSourceText(name) || name.toLowerCase().startsWith('b64:'),
+        )) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final expectedKeys = {...source.commandKeys}
+      ..removeAll(remove)
+      ..addAll(upsert.keys);
+    if (expectedKeys.isEmpty) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final result = await api.request(
+      'PATCH',
+      '${_base(session.context!)}/sources/${source.sourceId}/commands',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'expectedRevision': source.revision,
+        'expectedConfigurationTag': source.configurationTag,
+        'upsert': [
+          for (final entry in upsert.entries)
+            {
+              'key': legacyRemoteCommandWire(entry.key),
+              'commandName': entry.value,
+              'maxRepeats': 1,
+            },
+        ],
+        'remove': remove.map(legacyRemoteCommandWire).toList(),
+      },
+    );
+    _check();
+    if (!_sameSession(session, session)) {
+      throw const LarenorServerException('cancelled');
+    }
+    final tag = result?['configurationTag'];
+    if (result?.length != 4 ||
+        result?['schemaVersion'] != 1 ||
+        result?['sourceId'] != source.sourceId ||
+        result?['revision'] != source.revision + 1 ||
+        tag is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(tag)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final persisted = _sourceList(
+      await api.request(
+        'GET',
+        '${_base(session.context!)}/sources',
+        token: session.accessToken,
+      ),
+    ).where((item) => item.sourceId == source.sourceId).toList();
+    if (persisted.length != 1) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final next = persisted.single;
+    if (next.revision != source.revision + 1 ||
+        next.configurationTag != tag ||
+        next.serviceId != source.serviceId ||
+        next.serviceRevision != source.serviceRevision ||
+        next.name != source.name ||
+        next.entityId != source.entityId ||
+        next.commandKeys.toSet().length != expectedKeys.length ||
+        !next.commandKeys.toSet().containsAll(expectedKeys)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return next;
+  });
+
   LegacyRemoteDevice _currentDevice(LegacyRemoteDevice device) {
     final catalog = _catalog;
     if (catalog == null || device.authority != catalog.authority) {
@@ -460,7 +548,8 @@ final class CoreLegacyRemoteManagementApi
       _envelope(response, 'result'),
       preview,
     );
-    _previews.remove(requestId);
+    // Keep the bounded original intent for repeat readback/confirmation. Core
+    // owns idempotency; the next preview evicts the oldest entry at the limit.
     return value;
   });
 

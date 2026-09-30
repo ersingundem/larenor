@@ -23,6 +23,7 @@ class RegistryClient:
     @contextmanager
     def session(self, *, timeout, before_io=None, after_io=None):
         assert timeout == 5.0
+        assert callable(before_io) and callable(after_io)
         if before_io is not None:
             before_io()
         yield self
@@ -72,12 +73,13 @@ class HaTransport:
                 "entity_id": ENTITY,
                 "state": "on",
                 "last_updated": "2026-09-30T12:00:00+00:00",
-                "attributes": {"friendly_name": "Living room remote"},
+                "attributes": {"friendly_name": "Living room remote", "supported_features": 3},
             }
         else:
-            assert (method, path) == (
-                "POST", "/api/services/remote/send_command"
-            )
+            assert method == "POST" and path in {
+                "/api/services/remote/send_command",
+                "/api/services/remote/learn_command",
+            }
             assert headers["Content-Type"] == "application/json"
             payload = []
         return ProbeResponse(
@@ -173,6 +175,66 @@ def _preview(client, pair, root, catalog):
     )
     assert response.status_code == 201, response.text
     return response.json()["preview"]
+
+
+def _learning_body(catalog):
+    device = catalog["items"][0]["device"]
+    profile = catalog["items"][0]["profile"]
+    return {
+        "schemaVersion": 1, "authority": catalog["authority"],
+        "requestId": "e" * 32, "deviceId": device["deviceId"],
+        "expectedDeviceRevision": device["revision"],
+        "providerId": device["providerId"], "expectedProviderRevision": device["providerRevision"],
+        "bridgeId": device["bridgeId"], "expectedBridgeRevision": device["bridgeRevision"],
+        "profileId": profile["profileId"], "expectedProfileRevision": profile["revision"],
+        "codeSetId": profile["codeSetId"], "expectedCodeSetRevision": profile["codeSetRevision"],
+        "commandKey": "power_toggle",
+    }
+
+
+def test_actual_ha_learning_invalidates_prior_previews_and_never_fabricates_ack(server):
+    HaTransport.reset()
+    app, client, pair, root, _ = _configure(server)
+    catalog = client.get(root, headers=auth(pair)).json()["catalog"]
+    preview = _preview(client, pair, root, catalog)
+    body = _learning_body(catalog)
+    learned = client.post(root + "/learnings", headers=auth(pair), json=body)
+    assert learned.status_code == 201, learned.text
+    assert learned.json()["learning"] == {
+        "schemaVersion": 1, "requestId": "e" * 32, "status": "uncertain",
+        "reason": "lost_ack", "learningVerified": False, "receipt": None,
+    }
+    assert client.post(root + "/learnings", headers=auth(pair), json=body).status_code == 409
+    recovered = client.get(root + "/learnings/" + "e" * 32, headers=auth(pair))
+    assert recovered.json() == learned.json()
+    stale_send = client.post(root + f"/previews/{REQUEST}/confirm", headers=auth(pair), json={
+        "schemaVersion": 1, "authority": catalog["authority"], "preview": preview,
+        "confirmationToken": preview["confirmationToken"],
+    })
+    assert stale_send.status_code == 409
+    assert app.state.core.legacy_remote_provider._store.get(SOURCE)["revision"] == 2
+    posts = [call for call in HaTransport.calls if call[0] == "POST"]
+    assert len(posts) == 1 and posts[0][1] == "/api/services/remote/learn_command"
+    assert json.loads(posts[0][3]) == {
+        "entity_id": ENTITY, "device": "television", "command": "power",
+        "command_type": "ir", "alternative": False,
+    }
+
+
+def test_ha_learning_capability_is_read_from_current_entity_before_effect(server):
+    HaTransport.reset()
+    app, client, pair, root, _ = _configure(server)
+    catalog = client.get(root, headers=auth(pair)).json()["catalog"]
+    before = app.state.core.legacy_remote_provider._state
+    def without_learning(*args, **kwargs):
+        state = before(*args, **kwargs)
+        state["attributes"]["supported_features"] = 0
+        return state
+    app.state.core.legacy_remote_provider._state = without_learning
+    result = client.post(root + "/learnings", headers=auth(pair), json=_learning_body(catalog))
+    assert result.status_code == 201 and not result.json()["learning"]["learningVerified"]
+    assert app.state.core.legacy_remote_provider._store.get(SOURCE)["revision"] == 1
+    assert not any(call[0] == "POST" for call in HaTransport.calls)
 
 
 def test_normal_broadlink_source_emits_once_but_truthfully_stays_uncertain(server):
@@ -286,6 +348,55 @@ def test_source_rejects_raw_codes_and_service_revision_drift(server):
     assert changed.status_code == 200, changed.text
     response = client.get(root, headers=auth(pair))
     assert response.status_code in {409, 503}
+
+
+def test_command_editor_preserves_private_names_and_rejects_stale_cas(server):
+    HaTransport.reset()
+    app, client, pair, root, _service_record = _configure(server)
+    source = client.get(root + "/sources", headers=auth(pair)).json()["sources"][0]
+    body = {"schemaVersion": 1, "expectedRevision": source["revision"],
+            "expectedConfigurationTag": source["configurationTag"],
+            "upsert": [{"key": "volume_up", "commandName": "louder", "maxRepeats": 1},
+                       {"key": "mute", "commandName": "quiet", "maxRepeats": 1}], "remove": []}
+    path = root + "/sources/" + SOURCE + "/commands"
+    saved = client.patch(path, headers=auth(pair), json=body)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["revision"] == 2
+    assert client.patch(path, headers=auth(pair), json=body).status_code == 409
+    projected = client.get(root + "/sources", headers=auth(pair))
+    assert set(projected.json()["sources"][0]["commandKeys"]) == {"power_toggle", "volume_up", "mute"}
+    assert all(secret not in projected.text for secret in ["television", "louder", "quiet", "commandName"])
+    stored = app.state.core.legacy_remote_provider._store.get(SOURCE)["request"]
+    assert stored.learnedDeviceName == "television"
+    assert {item.key: item.commandName for item in stored.commands} == {
+        "power_toggle": "power", "volume_up": "louder", "mute": "quiet"}
+    current = projected.json()["sources"][0]
+    removed = client.patch(path, headers=auth(pair), json={"schemaVersion": 1,
+        "expectedRevision": 2, "expectedConfigurationTag": current["configurationTag"],
+        "upsert": [], "remove": ["volume_up", "mute"]})
+    assert removed.status_code == 200, removed.text
+    latest = client.get(root + "/sources", headers=auth(pair)).json()["sources"][0]
+    empty = client.patch(path, headers=auth(pair), json={"schemaVersion": 1,
+        "expectedRevision": 3, "expectedConfigurationTag": latest["configurationTag"],
+        "upsert": [], "remove": ["power_toggle"]})
+    assert empty.status_code == 400
+    assert not any(call[0] == "POST" for call in HaTransport.calls)
+
+
+def test_command_editor_rejects_raw_signal_and_closed_body_before_io(server):
+    HaTransport.reset()
+    _app, client, pair, root, _service_record = _configure(server)
+    source = client.get(root + "/sources", headers=auth(pair)).json()["sources"][0]
+    body = {"schemaVersion": 1, "expectedRevision": source["revision"],
+        "expectedConfigurationTag": source["configurationTag"],
+        "upsert": [{"key": "play", "commandName": "b64:AA==", "maxRepeats": 1}], "remove": []}
+    count = len(HaTransport.calls)
+    path = root + "/sources/" + SOURCE + "/commands"
+    assert client.patch(path, headers=auth(pair), json=body).status_code == 400
+    body["upsert"][0]["commandName"] = "play"
+    body["url"] = "http://invalid.test/"
+    assert client.patch(path, headers=auth(pair), json=body).status_code == 400
+    assert len(HaTransport.calls) == count
 
 
 def test_service_authentication_retirement_closes_catalog_without_revision_change(

@@ -27,6 +27,11 @@ class LegacyRemoteHttpGateway:
             actor, core_id, home_id, source_id, raw
         )
 
+    def update_source_commands(self, actor, core_id, home_id, source_id, raw):
+        if not callable(getattr(self._source_provider, "update_commands", None)):
+            raise ApiError("remote_provider_unavailable", 503)
+        return self._source_provider.update_commands(actor, core_id, home_id, source_id, raw)
+
     def _catalog(self, actor, core_id, home_id):
         try:
             catalog = RemoteCatalog.model_validate(self._resolve_catalog(actor))

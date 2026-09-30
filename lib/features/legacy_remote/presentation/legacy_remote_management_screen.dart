@@ -10,6 +10,7 @@ import '../../../shared/widgets/settings_section.dart';
 import '../data/legacy_remote_management_api.dart';
 import '../data/legacy_remote_management_controller.dart';
 import '../domain/legacy_remote_models.dart';
+import 'legacy_remote_command_editor_screen.dart';
 
 final class _RemoteStrings {
   const _RemoteStrings._(this.tr);
@@ -56,14 +57,17 @@ final class _RemoteStrings {
   String get chooseKey => tr ? 'Öğrenilecek tuş' : 'Button to learn';
   String get learnTitle => tr ? 'Sinyali öğren?' : 'Learn this signal?';
   String learnBody(String command, String device) => tr
-      ? 'Orijinal kumandayı $device köprüsüne doğrultun. “$command” tuşuna bastıktan sonra Öğren ile başlatın. Bu işlem cihazın fiziksel durumunu değiştirmez veya doğrulamaz.'
-      : 'Point the original remote at the $device bridge. Press “$command”, then start Learn. This does not change or verify the appliance state.';
+      ? 'Öğren ile başlatın. Köprü ışığı yanıp söndüğünde orijinal kumandadaki “$command” tuşuna basın. Home Assistant öğrenilmiş kodu doğrulayan bir yanıt sunmaz; sonuç belirsiz kalabilir. Yeniden gönderim yapılmaz.'
+      : 'Start Learn, then press “$command” on the original remote when the bridge light blinks. Home Assistant cannot attest the stored code; the result may remain uncertain. No request is replayed.';
+  String get uncertain => tr
+      ? 'Sonuç belirsiz. İşlem otomatik tekrarlanmadı; Home Assistant ve cihazı kontrol edin.'
+      : 'Result uncertain. The request was not replayed; check Home Assistant and the device.';
   String get startLearning => tr ? 'Öğren' : 'Learn';
   String get setup => tr ? 'Kumanda kaynağı ekle' : 'Add remote source';
   String get setupTitle => tr ? 'Broadlink IR kaynağı' : 'Broadlink IR source';
   String get setupHint => tr
-      ? 'Home Assistant içinde önceden öğrenilmiş tek bir IR komutunu bağlar. Ham sinyal verisi Larenor’a kopyalanmaz.'
-      : 'Binds one IR command already learned in Home Assistant. Raw signal data is not copied into Larenor.';
+      ? 'Home Assistant içinde önceden öğrenilmiş IR komutlarını bağlar. Kaydettikten sonra kaynağın tüm tuşlarını düzenleyebilirsiniz. Ham sinyal verisi Larenor’a kopyalanmaz.'
+      : 'Binds IR commands already learned in Home Assistant. After saving, you can edit every button on the source. Raw signal data is not copied into Larenor.';
   String get sourceName => tr ? 'Kumanda adı' : 'Remote name';
   String get entityId => tr ? 'Remote varlık kimliği' : 'Remote entity ID';
   String get learnedDevice =>
@@ -253,7 +257,10 @@ class _LegacyRemoteManagementScreenState
       builder: (sheetContext) => CupertinoActionSheet(
         title: Text(strings.chooseKey),
         actions: [
-          for (final value in LegacyRemoteCommandKey.values)
+          for (final value
+              in device.providerType == LegacyRemoteProvider.homeAssistant
+                  ? device.commands.map((command) => command.key)
+                  : LegacyRemoteCommandKey.values)
             CupertinoActionSheetAction(
               key: ValueKey(
                 'legacy-remote-learn-${device.deviceId}-${value.name}',
@@ -318,6 +325,7 @@ class _LegacyRemoteManagementScreenState
             children: [
               _LiveStatus(controller: controller, strings: strings),
               if (controller.state == LegacyRemoteManagementState.failed ||
+                  controller.state == LegacyRemoteManagementState.uncertain ||
                   controller.state == LegacyRemoteManagementState.stale)
                 SettingsActionTile(
                   buttonKey: const ValueKey('legacy-remote-retry'),
@@ -360,7 +368,13 @@ class _LegacyRemoteManagementScreenState
                         child: _DeviceSection(
                           device: device,
                           strings: strings,
-                          enabled: controller.canAct && device.canDispatch,
+                          enabled:
+                              controller.canAct &&
+                              device.canDispatch &&
+                              (controller.state ==
+                                      LegacyRemoteManagementState.ready ||
+                                  controller.state ==
+                                      LegacyRemoteManagementState.verified),
                           onCommand: _request,
                           onLearn: _learn,
                         ),
@@ -392,6 +406,10 @@ class _LiveStatus extends StatelessWidget {
       LegacyRemoteManagementState.stale => (
         CupertinoIcons.lock_shield,
         strings.stale,
+      ),
+      LegacyRemoteManagementState.uncertain => (
+        CupertinoIcons.question_circle,
+        strings.uncertain,
       ),
       LegacyRemoteManagementState.verified
           when controller.lastLearning != null =>
@@ -499,7 +517,8 @@ class _DeviceSection extends StatelessWidget {
           ),
         ),
       ),
-      if (device.providerType == LegacyRemoteProvider.isolatedBridge)
+      if (device.providerType == LegacyRemoteProvider.isolatedBridge ||
+          device.providerType == LegacyRemoteProvider.homeAssistant)
         SettingsActionTile(
           buttonKey: ValueKey('legacy-remote-learn-${device.deviceId}'),
           title: Text(strings.learn),
@@ -545,6 +564,7 @@ class _LegacyRemoteSourceSetupScreenState
   List<LegacyRemoteSourceBinding> _sources = const [];
   LegacyRemoteSetupService? _service;
   LegacyRemoteCommandKey _key = LegacyRemoteCommandKey.powerToggle;
+  LegacyRemoteSourceBinding? _editing;
   bool _loading = true;
   bool _saving = false;
   bool _failed = false;
@@ -662,6 +682,26 @@ class _LegacyRemoteSourceSetupScreenState
   @override
   Widget build(BuildContext context) {
     final strings = _RemoteStrings.of(context);
+    final editing = _editing, api = widget.api;
+    if (editing != null && api is LegacyRemoteCommandEditorApi) {
+      return LegacyRemoteCommandEditorScreen(
+        api: api as LegacyRemoteCommandEditorApi,
+        source: editing,
+        commandLabel: strings.command,
+        onSaved: (source) {
+          if (mounted) {
+            setState(() {
+              _editing = source;
+              _sources = [
+                for (final item in _sources)
+                  item.sourceId == source.sourceId ? source : item,
+              ];
+            });
+          }
+        },
+        onCancel: () => setState(() => _editing = null),
+      );
+    }
     return ServiceRootScaffold(
       title: strings.setupTitle,
       slivers: [
@@ -739,9 +779,19 @@ class _LegacyRemoteSourceSetupScreenState
               header: Text(strings.savedSources),
               children: [
                 for (final source in _sources)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text('${source.name} · ${source.entityId}'),
+                  SettingsActionTile(
+                    buttonKey: ValueKey(
+                      'legacy-source-edit-${source.sourceId}',
+                    ),
+                    leading: const Icon(CupertinoIcons.square_grid_2x2),
+                    title: Text(source.name),
+                    additionalInfo: Text(
+                      '${source.commandKeys.length} · ${source.entityId}',
+                    ),
+                    onTap:
+                        widget.api is LegacyRemoteCommandEditorApi && !_saving
+                        ? () => setState(() => _editing = source)
+                        : null,
                   ),
               ],
             ),

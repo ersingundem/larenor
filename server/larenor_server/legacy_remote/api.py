@@ -9,7 +9,7 @@ from ..dependencies import require_admin
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
-from .ha_provider import HomeAssistantRemoteSourceRequest
+from .ha_provider import HomeAssistantRemoteSourceRequest, HomeAssistantRemoteCommandsRequest
 from .models import (RemoteConfirmRequest, RemoteLearningRequest,
                      RemotePreviewRequest)
 
@@ -62,6 +62,12 @@ def configure_source(
     return _gateway(request).configure_source(
         actor, core_id, home_id, source_id, body
     )
+
+
+@router.patch(ROOT + "/sources/{source_id}/commands")
+def update_commands(core_id: Identity, home_id: Identity, source_id: Identity,
+                    body: HomeAssistantRemoteCommandsRequest, actor: Admin, request: Request):
+    return _gateway(request).update_source_commands(actor, core_id, home_id, source_id, body)
 
 
 @router.post(ROOT + "/previews", status_code=201)

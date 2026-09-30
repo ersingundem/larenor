@@ -5025,7 +5025,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek authenticated HA Broadlink entity/device registry kaynağı, şifreli öğrenilmiş tuş eşleştirme ve inline admin kurulum yolu uygulandı. Exact source/service/session/provenance send guard, tek remote.send_command ve kalıcı attempted intent restart sonrası tekrar göndermez. HTTP200 fiziksel IR teslimi kanıtlamadığından sonuç uncertain/lost_ack kalır; öğrenme/ZHA sahte capability olarak sunulmaz. 14 Server ve gerçek route guard/source save readback dahil 16 Flutter geçti, analyze temiz; tam Client→normal Core→TCP registry/effect kabulü, tüm tuş editorü ve geniş CI açık."
+      "reason": "Gerçek HA Broadlink registry kaynağı, şifreli tuş eşleştirme, 19 tuş admin düzenleyicisi ve gerçek remote.learn_command IR isteği uygulandı. Kalıcı intent tekrar göndermez; öğrenme öncesi kaynak revizyonu eski previewları iptal eder. HA public API fiziksel teslim/öğrenilmiş kod kanıtı sunmadığından makbuzlar uncertain kalır. 18 Server, 19 Flutter ve gerçek Client→normal Core→TCP/WS send+learn kabulü geçti; analyze temiz. Geniş exact HEAD CI ve fiziksel IR kabulü açık. Kanıt: docs/testing/f56-broadlink-command-editor-2026-09-30.md."
     },
     {
       "id": "F57",
