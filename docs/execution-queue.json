@@ -5251,7 +5251,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek normal Core/OpenSSH iki yaşamında SSH/SFTP/tunnel, drift/logout retirement ve exact iki non-replayed komut geçti; üçüncü gerçek Core fazında DELETE/readback sonrası typed local cleanup hatası ve explicit exact namespace retry geçti, sunucu DELETE bir kez. Source/Core/home/account/family+public profile digest v2 kasası local/Core sahiplerini ayırır; local-only legacy migration korunur. Root son 24 Flutter, scoped analyze ve 5 workflow policy geçti. Bağlantı authority hatası EN/TR görünür. Exact HEAD Linux password/key/MFA/jump CI bekliyor; fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f63-normal-core-openssh-2026-09-30.md."
+      "reason": "Gerçek normal Core/OpenSSH iki yaşamında SSH/SFTP/tunnel, drift/logout retirement ve exact iki non-replayed komut geçti; üçüncü gerçek Core fazında DELETE/readback sonrası typed local cleanup hatası ve explicit exact namespace retry geçti, sunucu DELETE bir kez. Source/Core/home/account/family+public profile digest v2 kasası local/Core sahiplerini ayırır; local-only legacy migration korunur. Root son 24 Flutter, scoped analyze ve 5 workflow policy geçti. Bağlantı authority hatası EN/TR görünür. Exact HEAD Linux password/key/MFA/jump CI bekliyor; fiziksel Huawei/DeX MANUAL açık. Kanıt: docs/testing/f63-normal-core-openssh-2026-09-30.md. Exact b76558c4 Linux run 36765828318 MFAde sıfır-sorulu PAM roundunu reddeden gerçek protocol hatasını buldu; RFC4256 uyumlu visible confirmation/zero-response ve empty-answer düzeltmesi 43 focused Flutter/0 skip ve analyze ile geçti. Password/MFA/jump ayrı named gate; yeni exact Linux sonucu bekliyor, eski kırmızı kör tekrar yok."
     },
     {
       "id": "F62",

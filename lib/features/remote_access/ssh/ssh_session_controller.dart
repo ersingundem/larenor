@@ -410,9 +410,7 @@ class SshSessionController extends ChangeNotifier {
         answers.length != challenge.prompts.length ||
         answers.any(
           (value) =>
-              value.isEmpty ||
-              utf8.encode(value).length > 4096 ||
-              value.contains('\u0000'),
+              utf8.encode(value).length > 4096 || value.contains('\u0000'),
         )) {
       return;
     }

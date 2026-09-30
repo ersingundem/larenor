@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül exact SSH MFA CI hatasının dar düzeltmesi
+
+Exact b76558c4 / run 36765828318 owned Linux PAM akışında sıfır sorulu information roundunu reddeden gerçek Client hatasını buldu. RFC4256 izinli zero-response ve boş cevaplar bounded/host-trusted/visible confirmation yoluyla işlendi; 43 engine/controller/UI testi sıfır skip ile ve scoped analyze geçti. Parola, MFA ve jump ayrı named gerçek protokol kapılarına ayrıldı. F63 CI bekliyor kalır; yeni exact hosted sonuç henüz kabul edilmedi, sayaçlar değişmedi. [F63 kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).
+
 ### 30 Eylül K13 terminal kurulum sonucu kabulü
 
 PackageInstaller gönderimi artık yalnız pending gösterir. Exact nonce/session/package callbackinden sonra kurulu sürüm ve tek imza sertifikası PackageManagerdan doğrulanırsa confirmed olur. Commit attempt sonrası hata unknown kalır, restart ikinci gönderime izin vermez; geç exception terminal sonucu bozmaz. Root 68 Flutter ve Android20 focused kapısını geçti, scoped analyze temiz. K13 CI bekliyor tablosuna taşındı; fiziksel Device Owner/DPC/OEM kabulü MANUAL açık, sayaçlar değişmedi. [K13 kanıtı](testing/k13-managed-install-receipt-2026-09-30.md).

@@ -102,3 +102,28 @@ the exact-head `F63 SSH native acceptance` Linux job. The test and bounded fixtu
 are present, but this document does not claim that unexecuted Linux result.
 Physical Huawei/DeX keyboard and lifecycle behavior and real user-selected SSH
 servers remain manual gates. No household endpoint or credential was used.
+
+## Exact Linux MFA failure and standards repair
+
+[Run 36765828318](https://github.com/ersingundem/larenor/actions/runs/36765828318)
+at `b76558c4ee09b3f8e5fad4b274ac699576e71821` passed the encrypted-key,
+PTY/SFTP/tunnel paths but failed the combined password/MFA/jump case. The owned
+sshd diagnostic reached partial public-key success and keyboard-interactive PAM,
+then the Client closed before authentication completed. The production Client
+rejected zero-prompt informational rounds; the fixture also assumed every round
+contained exactly one prompt. This is a protocol defect, not a reason to repeat
+the same job unchanged.
+
+[RFC 4256 sections 3.2–3.4](https://www.rfc-editor.org/rfc/rfc4256#section-3.2)
+permit zero prompts, require a zero-response message in that case, and permit
+empty user responses. The Client now validates bounded name/instruction text,
+preserves the visible explicit-confirmation flow for informational rounds, and
+returns exactly the confirmed response count. Host trust, authority/currentness,
+length/control-character bounds and cancellation remain enforced. Empty answer
+strings are accepted only as user responses, without storage.
+
+Password, MFA and jump are now separate named real-protocol tests, so a failed
+phase cannot obscure the other paths. The PAM case requires one password prompt
+and at least one zero-prompt round. Root ran 43 focused engine/controller/UI tests
+with zero skips and scoped analyze with no issues. The new exact Linux result is
+still required; the local result does not establish password/PAM interoperability.

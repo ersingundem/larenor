@@ -128,6 +128,7 @@ class Engine extends SshEngine {
   SshHostPin presented = hostPin;
   SshJumpConnection? receivedJump;
   SshAuthChallenge? challenge;
+  List<String>? receivedAnswers;
   SshHop challengeHop = SshHop.target;
   @override
   Future<SshChannel> open(
@@ -157,6 +158,7 @@ class Engine extends SshEngine {
     if (challenge case final value?) {
       final answers = await answerChallenge(challengeHop, value);
       if (answers == null) throw const SshFailure('challenge_rejected');
+      receivedAnswers = List.of(answers);
     }
     if (!isCurrent()) throw const SshFailure('retired');
     return channel;
@@ -462,6 +464,65 @@ void main() {
       expect(c.pendingChallenge, isNull);
       c.cancel();
       await c.answerChallenge(['stale']);
+      expect(engine.channel.writes, isEmpty);
+    },
+  );
+  test(
+    'zero-prompt information remains visible until explicit confirmation',
+    () async {
+      store.pin = hostPin;
+      engine.challenge = const SshAuthChallenge(
+        name: 'Authentication information',
+        instruction: 'Password change confirmed',
+        prompts: [],
+      );
+      final opening = c.connect();
+      await tick();
+      expect(c.phase, SshSessionPhase.challenge);
+      expect(c.pendingChallenge!.instruction, 'Password change confirmed');
+      expect(engine.receivedAnswers, isNull);
+      await c.answerChallenge(['wrong-count']);
+      expect(c.phase, SshSessionPhase.challenge);
+      await c.answerChallenge([]);
+      await opening;
+      expect(c.phase, SshSessionPhase.connected);
+      expect(engine.receivedAnswers, isEmpty);
+    },
+  );
+  test(
+    'RFC interactive responses may be empty without storing an answer',
+    () async {
+      store.pin = hostPin;
+      engine.challenge = const SshAuthChallenge(
+        name: '',
+        instruction: '',
+        prompts: [SshAuthPrompt(text: 'Optional response:', echo: false)],
+      );
+      final opening = c.connect();
+      await tick();
+      await c.answerChallenge(['']);
+      await opening;
+      expect(c.phase, SshSessionPhase.connected);
+      expect(engine.receivedAnswers, ['']);
+      expect(c.pendingChallenge, isNull);
+    },
+  );
+  test(
+    'retiring a zero-prompt round never submits a late confirmation',
+    () async {
+      store.pin = hostPin;
+      engine.challenge = const SshAuthChallenge(
+        name: 'Notice',
+        instruction: '',
+        prompts: [],
+      );
+      final opening = c.connect();
+      await tick();
+      c.cancel();
+      await c.answerChallenge([]);
+      await opening;
+      expect(c.phase, SshSessionPhase.closed);
+      expect(engine.receivedAnswers, isNull);
       expect(engine.channel.writes, isEmpty);
     },
   );

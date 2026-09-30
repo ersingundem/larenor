@@ -142,6 +142,35 @@ void main() {
     expect(engine.channel.writes, isEmpty);
   });
   testWidgets(
+    'zero-prompt server notice is visible and explicitly acknowledged',
+    (t) async {
+      final ui = RemoteUi();
+      final engine = Engine()
+        ..challenge = const SshAuthChallenge(
+          name: 'Authentication information',
+          instruction: 'Password change confirmed',
+          prompts: [],
+        );
+      await setup(t, ui, engine);
+      await credentials(t);
+      await press(t, 'ssh-connect');
+      await press(t, 'ssh-trust');
+      expect(find.text('Authentication information'), findsOneWidget);
+      expect(find.text('Password change confirmed'), findsOneWidget);
+      expect(key('ssh-mfa-0'), findsNothing);
+      expect(key('ssh-line'), findsNothing);
+      expect(engine.receivedAnswers, isNull);
+      await press(t, 'ssh-mfa-submit');
+      expect(engine.receivedAnswers, isEmpty);
+      expect(key('ssh-line'), findsOneWidget);
+      expect(
+        ui.values.values.join(),
+        isNot(contains('Password change confirmed')),
+      );
+      expect(engine.channel.writes, isEmpty);
+    },
+  );
+  testWidgets(
     'cancel first trust stores no pin and never sends credentials as profile metadata',
     (t) async {
       final ui = RemoteUi();

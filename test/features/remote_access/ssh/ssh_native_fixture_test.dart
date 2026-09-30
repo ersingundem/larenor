@@ -138,7 +138,7 @@ void main() {
       : false;
 
   test(
-    'password, keyboard-interactive MFA and jump host are real protocol paths',
+    'password authentication opens the real protocol shell',
     () async {
       final passwordEngine = DartSshEngine();
       addTearDown(passwordEngine.close);
@@ -160,11 +160,19 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await passwordSubscription.cancel();
       expect(utf8.decode(passwordOutput.takeBytes()), contains('password-ok'));
+    },
+    skip: nativeSkip,
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 
+  test(
+    'keyboard-interactive MFA completes prompted and zero-prompt PAM rounds',
+    () async {
       final mfaEngine = DartSshEngine();
       addTearDown(mfaEngine.close);
-      var mfaChallenges = 0;
-      final mfaProfile = fixture.profileAt(fixture.mfaPort, 'MFA target');
+      var mfaPrompts = 0;
+      var mfaInformationRounds = 0;
+      final mfaProfile = fixture!.profileAt(fixture.mfaPort, 'MFA target');
       final mfaChannel = await mfaEngine.open(
         mfaProfile,
         fixture.credential(),
@@ -176,8 +184,12 @@ void main() {
         isCurrent: () => true,
         answerChallenge: (hop, challenge) async {
           expect(hop, SshHop.target);
+          if (challenge.prompts.isEmpty) {
+            mfaInformationRounds++;
+            return <String>[];
+          }
           expect(challenge.prompts, hasLength(1));
-          mfaChallenges++;
+          mfaPrompts++;
           return [fixture.password];
         },
       );
@@ -189,12 +201,20 @@ void main() {
       await mfaChannel.done.timeout(const Duration(seconds: 15));
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await mfaSubscription.cancel();
-      expect(mfaChallenges, 1);
+      expect(mfaPrompts, 1);
+      expect(mfaInformationRounds, greaterThanOrEqualTo(1));
       expect(utf8.decode(mfaOutput.takeBytes()), contains('mfa-ok'));
+    },
+    skip: nativeSkip,
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 
+  test(
+    'independent pinned jump and target open a real forwarded shell',
+    () async {
       final jumpEngine = DartSshEngine();
       addTearDown(jumpEngine.close);
-      final jumpProfile = fixture.profileAt(fixture.jumpPort, 'Jump host');
+      final jumpProfile = fixture!.profileAt(fixture.jumpPort, 'Jump host');
       final jumpChannel = await jumpEngine.open(
         fixture.profile,
         fixture.credential(),

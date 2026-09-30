@@ -218,9 +218,7 @@ class DartSshEngine implements SshEngine {
                     },
               onUserInfoRequest: (request) async {
                 _check(isCurrent);
-                if (!trusted ||
-                    request.prompts.isEmpty ||
-                    request.prompts.length > 4) {
+                if (!trusted || request.prompts.length > 4) {
                   throw const SshFailure('invalid_challenge');
                 }
                 String safe(String value) {
@@ -244,13 +242,15 @@ class DartSshEngine implements SshEngine {
                     ),
                   ),
                 );
+                // RFC 4256 also permits informational zero-prompt rounds. Keep
+                // them in the visible challenge flow and return exactly zero
+                // answers after confirmation, rather than failing PAM auth.
                 final answers = await answerChallenge(hop, challenge);
                 _check(isCurrent);
                 if (answers == null ||
                     answers.length != challenge.prompts.length ||
                     answers.any(
                       (value) =>
-                          value.isEmpty ||
                           utf8.encode(value).length > 4096 ||
                           value.contains('\u0000'),
                     )) {
