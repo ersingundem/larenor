@@ -73,7 +73,8 @@ class ServerMusicManagerController extends ChangeNotifier {
       account.isCurrent(_accountEpoch) &&
       account.initialized &&
       !account.working &&
-      account.session?.user.canAdminister == true;
+      account.session != null &&
+      account.session?.user.mustChangePassword == false;
 
   ServerMusicProviderBinding? get selectedProvider {
     final id = selectedProviderId;
@@ -196,10 +197,10 @@ class ServerMusicManagerController extends ChangeNotifier {
     _emit();
     try {
       await account.withSession((api, session) async {
-        final overview = await ServerMusicRetainedApi(
-          api,
-          session.accessToken,
-        ).read();
+        final retainedApi = ServerMusicRetainedApi(api, session.accessToken);
+        final overview = session.user.canAdminister
+            ? await retainedApi.read()
+            : await retainedApi.readAvailable();
         if (!valid()) return;
         final retained = overview.installations
             .where(

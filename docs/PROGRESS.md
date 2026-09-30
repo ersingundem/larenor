@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F28 ev üyesi müzik erişimi
+
+Ready ev üyeleri normal Core müzik akışını açıp doğrulayabilir, katalog arayıp oynatıcıyı kontrol edebilir; sağlayıcı kurulumu admin yetkisinde kalır. 35 Server, 24 Flutter, 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. [Kanıt ve açık host paket kapısı](testing/f28-member-music-access-2026-09-30.md). Host IPC paketi ve geniş exact HEAD CI bekliyor; sayaç değişmedi.
+
 ### 30 Eylül F07/F10 gerçek Home Assistant history kanıtı
 
 Alışkanlık ve tanılama Client’ları görünür, bağlı ev kaynağını seçer; Core gerçek entity registry ve history okur. Eksik baseline uydurulmaz, eski/client kaynaklı kanıt sentetik etiketlidir; tanılama otomatik repair effect uygulamaz. 13 Server ve 1 gerçek Flutter→normal Core→HA TCP/WS kabulü, odaklı Flutter/analyze geçti. [Kanıt](testing/f07-f10-ha-history-evidence-2026-09-30.md). Exact HEAD CI/geniş kabul açık; sayaç değişmedi.

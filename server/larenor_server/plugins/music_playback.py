@@ -204,7 +204,7 @@ class MusicPlaybackManagement:
             raise ApiError('music_playback_worker_unavailable', 503)
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self._assert_admin(connection, actor)
+            self._assert_user(connection, actor)
             authority = self._authority(
                 connection, body.installationId,
                 body.expectedInstallationRevision, body.expectedCoreRevision)
@@ -222,6 +222,7 @@ class MusicPlaybackManagement:
                 return False
             try:
                 with self.db.connection() as connection:
+                    self._assert_user(connection, actor)
                     self._authority(
                         connection, body.installationId,
                         body.expectedInstallationRevision,
@@ -245,7 +246,7 @@ class MusicPlaybackManagement:
         except Exception:
             raise ApiError('music_playback_worker_unavailable', 503) from None
         with self.db.transaction() as connection:
-            self._assert_admin(connection, actor)
+            self._assert_user(connection, actor)
             self._authority(connection, body.installationId,
                             body.expectedInstallationRevision,
                             body.expectedCoreRevision)

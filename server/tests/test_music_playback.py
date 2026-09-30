@@ -37,7 +37,9 @@ def provider_ready(server):
     app, client, _, _ = server
     pair, setup = create_setup(server)
     discovered = app.state.core.music_provider_setups.record_initial_discovery(
-        setup['id'], 1, external('spotify'))
+        setup['id'], 1, external('spotify').model_copy(update={
+            'expiresAt': int(app.state.core.settings.clock()) + 900,
+        }))
 
     class Provider:
         def execute_music_provider_setup(self, _action, *, deadline, gate):

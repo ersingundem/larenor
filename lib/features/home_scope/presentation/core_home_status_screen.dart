@@ -219,8 +219,7 @@ class CoreHomeStatusScreen extends ConsumerWidget {
                             if (current()) context.push('/media/party-dj');
                           },
                   ),
-                if (controller.account.context != null &&
-                    controller.account.session?.user.canAdminister == true)
+                if (controller.account.context != null)
                   SettingsActionTile(
                     key: const ValueKey('core-home-music-entry'),
                     buttonKey: const ValueKey('core-home-music-action'),

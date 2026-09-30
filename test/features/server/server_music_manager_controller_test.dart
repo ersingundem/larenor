@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:larenor/features/server/music_manager/data/server_music_manager_controller.dart';
 import 'package:larenor/features/server/music_manager/domain/server_music_manager_models.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'server_music_manager_test_support.dart';
 
@@ -26,6 +27,32 @@ void main() {
     expect(controller.verified, true);
     return controller;
   }
+
+  test(
+    'ready member uses available inventory and can verify and search',
+    () async {
+      final fixture = MusicManagerFixture(role: ServerRole.member);
+      final controller = await ready(fixture);
+      addTearDown(() {
+        controller.dispose();
+        fixture.account.dispose();
+      });
+      await controller.search('Result', current: () => true);
+      expect(controller.catalog?.items, isNotEmpty);
+      expect(
+        fixture.calls.any(
+          (request) => request.url.path.endsWith('/manager/available'),
+        ),
+        true,
+      );
+      expect(
+        fixture.calls.any(
+          (request) => request.url.path.endsWith('/music-assistant/retained'),
+        ),
+        false,
+      );
+    },
+  );
 
   test('stored, reachable and verified are separate evidence states', () async {
     final fixture = MusicManagerFixture();

@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/server/music_manager/presentation/server_music_manager_screen.dart';
 import 'package:larenor/features/media/music/domain/music_models.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,8 +22,9 @@ void main() {
     WidgetTester tester, {
     required String locale,
     required double width,
+    ServerRole role = ServerRole.admin,
   }) async {
-    final fixture = MusicManagerFixture();
+    final fixture = MusicManagerFixture(role: role);
     await fixture.account.initialize();
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = Size(width, 1000);
@@ -47,6 +49,53 @@ void main() {
     await tester.pumpAndSettle();
     return fixture;
   }
+
+  testWidgets('member can verify playback and sees no provider configuration', (
+    tester,
+  ) async {
+    final fixture = await mount(
+      tester,
+      locale: 'en',
+      width: 600,
+      role: ServerRole.member,
+    );
+    addTearDown(() {
+      fixture.account.dispose();
+      tester.view.reset();
+    });
+    final verify = find.byKey(const ValueKey('music-manager-verify'));
+    await tester.scrollUntilVisible(
+      verify,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(verify);
+    await tester.pumpAndSettle();
+    await tester.tap(verify);
+    await tester.pumpAndSettle();
+    expect(
+      fixture.calls.any((call) => call.url.path.endsWith('/manager/refresh')),
+      true,
+    );
+    expect(
+      find.byKey(const ValueKey('music-manager-provider-setup')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('music-manager-migrate-legacy')),
+      findsNothing,
+    );
+    final receiver = find.byKey(
+      const ValueKey('music-manager-receiver-homepod-living'),
+    );
+    await tester.scrollUntilVisible(
+      receiver,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(receiver, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final locale in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {

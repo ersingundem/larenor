@@ -41,10 +41,15 @@ class MusicRetainedStatusManagement:
         }
         return receipt, public['errorCode']
 
-    def read(self, actor):
+    def read(self, actor, *, member_view=False):
         with self.db.connection() as connection:
             connection.execute('BEGIN')
-            self.music_core._assert_admin(connection, actor)
+            if member_view:
+                self.music_core.auth.assert_current(connection, actor)
+                if actor.must_change_password:
+                    raise ApiError('password_change_required', 403)
+            else:
+                self.music_core._assert_admin(connection, actor)
             rows = connection.execute(
                 'SELECT * FROM media_installations ORDER BY sequence DESC '
                 'LIMIT 257').fetchall()
@@ -82,6 +87,8 @@ class MusicRetainedStatusManagement:
                     state, error = 'failed', 'provider_failed'
                 else:
                     state, error = 'partial', 'provider_not_ready'
+                if member_view and state != 'ready':
+                    continue
                 retained.append({
                     'installationId': row['id'],
                     'installationRevision': row['revision'],

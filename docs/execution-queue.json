@@ -3572,7 +3572,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kalıcı reserve/start/cancel/terminal journal, gerçek standalone provider ve systemd cgroup CPU/RAM/pids/runtime sınırı ile normal Core dispatcher bağlandı. 31 Server geçti, actual Linux gate macOS üzerinde 1 skip; 4 Flutter ve analyze temiz. Required server-test aggregate actual Ubuntu systemd cgroup gate geçmeden yeşil olmaz. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Linux exact HEAD CI ve geniş kabul açık; model inference/household donanım kabulü iddia edilmedi, sayaç artmadı."
+      "reason": "Kalıcı reserve/start/cancel/terminal journal, gerçek standalone provider ve systemd cgroup CPU/RAM/pids/runtime sınırı ile normal Core dispatcher bağlandı. 31 Server geçti, actual Linux gate macOS üzerinde 1 skip; 4 Flutter ve analyze temiz. Required server-test aggregate actual Ubuntu systemd cgroup gate geçmeden yeşil olmaz. docs/testing/f08-standalone-ai-runtime-2026-09-30.md. Linux exact HEAD CI ve geniş kabul açık; model inference/household donanım kabulü iddia edilmedi, sayaç artmadı. Normal Docker Core systemd erişimi ayrı host IPC bağlantısıyla tamamlanıyor; native test geçişi container composition kabulü değildir."
     },
     {
       "id": "F04",
@@ -3673,7 +3673,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Konuşarak otomasyon taslağı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3699,7 +3699,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION canlı denetimi: güvenli metin taslağı var; konuşarak giriş yok. Gerçek platform ses giriş yolu ve bounded intent parser kapsamı tamamlanacak."
+      "reason": "FINAL.FUNCTION içinde gerçek Android on-device speech giriş/geri okuma, foreground ve izin yaşam döngüsü geliştiriliyor; otomatik komut çalıştırma yok. Yerel model/provider ve platform kabulü geniş CI ile doğrulanacak."
     },
     {
       "id": "F09",
@@ -4186,7 +4186,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION: gerçek Ready kullanıcı music API yolu Client admin filtresiyle erişilemiyor; role uyumlu navigasyon ve paketlenmiş worker bağlaması gerekli."
+      "reason": "Ready ev üyesi Client navigasyonu, hazır kurulum görünümü ve manager refresh yetkisi düzeltildi. 35 Server, 24 Flutter ve 1 gerçek Flutter→normal Core→production HTTP runtime→TCP Music Assistant kabulü geçti; analyze temiz. docs/testing/f28-member-music-access-2026-09-30.md. Paketlenmiş host worker bağlaması ve geniş exact HEAD kabul/CI açık; sayaç artmadı."
     },
     {
       "id": "F29",

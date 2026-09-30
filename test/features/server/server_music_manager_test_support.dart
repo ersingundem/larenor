@@ -106,7 +106,9 @@ class MusicManagerFixture extends AdminFixture {
 
   Future<http.Response> response(http.Request request) async {
     final path = request.url.path;
-    if (request.method == 'GET' && path.endsWith('/music-assistant/retained')) {
+    if (request.method == 'GET' &&
+        (path.endsWith('/music-assistant/retained') ||
+            path.endsWith('/music-assistant/manager/available'))) {
       return json(retainedJson());
     }
     if (request.method == 'GET' &&

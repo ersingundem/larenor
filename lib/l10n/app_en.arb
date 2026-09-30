@@ -5141,5 +5141,6 @@
   "serverAiResourcesDispatching": "Starting in protected runtime",
   "serverAiResourcesCancelling": "Cancellation pending",
   "serverAiResourcesFailed": "Provider failed",
-  "serverAiResourcesUncertain": "Runtime status uncertain"
+  "serverAiResourcesUncertain": "Runtime status uncertain",
+  "serverMusicManagerSessionRequired": "Sign in to this Core and complete your password change to use the household music system."
 }

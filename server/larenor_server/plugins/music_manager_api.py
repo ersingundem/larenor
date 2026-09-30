@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 
 from ..admin.models import ObjectId
 from ..auth import Principal
-from ..dependencies import get_core, require_admin, require_ready_user
+from ..dependencies import get_core, require_ready_user
 from ..models import ErrorResponse
 from .music_playback_models import (
     MusicCatalogSearchResponse, MusicLongformCatalogResponse,
@@ -15,10 +15,10 @@ from .music_playback_models import (
     ReadMusicLongformRequest, RefreshMusicPlaybackRequest,
     SearchMusicCatalogRequest,
 )
+from .music_retained_status_models import MusicRetainedStatusResponse
 
 
 Core = Annotated[object, Depends(get_core)]
-Admin = Annotated[Principal, Depends(require_admin)]
 Ready = Annotated[Principal, Depends(require_ready_user)]
 router = APIRouter(
     prefix='/admin/media/music-assistant/manager',
@@ -27,9 +27,14 @@ router = APIRouter(
                for status in (400, 401, 403, 404, 409, 503)})
 
 
+@router.get('/available', response_model=MusicRetainedStatusResponse)
+def available(core: Core, actor: Ready):
+    return core.music_retained_status.read(actor, member_view=True)
+
+
 @router.post('/refresh', response_model=MusicManagerStateResponse)
 def refresh_manager(body: RefreshMusicPlaybackRequest, core: Core,
-                    actor: Admin):
+                    actor: Ready):
     core.music_playback.refresh(actor, body)
     return core.music_playback.manager(actor, body.installationId)
 

@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 6 | 0 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 6 | 1 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 4 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| — | Aktif iş yok | — | — |
+| F01 | Konuşarak otomasyon taslağı | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -38,27 +38,26 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
 | 1 | F18 | Elektrik kesintisinde düzenli kapanış | Başlanabilir | — |
-| 2 | F01 | Konuşarak otomasyon taslağı | Başlanabilir | — |
-| 3 | F09 | Görülebilir, süreli AI hafızası | Başlanabilir | — |
-| 4 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
-| 5 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
-| 6 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
-| 7 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
-| 8 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
-| 9 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
-| 10 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
-| 11 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
-| 12 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
-| 13 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
-| 14 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
-| 15 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
-| 16 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
-| 17 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
-| 18 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
-| 19 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
-| 20 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
-| 21 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
-| 22 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
+| 2 | F09 | Görülebilir, süreli AI hafızası | Başlanabilir | — |
+| 3 | F25 | Jenerik ve kapanış atlama | Başlanabilir | — |
+| 4 | F22 | Kendi televizyon kanalların | Başlanabilir | — |
+| 5 | F27 | Seyahat için çevrimdışı medya | Başlanabilir | — |
+| 6 | F28 | Sesli kitap ve podcast merkezi | Başlanabilir | — |
+| 7 | F29 | Parti DJ'i ve ortak şarkı oylaması | Başlanabilir | — |
+| 8 | F30 | Medya arşivi sağlık ve yer tasarrufu | Başlanabilir | — |
+| 9 | F35 | Ev belgeleri ve garanti hatırlatmaları | Başlanabilir | — |
+| 10 | F38 | Aile anıları ve fotoğraf araması | Başlanabilir | — |
+| 11 | F41 | Kamera kayıtlarında doğal dille arama | Başlanabilir | — |
+| 12 | F44 | Kameradan görsel sensörler | Başlanabilir | — |
+| 13 | F45 | Havlama ve gürültü olayları | Başlanabilir | — |
+| 14 | F47 | Güneş ve ev bataryası öncelikleri | Başlanabilir | — |
+| 15 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G02, G04, G06, G07, G08, G09 |
+| 16 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
+| 17 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
+| 18 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
+| 19 | FINAL.GALLERY | Son gerçek tablet ekranları ve görsel kabul | Bağımlılık bekliyor | FINAL.CI |
+| 20 | FINAL.README | Profesyonel README ve GitHub yayımlama doğrulaması | Bağımlılık bekliyor | FINAL.GALLERY |
+| 21 | CORE.WEB | Larenor Core üzerinde tam işlevli Apple tasarım ilkelerine uygun web arayüzü | Bağımlılık bekliyor | FINAL.README |
 
 Kullanıcı veya fiziksel kabul bekleyen tüm işler
 

@@ -6,6 +6,15 @@ class ServerMusicRetainedApi {
   final LarenorServerApi api;
   final String token;
 
+  Future<ServerMusicRetainedOverview> readAvailable() async =>
+      ServerMusicRetainedOverview.fromJson(
+        await api.request(
+          'GET',
+          '/admin/media/music-assistant/manager/available',
+          token: token,
+        ),
+      );
+
   Future<ServerMusicRetainedOverview> read() async =>
       ServerMusicRetainedOverview.fromJson(
         await api.request(

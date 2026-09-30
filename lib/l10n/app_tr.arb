@@ -4788,5 +4788,6 @@
   "serverAiResourcesDispatching": "Korunan çalışma ortamında başlatılıyor",
   "serverAiResourcesCancelling": "İptal bekleniyor",
   "serverAiResourcesFailed": "Sağlayıcı başarısız oldu",
-  "serverAiResourcesUncertain": "Çalışma durumu belirsiz"
+  "serverAiResourcesUncertain": "Çalışma durumu belirsiz",
+  "serverMusicManagerSessionRequired": "Ev müzik sistemini kullanmak için bu Core’da oturum açıp parola değişikliğini tamamla."
 }

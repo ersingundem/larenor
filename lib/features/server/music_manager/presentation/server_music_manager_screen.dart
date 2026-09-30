@@ -64,7 +64,8 @@ class _ServerMusicManagerScreenState
       _account.isCurrent(_accountEpoch) &&
       _account.initialized &&
       !_account.working &&
-      _account.session?.user.canAdminister == true &&
+      _account.session != null &&
+      _account.session?.user.mustChangePassword == false &&
       (ModalRoute.of(context)?.isCurrent ?? true);
 
   @override
@@ -103,7 +104,8 @@ class _ServerMusicManagerScreenState
 
   void _accountChanged() {
     if (!_account.isCurrent(_accountEpoch) ||
-        _account.session?.user.canAdminister != true) {
+        _account.session == null ||
+        _account.session?.user.mustChangePassword != false) {
       _expire();
     }
   }
@@ -175,7 +177,12 @@ class _ServerMusicManagerScreenState
 
   Future<void> _manageProviders(ServerMusicManager manager) async {
     final current = _capture();
-    if (!current() || !_controller.verified || _controller.busy) return;
+    if (!current() ||
+        !_controller.verified ||
+        _controller.busy ||
+        _account.session?.user.canAdminister != true) {
+      return;
+    }
     _openingProviderSetup = true;
     try {
       await Navigator.of(context).push<void>(
@@ -473,15 +480,16 @@ class _ServerMusicManagerScreenState
         SettingsSection(
           header: Text(l.serverMusicManagerProviders),
           children: [
-            SettingsActionTile(
-              buttonKey: const ValueKey('music-manager-provider-setup'),
-              leading: const Icon(CupertinoIcons.add_circled),
-              title: Text(l.serverMusicProviderSetupManage),
-              additionalInfo: Text(l.serverMusicProviderSetupManageHint),
-              onTap: _active && _controller.verified && !_controller.busy
-                  ? () => unawaited(_manageProviders(manager))
-                  : null,
-            ),
+            if (_account.session?.user.canAdminister == true)
+              SettingsActionTile(
+                buttonKey: const ValueKey('music-manager-provider-setup'),
+                leading: const Icon(CupertinoIcons.add_circled),
+                title: Text(l.serverMusicProviderSetupManage),
+                additionalInfo: Text(l.serverMusicProviderSetupManageHint),
+                onTap: _active && _controller.verified && !_controller.busy
+                    ? () => unawaited(_manageProviders(manager))
+                    : null,
+              ),
             for (final provider in manager.providers)
               SettingsActionTile(
                 buttonKey: ValueKey(
@@ -840,7 +848,9 @@ class _ServerMusicManagerScreenState
               ),
             ),
             if (!_active)
-              SliverFilledMessage(child: Text(l.serverMusicRetainedAdminOnly))
+              SliverFilledMessage(
+                child: Text(l.serverMusicManagerSessionRequired),
+              )
             else ...[
               ..._status(l),
               if (_controller.busy)
@@ -864,7 +874,8 @@ class _ServerMusicManagerScreenState
               if (manager != null) ...[
                 ..._providers(l, manager),
                 ..._receivers(l, manager),
-                ..._legacyMigration(l),
+                if (_account.session?.user.canAdminister == true)
+                  ..._legacyMigration(l),
                 if (_controller.verified) ..._longform(),
                 ..._catalog(l),
                 ..._controls(l),
