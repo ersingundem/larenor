@@ -36,6 +36,8 @@ final class _PresenceStrings {
       ? 'Kalibrasyon ve Core okuması doğrulandı.'
       : 'Calibration and Core readback verified.';
   String get retry => tr ? 'Tekrar dene' : 'Retry';
+  String get configureSource =>
+      tr ? 'Oda kaynağını yapılandır' : 'Configure room source';
   String get stored => tr ? 'Kayıtlı' : 'Stored';
   String get notStored => tr ? 'Kayıtlı değil' : 'Not stored';
   String get reachable => tr ? 'Kaynak erişilebilir' : 'Provider reachable';
@@ -57,6 +59,7 @@ final class _PresenceStrings {
         'uwb' => 'UWB',
         'ha_person' => 'Home Assistant person',
         'ha_device_tracker' => 'Home Assistant device tracker',
+        'ha_mqtt_room' => 'Home Assistant MQTT room',
         _ => value,
       },
     );
@@ -93,8 +96,15 @@ final class _PresenceStrings {
 }
 
 class RoomPresenceManagementScreen extends StatefulWidget {
-  const RoomPresenceManagementScreen({super.key, required this.controller});
+  const RoomPresenceManagementScreen({
+    super.key,
+    required this.controller,
+    this.setupLabel,
+    this.onSetup,
+  });
   final RoomPresenceManagementController controller;
+  final String? setupLabel;
+  final VoidCallback? onSetup;
 
   @override
   State<RoomPresenceManagementScreen> createState() =>
@@ -210,6 +220,15 @@ class _RoomPresenceManagementScreenState
             footer: Text(strings.safetyHint),
             children: [
               _LiveStatus(controller: controller, strings: strings),
+              if (widget.onSetup != null)
+                SettingsActionTile(
+                  buttonKey: const ValueKey('presence-configure-source'),
+                  title: Text(widget.setupLabel ?? strings.configureSource),
+                  leading: const Icon(
+                    CupertinoIcons.antenna_radiowaves_left_right,
+                  ),
+                  onTap: controller.canAct ? widget.onSetup : null,
+                ),
               if (controller.state == RoomPresenceManagementState.failed ||
                   controller.state == RoomPresenceManagementState.stale)
                 SettingsActionTile(

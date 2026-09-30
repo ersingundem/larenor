@@ -231,7 +231,7 @@ from .evcc import (
 from .epaper_snapshots.schema import migrate_epaper_snapshots
 from .epaper_snapshots.management import EpaperManagement
 from .room_presence.schema import migrate_room_presence
-from .room_presence.repository import RoomPresenceRepository
+from .room_presence.runtime import build_room_presence_runtime
 from .home_documents.schema import migrate_home_documents
 from .home_documents.repository import HomeDocumentRepository
 from .resource_reservations.schema import migrate_resource_reservations
@@ -896,10 +896,10 @@ class CoreServices:
             self.epaper = EpaperManagement(
                 self.db, self.auth, settings, key, self.context)
             self.epaper.validate_storage()
-            self.room_presence = RoomPresenceRepository(
-                self.db, self.auth, settings, key, self.context
+            self.room_presence = build_room_presence_runtime(
+                self.db, self.auth, settings, key, self.context,
+                lambda: self.services, self.home_resources,
             )
-            self.room_presence.validate_storage()
             self.resource_reservations = ResourceReservationService(
                 self.db, self.auth, settings, key, self.context)
             self.family_board = FamilyBoardService(

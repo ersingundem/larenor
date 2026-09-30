@@ -49,7 +49,9 @@ class PresenceDevice(FrozenModel):
 class PresenceSource(FrozenModel):
     schemaVersion: Literal[1]
     sourceId: Identity
-    sourceKind: Literal["ha_person", "ha_device_tracker", "ble", "uwb"]
+    sourceKind: Literal[
+        "ha_person", "ha_device_tracker", "ha_mqtt_room", "ble", "uwb"
+    ]
     sourceRevision: Revision
 
 
@@ -59,7 +61,9 @@ class PresenceCapability(FrozenModel):
     schemaVersion: Literal[1]
     capabilityRevision: Revision
     providerRevision: Revision
-    sourceKinds: list[Literal["ha_person", "ha_device_tracker", "ble", "uwb"]] = (
+    sourceKinds: list[Literal[
+        "ha_person", "ha_device_tracker", "ha_mqtt_room", "ble", "uwb"
+    ]] = (
         Field(min_length=1, max_length=4)
     )
     state: Literal["ready", "degraded", "stale", "unavailable"]
@@ -138,7 +142,9 @@ class PrivatePresenceSignal(FrozenModel):
     consentId: Identity
     consentRevision: Revision
     sourceId: Identity
-    sourceKind: Literal["ha_person", "ha_device_tracker", "ble", "uwb"]
+    sourceKind: Literal[
+        "ha_person", "ha_device_tracker", "ha_mqtt_room", "ble", "uwb"
+    ]
     sourceRevision: Revision
     observationRevision: Revision
     rawIdentifier: str = Field(min_length=1, max_length=160)

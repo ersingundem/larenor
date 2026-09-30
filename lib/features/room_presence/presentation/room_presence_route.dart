@@ -12,12 +12,20 @@ import '../../../core/window/window_policy_providers.dart';
 import '../../server/data/server_account_controller.dart';
 import '../data/room_presence_management_api.dart';
 import '../data/room_presence_management_controller.dart';
+import '../data/room_presence_source_api.dart';
 import 'room_presence_management_screen.dart';
+import 'room_presence_source_screen.dart';
+
+typedef RoomPresenceSourceApiFactory = RoomPresenceSourceApi Function(
+  ServerAccountController account,
+  bool Function() isCurrent,
+);
 
 final class RoomPresenceRoute extends ConsumerStatefulWidget {
-  const RoomPresenceRoute({super.key, this.apiFactory});
+  const RoomPresenceRoute({super.key, this.apiFactory, this.sourceApiFactory});
 
   final ServerApiFactory? apiFactory;
+  final RoomPresenceSourceApiFactory? sourceApiFactory;
 
   @override
   ConsumerState<RoomPresenceRoute> createState() => _RoomPresenceRouteState();
@@ -32,10 +40,11 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
   int? _generation, _homeEpoch, _viewId;
   int _operation = 0;
   bool _closed = false, _scheduled = false, _foreground = true, _focused = true;
-  bool _starting = false, _failed = false;
+  bool _starting = false, _failed = false, _showSetup = false;
   final String _routeId = _id();
   RoomPresenceAccountGateway? _gateway;
   RoomPresenceManagementController? _controller;
+  RoomPresenceSourceApi? _sourceApi;
 
   static String _id() {
     final random = Random.secure();
@@ -104,6 +113,25 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     }
   }
 
+  bool _sourceCurrent() {
+    if (!_showSetup || !_binding()) return false;
+    try {
+      final home = _home!, session = home.account.session;
+      return _foreground &&
+          _focused &&
+          _window() &&
+          _interaction?.active == true &&
+          home.source == HomeSource.verifiedCore &&
+          !home.busy &&
+          home.failure == null &&
+          session?.context != null &&
+          session!.user.mustChangePassword == false &&
+          session.user.canAdminister;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _changed() => _schedule();
 
   void _schedule() {
@@ -112,6 +140,15 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduled = false;
       if (!mounted) return;
+      if (_showSetup) {
+        if (!_sourceCurrent()) {
+          _sourceApi?.retire();
+          _sourceApi = null;
+          _showSetup = false;
+          setState(() {});
+        }
+        return;
+      }
       if (!_current()) {
         if (_controller != null || _gateway != null || _starting) {
           _disposeRuntime();
@@ -123,6 +160,32 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
         unawaited(_createRuntime());
       }
     });
+  }
+
+  void _setup() {
+    if (!_current() || _home?.account.session?.user.canAdminister != true) {
+      return;
+    }
+    _disposeRuntime();
+    _showSetup = true;
+    final factory = widget.sourceApiFactory;
+    _sourceApi = factory == null
+        ? AccountRoomPresenceSourceApi(
+            account: _home!.account,
+            isCurrent: _sourceCurrent,
+          )
+        : factory(_home!.account, _sourceCurrent);
+    setState(() {});
+  }
+
+  Future<void> _finishSetup() async {
+    _sourceApi?.retire();
+    _sourceApi = null;
+    if (!mounted) return;
+    _showSetup = false;
+    _failed = false;
+    setState(() {});
+    _schedule();
   }
 
   Future<void> _createRuntime() async {
@@ -175,6 +238,12 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     _starting = false;
   }
 
+  void _disposeSource() {
+    _sourceApi?.retire();
+    _sourceApi = null;
+    _showSetup = false;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -212,6 +281,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) _disposeSource();
     _changed();
   }
 
@@ -228,6 +298,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     _interaction?.removeListener(_changed);
     _home?.removeListener(_changed);
     _disposeRuntime();
+    _disposeSource();
     super.dispose();
   }
 
@@ -236,11 +307,27 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     ref.watch(homeSessionControllerProvider);
     ref.listen(windowPolicySnapshotProvider, (_, _) => _changed());
     _schedule();
+    final tr = Localizations.localeOf(context).languageCode == 'tr';
+    final sourceApi = _sourceApi;
+    if (_showSetup && sourceApi != null && _sourceCurrent()) {
+      return RoomPresenceSourceScreen(
+        api: sourceApi,
+        strings: tr ? RoomPresenceSetupStrings.tr : RoomPresenceSetupStrings.en,
+        onFinished: _finishSetup,
+      );
+    }
     final controller = _controller;
     if (controller != null && _current()) {
-      return RoomPresenceManagementScreen(controller: controller);
+      return RoomPresenceManagementScreen(
+        controller: controller,
+        setupLabel: tr
+            ? RoomPresenceSetupStrings.tr.action
+            : RoomPresenceSetupStrings.en.action,
+        onSetup: _home?.account.session?.user.canAdminister == true
+            ? _setup
+            : null,
+      );
     }
-    final tr = Localizations.localeOf(context).languageCode == 'tr';
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: Text(tr ? 'Oda varlığı' : 'Room presence'),

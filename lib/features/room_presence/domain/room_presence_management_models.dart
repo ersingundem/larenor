@@ -293,12 +293,13 @@ final class RoomPresenceEvidence {
         : PresenceProviderState.legacy;
     final sourceKinds = modern ? value['sourceKinds'] : const <Object?>[];
     if (sourceKinds is! List ||
-        sourceKinds.length > 4 ||
+        sourceKinds.length > 5 ||
         (modern && sourceKinds.isEmpty) ||
         sourceKinds.any(
           (item) => !const {
             'ha_person',
             'ha_device_tracker',
+            'ha_mqtt_room',
             'ble',
             'uwb',
           }.contains(item),

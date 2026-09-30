@@ -4,6 +4,7 @@ import json
 import secrets
 import sqlite3
 import threading
+from contextlib import contextmanager
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -286,9 +287,9 @@ class RoomPresenceRepository:
         with self.db.connection() as connection:
             self._state = self._read(connection)
 
-    def _persist(self, previous_revision):
+    def _write_state(self, connection, state, previous_revision):
         plain = json.dumps(
-            self._state,
+            state,
             ensure_ascii=False,
             allow_nan=False,
             sort_keys=True,
@@ -296,23 +297,26 @@ class RoomPresenceRepository:
         ).encode("utf-8")
         if len(plain) > MAX_STATE_BYTES:
             raise ApiError("revision_conflict", 409)
-        revision = self._state["revision"]
+        revision = state["revision"]
         nonce = secrets.token_bytes(12)
         ciphertext = self._cipher.encrypt(nonce, plain, self._aad(revision))
+        row = connection.execute(
+            "SELECT revision FROM room_presence_state WHERE singleton=1"
+        ).fetchone()
+        current = 0 if row is None else row["revision"]
+        if current != previous_revision:
+            raise ApiError("revision_conflict", 409)
+        connection.execute(
+            "INSERT INTO room_presence_state VALUES(1,?,?,?) "
+            "ON CONFLICT(singleton) DO UPDATE SET "
+            "revision=excluded.revision,nonce=excluded.nonce,"
+            "ciphertext=excluded.ciphertext",
+            (revision, nonce, ciphertext),
+        )
+
+    def _persist(self, previous_revision):
         with self.db.transaction() as connection:
-            row = connection.execute(
-                "SELECT revision FROM room_presence_state WHERE singleton=1"
-            ).fetchone()
-            current = 0 if row is None else row["revision"]
-            if current != previous_revision:
-                raise ApiError("revision_conflict", 409)
-            connection.execute(
-                "INSERT INTO room_presence_state VALUES(1,?,?,?) "
-                "ON CONFLICT(singleton) DO UPDATE SET "
-                "revision=excluded.revision,nonce=excluded.nonce,"
-                "ciphertext=excluded.ciphertext",
-                (revision, nonce, ciphertext),
-            )
+            self._write_state(connection, self._state, previous_revision)
 
     def _engine(self, policy):
         return RoomPresenceFusion(
@@ -449,6 +453,127 @@ class RoomPresenceRepository:
         ):
             raise StartupError("room_presence_storage_invalid") from None
 
+    def _registration_values(
+        self, raw_policy, *, device_name, room_names, provider_reachable
+    ):
+        policy = PresencePolicy.model_validate(raw_policy)
+        self._scope(policy.coreId, policy.homeId)
+        if type(provider_reachable) is not bool or not isinstance(room_names, dict):
+            raise ApiError("invalid_request")
+        try:
+            name = self._safe_label(device_name)
+            names = {
+                key: self._safe_label(value) for key, value in room_names.items()
+            }
+        except ValueError:
+            raise ApiError("invalid_request") from None
+        if set(names) != {room.roomId for room in policy.rooms}:
+            raise ApiError("invalid_request")
+        return policy, name, names
+
+    def _register_state(self, state, policy, name, names, provider_reachable):
+        if (
+            policy.device.deviceId not in state["devices"]
+            and len(state["devices"]) >= MAX_DEVICES
+        ):
+            raise ApiError("revision_conflict", 409)
+        revisions = {
+            PresencePolicy.model_validate(value["policy"]).homeRevision
+            for value in state["devices"].values()
+        }
+        if revisions and revisions != {policy.homeRevision}:
+            raise ApiError("revision_conflict", 409)
+        before = state["revision"]
+        estimate = PresenceEstimate(
+            schemaVersion=1,
+            estimateId=_digest(
+                {"deviceId": policy.device.deviceId, "registered": before + 1}
+            )[:32],
+            coreId=policy.coreId,
+            homeId=policy.homeId,
+            homeRevision=policy.homeRevision,
+            deviceId=policy.device.deviceId,
+            deviceRevision=policy.device.deviceRevision,
+            modelId=policy.device.modelId,
+            modelRevision=policy.device.modelRevision,
+            policyId=policy.policyId,
+            policyRevision=policy.policyRevision,
+            consentId=policy.device.consentId,
+            consentRevision=policy.device.consentRevision,
+            status="unknown",
+            roomId=None,
+            roomRevision=None,
+            confidencePermille=0,
+            observedAtMs=0,
+            sampleCount=0,
+            transitionRevision=0,
+            advisoryOnly=True,
+            grantsAccess=False,
+        )
+        engine = self._engine(policy)
+        state["devices"][policy.device.deviceId] = {
+            "policy": policy.model_dump(mode="json"),
+            "deviceName": name,
+            "roomNames": names,
+            "providerReachable": provider_reachable,
+            "capability": self._initial_capability(
+                policy, provider_reachable
+            ).model_dump(mode="json"),
+            "calibrationRevision": 1,
+            "estimate": estimate.model_dump(mode="json"),
+            "fusion": engine.snapshot_state(),
+        }
+        state["revision"] = before + 1
+        return before
+
+    @contextmanager
+    def provider_source_update(self):
+        """Serialize source and reduced-state writes without holding across I/O."""
+        with self._lock:
+            try:
+                yield
+            finally:
+                self._sync()
+
+    def register_provider_in_transaction(
+        self,
+        connection,
+        raw_policy,
+        *,
+        device_name,
+        room_names,
+        provider_reachable,
+    ):
+        policy, name, names = self._registration_values(
+            raw_policy,
+            device_name=device_name,
+            room_names=room_names,
+            provider_reachable=provider_reachable,
+        )
+        state = self._read(connection)
+        before = self._register_state(
+            state, policy, name, names, provider_reachable
+        )
+        self._write_state(connection, state, before)
+
+    def revoke_provider_in_transaction(self, connection, device_id):
+        state = self._read(connection)
+        if state["devices"].pop(device_id, None) is None:
+            raise ApiError("revision_conflict", 409)
+        state["previews"] = {
+            key: value
+            for key, value in state["previews"].items()
+            if value.get("deviceId") != device_id
+        }
+        state["receipts"] = {
+            key: value
+            for key, value in state["receipts"].items()
+            if value.get("deviceId") != device_id
+        }
+        before = state["revision"]
+        state["revision"] = before + 1
+        self._write_state(connection, state, before)
+
     def register_local(
         self,
         principal,
@@ -458,81 +583,30 @@ class RoomPresenceRepository:
         room_names,
         provider_reachable,
     ):
-        policy = PresencePolicy.model_validate(raw_policy)
-        self._scope(policy.coreId, policy.homeId)
         row = self._actor(principal)
         if row["role"] != "admin":
             raise ApiError("forbidden", 403)
-        if type(provider_reachable) is not bool or not isinstance(room_names, dict):
-            raise ApiError("invalid_request")
-        try:
-            name = self._safe_label(device_name)
-            names = {key: self._safe_label(value) for key, value in room_names.items()}
-        except ValueError:
-            raise ApiError("invalid_request") from None
-        if set(names) != {room.roomId for room in policy.rooms}:
-            raise ApiError("invalid_request")
+        policy, name, names = self._registration_values(
+            raw_policy,
+            device_name=device_name,
+            room_names=room_names,
+            provider_reachable=provider_reachable,
+        )
         with self._lock:
             self._sync()
-            if (
-                policy.device.deviceId not in self._state["devices"]
-                and len(self._state["devices"]) >= MAX_DEVICES
-            ):
-                raise ApiError("revision_conflict", 409)
-            revisions = {
-                PresencePolicy.model_validate(value["policy"]).homeRevision
-                for value in self._state["devices"].values()
-            }
-            if revisions and revisions != {policy.homeRevision}:
-                raise ApiError("revision_conflict", 409)
-            before = self._state["revision"]
-            estimate = PresenceEstimate(
-                schemaVersion=1,
-                estimateId=_digest(
-                    {"deviceId": policy.device.deviceId, "registered": before + 1}
-                )[:32],
-                coreId=policy.coreId,
-                homeId=policy.homeId,
-                homeRevision=policy.homeRevision,
-                deviceId=policy.device.deviceId,
-                deviceRevision=policy.device.deviceRevision,
-                modelId=policy.device.modelId,
-                modelRevision=policy.device.modelRevision,
-                policyId=policy.policyId,
-                policyRevision=policy.policyRevision,
-                consentId=policy.device.consentId,
-                consentRevision=policy.device.consentRevision,
-                status="unknown",
-                roomId=None,
-                roomRevision=None,
-                confidencePermille=0,
-                observedAtMs=0,
-                sampleCount=0,
-                transitionRevision=0,
-                advisoryOnly=True,
-                grantsAccess=False,
+            before = self._register_state(
+                self._state, policy, name, names, provider_reachable
             )
-            engine = self._engine(policy)
-            self._state["devices"][policy.device.deviceId] = {
-                "policy": policy.model_dump(mode="json"),
-                "deviceName": name,
-                "roomNames": names,
-                "providerReachable": provider_reachable,
-                "capability": self._initial_capability(
-                    policy, provider_reachable
-                ).model_dump(mode="json"),
-                "calibrationRevision": 1,
-                "estimate": estimate.model_dump(mode="json"),
-                "fusion": engine.snapshot_state(),
-            }
-            self._state["revision"] = before + 1
             try:
                 self._persist(before)
             except Exception:
                 self._sync()
                 raise
 
-    def fuse_local(self, principal, policy_id, raw_signals, *, now_ms):
+    def fuse_local(
+        self, principal, policy_id, raw_signals, *, now_ms,
+        idempotent_provider=False,
+    ):
         with self._lock:
             self._sync()
             row = self._actor(principal)
@@ -555,6 +629,20 @@ class RoomPresenceRepository:
             engine._resolve_authority = lambda account_id: (
                 authority if account_id == principal.id else None
             )
+            if idempotent_provider and len(raw_signals) == 1:
+                signal = PrivatePresenceSignal.model_validate(raw_signals[0])
+                source_key = _digest({
+                    "sourceId": signal.sourceId,
+                    "sourceKind": signal.sourceKind,
+                    "rawIdentifier": signal.rawIdentifier,
+                })
+                previous = engine.snapshot_state()[
+                    "observationCheckpoints"
+                ].get(source_key)
+                if previous == signal.observationRevision:
+                    return PresenceEstimate.model_validate(record["estimate"])
+                if previous is not None and previous > signal.observationRevision:
+                    raise ApiError("revision_conflict", 409)
             before = self._state["revision"]
             estimate = engine.fuse(authority, policy, raw_signals, nowMs=now_ms)
             signals = [PrivatePresenceSignal.model_validate(item) for item in raw_signals]
@@ -590,6 +678,47 @@ class RoomPresenceRepository:
                 self._sync()
                 raise
             return estimate
+
+    def set_provider_reachable(self, policy_id, reachable):
+        if type(reachable) is not bool:
+            raise ApiError("invalid_request")
+        with self._lock:
+            self._sync()
+            record = next((
+                value for value in self._state["devices"].values()
+                if value["policy"]["policyId"] == policy_id
+            ), None)
+            if record is None:
+                raise ApiError("not_found", 404)
+            policy = PresencePolicy.model_validate(record["policy"])
+            capability = self._capability(record, policy)
+            desired_state = (
+                "stale" if reachable and capability.lastObservationAtMs is None
+                else ("degraded" if reachable else "unavailable")
+            )
+            desired = capability.model_copy(update={
+                "state": desired_state,
+                "lastObservationAtMs": (
+                    capability.lastObservationAtMs if reachable else None
+                ),
+                "freshnessDeadlineMs": (
+                    capability.freshnessDeadlineMs if reachable else None
+                ),
+            })
+            if (
+                record["providerReachable"] == reachable
+                and capability == desired
+            ):
+                return
+            before = self._state["revision"]
+            record["providerReachable"] = reachable
+            record["capability"] = desired.model_dump(mode="json")
+            self._state["revision"] = before + 1
+            try:
+                self._persist(before)
+            except Exception:
+                self._sync()
+                raise
 
     def scope_authority(self, principal, core_id, home_id, raw_binding):
         self._scope(core_id, home_id)

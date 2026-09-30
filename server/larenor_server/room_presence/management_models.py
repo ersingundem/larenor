@@ -58,8 +58,10 @@ class PresenceDeviceView(FrozenModel):
     providerState: Literal["ready", "degraded", "stale", "unavailable"]
     capabilityRevision: Revision
     providerRevision: Revision
-    sourceKinds: list[Literal["ha_person", "ha_device_tracker", "ble", "uwb"]] = Field(
-        min_length=1, max_length=4
+    sourceKinds: list[Literal[
+        "ha_person", "ha_device_tracker", "ha_mqtt_room", "ble", "uwb"
+    ]] = Field(
+        min_length=1, max_length=5
     )
     lastObservationAtMs: int | None = Field(default=None, ge=0, le=2**63 - 1)
     freshnessDeadlineMs: int | None = Field(default=None, ge=0, le=2**63 - 1)
