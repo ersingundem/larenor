@@ -10,11 +10,12 @@ from .zigbee2mqtt_provider import Zigbee2MqttProvider
 
 
 class CoreMeshAuthoritySource:
-    def __init__(self, db, auth, context):
+    def __init__(self, db, auth, context, *, can_update=False):
         self._db = db
         self._auth = auth
         self._context = context
         self._local = threading.local()
+        self._can_update = can_update
 
     def _resolve(self, actor):
         with self._db.connection() as connection:
@@ -38,8 +39,7 @@ class CoreMeshAuthoritySource:
             role=row["role"],
             active=active,
             canObserveMesh=active and row["role"] == "admin",
-            # This provider deliberately advertises an empty signed catalog.
-            canUpdateMesh=False,
+            canUpdateMesh=active and row["role"] == "admin" and self._can_update,
         )
 
     def for_actor(self, actor):
@@ -60,7 +60,12 @@ class CoreMeshAuthoritySource:
 def build_core_zigbee2mqtt_provider(*, db, auth, context, master_key, observer):
     if not callable(getattr(observer, "observe", None)):
         raise ValueError("invalid_mesh_observer")
-    authority = CoreMeshAuthoritySource(db, auth, context)
+    managed_check = getattr(observer, "check_managed_ota", None)
+    managed_install = getattr(observer, "install_managed_ota", None)
+    managed = callable(managed_check) and callable(managed_install)
+    authority = CoreMeshAuthoritySource(
+        db, auth, context, can_update=managed
+    )
     return Zigbee2MqttProvider(
         core_id=context.coreId,
         home_id=context.homeId,
@@ -68,4 +73,6 @@ def build_core_zigbee2mqtt_provider(*, db, auth, context, master_key, observer):
         observe=observer.observe,
         authority_for_actor=authority.for_actor,
         authority_for_account=authority.for_account,
+        managed_ota_check=managed_check if managed else None,
+        managed_ota_install=managed_install if managed else None,
     )

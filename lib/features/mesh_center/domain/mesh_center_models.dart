@@ -436,3 +436,130 @@ final class MeshFirmwareUpdateResult {
       status == MeshUpdateStatus.confirmed &&
       readbackVerified;
 }
+
+@immutable
+final class MeshManagedOtaOffer {
+  const MeshManagedOtaOffer({
+    required this.offerId,
+    required this.deviceId,
+    required this.topologyRevision,
+    required this.providerRevision,
+    required this.deviceRevision,
+    required this.installedFileVersion,
+    required this.latestFileVersion,
+    required this.providerSourceDigest,
+    required this.checkedAt,
+    required this.expiresAt,
+    required this.releaseNotesAvailable,
+  });
+
+  final String offerId, deviceId, topologyRevision, providerRevision;
+  final String deviceRevision, providerSourceDigest;
+  final int installedFileVersion, latestFileVersion;
+  final DateTime checkedAt, expiresAt;
+  final bool releaseNotesAvailable;
+
+  bool isExactFor(
+    MeshCenterSnapshot snapshot,
+    MeshClientDevice device,
+    DateTime now,
+  ) =>
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(offerId) &&
+      deviceId == device.deviceId &&
+      topologyRevision == snapshot.topologyRevision &&
+      providerRevision == snapshot.topologyProviderRevision &&
+      providerRevision == device.providerRevision &&
+      deviceRevision == device.deviceRevision &&
+      installedFileVersion >= 0 &&
+      latestFileVersion > installedFileVersion &&
+      RegExp(r'^[0-9a-f]{64}$').hasMatch(providerSourceDigest) &&
+      !checkedAt.isAfter(now) &&
+      expiresAt.isAfter(now);
+
+  @override
+  String toString() => 'MeshManagedOtaOffer($offerId, source-redacted)';
+}
+
+@immutable
+final class MeshManagedOtaAvailability {
+  const MeshManagedOtaAvailability({
+    required this.snapshot,
+    required this.device,
+    required this.offer,
+  });
+  final MeshCenterSnapshot snapshot;
+  final MeshClientDevice device;
+  final MeshManagedOtaOffer offer;
+}
+
+@immutable
+final class MeshManagedOtaPreview {
+  const MeshManagedOtaPreview({
+    required this.authority,
+    required this.requestId,
+    required this.deviceId,
+    required this.topologyRevision,
+    required this.providerRevision,
+    required this.deviceRevision,
+    required this.offerId,
+    required this.installedFileVersion,
+    required this.latestFileVersion,
+    required this.providerSourceDigest,
+    required this.expiresAt,
+    required this.confirmationProof,
+  });
+  final MeshClientAuthority authority;
+  final String requestId, deviceId, topologyRevision, providerRevision;
+  final String deviceRevision, offerId, providerSourceDigest, confirmationProof;
+  final int installedFileVersion, latestFileVersion;
+  final DateTime expiresAt;
+
+  bool isExactFor(MeshManagedOtaAvailability availability, DateTime now) =>
+      authority == availability.snapshot.authority &&
+      RegExp(r'^[0-9a-f]{32}$').hasMatch(requestId) &&
+      deviceId == availability.device.deviceId &&
+      topologyRevision == availability.snapshot.topologyRevision &&
+      providerRevision == availability.snapshot.topologyProviderRevision &&
+      deviceRevision == availability.device.deviceRevision &&
+      offerId == availability.offer.offerId &&
+      installedFileVersion == availability.offer.installedFileVersion &&
+      latestFileVersion == availability.offer.latestFileVersion &&
+      providerSourceDigest == availability.offer.providerSourceDigest &&
+      expiresAt.isAfter(now) &&
+      RegExp(r'^[0-9a-f]{64}$').hasMatch(confirmationProof);
+
+  @override
+  String toString() => 'MeshManagedOtaPreview($requestId, proof-redacted)';
+}
+
+@immutable
+final class MeshManagedOtaResult {
+  const MeshManagedOtaResult({
+    required this.requestId,
+    required this.status,
+    required this.reason,
+    required this.readbackVerified,
+    required this.previousProviderRevision,
+    required this.providerRevision,
+    required this.installedFileVersion,
+    required this.completedAt,
+  });
+  final String requestId, reason;
+  final MeshUpdateStatus status;
+  final bool readbackVerified;
+  final String? previousProviderRevision, providerRevision;
+  final int? installedFileVersion;
+  final DateTime? completedAt;
+
+  bool isExactFor(MeshManagedOtaPreview preview) =>
+      requestId == preview.requestId &&
+      status == MeshUpdateStatus.confirmed &&
+      reason == 'installed' &&
+      readbackVerified &&
+      previousProviderRevision == preview.providerRevision &&
+      providerRevision != null &&
+      int.tryParse(providerRevision!) != null &&
+      int.parse(providerRevision!) > int.parse(preview.providerRevision) &&
+      installedFileVersion == preview.latestFileVersion &&
+      completedAt != null;
+}

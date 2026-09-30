@@ -10,6 +10,11 @@ from larenor_server.mesh_center import (
     Zigbee2MqttProvider,
     build_mesh_center_gateway,
 )
+from larenor_server.mesh_center.managed_ota_transport import (
+    ManagedOtaInstallEvidence,
+    ManagedOtaOfferEvidence,
+)
+from larenor_server.mesh_center.zigbee2mqtt_provider import _identity
 
 CORE = "1" * 32
 HOME = "2" * 32
@@ -177,6 +182,78 @@ def test_missing_firmware_version_remains_unknown_without_hiding_device():
     )
 
     assert topology.devices[0].firmwareVersion is None
+
+
+def test_provider_managed_ota_refreshes_exact_generation_before_and_after_io():
+    available = observation(
+        revision=12,
+        deviceStates={
+            "living_room/bulb": b'{"last_seen":1999,"update":{"state":"available","installed_version":5,"latest_version":10}}'
+        },
+    )
+    complete = observation(
+        revision=13,
+        deviceStates={
+            "living_room/bulb": b'{"last_seen":1999,"update":{"state":"idle","installed_version":10,"latest_version":10}}'
+        },
+    )
+    observations = iter((observation(), available, complete))
+    checks = []
+    installs = []
+    device_id = _identity("device", "0x90fd9ffffe6494fc")
+
+    def check(target, revision):
+        checks.append((target, revision))
+        return ManagedOtaOfferEvidence(
+            deviceId=target,
+            providerRevision=12,
+            installedFileVersion=5,
+            latestFileVersion=10,
+            sourceDigest="a" * 64,
+            checkedAtMs=2_000_000,
+            releaseNotesAvailable=False,
+        )
+
+    def install(target, revision, installed, latest):
+        installs.append((target, revision, installed, latest))
+        return ManagedOtaInstallEvidence(
+            deviceId=target,
+            previousProviderRevision=revision,
+            providerRevision=13,
+            fromFileVersion=installed,
+            toFileVersion=latest,
+            installedFileVersion=latest,
+            progressPercent=100,
+            completedAtMs=2_100_000,
+        )
+
+    adapter = Zigbee2MqttProvider(
+        core_id=CORE,
+        home_id=HOME,
+        master_key=b"z" * 32,
+        observe=lambda: next(observations),
+        authority_for_actor=lambda actor: authority(),
+        authority_for_account=lambda account_id: authority(),
+        managed_ota_check=check,
+        managed_ota_install=install,
+    )
+    adapter.snapshot(SimpleNamespace(id=ACCOUNT, family_id=FAMILY))
+
+    offer = adapter.check_managed_ota(device_id, 11)
+    assert offer.providerRevision == 12
+    assert adapter.topology(HOME).providerRevision == 12
+    readback = adapter.install_managed_ota(
+        SimpleNamespace(
+            deviceId=device_id,
+            providerRevision=12,
+            installedFileVersion=5,
+            latestFileVersion=10,
+        )
+    )
+    assert readback.providerRevision == 13
+    assert adapter.topology(HOME).providerRevision == 13
+    assert checks == [(device_id, 11)]
+    assert installs == [(device_id, 12, 5, 10)]
 
 
 @pytest.mark.parametrize(

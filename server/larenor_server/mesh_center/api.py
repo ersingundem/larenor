@@ -10,6 +10,11 @@ from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import MeshConfirmRequest, MeshPreviewRequest
+from .managed_ota import (
+    ManagedOtaCheckRequest,
+    ManagedOtaConfirmRequest,
+    ManagedOtaPreviewRequest,
+)
 
 Admin = Annotated[Principal, Depends(require_admin)]
 ROOT = "/admin/mesh-center/{core_id}/{home_id}"
@@ -79,3 +84,64 @@ def result(
     request: Request,
 ):
     return {"result": _gateway(request).result(actor, core_id, home_id, request_id)}
+
+
+@router.post(ROOT + "/managed-ota/checks")
+def managed_ota_check(
+    core_id: Identity,
+    home_id: Identity,
+    body: ManagedOtaCheckRequest,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "offer": _gateway(request).managed_ota_check(
+            actor, core_id, home_id, body
+        )
+    }
+
+
+@router.post(ROOT + "/managed-ota/previews", status_code=201)
+def managed_ota_preview(
+    core_id: Identity,
+    home_id: Identity,
+    body: ManagedOtaPreviewRequest,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "preview": _gateway(request).managed_ota_preview(
+            actor, core_id, home_id, body
+        )
+    }
+
+
+@router.post(ROOT + "/managed-ota/previews/{request_id}/confirm")
+def managed_ota_confirm(
+    core_id: Identity,
+    home_id: Identity,
+    request_id: Identity,
+    body: ManagedOtaConfirmRequest,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "result": _gateway(request).managed_ota_confirm(
+            actor, core_id, home_id, request_id, body
+        )
+    }
+
+
+@router.get(ROOT + "/managed-ota/results/{request_id}")
+def managed_ota_result(
+    core_id: Identity,
+    home_id: Identity,
+    request_id: Identity,
+    actor: Admin,
+    request: Request,
+):
+    return {
+        "result": _gateway(request).managed_ota_result(
+            actor, core_id, home_id, request_id
+        )
+    }

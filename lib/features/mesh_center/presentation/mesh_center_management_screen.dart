@@ -72,10 +72,16 @@ final class _MeshStrings {
 
   String update(String version) =>
       tr ? '$version sürümüne güncelle' : 'Update to $version';
+  String get checkUpdate =>
+      tr ? 'Firmware güncellemesini denetle' : 'Check firmware update';
   String get confirmTitle =>
       tr ? 'Firmware güncellensin mi?' : 'Update firmware?';
-  String confirmBody(MeshClientDevice device) => tr
-      ? '${device.name} yalnız doğrulanmış firmware ve mevcut ağ revizyonlarıyla güncellenecek. İşlem sonucu readback olmadan başarılı sayılmaz.'
+  String confirmBody(MeshClientDevice device, {required bool managed}) => tr
+      ? managed
+            ? '${device.name}, Zigbee2MQTT tarafından seçilen üretici firmware paketiyle güncellenecek. İşlem sonucu sürüm readback olmadan başarılı sayılmaz.'
+            : '${device.name} yalnız doğrulanmış firmware ve mevcut ağ revizyonlarıyla güncellenecek. İşlem sonucu readback olmadan başarılı sayılmaz.'
+      : managed
+      ? '${device.name} will use the manufacturer firmware selected by Zigbee2MQTT. Success requires exact version readback.'
       : '${device.name} will update only with verified firmware and the current network revisions. Success requires exact readback.';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Güncelle' : 'Update';
@@ -146,12 +152,18 @@ class _MeshCenterManagementScreenState
 
   Future<void> _requestUpdate(MeshClientDevice device) async {
     final epoch = _viewEpoch;
-    await widget.controller.previewUpdate(device);
+    if (device.update == null) {
+      await widget.controller.previewManagedUpdate(device);
+    } else {
+      await widget.controller.previewUpdate(device);
+    }
+    final managed = widget.controller.pendingManagedPreview;
     if (!mounted ||
         epoch != _viewEpoch ||
         widget.controller.state !=
             MeshCenterManagementState.awaitingConfirmation ||
-        widget.controller.pendingPreview?.deviceId != device.deviceId) {
+        (widget.controller.pendingPreview?.deviceId != device.deviceId &&
+            managed?.deviceId != device.deviceId)) {
       return;
     }
     final strings = _MeshStrings.of(context);
@@ -160,7 +172,7 @@ class _MeshCenterManagementScreenState
       barrierDismissible: false,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text(strings.confirmTitle),
-        content: Text(strings.confirmBody(device)),
+        content: Text(strings.confirmBody(device, managed: managed != null)),
         actions: [
           _DialogAction(
             label: strings.cancel,
@@ -242,7 +254,9 @@ class _MeshCenterManagementScreenState
                         child: _DeviceSection(
                           device: device,
                           strings: strings,
-                          enabled: controller.canUpdateDevice(device),
+                          enabled:
+                              controller.canUpdateDevice(device) ||
+                              controller.canCheckManagedUpdate(device),
                           onUpdate: () => _requestUpdate(device),
                         ),
                       ),
@@ -392,17 +406,21 @@ class _DeviceSection extends StatelessWidget {
             ),
           ),
         ),
-        if (offer != null)
+        if (offer != null || enabled)
           Semantics(
             key: ValueKey('mesh-update-${device.deviceId}'),
             button: true,
             enabled: enabled,
-            label: strings.update(offer.targetVersion),
+            label: offer == null
+                ? strings.checkUpdate
+                : strings.update(offer.targetVersion),
             onTap: enabled ? onUpdate : null,
             excludeSemantics: true,
             child: SettingsActionTile(
               title: _KeyboardLabel(
-                label: strings.update(offer.targetVersion),
+                label: offer == null
+                    ? strings.checkUpdate
+                    : strings.update(offer.targetVersion),
                 onActivate: enabled ? onUpdate : null,
               ),
               leading: const Icon(CupertinoIcons.arrow_down_circle),

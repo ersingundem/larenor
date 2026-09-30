@@ -149,6 +149,8 @@ class Zigbee2MqttProvider:
         observe: Callable[[], Zigbee2MqttObservation],
         authority_for_actor: Callable[[object], MeshAuthority],
         authority_for_account: Callable[[str], MeshAuthority | None],
+        managed_ota_check=None,
+        managed_ota_install=None,
     ):
         if (
             not re.fullmatch(r"[0-9a-f]{32}", core_id)
@@ -158,6 +160,7 @@ class Zigbee2MqttProvider:
             or not callable(observe)
             or not callable(authority_for_actor)
             or not callable(authority_for_account)
+            or (managed_ota_check is None) != (managed_ota_install is None)
         ):
             raise ValueError("invalid_zigbee2mqtt_provider")
         self._core_id = core_id
@@ -165,6 +168,8 @@ class Zigbee2MqttProvider:
         self._observe = observe
         self._authority_for_actor = authority_for_actor
         self._authority_for_account = authority_for_account
+        self._managed_ota_check = managed_ota_check
+        self._managed_ota_install = managed_ota_install
         seed = hmac.new(
             master_key, b"larenor:zigbee2mqtt:catalog-signing:v1", hashlib.sha256
         ).digest()
@@ -202,6 +207,43 @@ class Zigbee2MqttProvider:
         # No catalog entry is advertised without exact image bytes and digest.
         raise ApiError("firmware_update_unsupported", 409)
 
+    @property
+    def managed_ota_available(self):
+        return self._managed_ota_check is not None
+
+    def check_managed_ota(self, device_id, expected_provider_revision):
+        if self._managed_ota_check is None:
+            raise ApiError("firmware_update_unsupported", 409)
+        with self._lock:
+            current = self._topology
+        if current is None or current.providerRevision != expected_provider_revision:
+            raise ApiError("revision_conflict", 409)
+        evidence = self._managed_ota_check(device_id, expected_provider_revision)
+        observation = self._validate_observation(self._observe())
+        if observation.revision != evidence.providerRevision:
+            raise ApiError("revision_conflict", 409)
+        self._cache_observation(observation, current.homeRevision)
+        return evidence
+
+    def install_managed_ota(self, preview):
+        if self._managed_ota_install is None:
+            raise ApiError("firmware_update_unsupported", 409)
+        readback = self._managed_ota_install(
+            preview.deviceId,
+            preview.providerRevision,
+            preview.installedFileVersion,
+            preview.latestFileVersion,
+        )
+        observation = self._validate_observation(self._observe())
+        if observation.revision != readback.providerRevision:
+            raise ApiError("revision_conflict", 409)
+        with self._lock:
+            current = self._topology
+        if current is None:
+            raise ApiError("revision_conflict", 409)
+        self._cache_observation(observation, current.homeRevision)
+        return readback
+
     def snapshot(self, actor):
         authority = MeshAuthority.model_validate(self._authority_for_actor(actor))
         if (
@@ -212,7 +254,13 @@ class Zigbee2MqttProvider:
         ):
             raise ValueError("authority_scope_mismatch")
         observation = self._validate_observation(self._observe())
-        topology = self._topology_from(observation, authority)
+        topology, interference, catalog = self._cache_observation(
+            observation, authority.homeRevision
+        )
+        return authority, topology, interference, catalog, None
+
+    def _cache_observation(self, observation, home_revision):
+        topology = self._topology_from(observation, home_revision)
         interference = InterferenceSnapshot(
             schemaVersion=1,
             coreId=self._core_id,
@@ -244,7 +292,7 @@ class Zigbee2MqttProvider:
             self._topology = topology
             self._interference = interference
             self._catalog = catalog
-        return authority, topology, interference, catalog, None
+        return topology, interference, catalog
 
     @staticmethod
     def _validate_observation(raw) -> Zigbee2MqttObservation:
@@ -263,7 +311,7 @@ class Zigbee2MqttProvider:
             raise ValueError("invalid_observation")
         return raw
 
-    def _topology_from(self, observation, authority):
+    def _topology_from(self, observation, home_revision):
         state = _json(observation.bridgeState, 1_024)
         info = _json(observation.bridgeInfo, MAX_RETAINED_BYTES)
         devices = _json(observation.devices, MAX_RETAINED_BYTES)
@@ -378,7 +426,7 @@ class Zigbee2MqttProvider:
             schemaVersion=1,
             coreId=self._core_id,
             homeId=self._home_id,
-            homeRevision=authority.homeRevision,
+            homeRevision=home_revision,
             revision=observation.revision,
             providerRevision=observation.revision,
             capturedAtMs=observation.capturedAtMs,

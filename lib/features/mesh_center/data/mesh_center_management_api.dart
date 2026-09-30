@@ -26,8 +26,39 @@ abstract interface class MeshCenterManagementApi {
   });
 }
 
+abstract interface class ManagedOtaManagementApi {
+  Future<MeshManagedOtaAvailability> checkManagedOta(
+    MeshClientAuthority authority, {
+    required MeshCenterSnapshot snapshot,
+    required MeshClientDevice device,
+  });
+
+  Future<MeshManagedOtaPreview> previewManagedOta(
+    MeshClientAuthority authority,
+    MeshManagedOtaAvailability availability,
+  );
+
+  Future<MeshManagedOtaResult> confirmManagedOta(
+    MeshClientAuthority authority,
+    MeshManagedOtaPreview preview,
+  );
+
+  Future<MeshManagedOtaResult> readbackManagedOta(
+    MeshClientAuthority authority, {
+    required String requestId,
+  });
+
+  /// Polls only the durable result record after the one-shot confirm request.
+  /// It never repeats the Zigbee2MQTT update command.
+  Future<MeshManagedOtaResult> awaitManagedOtaResult(
+    MeshClientAuthority authority, {
+    required String requestId,
+  });
+}
+
 /// Authenticated, route-owned bridge to the F55 Core contract.
-final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
+final class CoreMeshCenterManagementApi
+    implements MeshCenterManagementApi, ManagedOtaManagementApi {
   CoreMeshCenterManagementApi({
     required this.account,
     required this.routeId,
@@ -35,7 +66,11 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     required this.routeRevision,
     required this.isCurrent,
     Random? random,
-  }) : _random = random ?? Random.secure();
+    DateTime Function()? clock,
+    Future<void> Function(Duration)? delay,
+  }) : _random = random ?? Random.secure(),
+       _clock = clock ?? DateTime.now,
+       _delay = delay ?? Future<void>.delayed;
 
   final ServerAccountController account;
   final String routeId;
@@ -43,6 +78,10 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
   final int routeRevision;
   final bool Function() isCurrent;
   final Random _random;
+  static const _managedOtaPollInterval = Duration(seconds: 5);
+  static const _managedOtaPollWindow = Duration(hours: 2, minutes: 2);
+  final DateTime Function() _clock;
+  final Future<void> Function(Duration) _delay;
   ServerSession? _session;
   MeshCenterSnapshot? _snapshot;
   Map<String, dynamic>? _topology;
@@ -50,6 +89,7 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
   bool _bootstrapPending = false;
   bool _retired = false;
   final Map<String, MeshFirmwareUpdatePreview> _previews = {};
+  final Map<String, MeshManagedOtaPreview> _managedPreviews = {};
 
   ServerSession? get boundSession => _session;
   MeshClientAuthority? get authority => _snapshot?.authority;
@@ -61,6 +101,7 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     _topology = null;
     _catalog = null;
     _previews.clear();
+    _managedPreviews.clear();
   }
 
   void _check() {
@@ -507,6 +548,164 @@ final class CoreMeshCenterManagementApi implements MeshCenterManagementApi {
     _previews.remove(requestId);
     return value;
   });
+
+  @override
+  Future<MeshManagedOtaAvailability> checkManagedOta(
+    MeshClientAuthority authority, {
+    required MeshCenterSnapshot snapshot,
+    required MeshClientDevice device,
+  }) => _bound((api, session) async {
+    if (!identical(_snapshot, snapshot) ||
+        snapshot.authority != authority ||
+        !snapshot.devices.any((value) => identical(value, device)) ||
+        _topology == null) {
+      throw const LarenorServerException('cancelled');
+    }
+    final response = await api.request(
+      'POST',
+      '${_base(session.context!)}/managed-ota/checks',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'authority': _authorityJson(authority),
+        'topology': _topology,
+        'deviceId': device.deviceId,
+      },
+    );
+    final offer = _managedOfferFromJson(
+      _envelope(response, 'offer'),
+      authority,
+    );
+    final refreshed = await _refresh(authority);
+    final matches = refreshed.devices
+        .where((value) => value.deviceId == device.deviceId)
+        .toList();
+    if (matches.length != 1 ||
+        !offer.isExactFor(refreshed, matches.single, DateTime.now())) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return MeshManagedOtaAvailability(
+      snapshot: refreshed,
+      device: matches.single,
+      offer: offer,
+    );
+  });
+
+  @override
+  Future<MeshManagedOtaPreview> previewManagedOta(
+    MeshClientAuthority authority,
+    MeshManagedOtaAvailability availability,
+  ) => _bound((api, session) async {
+    if (!identical(_snapshot, availability.snapshot) ||
+        availability.snapshot.authority != authority ||
+        !availability.snapshot.devices.any(
+          (value) => identical(value, availability.device),
+        ) ||
+        !availability.offer.isExactFor(
+          availability.snapshot,
+          availability.device,
+          DateTime.now(),
+        ) ||
+        _topology == null) {
+      throw const LarenorServerException('cancelled');
+    }
+    final requestId = _requestId();
+    final response = await api.request(
+      'POST',
+      '${_base(session.context!)}/managed-ota/previews',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'authority': _authorityJson(authority),
+        'topology': _topology,
+        'offer': _managedOfferJson(availability.offer, authority),
+        'requestId': requestId,
+      },
+    );
+    final preview = _managedPreviewFromJson(
+      _envelope(response, 'preview'),
+      authority,
+    );
+    if (preview.requestId != requestId ||
+        !preview.isExactFor(availability, DateTime.now())) {
+      throw const LarenorServerException('invalid_response');
+    }
+    if (_managedPreviews.length >= 16) {
+      _managedPreviews.remove(_managedPreviews.keys.first);
+    }
+    _managedPreviews[requestId] = preview;
+    return preview;
+  });
+
+  @override
+  Future<MeshManagedOtaResult> confirmManagedOta(
+    MeshClientAuthority authority,
+    MeshManagedOtaPreview preview,
+  ) => _bound((api, session) async {
+    if (_snapshot?.authority != authority ||
+        !identical(_managedPreviews[preview.requestId], preview)) {
+      throw const LarenorServerException('cancelled');
+    }
+    final response = await api.request(
+      'POST',
+      '${_base(session.context!)}/managed-ota/previews/${preview.requestId}/confirm',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'authority': _authorityJson(authority),
+        'preview': _managedPreviewJson(preview),
+        'confirmationToken': preview.confirmationProof,
+      },
+    );
+    return _managedResultFromJson(_envelope(response, 'result'), preview);
+  });
+
+  @override
+  Future<MeshManagedOtaResult> readbackManagedOta(
+    MeshClientAuthority authority, {
+    required String requestId,
+  }) => _bound((api, session) async {
+    final preview = _managedPreviews[requestId];
+    if (_snapshot?.authority != authority || preview == null) {
+      throw const LarenorServerException('cancelled');
+    }
+    final response = await api.request(
+      'GET',
+      '${_base(session.context!)}/managed-ota/results/$requestId',
+      token: session.accessToken,
+    );
+    final result = _managedResultFromJson(
+      _envelope(response, 'result'),
+      preview,
+    );
+    _managedPreviews.remove(requestId);
+    return result;
+  });
+
+  @override
+  Future<MeshManagedOtaResult> awaitManagedOtaResult(
+    MeshClientAuthority authority, {
+    required String requestId,
+  }) async {
+    final deadline = _clock().add(_managedOtaPollWindow);
+    while (true) {
+      try {
+        return await readbackManagedOta(authority, requestId: requestId);
+      } on LarenorServerException catch (error) {
+        if (error.code != 'mesh_update_in_progress' &&
+            error.code != 'conflict' &&
+            error.code != 'timeout' &&
+            error.code != 'connection_failed') {
+          rethrow;
+        }
+      }
+      _check();
+      if (!_clock().isBefore(deadline)) {
+        throw const LarenorServerException('timeout');
+      }
+      await _delay(_managedOtaPollInterval);
+    }
+  }
 }
 
 Map<String, dynamic> _authorityJson(MeshClientAuthority value) => {
@@ -629,6 +828,193 @@ MeshFirmwareUpdateResult _resultFromJson(
     status: status,
     readbackVerified: verified,
   );
+}
+
+MeshManagedOtaOffer _managedOfferFromJson(
+  Map<String, dynamic> value,
+  MeshClientAuthority authority,
+) {
+  _exact(value, const {
+    'schemaVersion',
+    'offerId',
+    'provider',
+    'coreId',
+    'homeId',
+    'deviceId',
+    'topologyRevision',
+    'providerRevision',
+    'deviceRevision',
+    'installedFileVersion',
+    'latestFileVersion',
+    'providerSourceDigest',
+    'checkedAtMs',
+    'expiresAtMs',
+    'releaseNotesAvailable',
+  });
+  if (_integer(value['schemaVersion'], min: 1, max: 1) != 1 ||
+      value['provider'] != 'zigbee2mqtt' ||
+      _identity(value['coreId']) != authority.coreId ||
+      _identity(value['homeId']) != authority.homeId) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return MeshManagedOtaOffer(
+    offerId: _identity(value['offerId']),
+    deviceId: _identity(value['deviceId']),
+    topologyRevision: '${_integer(value['topologyRevision'], min: 1)}',
+    providerRevision: '${_integer(value['providerRevision'], min: 1)}',
+    deviceRevision: '${_integer(value['deviceRevision'], min: 1)}',
+    installedFileVersion: _integer(
+      value['installedFileVersion'],
+      max: 0xffffffff,
+    ),
+    latestFileVersion: _integer(value['latestFileVersion'], max: 0xffffffff),
+    providerSourceDigest: _digest(value['providerSourceDigest']),
+    checkedAt: _time(value['checkedAtMs']),
+    expiresAt: _time(value['expiresAtMs']),
+    releaseNotesAvailable: _boolean(value['releaseNotesAvailable']),
+  );
+}
+
+Map<String, dynamic> _managedOfferJson(
+  MeshManagedOtaOffer value,
+  MeshClientAuthority authority,
+) => {
+  'schemaVersion': 1,
+  'offerId': value.offerId,
+  'provider': 'zigbee2mqtt',
+  'coreId': authority.coreId,
+  'homeId': authority.homeId,
+  'deviceId': value.deviceId,
+  'topologyRevision': int.parse(value.topologyRevision),
+  'providerRevision': int.parse(value.providerRevision),
+  'deviceRevision': int.parse(value.deviceRevision),
+  'installedFileVersion': value.installedFileVersion,
+  'latestFileVersion': value.latestFileVersion,
+  'providerSourceDigest': value.providerSourceDigest,
+  'checkedAtMs': value.checkedAt.millisecondsSinceEpoch,
+  'expiresAtMs': value.expiresAt.millisecondsSinceEpoch,
+  'releaseNotesAvailable': value.releaseNotesAvailable,
+};
+
+MeshManagedOtaPreview _managedPreviewFromJson(
+  Map<String, dynamic> value,
+  MeshClientAuthority authority,
+) {
+  _exact(value, const {
+    'schemaVersion',
+    'requestId',
+    'coreId',
+    'homeId',
+    'homeRevision',
+    'accountId',
+    'accountRevision',
+    'memberRevision',
+    'sessionFamilyId',
+    'deviceId',
+    'topologyRevision',
+    'providerRevision',
+    'deviceRevision',
+    'offerId',
+    'installedFileVersion',
+    'latestFileVersion',
+    'providerSourceDigest',
+    'expiresAtMs',
+    'confirmationToken',
+  });
+  if (_integer(value['schemaVersion'], min: 1, max: 1) != 1 ||
+      _identity(value['coreId']) != authority.coreId ||
+      _identity(value['homeId']) != authority.homeId ||
+      _integer(value['homeRevision']) != authority.homeRevision ||
+      _identity(value['accountId']) != authority.accountId ||
+      _integer(value['accountRevision']) != authority.accountRevision ||
+      _integer(value['memberRevision']) != authority.memberRevision ||
+      _identity(value['sessionFamilyId']) != authority.sessionFamilyId) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return MeshManagedOtaPreview(
+    authority: authority,
+    requestId: _identity(value['requestId']),
+    deviceId: _identity(value['deviceId']),
+    topologyRevision: '${_integer(value['topologyRevision'], min: 1)}',
+    providerRevision: '${_integer(value['providerRevision'], min: 1)}',
+    deviceRevision: '${_integer(value['deviceRevision'], min: 1)}',
+    offerId: _identity(value['offerId']),
+    installedFileVersion: _integer(
+      value['installedFileVersion'],
+      max: 0xffffffff,
+    ),
+    latestFileVersion: _integer(value['latestFileVersion'], max: 0xffffffff),
+    providerSourceDigest: _digest(value['providerSourceDigest']),
+    expiresAt: _time(value['expiresAtMs']),
+    confirmationProof: _digest(value['confirmationToken']),
+  );
+}
+
+Map<String, dynamic> _managedPreviewJson(MeshManagedOtaPreview value) => {
+  'schemaVersion': 1,
+  'requestId': value.requestId,
+  'coreId': value.authority.coreId,
+  'homeId': value.authority.homeId,
+  'homeRevision': value.authority.homeRevision,
+  'accountId': value.authority.accountId,
+  'accountRevision': value.authority.accountRevision,
+  'memberRevision': value.authority.memberRevision,
+  'sessionFamilyId': value.authority.sessionFamilyId,
+  'deviceId': value.deviceId,
+  'topologyRevision': int.parse(value.topologyRevision),
+  'providerRevision': int.parse(value.providerRevision),
+  'deviceRevision': int.parse(value.deviceRevision),
+  'offerId': value.offerId,
+  'installedFileVersion': value.installedFileVersion,
+  'latestFileVersion': value.latestFileVersion,
+  'providerSourceDigest': value.providerSourceDigest,
+  'expiresAtMs': value.expiresAt.millisecondsSinceEpoch,
+  'confirmationToken': value.confirmationProof,
+};
+
+MeshManagedOtaResult _managedResultFromJson(
+  Map<String, dynamic> value,
+  MeshManagedOtaPreview preview,
+) {
+  _exact(value, const {
+    'schemaVersion',
+    'requestId',
+    'status',
+    'reason',
+    'readbackVerified',
+    'previousProviderRevision',
+    'providerRevision',
+    'installedFileVersion',
+    'completedAtMs',
+  });
+  final status = switch (value['status']) {
+    'confirmed' => MeshUpdateStatus.confirmed,
+    'uncertain' => MeshUpdateStatus.uncertain,
+    _ => throw const LarenorServerException('invalid_response'),
+  };
+  final result = MeshManagedOtaResult(
+    requestId: _identity(value['requestId']),
+    status: status,
+    reason: _text(value['reason'], 32),
+    readbackVerified: _boolean(value['readbackVerified']),
+    previousProviderRevision: value['previousProviderRevision'] == null
+        ? null
+        : '${_integer(value['previousProviderRevision'], min: 1)}',
+    providerRevision: value['providerRevision'] == null
+        ? null
+        : '${_integer(value['providerRevision'], min: 1)}',
+    installedFileVersion: value['installedFileVersion'] == null
+        ? null
+        : _integer(value['installedFileVersion'], max: 0xffffffff),
+    completedAt: value['completedAtMs'] == null
+        ? null
+        : _time(value['completedAtMs']),
+  );
+  if (result.requestId != preview.requestId ||
+      (status == MeshUpdateStatus.confirmed) != result.readbackVerified) {
+    throw const LarenorServerException('invalid_response');
+  }
+  return result;
 }
 
 void _exact(Map<String, dynamic> value, Set<String> keys) {

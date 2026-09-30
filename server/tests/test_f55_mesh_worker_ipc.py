@@ -14,6 +14,10 @@ from larenor_server.mesh_center.worker_ipc import (
 )
 from larenor_server.mesh_center.worker_runtime import config_from_environment
 from larenor_server.mesh_center.zigbee2mqtt_provider import Zigbee2MqttObservation
+from larenor_server.mesh_center.managed_ota_transport import (
+    ManagedOtaInstallEvidence,
+    ManagedOtaOfferEvidence,
+)
 
 
 def observation():
@@ -37,6 +41,36 @@ class Observer:
         return observation()
 
 
+class ManagedOta:
+    def __init__(self):
+        self.calls = []
+
+    def check(self, device_id, revision, *, timeout):
+        self.calls.append(("check", device_id, revision, timeout))
+        return ManagedOtaOfferEvidence(
+            deviceId=device_id,
+            providerRevision=20,
+            installedFileVersion=5,
+            latestFileVersion=10,
+            sourceDigest="a" * 64,
+            checkedAtMs=2_000_000,
+            releaseNotesAvailable=True,
+        )
+
+    def install(self, device_id, revision, installed, latest, *, timeout):
+        self.calls.append(("install", device_id, revision, installed, latest, timeout))
+        return ManagedOtaInstallEvidence(
+            deviceId=device_id,
+            previousProviderRevision=revision,
+            providerRevision=revision + 1,
+            fromFileVersion=installed,
+            toFileVersion=latest,
+            installedFileVersion=latest,
+            progressPercent=100,
+            completedAtMs=2_100_000,
+        )
+
+
 def test_uid_private_worker_returns_only_bounded_observation():
     directory = Path(tempfile.mkdtemp(prefix="mesh-", dir="/tmp"))
     socket_path = directory / "mesh.sock"
@@ -54,6 +88,38 @@ def test_uid_private_worker_returns_only_bounded_observation():
     assert result == observation()
     assert 0 < observer.timeouts[0] <= 1
     assert not socket_path.exists()
+
+
+def test_uid_private_worker_exposes_only_bounded_managed_ota_contract():
+    directory = Path(tempfile.mkdtemp(prefix="mesh-", dir="/tmp"))
+    socket_path = directory / "mesh.sock"
+    managed = ManagedOta()
+    server = Zigbee2MqttWorkerServer(
+        socket_path, Observer(), managed_ota=managed
+    ).bind()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    device_id = "a" * 32
+    try:
+        client = Zigbee2MqttWorkerClient(socket_path)
+        offer = client.check_managed_ota(device_id, 19, timeout=1)
+        installed = client.install_managed_ota(device_id, 20, 5, 10, timeout=1)
+    finally:
+        server.close()
+        thread.join(timeout=1)
+        shutil.rmtree(directory)
+
+    assert offer.latestFileVersion == 10
+    assert installed.installedFileVersion == 10
+    assert managed.calls[0][:3] == ("check", device_id, 19)
+    assert managed.calls[1][:5] == ("install", device_id, 20, 5, 10)
+
+
+def test_managed_ota_client_rejects_untrusted_material_before_ipc(tmp_path):
+    client = Zigbee2MqttWorkerClient(tmp_path / "missing.sock")
+
+    with pytest.raises(MeshWorkerError, match="invalid_request"):
+        client.install_managed_ota("file:///tmp/image.bin", 20, 5, 10)
 
 
 @pytest.mark.parametrize(

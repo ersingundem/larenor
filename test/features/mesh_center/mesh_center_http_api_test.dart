@@ -246,6 +246,98 @@ Map<String, dynamic> _result(String requestId) => {
   },
 };
 
+Map<String, dynamic> get _managedTopology => {
+  ..._topology,
+  'revision': 22,
+  'providerRevision': 22,
+  'capturedAtMs': _now - 500,
+  'devices': [
+    {
+      ...(_topology['devices'] as List).single as Map<String, dynamic>,
+      'revision': 22,
+      'providerRevision': 22,
+      'routeRevision': 22,
+      'firmwareVersion': null,
+      'powerSource': 'battery',
+      'batteryPercent': 84,
+      'routeKnown': false,
+      'parentId': null,
+      'routeDepth': null,
+    },
+  ],
+};
+
+Map<String, dynamic> get _managedSnapshot => {
+  ..._snapshot,
+  'topology': _managedTopology,
+  'catalog': {
+    ..._catalog,
+    'revision': 22,
+    'providerRevision': 22,
+    'entries': [],
+  },
+  'interference': {..._interference, 'revision': 22, 'providerRevision': 22},
+  'health': {
+    ..._health,
+    'topologyRevision': 22,
+    'interferenceRevision': 22,
+    'interferenceAvailable': false,
+    'channelAdvisory': null,
+  },
+};
+
+Map<String, dynamic> get _managedOffer => {
+  'schemaVersion': 1,
+  'offerId': 'e' * 32,
+  'provider': 'zigbee2mqtt',
+  'coreId': core,
+  'homeId': home,
+  'deviceId': deviceId,
+  'topologyRevision': 22,
+  'providerRevision': 22,
+  'deviceRevision': 22,
+  'installedFileVersion': 5,
+  'latestFileVersion': 10,
+  'providerSourceDigest': 'f' * 64,
+  'checkedAtMs': _now - 200,
+  'expiresAtMs': _now + const Duration(minutes: 5).inMilliseconds,
+  'releaseNotesAvailable': true,
+};
+
+Map<String, dynamic> _managedPreview(String requestId) => {
+  'schemaVersion': 1,
+  'requestId': requestId,
+  'coreId': core,
+  'homeId': home,
+  'homeRevision': 3,
+  'accountId': accountId,
+  'accountRevision': 5,
+  'memberRevision': 7,
+  'sessionFamilyId': family,
+  'deviceId': deviceId,
+  'topologyRevision': 22,
+  'providerRevision': 22,
+  'deviceRevision': 22,
+  'offerId': 'e' * 32,
+  'installedFileVersion': 5,
+  'latestFileVersion': 10,
+  'providerSourceDigest': 'f' * 64,
+  'expiresAtMs': _now + const Duration(minutes: 2).inMilliseconds,
+  'confirmationToken': 'a' * 64,
+};
+
+Map<String, dynamic> _managedResult(String requestId) => {
+  'schemaVersion': 1,
+  'requestId': requestId,
+  'status': 'confirmed',
+  'reason': 'installed',
+  'readbackVerified': true,
+  'previousProviderRevision': 22,
+  'providerRevision': 23,
+  'installedFileVersion': 10,
+  'completedAtMs': _now,
+};
+
 Future<ServerAccountController> _account(
   Future<http.Response> Function(http.Request) handler,
 ) async {
@@ -264,6 +356,105 @@ Future<ServerAccountController> _account(
 }
 
 void main() {
+  test(
+    'HTTP adapter completes provider-managed OTA without firmware input',
+    () async {
+      var checked = false;
+      var requestId = '';
+      var resultReads = 0;
+      final requests = <http.Request>[];
+      final account = await _account((request) async {
+        requests.add(request);
+        if (request.url.path.endsWith('/auth/login')) {
+          return _json({
+            'accessToken': 'a' * 43,
+            'refreshToken': 'b' * 43,
+            'expiresIn': 3600,
+            'user': {
+              'id': accountId,
+              'username': 'admin',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/admin/mesh-center/$core/$home')) {
+          return _json({'snapshot': checked ? _managedSnapshot : _snapshot});
+        }
+        if (request.url.path.endsWith('/managed-ota/checks')) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body.keys, containsAll(['authority', 'topology', 'deviceId']));
+          expect(body.containsKey('url'), isFalse);
+          expect(body.containsKey('image'), isFalse);
+          checked = true;
+          return _json({'offer': _managedOffer});
+        }
+        if (request.url.path.endsWith('/managed-ota/previews')) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          requestId = body['requestId'] as String;
+          expect((body['offer'] as Map).containsKey('url'), isFalse);
+          return _json({'preview': _managedPreview(requestId)}, 201);
+        }
+        if (request.method == 'POST' && request.url.path.endsWith('/confirm')) {
+          return _json({'result': _managedResult(requestId)});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/managed-ota/results/$requestId')) {
+          resultReads++;
+          if (resultReads == 1) {
+            return _json({
+              'error': {'code': 'mesh_update_in_progress'},
+            }, 409);
+          }
+          return _json({'result': _managedResult(requestId)});
+        }
+        throw StateError(
+          'unexpected route ${request.method} ${request.url.path}',
+        );
+      });
+      addTearDown(account.dispose);
+      final api = CoreMeshCenterManagementApi(
+        account: account,
+        routeId: routeId,
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => true,
+        delay: (_) async {},
+      );
+      final initial = await api.bootstrap();
+      final before = await api.load(initial.authority);
+      final availability = await api.checkManagedOta(
+        before.authority,
+        snapshot: before,
+        device: before.devices.single,
+      );
+      expect(availability.device.routeKnown, isFalse);
+      expect(availability.offer.latestFileVersion, 10);
+      final preview = await api.previewManagedOta(
+        before.authority,
+        availability,
+      );
+      final confirmed = await api.confirmManagedOta(before.authority, preview);
+      final readback = await api.awaitManagedOtaResult(
+        before.authority,
+        requestId: preview.requestId,
+      );
+      expect(confirmed.isExactFor(preview), isTrue);
+      expect(readback.isExactFor(preview), isTrue);
+      expect(
+        requests
+            .where((value) => value.url.path.contains('managed-ota'))
+            .length,
+        5,
+      );
+      expect(resultReads, 2);
+    },
+  );
+
   test('HTTP adapter binds exact mesh snapshot update and readback', () async {
     final requests = <http.Request>[];
     late String requestId;

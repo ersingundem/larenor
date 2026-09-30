@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Protocol
 
 from .http import MeshCenterHttpGateway
+from .managed_ota import ManagedOtaManager
+from .managed_ota_store import ManagedOtaStore
 from .service import FirmwareUpdateManager, MeshHealthService
 from .store import FirmwareUpdateStore
 
@@ -64,8 +66,25 @@ def build_mesh_center_gateway(
             _subkey(master_key, b"state"),
         ),
     )
+    managed_ota = (
+        ManagedOtaManager(
+            key=_subkey(master_key, b"managed-ota-confirmation"),
+            authorityResolver=provider.authority,
+            topologyResolver=provider.topology,
+            checkWorker=provider.check_managed_ota,
+            installWorker=provider.install_managed_ota,
+            clockMs=clock_ms,
+            stateStore=ManagedOtaStore(
+                Path(data_dir) / "mesh-managed-ota.state",
+                _subkey(master_key, b"managed-ota-state"),
+            ),
+        )
+        if bool(getattr(provider, "managed_ota_available", False))
+        else None
+    )
     return MeshCenterHttpGateway(
         health=health,
         updates=updates,
+        managedOta=managed_ota,
         snapshotResolver=provider.snapshot,
     )

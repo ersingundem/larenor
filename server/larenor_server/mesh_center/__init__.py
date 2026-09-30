@@ -31,6 +31,13 @@ from .service import (
 from .store import FirmwareUpdateStore
 from .runtime import MeshCenterProvider, build_mesh_center_gateway
 from .zigbee2mqtt_provider import Zigbee2MqttObservation, Zigbee2MqttProvider
+from .managed_ota import (
+    ManagedOtaManager,
+    ManagedOtaOffer,
+    ManagedOtaPreview,
+    ManagedOtaResult,
+)
+from .managed_ota_store import ManagedOtaStore
 
 __all__ = [
     "BorderRouterNode",
@@ -58,6 +65,11 @@ __all__ = [
     "MeshPreviewRequest",
     "MeshTopology",
     "MeshUpdateAuditEntry",
+    "ManagedOtaManager",
+    "ManagedOtaOffer",
+    "ManagedOtaPreview",
+    "ManagedOtaResult",
+    "ManagedOtaStore",
     "firmware_catalog_payload",
     "build_mesh_center_gateway",
     "Zigbee2MqttObservation",

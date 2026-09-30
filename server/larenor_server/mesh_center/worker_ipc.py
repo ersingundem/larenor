@@ -18,10 +18,19 @@ from .zigbee2mqtt_provider import (
     MAX_RETAINED_BYTES,
     Zigbee2MqttObservation,
 )
+from .managed_ota_transport import (
+    MAX_CHECK_SECONDS,
+    MAX_UPDATE_SECONDS,
+    ManagedOtaInstallEvidence,
+    ManagedOtaOfferEvidence,
+    ManagedOtaTransportError,
+)
 
 PROTOCOL_VERSION = 1
 MAX_FRAME_BYTES = 12 * 1024 * 1024
 MAX_DEADLINE_MS = 15_000
+MAX_OTA_CHECK_DEADLINE_MS = int(MAX_CHECK_SECONDS * 1_000)
+MAX_OTA_UPDATE_DEADLINE_MS = int(MAX_UPDATE_SECONDS * 1_000)
 _ID = __import__("re").compile(r"[0-9a-f]{32}\Z")
 
 
@@ -34,6 +43,13 @@ class MeshWorkerError(RuntimeError):
             "invalid_request",
             "invalid_response",
             "deadline_exceeded",
+            "revision_conflict",
+            "device_not_found",
+            "device_unavailable",
+            "battery_too_low",
+            "no_update",
+            "provider_rejected",
+            "readback_mismatch",
         } else "worker_unavailable"
         super().__init__(self.code)
 
@@ -213,6 +229,90 @@ def _observation_from_wire(value):
     )
 
 
+def _offer_to_wire(value):
+    if not isinstance(value, ManagedOtaOfferEvidence):
+        raise MeshWorkerError("invalid_response")
+    result = {
+        "deviceId": value.deviceId,
+        "providerRevision": value.providerRevision,
+        "installedFileVersion": value.installedFileVersion,
+        "latestFileVersion": value.latestFileVersion,
+        "sourceDigest": value.sourceDigest,
+        "checkedAtMs": value.checkedAtMs,
+        "releaseNotesAvailable": value.releaseNotesAvailable,
+    }
+    _offer_from_wire(result)
+    return result
+
+
+def _offer_from_wire(value):
+    if not isinstance(value, dict) or set(value) != {
+        "deviceId", "providerRevision", "installedFileVersion",
+        "latestFileVersion", "sourceDigest", "checkedAtMs",
+        "releaseNotesAvailable",
+    }:
+        raise MeshWorkerError("invalid_response")
+    if (
+        not isinstance(value["deviceId"], str)
+        or _ID.fullmatch(value["deviceId"]) is None
+        or type(value["providerRevision"]) is not int
+        or not 1 <= value["providerRevision"] <= 2**63 - 1
+        or type(value["installedFileVersion"]) is not int
+        or not 0 <= value["installedFileVersion"] <= 2**32 - 1
+        or type(value["latestFileVersion"]) is not int
+        or not value["installedFileVersion"] < value["latestFileVersion"] <= 2**32 - 1
+        or not isinstance(value["sourceDigest"], str)
+        or __import__("re").fullmatch(r"[0-9a-f]{64}", value["sourceDigest"]) is None
+        or type(value["checkedAtMs"]) is not int
+        or not 0 <= value["checkedAtMs"] <= 2**63 - 1
+        or type(value["releaseNotesAvailable"]) is not bool
+    ):
+        raise MeshWorkerError("invalid_response")
+    return ManagedOtaOfferEvidence(**value)
+
+
+def _install_to_wire(value):
+    if not isinstance(value, ManagedOtaInstallEvidence):
+        raise MeshWorkerError("invalid_response")
+    result = {
+        "deviceId": value.deviceId,
+        "previousProviderRevision": value.previousProviderRevision,
+        "providerRevision": value.providerRevision,
+        "fromFileVersion": value.fromFileVersion,
+        "toFileVersion": value.toFileVersion,
+        "installedFileVersion": value.installedFileVersion,
+        "progressPercent": value.progressPercent,
+        "completedAtMs": value.completedAtMs,
+    }
+    _install_from_wire(result)
+    return result
+
+
+def _install_from_wire(value):
+    if not isinstance(value, dict) or set(value) != {
+        "deviceId", "previousProviderRevision", "providerRevision",
+        "fromFileVersion", "toFileVersion", "installedFileVersion",
+        "progressPercent", "completedAtMs",
+    }:
+        raise MeshWorkerError("invalid_response")
+    integers = (
+        "previousProviderRevision", "providerRevision", "fromFileVersion",
+        "toFileVersion", "installedFileVersion", "progressPercent", "completedAtMs",
+    )
+    if (
+        not isinstance(value["deviceId"], str)
+        or _ID.fullmatch(value["deviceId"]) is None
+        or any(type(value[key]) is not int for key in integers)
+        or not 1 <= value["previousProviderRevision"] < value["providerRevision"] <= 2**63 - 1
+        or not 0 <= value["fromFileVersion"] < value["toFileVersion"] <= 2**32 - 1
+        or value["installedFileVersion"] != value["toFileVersion"]
+        or not 0 <= value["progressPercent"] <= 100
+        or not 0 <= value["completedAtMs"] <= 2**63 - 1
+    ):
+        raise MeshWorkerError("invalid_response")
+    return ManagedOtaInstallEvidence(**value)
+
+
 class Zigbee2MqttWorkerClient:
     def __init__(self, path, *, owner_uid=None, peer_uid=None):
         self.path = Path(path)
@@ -261,11 +361,108 @@ class Zigbee2MqttWorkerClient:
             raise MeshWorkerError(response["error"])
         return _observation_from_wire(response["observation"])
 
+    def _managed_request(self, operation, values, timeout, maximum, result_key, parser):
+        if (
+            not isinstance(timeout, (int, float))
+            or isinstance(timeout, bool)
+            or not 0 < timeout <= maximum / 1_000
+        ):
+            raise MeshWorkerError("invalid_request")
+        _safe_socket(self.path, self.owner_uid, existing=True)
+        deadline = time.monotonic() + timeout
+        request_id = uuid.uuid4().hex
+        request = {
+            "protocolVersion": PROTOCOL_VERSION,
+            "requestId": request_id,
+            "operation": operation,
+            "deadlineMs": max(1, min(maximum, int(timeout * 1_000))),
+            **values,
+        }
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
+                stream.settimeout(_remaining(deadline))
+                stream.connect(str(self.path))
+                if _peer_uid(stream) != self.peer_uid:
+                    raise MeshWorkerError()
+                _write_frame(stream, request, deadline)
+                response = _read_frame(stream, deadline)
+        except MeshWorkerError:
+            raise
+        except OSError:
+            raise MeshWorkerError() from None
+        if (
+            not isinstance(response, dict)
+            or response.get("protocolVersion") != PROTOCOL_VERSION
+            or response.get("requestId") != request_id
+            or set(response) not in (
+                {"protocolVersion", "requestId", result_key},
+                {"protocolVersion", "requestId", "error"},
+            )
+        ):
+            raise MeshWorkerError("invalid_response")
+        if "error" in response:
+            raise MeshWorkerError(response["error"])
+        return parser(response[result_key])
+
+    def check_managed_ota(self, device_id, expected_provider_revision, *, timeout=30.0):
+        if (
+            not isinstance(device_id, str)
+            or _ID.fullmatch(device_id) is None
+            or type(expected_provider_revision) is not int
+            or not 1 <= expected_provider_revision <= 2**63 - 1
+        ):
+            raise MeshWorkerError("invalid_request")
+        return self._managed_request(
+            "managed_ota_check",
+            {
+                "deviceId": device_id,
+                "expectedProviderRevision": expected_provider_revision,
+            },
+            timeout,
+            MAX_OTA_CHECK_DEADLINE_MS,
+            "offer",
+            _offer_from_wire,
+        )
+
+    def install_managed_ota(
+        self,
+        device_id,
+        expected_provider_revision,
+        installed_file_version,
+        latest_file_version,
+        *,
+        timeout=MAX_UPDATE_SECONDS,
+    ):
+        if (
+            not isinstance(device_id, str)
+            or _ID.fullmatch(device_id) is None
+            or type(expected_provider_revision) is not int
+            or not 1 <= expected_provider_revision <= 2**63 - 1
+            or type(installed_file_version) is not int
+            or type(latest_file_version) is not int
+            or not 0 <= installed_file_version < latest_file_version <= 2**32 - 1
+        ):
+            raise MeshWorkerError("invalid_request")
+        return self._managed_request(
+            "managed_ota_install",
+            {
+                "deviceId": device_id,
+                "expectedProviderRevision": expected_provider_revision,
+                "installedFileVersion": installed_file_version,
+                "latestFileVersion": latest_file_version,
+            },
+            timeout,
+            MAX_OTA_UPDATE_DEADLINE_MS,
+            "readback",
+            _install_from_wire,
+        )
+
 
 class Zigbee2MqttWorkerServer:
-    def __init__(self, path, observer, *, owner_uid=None, peer_uid=None):
+    def __init__(self, path, observer, *, managed_ota=None, owner_uid=None, peer_uid=None):
         self.path = Path(path)
         self.observer = observer
+        self.managed_ota = managed_ota
         self.owner_uid = os.geteuid() if owner_uid is None else owner_uid
         self.peer_uid = self.owner_uid if peer_uid is None else peer_uid
         self._socket = None
@@ -296,26 +493,91 @@ class Zigbee2MqttWorkerServer:
             request = _read_frame(stream, deadline)
             if (
                 not isinstance(request, dict)
-                or set(request) != {
-                    "protocolVersion", "requestId", "operation", "deadlineMs"
-                }
                 or request.get("protocolVersion") != PROTOCOL_VERSION
                 or not isinstance(request.get("requestId"), str)
                 or _ID.fullmatch(request["requestId"]) is None
-                or request.get("operation") != "observe"
                 or type(request.get("deadlineMs")) is not int
-                or not 1 <= request["deadlineMs"] <= MAX_DEADLINE_MS
             ):
                 raise MeshWorkerError("invalid_request")
             request_id = request["requestId"]
+            operation = request.get("operation")
+            expected = {
+                "observe": {
+                    "protocolVersion", "requestId", "operation", "deadlineMs"
+                },
+                "managed_ota_check": {
+                    "protocolVersion", "requestId", "operation", "deadlineMs",
+                    "deviceId", "expectedProviderRevision",
+                },
+                "managed_ota_install": {
+                    "protocolVersion", "requestId", "operation", "deadlineMs",
+                    "deviceId", "expectedProviderRevision", "installedFileVersion",
+                    "latestFileVersion",
+                },
+            }.get(operation)
+            maximum = {
+                "observe": MAX_DEADLINE_MS,
+                "managed_ota_check": MAX_OTA_CHECK_DEADLINE_MS,
+                "managed_ota_install": MAX_OTA_UPDATE_DEADLINE_MS,
+            }.get(operation)
+            if (
+                expected is None
+                or set(request) != expected
+                or not 1 <= request["deadlineMs"] <= maximum
+            ):
+                raise MeshWorkerError("invalid_request")
             deadline = time.monotonic() + request["deadlineMs"] / 1_000
-            observation = self.observer.observe(timeout=_remaining(deadline))
-            response = {
-                "protocolVersion": PROTOCOL_VERSION,
-                "requestId": request_id,
-                "observation": _observation_to_wire(observation),
-            }
-        except MeshWorkerError as error:
+            if operation == "observe":
+                observation = self.observer.observe(timeout=_remaining(deadline))
+                response = {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "requestId": request_id,
+                    "observation": _observation_to_wire(observation),
+                }
+            elif operation == "managed_ota_check":
+                if (
+                    self.managed_ota is None
+                    or not isinstance(request["deviceId"], str)
+                    or _ID.fullmatch(request["deviceId"]) is None
+                    or type(request["expectedProviderRevision"]) is not int
+                    or not 1 <= request["expectedProviderRevision"] <= 2**63 - 1
+                ):
+                    raise MeshWorkerError("invalid_request")
+                offer = self.managed_ota.check(
+                    request["deviceId"],
+                    request["expectedProviderRevision"],
+                    timeout=_remaining(deadline),
+                )
+                response = {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "requestId": request_id,
+                    "offer": _offer_to_wire(offer),
+                }
+            else:
+                if (
+                    self.managed_ota is None
+                    or not isinstance(request["deviceId"], str)
+                    or _ID.fullmatch(request["deviceId"]) is None
+                    or type(request["expectedProviderRevision"]) is not int
+                    or not 1 <= request["expectedProviderRevision"] <= 2**63 - 1
+                    or type(request["installedFileVersion"]) is not int
+                    or type(request["latestFileVersion"]) is not int
+                    or not 0 <= request["installedFileVersion"] < request["latestFileVersion"] <= 2**32 - 1
+                ):
+                    raise MeshWorkerError("invalid_request")
+                readback = self.managed_ota.install(
+                    request["deviceId"],
+                    request["expectedProviderRevision"],
+                    request["installedFileVersion"],
+                    request["latestFileVersion"],
+                    timeout=_remaining(deadline),
+                )
+                response = {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "requestId": request_id,
+                    "readback": _install_to_wire(readback),
+                }
+        except (MeshWorkerError, ManagedOtaTransportError) as error:
             response = {
                 "protocolVersion": PROTOCOL_VERSION,
                 "requestId": request_id,

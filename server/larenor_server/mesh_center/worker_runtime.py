@@ -8,6 +8,7 @@ from pathlib import Path
 import stat
 
 from .mqtt_transport import MqttBrokerConfig, MqttObservationError, MqttRetainedObserver
+from .managed_ota_transport import Zigbee2MqttManagedOtaTransport
 from .worker_ipc import MeshWorkerError, Zigbee2MqttWorkerServer
 
 
@@ -93,6 +94,7 @@ def build_server(config: MeshWorkerConfig):
     return Zigbee2MqttWorkerServer(
         config.socket_path,
         MqttRetainedObserver(config.broker),
+        managed_ota=Zigbee2MqttManagedOtaTransport(config.broker),
         owner_uid=os.geteuid(),
         peer_uid=config.core_uid,
     )
