@@ -37,6 +37,16 @@ void main() {
     expect(changed, isNot(first));
     expect(
       () => FairChoreAuthority.fromJson(
+        authority(revision: 9007199254740992),
+        routeId: 'route-a',
+        coreId: coreId,
+        homeId: homeId,
+        accountId: accountId,
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => FairChoreAuthority.fromJson(
         {...authority(), 'homeId': 'ffffffffffffffffffffffffffffffff'},
         routeId: 'route-a',
         coreId: coreId,

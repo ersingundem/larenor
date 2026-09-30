@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from ..auth import Principal
 from ..database import Database
 from ..errors import ApiError, StartupError
+from ..local_notifications.models import CreateNotification
 
 MAX_MEMBERS = 32
 MAX_TITLE_LENGTH = 200
@@ -34,7 +35,7 @@ class HouseholdMembers:
     def __post_init__(self) -> None:
         if (
             type(self.revision) is not int
-            or self.revision < 1
+            or not 1 <= self.revision <= 2**53 - 1
             or not isinstance(self.ids, tuple)
             or not 1 <= len(self.ids) <= MAX_MEMBERS
             or len(set(self.ids)) != len(self.ids)
@@ -78,11 +79,31 @@ class ChoreEvent:
 class FairChoreStore:
     """Durable fair rotation with explicit scope, revision and audit authority."""
 
-    def __init__(self, database: Database, *, audit_key: bytes):
+    def __init__(
+        self,
+        database: Database,
+        *,
+        audit_key: bytes,
+        write_guard=None,
+        notification_writer=None,
+    ):
         if not isinstance(audit_key, bytes) or len(audit_key) != 32:
             raise ValueError("invalid_audit_key")
         self.database = database
         self._audit_key = audit_key
+        self._write_guard = write_guard
+        self._notification_writer = notification_writer
+        if notification_writer is not None and not callable(
+            getattr(notification_writer, "append_internal", None)
+        ):
+            raise ValueError("invalid_notification_writer")
+
+    def _guard(self, connection, actor, members):
+        if self._write_guard is None:
+            return
+        if not isinstance(members, HouseholdMembers):
+            raise ApiError("authority_changed", 409)
+        self._write_guard(connection, actor, members)
 
     @staticmethod
     def _task(row: sqlite3.Row) -> ChoreTask:
@@ -271,6 +292,7 @@ class FairChoreStore:
             due_at=float(due_at),
         )
         with self.database.transaction() as connection:
+            self._guard(connection, actor, members)
             previous = connection.execute(
                 "SELECT task_id,actor_id,receipt_json FROM fair_chore_events "
                 "WHERE command_id=?",
@@ -317,6 +339,7 @@ class FairChoreStore:
                 actor_id=actor.id,
                 occurred_at=now,
             )
+            self._guard(connection, actor, members)
         return receipt
 
     def get(
@@ -474,6 +497,7 @@ class FairChoreStore:
         with self.database.transaction() as connection:
             task = self._load(connection, task_id, core_id, home_id)
             self._assert_current(connection, task)
+            self._guard(connection, actor, members)
             replay = self._replay(connection, task, command_id, actor, "completed")
             if replay is not None:
                 return replay
@@ -483,8 +507,6 @@ class FairChoreStore:
                 actor.id != task.assignee_id or actor.id not in members.ids
             ):
                 raise ApiError("forbidden", 403)
-            if members.revision < task.members_revision:
-                raise ApiError("revision_conflict", 409)
             timezone = ZoneInfo(task.timezone_name)
             next_due = (
                 datetime.fromtimestamp(completed_at, timezone)
@@ -516,7 +538,7 @@ class FairChoreStore:
             )
             if connection.execute("SELECT changes()").fetchone()[0] != 1:
                 raise ApiError("revision_conflict", 409)
-            return self._append(
+            receipt = self._append(
                 connection,
                 task=updated,
                 command_id=command_id,
@@ -524,6 +546,24 @@ class FairChoreStore:
                 actor_id=actor.id,
                 occurred_at=float(completed_at),
             )
+            if self._notification_writer is not None:
+                self._notification_writer.append_internal(
+                    connection,
+                    CreateNotification(
+                        schemaVersion=1,
+                        recipientUserId=updated.assignee_id,
+                        idempotencyKey=(
+                            f"fair-chore:{updated.id}:{updated.revision}"
+                        ),
+                        category="fair_chore",
+                        sensitivity="private",
+                        title="Household chore assigned",
+                        body="A recurring household chore is ready.",
+                        target="/chores",
+                    ),
+                )
+            self._guard(connection, actor, members)
+            return receipt
 
     def defer(
         self,
@@ -535,6 +575,7 @@ class FairChoreStore:
         expected_revision: int,
         command_id: str,
         days: int,
+        members: HouseholdMembers | None = None,
     ) -> ChoreReceipt:
         if (
             type(expected_revision) is not int
@@ -547,6 +588,7 @@ class FairChoreStore:
         with self.database.transaction() as connection:
             task = self._load(connection, task_id, core_id, home_id)
             self._assert_current(connection, task)
+            self._guard(connection, actor, members)
             replay = self._replay(connection, task, command_id, actor, "deferred")
             if replay is not None:
                 return replay
@@ -569,7 +611,7 @@ class FairChoreStore:
             )
             if connection.execute("SELECT changes()").fetchone()[0] != 1:
                 raise ApiError("revision_conflict", 409)
-            return self._append(
+            receipt = self._append(
                 connection,
                 task=updated,
                 command_id=command_id,
@@ -577,6 +619,8 @@ class FairChoreStore:
                 actor_id=actor.id,
                 occurred_at=now,
             )
+            self._guard(connection, actor, members)
+            return receipt
 
     def skip(
         self,
@@ -598,6 +642,7 @@ class FairChoreStore:
         with self.database.transaction() as connection:
             task = self._load(connection, task_id, core_id, home_id)
             self._assert_current(connection, task)
+            self._guard(connection, actor, members)
             replay = self._replay(connection, task, command_id, actor, "skipped")
             if replay is not None:
                 return replay
@@ -611,8 +656,6 @@ class FairChoreStore:
                 )
             ):
                 raise ApiError("forbidden", 403)
-            if members.revision < task.members_revision:
-                raise ApiError("revision_conflict", 409)
             updated = ChoreTask(
                 **{
                     **asdict(task),
@@ -638,7 +681,7 @@ class FairChoreStore:
             )
             if connection.execute("SELECT changes()").fetchone()[0] != 1:
                 raise ApiError("revision_conflict", 409)
-            return self._append(
+            receipt = self._append(
                 connection,
                 task=updated,
                 command_id=command_id,
@@ -646,6 +689,8 @@ class FairChoreStore:
                 actor_id=actor.id,
                 occurred_at=now,
             )
+            self._guard(connection, actor, members)
+            return receipt
 
     def _verified_history(
         self,

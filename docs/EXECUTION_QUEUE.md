@@ -17,7 +17,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
-| G07 — Aile ve ev yaşamı | 10 | 2 | 2 | 0 | 6 | 0 |
+| G07 — Aile ve ev yaşamı | 10 | 2 | 1 | 0 | 7 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
 | G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 0 | 6 | 0 |
@@ -116,7 +116,6 @@ Tamamlanan ve test/CI bekleyen işler
 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | Uygulama tamamlandı · test bekliyor | — |
 | K12 | Watchdog ve yerel kullanım ölçümü | Uygulama tamamlandı · test bekliyor | — |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | Uygulama tamamlandı · test bekliyor | — |
-| F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |
 | F39 | Canlı aile panosu ve beyaz tahta | Uygulama tamamlandı · test bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | Uygulama tamamlandı · test bekliyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
@@ -154,6 +153,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F32 | Dolap stoğu ve son kullanma takibi | CI bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | CI bekliyor | — |
 | F35 | Ev belgeleri ve garanti hatırlatmaları | CI bekliyor | — |
+| F36 | Adil ev işi paylaşımı | CI bekliyor | — |
 | F37 | Ortak ev masrafları | CI bekliyor | — |
 | F38 | Aile anıları ve fotoğraf araması | CI bekliyor | — |
 | F40 | Ortak kaynak rezervasyonu | CI bekliyor | — |

@@ -954,7 +954,12 @@ class CoreServices:
                 self.db, self.auth, settings, self.context, key
             )
             self.fair_chores = FairChoreService(
-                self.db, self.auth, settings, self.context, key
+                self.db,
+                self.auth,
+                settings,
+                self.context,
+                key,
+                notification_writer=self.local_notifications,
             )
             self.camera_search_feedback = CameraSearchFeedbackService(
                 self.db,

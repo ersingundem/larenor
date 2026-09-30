@@ -109,7 +109,9 @@ def test_authority_revision_and_departed_member_fail_closed(tmp_path):
             members=original,
         )
 
-    current = HouseholdMembers(5, ("ada", "cem"))
+    # The member revision is a content digest, not an ordered counter. A valid
+    # newer snapshot may have a numerically smaller value.
+    current = HouseholdMembers(3, ("ada", "cem"))
     receipt = chores.complete(
         principal("ada"),
         task.id,
@@ -121,7 +123,7 @@ def test_authority_revision_and_departed_member_fail_closed(tmp_path):
         members=current,
     )
     assert receipt.task.assignee_id == "cem"
-    assert receipt.task.members_revision == 5
+    assert receipt.task.members_revision == 3
 
 
 def test_completion_is_idempotent_and_history_detects_restart_tamper(tmp_path):

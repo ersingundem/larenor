@@ -13,6 +13,7 @@ class StartupError(Exception):
 
 
 MESSAGES = {
+    'fair_chore_members_limit_reached': 'Chore rotation supports at most 32 active household members.',
     'camera_search_not_configured': 'Choose the Frigate service and authorized cameras before searching.',
     'camera_search_source_unavailable': 'The selected camera recording source is unavailable.',
     'camera_profile_storage_invalid': 'The camera profile provider records could not be verified.',

@@ -50,7 +50,7 @@ class FairChoreAuthority {
         actualAccount != accountId ||
         revision is! int ||
         revision < 1 ||
-        revision > 9223372036854775807 ||
+        revision > 9007199254740991 ||
         canManage is! bool) {
       throw const FormatException('authority_changed');
     }

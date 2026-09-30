@@ -8,6 +8,12 @@ def _root(client, pair):
     return f"/api/v1/fair-chores/{context['coreId']}/{context['homeId']}"
 
 
+def _members_revision(client, pair, root):
+    return client.get(root, headers=auth(pair)).json()["authority"][
+        "membersRevision"
+    ]
+
+
 def test_authenticated_chore_flow_and_lost_ack_receipt(server):
     _app, client, _settings, clock = server
     pair = ready(server)
@@ -16,8 +22,9 @@ def test_authenticated_chore_flow_and_lost_ack_receipt(server):
         root,
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": "10" * 16,
+            "expectedMembersRevision": _members_revision(client, pair, root),
             "title": "Clean kitchen",
             "timezone": "Europe/Istanbul",
             "intervalDays": 7,
@@ -30,8 +37,11 @@ def test_authenticated_chore_flow_and_lost_ack_receipt(server):
         root,
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": "10" * 16,
+            "expectedMembersRevision": created.json()["authority"][
+                "membersRevision"
+            ],
             "title": "Clean kitchen",
             "timezone": "Europe/Istanbul",
             "intervalDays": 7,
@@ -51,9 +61,12 @@ def test_authenticated_chore_flow_and_lost_ack_receipt(server):
         f"{root}/{task['id']}/commands/complete",
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": command,
             "expectedRevision": task["revision"],
+            "expectedMembersRevision": created.json()["authority"][
+                "membersRevision"
+            ],
             "completedAt": clock.now + 120,
         },
     )
@@ -70,9 +83,12 @@ def test_authenticated_chore_flow_and_lost_ack_receipt(server):
         f"{root}/{task['id']}/commands/complete",
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": command,
             "expectedRevision": task["revision"],
+            "expectedMembersRevision": created.json()["authority"][
+                "membersRevision"
+            ],
             "completedAt": clock.now + 120,
         },
     )
@@ -88,8 +104,9 @@ def test_chore_scope_session_and_restart_are_fail_closed(server):
         root,
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": "30" * 16,
+            "expectedMembersRevision": _members_revision(client, pair, root),
             "title": "Water plants",
             "timezone": "Europe/Istanbul",
             "intervalDays": 2,
@@ -115,8 +132,9 @@ def test_chore_completion_uses_core_time_when_tablet_clock_is_wrong(server):
         root,
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": "40" * 16,
+            "expectedMembersRevision": _members_revision(client, pair, root),
             "title": "Water plants",
             "timezone": "Europe/Istanbul",
             "intervalDays": 7,
@@ -127,9 +145,10 @@ def test_chore_completion_uses_core_time_when_tablet_clock_is_wrong(server):
         f"{root}/{created['id']}/commands/complete",
         headers=auth(pair),
         json={
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "commandId": "50" * 16,
             "expectedRevision": created["revision"],
+            "expectedMembersRevision": _members_revision(client, pair, root),
             "completedAt": clock.now + 30 * 86400,
         },
     )

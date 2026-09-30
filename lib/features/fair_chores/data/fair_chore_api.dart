@@ -118,6 +118,9 @@ final class FairChoreAccountApi implements FairChoreCommandApi {
       }.contains(error.code)) {
         throw TimeoutException(error.code);
       }
+      if (error.code == 'authority_changed') {
+        throw const FormatException('authority_changed');
+      }
       rethrow;
     }
   }
@@ -189,8 +192,9 @@ final class FairChoreAccountApi implements FairChoreCommandApi {
         'POST',
         _root,
         body: {
-          'schemaVersion': 1,
+          'schemaVersion': 2,
           'commandId': commandId,
+          'expectedMembersRevision': expected.membersRevision,
           'title': title,
           'timezone': timezone,
           'intervalDays': intervalDays,
@@ -265,9 +269,10 @@ final class FairChoreAccountApi implements FairChoreCommandApi {
         'POST',
         '$_root/$taskId/commands/$suffix',
         body: {
-          'schemaVersion': 1,
+          'schemaVersion': 2,
           'commandId': commandId,
           'expectedRevision': expectedRevision,
+          'expectedMembersRevision': expected.membersRevision,
           if (action == FairChoreAction.completed)
             'completedAt': DateTime.now().toUtc().millisecondsSinceEpoch / 1000
           else if (action == FairChoreAction.deferred)

@@ -8,8 +8,9 @@ Timestamp = Annotated[float, Field(ge=0, le=253402300799)]
 
 
 class CreateChore(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     commandId: Identity
+    expectedMembersRevision: Revision
     title: str = Field(min_length=1, max_length=200)
     timezone: str = Field(min_length=1, max_length=128)
     intervalDays: int = Field(ge=1, le=365)
@@ -27,20 +28,23 @@ class CreateChore(FrozenModel):
 
 
 class CompleteChore(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     commandId: Identity
     expectedRevision: Revision
+    expectedMembersRevision: Revision
     completedAt: Timestamp
 
 
 class DeferChore(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     commandId: Identity
     expectedRevision: Revision
+    expectedMembersRevision: Revision
     days: int = Field(ge=1, le=30)
 
 
 class SkipChore(FrozenModel):
-    schemaVersion: Literal[1]
+    schemaVersion: Literal[2]
     commandId: Identity
     expectedRevision: Revision
+    expectedMembersRevision: Revision
