@@ -33,6 +33,8 @@
         "LARENOR_PLUGIN_WORKER_UID": "0",
         "LARENOR_INSTALLATION_WORKER_SOCKET": "/data/host-workers/ipc/root/installation.sock",
         "LARENOR_INSTALLATION_WORKER_UID": "0",
+        "LARENOR_COMPONENT_BACKUP_WORKER_SOCKET": "/data/host-workers/ipc/root/component-backup.sock",
+        "LARENOR_COMPONENT_BACKUP_WORKER_UID": "0",
         "LARENOR_MEDIA_ARCHIVE_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-read.sock",
         "LARENOR_MEDIA_ARCHIVE_WORKER_UID": "1000",
         "LARENOR_MEDIA_ARCHIVE_ACTION_WORKER_SOCKET": "/data/host-workers/ipc/archive/archive-action.sock",

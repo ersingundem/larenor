@@ -7,9 +7,8 @@ d /var/lib/larenor-server/core/data/host-workers/ipc/core 0750 10001 larenor-ipc
 d /var/lib/larenor-server/core/data/host-workers/ipc/ai 0770 10001 larenor-ipc -
 d /var/lib/larenor-server/core/data/host-workers/ipc/mesh 0770 larenor-mesh larenor-ipc -
 d /var/lib/larenor-server/host-workers/installation 0700 root root -
-d /var/lib/larenor-server/host-workers/installation/resources 0700 root root -
-d /var/lib/larenor-server/host-workers/installation/volumes 0700 root root -
-d /var/lib/larenor-server/host-workers/installation/containers 0700 root root -
+d /var/lib/larenor-server/host-workers/component-backup 0700 root root -
+d /var/lib/larenor-server/host-workers/component-backup/captures 0700 root root -
 d /var/lib/larenor-server/host-workers/archive 0700 1000 1000 -
 d /var/lib/larenor-server/host-workers/archive/resolver 0700 1000 1000 -
 d /var/lib/larenor-server/host-workers/archive/work 0700 1000 1000 -

@@ -41,6 +41,8 @@ ASSETS = {
     "larenor-host-workers.tmpfiles": (Path("/usr/lib/tmpfiles.d/larenor-host-workers.conf"), 0o644),
     "larenor-preflight-worker.service": (Path("/etc/systemd/system/larenor-preflight-worker.service"), 0o644),
     "larenor-installation-worker.service": (Path("/etc/systemd/system/larenor-installation-worker.service"), 0o644),
+    "installation_journals.py": (Path("/usr/libexec/larenor-installation-journals"), 0o755),
+    "larenor-component-backup-worker.service": (Path("/etc/systemd/system/larenor-component-backup-worker.service"), 0o644),
     "larenor-unmanic.service": (Path("/etc/systemd/system/larenor-unmanic.service"), 0o644),
     "larenor-unmanic-provision.service": (Path("/etc/systemd/system/larenor-unmanic-provision.service"), 0o644),
     "unmanic_provision.py": (Path("/usr/libexec/larenor-unmanic-provision"), 0o755),
@@ -62,6 +64,7 @@ PRIVATE_CONFIGS = (
 UNITS = (
     "larenor-preflight-worker.service",
     "larenor-installation-worker.service",
+    "larenor-component-backup-worker.service",
     "larenor-unmanic-provision.service",
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
@@ -232,6 +235,7 @@ def _validate_entrypoints(release):
     for relative in (
         "server/bin/larenor-preflight-worker",
         "server/bin/larenor-installation-worker",
+        "server/bin/larenor-component-backup-worker",
         "server/bin/larenor-media-archive-worker",
         "server/bin/larenor-ai-worker",
         "server/bin/larenor-mesh-worker",
@@ -391,12 +395,27 @@ def activate():
     except (OSError, ValueError):
         raise HostWorkerPackageError("host_identity_invalid") from None
     server = PREFIX / "current/server/bin"
+    _run([
+        str(server / "python"), "/usr/libexec/larenor-installation-journals",
+        "initialize",
+    ])
     _run([str(server / "larenor-preflight-worker"), "--policy", str(CONFIG / "root/preflight.json"),
           "--socket", str(IPC / "root/preflight.sock"), "--api-uid", "10001",
           "--socket-gid", "10002", "--check-config"])
     _run([str(server / "larenor-installation-worker"), "--policy", str(CONFIG / "root/installation.json"),
           "--socket", str(IPC / "root/installation.sock"), "--api-uid", "10001",
           "--socket-gid", "10002", "--check-config"])
+    _run([
+        str(server / "larenor-component-backup-worker"),
+        "--socket", str(IPC / "root/component-backup.sock"),
+        "--container-journal", "/var/lib/larenor-server/host-workers/installation/containers",
+        "--volume-journal", "/var/lib/larenor-server/host-workers/installation/volumes",
+        "--engine-socket", "/var/run/docker.sock",
+        "--capture-root", "/var/lib/larenor-server/host-workers/component-backup/captures",
+        "--capture-journal", "/var/lib/larenor-server/host-workers/component-backup/capture-journal.json",
+        "--api-uid", "10001", "--socket-gid", "10002", "--engine-uid", "0",
+        "--btrfs", "/usr/bin/btrfs", "--check-config",
+    ])
     _run([str(server / "larenor-media-archive-worker"), "--config",
           str(CONFIG / "archive/runtime.json"), "--check-config"])
     _run(["/usr/bin/loginctl", "enable-linger", "larenor-ai"])

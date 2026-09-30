@@ -13,6 +13,7 @@ ASSETS = ROOT / "deploy/larenor-server/host_workers"
 UNITS = (
     "larenor-preflight-worker.service",
     "larenor-installation-worker.service",
+    "larenor-component-backup-worker.service",
     "larenor-unmanic-provision.service",
     "larenor-unmanic.service",
     "larenor-media-archive-worker.service",
@@ -48,10 +49,14 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
     installed = []
     prefix = Path("/opt/larenor-server-host")
     helper = Path("/usr/libexec/larenor-unmanic-provision")
+    journal_helper = Path("/usr/libexec/larenor-installation-journals")
     data_root = Path("/var/lib/larenor-server")
     ipc = data_root / "core/data/host-workers/ipc/mesh"
+    component_ipc = data_root / "core/data/host-workers/ipc/root"
     mesh_process = None
-    assert not prefix.exists() and not helper.exists() and not data_root.exists()
+    component_process = None
+    assert (not prefix.exists() and not helper.exists()
+            and not journal_helper.exists() and not data_root.exists())
     try:
         subprocess.run([sysusers, ASSETS / "larenor-host-workers.sysusers"],
                        check=True, timeout=20)
@@ -61,6 +66,7 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             (data_root / "core/data", 10001, 10002, 0o750),
             (data_root / "core/data/host-workers", 10001, 10002, 0o750),
             (data_root / "core/data/host-workers/ipc", 10001, 10002, 0o750),
+            (component_ipc, 0, 10002, 0o750),
             (ipc, 10004, 10002, 0o770),
         )
         for path, uid, gid, mode in ancestors:
@@ -100,6 +106,43 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
             env=environment,
             preexec_fn=_identity(10001, 10001),
         )
+        component_socket = component_ipc / "component.sock"
+        component_proof = ROOT / "server/tests/support/f15_component_worker_ipc.py"
+        component_process = subprocess.Popen(
+            [
+                ROOT / "server/.venv/bin/python",
+                component_proof,
+                "server",
+                component_socket,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            env=environment,
+        )
+        deadline = time.monotonic() + 5
+        while not component_socket.exists() and component_process.poll() is None:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.02)
+        detail = (
+            component_process.stderr.read().decode()
+            if component_process.poll() is not None
+            else "component_socket_not_ready"
+        )
+        assert component_socket.is_socket(), detail
+        subprocess.run(
+            [
+                ROOT / "server/.venv/bin/python",
+                component_proof,
+                "client",
+                component_socket,
+            ],
+            check=True,
+            timeout=10,
+            env=environment,
+            preexec_fn=_identity(10001, 10001),
+        )
         current = prefix / "current"
         current.mkdir(parents=True)
         (current / "server").symlink_to(ROOT / "server/.venv", target_is_directory=True)
@@ -108,6 +151,8 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         (current / "unmanic/bin/unmanic").symlink_to("/bin/true")
         shutil.copyfile(ASSETS / "unmanic_provision.py", helper)
         helper.chmod(0o755)
+        shutil.copyfile(ASSETS / "installation_journals.py", journal_helper)
+        journal_helper.chmod(0o755)
         for name in UNITS:
             target = destination / name
             assert not target.exists(), "host_worker_unit_already_exists"
@@ -125,6 +170,13 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
                                    stdout=subprocess.PIPE).stdout.strip()
             assert shown == "loaded"
     finally:
+        if component_process is not None:
+            component_process.terminate()
+            try:
+                component_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                component_process.kill()
+                component_process.wait(timeout=5)
         if mesh_process is not None:
             mesh_process.terminate()
             try:
@@ -138,4 +190,5 @@ def test_production_units_are_loaded_and_verified_by_real_systemd():
         subprocess.run([systemctl, "daemon-reload"], check=False, timeout=20,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         helper.unlink(missing_ok=True)
+        journal_helper.unlink(missing_ok=True)
         shutil.rmtree(prefix, ignore_errors=True)

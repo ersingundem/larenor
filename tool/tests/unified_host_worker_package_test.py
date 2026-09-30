@@ -106,17 +106,43 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
         root = MODULE.parent
         preflight = (root / "larenor-preflight-worker.service").read_text()
         installation = (root / "larenor-installation-worker.service").read_text()
+        component = (root / "larenor-component-backup-worker.service").read_text()
         archive = (root / "larenor-media-archive-worker.service").read_text()
         ai = (root / "larenor-ai-worker.service").read_text()
         mesh = (root / "larenor-mesh-worker.service").read_text()
         unmanic = (root / "larenor-unmanic.service").read_text()
-        for unit in (preflight, installation, archive, ai, mesh, unmanic):
+        for unit in (preflight, installation, component, archive, ai, mesh, unmanic):
             self.assertIn("NoNewPrivileges=yes", unit)
             self.assertIn("ProtectSystem=strict", unit)
             self.assertIn("Restart=on-failure", unit)
         self.assertIn("User=root", preflight)
         self.assertIn("User=root", installation)
         self.assertIn("ConditionPathIsSocket=/var/run/docker.sock", installation)
+        self.assertIn(
+            "/usr/libexec/larenor-installation-journals verify", installation
+        )
+        self.assertIn("User=root", component)
+        self.assertIn("ConditionPathIsSocket=/var/run/docker.sock", component)
+        self.assertIn("--container-journal /var/lib/larenor-server/host-workers/installation/containers", component)
+        self.assertIn("--volume-journal /var/lib/larenor-server/host-workers/installation/volumes", component)
+        self.assertIn("--capture-root /var/lib/larenor-server/host-workers/component-backup/captures", component)
+        self.assertIn("--api-uid 10001 --socket-gid 10002", component)
+        self.assertIn("--check-config", component)
+        self.assertIn(
+            "/usr/libexec/larenor-installation-journals verify", component
+        )
+        self.assertEqual(
+            package.ASSETS["installation_journals.py"],
+            (Path("/usr/libexec/larenor-installation-journals"), 0o755),
+        )
+        self.assertIn(
+            '"/usr/libexec/larenor-installation-journals",\n        "initialize"',
+            MODULE.read_text(),
+        )
+        tmpfiles = (root / "larenor-host-workers.tmpfiles").read_text()
+        self.assertNotIn("host-workers/installation/resources", tmpfiles)
+        self.assertNotIn("host-workers/installation/volumes", tmpfiles)
+        self.assertNotIn("host-workers/installation/containers", tmpfiles)
         self.assertNotIn("/var/run/docker.sock", archive)
         self.assertIn("User=1000", archive)
         self.assertIn("SupplementaryGroups=10002", archive)
@@ -188,6 +214,11 @@ class UnifiedHostWorkerPackageTest(unittest.TestCase):
                             for key, value in core["environment"].items()
                             if key.endswith("_SOCKET")))
         self.assertEqual(core["environment"]["LARENOR_INSTALLATION_WORKER_UID"], "0")
+        self.assertEqual(core["environment"]["LARENOR_COMPONENT_BACKUP_WORKER_UID"], "0")
+        self.assertEqual(
+            core["environment"]["LARENOR_COMPONENT_BACKUP_WORKER_SOCKET"],
+            "/data/host-workers/ipc/root/component-backup.sock",
+        )
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_WORKER_UID"], "1000")
         self.assertEqual(core["environment"]["LARENOR_MEDIA_ARCHIVE_SOCKET_GID"], "10002")
         self.assertEqual(core["environment"]["LARENOR_AI_WORKER_UID"], "10003")
