@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host installer gerçek umask düzeltmesi
+
+Exact `2c9ca9fb27c5bd4bd96e962c09dbd172c5005b69` host `36756593861` build sonrası `release_invalid:release_root` verdi. Python `parents=True` ara dizinlere leaf modunu uygulamadığı için inherited grup-yazılabilir umask ile 0775 oluşuyordu. Installer her yeni root-owned dizini ayrı açıp exact 0755/0700 yapar; mevcut yanlış mod/owner/symlink düzeltilmez, reddedilir. Umask 0002 regresyonu ve gerçek plugin paketleriyle 25 test geçti, 1 Linux kapısı yerelde skip; yeni exact host kabulü beklenecek.
+
 ### 30 Eylül F21 gerçek izleme odası ve yeniden giriş kabulü
 
 İki gerçek Flutter Client normal Core ve production medya read collector yoluyla room/invite/report/CAS akışını geçti. Fresh Core/Client restart lider rejoin sırasında gerçek session-family boşluğunu buldu; explicit rejoin artık oda lider family kimliğini atomik günceller ve eski family reddedilir. 29 Python, iki gerçek Flutter fazı ve analyze geçti; provider kapandıktan sonra sıfır yeni I/O. F21 CI bekliyor tablosuna taşındı: 50 özellik geniş CI bekliyor, kabul sayaçları değişmedi. [F21 kanıtı](testing/f21-normal-core-acceptance-2026-09-30.md).

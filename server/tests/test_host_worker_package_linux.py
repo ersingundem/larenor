@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 from io import BytesIO
+import os
 from pathlib import Path
 import subprocess
 import tarfile
@@ -255,4 +256,44 @@ def test_installer_plugin_artifact_check_uses_real_package_and_fixed_phase(
 def test_installer_release_root_check_has_one_safe_fixed_phase(tmp_path):
     with pytest.raises(installer.HostWorkerPackageError) as captured:
         installer._root_directory(tmp_path)
+    assert captured.value.safe_message == "release_invalid:release_root"
+
+
+def test_installer_creates_exact_directory_modes_under_group_writable_umask(
+    tmp_path, monkeypatch,
+):
+    def validate(path, *, mode=None):
+        if Path(path).stat().st_mode & 0o777 != mode:
+            raise installer.HostWorkerPackageError(
+                "release_invalid", "release_root"
+            )
+
+    monkeypatch.setattr(installer, "_root_directory", validate)
+    parent = tmp_path / "host"
+    release = parent / "release"
+    previous = os.umask(0o002)
+    try:
+        assert installer._create_root_directory(
+            parent, mode=0o755, allow_existing=True,
+        )
+        assert installer._create_root_directory(
+            release, mode=0o700, allow_existing=False,
+        )
+    finally:
+        os.umask(previous)
+    assert parent.stat().st_mode & 0o777 == 0o755
+    assert release.stat().st_mode & 0o777 == 0o700
+
+    parent.chmod(0o775)
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._create_root_directory(
+            parent, mode=0o755, allow_existing=True,
+        )
+    assert captured.value.safe_message == "release_invalid:release_root"
+    assert parent.stat().st_mode & 0o777 == 0o775
+
+    with pytest.raises(installer.HostWorkerPackageError) as captured:
+        installer._create_root_directory(
+            release, mode=0o700, allow_existing=False,
+        )
     assert captured.value.safe_message == "release_invalid:release_root"

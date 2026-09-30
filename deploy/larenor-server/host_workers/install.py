@@ -283,6 +283,30 @@ def _root_directory(path, *, mode=None):
         raise HostWorkerPackageError("release_invalid", "release_root") from None
 
 
+def _create_root_directory(path, *, mode, allow_existing):
+    """Create one trusted directory without inheriting a permissive umask."""
+    path = Path(path)
+    created = False
+    descriptor = -1
+    try:
+        os.mkdir(path, mode)
+        created = True
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        os.fchmod(descriptor, mode)
+    except FileExistsError:
+        if not allow_existing:
+            raise HostWorkerPackageError(
+                "release_invalid", "release_root"
+            ) from None
+    except OSError:
+        raise HostWorkerPackageError("release_invalid", "release_root") from None
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    _root_directory(path, mode=mode)
+    return created
+
+
 def _validate_entrypoints(release):
     # Executing the installed script catches a stale venv shebang as well as
     # missing package/dependency imports. --help must not start any service.
@@ -336,11 +360,10 @@ def _install_release(bundle, python):
     # A Python venv is not relocatable: pip's script shebangs use its absolute
     # installation path. Build at the final path while it is private and not
     # referenced by current; publish only the validated complete release.
-    release.mkdir(mode=0o700, parents=True)
+    _create_root_directory(PREFIX, mode=0o755, allow_existing=True)
+    _create_root_directory(PREFIX / "releases", mode=0o755, allow_existing=True)
+    _create_root_directory(release, mode=0o700, allow_existing=False)
     try:
-        _root_directory(PREFIX)
-        _root_directory(PREFIX / "releases")
-        _root_directory(release, mode=0o700)
         _install_environments(release, bundle, python)
         for kind in ("callback", "encoder"):
             _run([
