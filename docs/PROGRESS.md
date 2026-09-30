@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül host worker kurulum yolları
+
+Sanal ortam geçici dizinden taşınmıyor; actual console başlangıç komutları ve bağımlılıklar receipt yayınından önce doğrulanıyor. Gerçek offline pip/venv yol regresyonu geçti. Tam production bundle ve Linux servis kabulü açık; sayaç değişmedi. [Kanıt](testing/unified-host-workers-2026-09-30.md).
+
 ### 30 Eylül F09 doğru hafıza kaynağı ve gerçek Client kabulü
 
 Public API yalnız manual kaynak yazabilir; hesap kimliği ve restore provenance mutasyon öncesinde doğrulanır. Client snapshot parserı düzeltildi, geçmiş non-manual kaynaklar önceki beyan olarak görünür ve doğrulanmış AI receipt sayılmaz. 10 Server ve 2 gerçek Flutter→normal Core TCP kabulü geçti; analyze temiz. [Kanıt](testing/f09-ai-memory-provenance-2026-09-30.md). Geniş CI açık; sayaç değişmedi.

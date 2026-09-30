@@ -142,3 +142,9 @@ Still manual, and therefore not claimed by this slice:
   <https://github.com/Unmanic/unmanic/tree/1c324b8fc3974ffce3d7cc945adb938fe7182910>.
 - Unmanic's official Docker deployment documents separate configuration, cache
   and library mounts: <https://docs.unmanic.app/docs/installation/docker>.
+
+## Stable venv installation path
+
+Pip console scripts record their interpreter using an absolute shebang. The installer formerly created a venv in a temporary release directory and then renamed it, leaving these paths stale. Python explicitly documents that venvs are not movable ([official Python 3.12 documentation](https://docs.python.org/3.12/library/venv.html)). The installer now builds at the final private release path, executes all installed worker `--help` entrypoints before publishing the receipt, and changes only the current symlink after validation. Existing receipts are also checked by executing the installed entrypoints.
+
+`python3 -m unittest tool.tests.host_worker_release_paths_test -v`: 1 passed. This uses real offline pip, venvs and executable console scripts from tiny path-fixture wheels; it verifies activation through the current symlink and reproduces rejection of a relocated venv. These wheels are explicitly test fixtures, not provider evidence. The full production offline bundle install and real host service activation remain Linux acceptance gates. An interrupted final directory without a valid receipt fails closed; this change does not silently recreate existing or corrupt releases.

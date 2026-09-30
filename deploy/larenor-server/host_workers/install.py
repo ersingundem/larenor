@@ -223,6 +223,35 @@ def _root_directory(path, *, mode=None):
         raise HostWorkerPackageError("release_invalid") from None
 
 
+def _validate_entrypoints(release):
+    # Executing the installed script catches a stale venv shebang as well as
+    # missing package/dependency imports. --help must not start any service.
+    for relative in (
+        "server/bin/larenor-preflight-worker",
+        "server/bin/larenor-installation-worker",
+        "server/bin/larenor-media-archive-worker",
+        "server/bin/larenor-ai-worker",
+        "server/bin/larenor-unmanic-callback-package",
+        "unmanic/bin/unmanic",
+    ):
+        executable = release / relative
+        if (not executable.is_file() or executable.is_symlink()
+                or not os.access(executable, os.X_OK)):
+            raise HostWorkerPackageError("release_invalid")
+        _run([str(executable), "--help"])
+
+
+def _install_environments(release, bundle, python):
+    for name, wheels in (("server", bundle["server"]), ("unmanic", bundle["unmanic"])):
+        target = release / name
+        _run([str(python), "-m", "venv", str(target)])
+        interpreter = target / "bin/python"
+        _run([str(interpreter), "-m", "pip", "install", "--no-index", "--no-deps",
+              *[str(item) for item in wheels]], timeout=300)
+        _run([str(interpreter), "-m", "pip", "check"])
+    _validate_entrypoints(release)
+
+
 def _install_release(bundle, python):
     revision = bundle["manifest"]["sourceRevision"]
     release = PREFIX / "releases" / revision
@@ -232,53 +261,39 @@ def _install_release(bundle, python):
             _root_directory(release, mode=0o755)
             if json.loads(_read_regular(receipt, 8192, owner=0, mode=0o600)) != preview(bundle):
                 raise ValueError()
+            _validate_entrypoints(release)
             return release
         except Exception:
             raise HostWorkerPackageError("release_invalid") from None
-    staging = PREFIX / "releases" / ("." + revision + ".installing")
-    if staging.exists():
-        raise HostWorkerPackageError("release_invalid")
-    staging.mkdir(mode=0o700, parents=True)
+    # A Python venv is not relocatable: pip's script shebangs use its absolute
+    # installation path. Build at the final path while it is private and not
+    # referenced by current; publish only the validated complete release.
+    release.mkdir(mode=0o700, parents=True)
     try:
         _root_directory(PREFIX)
         _root_directory(PREFIX / "releases")
-        _root_directory(staging, mode=0o700)
-        for name, wheels in (("server", bundle["server"]), ("unmanic", bundle["unmanic"])):
-            target = staging / name
-            _run([str(python), "-m", "venv", str(target)])
-            interpreter = target / "bin/python"
-            _run([str(interpreter), "-m", "pip", "install", "--no-index", "--no-deps",
-                  *[str(item) for item in wheels]], timeout=300)
-            _run([str(interpreter), "-m", "pip", "check"])
-        for executable in (
-            staging / "server/bin/larenor-preflight-worker",
-            staging / "server/bin/larenor-installation-worker",
-            staging / "server/bin/larenor-media-archive-worker",
-            staging / "unmanic/bin/unmanic",
-        ):
-            if not executable.is_file() or not os.access(executable, os.X_OK):
-                raise HostWorkerPackageError("release_invalid")
+        _root_directory(release, mode=0o700)
+        _install_environments(release, bundle, python)
         for kind in ("callback", "encoder"):
             _run([
-                str(staging / "server/bin/larenor-unmanic-callback-package"),
-                "--kind", kind, "--output", str(staging / (kind + ".zip")),
+                str(release / "server/bin/larenor-unmanic-callback-package"),
+                "--kind", kind, "--output", str(release / (kind + ".zip")),
             ])
-            plugin = staging / (kind + ".zip")
+            plugin = release / (kind + ".zip")
             if (not plugin.is_file() or plugin.is_symlink()
                     or plugin.stat().st_uid != 0
                     or stat.S_IMODE(plugin.stat().st_mode) != 0o644
                     or not 1 <= plugin.stat().st_size <= 256 * 1024):
                 raise HostWorkerPackageError("release_invalid")
-        receipt = staging / "release.json"
+        receipt = release / "release.json"
         receipt.write_text(_canonical(preview(bundle)))
         receipt.chmod(0o600)
         os.chown(receipt, 0, 0)
-        staging.chmod(0o755)
-        os.rename(staging, release)
+        release.chmod(0o755)
         return release
     except Exception:
-        if staging.exists():
-            shutil.rmtree(staging)
+        if release.exists():
+            shutil.rmtree(release)
         raise
 
 
