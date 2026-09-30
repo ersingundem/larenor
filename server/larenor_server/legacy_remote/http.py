@@ -6,9 +6,26 @@ from .models import (RemoteCatalog, RemoteConfirmRequest, RemoteLearningRequest,
 
 
 class LegacyRemoteHttpGateway:
-    def __init__(self, *, manager, catalogResolver):
+    def __init__(self, *, manager, catalogResolver, sourceProvider=None):
         self._manager = manager
         self._resolve_catalog = catalogResolver
+        self._source_provider = sourceProvider
+
+    def sources(self, actor, core_id, home_id):
+        if self._source_provider is None or not callable(
+            getattr(self._source_provider, "sources", None)
+        ):
+            raise ApiError("remote_provider_unavailable", 503)
+        return self._source_provider.sources(actor, core_id, home_id)
+
+    def configure_source(self, actor, core_id, home_id, source_id, raw):
+        if self._source_provider is None or not callable(
+            getattr(self._source_provider, "configure", None)
+        ):
+            raise ApiError("remote_provider_unavailable", 503)
+        return self._source_provider.configure(
+            actor, core_id, home_id, source_id, raw
+        )
 
     def _catalog(self, actor, core_id, home_id):
         try:

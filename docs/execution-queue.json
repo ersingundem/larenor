@@ -5001,7 +5001,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Eski cihazlar için akıllı kumanda",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -5025,7 +5025,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION normal Core denetiminde kumanda providerı yok. Gerçek HA Broadlink registry ve şifreli tuş eşleştirme ile tek remote.send_command gönderimi geliştiriliyor. Broadlink 200 ACK fiziksel IR etkisini kanıtlamaz; normal receipt belirsiz olacak ve yeniden gönderilmeyecek. Öğrenme/Zigbee yetenekleri resmi readback olmadan sunulmayacak."
+      "reason": "Gerçek authenticated HA Broadlink entity/device registry kaynağı, şifreli öğrenilmiş tuş eşleştirme ve inline admin kurulum yolu uygulandı. Exact source/service/session/provenance send guard, tek remote.send_command ve kalıcı attempted intent restart sonrası tekrar göndermez. HTTP200 fiziksel IR teslimi kanıtlamadığından sonuç uncertain/lost_ack kalır; öğrenme/ZHA sahte capability olarak sunulmaz. 14 Server ve gerçek route guard/source save readback dahil 16 Flutter geçti, analyze temiz; tam Client→normal Core→TCP registry/effect kabulü, tüm tuş editorü ve geniş CI açık."
     },
     {
       "id": "F57",

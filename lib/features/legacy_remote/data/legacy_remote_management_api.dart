@@ -3,6 +3,8 @@ import 'dart:math';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
+import '../../server/services/data/server_services_api.dart';
+import '../../server/services/domain/server_service_models.dart';
 import '../domain/legacy_remote_models.dart';
 
 abstract interface class LegacyRemoteManagementApi {
@@ -33,8 +35,24 @@ abstract interface class LegacyRemoteManagementApi {
   });
 }
 
+abstract interface class LegacyRemoteSourceSetupApi {
+  Future<List<LegacyRemoteSetupService>> setupServices();
+
+  Future<List<LegacyRemoteSourceBinding>> listSources();
+
+  Future<LegacyRemoteSourceBinding> configureSource({
+    required LegacyRemoteSetupService service,
+    required String name,
+    required String entityId,
+    required String learnedDeviceName,
+    required LegacyRemoteCommandKey commandKey,
+    required String learnedCommandName,
+  });
+}
+
 /// Authenticated, route-owned bridge to the F56 Core HTTP contract.
-final class CoreLegacyRemoteManagementApi implements LegacyRemoteManagementApi {
+final class CoreLegacyRemoteManagementApi
+    implements LegacyRemoteManagementApi, LegacyRemoteSourceSetupApi {
   CoreLegacyRemoteManagementApi({
     required this.account,
     required this.routeId,
@@ -201,6 +219,136 @@ final class CoreLegacyRemoteManagementApi implements LegacyRemoteManagementApi {
     }
     return cached.devices;
   }
+
+  List<LegacyRemoteSourceBinding> _sourceList(Map<String, dynamic>? response) {
+    final raw = response?['sources'];
+    if (response?.length != 2 ||
+        response?['schemaVersion'] != 1 ||
+        raw is! List ||
+        raw.length > 16) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final sources = raw
+        .map(LegacyRemoteSourceBinding.fromJson)
+        .toList(growable: false);
+    if (sources.map((item) => item.sourceId).toSet().length != sources.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return List.unmodifiable(sources);
+  }
+
+  @override
+  Future<List<LegacyRemoteSetupService>> setupServices() => _bound((
+    api,
+    session,
+  ) async {
+    final services = await ServerServicesApi(api, session.accessToken).list();
+    final eligible = services
+        .where(
+          (service) =>
+              service.kind == ServerServiceKind.homeAssistant &&
+              service.verification.state ==
+                  ServerServiceVerificationState.authenticated,
+        )
+        .map(
+          (service) => LegacyRemoteSetupService(
+            serviceId: service.id,
+            name: service.name,
+            revision: service.revision,
+          ),
+        )
+        .toList(growable: false);
+    return List.unmodifiable(eligible);
+  });
+
+  @override
+  Future<List<LegacyRemoteSourceBinding>> listSources() =>
+      _bound((api, session) async {
+        final response = await api.request(
+          'GET',
+          '${_base(session.context!)}/sources',
+          token: session.accessToken,
+        );
+        return _sourceList(response);
+      });
+
+  @override
+  Future<LegacyRemoteSourceBinding> configureSource({
+    required LegacyRemoteSetupService service,
+    required String name,
+    required String entityId,
+    required String learnedDeviceName,
+    required LegacyRemoteCommandKey commandKey,
+    required String learnedCommandName,
+  }) => _bound((api, session) async {
+    final sourceId = _requestId();
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(service.serviceId) ||
+        service.revision < 1 ||
+        service.revision > 0x7fffffffffffffff ||
+        !_safeSourceText(name) ||
+        !_safeSourceText(learnedDeviceName) ||
+        !_safeSourceText(learnedCommandName) ||
+        learnedCommandName.toLowerCase().startsWith('b64:') ||
+        !RegExp(r'^remote\.[a-z0-9_]{1,249}$').hasMatch(entityId)) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final response = await api.request(
+      'PUT',
+      '${_base(session.context!)}/sources/$sourceId',
+      token: session.accessToken,
+      body: {
+        'schemaVersion': 1,
+        'expectedRevision': 0,
+        'serviceId': service.serviceId,
+        'expectedServiceRevision': service.revision,
+        'name': name,
+        'entityId': entityId,
+        'learnedDeviceName': learnedDeviceName,
+        'protocol': 'ir',
+        'commands': [
+          {
+            'key': legacyRemoteCommandWire(commandKey),
+            'commandName': learnedCommandName,
+            'maxRepeats': 1,
+          },
+        ],
+      },
+    );
+    final revision = response?['revision'];
+    final tag = response?['configurationTag'];
+    if (response?.length != 4 ||
+        response?['schemaVersion'] != 1 ||
+        response?['sourceId'] != sourceId ||
+        revision != 1 ||
+        tag is! String ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(tag)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final persisted = _sourceList(
+      await api.request(
+        'GET',
+        '${_base(session.context!)}/sources',
+        token: session.accessToken,
+      ),
+    ).where((item) => item.sourceId == sourceId).toList(growable: false);
+    if (persisted.length != 1 ||
+        persisted.single.revision != revision ||
+        persisted.single.serviceId != service.serviceId ||
+        persisted.single.serviceRevision != service.revision ||
+        persisted.single.name != name ||
+        persisted.single.entityId != entityId ||
+        persisted.single.configurationTag != tag ||
+        persisted.single.commandKeys.length != 1 ||
+        persisted.single.commandKeys.single != commandKey) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return persisted.single;
+  });
+
+  bool _safeSourceText(String value) =>
+      value.isNotEmpty &&
+      value.runes.length <= 128 &&
+      !value.contains(RegExp(r'[\x00-\x1f\x7f]'));
 
   LegacyRemoteDevice _currentDevice(LegacyRemoteDevice device) {
     final catalog = _catalog;

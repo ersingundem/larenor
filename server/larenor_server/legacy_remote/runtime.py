@@ -66,4 +66,5 @@ def build_legacy_remote_gateway(database, settings, key, context, provider):
         catalogResolver=lambda actor: provider.catalog(
             actor, context.coreId, context.homeId
         ),
+        sourceProvider=provider if callable(getattr(provider, "configure", None)) else None,
     )

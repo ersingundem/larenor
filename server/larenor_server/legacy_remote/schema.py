@@ -22,6 +22,15 @@ CREATE TABLE legacy_remote_state (
     authentication_tag TEXT NOT NULL CHECK(length(authentication_tag)=64)
 )
 """
+SOURCE_TABLE = """
+CREATE TABLE legacy_remote_ha_sources (
+    source_id TEXT PRIMARY KEY CHECK(length(source_id)=32),
+    revision INTEGER NOT NULL CHECK(revision >= 1),
+    nonce BLOB NOT NULL CHECK(length(nonce)=12),
+    ciphertext BLOB NOT NULL CHECK(length(ciphertext) BETWEEN 1 AND 65536),
+    authentication_tag TEXT NOT NULL CHECK(length(authentication_tag)=64)
+)
+"""
 
 
 def aad(core_id: str, home_id: str, revision: int) -> bytes:
@@ -42,6 +51,23 @@ def state_tag(
         key,
         b"larenor:legacy-remote-row:v1\0"
         + aad(core_id, home_id, revision)
+        + nonce
+        + ciphertext,
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def source_aad(core_id: str, home_id: str, source_id: str, revision: int) -> bytes:
+    return b"larenor:legacy-remote-ha-source:v1\0" + json.dumps(
+        [core_id, home_id, source_id, revision], separators=(",", ":")
+    ).encode("ascii")
+
+
+def source_tag(key, core_id, home_id, source_id, revision, nonce, ciphertext):
+    return hmac.new(
+        key,
+        b"larenor:legacy-remote-ha-source-row:v1\0"
+        + source_aad(core_id, home_id, source_id, revision)
         + nonce
         + ciphertext,
         hashlib.sha256,
@@ -126,5 +152,26 @@ def migrate_legacy_remote(connection: sqlite3.Connection, key: bytes, context) -
                 "INSERT INTO metadata VALUES('legacy_remote_schema',?)",
                 (SCHEMA_VERSION,),
             )
+        source_marker = connection.execute(
+            "SELECT value FROM metadata WHERE key='legacy_remote_ha_source_schema'"
+        ).fetchone()
+        source_table = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name='legacy_remote_ha_sources'"
+        ).fetchone()
+        if source_marker is None:
+            if source_table is not None:
+                raise ValueError("orphaned_legacy_remote_ha_sources")
+            connection.execute(SOURCE_TABLE)
+            connection.execute(
+                "INSERT INTO metadata VALUES('legacy_remote_ha_source_schema','1')"
+            )
+        elif (
+            source_marker["value"] != "1"
+            or source_table is None
+            or " ".join(source_table["sql"].split())
+            != " ".join(SOURCE_TABLE.split())
+        ):
+            raise ValueError("invalid_legacy_remote_ha_source_schema")
     except (InvalidTag, sqlite3.Error, TypeError, ValueError):
         raise StartupError("storage_initialization_failed") from None

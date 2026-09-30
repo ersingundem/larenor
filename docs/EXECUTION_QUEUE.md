@@ -20,7 +20,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 2 | 2 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 1 | 0 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 5 | 1 | 0 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 6 | 0 | 0 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 3 | 0 | 0 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 0 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -32,7 +32,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | F44 | Kameradan görsel sensörler | Çalışılıyor | — |
 | F45 | Havlama ve gürültü olayları | Çalışılıyor | — |
 | F50 | Oda konforu ve havalandırma planı | Çalışılıyor | — |
-| F56 | Eski cihazlar için akıllı kumanda | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -41,7 +40,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | Sıra | ID | İş | Hazırlık | Beklenen bağımlılık |
 | ---: | --- | --- | --- | --- |
 | 1 | F42 | Mahremiyet korumalı olay paylaşımı | Başlanabilir | — |
-| 2 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08, G09, G10 |
+| 2 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G08, G09 |
 | 3 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 4 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 5 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -165,6 +164,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F47 | Güneş ve ev bataryası öncelikleri | Uygulama tamamlandı · test bekliyor | — |
 | F49 | Bahçe sulama ve su bütçesi | Uygulama tamamlandı · test bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Uygulama tamamlandı · test bekliyor | — |
+| F56 | Eski cihazlar için akıllı kumanda | Uygulama tamamlandı · test bekliyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | Uygulama tamamlandı · test bekliyor | — |
 | F58 | E-paper mini ev ekranları | Uygulama tamamlandı · test bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Uygulama tamamlandı · test bekliyor | — |

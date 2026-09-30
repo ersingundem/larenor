@@ -149,7 +149,10 @@ class _LegacyRemoteRouteState extends ConsumerState<LegacyRemoteRoute> {
     final tr = Localizations.localeOf(context).languageCode == 'tr';
     final controller = _controller;
     if (controller != null) {
-      return LegacyRemoteManagementScreen(controller: controller);
+      return LegacyRemoteManagementScreen(
+        controller: controller,
+        sourceSetup: _api,
+      );
     }
     return ServiceRootScaffold(
       title: tr ? 'Akıllı kumandalar' : 'Smart remotes',

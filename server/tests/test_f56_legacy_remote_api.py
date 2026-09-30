@@ -215,13 +215,12 @@ def test_stale_or_foreign_routes_fail_closed_without_dispatch(server):
     assert calls == []
 
 
-def test_missing_provider_is_explicit_and_never_fakes_a_catalog(server):
+def test_normal_provider_starts_with_truthful_empty_catalog(server):
     app, client, _settings, _clock = server
     pair = ready(server)
     context = app.state.core.context
     root = f"/api/v1/admin/legacy-remotes/{context.coreId}/{context.homeId}"
     response = client.get(root, headers=auth(pair))
-    assert (response.status_code, response.json()) == (
-        503,
-        {"error": {"code": "remote_provider_unavailable", "message": "The legacy remote provider is unavailable."}},
-    )
+    assert response.status_code == 200
+    assert response.json()["catalog"]["items"] == []
+    assert response.json()["catalog"]["authority"]["accountId"] == pair["user"]["id"]

@@ -94,6 +94,101 @@ String legacyRemoteCommandWire(LegacyRemoteCommandKey value) => switch (value) {
   LegacyRemoteCommandKey.stop => 'stop',
 };
 
+String _boundedText(Object? value, {required int max}) =>
+    value is String &&
+        value.isNotEmpty &&
+        value.runes.length <= max &&
+        !value.contains(RegExp(r'[\x00-\x1f\x7f]'))
+    ? value
+    : _invalid();
+
+@immutable
+final class LegacyRemoteSetupService {
+  const LegacyRemoteSetupService({
+    required this.serviceId,
+    required this.name,
+    required this.revision,
+  });
+
+  final String serviceId;
+  final String name;
+  final int revision;
+
+  @override
+  String toString() => 'LegacyRemoteSetupService($serviceId, $revision)';
+}
+
+@immutable
+final class LegacyRemoteSourceBinding {
+  const LegacyRemoteSourceBinding({
+    required this.sourceId,
+    required this.revision,
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.name,
+    required this.entityId,
+    required this.commandKeys,
+    required this.configurationTag,
+  });
+
+  factory LegacyRemoteSourceBinding.fromJson(Object? json) {
+    final value = _object(json);
+    return _closed(
+      value,
+      {
+        'sourceId',
+        'revision',
+        'serviceId',
+        'serviceRevision',
+        'name',
+        'entityId',
+        'protocol',
+        'commandKeys',
+        'configurationTag',
+      },
+      () {
+        final entityId = _boundedText(value['entityId'], max: 256);
+        final rawKeys = value['commandKeys'];
+        if (value['protocol'] != 'ir' ||
+            !RegExp(r'^remote\.[a-z0-9_]{1,249}$').hasMatch(entityId) ||
+            rawKeys is! List ||
+            rawKeys.isEmpty ||
+            rawKeys.length > 32) {
+          return _invalid();
+        }
+        final commandKeys = rawKeys.map(_commandKey).toList(growable: false);
+        if (commandKeys.toSet().length != commandKeys.length) return _invalid();
+        return LegacyRemoteSourceBinding(
+          sourceId: _identity(value['sourceId']),
+          revision: _revision(value['revision']),
+          serviceId: _identity(value['serviceId']),
+          serviceRevision: _revision(value['serviceRevision']),
+          name: _boundedText(value['name'], max: 128),
+          entityId: entityId,
+          commandKeys: List.unmodifiable(commandKeys),
+          configurationTag:
+              value['configurationTag'] is String &&
+                  RegExp(r'^[0-9a-f]{64}$').hasMatch(value['configurationTag'])
+              ? value['configurationTag'] as String
+              : _invalid(),
+        );
+      },
+    );
+  }
+
+  final String sourceId;
+  final int revision;
+  final String serviceId;
+  final int serviceRevision;
+  final String name;
+  final String entityId;
+  final List<LegacyRemoteCommandKey> commandKeys;
+  final String configurationTag;
+
+  @override
+  String toString() => 'LegacyRemoteSourceBinding($sourceId, $revision)';
+}
+
 @immutable
 final class LegacyRemoteAuthority {
   const LegacyRemoteAuthority({

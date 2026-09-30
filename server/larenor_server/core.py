@@ -254,6 +254,7 @@ from .game_streaming.schema import migrate_game_streaming
 from .game_streaming.service import GameStreamAuthorityService
 from .legacy_remote.schema import migrate_legacy_remote
 from .legacy_remote.runtime import build_legacy_remote_gateway
+from .legacy_remote.ha_provider import HomeAssistantLegacyRemoteProvider
 from .camera_visual_sensors.schema import migrate_camera_visual_sensors
 from .camera_visual_sensors.service import CameraVisualSensorService
 from .private_event_sharing import (
@@ -1508,12 +1509,29 @@ class CoreServices:
                 journal=self.keenetic_command_journal,
                 wall_clock=settings.clock,
             )
+            legacy_remote_provider = self._legacy_remote_provider
+            if legacy_remote_provider is None:
+                legacy_remote_provider = HomeAssistantLegacyRemoteProvider(
+                    self.db,
+                    self.auth,
+                    settings,
+                    key,
+                    self.context,
+                    self.services,
+                    lambda connection, service_id, revision: (
+                        self.services._authenticated_home_assistant_connection(
+                            connection, service_id, revision
+                        )
+                    ),
+                    self.home_resources,
+                )
+            self.legacy_remote_provider = legacy_remote_provider
             self.legacy_remote_gateway = build_legacy_remote_gateway(
                 self.db,
                 settings,
                 key,
                 self.context,
-                self._legacy_remote_provider,
+                legacy_remote_provider,
             )
             self.clear_inactive_bootstrap()
 

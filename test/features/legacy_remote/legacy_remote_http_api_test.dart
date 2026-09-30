@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/legacy_remote/data/legacy_remote_management_api.dart';
+import 'package:larenor/features/legacy_remote/domain/legacy_remote_models.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/data/server_account_controller.dart';
 import 'package:larenor/features/server/data/server_session_store.dart';
@@ -322,4 +323,118 @@ void main() {
     gate.complete(_json({'preview': _preview(requestId)}, 201));
     await expectLater(pending, throwsA(isA<LarenorServerException>()));
   });
+
+  test(
+    'source setup uses one authenticated HA service and causal opaque readback',
+    () async {
+      String? sourceId;
+      final account = await _account((request) async {
+        if (request.url.path.endsWith('/auth/login')) {
+          return _json({
+            'accessToken': 'a' * 43,
+            'refreshToken': 'b' * 43,
+            'expiresIn': 3600,
+            'user': {
+              'id': accountId,
+              'username': 'admin',
+              'role': 'admin',
+              'mustChangePassword': false,
+            },
+          });
+        }
+        if (request.url.path.endsWith('/context')) {
+          return _json({'schemaVersion': 1, 'coreId': core, 'homeId': home});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/admin/legacy-remotes/$core/$home')) {
+          return _json({'catalog': _catalog});
+        }
+        if (request.method == 'GET' &&
+            request.url.path.endsWith('/admin/services')) {
+          return _json({
+            'services': [
+              {
+                'id': provider,
+                'name': 'Home Assistant',
+                'kind': 'home_assistant',
+                'baseUrl': 'https://ha.invalid',
+                'revision': 13,
+                'credentialKeys': ['token'],
+                'verification': {
+                  'state': 'authenticated',
+                  'checkedAt': '2026-09-30T12:00:00Z',
+                  'version': '2026.9.2',
+                },
+              },
+            ],
+          });
+        }
+        if (request.method == 'PUT' && request.url.path.contains('/sources/')) {
+          sourceId = request.url.pathSegments.last;
+          expect(sourceId, matches(RegExp(r'^[0-9a-f]{32}$')));
+          expect(jsonDecode(request.body), {
+            'schemaVersion': 1,
+            'expectedRevision': 0,
+            'serviceId': provider,
+            'expectedServiceRevision': 13,
+            'name': 'Living room TV',
+            'entityId': 'remote.living_room_broadlink',
+            'learnedDeviceName': 'television',
+            'protocol': 'ir',
+            'commands': [
+              {'key': 'power_toggle', 'commandName': 'power', 'maxRepeats': 1},
+            ],
+          });
+          return _json({
+            'schemaVersion': 1,
+            'sourceId': sourceId,
+            'revision': 1,
+            'configurationTag': 'd' * 64,
+          });
+        }
+        if (request.method == 'GET' && request.url.path.endsWith('/sources')) {
+          return _json({
+            'schemaVersion': 1,
+            'sources': [
+              {
+                'sourceId': sourceId,
+                'revision': 1,
+                'serviceId': provider,
+                'serviceRevision': 13,
+                'name': 'Living room TV',
+                'entityId': 'remote.living_room_broadlink',
+                'protocol': 'ir',
+                'commandKeys': ['power_toggle'],
+                'configurationTag': 'd' * 64,
+              },
+            ],
+          });
+        }
+        throw StateError(
+          'unexpected route ${request.method} ${request.url.path}',
+        );
+      });
+      addTearDown(account.dispose);
+      final api = CoreLegacyRemoteManagementApi(
+        account: account,
+        routeId: routeId,
+        sessionRevision: 1,
+        routeRevision: 1,
+        isCurrent: () => true,
+      );
+      await api.bootstrap();
+      final service = (await api.setupServices()).single;
+      final saved = await api.configureSource(
+        service: service,
+        name: 'Living room TV',
+        entityId: 'remote.living_room_broadlink',
+        learnedDeviceName: 'television',
+        commandKey: LegacyRemoteCommandKey.powerToggle,
+        learnedCommandName: 'power',
+      );
+      expect(saved.sourceId, sourceId);
+      expect(saved.configurationTag, 'd' * 64);
+      expect(saved.commandKeys, [LegacyRemoteCommandKey.powerToggle]);
+    },
+  );
 }

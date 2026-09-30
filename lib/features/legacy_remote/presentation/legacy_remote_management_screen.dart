@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/app_interaction_scope.dart';
 import '../../../shared/widgets/service_root_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
+import '../data/legacy_remote_management_api.dart';
 import '../data/legacy_remote_management_controller.dart';
 import '../domain/legacy_remote_models.dart';
 
@@ -45,8 +48,8 @@ final class _RemoteStrings {
       tr ? 'Sağlayıcı doğrulanmadı' : 'Provider not verified';
   String get confirmTitle => tr ? 'Komutu gönder?' : 'Send command?';
   String confirmBody(String command, String device) => tr
-      ? '$device için “$command” sinyali gönderilecek. Bu onay yalnız sinyal teslimini doğrular.'
-      : 'The “$command” signal will be sent to $device. This confirms signal delivery only.';
+      ? '$device için “$command” sinyali gönderilecek. Köprüye gönderim istenecektir; sinyalin ulaştığı veya cihazın durumu doğrulanamaz.'
+      : 'The “$command” signal will be sent to $device. This requests bridge transmission; signal delivery and device state cannot be verified.';
   String get cancel => tr ? 'Vazgeç' : 'Cancel';
   String get confirm => tr ? 'Gönder' : 'Send';
   String get learn => tr ? 'Tuş öğren' : 'Learn a button';
@@ -56,6 +59,29 @@ final class _RemoteStrings {
       ? 'Orijinal kumandayı $device köprüsüne doğrultun. “$command” tuşuna bastıktan sonra Öğren ile başlatın. Bu işlem cihazın fiziksel durumunu değiştirmez veya doğrulamaz.'
       : 'Point the original remote at the $device bridge. Press “$command”, then start Learn. This does not change or verify the appliance state.';
   String get startLearning => tr ? 'Öğren' : 'Learn';
+  String get setup => tr ? 'Kumanda kaynağı ekle' : 'Add remote source';
+  String get setupTitle => tr ? 'Broadlink IR kaynağı' : 'Broadlink IR source';
+  String get setupHint => tr
+      ? 'Home Assistant içinde önceden öğrenilmiş tek bir IR komutunu bağlar. Ham sinyal verisi Larenor’a kopyalanmaz.'
+      : 'Binds one IR command already learned in Home Assistant. Raw signal data is not copied into Larenor.';
+  String get sourceName => tr ? 'Kumanda adı' : 'Remote name';
+  String get entityId => tr ? 'Remote varlık kimliği' : 'Remote entity ID';
+  String get learnedDevice =>
+      tr ? 'Öğrenilmiş cihaz adı' : 'Learned device name';
+  String get learnedCommand =>
+      tr ? 'Öğrenilmiş komut adı' : 'Learned command name';
+  String get service =>
+      tr ? 'Home Assistant servisi' : 'Home Assistant service';
+  String get commandKey => tr ? 'Mantıksal tuş' : 'Logical button';
+  String get save =>
+      tr ? 'Kaynağı doğrula ve kaydet' : 'Verify and save source';
+  String get noService => tr
+      ? 'Doğrulanmış Home Assistant servisi yok'
+      : 'No authenticated Home Assistant service';
+  String get setupFailed => tr
+      ? 'Kaynak doğrulanamadı veya kaydedilemedi.'
+      : 'The source could not be verified or saved.';
+  String get savedSources => tr ? 'Kaydedilmiş kaynaklar' : 'Saved sources';
   String command(LegacyRemoteCommandKey key) => switch (key) {
     LegacyRemoteCommandKey.powerToggle => tr ? 'Güç' : 'Power',
     LegacyRemoteCommandKey.powerOn => tr ? 'Aç' : 'Power on',
@@ -85,8 +111,13 @@ final class _RemoteStrings {
 }
 
 class LegacyRemoteManagementScreen extends StatefulWidget {
-  const LegacyRemoteManagementScreen({super.key, required this.controller});
+  const LegacyRemoteManagementScreen({
+    super.key,
+    required this.controller,
+    this.sourceSetup,
+  });
   final LegacyRemoteManagementController controller;
+  final LegacyRemoteSourceSetupApi? sourceSetup;
 
   @override
   State<LegacyRemoteManagementScreen> createState() =>
@@ -97,6 +128,7 @@ class _LegacyRemoteManagementScreenState
     extends State<LegacyRemoteManagementScreen> {
   AppInteractionController? _interaction;
   int _viewEpoch = 0;
+  bool _showSourceSetup = false;
 
   @override
   void initState() {
@@ -122,6 +154,21 @@ class _LegacyRemoteManagementScreenState
     final active = _interaction?.active ?? true;
     if (!active) _viewEpoch++;
     widget.controller.setInteractive(active);
+  }
+
+  void _setupSource() {
+    if (widget.sourceSetup == null || !widget.controller.canAct) return;
+    setState(() => _showSourceSetup = true);
+  }
+
+  void _cancelSourceSetup() {
+    if (mounted) setState(() => _showSourceSetup = false);
+  }
+
+  void _sourceSaved() {
+    if (!mounted) return;
+    setState(() => _showSourceSetup = false);
+    unawaited(widget.controller.load());
   }
 
   void _changed() {
@@ -253,6 +300,14 @@ class _LegacyRemoteManagementScreenState
   Widget build(BuildContext context) {
     final strings = _RemoteStrings.of(context);
     final controller = widget.controller;
+    final sourceSetup = widget.sourceSetup;
+    if (_showSourceSetup && sourceSetup != null) {
+      return _LegacyRemoteSourceSetupScreen(
+        api: sourceSetup,
+        onDone: _sourceSaved,
+        onCancel: _cancelSourceSetup,
+      );
+    }
     return ServiceRootScaffold(
       title: strings.title,
       slivers: [
@@ -273,6 +328,21 @@ class _LegacyRemoteManagementScreenState
             ],
           ),
         ),
+        if (widget.sourceSetup != null)
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Text(strings.setupTitle),
+              footer: Text(strings.setupHint),
+              children: [
+                SettingsActionTile(
+                  buttonKey: const ValueKey('legacy-remote-add-source'),
+                  title: Text(strings.setup),
+                  leading: const Icon(CupertinoIcons.add_circled),
+                  onTap: controller.canAct ? _setupSource : null,
+                ),
+              ],
+            ),
+          ),
         if (controller.devices.isNotEmpty)
           SliverToBoxAdapter(
             child: LayoutBuilder(
@@ -429,13 +499,14 @@ class _DeviceSection extends StatelessWidget {
           ),
         ),
       ),
-      SettingsActionTile(
-        buttonKey: ValueKey('legacy-remote-learn-${device.deviceId}'),
-        title: Text(strings.learn),
-        additionalInfo: Text(strings.deviceUnverified),
-        leading: const Icon(CupertinoIcons.waveform_path),
-        onTap: enabled ? () => onLearn(device) : null,
-      ),
+      if (device.providerType == LegacyRemoteProvider.isolatedBridge)
+        SettingsActionTile(
+          buttonKey: ValueKey('legacy-remote-learn-${device.deviceId}'),
+          title: Text(strings.learn),
+          additionalInfo: Text(strings.deviceUnverified),
+          leading: const Icon(CupertinoIcons.waveform_path),
+          onTap: enabled ? () => onLearn(device) : null,
+        ),
       for (final command in device.commands)
         SettingsActionTile(
           buttonKey: ValueKey(
@@ -446,6 +517,261 @@ class _DeviceSection extends StatelessWidget {
           onTap: enabled ? () => onCommand(device, command) : null,
         ),
     ],
+  );
+}
+
+class _LegacyRemoteSourceSetupScreen extends StatefulWidget {
+  const _LegacyRemoteSourceSetupScreen({
+    required this.api,
+    required this.onDone,
+    required this.onCancel,
+  });
+  final LegacyRemoteSourceSetupApi api;
+  final VoidCallback onDone;
+  final VoidCallback onCancel;
+
+  @override
+  State<_LegacyRemoteSourceSetupScreen> createState() =>
+      _LegacyRemoteSourceSetupScreenState();
+}
+
+class _LegacyRemoteSourceSetupScreenState
+    extends State<_LegacyRemoteSourceSetupScreen> {
+  final _name = TextEditingController();
+  final _entity = TextEditingController(text: 'remote.');
+  final _device = TextEditingController();
+  final _command = TextEditingController();
+  List<LegacyRemoteSetupService> _services = const [];
+  List<LegacyRemoteSourceBinding> _sources = const [];
+  LegacyRemoteSetupService? _service;
+  LegacyRemoteCommandKey _key = LegacyRemoteCommandKey.powerToggle;
+  bool _loading = true;
+  bool _saving = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    try {
+      final values = await Future.wait([
+        widget.api.setupServices(),
+        widget.api.listSources(),
+      ]);
+      if (!mounted) return;
+      final services = values[0] as List<LegacyRemoteSetupService>;
+      setState(() {
+        _services = services;
+        _sources = values[1] as List<LegacyRemoteSourceBinding>;
+        _service = services.firstOrNull;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _chooseService(_RemoteStrings strings) async {
+    if (_services.isEmpty || _saving) return;
+    final selected = await showCupertinoModalPopup<LegacyRemoteSetupService>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(strings.service),
+        actions: [
+          for (final service in _services)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, service),
+              child: Text(service.name),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(strings.cancel),
+        ),
+      ),
+    );
+    if (mounted && selected != null) setState(() => _service = selected);
+  }
+
+  Future<void> _chooseKey(_RemoteStrings strings) async {
+    if (_saving) return;
+    final selected = await showCupertinoModalPopup<LegacyRemoteCommandKey>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(strings.commandKey),
+        actions: [
+          for (final key in LegacyRemoteCommandKey.values)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, key),
+              child: Text(strings.command(key)),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(strings.cancel),
+        ),
+      ),
+    );
+    if (mounted && selected != null) setState(() => _key = selected);
+  }
+
+  Future<void> _save() async {
+    final service = _service;
+    if (_saving || service == null) return;
+    setState(() {
+      _saving = true;
+      _failed = false;
+    });
+    try {
+      await widget.api.configureSource(
+        service: service,
+        name: _name.text,
+        entityId: _entity.text,
+        learnedDeviceName: _device.text,
+        commandKey: _key,
+        learnedCommandName: _command.text,
+      );
+      if (mounted) widget.onDone();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _failed = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _entity.dispose();
+    _device.dispose();
+    _command.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = _RemoteStrings.of(context);
+    return ServiceRootScaffold(
+      title: strings.setupTitle,
+      slivers: [
+        SliverToBoxAdapter(
+          child: SettingsSection(
+            header: Text(strings.setupTitle),
+            footer: Text(strings.setupHint),
+            children: [
+              SettingsActionTile(
+                buttonKey: const ValueKey('legacy-remote-source-cancel'),
+                title: Text(strings.cancel),
+                leading: const Icon(CupertinoIcons.chevron_back),
+                onTap: _saving ? null : widget.onCancel,
+              ),
+              if (_loading)
+                const SizedBox(
+                  height: 56,
+                  child: Center(child: CupertinoActivityIndicator()),
+                )
+              else ...[
+                SettingsActionTile(
+                  buttonKey: const ValueKey('legacy-remote-source-service'),
+                  title: Text(strings.service),
+                  additionalInfo: Text(_service?.name ?? strings.noService),
+                  leading: const Icon(CupertinoIcons.home),
+                  onTap: _services.isEmpty
+                      ? null
+                      : () => _chooseService(strings),
+                ),
+                _SourceField(
+                  key: const ValueKey('legacy-remote-source-name'),
+                  controller: _name,
+                  placeholder: strings.sourceName,
+                ),
+                _SourceField(
+                  key: const ValueKey('legacy-remote-source-entity'),
+                  controller: _entity,
+                  placeholder: strings.entityId,
+                ),
+                _SourceField(
+                  key: const ValueKey('legacy-remote-source-device'),
+                  controller: _device,
+                  placeholder: strings.learnedDevice,
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('legacy-remote-source-key'),
+                  title: Text(strings.commandKey),
+                  additionalInfo: Text(strings.command(_key)),
+                  leading: const Icon(CupertinoIcons.square_grid_2x2),
+                  onTap: () => _chooseKey(strings),
+                ),
+                _SourceField(
+                  key: const ValueKey('legacy-remote-source-command'),
+                  controller: _command,
+                  placeholder: strings.learnedCommand,
+                ),
+                SettingsActionTile(
+                  buttonKey: const ValueKey('legacy-remote-source-save'),
+                  title: Text(strings.save),
+                  leading: const Icon(CupertinoIcons.checkmark_shield),
+                  onTap: _saving || _service == null ? null : _save,
+                ),
+                if (_failed)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(strings.setupFailed),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        if (_sources.isNotEmpty)
+          SliverToBoxAdapter(
+            child: SettingsSection(
+              header: Text(strings.savedSources),
+              children: [
+                for (final source in _sources)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text('${source.name} · ${source.entityId}'),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SourceField extends StatelessWidget {
+  const _SourceField({
+    super.key,
+    required this.controller,
+    required this.placeholder,
+  });
+  final TextEditingController controller;
+  final String placeholder;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: CupertinoTextField(
+      controller: controller,
+      placeholder: placeholder,
+      enabled: true,
+      autocorrect: false,
+      enableSuggestions: false,
+      maxLength: 128,
+      clearButtonMode: OverlayVisibilityMode.editing,
+    ),
   );
 }
 

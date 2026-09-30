@@ -1,6 +1,11 @@
 """F56 bounded legacy smart-remote Core foundation."""
 
 from .http import LegacyRemoteHttpGateway
+from .ha_provider import (
+    HomeAssistantLegacyRemoteProvider,
+    HomeAssistantRemoteCommand,
+    HomeAssistantRemoteSourceRequest,
+)
 from .models import (
     RemoteAuthority,
     RemoteCatalog,
@@ -26,6 +31,9 @@ from .store import LegacyRemoteStore
 
 __all__ = [
     "LegacyRemoteHttpGateway",
+    "HomeAssistantLegacyRemoteProvider",
+    "HomeAssistantRemoteCommand",
+    "HomeAssistantRemoteSourceRequest",
     "LegacyRemoteManager",
     "LegacyRemoteProvider",
     "LegacyRemoteStore",

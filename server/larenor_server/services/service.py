@@ -181,6 +181,19 @@ class ServiceManagement:
             raise ApiError('ha_binding_changed', 409)
         return self._private(row, record)
 
+    def _authenticated_home_assistant_connection(
+        self, connection, service_id: str, revision: int
+    ) -> ServiceConnection:
+        """Private adapter seam requiring the exact authenticated HA record."""
+        row, record = self._record(connection, service_id, revision)
+        if (
+            record["kind"] != "home_assistant"
+            or set(record["credentials"]) != {"token"}
+            or record["verification"]["state"] != "authenticated"
+        ):
+            raise ApiError("ha_binding_changed", 409)
+        return self._private(row, record)
+
     def _proxmox_connection(self, connection, service_id: str, revision: int) -> ServiceConnection:
         """Private resource-adapter seam; never exposes an execution permit."""
         row, record = self._record(connection, service_id, revision)

@@ -9,6 +9,7 @@ from ..dependencies import require_admin
 from ..errors import ApiError
 from ..home_resources.models import Identity
 from ..models import ErrorResponse
+from .ha_provider import HomeAssistantRemoteSourceRequest
 from .models import (RemoteConfirmRequest, RemoteLearningRequest,
                      RemotePreviewRequest)
 
@@ -42,6 +43,25 @@ def _gateway(request: Request):
 @router.get(ROOT)
 def catalog(core_id: Identity, home_id: Identity, actor: Admin, request: Request):
     return {"catalog": _gateway(request).catalog(actor, core_id, home_id)}
+
+
+@router.get(ROOT + "/sources")
+def sources(core_id: Identity, home_id: Identity, actor: Admin, request: Request):
+    return _gateway(request).sources(actor, core_id, home_id)
+
+
+@router.put(ROOT + "/sources/{source_id}")
+def configure_source(
+    core_id: Identity,
+    home_id: Identity,
+    source_id: Identity,
+    body: HomeAssistantRemoteSourceRequest,
+    actor: Admin,
+    request: Request,
+):
+    return _gateway(request).configure_source(
+        actor, core_id, home_id, source_id, body
+    )
 
 
 @router.post(ROOT + "/previews", status_code=201)
