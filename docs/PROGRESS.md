@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F08 gerçek cgroup stres kabulü
+
+Linux kabul kapısına gerçek worker üzerinden OOM, TasksMax fork reddi ve CPU throttling senaryoları eklendi. MemoryPeak'in geçici olarak limiti aşamayacağı varsayımı kaldırıldı; kernel sayaçları ve exact uygulanan limitler birlikte doğrulanır. 17 yerel test geçti, 3 Linux testi macOS'ta açıkça atlandı; 26 workflow/policy testi ve actionlint geçti. Actual Linux sonucu bekleniyor. [Kanıt](testing/f08-standalone-ai-runtime-2026-09-30.md).
+
 ### 30 Eylül Keenetic gerçek host worker ve nedensel doğrulama
 
 Unified Core, özel veri izinlerini koruyarak UID10008 Keenetic worker'a ayrı IPC mount üzerinden bağlanır. Docker PID namespace varsayımı kaldırıldı; gerçek socket peer ve worker receipt doğrulanır. Gerçek TCP RCI kabulünde ortaya çıkan iki pre-state/readback hatası düzeltildi. 141 Keenetic ve 9 paket testi geçti; dedicated UID Linux, geniş CI ve fiziksel router kabulü açık. [Kanıt](testing/keenetic-host-worker-2026-09-30.md). Sayaç değişmedi.

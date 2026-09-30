@@ -138,3 +138,26 @@ commit run is needed to establish actual IPC/cgroup acceptance.
 Exact `e2da860e1` Server koşusu `36738496557` gerçek UID10003 user manager bus aşamasını geçti. Worker başlangıcı uv managed CPython stdlibine erişemedi (`ModuleNotFoundError: encodings`). CI sadece venv izinlerini açıyordu; managed Python kurulumunun okuma/geçiş izinleri de worker için açıldı. Bu uygulama sonucu veya yeşil Linux kabulü değildir; değişmiş HEAD tekrar actual Linux kapısına gönderilir.
 
 Exact `2c07cca6c` actual Linux run `36740147929` user manager ve izin adımlarını geçti; venv ile managed Python `/home/runner` altındaki RUNNER_TEMPte olduğundan farklı UID üst dizini geçemedi. Yeni CI bu iki runtimeı `/tmp` altında kurar ve pytestten önce actual UID10003 ile `import encodings; import larenor_server` çalıştırır. Provider fixture ve state de `/tmp` altındadır. Linux kabul sonucu hâlâ açık; aynı SHA rerun edilmedi.
+
+Exact `daa0ea819` scoped run `36743289498` proved the dedicated user manager,
+UID 10001 to UID 10003 IPC, provider identity, terminal success, and verified
+output receipt. It then failed because the acceptance test incorrectly required
+the observed `MemoryPeak` to be no greater than `MemoryMax`. The Linux cgroup v2
+contract says `memory.max` is the hard limit but usage may temporarily exceed it;
+`memory.peak` records the maximum observed usage. The gate therefore requires a
+positive bounded scalar metric and separately verifies the exact live
+`MemoryMax`, `MemorySwapMax`, `TasksMax`, and CPU quota properties. A later exact
+run is still required for a green result.
+
+## Actual cgroup stress gate
+
+The same mandatory hosted Linux job now also runs
+`test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc`.
+Three owned fixture providers deliberately exceed 64 MiB memory, fork beyond
+TasksMax=8, and perform CPU work under CPUQuota=20%. Acceptance requires kernel
+`memory.events` OOM/kill evidence, `pids.events` denial evidence, and actual
+`cpu.stat` throttling with exact `cpu.max` readback. It also requires terminal
+IPC results and subsequent unit/cgroup removal. Local execution recorded
+17 passes and 3 explicit Linux skips; the actual stress result is still open.
+Manual F08 and host diagnostics have separate concurrency groups, so one does
+not cancel the other. Full required Server acceptance still includes both jobs.

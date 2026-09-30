@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-test-${{ github.workflow }}-${{ github.ref }}
+  group: server-test-${{ github.workflow }}-${{ github.ref }}-${{ inputs.scope || 'all' }}
   cancel-in-progress: true
 
 jobs:
@@ -80,7 +80,8 @@ jobs:
         run: |
           sudo --preserve-env=LARENOR_F08_SYSTEMD_ACCEPTANCE \
             "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest -q \
-            tests/test_f08_ai_worker_ipc.py::test_actual_uid10003_user_manager_runs_through_uid10001_ipc
+            tests/test_f08_ai_worker_ipc.py::test_actual_uid10003_user_manager_runs_through_uid10001_ipc \
+            tests/test_f08_cgroup_stress_linux.py::test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc
 
   host-workers-linux:
     name: host-workers-linux

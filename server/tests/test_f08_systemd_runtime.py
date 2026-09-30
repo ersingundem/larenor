@@ -331,7 +331,7 @@ def test_actual_systemd_cgroup_runs_standalone_provider_and_reads_receipt(tmp_pa
         assert observation.result_code == "succeeded"
         assert observation.exit_code == 0
         assert observation.memory_peak_mb is not None
-        assert observation.memory_peak_mb <= dispatch.memory_mb
+        assert 0 < observation.memory_peak_mb <= 2**31 - 1, observation.memory_peak_mb
         assert observation.cpu_millis is not None and observation.cpu_millis > 0
         assert observation.output_sha256 is not None
     finally:
