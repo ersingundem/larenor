@@ -21,7 +21,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 
 from ..errors import ApiError, StartupError
-from ..home_resources.models import FrozenModel, Identity
+from ..home_resources.models import ActorFacts, FrozenModel, Identity
 from ..home_assistant.read_only_websocket import HomeAssistantReadOnlyWebSocket, HomeAssistantWebSocketError
 from ..services.transport import ServiceTransport, ProbeTransportError
 from ..camera_profiles.ha_provider import _json
@@ -306,40 +306,67 @@ class FrigateCameraSearchRuntime(FrigatePrivateEventBindings, CameraSearchRuntim
                 self._evidence.clear()
             return self.source_state(actor)
 
-    def _live(self, actor, core_id, home_id):
+    def _live_in(self, actor, core_id, home_id, connection):
         if (core_id, home_id) != (self.core_id, self.home_id):
             raise ApiError('not_found', 404)
         raw = self._saved()
         if raw is None:
             raise ApiError('camera_search_not_configured', 503)
         settings = FrigateSearchBinding.model_validate(raw['settings'])
+        self.ha.auth.assert_current(connection, actor)
+        if actor.must_change_password:
+            raise ApiError('password_change_required', 403)
+        self.ha.resources._check_context(connection, core_id, home_id)
+        user = connection.execute(
+            'SELECT id,revision,role,disabled,must_change_password FROM users WHERE id=?',
+            (actor.id,),
+        ).fetchone()
+        if user is None:
+            raise ApiError('revision_conflict', 409)
+        facts = ActorFacts(
+            userId=user['id'], revision=user['revision'], role=user['role'],
+            disabled=bool(user['disabled']),
+            mustChangePassword=bool(user['must_change_password']),
+            sessionCurrent=True,
+        )
         resources = {}
-        with self.ha._tx(actor, core_id, home_id, consume_rate_limit=False) as (connection, facts):
-            service = self._service(connection, settings.serviceId, settings.expectedServiceRevision)
-            for rid in settings.cameraResourceIds:
-                try:
-                    item = self._resource(connection, facts, rid)
-                except ApiError as error:
-                    if error.code == 'not_found':
-                        continue  # No existence oracle for inaccessible cameras.
-                    raise
-                if item[0] != raw['bindings'][rid]:
-                    raise ApiError('revision_conflict', 409)
-                resources[rid] = item
-            if not resources:
-                raise ApiError('forbidden', 403)
-            home_revision = self.ha.resources._state(connection)['revision']
-            authority = CameraSearchAuthority(schemaVersion=1, coreId=core_id, homeId=home_id,
-                homeRevision=home_revision, accountId=actor.id, accountRevision=facts.revision,
-                memberRevision=home_revision, sessionFamilyId=actor.family_id, role=facts.role,
-                accessibleCameraIds=sorted(resources), allowPrivateEvidence=facts.role == 'admin',
-                active=True, canSearch=True)
+        service = self._service(connection, settings.serviceId, settings.expectedServiceRevision)
+        for rid in settings.cameraResourceIds:
+            try:
+                item = self._resource(connection, facts, rid)
+            except ApiError as error:
+                if error.code == 'not_found':
+                    continue  # No existence oracle for inaccessible cameras.
+                raise
+            if item[0] != raw['bindings'][rid]:
+                raise ApiError('revision_conflict', 409)
+            resources[rid] = item
+        if not resources:
+            raise ApiError('forbidden', 403)
+        home_revision = self.ha.resources._state(connection)['revision']
+        authority = CameraSearchAuthority(schemaVersion=1, coreId=core_id, homeId=home_id,
+            homeRevision=home_revision, accountId=actor.id, accountRevision=facts.revision,
+            memberRevision=home_revision, sessionFamilyId=actor.family_id, role=facts.role,
+            accessibleCameraIds=sorted(resources), allowPrivateEvidence=facts.role == 'admin',
+            active=True, canSearch=True)
         return raw, service, resources, authority
+
+    def _live(self, actor, core_id, home_id):
+        with self.ha._tx(
+            actor, core_id, home_id, consume_rate_limit=False
+        ) as (connection, _facts):
+            return self._live_in(actor, core_id, home_id, connection)
 
     def _prepare(self, actor, core_id, home_id):
         raw, service, resources, authority = self._live(actor, core_id, home_id)
-        def guard():
-            fresh, current, latest, current_authority = self._live(actor, core_id, home_id)
+        def guard(connection=None):
+            if connection is None:
+                current_values = self._live(actor, core_id, home_id)
+            else:
+                current_values = self._live_in(
+                    actor, core_id, home_id, connection
+                )
+            fresh, current, latest, current_authority = current_values
             if (fresh != raw or current_authority != authority
                     or self._service_digest(current) != self._service_digest(service)
                     or {rid: item[1] for rid, item in latest.items()} != {rid: item[1] for rid, item in resources.items()}):

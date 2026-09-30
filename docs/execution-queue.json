@@ -3805,7 +3805,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Sınırlı yetkili mini eklentiler",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -3831,7 +3831,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Paketli mini eklenti kataloğu sabit home.resource_count.read yeteneğini mevcut Core/ev sınırında çalıştırıyor; ağ, host dosyaları, anahtarlar, host yönetimi, keyfi kod ve evler arası erişim kapalı, CPU/bellek/çıktı bütçeleri sınırlı, HMAC doğrulamalı journal ve durdurma sonrası yürütme reddi görünür Client akışına bağlandı (7af0d3e4, 2e10d86d). Özellik E2E testleri, bağımsız inceleme ve exact-head CI son doğrulama kapısında bekliyor."
+      "reason": "FINAL.FUNCTION incelemesinde CPU/bellek limitlerinin in-process metadata renderer tarafından uygulanmadığı doğrulandı. Yanlış hard-limit iddiası sürümlü Server/Client sözleşmesinden kaldırılıyor; gerçek izolasyon ve tüm kabul kriterleri doğrulanmadan CI bekliyor veya kanıtla tamamlandı sayılmaz. Çıktı, yetki, stop, ev sınırı ve sabit katalog kapıları korunur."
     },
     {
       "id": "F12",
@@ -4768,7 +4768,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Havlama ve gürültü olayları",
-      "status": "in_progress",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4793,7 +4793,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION gerçek runtime incelemesi: Frigate ses olayı providerı ve Client geçmiş/rıza yolu mevcut; bildirim tercihleri F54 durable teslim/receipt hattına bağlı değil. Şu anda normal Core→SoundEventEngine→F54 dedupe/teslim/receipt bağlantısı geliştiriliyor; tamamlanmış uygulama henüz kabul edilmedi. Fiziksel ses doğruluğu ve exact HEAD geniş CI açık."
+      "reason": "Normal Core→Frigate ses olayı→F54 durable özel bildirim bağlantısı tamamlandı; exact kaynak/rıza/oturum yetkisi aynı primary transaction içinde committen önce doğrulanır. Restart, kayıp ACK dedupe, oturum ve kamera revision yarışında sıfır teslim, tamper ve migration için 7 yeni kabul testi geçti; 69 F41/F45/F54 birleşik ve 28 Core context testi geçti. Root 35 handoff/Core context testini ayrıca doğruladı. docs/testing/f45-f54-notification-handoff-2026-09-30.md. Geniş exact HEAD CI ve fiziksel ses/OEM bildirim kabulü açık; sayaç değişmedi."
     },
     {
       "id": "G09",

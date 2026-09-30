@@ -150,6 +150,29 @@ class SoundSourceStore:
         if current != expected:
             raise ApiError("revision_conflict", 409)
 
+    @contextmanager
+    def current_lease(self, actor, expected):
+        """Hold the exact source revision stable while a local handoff commits."""
+        self._actor(actor)
+        try:
+            with self._connection(write=True) as connection:
+                def assert_current():
+                    self._actor(actor)
+                    current = self._config(connection.execute(
+                        "SELECT * FROM source_configurations WHERE owner_id=?",
+                        (actor.id,),
+                    ).fetchone())
+                    if current != expected:
+                        raise ApiError("revision_conflict", 409)
+
+                assert_current()
+                yield assert_current
+                assert_current()
+        except ApiError:
+            raise
+        except (sqlite3.Error, TypeError, ValueError):
+            raise ApiError("camera_search_source_unavailable", 503) from None
+
     def save_status(self, actor, source, status):
         self._actor(actor)
         status = SoundSourceStatus.model_validate(status)

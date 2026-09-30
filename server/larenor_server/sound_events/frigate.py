@@ -354,6 +354,22 @@ class FrigateSoundEventRuntime:
             authority_value, pending, cancelled=cancelled
         )
         self._repository.purge_expired(actor, now_ms)
+
+        with self._store.current_lease(actor, source) as source_current:
+            def assert_current(connection=None):
+                if connection is None:
+                    lease.assert_current()
+                else:
+                    lease.assert_current_in(connection)
+                source_current()
+
+            self._repository.dispatch_notifications(
+                actor,
+                source_revision=source.revision,
+                consent_revision=source.consentRevision,
+                assert_current=assert_current,
+                cancelled=cancelled,
+            )
         status = SoundSourceStatus(
             schemaVersion=1, state="ready" if observed is not None else "degraded",
             capabilityRevision=source.revision, providerRevision=source.providerRevision,

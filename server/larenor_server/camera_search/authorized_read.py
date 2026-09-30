@@ -26,6 +26,12 @@ class FrigateAuthorizedRead:
             raise ApiError("revision_conflict", 409)
         self._guard()
 
+    def assert_current_in(self, connection):
+        """Recheck the exact camera authority in an existing Core transaction."""
+        if time.monotonic() > self._deadline:
+            raise ApiError("revision_conflict", 409)
+        self._guard(connection)
+
     def _query(self, path, query):
         if path in {"/api/profile", "/api/config"}:
             if query is not None:

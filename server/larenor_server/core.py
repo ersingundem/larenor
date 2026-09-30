@@ -849,6 +849,7 @@ class CoreServices:
                 settings.clock,
                 source_status_provider=lambda actor: self.sound_event_source.status(actor),
                 source_access_provider=lambda actor: self.sound_event_source.access(actor),
+                notification_writer=self.local_notifications,
             )
             mesh_center_provider = self._mesh_center_provider
             if mesh_center_provider is None and self._mesh_center_observer is not None:

@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from ..errors import ApiError, StartupError
+from ..local_notifications.models import CreateNotification, Notification
 from .models import (
     SoundEvent,
     SoundEventAcknowledgement,
@@ -29,6 +30,7 @@ from .models import (
 MAX_EVENTS = 10_000
 MAX_RECEIPTS = 20_000
 MAX_PREFERENCES = 128
+MAX_NOTIFICATION_DISPATCH = 256
 
 
 class SoundEventRepository:
@@ -37,6 +39,7 @@ class SoundEventRepository:
     def __init__(
         self, path, key, primary_db, auth, context, clock,
         source_status_provider=None, source_access_provider=None,
+        notification_writer=None,
     ):
         if not isinstance(key, bytes) or len(key) != 32:
             raise ValueError("invalid_key")
@@ -53,6 +56,11 @@ class SoundEventRepository:
         if source_access_provider is not None and not callable(source_access_provider):
             raise ValueError("invalid_source_access_provider")
         self._source_access_provider = source_access_provider
+        if notification_writer is not None and not callable(
+            getattr(notification_writer, "append_internal", None)
+        ):
+            raise ValueError("invalid_notification_writer")
+        self._notification_writer = notification_writer
         try:
             self._migrate()
             os.chmod(self.path, 0o600)
@@ -90,12 +98,13 @@ class SoundEventRepository:
                 "sound_events",
                 "sound_event_receipts",
             }
-            required = legacy | {
+            previous = legacy | {
                 "sound_event_preferences",
                 "sound_event_policy_receipts",
                 "sound_event_feedback_receipts",
             }
-            if existing and existing not in (legacy, required):
+            required = previous | {"sound_event_notification_outbox"}
+            if existing and existing not in (legacy, previous, required):
                 raise ValueError("incomplete_schema")
             connection.executescript(
                 """
@@ -141,6 +150,13 @@ class SoundEventRepository:
                   family_id TEXT NOT NULL, command_digest TEXT NOT NULL,
                   receipt_json TEXT NOT NULL, authentication_tag TEXT NOT NULL,
                   created_at REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS sound_event_notification_outbox (
+                  event_id TEXT PRIMARY KEY, owner_id TEXT NOT NULL,
+                  family_id TEXT NOT NULL, source_revision INTEGER NOT NULL,
+                  consent_revision INTEGER NOT NULL,
+                  state TEXT NOT NULL CHECK(state IN ('pending','delivered','cancelled')),
+                  notification_id TEXT, notification_sequence INTEGER,
+                  authentication_tag TEXT NOT NULL);
                 """
             )
             columns = {
@@ -230,8 +246,49 @@ class SoundEventRepository:
 
     @staticmethod
     def _same_ingress(row, values):
-        mutable = {"event_revision", "acknowledged", "feedback"}
+        if values["automation_verified"] and not row["automation_verified"]:
+            return False
+        mutable = {
+            "automation_verified", "event_revision", "acknowledged", "feedback"
+        }
         return all(row[key] == value for key, value in values.items() if key not in mutable)
+
+    def _outbox_tag(self, row):
+        return self._tag(
+            b"notification-outbox",
+            [
+                row[key]
+                for key in (
+                    "event_id", "owner_id", "family_id", "source_revision",
+                    "consent_revision", "state", "notification_id",
+                    "notification_sequence",
+                )
+            ],
+        )
+
+    def _outbox(self, row):
+        if (
+            row is None
+            or row["state"] not in {"pending", "delivered", "cancelled"}
+            or type(row["source_revision"]) is not int
+            or not 1 <= row["source_revision"] < 2**63
+            or type(row["consent_revision"]) is not int
+            or not 1 <= row["consent_revision"] < 2**63
+            or (row["state"] == "delivered")
+            != (row["notification_id"] is not None)
+            or (row["state"] == "delivered")
+            != (row["notification_sequence"] is not None)
+            or row["notification_sequence"] is not None
+            and (
+                type(row["notification_sequence"]) is not int
+                or not 1 <= row["notification_sequence"] < 2**63
+            )
+            or not secrets.compare_digest(
+                row["authentication_tag"], self._outbox_tag(row)
+            )
+        ):
+            raise ValueError("invalid_notification_outbox")
+        return row
 
     def _receipt_tag(self, owner, family, request, digest, receipt_json, created):
         return self._tag(
@@ -285,6 +342,22 @@ class SoundEventRepository:
             noiseEnabled=bool(row["noise_enabled"]),
             mutedUntilMs=row["muted_until_ms"],
             sourceClipRetention=row["raw_audio_retention"],
+        )
+
+    @staticmethod
+    def _notification_eligible(row, policy, now_ms):
+        class_enabled = (
+            policy.barkEnabled
+            if row["class_name"] == "bark"
+            else policy.noiseEnabled
+        )
+        return (
+            policy.notificationsEnabled
+            and class_enabled
+            and (policy.mutedUntilMs is None or policy.mutedUntilMs <= now_ms)
+            and not row["acknowledged"]
+            and row["feedback"] != "false_alarm"
+            and row["retention_expires_at_ms"] > now_ms
         )
 
     @staticmethod
@@ -459,6 +532,8 @@ class SoundEventRepository:
                 raise ApiError("revision_conflict", 409)
             with self._connection(write=True) as connection:
                 state = self._state(connection)
+                policy = self._preference(connection, authority.accountId)
+                now_ms = int(self._clock() * 1000)
                 inserted = 0
                 for values in values_list:
                     old = connection.execute(
@@ -478,6 +553,25 @@ class SoundEventRepository:
                         f"INSERT INTO sound_events({columns},authentication_tag) VALUES({placeholders},?)",
                         (*values.values(), self._event_tag(values)),
                     )
+                    if (
+                        self._notification_writer is not None
+                        and not values["automation_verified"]
+                        and self._notification_eligible(values, policy, now_ms)
+                    ):
+                        outbox = {
+                            "event_id": values["event_id"],
+                            "owner_id": authority.accountId,
+                            "family_id": authority.sessionFamilyId,
+                            "source_revision": values["policy_revision"],
+                            "consent_revision": values["consent_revision"],
+                            "state": "pending",
+                            "notification_id": None,
+                            "notification_sequence": None,
+                        }
+                        connection.execute(
+                            "INSERT INTO sound_event_notification_outbox VALUES(?,?,?,?,?,?,?,?,?)",
+                            (*outbox.values(), self._outbox_tag(outbox)),
+                        )
                     inserted += 1
                 if cancelled():
                     raise ApiError("revision_conflict", 409)
@@ -487,6 +581,185 @@ class SoundEventRepository:
                         state["event_count"] + inserted,
                     )
                 return inserted
+        except ApiError:
+            raise
+        except (sqlite3.Error, TypeError, ValueError, OverflowError):
+            raise ApiError("sound_event_integrity_failed", 503) from None
+
+    @staticmethod
+    def _notification_request(row):
+        title = "Bark detected" if row["class_name"] == "bark" else "Sound detected"
+        return CreateNotification(
+            schemaVersion=1,
+            recipientUserId=row["owner_id"],
+            idempotencyKey="sound-event:" + row["event_id"],
+            category="sound_event",
+            sensitivity="private",
+            title=title,
+            body="A configured camera reported a sound event.",
+            target="/sound-events/" + row["event_id"],
+        )
+
+    def _set_outbox_state(
+        self, connection, row, state, *, notification_id=None,
+        notification_sequence=None,
+    ):
+        values = dict(row)
+        values.update(
+            state=state,
+            notification_id=notification_id,
+            notification_sequence=notification_sequence,
+        )
+        connection.execute(
+            "UPDATE sound_event_notification_outbox SET state=?,notification_id=?,"
+            "notification_sequence=?,authentication_tag=? WHERE event_id=?",
+            (
+                state, notification_id, notification_sequence,
+                self._outbox_tag(values), row["event_id"],
+            ),
+        )
+
+    def _mark_notification_delivered(self, connection, outbox, event, notification):
+        notification = Notification.model_validate(notification)
+        request = self._notification_request(event)
+        if (
+            notification.category != request.category
+            or notification.sensitivity != request.sensitivity
+            or notification.title != request.title
+            or notification.body != request.body
+            or notification.target != request.target
+        ):
+            raise ValueError("invalid_notification_receipt")
+        self._set_outbox_state(
+            connection,
+            outbox,
+            "delivered",
+            notification_id=notification.id,
+            notification_sequence=notification.sequence,
+        )
+        if not event["automation_verified"]:
+            state = self._state(connection)
+            values = dict(event)
+            values["automation_verified"] = 1
+            values["event_revision"] += 1
+            connection.execute(
+                "UPDATE sound_events SET automation_verified=1,event_revision=?,"
+                "authentication_tag=? WHERE event_id=?",
+                (
+                    values["event_revision"], self._event_tag(values),
+                    event["event_id"],
+                ),
+            )
+            self._set_state(
+                connection, state["revision"] + 1, state["event_count"]
+            )
+
+    def dispatch_notifications(
+        self,
+        actor,
+        *,
+        source_revision,
+        consent_revision,
+        assert_current,
+        cancelled=lambda: False,
+    ):
+        """Append pending F45 notifications to F54 with idempotent receipts."""
+        if self._notification_writer is None:
+            return 0
+        if (
+            type(source_revision) is not int
+            or not 1 <= source_revision < 2**63
+            or type(consent_revision) is not int
+            or not 1 <= consent_revision < 2**63
+            or not callable(assert_current)
+            or not callable(cancelled)
+        ):
+            raise ApiError("invalid_request")
+        account_revision = self._actor(actor)
+        assert_current()
+        try:
+            with self._connection() as connection:
+                candidates = connection.execute(
+                    "SELECT event_id FROM sound_event_notification_outbox "
+                    "WHERE owner_id=? AND state='pending' ORDER BY event_id LIMIT ?",
+                    (actor.id, MAX_NOTIFICATION_DISPATCH),
+                ).fetchall()
+            delivered = 0
+            for candidate in candidates:
+                if cancelled():
+                    raise ApiError("revision_conflict", 409)
+                with self._connection(write=True) as connection:
+                    outbox = self._outbox(connection.execute(
+                        "SELECT * FROM sound_event_notification_outbox WHERE event_id=?",
+                        (candidate["event_id"],),
+                    ).fetchone())
+                    if outbox["state"] != "pending":
+                        continue
+                    event = connection.execute(
+                        "SELECT * FROM sound_events WHERE event_id=? AND owner_id=?",
+                        (outbox["event_id"], actor.id),
+                    ).fetchone()
+                    if event is None:
+                        raise ValueError("orphan_notification_outbox")
+                    self._record(event)
+                    policy = self._preference(connection, actor.id)
+                    now_ms = int(self._clock() * 1000)
+                    stale = (
+                        outbox["family_id"] != actor.family_id
+                        or outbox["source_revision"] != source_revision
+                        or outbox["consent_revision"] != consent_revision
+                        or event["policy_revision"] != source_revision
+                        or event["consent_revision"] != consent_revision
+                        or not self._notification_eligible(event, policy, now_ms)
+                    )
+                    if stale:
+                        self._set_outbox_state(connection, outbox, "cancelled")
+                        continue
+                    assert_current()
+                    current_revision = self._actor(actor)
+                    if current_revision != account_revision:
+                        raise ApiError("revision_conflict", 409)
+                    request = self._notification_request(event)
+                    with self._primary.transaction() as primary:
+                        self._auth.assert_current(primary, actor)
+                        user = primary.execute(
+                            "SELECT revision,disabled,must_change_password FROM users "
+                            "WHERE id=?", (actor.id,),
+                        ).fetchone()
+                        if (
+                            user is None
+                            or user["disabled"]
+                            or user["must_change_password"]
+                            or user["revision"] != account_revision
+                        ):
+                            raise ApiError("revision_conflict", 409)
+                        receipt = self._notification_writer.append_internal(
+                            primary, request
+                        )
+                        self._auth.assert_current(primary, actor)
+                        current = primary.execute(
+                            "SELECT revision,disabled,must_change_password FROM users "
+                            "WHERE id=?", (actor.id,),
+                        ).fetchone()
+                        if (
+                            current is None
+                            or current["disabled"]
+                            or current["must_change_password"]
+                            or current["revision"] != account_revision
+                        ):
+                            raise ApiError("revision_conflict", 409)
+                        if cancelled():
+                            raise ApiError("revision_conflict", 409)
+                        assert_current(primary)
+                    assert_current()
+                    if cancelled():
+                        raise ApiError("revision_conflict", 409)
+                    self._mark_notification_delivered(
+                        connection, outbox, event, receipt["notification"]
+                    )
+                    delivered += 1
+            assert_current()
+            return delivered
         except ApiError:
             raise
         except (sqlite3.Error, TypeError, ValueError, OverflowError):
@@ -508,6 +781,10 @@ class SoundEventRepository:
                     self._record(row)
                 if rows:
                     connection.executemany(
+                        "DELETE FROM sound_event_notification_outbox WHERE event_id=?",
+                        [(row["event_id"],) for row in rows],
+                    )
+                    connection.executemany(
                         "DELETE FROM sound_events WHERE event_id=?",
                         [(row["event_id"],) for row in rows],
                     )
@@ -527,17 +804,7 @@ class SoundEventRepository:
             raise ValueError("invalid_event")
         eligible = False
         if policy is not None:
-            class_enabled = (
-                policy.barkEnabled if row["class_name"] == "bark"
-                else policy.noiseEnabled
-            )
-            eligible = (
-                policy.notificationsEnabled
-                and class_enabled
-                and (policy.mutedUntilMs is None or policy.mutedUntilMs <= now_ms)
-                and not row["acknowledged"]
-                and row["feedback"] != "false_alarm"
-            )
+            eligible = self._notification_eligible(row, policy, now_ms)
         return SoundEventRecord(
             schemaVersion=1,
             eventId=row["event_id"],
@@ -673,6 +940,14 @@ class SoundEventRepository:
                     "UPDATE sound_events SET event_revision=?,acknowledged=1,authentication_tag=? WHERE event_id=?",
                     (event_revision, self._event_tag(values), event_id),
                 )
+                outbox = connection.execute(
+                    "SELECT * FROM sound_event_notification_outbox WHERE event_id=?",
+                    (event_id,),
+                ).fetchone()
+                if outbox is not None:
+                    outbox = self._outbox(outbox)
+                    if outbox["state"] == "pending":
+                        self._set_outbox_state(connection, outbox, "cancelled")
                 self._set_state(connection, repository_revision, state["event_count"])
                 receipt = SoundEventAcknowledgement(
                     schemaVersion=1,
@@ -882,6 +1157,17 @@ class SoundEventRepository:
                         self._event_tag(values), event_id,
                     ),
                 )
+                outbox = connection.execute(
+                    "SELECT * FROM sound_event_notification_outbox WHERE event_id=?",
+                    (event_id,),
+                ).fetchone()
+                if outbox is not None:
+                    outbox = self._outbox(outbox)
+                    if (
+                        outbox["state"] == "pending"
+                        and request.classification == "false_alarm"
+                    ):
+                        self._set_outbox_state(connection, outbox, "cancelled")
                 self._set_state(
                     connection, repository_revision, state["event_count"]
                 )
@@ -983,5 +1269,16 @@ class SoundEventRepository:
                         ):
                             raise ValueError("invalid_receipt")
                         model.model_validate_json(row["receipt_json"])
+                outbox = connection.execute(
+                    "SELECT * FROM sound_event_notification_outbox LIMIT ?",
+                    (MAX_EVENTS + 1,),
+                ).fetchall()
+                if len(outbox) > MAX_EVENTS:
+                    raise ValueError("too_many_notification_outbox_rows")
+                event_ids = {row["event_id"] for row in events}
+                for row in outbox:
+                    self._outbox(row)
+                    if row["event_id"] not in event_ids:
+                        raise ValueError("orphan_notification_outbox")
         except (sqlite3.Error, TypeError, ValueError, OverflowError):
             raise StartupError("sound_event_storage_invalid") from None
