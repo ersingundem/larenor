@@ -26,6 +26,7 @@ from ..home_assistant.read_only_websocket import HomeAssistantReadOnlyWebSocket,
 from ..services.transport import ServiceTransport, ProbeTransportError
 from ..camera_profiles.ha_provider import _json
 from .runtime import CameraSearchRuntime
+from .private_event_binding import FrigatePrivateEventBindings
 from .index import _terms, _term_matches
 from .models import (CameraSearchAuthority, CameraSearchContextResponse,
                      CameraSearchPage, CameraSearchMatch, CameraEvidenceLink, safe_text)
@@ -56,7 +57,7 @@ class FrigateSearchBinding(FrozenModel):
         return value
 
 
-class FrigateCameraSearchRuntime(CameraSearchRuntime):
+class FrigateCameraSearchRuntime(FrigatePrivateEventBindings, CameraSearchRuntime):
     def __init__(self, ha, services, store, context, key, clock):
         self.ha, self.services, self.store = ha, services, store
         self.core_id, self.home_id = context.coreId, context.homeId

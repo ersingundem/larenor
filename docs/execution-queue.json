@@ -4675,7 +4675,7 @@
       "kind": "task",
       "parent": "G08",
       "title": "Mahremiyet korumalı olay paylaşımı",
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -4699,7 +4699,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "F43 normal kamera providerı yeniden açıldığı için bu bağımlı maddede son uygulama/kabul kapısı bekliyor. Redaction preview, alıcı/TTL/scope, revoke, erişim audit, exact revision/idempotency ve gerçek byte artifact indirme akışı uygulandı; provider smoke, restart, 503 fail-closed ve focused analyze geçti. Eski sözleşme testleri ile tam CI kabulü bekliyor."
+      "reason": "FINAL.FUNCTION içinde gerçek Frigate olay yetkisi, sabit FFmpeg full-frame maskeleme, metadata temizliği ve şifreli private artifact sağlayıcısı geliştiriliyor. F41 kalıcı mühür/gerçek klip temeli 8 normal Core/TCP testiyle doğrulandı; targeted face/plate modeli yoksa desteklenmiş gibi gösterilmez. Client, tam provider kabulü ve exact HEAD CI açık."
     },
     {
       "id": "F41",
@@ -4730,7 +4730,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak."
+      "reason": "Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md)."
     },
     {
       "id": "F44",
@@ -5032,7 +5032,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "implemented",
+      "status": "in_progress",
       "dependsOn": [
         "B0",
         "B5",
@@ -5056,7 +5056,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kaynak capability/revision/freshness, explicit unknown/absenceProven=false, kalıcı request-id idempotency ve strict Flutter görünürlüğü uygulandı; server 18/18, Flutter 14/14, analyze ve focused smoke geçti. Gerçek BLE/UWB/HA provider ve tam CI bekliyor."
+      "reason": "FINAL.FUNCTION gerçek provider incelemesinde normal Core oda varlığı runtime bağlantısı eksik bulundu. Gerçek Home Assistant mqtt_room kaynağı, açık oda/cihaz eşlemesi ve güncel rıza/politika sınırı geliştiriliyor; zone/home device_tracker oda varlığı olarak yorumlanmaz. Eski reducer testleri production kabulü değildir."
     },
     {
       "id": "F58",

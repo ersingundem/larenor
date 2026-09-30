@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F41 özel olay yetkisi
+
+Gerçek arama sonucundan üretilen AES-GCM olay mührü restart/önbellek süresi sonrasında güncel kamera iznini korur; yeni dönüşüm gerçek klip varlığına bağlıdır, mevcut şifreli paylaşımın alıcı/süre/iptal yetkisi ayrıdır. 8 normal Core/TCP mühür testi ve 40 odaklı regresyon geçti. [Kanıt ve sınırlar](testing/f41-private-event-binding-2026-09-30.md). F42/F44/F45/F50/F57 gerçek provider düzeltmeleri sürüyor; kabul sayaçları 37/126 ve 3/63 olarak değişmedi.
+
 ### 30 Eylül FINAL.FUNCTION — tek final maddesinin kabul koşusu
 
 Tek çalışma dalındaki fonksiyonellik geçişi Client/Flutter, Android platform
