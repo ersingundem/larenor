@@ -5,6 +5,12 @@ girişini ve gerçek upstream sözleşmesini inceler. `implemented` önceki kod
 durumudur; eksik provider veya bağlantısız UI varsa kapanış kanıtı değildir.
 F01–F21 ve F22–F44 iki bağımsız ajan tarafından salt okunur incelendi.
 
+Kanıt düzeyleri ayrıdır: normal-route kapısı production Client/Core/provider
+bileşimini; adlandırılmış hosted koşu yalnız çalıştırdığı exact revision/jobı;
+`MANUAL` ise disposable fixture ile kanıtlanamayan fiziksel cihaz, radyo,
+ekran, kimlik bilgisi ve provider davranışını kapsar. Bunların hiçbiri tek
+başına geniş latest-HEAD CI yerine geçmez.
+
 | İş | Somut açık | Düzeltme / kabul |
 | --- | --- | --- |
 | F01 | Kapanmış: Android on-device STT/TTS ve güncel HA hedefli taslak/confirm akışı bağlandı | 10 native + 11 Flutter + 3 Server + 1 gerçek Flutter→normal Core→TCP HA kapısı geçti; model/cihaz ve exact-head CI açık |
@@ -15,7 +21,7 @@ F01–F21 ve F22–F44 iki bağımsız ajan tarafından salt okunur incelendi.
 | F11 | Kapanmış: signed/hash-pinned gerçek Wasmtime artifacti, fuel/linear memory/epoch ve tek current-home import; WASI ve optional proposals kapalı | 17 Server, 4 Flutter, gerçek Flutter→TCP Core→Wasmtime ve wheel artifact kabulü geçti; broad CI açık. Arbitrary upload, CPU-ms/host RSS garantisi yok; Python 49.0.1 yayını olmadan affected proposals kapalı kalır |
 | F12 | Kapanmış transport/lifecycle: custom bearer JSON-RPC route `notifications/initialized`→empty 202, bounded protocol negotiation/standard `_meta`, Origin/protocol header kontrolü ve standart JSON-RPC hata zarflarını uygular | 8 F12 + 12 ortak boundary testi ve normal Uvicorn Core'a bağlanan official Python MCP SDK 2.2.0 initialize→initialized→tools/list→live revoke kapısı geçti. Yetki bilinçli olarak admin-provisioned bearer + exact client header'dır; OAuth Protected Resource Metadata/`WWW-Authenticate` yoktur ve generic OAuth istemci uyumu iddia edilmez |
 | F17 | Kapanmış: ayrı TLS append hedefi ve dağıtımı eklendi | `append-target.compose.yaml`; 7 Server + 38 Flutter + 12 boundary odaklı kanıt. Ayrı fiziksel hedef ve disaster restore manuel kalır |
-| F18 | Kapanmış: UID10006 NUT producer ve UID10005 Proxmox worker paketlendi | Normal Core `/run/larenor-workers/proxmox` bileşimi; 75 focused + 8 package geçti, 2 hosted-Linux kapısı yerelde dürüstçe atlandı. Fiziksel UPS/Proxmox etkisi manuel |
+| F18 | Kapanmış: UID10006 NUT producer ve UID10005 Proxmox worker paketlendi | Normal Core `/run/larenor-workers/proxmox` bileşimi; 75 focused + 8 package geçti. Exact `888dfd46f197808f91eaf0f85a4878e15ed27f8e`, run `36762186381`, production offline bundle/install/socket/mount/start ve gerçek cross-UID systemd kapısını geçti. Geniş latest-HEAD CI ile fiziksel UPS/Proxmox etkisi ayrı MANUAL kanıttır. |
 | F22/F25/F27/F28/F30 | Kapanmış: unified read/action/music/playback/archive worker socket, mount ve başlatma bileşimi var | Her özellikteki adlandırılmış normal-Core/worker kanıtı korunur; exact-head Linux ve gerçek provider/cihaz kapıları ayrı |
 | F29 | Kapanmış: Party DJ gerçek `MusicPlaybackRuntime` ile normal Core'dan owned TCP Music Assistant fixture'ına gidiyor | 35 testlik adlandırılmış kapı restart, duplicate vote, quorum, lost-ACK no-replay ve `needs_attention` davranışını geçti; gerçek receiver eşzamanlılığı manuel |
 | F23 | Kapanmış: normal Core gerçek Jellyfin guide/timer provider/recorderını ve inline admin source setup'ı kuruyor | 8 Server + 1 gerçek Flutter→normal Core TCP→Jellyfin geçti; tuner/storage ve exact-head CI açık |
@@ -34,23 +40,26 @@ kuyrukta pending kalır; tamamlanan kod dilimleri silinmiş sayılmaz.
 F42 gerçek Frigate/FFmpeg yolu ve F57 gerçek mqtt_room yolu odaklı normal Core
 ve gerçek Flutter TCP kabulünden geçti. F55'in UID10004 Zigbee2MQTT worker'ı da
 unified pakete bağlandı: 26 worker/runtime/MQTT ve 11 paket/runtime testi geçti;
-gerçek coordinator/OTA ile hosted-Linux kanıtı ayrıca açık. Keenetic UID10008
+exact `888dfd46f197808f91eaf0f85a4878e15ed27f8e`, run `36762186381`, production
+offline kurulum, cross-UID socket/mount ve systemd start sınırını kapattı. Daha
+sonraki HEAD, gerçek coordinator/broker ve OTA/radyo davranışı ayrıca açıktır.
+Keenetic UID10008
 worker normal Core'un `/run/larenor-workers/keenetic` mountu üzerinden gerçek
 Unix IPC ve owned TCP RCI fixture kanıtına sahip; gerçek router mutasyonu manuel.
 F45'in gerçek Frigate→F54 notification handoff'u `cc01d968` ile commit/push
 edildi: restart/lost-ACK dedupe ve commit öncesi kaynak/oturum/kamera yetkisi
 odaklı kabulden geçti. Geniş exact CI bekliyor; fiziksel teslim manuel kalır. Native/device
-koşulları `MANUAL.*` kayıtlarında kalır. Tam envanter ve exact commit geniş CI
-açıktır.
+koşulları `MANUAL.*` kayıtlarında kalır. Tam envanterin güncel dal üstündeki
+geniş CI'sı ayrıca açıktır.
 
 Sözleşme dayanakları: [rest-server append-only](https://github.com/restic/rest-server),
 [restic REST protocol](https://github.com/restic/restic/blob/master/doc/REST_backend.rst),
 [NUT 2.8.1 manual](https://networkupstools.org/historic/v2.8.1/docs/user-manual.pdf).
 Larenor'un özel append yolunun bu protokolle eşit olduğu varsayılmadı.
 
-Kullanıcının ek Core web UI teslimi kuyruğa işlendi: 37/127 (%29,1) iş,
-3/63 (%4,8) seçili özellik kabul edilmiş durumda. Yeni eksikler kapanmadan ve
-exact CI geçmeden sayaç artırılmaz; sıradaki FINAL başlatılmaz.
+Bu envanter kuyruk sayacını değiştirmez. Güncel sayılar yalnız execution queue
+tarafından yönetilir; yeni eksikler kapanmadan ve exact CI geçmeden sayaç
+artırılmaz, sıradaki FINAL başlatılmaz.
 
 ## `awaiting_ci` için kanıta dayalı sınıflandırma
 
@@ -94,6 +103,50 @@ F26 gerçek adapter/controller→normal Core→production JellyfinClient Playbac
 
 F21 gerçek iki Client→normal Core→MediaArchiveReadCollector→owned authenticated provider kapısı geçti. Explicit leader rejoin eski family bağını atomik yeniler; eski family reddedilir. 29 Python, prepare/restart gerçek Flutter fazları/analyze temiz; provider kapalı restartta sıfır ek I/O. Broad CI ve fiziksel receiver gecikmesi manuel. Kanıt: `f21-normal-core-acceptance-2026-09-30.md`.
 
-F05 normal Flutter Client/Core/HA iki yaşam actual runnerı iki kez geçti: approval causal readback ve exact replay/cancel tek POST korur. 7 Server, 2 Flutter/analyze; root related 80 Server doğruladı. Broad CI ve household partial-effect açık. F52/F53/F54 yeni gerçek bağlantı boşlukları kuyrukta reworking (yeniden çalışılıyor) olarak tutulur; kabul sayacı değişmez.
+F05 normal Flutter Client/Core/HA iki yaşam actual runnerı iki kez geçti: approval causal readback ve exact replay/cancel tek POST korur. 7 Server, 2 Flutter/analyze; root related 80 Server doğruladı. Broad CI ve household partial-effect açık. F52 public secondary-display normal Core, F53 profile/runtime ve F54 WorkManager TLS worker composition kapıları artık geçti; geniş CI ile fiziksel DeX/tablet/notification koşulları ayrı kalır.
 
 F37 immutable correction/terminal balance/payment/export actual normal Client/Core iki yaşamı geçti. Read postflight, filtered superseded metadata, explicit departed-share editor ve inactive payer düzeltildi; bağımsız review blockers kapandı. 19 Server, 15 Flutter, iki TCP fazı, gerçek Chrome 2 ve analyze temiz. Broad exact CI açık; `f37-normal-core-expense-corrections-2026-09-30.md`.
+
+## Son composition ve bağımlılık uzlaşması
+
+- Host-worker open/socket/mount/start: exact
+  `888dfd46f197808f91eaf0f85a4878e15ed27f8e`, run
+  `36762186381`, production offline bundle ve installed Core ile dört gerçek
+  cross-UID IPC/systemd vakasını geçti. Bu named exact kanıttır; sonraki HEAD
+  için geniş CI sonucu değildir.
+- F08: exact `09a912b4`, run `36750577813`, ayrı UID/cgroup
+  dispatch/cancel/readback/stress/release kapısını geçti. Gerçek model kalitesi
+  ve hedef donanım davranışı MANUAL kalır.
+- F47: root gerçek Flutter Client→normal Core TCP→owned evcc/HA provider iki
+  yaşamını geçti; yalnız bir yüzde 40 reserve POST, causal readback, restart ve
+  stale resource revisionda sıfır ek write doğrulandı.
+- PRODUCT.APPLETV root tarafından 67 focused testle geçti. PRODUCT.CAMERA root
+  kapısı 30 test ve scoped analyze geçti. K09 gerçek normal-Core/TLS-MQTT
+  kapısı bir kez geçti, root tekrarı bekliyor.
+- F61/F62 managed-profile normal Core authority kapısı root tarafından geçti;
+  shared focused subset 34 testti. Hosted native durum hâlâ kırmızı/pending:
+  F61 runs `36764619917` ve `36765832888` production bridge testinden önce;
+  F62 run `36765836443` instrumentation başlamadan önce durdu.
+- F63 local normal Core/OpenSSH kanıtı geçti. Hosted run `36765828318` gerçek
+  zero-prompt MFA hatasını buldu ve düzeltme yapıldı; run `36767901119` fixture'a
+  ulaştı ancak `uv` bulunmadığı için normal-Core kabulünden önce durdu. Pinned
+  setup sonrası yeni exact hosted receipt gerekir.
+
+## Kalan somut yazılım kanıt boşlukları
+
+1. F61: `.github/workflows/vnc-native-acceptance.yml` ve
+   `tool/f61_tigervnc_acceptance.py` için production bridge'e ulaşan yeni
+   one-test/no-skip hosted XML receipt yok.
+2. F62: `.github/workflows/freerdp-android-native.yml` ve
+   `tool/f62_packaged_acceptance.py` için packaged FreeRDP instrumentation'a
+   ulaşan yeni exact receipt yok.
+3. F63: `.github/workflows/ssh-native-acceptance.yml` pinned `uv` setupından
+   sonra `server/tests/support/f63_flutter_acceptance.py` dahil gerçek Linux
+   password/key/MFA/jump kapısının yeni exact hosted sonucu yok.
+4. K09 için root bağımsız tekrarı ve delayed-CONNACK authority incelemesi bekliyor. PRODUCT.CAMERA root bağımsız 30 test/analysis kapısı kapandı. Bunlar bilinen
+   dummy/provider composition açıkları değil, bağımsız software evidence
+   boşluklarıdır.
+
+Bu hosted receipts fiziksel cihaz kanıtı değildir. VNC/RDP/SSH hedef hostları,
+DeX/IME, kamera donanımı, MQTT broker deploymentı ve household ağ davranışı
+ilgili `MANUAL.*` kapılarında ayrıca kalır.

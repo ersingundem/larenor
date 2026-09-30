@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül işlev envanteri kanıt uzlaşması
+
+Feature matrix/runtime envanteri named exact Linux host/cgroup kanıtlarıyla güncellendi. Kapanmış composition eksikleri, geniş güncel HEAD CI ve fiziksel MANUAL kanıtları ayrı anlatılır. F47, Apple TV ve Camera bağımsız root kabulü kapandı; K09 retirement/handshake incelemesi ile F61/F62 yeni hosted native receipts açık. F63 yeni pinned-uv hosted koşusu başladı. FINAL.FUNCTION dışında yeni FINAL başlatılmadı. [İşlev matrisi](testing/final-function-feature-matrix-2026-09-30.md), [runtime envanteri](testing/final-function-runtime-inventory-2026-09-30.md).
+
 ### 30 Eylül VNC fresh-checkout Gradle launcher düzeltmesi
 
 Exact645e5b73 / run36768307357 font ve sabit WM_CLASS fixtureını geçti, tracked olmayan android/gradlew fresh checkoutta bulunmadığı için native test başlamadı. Launcher pinned Flutter SDK wrapper JARını tracked proje properties ile private geçici dizinde çalıştırır; production RFB/TLS/auth koşulları korunur. Root 6 policy testini geçti; yerel 46 native testte beklenen tek non-Linux skip gerçek hosted kabulü sayılmadı. Yeni exact one-test/zero-skip sonucu gerekli. [VNC kanıtı](testing/f61-tigervnc-native-acceptance-2026-09-30.md).
