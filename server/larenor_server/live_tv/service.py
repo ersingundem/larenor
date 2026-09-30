@@ -2,12 +2,16 @@ import hashlib
 import hmac
 import json
 import sqlite3
+import threading
+import time
 import uuid
 
 from pydantic import ValidationError
 
 from ..errors import ApiError, StartupError
-from .models import EpgProgramme, SourceSnapshotRequest
+from .models import (
+    EpgProgramme, JellyfinSourceConfigurationRequest, SourceSnapshotRequest,
+)
 from .runtime import (
     LiveTvProviderCapability,
     LiveTvRecordingCommand,
@@ -24,6 +28,9 @@ class LiveTvService:
     def __init__(self, db, auth, settings, context, provider=None, recorder=None):
         self.db, self.auth, self.settings, self.context = db, auth, settings, context
         self.provider, self.recorder = provider, recorder
+        self._tick_lock = threading.Lock()
+        self._next_tick = 0.0
+        self._last_polled = ""
 
     @staticmethod
     def _hash(body):
@@ -66,7 +73,7 @@ class LiveTvService:
         if self.provider is None or self.recorder is None:
             raise ApiError("live_tv_source_unavailable", 503)
         try:
-            value = self.provider.capability()
+            value = self.provider.capability(source)
         except ApiError:
             raise
         except Exception:
@@ -89,6 +96,42 @@ class LiveTvService:
                 or value.quota_bytes != source.quotaBytes):
             raise ApiError("live_tv_source_changed", 409)
         return value
+
+    def source_options(self, actor):
+        callback = getattr(self.provider, "source_options", None)
+        if not callable(callback):
+            raise ApiError("live_tv_source_unavailable", 503)
+        result = callback(actor)
+        if (type(result) is not dict
+                or set(result) != {"schemaVersion", "services"}
+                or result["schemaVersion"] != 1
+                or type(result["services"]) is not list):
+            raise ApiError("live_tv_source_unavailable", 503)
+        with self.db.connection() as connection:
+            self._actor(connection, actor)
+            row = connection.execute(
+                "SELECT revision FROM live_tv_source WHERE singleton=1"
+            ).fetchone()
+        return {
+            **result,
+            "expectedRevision": 0 if row is None else row["revision"],
+        }
+
+    def configure_jellyfin(self, actor, body):
+        if type(body) is not JellyfinSourceConfigurationRequest:
+            raise ApiError("invalid_request")
+        callback = getattr(self.provider, "observe_source", None)
+        if not callable(callback):
+            raise ApiError("live_tv_source_unavailable", 503)
+        try:
+            source = callback(actor, body)
+        except ApiError:
+            raise
+        except Exception:
+            raise ApiError("live_tv_source_unavailable", 503) from None
+        if type(source) is not SourceSnapshotRequest:
+            raise ApiError("live_tv_source_unavailable", 503)
+        return self.configure(actor, source)
 
     @staticmethod
     def _safe_provider_id(value):
@@ -132,10 +175,7 @@ class LiveTvService:
         with self.db.transaction() as connection:
             self._actor(connection, actor)
             self._refresh_states(connection, now)
-            used = connection.execute(
-                "SELECT COALESCE(SUM(bytes_written),0) FROM live_tv_recordings "
-                "WHERE state!='cancelled'"
-            ).fetchone()[0]
+            used = self._storage_usage(connection, body)
             if used > body.quotaBytes:
                 raise ApiError("live_tv_quota_exceeded", 409)
             active = connection.execute(
@@ -191,8 +231,8 @@ class LiveTvService:
         if source.capturedAt > now + 300 or source.capturedAt < now - 604_800:
             raise ApiError("live_tv_epg_stale", 409)
 
-    def _refresh_states(self, connection, now):
-        rows = connection.execute(
+    def _refresh_states(self, connection, now, *, rows=None):
+        rows = rows if rows is not None else connection.execute(
             "SELECT * FROM live_tv_recordings WHERE state IN "
             "('scheduled','recording','interrupted','uncertain')"
         ).fetchall()
@@ -202,13 +242,9 @@ class LiveTvService:
                     raise ValueError()
                 value = self.recorder.readback(row["provider_recording_id"])
                 readback = self._readback(value, row, now)
-                source = self._source(connection.execute(
-                    "SELECT * FROM live_tv_source WHERE singleton=1"
-                ).fetchone())
-                if (self._quota_load(connection, now, exclude_id=row["id"])
-                        + readback.bytes_written > source.quotaBytes):
-                    raise ValueError("live_tv_quota_exceeded")
                 state = readback.state
+                if state == "cancelled" and readback.bytes_written:
+                    state = "partial"
                 if state == "interrupted" and now >= self._programme(row)["endsAt"]:
                     state = "partial"
                 if (state != row["state"]
@@ -257,17 +293,122 @@ class LiveTvService:
                 "DELETE FROM live_tv_recordings WHERE id=?", (row["id"],)
             )
 
+    def _storage_usage(self, connection, source):
+        callback = getattr(self.provider, "storage_usage", None)
+        if callable(callback):
+            value = callback(source)
+            if type(value) is not int or not 0 <= value <= 10_995_116_277_760:
+                raise ApiError("live_tv_recorder_unavailable", 503)
+            return value
+        return connection.execute(
+            "SELECT COALESCE(SUM(bytes_written),0) FROM live_tv_recordings"
+        ).fetchone()[0]
+
     def _quota_load(self, connection, now, *, exclude_id=None):
         rows = connection.execute(
             "SELECT * FROM live_tv_recordings WHERE state!='cancelled'"
         ).fetchall()
-        total = sum(row["bytes_written"] for row in rows)
+        source = self._source(connection.execute(
+            "SELECT * FROM live_tv_source WHERE singleton=1"
+        ).fetchone())
+        total = self._storage_usage(connection, source)
         for row in rows:
             if row["id"] == exclude_id or row["state"] not in ("scheduled", "recording"):
                 continue
             programme = self._programme(row)
             total += max(0, programme["endsAt"] - max(now, programme["startsAt"])) * BYTES_PER_SECOND_RESERVATION
         return total
+
+    def tick(self):
+        """Poll one recording and persist a stop intent before any quota effect."""
+        if not self._tick_lock.acquire(blocking=False):
+            return False
+        try:
+            if time.monotonic() < self._next_tick or self.recorder is None:
+                return False
+            self._next_tick = time.monotonic() + 5
+            now = int(self.settings.clock())
+            with self.db.transaction() as connection:
+                source_row = connection.execute(
+                    "SELECT * FROM live_tv_source WHERE singleton=1"
+                ).fetchone()
+                if source_row is None:
+                    return False
+                source = self._source(source_row)
+                # A stale/foreign provider must not create a safety mutation.
+                self._capability(source)
+                pending = connection.execute(
+                    "SELECT recording_id FROM live_tv_quota_stops WHERE state='pending' "
+                    "ORDER BY created_at LIMIT 1"
+                ).fetchone()
+                if pending is None:
+                    rows = connection.execute(
+                        "SELECT * FROM live_tv_recordings WHERE state IN "
+                        "('scheduled','recording','uncertain','interrupted') ORDER BY id"
+                    ).fetchall()
+                    if not rows:
+                        return False
+                    row = next((item for item in rows if item["id"] > self._last_polled), rows[0])
+                    self._last_polled = row["id"]
+                    self._refresh_states(connection, now, rows=[row])
+                    row = connection.execute(
+                        "SELECT * FROM live_tv_recordings WHERE id=?", (row["id"],)
+                    ).fetchone()
+                    try:
+                        exceeded = self._quota_load(connection, now) > source.quotaBytes
+                    except ApiError:
+                        # Missing byte evidence cannot authorize continued writes.
+                        exceeded = True
+                    if not exceeded or row["state"] not in ('scheduled','recording','uncertain','interrupted'):
+                        return True
+                    request_id = hashlib.sha256(("live-tv-quota-stop:" + row["id"]).encode()).hexdigest()[:32]
+                    connection.execute(
+                        "INSERT INTO live_tv_quota_stops VALUES(?,?,'pending',?) "
+                        "ON CONFLICT(recording_id) DO UPDATE SET state='pending',"
+                        "created_at=excluded.created_at", (row["id"], request_id, now)
+                    )
+                    recording_id = row["id"]
+                else:
+                    recording_id = pending["recording_id"]
+            # The committed intent survives a lost cancellation response/restart.
+            with self.db.connection() as connection:
+                row = connection.execute("SELECT * FROM live_tv_recordings WHERE id=?", (recording_id,)).fetchone()
+                intent = connection.execute("SELECT * FROM live_tv_quota_stops WHERE recording_id=?", (recording_id,)).fetchone()
+                current_source = self._source(connection.execute("SELECT * FROM live_tv_source WHERE singleton=1").fetchone())
+                if (current_source.providerId != row["provider_id"]
+                        or current_source.providerRevision != row["provider_revision"]):
+                    raise ApiError("live_tv_source_changed", 409)
+            self._capability(current_source)
+            command = LiveTvRecordingCommand(
+                request_id=intent["request_id"], action="cancel",
+                recording_id=row["id"], provider_recording_id=row["provider_recording_id"],
+                recording_revision=row["revision"], provider_id=row["provider_id"],
+                provider_revision=row["provider_revision"], guide_revision=row["source_revision"],
+                account_id=row["owner_id"], session_family_id=row["family_id"],
+                programme=self._programme(row),
+            )
+            receipt = self.recorder.apply(command)
+            with self.db.transaction() as connection:
+                latest = connection.execute("SELECT * FROM live_tv_recordings WHERE id=?", (recording_id,)).fetchone()
+                if (not isinstance(receipt, LiveTvRecordingReceipt)
+                        or receipt.request_id != command.request_id or receipt.action != 'cancel'
+                        or receipt.recording_id != recording_id
+                        or receipt.provider_revision != row["provider_revision"]
+                        or receipt.provider_recording_id != row["provider_recording_id"]):
+                    raise ApiError("live_tv_recorder_invalid", 503)
+                observed = self._readback(receipt.readback, latest, int(self.settings.clock()))
+                if observed.state != 'cancelled':
+                    raise ApiError("live_tv_recorder_invalid", 503)
+                connection.execute(
+                    "UPDATE live_tv_recordings SET state=?,bytes_written=?,readback_revision=?,"
+                    "revision=revision+1,updated_at=? WHERE id=?",
+                    ('partial' if observed.bytes_written else 'cancelled', observed.bytes_written,
+                     observed.readback_revision, now, recording_id),
+                )
+                connection.execute("UPDATE live_tv_quota_stops SET state='completed' WHERE recording_id=?", (recording_id,))
+            return True
+        finally:
+            self._tick_lock.release()
 
     def _recording(self, row):
         programme = self._programme(row)
@@ -341,10 +482,10 @@ class LiveTvService:
             "ORDER BY updated_at DESC LIMIT ?",
             (actor.id, actor.family_id, MAX_RECORDINGS),
         ).fetchall()
-        used = connection.execute(
-            "SELECT COALESCE(SUM(bytes_written),0) FROM live_tv_recordings "
-            "WHERE state!='cancelled'"
-        ).fetchone()[0]
+        try:
+            used = self._storage_usage(connection, source)
+        except ApiError:
+            used = None
         return {"schemaVersion": 1, "snapshot": {
             "schemaVersion": 1,
             "authority": {"schemaVersion": 1,
@@ -466,6 +607,11 @@ class LiveTvService:
                 return {"schemaVersion": 1, "recording": self._recording(row)}
             if row["revision"] != body.expectedRevision:
                 raise ApiError("live_tv_recording_changed", 409)
+            if connection.execute(
+                "SELECT 1 FROM live_tv_quota_stops WHERE recording_id=? AND state='pending'",
+                (recording_id,),
+            ).fetchone() is not None:
+                raise ApiError("live_tv_quota_stop_pending", 409)
             changes = action(connection, row, now)
             if provider_action is not None:
                 source_row = connection.execute(
@@ -483,14 +629,22 @@ class LiveTvService:
                     programme=self._programme(row), now=now,
                     provider_recording_id=row["provider_recording_id"],
                 )
-                if (receipt.provider_recording_id != row["provider_recording_id"]
-                        or receipt.readback.readback_revision
-                        <= row["readback_revision"]):
+                if provider_action == "restart":
+                    if (receipt.provider_recording_id
+                            == row["provider_recording_id"]
+                            and receipt.readback.readback_revision
+                            <= row["readback_revision"]):
+                        raise ApiError("live_tv_recorder_invalid", 503)
+                elif (receipt.provider_recording_id
+                      != row["provider_recording_id"]
+                      or receipt.readback.readback_revision
+                      <= row["readback_revision"]):
                     raise ApiError("live_tv_recorder_invalid", 503)
                 changes.update({
                     "state": receipt.readback.state,
                     "bytes_written": receipt.readback.bytes_written,
                     "readback_revision": receipt.readback.readback_revision,
+                    "provider_recording_id": receipt.provider_recording_id,
                 })
                 if (provider_action == "cancel"
                         and receipt.readback.state != "cancelled"):
@@ -502,12 +656,14 @@ class LiveTvService:
             connection.execute(
                 "UPDATE live_tv_recordings SET revision=?,state=?,bytes_written=?,"
                 "restart_count=?,readback_revision=?,last_request_id=?,"
-                "last_request_hash=?,updated_at=? WHERE id=?",
+                "last_request_hash=?,updated_at=?,provider_recording_id=? WHERE id=?",
                 (revision, changes.get("state", row["state"]),
                  changes.get("bytes_written", row["bytes_written"]),
                  changes.get("restart_count", row["restart_count"]),
                  changes.get("readback_revision", row["readback_revision"]),
-                 body.requestId, digest, now, recording_id),
+                 body.requestId, digest, now,
+                 changes.get("provider_recording_id", row["provider_recording_id"]),
+                 recording_id),
             )
             updated = connection.execute(
                 "SELECT * FROM live_tv_recordings WHERE id=?", (recording_id,)

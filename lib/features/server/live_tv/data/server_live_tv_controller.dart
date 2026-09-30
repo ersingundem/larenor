@@ -22,6 +22,11 @@ final class ServerLiveTvController extends ChangeNotifier {
   bool busy = false;
   String? failure;
   ServerLiveTvSnapshot? snapshot;
+  List<ServerLiveTvSourceOption> sourceOptions = const [];
+  bool sourceSetupLoaded = false;
+  int sourceExpectedRevision = 0;
+
+  bool get canConfigure => account.session?.user.canAdminister ?? false;
 
   bool get _authorized =>
       account.isCurrent(_generation) &&
@@ -43,13 +48,55 @@ final class ServerLiveTvController extends ChangeNotifier {
     busy = false;
     failure = null;
     snapshot = null;
+    sourceOptions = const [];
+    sourceSetupLoaded = false;
+    sourceExpectedRevision = 0;
     notifyListeners();
   }
 
   Future<void> load({required bool Function() current}) =>
       _run(current, (api, valid) async {
-        snapshot = await api.read(current: valid);
+        try {
+          snapshot = await api.read(current: valid);
+          sourceOptions = const [];
+          sourceSetupLoaded = false;
+          sourceExpectedRevision = 0;
+        } on LarenorServerException catch (error) {
+          if (!{
+                'live_tv_source_unavailable',
+                'live_tv_epg_stale',
+                'live_tv_source_changed',
+              }.contains(error.code) ||
+              !api.session.user.canAdminister) {
+            rethrow;
+          }
+          final options = await api.sourceOptions(current: valid);
+          sourceOptions = options.services;
+          sourceExpectedRevision = options.expectedRevision;
+          sourceSetupLoaded = true;
+          snapshot = null;
+        }
       });
+
+  Future<void> configureJellyfin({
+    required ServerLiveTvSourceOption service,
+    required String providerKind,
+    required String timeZone,
+    required int quotaBytes,
+    required bool Function() current,
+  }) => _run(current, (api, valid) async {
+    snapshot = await api.configureJellyfin(
+      expectedRevision: snapshot?.sourceRevision ?? sourceExpectedRevision,
+      service: service,
+      providerKind: providerKind,
+      timeZone: timeZone,
+      quotaBytes: quotaBytes,
+      current: valid,
+    );
+    sourceOptions = const [];
+    sourceSetupLoaded = false;
+    sourceExpectedRevision = 0;
+  });
 
   Future<void> schedule(
     ServerLiveTvProgramme programme, {

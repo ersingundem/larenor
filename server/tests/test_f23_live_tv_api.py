@@ -30,7 +30,7 @@ class AuthorizedLiveTvFixture:
         self.readbacks = {}
         self.provider_ids = {}
 
-    def capability(self):
+    def capability(self, _source=None):
         return LiveTvProviderCapability(
             provider_id="synthetic-tuner",
             provider_kind="tuner",

@@ -10,6 +10,8 @@ from ..home_resources.models import Identity
 from ..models import ErrorResponse
 from .models import (
     LiveTvSnapshotResponse,
+    JellyfinSourceConfigurationRequest,
+    JellyfinSourceOptionsResponse,
     RecordingInterruptionRequest,
     RecordingMutationRequest,
     RecordingRequest,
@@ -36,6 +38,18 @@ def read_live_tv(core: Core, actor: Ready):
 @router.put("/source", response_model=LiveTvSnapshotResponse)
 def configure_source(body: SourceSnapshotRequest, core: Core, actor: Admin):
     return core.live_tv.configure(actor, body)
+
+
+@router.get("/source-options", response_model=JellyfinSourceOptionsResponse)
+def source_options(core: Core, actor: Admin):
+    return core.live_tv.source_options(actor)
+
+
+@router.put("/jellyfin-source", response_model=LiveTvSnapshotResponse)
+def configure_jellyfin_source(
+    body: JellyfinSourceConfigurationRequest, core: Core, actor: Admin
+):
+    return core.live_tv.configure_jellyfin(actor, body)
 
 
 @router.post("/recordings", response_model=RecordingResponse, status_code=201)

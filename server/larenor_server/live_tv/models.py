@@ -80,6 +80,30 @@ class SourceSnapshotRequest(Versioned):
         return self
 
 
+class JellyfinSourceConfigurationRequest(Versioned):
+    requestId: ObjectId
+    expectedRevision: int = Field(ge=0, le=2**63 - 1)
+    serviceId: ObjectId
+    expectedServiceRevision: Revision
+    providerKind: Literal["tuner", "iptv"]
+    timeZone: str = Field(min_length=1, max_length=64)
+    quotaBytes: int = Field(ge=1_073_741_824, le=10_995_116_277_760)
+
+    _time_zone = field_validator("timeZone")(SourceSnapshotRequest.time_zone.__func__)
+
+
+class JellyfinSourceOption(StrictModel):
+    serviceId: ObjectId
+    serviceRevision: Revision
+    name: str = Field(min_length=1, max_length=80)
+    version: str = Field(pattern=r"^10\.11\.[0-9]{1,6}$")
+
+
+class JellyfinSourceOptionsResponse(Versioned):
+    expectedRevision: int = Field(ge=0, le=2**63 - 1)
+    services: list[JellyfinSourceOption] = Field(max_length=128)
+
+
 class RecordingRequest(Versioned):
     requestId: ObjectId
     expectedSourceRevision: Revision
@@ -134,7 +158,7 @@ class LiveTvSnapshot(Versioned):
     timeZone: str
     parallelTuners: int
     quotaBytes: int
-    usedBytes: int
+    usedBytes: int | None = Field(ge=0, le=10_995_116_277_760)
     capturedAt: int
     programmes: list[EpgProgramme] = Field(max_length=2048)
     recordings: list[Recording] = Field(max_length=256)

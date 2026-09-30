@@ -169,16 +169,37 @@ final class _ServerLiveTvRouteState extends ConsumerState<ServerLiveTvRoute> {
           ),
           child: SafeArea(
             child: snapshot == null
-                ? _EmptyState(
-                    busy: controller.busy,
-                    message: controller.failure == null
-                        ? (_tr
-                              ? 'Program rehberi yükleniyor…'
-                              : 'Loading programme guide…')
-                        : _error(controller.failure!),
-                    onRetry: () => controller.load(current: _current),
-                    retryLabel: _tr ? 'Yeniden dene' : 'Retry',
-                  )
+                ? controller.sourceSetupLoaded && controller.canConfigure
+                      ? _LiveTvSourceSetup(
+                          options: controller.sourceOptions,
+                          busy: controller.busy,
+                          turkish: _tr,
+                          failure: controller.failure == null
+                              ? null
+                              : _error(controller.failure!),
+                          onConfigure:
+                              (service, kind, timeZone, quotaBytes) async {
+                                if (!_current()) return;
+                                await controller.configureJellyfin(
+                                  service: service,
+                                  providerKind: kind,
+                                  timeZone: timeZone,
+                                  quotaBytes: quotaBytes,
+                                  current: _current,
+                                );
+                              },
+                          onRetry: () => controller.load(current: _current),
+                        )
+                      : _EmptyState(
+                          busy: controller.busy,
+                          message: controller.failure == null
+                              ? (_tr
+                                    ? 'Program rehberi yükleniyor…'
+                                    : 'Loading programme guide…')
+                              : _error(controller.failure!),
+                          onRetry: () => controller.load(current: _current),
+                          retryLabel: _tr ? 'Yeniden dene' : 'Retry',
+                        )
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(16, 18, 16, 36),
                     children: [
@@ -302,6 +323,247 @@ final class _ServerLiveTvRouteState extends ConsumerState<ServerLiveTvRoute> {
   }
 }
 
+final class _LiveTvSourceSetup extends StatefulWidget {
+  const _LiveTvSourceSetup({
+    required this.options,
+    required this.busy,
+    required this.turkish,
+    required this.failure,
+    required this.onConfigure,
+    required this.onRetry,
+  });
+
+  final List<ServerLiveTvSourceOption> options;
+  final bool busy, turkish;
+  final String? failure;
+  final Future<void> Function(ServerLiveTvSourceOption, String, String, int)
+  onConfigure;
+  final VoidCallback onRetry;
+
+  @override
+  State<_LiveTvSourceSetup> createState() => _LiveTvSourceSetupState();
+}
+
+final class _LiveTvSourceSetupState extends State<_LiveTvSourceSetup> {
+  final _timeZone = TextEditingController(text: 'Etc/UTC');
+  String? _serviceId;
+  String _kind = 'iptv';
+  int _quota = 10737418240;
+  bool _showServicePicker = false;
+
+  @override
+  void didUpdateWidget(covariant _LiveTvSourceSetup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_serviceId != null &&
+        !widget.options.any((item) => item.serviceId == _serviceId)) {
+      _serviceId = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timeZone.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedId =
+        _serviceId ??
+        (widget.options.isEmpty ? null : widget.options.first.serviceId);
+    final selected = widget.options
+        .cast<ServerLiveTvSourceOption?>()
+        .firstWhere(
+          (item) => item?.serviceId == selectedId,
+          orElse: () => null,
+        );
+    return ListView(
+      key: const ValueKey('live-tv-source-setup'),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 36),
+      children: [
+        Text(
+          widget.turkish ? 'Canlı TV kaynağı' : 'Live TV source',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          widget.turkish
+              ? 'Kimliği doğrulanmış Jellyfin bağlantısını seçin. Jellyfin üzerinde tuner ve program rehberi önceden etkin olmalıdır.'
+              : 'Choose an authenticated Jellyfin connection. A tuner and programme guide must already be enabled in Jellyfin.',
+        ),
+        if (widget.failure != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            widget.failure!,
+            style: const TextStyle(color: CupertinoColors.systemRed),
+          ),
+        ],
+        const SizedBox(height: 18),
+        if (widget.options.isEmpty) ...[
+          Text(
+            widget.turkish
+                ? 'Uygun Jellyfin bağlantısı bulunamadı. Yönetici ayarlarından Jellyfin 10.11 bağlantısını ekleyip doğrulayın.'
+                : 'No eligible Jellyfin connection was found. Add and verify a Jellyfin 10.11 connection in Admin settings.',
+          ),
+          const SizedBox(height: 12),
+          CupertinoButton(
+            key: const ValueKey('live-tv-source-retry'),
+            onPressed: widget.busy ? null : widget.onRetry,
+            child: Text(widget.turkish ? 'Yeniden dene' : 'Retry'),
+          ),
+        ] else ...[
+          Text(widget.turkish ? 'Jellyfin bağlantısı' : 'Jellyfin connection'),
+          const SizedBox(height: 8),
+          CupertinoButton(
+            key: const ValueKey('live-tv-source-service'),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            color: CupertinoColors.secondarySystemGroupedBackground.resolveFrom(
+              context,
+            ),
+            onPressed: widget.busy
+                ? null
+                : () =>
+                      setState(() => _showServicePicker = !_showServicePicker),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${selected!.name} · ${selected.version}',
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_up_chevron_down, size: 18),
+              ],
+            ),
+          ),
+          if (_showServicePicker) ...[
+            const SizedBox(height: 8),
+            Container(
+              key: const ValueKey('live-tv-source-service-picker'),
+              decoration: BoxDecoration(
+                border: Border.all(color: CupertinoColors.separator),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  for (final option in widget.options)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      onPressed: () => setState(() {
+                        _serviceId = option.serviceId;
+                        _showServicePicker = false;
+                      }),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${option.name} · ${option.version}',
+                              textAlign: TextAlign.left,
+                            ),
+                          ),
+                          if (option.serviceId == selectedId)
+                            const Icon(CupertinoIcons.check_mark, size: 18),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Text(widget.turkish ? 'Kaynak türü' : 'Source type'),
+          const SizedBox(height: 8),
+          IgnorePointer(
+            ignoring: widget.busy,
+            child: CupertinoSlidingSegmentedControl<String>(
+              key: const ValueKey('live-tv-source-kind'),
+              groupValue: _kind,
+              children: {
+                'iptv': Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('IPTV'),
+                ),
+                'tuner': Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(widget.turkish ? 'Tuner' : 'Tuner'),
+                ),
+              },
+              onValueChanged: (value) {
+                if (value != null) setState(() => _kind = value);
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          CupertinoTextField(
+            key: const ValueKey('live-tv-source-time-zone'),
+            controller: _timeZone,
+            enabled: !widget.busy,
+            placeholder: 'Europe/Istanbul',
+            autocorrect: false,
+            textInputAction: TextInputAction.done,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.turkish
+                ? 'IANA saat dilimi (ör. Europe/Istanbul)'
+                : 'IANA time zone (for example Europe/Istanbul)',
+            style: const TextStyle(
+              fontSize: 13,
+              color: CupertinoColors.secondaryLabel,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(widget.turkish ? 'Kayıt kotası' : 'Recording quota'),
+          const SizedBox(height: 8),
+          IgnorePointer(
+            ignoring: widget.busy,
+            child: CupertinoSlidingSegmentedControl<int>(
+              key: const ValueKey('live-tv-source-quota'),
+              groupValue: _quota,
+              children: const {
+                10737418240: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('10 GiB'),
+                ),
+                53687091200: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('50 GiB'),
+                ),
+                107374182400: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('100 GiB'),
+                ),
+              },
+              onValueChanged: (value) {
+                if (value != null) setState(() => _quota = value);
+              },
+            ),
+          ),
+          const SizedBox(height: 22),
+          CupertinoButton.filled(
+            key: const ValueKey('live-tv-source-save'),
+            onPressed: widget.busy
+                ? null
+                : () => widget.onConfigure(
+                    selected,
+                    _kind,
+                    _timeZone.text.trim(),
+                    _quota,
+                  ),
+            child: widget.busy
+                ? const CupertinoActivityIndicator()
+                : Text(widget.turkish ? 'Kaynağı bağla' : 'Connect source'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 final class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.busy,
@@ -338,7 +600,9 @@ final class _SourceSummary extends StatelessWidget {
   final bool turkish;
   @override
   Widget build(BuildContext context) {
-    final used = (snapshot.usedBytes / 1073741824).toStringAsFixed(1);
+    final used = snapshot.usedBytes == null
+        ? (turkish ? 'bilinmiyor' : 'unknown')
+        : (snapshot.usedBytes! / 1073741824).toStringAsFixed(1);
     final quota = (snapshot.quotaBytes / 1073741824).toStringAsFixed(1);
     return Container(
       padding: const EdgeInsets.all(16),
@@ -352,7 +616,7 @@ final class _SourceSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            snapshot.providerId,
+            turkish ? 'Jellyfin Canlı TV' : 'Jellyfin Live TV',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),

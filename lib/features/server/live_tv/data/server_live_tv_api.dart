@@ -22,6 +22,81 @@ final class ServerLiveTvApi {
     return ServerLiveTvSnapshot.fromJson(result['snapshot'], session);
   }
 
+  Future<ServerLiveTvSourceOptions> sourceOptions({
+    bool Function()? current,
+  }) async {
+    _current(current);
+    final result = _response(
+      await api.request(
+        'GET',
+        '/media/live-tv/source-options',
+        token: session.accessToken,
+      ),
+      {'schemaVersion', 'expectedRevision', 'services'},
+    );
+    _current(current);
+    final services = result['services'];
+    final expectedRevision = result['expectedRevision'];
+    if (result['schemaVersion'] != 1 ||
+        expectedRevision is! int ||
+        expectedRevision < 0 ||
+        expectedRevision > 0x1fffffffffffff ||
+        services is! List ||
+        services.length > 128) {
+      _invalidResponse();
+    }
+    final parsed = services
+        .map(ServerLiveTvSourceOption.fromJson)
+        .toList(growable: false);
+    if (parsed.map((item) => item.serviceId).toSet().length != parsed.length) {
+      _invalidResponse();
+    }
+    return ServerLiveTvSourceOptions(expectedRevision, parsed);
+  }
+
+  Future<ServerLiveTvSnapshot> configureJellyfin({
+    required int expectedRevision,
+    required ServerLiveTvSourceOption service,
+    required String providerKind,
+    required String timeZone,
+    required int quotaBytes,
+    bool Function()? current,
+  }) async {
+    if (expectedRevision < 0 ||
+        expectedRevision > 0x1fffffffffffff ||
+        (providerKind != 'tuner' && providerKind != 'iptv') ||
+        timeZone.isEmpty ||
+        timeZone.length > 64 ||
+        timeZone.trim() != timeZone ||
+        timeZone.contains(RegExp(r'[\x00-\x20\x7f]')) ||
+        quotaBytes < 1073741824 ||
+        quotaBytes > 10995116277760) {
+      throw const LarenorServerException('invalid_request');
+    }
+    _current(current);
+    final result = _response(
+      await api.request(
+        'PUT',
+        '/media/live-tv/jellyfin-source',
+        token: session.accessToken,
+        body: {
+          'schemaVersion': 1,
+          'requestId': _id(),
+          'expectedRevision': expectedRevision,
+          'serviceId': service.serviceId,
+          'expectedServiceRevision': service.serviceRevision,
+          'providerKind': providerKind,
+          'timeZone': timeZone,
+          'quotaBytes': quotaBytes,
+        },
+      ),
+      {'schemaVersion', 'snapshot'},
+    );
+    _current(current);
+    if (result['schemaVersion'] != 1) _invalidResponse();
+    return ServerLiveTvSnapshot.fromJson(result['snapshot'], session);
+  }
+
   Future<void> schedule(
     ServerLiveTvSnapshot snapshot,
     ServerLiveTvProgramme programme, {

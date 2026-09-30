@@ -13,6 +13,45 @@ enum ServerLiveTvRecordingState {
   uncertain,
 }
 
+final class ServerLiveTvSourceOption {
+  const ServerLiveTvSourceOption({
+    required this.serviceId,
+    required this.serviceRevision,
+    required this.name,
+    required this.version,
+  });
+
+  factory ServerLiveTvSourceOption.fromJson(Object? raw) {
+    final value = _object(raw, {
+      'serviceId',
+      'serviceRevision',
+      'name',
+      'version',
+    });
+    final revision = value['serviceRevision'];
+    if (revision is! int || revision < 1 || revision > 0x1fffffffffffff) {
+      _invalid();
+    }
+    final version = _text(value['version'], 80);
+    if (!RegExp(r'^10\.11\.[0-9]{1,6}$').hasMatch(version)) _invalid();
+    return ServerLiveTvSourceOption(
+      serviceId: _id(value['serviceId']),
+      serviceRevision: revision,
+      name: _text(value['name'], 80),
+      version: version,
+    );
+  }
+
+  final String serviceId, name, version;
+  final int serviceRevision;
+}
+
+final class ServerLiveTvSourceOptions {
+  const ServerLiveTvSourceOptions(this.expectedRevision, this.services);
+  final int expectedRevision;
+  final List<ServerLiveTvSourceOption> services;
+}
+
 final class ServerLiveTvProgramme {
   const ServerLiveTvProgramme({
     required this.id,
@@ -211,9 +250,7 @@ final class ServerLiveTvSnapshot {
         tuners > 8 ||
         quota is! int ||
         quota < 1073741824 ||
-        used is! int ||
-        used < 0 ||
-        used > quota ||
+        (used != null && (used is! int || used < 0 || used > 10995116277760)) ||
         value['programmes'] is! List ||
         value['recordings'] is! List) {
       _invalid();
@@ -239,18 +276,15 @@ final class ServerLiveTvSnapshot {
       timeZone: zone,
       parallelTuners: tuners,
       quotaBytes: quota,
-      usedBytes: used,
+      usedBytes: used as int?,
       capturedAt: _instant(value['capturedAt']),
       programmes: programmes,
       recordings: recordings,
     );
   }
 
-  final int sourceRevision,
-      providerRevision,
-      parallelTuners,
-      quotaBytes,
-      usedBytes;
+  final int sourceRevision, providerRevision, parallelTuners, quotaBytes;
+  final int? usedBytes;
   final String providerId, providerKind;
   final LiveTvTimeZone timeZone;
   final DateTime capturedAt;

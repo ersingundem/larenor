@@ -52,7 +52,7 @@ class LiveTvRecordingReceipt:
 
 
 class LiveTvSourceProvider(Protocol):
-    def capability(self) -> LiveTvProviderCapability: ...
+    def capability(self, source=None) -> LiveTvProviderCapability: ...
 
 
 class LiveTvRecorder(Protocol):

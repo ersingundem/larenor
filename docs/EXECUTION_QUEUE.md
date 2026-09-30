@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 3 | 1 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 2 | 1 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 3 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 6 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 2 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 4 | 0 | 0 | 0 |
@@ -30,7 +30,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | F08 | Yapay zekâ kaynak yöneticisi | Çalışılıyor | — |
-| F23 | Canlı TV ve kayıt merkezi | Çalışılıyor | — |
 
 Bekleyen tüm işler
 
@@ -152,6 +151,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F19 | Birden fazla ev, bağımsız Core | Uygulama tamamlandı · test bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | Uygulama tamamlandı · test bekliyor | — |
 | F21 | Birlikte senkron film izleme | Uygulama tamamlandı · test bekliyor | — |
+| F23 | Canlı TV ve kayıt merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | Uygulama tamamlandı · test bekliyor | — |
 | F36 | Adil ev işi paylaşımı | Uygulama tamamlandı · test bekliyor | — |

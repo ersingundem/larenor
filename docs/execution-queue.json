@@ -4098,7 +4098,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Canlı TV ve kayıt merkezi",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4123,7 +4123,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION gerçek Live TV/recording providerı ve Client admin kaynak kurulumu geliştiriliyor. Önceki injectable fixture production kabulü değildir."
+      "reason": "Normal Core doğrulanmış Jellyfin 10.11 servisiyle gerçek guide/timer create/read/cancel/restart ve Client admin kaynak kurulumu uygulandı. 8 Server testi + 1 gerçek Flutter→normal Core TCP→Jellyfin sözleşme kabulü, analyze temiz. Kalıcı quota-stop dispatcher, tüm upstream kayıtların byte hesabı, bilinmeyen boyut ve kayıp cancel cevabı/restart uzlaştırması dahil. docs/testing/f23-jellyfin-live-tv-provider-2026-09-30.md. Core kota politikası uzaktan admission/stop sınırıdır; OS sert byte kotası/fiziksel tuner manuel kapı. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
     },
     {
       "id": "F27",

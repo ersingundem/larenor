@@ -74,6 +74,7 @@ from .cooking.service import CookingSessionStore
 from .personal_channels.schema import migrate_personal_channels
 from .personal_channels.service import PersonalChannelService
 from .live_tv.schema import migrate_live_tv
+from .live_tv.jellyfin import JellyfinLiveTvProvider
 from .live_tv.service import LiveTvService
 from .pantry_stock.schema import migrate_pantry_stock
 from .pantry_stock.service import PantryStockService
@@ -1500,9 +1501,16 @@ class CoreServices:
                 self.media_playback,
             )
             self.personal_channels.validate_storage()
+            live_tv_provider = self._live_tv_provider
+            live_tv_recorder = self._live_tv_recorder
+            if live_tv_provider is None and live_tv_recorder is None:
+                live_tv_provider = JellyfinLiveTvProvider(
+                    self.db, self.auth, settings, self.services, key,
+                )
+                live_tv_recorder = live_tv_provider
             self.live_tv = LiveTvService(
                 self.db, self.auth, settings, self.context,
-                self._live_tv_provider, self._live_tv_recorder,
+                live_tv_provider, live_tv_recorder,
             )
             self.live_tv.validate_storage()
             self.watch_parties = WatchPartyService(
