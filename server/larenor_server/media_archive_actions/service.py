@@ -1105,10 +1105,11 @@ class MediaArchiveActionService:
     def _cancelled(self, job_id):
         with self.db.connection() as connection:
             row = connection.execute(
-                "SELECT cancel_requested FROM media_archive_action_jobs "
+                "SELECT * FROM media_archive_action_jobs "
                 "WHERE id=?", (job_id,)
             ).fetchone()
-            return row is None or bool(row["cancel_requested"])
+            return (row is None or bool(row["cancel_requested"])
+                    or not self._dispatch_authorized(connection, row))
 
     def _worker_receipt(self, method, command, job_id):
         if command.target.targetType == "legacy_unresolved":

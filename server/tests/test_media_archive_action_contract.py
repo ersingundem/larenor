@@ -205,7 +205,7 @@ def test_public_job_distinguishes_pending_retained_and_unknown_originals():
 
 
 def test_worker_protocol_revision_rejects_legacy_untyped_commands():
-    assert (PROTOCOL_VERSION, SCHEMA_VERSION) == (3, 3)
+    assert (PROTOCOL_VERSION, SCHEMA_VERSION) == (4, 4)
 
 
 def _transcode_command(operation_id=OID):

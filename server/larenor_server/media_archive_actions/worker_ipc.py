@@ -20,14 +20,15 @@ from .models import (
 )
 
 
-PROTOCOL_VERSION = 3
-SCHEMA_VERSION = 3
+PROTOCOL_VERSION = 4
+SCHEMA_VERSION = 4
 MAX_FRAME_BYTES = 512 * 1024
 MAX_REPLAY_KEYS = 512
 MAX_DEADLINE_MS = 5_000
 
 _POLICY = {
     "automaticCleanup": False,
+    "durableCancellation": True,
     "capability": "media_archive_actions",
     "maxDeadlineMs": MAX_DEADLINE_MS,
     "maxFrameBytes": MAX_FRAME_BYTES,
@@ -157,7 +158,7 @@ class MediaArchiveActionWorkerClient:
         self.owner_uid = os.geteuid() if owner_uid is None else owner_uid
         self.peer_uid = self.owner_uid if peer_uid is None else peer_uid
 
-    def _call(self, operation, command=None, *, deadline=None):
+    def _call(self, operation, command=None, *, deadline=None, cancel_requested=False):
         if deadline is None:
             deadline = time.monotonic() + MAX_DEADLINE_MS / 1000
         remaining_ms = min(MAX_DEADLINE_MS, int(
@@ -176,6 +177,8 @@ class MediaArchiveActionWorkerClient:
         }
         if command is not None:
             request["command"] = command.model_dump(mode="json")
+        if operation in {"execute", "reconcile"}:
+            request["cancelRequested"] = bool(cancel_requested)
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
             stream.settimeout(max(0.001, remaining_ms / 1000))
             stream.connect(self.path)
@@ -218,7 +221,7 @@ class MediaArchiveActionWorkerClient:
         if cancelled():
             raise MediaArchiveActionWorkerError("cancelled")
         result = ArchiveActionWorkerReceipt.model_validate(
-            self._call("execute", command, deadline=deadline))
+            self._call("execute", command, deadline=deadline, cancel_requested=cancelled()))
         if cancelled() and result.state != "cancelled":
             raise MediaArchiveActionWorkerError("cancel_unknown")
         return result
@@ -226,7 +229,7 @@ class MediaArchiveActionWorkerClient:
     def reconcile(self, command, *, deadline, cancelled):
         command = _typed_command(command)
         result = ArchiveActionWorkerReceipt.model_validate(
-            self._call("reconcile", command, deadline=deadline))
+            self._call("reconcile", command, deadline=deadline, cancel_requested=cancelled()))
         if cancelled() and result.state not in {"cancelled", "succeeded"}:
             raise MediaArchiveActionWorkerError("cancel_unknown")
         return result
@@ -271,6 +274,9 @@ class MediaArchiveActionWorkerServer:
         if self._thread is not None:
             self._thread.join(timeout=1)
             self._thread = None
+        closer = getattr(self.handler, "close", None)
+        if callable(closer):
+            closer()
         try:
             os.unlink(self.path)
         except FileNotFoundError:
@@ -289,6 +295,7 @@ class MediaArchiveActionWorkerServer:
             except (socket.timeout, OSError):
                 continue
             with connection:
+                connection.settimeout(MAX_DEADLINE_MS / 1000)
                 request = None
                 try:
                     if _peer_uid(connection) != self.peer_uid:
@@ -333,6 +340,8 @@ class MediaArchiveActionWorkerServer:
                     "requestId", "operation", "deadlineMs"}
         operation = request.get("operation")
         expected = required if operation == "status" else required | {"command"}
+        if operation in {"execute", "reconcile"}:
+            expected = expected | {"cancelRequested"}
         if (set(request) != expected
                 or request.get("protocolVersion") != PROTOCOL_VERSION
                 or request.get("schemaVersion") != SCHEMA_VERSION
@@ -343,6 +352,8 @@ class MediaArchiveActionWorkerServer:
                 or any(char not in "0123456789abcdef"
                        for char in request["requestId"])
                 or operation not in {"status", "preview", "execute", "reconcile"}
+                or operation in {"execute", "reconcile"}
+                and type(request.get("cancelRequested")) is not bool
                 or type(request.get("deadlineMs")) is not int
                 or not 1 <= request["deadlineMs"] <= MAX_DEADLINE_MS):
             raise MediaArchiveActionWorkerError("invalid_request")
@@ -379,7 +390,8 @@ class MediaArchiveActionWorkerServer:
                     method(command, deadline=deadline, gate=lambda: not stopped()))
             else:
                 result = ArchiveActionWorkerReceipt.model_validate(
-                    method(command, deadline=deadline, cancelled=stopped))
+                    method(command, deadline=deadline, cancelled=lambda: (
+                        self._stopping.is_set() or request["cancelRequested"])))
             if stopped():
                 raise MediaArchiveActionWorkerError("deadline_exceeded")
             return self._response(
