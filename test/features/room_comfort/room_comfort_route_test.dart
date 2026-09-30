@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -50,6 +51,91 @@ Map<String, Object?> _plan() => {
   ],
 };
 
+Map<String, Object?> _setupService() => {
+  'id': '4' * 32,
+  'name': 'Verified Home Assistant',
+  'kind': 'home_assistant',
+  'baseUrl': 'https://ha.fixture.invalid',
+  'revision': 3,
+  'credentialKeys': ['token'],
+  'verification': {
+    'state': 'authenticated',
+    'checkedAt': '2026-09-05T08:00:00Z',
+    'version': '2026.9',
+  },
+};
+
+Map<String, Object?> _setupResource(String id, String kind, String label) => {
+  'ref': {
+    'schemaVersion': 1,
+    'coreId': 'a' * 32,
+    'homeId': 'b' * 32,
+    'kind': kind,
+    'id': id,
+  },
+  'label': label,
+  'order': 0,
+  'revision': 1,
+  'aclRevision': 1,
+  'permissions': {'read': true, 'write': true},
+};
+
+Map<String, Object?> _sourceConfiguration([int revision = 4]) => {
+  'schemaVersion': 1,
+  'revision': revision,
+  'serviceId': '4' * 32,
+  'serviceRevision': 3,
+  'weatherEntityId': 'weather.home',
+  'aqiEntityId': 'sensor.outdoor_aqi',
+  'targetTemperatureMilliC': 22000,
+  'temperatureToleranceMilliC': 1000,
+  'humidityHighPermille': 700,
+  'co2HighPpm': 1000,
+  'vocHighPpb': 500,
+  'outdoorAqiLimit': 100,
+  'freezeThresholdMilliC': 3000,
+  'indoorMaxAgeMs': 60000,
+  'outdoorMaxAgeMs': 120000,
+  'occupancyMaxAgeMs': 60000,
+  'previewTtlMs': 30000,
+  'rooms': [
+    {
+      'roomId': '2' * 32,
+      'roomRevision': 1,
+      'areaId': '3' * 32,
+      'areaRevision': 1,
+      'climateEntityId': 'climate.living_room',
+      'windowEntityId': 'cover.living_room_window',
+      'temperatureEntityId': 'sensor.living_temperature',
+      'humidityEntityId': 'sensor.living_humidity',
+      'co2EntityId': 'sensor.living_co2',
+      'vocEntityId': 'sensor.living_voc',
+      'smokeEntityId': 'binary_sensor.living_smoke',
+      'occupancyEntityId': 'binary_sensor.living_occupancy',
+    },
+  ],
+};
+
+Map<String, Object?> _entityCatalog() => {
+  'schemaVersion': 1,
+  'entities': {
+    'climate': ['climate.living_room'],
+    'cover': ['cover.living_room_window'],
+    'sensor': [
+      'sensor.living_co2',
+      'sensor.living_humidity',
+      'sensor.living_temperature',
+      'sensor.living_voc',
+      'sensor.outdoor_aqi',
+    ],
+    'binary_sensor': [
+      'binary_sensor.living_occupancy',
+      'binary_sensor.living_smoke',
+    ],
+    'weather': ['weather.home'],
+  },
+};
+
 void main() {
   late AdminFixture fixture;
 
@@ -91,9 +177,9 @@ void main() {
   setUp(() async {
     fixture = AdminFixture();
     fixture.respond = (request) async {
-      if (request.method == 'GET' &&
+      if (request.method == 'POST' &&
           request.url.path.contains('/room-comfort/') &&
-          request.url.path.endsWith('/plan')) {
+          request.url.path.endsWith('/plan/refresh')) {
         return fixture.json({'schemaVersion': 1, 'plan': _plan()});
       }
       return fixture.defaultResponse(request);
@@ -174,6 +260,162 @@ void main() {
     delayed.complete(fixture.json({'schemaVersion': 1, 'plan': _plan()}));
     await tester.pumpAndSettle();
     expect(find.byType(RoomComfortScreen), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('clean install opens candidate-only comfort source editor', (
+    tester,
+  ) async {
+    fixture.respond = (request) async {
+      final path = request.url.path;
+      if (request.method == 'POST' && path.endsWith('/plan/refresh')) {
+        return fixture.json({
+          'error': {'code': 'comfort_source_not_configured'},
+        }, 409);
+      }
+      if (request.method == 'GET' && path.endsWith('/configuration/setup')) {
+        return fixture.json({
+          'schemaVersion': 1,
+          'services': [_setupService()],
+          'rooms': [_setupResource('2' * 32, 'room', 'Living room')],
+          'areas': [_setupResource('3' * 32, 'resource', 'Downstairs')],
+        });
+      }
+      if (request.method == 'GET' && path.endsWith('/configuration')) {
+        return fixture.json({
+          'error': {'code': 'comfort_source_not_configured'},
+        }, 409);
+      }
+      if (request.method == 'GET' &&
+          path.contains('/configuration/entities/')) {
+        return fixture.json(_entityCatalog());
+      }
+      return fixture.defaultResponse(request);
+    };
+    await mount(tester, RoomComfortRoute(gateCurrent: () => true));
+    final setup = find.text('Configure verified sources').last;
+    expect(setup, findsOneWidget);
+    await tester.tap(setup);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Room comfort sources'), findsOneWidget);
+    expect(find.text('Verified Home Assistant'), findsNothing);
+    final setupScroll = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('comfort-policy-targetTemperatureMilliC')),
+      400,
+      scrollable: setupScroll.first,
+    );
+    await tester.pump();
+    final policyFields = tester.widgetList<CupertinoTextField>(
+      find.byType(CupertinoTextField),
+    );
+    expect(policyFields, isNotEmpty);
+    expect(policyFields.every((field) => field.controller?.text == ''), isTrue);
+
+    await tester.fling(setupScroll.first, const Offset(0, 3000), 2000);
+    await tester.pumpAndSettle();
+    final servicePicker = find.byKey(const ValueKey('comfort-setup-service'));
+    expect(servicePicker, findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: servicePicker,
+        matching: find.byType(CupertinoButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Verified Home Assistant'), findsOneWidget);
+    await tester.tap(
+      find.ancestor(
+        of: find.text('Verified Home Assistant'),
+        matching: find.byType(CupertinoActionSheetAction),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final entityCalls = fixture.calls.where(
+      (call) =>
+          call.method == 'GET' &&
+          call.url.path.contains('/configuration/entities/'),
+    );
+    expect(
+      entityCalls,
+      hasLength(1),
+      reason: fixture.calls
+          .map((call) => '${call.method} ${call.url.path}')
+          .join('\n'),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('inline editor saves through the current route authority', (
+    tester,
+  ) async {
+    fixture.respond = (request) async {
+      final path = request.url.path;
+      if (request.method == 'POST' && path.endsWith('/plan/refresh')) {
+        return fixture.json({'schemaVersion': 1, 'plan': _plan()});
+      }
+      if (request.method == 'GET' && path.endsWith('/configuration/setup')) {
+        return fixture.json({
+          'schemaVersion': 1,
+          'services': [_setupService()],
+          'rooms': [_setupResource('2' * 32, 'room', 'Living room')],
+          'areas': [_setupResource('3' * 32, 'resource', 'Downstairs')],
+        });
+      }
+      if (request.method == 'GET' && path.endsWith('/configuration')) {
+        return fixture.json({
+          'schemaVersion': 1,
+          'configuration': _sourceConfiguration(),
+        });
+      }
+      if (request.method == 'GET' &&
+          path.contains('/configuration/entities/')) {
+        return fixture.json(_entityCatalog());
+      }
+      if (request.method == 'PUT' && path.endsWith('/configuration')) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['expectedRevision'], 4);
+        expect(body['serviceId'], '4' * 32);
+        expect(body['rooms'], hasLength(1));
+        return fixture.json({
+          'schemaVersion': 1,
+          'configuration': _sourceConfiguration(5),
+        });
+      }
+      return fixture.defaultResponse(request);
+    };
+    await mount(tester, RoomComfortRoute(gateCurrent: () => true));
+    await tester.tap(find.byKey(const ValueKey('comfort-setup')));
+    await tester.pumpAndSettle();
+    expect(find.text('Room comfort sources'), findsOneWidget);
+    expect(find.text('Verified Home Assistant'), findsOneWidget);
+
+    final setupScroll = find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('comfort-setup-save')),
+      500,
+      scrollable: setupScroll,
+    );
+    await tester.tap(find.byKey(const ValueKey('comfort-setup-save')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RoomComfortScreen), findsOneWidget);
+    expect(
+      fixture.calls.where(
+        (call) =>
+            call.method == 'PUT' && call.url.path.endsWith('/configuration'),
+      ),
+      hasLength(1),
+    );
     expect(tester.takeException(), isNull);
   });
 }

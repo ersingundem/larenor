@@ -142,10 +142,14 @@ class RoomComfortScreen extends StatefulWidget {
     super.key,
     required this.controller,
     required this.strings,
+    this.setupLabel = 'Configure verified sources',
+    this.onSetup,
   });
 
   final RoomComfortController controller;
   final RoomComfortStrings strings;
+  final String setupLabel;
+  final Future<void> Function()? onSetup;
 
   @override
   State<RoomComfortScreen> createState() => _RoomComfortScreenState();
@@ -229,7 +233,21 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
 
   @override
   Widget build(BuildContext context) => AppPageScaffold(
-    navigationBar: CupertinoNavigationBar(middle: Text(widget.strings.title)),
+    navigationBar: CupertinoNavigationBar(
+      middle: Text(widget.strings.title),
+      trailing: widget.onSetup == null
+          ? null
+          : CupertinoButton(
+              key: const ValueKey('comfort-setup'),
+              padding: EdgeInsets.zero,
+              onPressed: _current ? widget.onSetup : null,
+              child: Semantics(
+                button: true,
+                label: widget.setupLabel,
+                child: const Icon(CupertinoIcons.settings),
+              ),
+            ),
+    ),
     child: SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
@@ -252,8 +270,14 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
       return _Status(
         live: true,
         text: _failureText(failure),
-        actionLabel: widget.strings.refresh,
-        onAction: controller.busy || !_current ? null : controller.refresh,
+        actionLabel: failure == RoomComfortFailure.notConfigured
+            ? widget.setupLabel
+            : widget.strings.refresh,
+        onAction: controller.busy || !_current
+            ? null
+            : failure == RoomComfortFailure.notConfigured
+            ? widget.onSetup
+            : controller.refresh,
       );
     }
     final plan = controller.plan;
@@ -348,6 +372,7 @@ class _RoomComfortScreenState extends State<RoomComfortScreen>
 
   String _failureText(RoomComfortFailure failure) => switch (failure) {
     RoomComfortFailure.unavailable => widget.strings.unavailable,
+    RoomComfortFailure.notConfigured => widget.setupLabel,
     RoomComfortFailure.staleAuthority => widget.strings.stale,
     RoomComfortFailure.invalidScope => widget.strings.invalidScope,
   };

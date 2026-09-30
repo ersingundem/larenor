@@ -40,7 +40,11 @@ final class RoomComfortApi implements RoomComfortGateway {
   @override
   Future<RoomComfortPlan> loadPlan() => _run(() async {
     final body = serverObject(
-      await _api.request('GET', '$_root/plan', token: _session.accessToken),
+      await _api.request(
+        'POST',
+        '$_root/plan/refresh',
+        token: _session.accessToken,
+      ),
     );
     if (body.length != 2 || body['schemaVersion'] != 1) {
       throw const LarenorServerException('invalid_response');
@@ -92,6 +96,7 @@ final class RoomComfortApi implements RoomComfortGateway {
             !RegExp(r'^[A-Za-z0-9_-]{43}$').hasMatch(token) ||
             expires is! int ||
             expires < 1 ||
+            expires > 9007199254740991 ||
             count is! int ||
             count < 1 ||
             count > 64) {

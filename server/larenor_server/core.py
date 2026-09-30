@@ -204,6 +204,7 @@ from .core_backups.restore import recover_empty_restore
 from .mesh_center.runtime import build_mesh_center_gateway
 from .room_comfort.schema import migrate_room_comfort
 from .room_comfort.service import RoomComfortService
+from .room_comfort.runtime import build_room_comfort_runtime
 from .garden_irrigation.runtime import build_irrigation_gateway
 from .garden_irrigation.home_assistant import HomeAssistantIrrigationProvider
 from .garden_irrigation.source_schema import migrate_irrigation_source
@@ -810,13 +811,26 @@ class CoreServices:
                 key,
                 settings.data_dir,
             )
+            comfort_source, comfort_worker, comfort_provisioner = (
+                build_room_comfort_runtime(
+                    self.db,
+                    self.auth,
+                    key,
+                    self.context,
+                    lambda: self.services,
+                    self.home_resources,
+                )
+            )
             self.room_comfort = RoomComfortService(
                 self.db,
                 self.auth,
                 settings,
                 key,
                 self.context,
-                worker=self._room_comfort_worker,
+                worker=self._room_comfort_worker or comfort_worker,
+                source_store=comfort_source,
+                input_provider=comfort_worker,
+                provisioner=comfort_provisioner,
             )
             self.room_comfort.validate_storage()
             irrigation_provider = self._irrigation_provider

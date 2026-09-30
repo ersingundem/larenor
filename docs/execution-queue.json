@@ -4806,7 +4806,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4830,7 +4830,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION normal Core denetiminde gerçek worker/kaynak yokluğu, network sırasında SQLite lock ve crash sonrası tekrar gönderim riski bulundu. Kalıcı dispatch intent, lock dışı I/O ve gerçek HA oda/climate/cover kaynak adapteri geliştiriliyor; eski sözleşme testleri production kabulü değildir."
+      "reason": "Normal Core gerçek HA iklim/perde executorı, kaynak/entity kurulum UI ve güncel plan refresh yolunu kuruyor. Production istemci ölçüm/policy yayımlayamaz; HA gözlemleri serverda okunur. Hesap/oturum/kaynak/servis/oda revizyonları her gönderim öncesi/sonrası kontrol edilir; kalıcı dispatching niyeti restart/lost ACK sonrasında yeniden gönderilmez. 17 Server, 26 Flutter ve odaklı analyze geçti; gerçek normal Core→HA TCP/WebSocket setup/apply/readback doğrulandı (docs/testing/f50-home-assistant-comfort-runtime-2026-09-30.md). Tam Client kabulü, geniş matris, fiziksel cihaz ve exact HEAD CI açık."
     },
     {
       "id": "F48",

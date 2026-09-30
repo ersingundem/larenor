@@ -26,6 +26,24 @@ CREATE TABLE IF NOT EXISTS room_comfort_previews (
     receipt_json TEXT,
     envelope_tag TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS room_comfort_dispatches (
+    command_id TEXT PRIMARY KEY,
+    preview_id TEXT NOT NULL REFERENCES room_comfort_previews(id),
+    command_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('dispatching','completed')),
+    result_json TEXT,
+    reserved_at REAL NOT NULL,
+    completed_at REAL,
+    envelope_tag TEXT NOT NULL,
+    CHECK((state='dispatching' AND result_json IS NULL AND completed_at IS NULL) OR
+          (state='completed' AND result_json IS NOT NULL AND completed_at IS NOT NULL))
+);
+CREATE TABLE IF NOT EXISTS room_comfort_source (
+    singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    payload_json TEXT NOT NULL,
+    envelope_tag TEXT NOT NULL
+);
 """
 
 

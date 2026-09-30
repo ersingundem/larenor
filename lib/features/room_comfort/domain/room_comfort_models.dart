@@ -124,7 +124,7 @@ final class RoomComfortPlan {
       throw const FormatException('invalid_rooms');
     }
     final generated = value['generatedAtMs'];
-    if (generated is! int || generated < 0) {
+    if (generated is! int || generated < 0 || generated > _maxSafeInteger) {
       throw const FormatException('invalid_time');
     }
     return RoomComfortPlan(
@@ -218,7 +218,10 @@ String _id(Object? value) =>
     value is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(value)
     ? value
     : throw const FormatException('invalid_id');
-int _revision(Object? value) => value is int && value > 0
+const _maxSafeInteger = 9007199254740991;
+
+int _revision(Object? value) =>
+    value is int && value > 0 && value <= _maxSafeInteger
     ? value
     : throw const FormatException('invalid_revision');
 T _enum<T extends Enum>(List<T> values, Object? raw) =>

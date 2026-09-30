@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from ..auth import Principal
 from ..core import CoreServices
 from ..dependencies import get_core, require_admin
-from ..home_resources.models import Identity
+from ..home_resources.models import Identity, Revision
 from ..models import ErrorResponse
 from .api_models import (
     ComfortPlanResponse,
@@ -14,6 +14,10 @@ from .api_models import (
     ConfirmComfortPlan,
     PreviewComfortPlan,
     PublishComfortPlan,
+)
+from .source_models import (
+    ComfortSourceResponse,
+    HomeAssistantComfortSourceInput,
 )
 
 
@@ -26,6 +30,47 @@ router = APIRouter(tags=["Room comfort"], responses={
 })
 
 
+@router.get(ROOT + "/configuration/setup")
+def configuration_setup(
+    core_id: Identity, home_id: Identity, actor: Admin, core: Core
+):
+    core.room_comfort._scope(core_id, home_id)
+    return core.room_comfort.configuration_setup(actor)
+
+
+@router.get(ROOT + "/configuration/entities/{service_id}/{revision}")
+def configuration_entities(
+    core_id: Identity,
+    home_id: Identity,
+    service_id: Identity,
+    revision: Revision,
+    actor: Admin,
+    core: Core,
+):
+    core.room_comfort._scope(core_id, home_id)
+    return core.room_comfort.configuration_entities(
+        actor, service_id, revision
+    )
+
+
+@router.get(ROOT + "/configuration", response_model=ComfortSourceResponse)
+def configuration(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
+    core.room_comfort._scope(core_id, home_id)
+    return core.room_comfort.configuration(actor)
+
+
+@router.put(ROOT + "/configuration", response_model=ComfortSourceResponse)
+def configure(
+    core_id: Identity,
+    home_id: Identity,
+    body: HomeAssistantComfortSourceInput,
+    actor: Admin,
+    core: Core,
+):
+    core.room_comfort._scope(core_id, home_id)
+    return core.room_comfort.configure(actor, body)
+
+
 @router.put(ROOT + "/plan", response_model=ComfortPlanResponse)
 def publish(core_id: Identity, home_id: Identity, body: PublishComfortPlan,
             actor: Admin, core: Core):
@@ -35,6 +80,11 @@ def publish(core_id: Identity, home_id: Identity, body: PublishComfortPlan,
 @router.get(ROOT + "/plan", response_model=ComfortPlanResponse)
 def current(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
     return core.room_comfort.current(actor, core_id, home_id)
+
+
+@router.post(ROOT + "/plan/refresh", response_model=ComfortPlanResponse)
+def refresh(core_id: Identity, home_id: Identity, actor: Admin, core: Core):
+    return core.room_comfort.refresh(actor, core_id, home_id)
 
 
 @router.post(ROOT + "/previews", status_code=201,

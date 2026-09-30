@@ -113,7 +113,8 @@ void main() {
         client: MockClient((request) async {
           requests.add(request);
           expect(request.headers['authorization'], 'Bearer ${'x' * 43}');
-          if (request.method == 'GET') {
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/plan/refresh')) {
             return _json({'schemaVersion': 1, 'plan': _plan()});
           }
           if (request.url.path.endsWith('/previews')) {
@@ -135,7 +136,7 @@ void main() {
       expect(requests, hasLength(3));
       expect(
         requests.first.url.path,
-        endsWith('/room-comfort/${'a' * 32}/${'b' * 32}/plan'),
+        endsWith('/room-comfort/${'a' * 32}/${'b' * 32}/plan/refresh'),
       );
       expect(jsonDecode(requests[1].body), {
         'schemaVersion': 1,

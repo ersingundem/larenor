@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/room_comfort/data/room_comfort_controller.dart';
 import 'package:larenor/features/room_comfort/domain/room_comfort_models.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
 
 RoomComfortPlan plan({String? homeId, List<RoomComfortPlanItem>? rooms}) =>
     RoomComfortPlan(
@@ -97,6 +98,21 @@ void main() {
       expect(value.failure, RoomComfortFailure.invalidScope);
       value.dispose();
     }
+  });
+
+  test('missing production source opens the explicit setup state', () async {
+    final value = _controller(
+      _Gateway(
+        Future.error(
+          const LarenorServerException('comfort_source_not_configured'),
+        ),
+      ),
+      () => true,
+    );
+    await value.refresh();
+    expect(value.plan, isNull);
+    expect(value.failure, RoomComfortFailure.notConfigured);
+    value.dispose();
   });
 
   test('late result after route retirement is discarded', () async {

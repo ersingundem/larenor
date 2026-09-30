@@ -1,8 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+import '../../server/domain/server_models.dart';
 import '../domain/room_comfort_models.dart';
 
-enum RoomComfortFailure { unavailable, staleAuthority, invalidScope }
+enum RoomComfortFailure {
+  unavailable,
+  notConfigured,
+  staleAuthority,
+  invalidScope,
+}
 
 final class RoomComfortController extends ChangeNotifier {
   static final _identity = RegExp(r'^[0-9a-f]{32}$');
@@ -102,6 +108,15 @@ final class RoomComfortController extends ChangeNotifier {
         generatedAt: next.generatedAt,
         rooms: List.unmodifiable(next.rooms),
       );
+    } on LarenorServerException catch (error) {
+      if (operation == _epoch && _current()) {
+        _plan = null;
+        _failure =
+            error.code == 'comfort_source_not_configured' ||
+                error.code == 'conflict'
+            ? RoomComfortFailure.notConfigured
+            : RoomComfortFailure.unavailable;
+      }
     } catch (_) {
       if (operation == _epoch && _current()) {
         _plan = null;

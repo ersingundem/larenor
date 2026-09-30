@@ -8,7 +8,9 @@ import '../../server/data/server_account_controller.dart';
 import '../../server/providers/server_providers.dart';
 import '../data/room_comfort_api.dart';
 import '../data/room_comfort_controller.dart';
+import '../data/room_comfort_source_api.dart';
 import 'room_comfort_screen.dart';
+import 'room_comfort_source_screen.dart';
 
 final class RoomComfortRoute extends ConsumerStatefulWidget {
   const RoomComfortRoute({super.key, required this.gateCurrent});
@@ -21,9 +23,10 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     with WidgetsBindingObserver {
   ServerAccountController? _account;
   RoomComfortController? _controller;
+  AccountRoomComfortSourceApi? _sourceApi;
   Object? _session;
   int? _generation;
-  bool _foreground = true, _closed = false;
+  bool _foreground = true, _closed = false, _showSetup = false;
 
   @override
   void initState() {
@@ -53,6 +56,24 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     }
   }
 
+  bool _sourceAuthority() {
+    if (!mounted || _closed || !_foreground || !_showSetup) return false;
+    try {
+      final account = _account, session = account?.session;
+      return account != null &&
+          identical(ref.read(serverAccountControllerProvider), account) &&
+          account.isCurrent(_generation!) &&
+          identical(session, _session) &&
+          account.initialized &&
+          !account.working &&
+          session?.context != null &&
+          session!.user.canAdminister &&
+          widget.gateCurrent();
+    } catch (_) {
+      return false;
+    }
+  }
+
   String _requestId() {
     final random = Random.secure();
     return List.generate(
@@ -62,11 +83,33 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
   }
 
   void _changed() {
-    if (!mounted || _authority()) return;
+    if (!mounted || _authority() || (_showSetup && _sourceAuthority())) return;
     _closed = true;
     _controller?.retire();
+    _sourceApi?.retire();
     _controller = null;
+    _sourceApi = null;
     setState(() {});
+  }
+
+  Future<void> _setup() async {
+    if (!_authority()) return;
+    _controller?.retire();
+    _controller = null;
+    _sourceApi?.retire();
+    _showSetup = true;
+    _sourceApi = AccountRoomComfortSourceApi(
+      account: _account!,
+      isCurrent: _sourceAuthority,
+    );
+    setState(() {});
+  }
+
+  Future<void> _finishSetup() async {
+    _sourceApi?.retire();
+    _sourceApi = null;
+    if (!mounted) return;
+    setState(() => _showSetup = false);
   }
 
   @override
@@ -81,7 +124,10 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     } else if (!identical(_account, account)) {
       _closed = true;
       _controller?.retire();
+      _sourceApi?.retire();
       _controller = null;
+      _sourceApi = null;
+      _showSetup = false;
     }
     TickerMode.valuesOf(context);
     ModalRoute.of(context);
@@ -92,7 +138,10 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     _foreground = state == AppLifecycleState.resumed;
     if (!_foreground) {
       _controller?.retire();
+      _sourceApi?.retire();
       _controller = null;
+      _sourceApi = null;
+      _showSetup = false;
     }
     if (mounted) setState(() {});
   }
@@ -102,6 +151,7 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     WidgetsBinding.instance.removeObserver(this);
     _account?.removeListener(_changed);
     _controller?.retire();
+    _sourceApi?.retire();
     super.dispose();
   }
 
@@ -111,7 +161,10 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
     final strings = Localizations.localeOf(context).languageCode == 'tr'
         ? RoomComfortStrings.tr
         : RoomComfortStrings.en;
-    if (_controller == null && _authority()) {
+    final setupStrings = Localizations.localeOf(context).languageCode == 'tr'
+        ? RoomComfortSetupStrings.tr
+        : RoomComfortSetupStrings.en;
+    if (!_showSetup && _controller == null && _authority()) {
       final contextValue = _account!.session!.context!;
       _controller = RoomComfortController(
         gateway: AccountRoomComfortGateway(
@@ -125,8 +178,21 @@ final class _RoomComfortRouteState extends ConsumerState<RoomComfortRoute>
       );
     }
     final controller = _controller;
+    final sourceApi = _sourceApi;
+    if (_showSetup && sourceApi != null && _sourceAuthority()) {
+      return RoomComfortSourceScreen(
+        api: sourceApi,
+        strings: setupStrings,
+        onFinished: _finishSetup,
+      );
+    }
     if (controller != null && _authority()) {
-      return RoomComfortScreen(controller: controller, strings: strings);
+      return RoomComfortScreen(
+        controller: controller,
+        strings: strings,
+        setupLabel: setupStrings.action,
+        onSetup: _setup,
+      );
     }
     return AppPageScaffold(
       navigationBar: CupertinoNavigationBar(middle: Text(strings.title)),

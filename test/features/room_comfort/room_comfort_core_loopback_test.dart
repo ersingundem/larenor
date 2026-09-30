@@ -82,7 +82,7 @@ final class _ComfortCore {
       });
     }
     final root = '/api/v1/room-comfort/$_core/$_home';
-    if (request.method == 'GET' && path == '$root/plan') {
+    if (request.method == 'POST' && path == '$root/plan/refresh') {
       loads++;
       entered?.complete();
       await barrier?.future;
