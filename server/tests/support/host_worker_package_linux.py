@@ -17,6 +17,8 @@ import urllib.request
 
 
 UNMANIC_REVISION = "1c324b8fc3974ffce3d7cc945adb938fe7182910"
+UNMANIC_VERSION = "0.4.1"
+UNMANIC_FULL_VERSION = "0.4.1~1c324b8"
 UNMANIC_ARCHIVE_SHA256 = (
     "50110ac6c52490089fc5d778d11e882a4d317e7716ff1abccb665b438a063d42"
 )
@@ -115,6 +117,28 @@ def _extract_archive(archive: Path, destination: Path) -> Path:
     return root
 
 
+def _write_unmanic_version(root: Path):
+    """Restore the version file produced by upstream's exact-tag git build."""
+    version_path = root / "unmanic/version"
+    if (
+        version_path.is_symlink()
+        or not version_path.is_file()
+        or version_path.stat().st_nlink != 1
+        or version_path.read_bytes()
+        != b'{"short": "UNKNOWN", "long": "UNKNOWN"}'
+    ):
+        raise RuntimeError("unmanic_source_invalid")
+    version_path.write_text(
+        json.dumps(
+            {"short": UNMANIC_VERSION, "long": UNMANIC_FULL_VERSION},
+            sort_keys=True,
+            separators=(",", ":"),
+        ) + "\n",
+        encoding="ascii",
+    )
+    version_path.chmod(0o644)
+
+
 def _wheel_rows(directory: Path):
     rows = []
     for path in sorted(directory.glob("*.whl")):
@@ -178,6 +202,7 @@ def build(*, root: Path, work: Path, uv: Path, python: Path,
     archive = work / "unmanic-source.tar.gz"
     _download_archive(archive)
     unmanic_source = _extract_archive(archive, source_root)
+    _write_unmanic_version(unmanic_source)
     _run([
         build_python, "-m", "pip", "wheel", "--require-hashes",
         "--no-build-isolation", "--wheel-dir", unmanic_wheels,
@@ -200,6 +225,8 @@ def build(*, root: Path, work: Path, uv: Path, python: Path,
         "platform": platform_name,
         "serverLockSha256": _sha256(root / "server/uv.lock"),
         "unmanicRevision": UNMANIC_REVISION,
+        "unmanicVersion": UNMANIC_VERSION,
+        "unmanicFullVersion": UNMANIC_FULL_VERSION,
         "unmanicArchiveSha256": UNMANIC_ARCHIVE_SHA256,
         "unmanicPackageLockSha256": UNMANIC_PACKAGE_LOCK_SHA256,
         "serverWheels": _wheel_rows(server_wheels),

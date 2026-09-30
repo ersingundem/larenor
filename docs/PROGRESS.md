@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül Unmanic paket sürümü ve gerçek Core health düzeltmesi
+
+Exact `6a79199d` host CI, doğrulanmış Unmanic arşivinde Git metadatası olmadığından UNKNOWN.VERSION ile wheel üretiminde durdu. Builder yalnız exact regular UNKNOWN placeholder'ı upstream 0.4.1 etiketi→sabit commit ilişkisinden gelen sürümle değiştirir ve bunu receipt'e kaydeder; gerçek upstream setup.py --version çıktısı 0.4.1 doğrulandı. Kurulu Core TCP yardımcısının health yolu normal `/api/v1/health` olarak düzeltildi; testi artık gerçek create_app çalıştırır. 22 odaklı test geçti, 4 hosted-Linux kapısı yerelde atlandı. Yeni exact host sonucu ayrıca beklenir.
+
 ### 30 Eylül F12 gerçek SDK kabulü ve CI bekleyen kuyruk
 
 20 odaklı Server/boundary, 51 admin/context ve official Python MCP SDK 2.2.0 gerçek Uvicorn TCP kapısı geçti; root 20 testi ve SDK kabulünü bağımsız tekrar doğruladı. Gerçek SDK ile bulunan yeni sürüm offer/_meta hatası düzeltildi. F12 CI bekliyor grubuna geçti; 37 özellik geniş CI bekliyor, yalnız F11 aktif. 37/127 ve 3/63 kabul sayaçları değişmedi. Custom bearer/client-header yolu desteklenir; OAuth credential discovery iddiası yoktur. [Adlandırılmış kanıt](testing/f12-mcp-streamable-http-2026-09-30.md), [63 özellik üretim yolu matrisi](testing/final-function-feature-matrix-2026-09-30.md).

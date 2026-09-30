@@ -58,7 +58,7 @@ class InstalledCoreTcp:
         if not self._server.started:
             self.__exit__(None, None, None)
             raise RuntimeError("installed_core_start_failed")
-        status, body = self.json("GET", "/health")
+        status, body = self.json("GET", "/api/v1/health")
         if status != 200 or body != {"service": "larenor-server", "apiVersion": 1}:
             self.__exit__(None, None, None)
             raise RuntimeError("installed_core_health_failed")

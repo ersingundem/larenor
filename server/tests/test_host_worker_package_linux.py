@@ -4,8 +4,11 @@ from io import BytesIO
 from pathlib import Path
 import tarfile
 
-from fastapi import FastAPI
+from fastapi import APIRouter
 import pytest
+
+from larenor_server.app import create_app
+from larenor_server.config import Settings
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,11 +51,25 @@ def test_unmanic_archive_extraction_requires_exact_regular_pinned_tree(tmp_path,
         (prefix, b"", "directory"),
         (prefix + "/unmanic", b"", "directory"),
         (prefix + "/unmanic/webserver", b"", "directory"),
+        (
+            prefix + "/unmanic/version",
+            b'{"short": "UNKNOWN", "long": "UNKNOWN"}',
+            "file",
+        ),
         (prefix + "/unmanic/webserver/package-lock.json", lock, "file"),
     ])
     destination = tmp_path / "source"
     destination.mkdir()
     assert package._extract_archive(archive, destination) == destination / prefix
+    package._write_unmanic_version(destination / prefix)
+    assert (destination / prefix / "unmanic/version").read_text() == (
+        '{"long":"0.4.1~1c324b8","short":"0.4.1"}\n'
+    )
+    assert package.UNMANIC_REVISION.startswith(
+        package.UNMANIC_FULL_VERSION.rsplit("~", 1)[1]
+    )
+    with pytest.raises(RuntimeError, match="unmanic_source_invalid"):
+        package._write_unmanic_version(destination / prefix)
 
     unsafe = tmp_path / "unsafe.tar.gz"
     _archive(unsafe, [(prefix + "/link", b"../../etc/passwd", "symlink")])
@@ -83,18 +100,20 @@ def test_committed_unmanic_lock_pins_every_upstream_runtime_dependency_with_hash
     assert lock.count("--hash=sha256:") >= len(requirement_lines)
 
 
-def test_installed_core_client_uses_actual_bounded_loopback_tcp():
-    app = FastAPI()
+def test_installed_core_client_uses_actual_normal_core_loopback_tcp(tmp_path):
+    router = APIRouter()
 
-    @app.get("/health")
-    def health():
-        return {"service": "larenor-server", "apiVersion": 1}
-
-    @app.post("/echo")
+    @router.post("/host-proof-echo")
     def echo(value: dict):
         return value
 
+    app = create_app(
+        Settings(tmp_path / "data", tmp_path / "secrets/vault.key"),
+        routers=(router,),
+    )
     with tcp.InstalledCoreTcp(app) as client:
-        status, value = client.json("POST", "/echo", body={"actual": "tcp"})
+        status, value = client.json(
+            "POST", "/api/v1/host-proof-echo", body={"actual": "tcp"}
+        )
         assert status == 200
         assert value == {"actual": "tcp"}
