@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 43 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 44 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F20 gerçek audit kontrol noktası kabulü
+
+Gerçek Client→normal Core TCP pin/compare/rotate ve ayrı Core/Client restart geçti. Gerçek admin kayıtları zincire eklendi; SQLite actor tamper sonrası startup reddedildi, dump değişmedi ve bootstrap yeniden üretilmedi. Client checkpoint query reddi yalnız exact verification rotasında düzeltildi; iki transport regressionı ve 29 Server testi geçti. F20 CI bekliyor tablosuna taşındı: 44 özellik geniş CI bekliyor; accepted sayaç değişmedi. [F20 kanıtı](testing/f20-normal-core-audit-acceptance-2026-09-30.md).
 
 ### 30 Eylül F48 gerçek güç bütçesi Client/Core/evcc kabulü
 

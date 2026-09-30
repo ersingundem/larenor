@@ -641,6 +641,19 @@ class LarenorServerApi {
                 entry.value.length <= 512 &&
                 !entry.value.contains(RegExp(r'[\x00-\x20\x7f-\xff]')),
           );
+      final coreAuditVerification =
+          method == 'GET' &&
+          RegExp(
+            r'^/admin/core-audit/[0-9a-f]{32}/[0-9a-f]{32}/verification$',
+          ).hasMatch(path) &&
+          queryParameters.length == 1 &&
+          queryParameters.entries.every(
+            (entry) =>
+                entry.key == 'checkpoint' &&
+                entry.value.isNotEmpty &&
+                entry.value.length <= 512 &&
+                !entry.value.contains(RegExp(r'[\x00-\x20\x7f-\xff]')),
+          );
       final revision = queryParameters['expectedRevision'];
       final homeResourcesQuery =
           method == 'GET' &&
@@ -765,6 +778,7 @@ class LarenorServerApi {
           !homeAssistantHistory &&
           !homeAssistantEvents &&
           !homeAssistantVerification &&
+          !coreAuditVerification &&
           !capabilityEvidenceQuery &&
           !localNotificationsQuery &&
           !localNotificationDeliveryLeaseQuery &&

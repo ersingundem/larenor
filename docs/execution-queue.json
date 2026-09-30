@@ -3180,7 +3180,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Değiştirilmesi fark edilen işlem günlüğü",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3204,7 +3204,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Core çapında HMAC zincirli audit journal, admin doğrulama endpointi ve cihazda güvenli checkpoint pin/karşılaştırma/döndürme akışı Server ve Client tarafında tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
+      "reason": "Gerçek Flutter→normal TCP Core audit kapısı pin/compare/rotate, ayrı Core ve Client restart, gerçek admin audit mutation ve SQLite actor tamper sonrası startup fail/no silent reset davranışını geçti. Checkpoint query üretim Client transportunda yanlış reddediliyordu; yalnız exact GET Core-audit verification rotasında bounded checkpoint eklendi, malformed/other path regressionı korundu. Root iki gerçek Client fazını doğruladı; 29 odaklı Server ve 2 transport testi geçti, analyze temiz. Geniş exact HEAD CI ve fiziksel secure-storage/device kapısı açık; mutlak immutability iddiası yok. Kanıt: docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md."
     },
     {
       "id": "F06",

@@ -11,7 +11,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 9 | 0 | 0 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
-| G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 3 | 0 | 1 | 0 |
+| G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 2 | 0 | 2 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 3 | 0 | 1 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 1 | 0 | 7 | 0 |
@@ -115,7 +115,6 @@ Tamamlanan ve test/CI bekleyen işler
 | K12 | Watchdog ve yerel kullanım ölçümü | Uygulama tamamlandı · test bekliyor | — |
 | K13 | Yönetilen profil dağıtımı ve filo bağı | Uygulama tamamlandı · test bekliyor | — |
 | F13 | Bileşen bazında internet izinleri | Uygulama tamamlandı · test bekliyor | — |
-| F20 | Değiştirilmesi fark edilen işlem günlüğü | Uygulama tamamlandı · test bekliyor | — |
 | F05 | Uzun süren ev iş akışları | Uygulama tamamlandı · test bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | Uygulama tamamlandı · test bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | Uygulama tamamlandı · test bekliyor | — |
@@ -131,6 +130,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F62 | Bağımsız RDP uzak masaüstü | Uygulama tamamlandı · test bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | Uygulama tamamlandı · test bekliyor | — |
 | F15 | Doğrulanabilir bileşen güncellemeleri | CI bekliyor | — |
+| F20 | Değiştirilmesi fark edilen işlem günlüğü | CI bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | CI bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | CI bekliyor | — |
 | F18 | Elektrik kesintisinde düzenli kapanış | CI bekliyor | — |
