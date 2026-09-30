@@ -11,6 +11,89 @@ final class ServerFamilyMemoriesApi {
   final String token;
   static const _root = '/family-memories';
 
+  Future<FamilyMemorySourceState> sources({String? accountId}) =>
+      _source('POST', {'accountId': accountId});
+
+  Future<FamilyMemorySourceState> grantSource(
+    FamilyMemorySourceState state,
+    FamilyMemorySourceService service,
+    List<String> albumIds,
+  ) => _source('PUT', {
+    'accountId': state.accountId,
+    'expectedAccountRevision': state.accountRevision,
+    'expectedRevision': state.revision,
+    'serviceId': service.serviceId,
+    'expectedServiceRevision': service.serviceRevision,
+    'allowedAlbumIds': albumIds,
+  });
+
+  Future<FamilyMemorySourceState> revokeSource(FamilyMemorySourceState state) =>
+      _source('DELETE', {
+        'accountId': state.accountId,
+        'expectedAccountRevision': state.accountRevision,
+        'expectedRevision': state.revision,
+      });
+
+  Future<FamilyMemorySourceState> faceConsent(
+    FamilyMemorySourceState state,
+    bool enabled,
+  ) => _source('PUT', {
+    'expectedRevision': state.revision,
+    'enabled': enabled,
+  }, path: '$_root/sources/face-consent');
+
+  Future<FamilyMemorySourceState> _source(
+    String method,
+    Map<String, Object?> body, {
+    String path = '$_root/sources',
+  }) async {
+    final id = requestId();
+    return FamilyMemorySourceState.fromJson(
+      _envelope(
+        await api.request(
+          method,
+          path,
+          token: token,
+          body: {'schemaVersion': 1, 'requestId': id, ...body},
+        ),
+        id,
+        'source',
+      ),
+    );
+  }
+
+  Future<List<FamilyMemorySourceAlbum>> sourceAlbums(
+    FamilyMemorySourceService service,
+  ) async {
+    final id = requestId();
+    final json = serverObject(
+      await api.request(
+        'POST',
+        '$_root/sources/albums',
+        token: token,
+        body: {
+          'schemaVersion': 1,
+          'requestId': id,
+          'serviceId': service.serviceId,
+          'expectedServiceRevision': service.serviceRevision,
+        },
+      ),
+    );
+    if (json.length != 2 ||
+        json['requestId'] != id ||
+        json['albums'] is! List) {
+      throw const LarenorServerException('invalid_response');
+    }
+    final albums = (json['albums'] as List)
+        .map(FamilyMemorySourceAlbum.fromJson)
+        .toList();
+    if (albums.length > 512 ||
+        albums.map((e) => e.albumId).toSet().length != albums.length) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return List.unmodifiable(albums);
+  }
+
   static String requestId() {
     final random = Random.secure();
     return List.generate(

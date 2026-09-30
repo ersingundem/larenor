@@ -189,6 +189,8 @@ MESSAGES = {
     'memory_album_limit_reached': 'The family memory album limit has been reached.',
     'memory_timeout': 'The private family photo service did not respond in time.',
     'memory_invalid_response': 'The private family photo service returned an invalid response.',
+    'memory_unsupported_version': 'Family photo search requires Immich 3.2.x. Verify the photo service after upgrading.',
+    'memory_source_storage_invalid': 'The family photo source grants could not be verified.',
     'memory_invalid_search': 'The family photo search request is invalid.',
     'memory_retired': 'This family photo connection is no longer active.',
     'memory_album_storage_invalid': 'The family memory album store could not be verified.',

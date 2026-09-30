@@ -18,13 +18,17 @@ ASSET = "44444444-4444-4444-8444-444444444444"
 
 
 class Transport:
-    def __init__(self, response):
+    def __init__(self, response, *, version="3.2.4"):
         self.response = response
+        self.version = version
         self.calls = []
         self.closed = False
 
     def request(self, method, path, **kwargs):
         self.calls.append((method, path, kwargs))
+        if path == "/api/server/about":
+            return ProbeResponse(200, (("content-type", "application/json"),),
+                                 json.dumps({"version": self.version}).encode())
         return self.response
 
     def close(self):
@@ -159,9 +163,18 @@ def test_explicit_face_consent_and_bearer_binding_are_exact():
         current_connection=connection(credentials={"token": "private-token"}),
     )
     client.search(MemorySearch("Ada", (ALBUM,), person_ids=(PERSON,)))
-    body = json.loads(transport.calls[0][2]["body"])
+    body = json.loads(transport.calls[-1][2]["body"])
     assert body["filter"]["personIds"] == {"any": [PERSON]}
-    assert transport.calls[0][2]["headers"]["Authorization"] == "Bearer private-token"
+    assert transport.calls[-1][2]["headers"]["Authorization"] == "Bearer private-token"
+
+
+@pytest.mark.parametrize("version", ["2.6.0", "3.1.9", "3.2.0-rc.1", "4.0.0", None, 3])
+def test_unsupported_actual_peer_never_receives_search(version):
+    transport = Transport(reply([asset()]), version=version)
+    with code("unsupported_version"):
+        adapter(transport).search(MemorySearch("family", (ALBUM,)))
+    assert [(method, path) for method, path, _kwargs in transport.calls] == [
+        ("GET", "/api/server/about")]
 
 
 @pytest.mark.parametrize(

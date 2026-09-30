@@ -71,6 +71,16 @@ class _ServerFamilyMemoriesRouteState
         delete: l10n.serverFamilyMemoriesDelete,
         deleteConfirm: l10n.serverFamilyMemoriesDeleteConfirm,
         items: l10n.serverFamilyMemoriesItems,
+        source: l10n.serverFamilyMemoriesSource,
+        sourceDescription: l10n.serverFamilyMemoriesSourceDescription,
+        sourceUnavailable: l10n.serverFamilyMemoriesSourceUnavailable,
+        sourceAlbumSelection: l10n.serverFamilyMemoriesSourceAlbumSelection,
+        sourceAccount: l10n.serverFamilyMemoriesSourceAccount,
+        sourceService: l10n.serverFamilyMemoriesSourceService,
+        faceConsent: l10n.serverFamilyMemoriesFaceConsent,
+        faceConsentDescription: l10n.serverFamilyMemoriesFaceConsentDescription,
+        disconnectSource: l10n.serverFamilyMemoriesDisconnectSource,
+        disconnectConfirm: l10n.serverFamilyMemoriesDisconnectConfirm,
       ),
     );
   }

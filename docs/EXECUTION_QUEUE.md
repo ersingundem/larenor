@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 8 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 9 | 1 | 0 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 5 | 0 | 0 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 2 | 1 | 0 | 0 |
@@ -29,7 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F30 | Medya arşivi sağlık ve yer tasarrufu | Çalışılıyor | — |
 | F48 | Ev güç bütçesi | Çalışılıyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | Çalışılıyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Çalışılıyor | — |
@@ -42,7 +41,7 @@ Bağımlılığı tamamlanan işler önce, diğerleri kuyruk sırasıyla göster
 | ---: | --- | --- | --- | --- |
 | 1 | F46 | Elektrikli araç şarj planlayıcısı | Bağımlılık bekliyor | F48 |
 | 2 | F47 | Güneş ve ev bataryası öncelikleri | Bağımlılık bekliyor | F48 |
-| 3 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G06, G09, G10 |
+| 3 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Bağımlılık bekliyor | G09, G10 |
 | 4 | FINAL.UI | Son ortak Apple Home esintili tablet tasarım geçişi | Bağımlılık bekliyor | FINAL.FUNCTION |
 | 5 | FINAL.AUDIT | Özellikler arası bütünlük, performans ve güvenlik kabulü | Bağımlılık bekliyor | FINAL.UI |
 | 6 | FINAL.CI | Tam kaynak ve dağıtım doğrulama | Bağımlılık bekliyor | FINAL.AUDIT |
@@ -150,6 +149,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F27 | Seyahat için çevrimdışı medya | Uygulama tamamlandı · test bekliyor | — |
 | F28 | Sesli kitap ve podcast merkezi | Uygulama tamamlandı · test bekliyor | — |
 | F29 | Parti DJ'i ve ortak şarkı oylaması | Uygulama tamamlandı · test bekliyor | — |
+| F30 | Medya arşivi sağlık ve yer tasarrufu | Uygulama tamamlandı · test bekliyor | — |
 | F32 | Dolap stoğu ve son kullanma takibi | Uygulama tamamlandı · test bekliyor | — |
 | F33 | Büyük ekran pişirme asistanı | Uygulama tamamlandı · test bekliyor | — |
 | F35 | Ev belgeleri ve garanti hatırlatmaları | Uygulama tamamlandı · test bekliyor | — |

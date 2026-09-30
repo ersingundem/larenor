@@ -4951,5 +4951,15 @@
   "privateEventShareCoreUnavailable": "Core unavailable",
   "privateEventShareStateUnverified": "State could not be verified",
   "privateEventShareReadCurrentState": "Read current state",
-  "privateEventShareUnavailable": "Private event sharing is unavailable"
+  "privateEventShareUnavailable": "Private event sharing is unavailable",
+  "serverFamilyMemoriesSource": "Photo source",
+  "serverFamilyMemoriesSourceDescription": "An administrator chooses which verified Immich service and albums this account can search. Originals remain in Immich.",
+  "serverFamilyMemoriesSourceUnavailable": "Ask an administrator to verify an Immich connection in Core service settings and grant access to specific albums.",
+  "serverFamilyMemoriesSourceAlbumSelection": "Albums this account can search (up to 32)",
+  "serverFamilyMemoriesSourceAccount": "Account",
+  "serverFamilyMemoriesSourceService": "Choose an Immich service",
+  "serverFamilyMemoriesFaceConsent": "Search with face tags",
+  "serverFamilyMemoriesFaceConsentDescription": "Allow searches using existing Immich face tags for your account. This does not start face recognition or label anyone. You can withdraw consent at any time.",
+  "serverFamilyMemoriesDisconnectSource": "Remove photo access",
+  "serverFamilyMemoriesDisconnectConfirm": "Remove this account’s album access? Original photos and Immich albums are preserved."
 }

@@ -226,6 +226,7 @@ from .resource_reservations.schema import migrate_resource_reservations
 from .resource_reservations.integration import ResourceReservationService
 from .family_board.service import FamilyBoardService
 from .family_memories import FamilyMemoriesService, MemoryAlbumAuthority, MemoryAlbumStore
+from .family_memories.bindings import MemorySourceBindings
 from .camera_search import (
     CameraSearchFeedbackService,
     migrate_camera_search_feedback,
@@ -367,14 +368,6 @@ class CoreServices:
             ),
             member_ids,
         )
-
-    @staticmethod
-    def _family_memory_connection_unavailable(_actor, _service_id, _revision):
-        raise ApiError("memory_service_unavailable", 503)
-
-    @staticmethod
-    def _family_memory_policy_unavailable(_actor, _service_id, _revision):
-        raise ApiError("memory_policy_unavailable", 503)
 
     @staticmethod
     def _private_event_share_provider_unavailable(*_args):
@@ -547,6 +540,7 @@ class CoreServices:
                 migrate_home_documents(connection)
                 migrate_resource_reservations(connection)
                 MemoryAlbumStore.migrate(connection)
+                MemorySourceBindings.migrate(connection)
                 migrate_power_budget(connection)
                 migrate_floor_plan(connection)
                 migrate_shared_expenses(connection)
@@ -994,15 +988,19 @@ class CoreServices:
                 ).digest(),
                 clock=settings.clock,
             )
+            self.family_memory_sources = MemorySourceBindings(
+                self.db, self.auth, self.services, self.context, key,
+                self._family_memory_authority)
+            self.family_memory_sources.validate_storage()
             self.family_memories = FamilyMemoriesService(
                 self.family_memory_albums,
                 self.auth,
                 self._family_memory_authority_provider
                 or self._family_memory_authority,
                 self._family_memory_connection_provider
-                or self._family_memory_connection_unavailable,
+                or self.family_memory_sources.connection,
                 self._family_memory_policy_provider
-                or self._family_memory_policy_unavailable,
+                or self.family_memory_sources.policy,
             )
             workshop_provider = (
                 self._workshop_provider

@@ -43,6 +43,7 @@ class MemoryPolicy:
     service_revision: int
     allowed_album_ids: tuple[str, ...]
     face_search_enabled: bool = False
+    source_revision: int | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -62,6 +63,9 @@ class MemoryPolicy:
             or len(set(self.allowed_album_ids)) != len(self.allowed_album_ids)
             or any(not _uuid(value) for value in self.allowed_album_ids)
             or type(self.face_search_enabled) is not bool
+            or self.source_revision is not None and (
+                type(self.source_revision) is not int
+                or not 1 <= self.source_revision < 2**63)
         ):
             raise MemoryError("invalid_policy")
 

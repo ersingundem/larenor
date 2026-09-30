@@ -4224,7 +4224,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Medya arşivi sağlık ve yer tasarrufu",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -4250,7 +4250,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Paketli authenticated read/action worker, live Core authority, onaylı mount resolver, gerçek Unmanic HTTP ve kalıcı callback hattı uygulandı. 97ddbf19 retained-original temizliği yalnız exact başarılı source proof, installed-output hash, özgün inode ve kalıcı delete intent ile çalışıyor; 126 odaklı regresyon geçti. Gerçek Unmanic per-command encoder/pinned provider kabulü ve çift/retention dosya temizleme executorları geliştiriliyor; Client→Core→worker ve tam CI kapanışı açık."
+      "reason": "4d2ee258 gerçek pinned Unmanic 0.4.1 signed per-command encoder ve authenticated terminal callback kabulünü, f7d9864a exact private provenance ile çift/retention cleanup executorlarını uyguladı. Gerçek geçici HEVC output, korunan orijinal, gerçek loopback Arr/Jellyfin/qBittorrent silme ve absence readback geçti; arşiv son matrisi 45 geçti. Aynı onay kayıp ACK sonrasında tekrar gönderilmez. Tam Client→Core→private worker birleşik kabulü ve exact HEAD CI bekliyor; fiziksel/provider kapıları ayrı."
     },
     {
       "id": "G07",
@@ -4569,7 +4569,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama 0bca44df ile tamamlandı: private Immich binding, albüm yetkisi, encrypted store, bütünlük/revision bağlı arama-seçim, edit/reconcile/delete ve fail-closed Core/Flutter akışı hazır; focused 23 server testi ve Flutter analyze geçti, tam CI/son kabul bekliyor."
+      "reason": "30 Eylül normal Core Immich kaynağı tamamlandı: doğrulanmış 3.2.x servis, hesap/revizyona bağlı şifreli açık albüm yetkisi, kendi yüz-arama izni, gerçek upstream albüm üyelik denetimi, her işlemde actual sürüm kapısı ve Client kaynak ayarları. Yerel gerçek HTTP sözleşme kabulü ve odaklı Flutter test/analyze geçti; kurulu Immich model/index, tam Client→Core→Immich, backup/restore ve exact HEAD CI docs/testing/f38-normal-source-2026-09-30.md kaydında açık. Sayaç artışı yok."
     },
     {
       "id": "F39",
@@ -4994,7 +4994,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "d8daf8f7 gerçek Zigbee2MQTT retained inventory/state parserını ve yeniden başlatılan OTA belirsizliğinin tekrar gönderilmesini engelleyen kalıcı dispatch intentini uyguladı. Bilinmeyen rota/interference/firmware açıkça eksik gösteriliyor. Gerçek bounded MQTT reader, normal Core/broker provisioning, desteklenen OTA ve ayrı Thread teşhisi geliştiriliyor; tam kabul/CI ve fiziksel ağ kapıları açık."
+      "reason": "acce3cad8 normal Core runtimeını UID-pinned private worker ve bounded gerçek MQTT observation yoluna bağladı; broker açılışta kapalı olsa da aynı Core yeniden gözlemle toparlanıyor. 60 server testi geçti. Varsayılan Zigbee2MQTT OTA imza/image manifest sunmadığı için gerçek provider-managed OTA ayrı protokolle geliştiriliyor; Thread read-only teşhisi, tam kabul/CI ve fiziksel ağ kapıları açık."
     },
     {
       "id": "F56",
@@ -5371,7 +5371,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "30 Eylül kapsamlı incelemesindeki F18 production executor/hedef seçimi uygulandı ve doğrulama tablosuna taşındı. F30 gerçek encoder/cleanup, F48/F46 kontrol, F55 gerçek broker ve F59 confirmed provider yolları kapanıyor. Bu eksikler, gerçek Client→Core→servis kabulü ve exact HEAD CI tamamlanmadan bu kapı awaiting_ci/done olmayacak; ikinci FINAL maddesi başlatılmayacak."
+      "reason": "30 Eylül denetimindeki F18, F30 ve F38 production yolları uygulandı, doğrulama tablosundalar. F48 güç kontrol/readback, F55 gerçek OTA ve F59 sıcaklık/confirmed printer yolları kapanıyor. Normal runtime composition taraması sürüyor; tüm özelliklerin gerçek Client→Core→servis kabulü ve exact HEAD CI tamamlanmadan ikinci FINAL maddesi başlatılmayacak."
     },
     {
       "id": "FINAL.UI",

@@ -23,6 +23,16 @@ final class FamilyMemoriesLabels {
     required this.delete,
     required this.deleteConfirm,
     required this.items,
+    required this.source,
+    required this.sourceDescription,
+    required this.sourceUnavailable,
+    required this.sourceAlbumSelection,
+    required this.sourceAccount,
+    required this.sourceService,
+    required this.faceConsent,
+    required this.faceConsentDescription,
+    required this.disconnectSource,
+    required this.disconnectConfirm,
   });
 
   final String title, searchHint, search, albums, results, empty;
@@ -35,6 +45,15 @@ final class FamilyMemoriesLabels {
       retry;
   final String editAlbum, reconcile, delete, deleteConfirm;
   final String Function(int count) items;
+  final String source,
+      sourceDescription,
+      sourceUnavailable,
+      sourceAlbumSelection;
+  final String sourceAccount,
+      sourceService,
+      faceConsent,
+      faceConsentDescription;
+  final String disconnectSource, disconnectConfirm;
 }
 
 final class ServerFamilyMemoriesScreen extends StatefulWidget {
@@ -59,6 +78,11 @@ class _ServerFamilyMemoriesScreenState
   final _query = TextEditingController();
   final Set<String> _selected = {};
   String? _sourceAlbumId;
+  bool _settings = false;
+  String? _settingsAccountId;
+  int? _settingsSourceRevision;
+  FamilyMemorySourceService? _service;
+  final Set<String> _grantedAlbums = {};
 
   @override
   void initState() {
@@ -75,6 +99,22 @@ class _ServerFamilyMemoriesScreenState
     if (_sourceAlbumId == null || !allowed.contains(_sourceAlbumId)) {
       _sourceAlbumId = allowed.isEmpty ? null : allowed.first;
     }
+    final source = widget.controller.source;
+    if (source != null &&
+        (source.accountId != _settingsAccountId ||
+            source.revision != _settingsSourceRevision)) {
+      _settingsAccountId = source.accountId;
+      _settingsSourceRevision = source.revision;
+      _service = null;
+      for (final candidate in source.services) {
+        if (candidate.serviceId == source.binding?.serviceId) {
+          _service = candidate;
+        }
+      }
+      _grantedAlbums
+        ..clear()
+        ..addAll(source.binding?.allowedAlbumIds ?? const []);
+    }
     if (mounted) setState(() {});
   }
 
@@ -86,6 +126,9 @@ class _ServerFamilyMemoriesScreenState
   }
 
   Future<void> _search() async {
+    if (widget.controller.needsRefresh || !widget.controller.isOwnSource) {
+      return;
+    }
     final albumId = _sourceAlbumId;
     if (albumId == null || _query.text.trim().isEmpty) return;
     final binding = widget.controller.snapshot?.binding;
@@ -98,6 +141,16 @@ class _ServerFamilyMemoriesScreenState
       albumIds: [albumId],
       current: widget.current,
     );
+  }
+
+  Future<void> _toggleSettings() async {
+    if (_settings) {
+      await widget.controller.load(current: widget.current);
+      if (!mounted || !widget.current() || widget.controller.needsRefresh) {
+        return;
+      }
+    }
+    if (mounted) setState(() => _settings = !_settings);
   }
 
   Future<void> _save(FamilyMemoryAlbum album) async {
@@ -293,6 +346,183 @@ class _ServerFamilyMemoriesScreenState
     );
   }
 
+  Future<void> _chooseAccount() async {
+    final source = widget.controller.source;
+    if (source == null) return;
+    final id = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(widget.labels.sourceAccount),
+        actions: [
+          for (final member in source.members)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, member.accountId),
+              child: Text(member.username),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.labels.cancel),
+        ),
+      ),
+    );
+    if (id != null && mounted) {
+      await widget.controller.loadSource(id, current: widget.current);
+    }
+  }
+
+  Future<void> _chooseService() async {
+    final source = widget.controller.source;
+    if (source == null) return;
+    final chosen = await showCupertinoModalPopup<FamilyMemorySourceService>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(widget.labels.sourceService),
+        actions: [
+          for (final candidate in source.services)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, candidate),
+              child: Text(candidate.name),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.labels.cancel),
+        ),
+      ),
+    );
+    if (chosen != null && mounted) {
+      setState(() {
+        _service = chosen;
+        _grantedAlbums.clear();
+      });
+      await widget.controller.loadSourceAlbums(chosen, current: widget.current);
+    }
+  }
+
+  Future<void> _disconnectSource() async {
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: Text(widget.labels.disconnectSource),
+        content: Text(widget.labels.disconnectConfirm),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(widget.labels.cancel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(widget.labels.disconnectSource),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && mounted) {
+      await widget.controller.revokeSource(current: widget.current);
+    }
+  }
+
+  List<Widget> _sourceSettings() {
+    final controller = widget.controller;
+    final state = controller.source;
+    final own = controller.isOwnSource;
+    final disabled = controller.busy || controller.needsRefresh;
+    final binding = state?.binding;
+    String? username;
+    for (final member in state?.members ?? const <FamilyMemorySourceMember>[]) {
+      if (member.accountId == state?.accountId) username = member.username;
+    }
+    return [
+      _heading(widget.labels.source),
+      Text(widget.labels.sourceDescription),
+      if (state?.canManage == true) ...[
+        CupertinoListTile(
+          title: Text(widget.labels.sourceAccount),
+          additionalInfo: Text(username ?? ''),
+          trailing: const CupertinoListTileChevron(),
+          onTap: disabled ? null : _chooseAccount,
+        ),
+        CupertinoListTile(
+          title: Text(widget.labels.sourceService),
+          additionalInfo: Text(_service?.name ?? ''),
+          trailing: const CupertinoListTileChevron(),
+          onTap: disabled || state!.services.isEmpty ? null : _chooseService,
+        ),
+        if (state!.services.isEmpty) Text(widget.labels.sourceUnavailable),
+        if (_service != null) ...[
+          _heading(widget.labels.sourceAlbumSelection),
+          for (final album in controller.availableSourceAlbums)
+            CupertinoListTile(
+              title: Text(album.title),
+              trailing: Icon(
+                _grantedAlbums.contains(album.albumId)
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.circle,
+              ),
+              onTap: disabled
+                  ? null
+                  : () => setState(() {
+                      if (!_grantedAlbums.add(album.albumId)) {
+                        _grantedAlbums.remove(album.albumId);
+                      }
+                    }),
+            ),
+          CupertinoButton.filled(
+            onPressed:
+                disabled || _grantedAlbums.isEmpty || _grantedAlbums.length > 32
+                ? null
+                : () async {
+                    await controller.grantSource(
+                      _service!,
+                      _grantedAlbums.toList(),
+                      current: widget.current,
+                    );
+                    if (mounted && controller.failure == null) {
+                      setState(() => _settings = false);
+                      await controller.load(current: widget.current);
+                    }
+                  },
+            child: Text(widget.labels.save),
+          ),
+        ],
+      ] else if (binding == null)
+        Text(widget.labels.sourceUnavailable),
+      if (binding != null && own) ...[
+        _heading(widget.labels.faceConsent),
+        Text(widget.labels.faceConsentDescription),
+        CupertinoListTile(
+          title: Text(widget.labels.faceConsent),
+          trailing: CupertinoSwitch(
+            value: binding.faceSearchEnabled,
+            onChanged: disabled
+                ? null
+                : (value) =>
+                      controller.faceConsent(value, current: widget.current),
+          ),
+        ),
+      ],
+      if (binding != null)
+        CupertinoButton(
+          onPressed: disabled ? null : _disconnectSource,
+          child: Text(widget.labels.disconnectSource),
+        ),
+      if (controller.snapshot != null || _settings)
+        CupertinoButton(
+          onPressed: controller.busy
+              ? null
+              : () async {
+                  await controller.load(current: widget.current);
+                  if (mounted && widget.current() && !controller.needsRefresh) {
+                    setState(() => _settings = false);
+                  }
+                },
+          child: Text(widget.labels.cancel),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -304,34 +534,86 @@ class _ServerFamilyMemoriesScreenState
         middle: Text(widget.labels.title),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: controller.busy ? null : _createAlbum,
-          child: const Icon(CupertinoIcons.add),
+          onPressed: controller.busy ? null : _toggleSettings,
+          child: const Icon(CupertinoIcons.settings),
         ),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            CupertinoSearchTextField(
-              controller: _query,
-              placeholder: widget.labels.searchHint,
-              onSubmitted: (_) => _search(),
-            ),
-            const SizedBox(height: 8),
-            if (sourceAlbums.length > 1)
-              CupertinoSlidingSegmentedControl<String>(
-                groupValue: _sourceAlbumId,
-                children: {
-                  for (final id in sourceAlbums)
-                    id: Text(id, overflow: TextOverflow.ellipsis),
-                },
-                onValueChanged: (value) =>
-                    setState(() => _sourceAlbumId = value),
+            if (_settings || controller.snapshot == null) ..._sourceSettings(),
+            if (!_settings &&
+                controller.snapshot != null &&
+                !controller.needsRefresh &&
+                controller.isOwnSource) ...[
+              CupertinoSearchTextField(
+                controller: _query,
+                placeholder: widget.labels.searchHint,
+                onSubmitted: (_) => _search(),
               ),
-            CupertinoButton.filled(
-              onPressed: controller.busy ? null : _search,
-              child: Text(widget.labels.search),
-            ),
+              const SizedBox(height: 8),
+              if (sourceAlbums.length > 1)
+                CupertinoSlidingSegmentedControl<String>(
+                  groupValue: _sourceAlbumId,
+                  children: {
+                    for (final id in sourceAlbums)
+                      id: Text(
+                        controller.source?.albums
+                                .where((album) => album.albumId == id)
+                                .map((album) => album.title)
+                                .firstOrNull ??
+                            id,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  },
+                  onValueChanged: (value) =>
+                      setState(() => _sourceAlbumId = value),
+                ),
+              CupertinoButton.filled(
+                onPressed: controller.busy ? null : _search,
+                child: Text(widget.labels.search),
+              ),
+              if (controller.searchResults.isNotEmpty) ...[
+                _heading(widget.labels.results),
+                for (final item in controller.searchResults)
+                  CupertinoListTile(
+                    title: Text(item.fileName),
+                    subtitle: Text(item.takenAt),
+                    trailing: Icon(
+                      _selected.contains(item.assetId)
+                          ? CupertinoIcons.check_mark_circled_solid
+                          : CupertinoIcons.circle,
+                    ),
+                    onTap: () => setState(() {
+                      if (!_selected.add(item.assetId)) {
+                        _selected.remove(item.assetId);
+                      }
+                    }),
+                  ),
+              ],
+              _heading(widget.labels.albums),
+              CupertinoButton(
+                onPressed: controller.busy ? null : _createAlbum,
+                child: Text(widget.labels.createAlbum),
+              ),
+              if (albums.isEmpty) Text(widget.labels.empty),
+              for (final album in albums)
+                CupertinoListTile(
+                  title: Text(album.title),
+                  subtitle: Text(widget.labels.items(album.assets.length)),
+                  onTap: () => _manageAlbum(album),
+                  trailing: _selected.isEmpty
+                      ? null
+                      : CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: controller.busy
+                              ? null
+                              : () => _save(album),
+                          child: Text(widget.labels.save),
+                        ),
+                ),
+            ],
             if (controller.failure != null)
               CupertinoButton(
                 onPressed: controller.busy
@@ -340,39 +622,6 @@ class _ServerFamilyMemoriesScreenState
                 child: Text(widget.labels.retry),
               ),
             if (controller.busy) const CupertinoActivityIndicator(),
-            if (controller.searchResults.isNotEmpty) ...[
-              _heading(widget.labels.results),
-              for (final item in controller.searchResults)
-                CupertinoListTile(
-                  title: Text(item.fileName),
-                  subtitle: Text(item.takenAt),
-                  trailing: Icon(
-                    _selected.contains(item.assetId)
-                        ? CupertinoIcons.check_mark_circled_solid
-                        : CupertinoIcons.circle,
-                  ),
-                  onTap: () => setState(() {
-                    if (!_selected.add(item.assetId)) {
-                      _selected.remove(item.assetId);
-                    }
-                  }),
-                ),
-            ],
-            _heading(widget.labels.albums),
-            if (albums.isEmpty) Text(widget.labels.empty),
-            for (final album in albums)
-              CupertinoListTile(
-                title: Text(album.title),
-                subtitle: Text(widget.labels.items(album.assets.length)),
-                onTap: () => _manageAlbum(album),
-                trailing: _selected.isEmpty
-                    ? null
-                    : CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: controller.busy ? null : () => _save(album),
-                        child: Text(widget.labels.save),
-                      ),
-              ),
           ],
         ),
       ),

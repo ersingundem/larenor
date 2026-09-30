@@ -48,7 +48,9 @@ class FamilyMemoriesService:
     def _policy(self, actor, authority, service_id, service_revision):
         try:
             policy = self._policy_provider(actor, service_id, service_revision)
-        except MemoryError:
+        except MemoryError as error:
+            if error.code == "binding_changed":
+                raise ApiError("memory_binding_changed", 409) from None
             raise ApiError("memory_policy_unavailable", 503) from None
         if type(policy) is not MemoryPolicy:
             raise ApiError("memory_policy_unavailable", 503)
@@ -70,6 +72,13 @@ class FamilyMemoriesService:
                 or connection.kind != "immich"):
             raise ApiError("memory_binding_changed", 409)
         return connection
+
+    def _recheck(self, actor, authority, policy):
+        current, _members = self._facts(actor, authority.members_revision)
+        if current != authority or self._policy(
+                actor, current, policy.service_id, policy.service_revision) != policy:
+            raise ApiError("memory_binding_changed", 409)
+        self._connection(actor, policy)
 
     @staticmethod
     def _authority(value):
@@ -138,6 +147,7 @@ class FamilyMemoriesService:
                 "face_consent_required",
             } else 503
             raise ApiError(f"memory_{error.code}", status) from None
+        self._recheck(actor, authority, policy)
         return {"requestId": body.requestId, "assets": [
             MemoryAssetContract(
                 assetId=item.id, fileName=item.file_name,
@@ -196,11 +206,12 @@ class FamilyMemoriesService:
         try:
             with self._adapter_factory(connection, policy) as adapter:
                 for item in assets:
-                    source = adapter.asset(item.asset_id)
+                    source = adapter.asset(item.asset_id, source_album_id=item.source_album_id)
                     if source is None or source.source_etag != item.source_etag:
                         raise ApiError("memory_asset_changed", 409)
         except MemoryError as error:
             raise ApiError(f"memory_{error.code}", 503) from None
+        self._recheck(actor, authority, policy)
         album = self.store.replace(
             actor, authority, album_id=album_id,
             expected_revision=body.expectedRevision,
@@ -226,11 +237,13 @@ class FamilyMemoriesService:
             with self._adapter_factory(connection, policy) as adapter:
                 retained = tuple(
                     item for item in album.assets
-                    if (source := adapter.asset(item.asset_id)) is not None
+                    if (source := adapter.asset(item.asset_id,
+                            source_album_id=item.source_album_id)) is not None
                     and source.source_etag == item.source_etag
                 )
         except MemoryError as error:
             raise ApiError(f"memory_{error.code}", 503) from None
+        self._recheck(actor, authority, policy)
         if retained != album.assets:
             album = self.store.replace(
                 actor, authority, album_id=album_id,

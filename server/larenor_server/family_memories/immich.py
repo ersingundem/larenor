@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import re
 from datetime import datetime
 from types import MappingProxyType
 
@@ -18,6 +19,89 @@ from .models import (
 _MAX_RESPONSE = 2 * 1024 * 1024
 _MAX_FILENAME = 512
 _MAX_THUMBHASH = 1024
+
+
+def compatible_version(value):
+    """Structured album-confined search is verified against Immich 3.2.x."""
+    return type(value) is str and re.fullmatch(r"v?3\.2\.(0|[1-9][0-9]{0,5})", value) is not None
+
+
+def _verify_version(transport, headers):
+    # Probe the actual peer for every operation: saved verification can predate
+    # an upstream downgrade that would silently ignore structured filters.
+    value = _json_response(transport.request("GET", "/api/server/about", headers=headers))
+    if type(value) is not dict or not compatible_version(value.get("version")):
+        raise MemoryError("unsupported_version")
+
+
+def _json_response(response):
+    if response.status in {401, 403}:
+        raise MemoryError("binding_changed")
+    if (response.status != 200 or type(response.body) is not bytes
+            or len(response.body) > _MAX_RESPONSE
+            or [value.split(";", 1)[0].strip().lower()
+                for key, value in response.headers
+                if key.lower() == "content-type"] != ["application/json"]):
+        raise MemoryError("invalid_response")
+    def pairs(values):
+        result = {}
+        for key, value in values:
+            if key in result:
+                raise ValueError()
+            result[key] = value
+        return result
+    try:
+        return json.loads(response.body, object_pairs_hook=pairs,
+                          parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()))
+    except (ValueError, UnicodeError):
+        raise MemoryError("invalid_response") from None
+
+
+def _albums(response):
+    values = _json_response(response)
+    if (type(values) is not list or len(values) > 512
+            or any(type(value) is not dict or not _uuid(value.get("id"))
+                   or type(value.get("albumName")) is not str
+                   or not 1 <= len(value["albumName"]) <= 256
+                   or any(ord(char) < 32 or ord(char) == 127
+                          for char in value["albumName"]) for value in values)
+            or len({value["id"] for value in values}) != len(values)):
+        raise MemoryError("invalid_response")
+    return tuple({"albumId": value["id"], "title": value["albumName"]}
+                 for value in values)
+
+
+class ImmichAlbumCatalog:
+    """Admin-only upstream catalogue reader; no original assets or writes."""
+
+    def __init__(self, connection, *, transport_factory=ServiceTransport):
+        keys = set(connection.credentials)
+        if connection.kind != "immich" or keys not in ({"apiKey"}, {"token"}):
+            raise MemoryError("binding_changed")
+        credential = connection.credentials[next(iter(keys))]
+        if (type(credential) is not str or not 1 <= len(credential) <= 2048
+                or any(ord(char) < 32 or ord(char) == 127 for char in credential)):
+            raise MemoryError("binding_changed")
+        self._headers = {"Accept": "application/json",
+            "x-api-key" if "apiKey" in keys else "Authorization":
+            credential if "apiKey" in keys else "Bearer " + credential}
+        try:
+            self._transport = transport_factory(connection.base_url, max_bytes=_MAX_RESPONSE)
+        except (ProbeTransportError, TypeError, ValueError):
+            raise MemoryError("service_unavailable") from None
+
+    def albums(self):
+        try:
+            _verify_version(self._transport, self._headers)
+            return _albums(self._transport.request("GET", "/api/albums", headers=self._headers))
+        except ProbeTransportError:
+            raise MemoryError("service_unavailable") from None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self._transport.close()
 
 
 class ImmichMemoryAdapter:
@@ -40,7 +124,8 @@ class ImmichMemoryAdapter:
         ):
             raise MemoryError("binding_changed")
         credential = connection.credentials[next(iter(keys))]
-        if not isinstance(credential, str) or not credential or len(credential) > 2048:
+        if (type(credential) is not str or not 1 <= len(credential) <= 2048
+                or any(ord(char) < 32 or ord(char) == 127 for char in credential)):
             raise MemoryError("binding_changed")
         self._policy = policy
         self._headers = MappingProxyType(
@@ -91,6 +176,7 @@ class ImmichMemoryAdapter:
         if len(encoded) > 16384:
             raise MemoryError("invalid_search")
         try:
+            _verify_version(self._transport, self._headers)
             response = self._transport.request(
                 "POST", "/api/search/smart", headers=self._headers, body=encoded
             )
@@ -101,13 +187,21 @@ class ImmichMemoryAdapter:
             raise MemoryError(code) from None
         return self._parse(response, request.limit, request.album_ids[0])
 
-    def asset(self, asset_id: str) -> MemoryAsset | None:
+    def asset(self, asset_id: str, *, source_album_id: str) -> MemoryAsset | None:
         """Read one source asset for integrity reconciliation; never downloads it."""
         if self._closed:
             raise MemoryError("retired")
-        if not _uuid(asset_id):
+        if not _uuid(asset_id) or not _uuid(source_album_id):
             raise MemoryError("invalid_search")
+        if source_album_id not in self._policy.allowed_album_ids:
+            raise MemoryError("album_forbidden")
         try:
+            _verify_version(self._transport, self._headers)
+            albums = _albums(self._transport.request(
+                "GET", "/api/albums", headers=self._headers,
+                query_parameters={"assetId": asset_id}))
+            if source_album_id not in {value["albumId"] for value in albums}:
+                return None
             response = self._transport.request(
                 "GET", f"/api/assets/{asset_id}", headers=self._headers,
             )
@@ -118,16 +212,7 @@ class ImmichMemoryAdapter:
             ) from None
         if response.status == 404:
             return None
-        if (response.status != 200 or len(response.body) > _MAX_RESPONSE
-                or [value.split(";", 1)[0].strip().lower()
-                    for key, value in response.headers
-                    if key.lower() == "content-type"] != ["application/json"]):
-            raise MemoryError("invalid_response")
-        try:
-            value = json.loads(response.body)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise MemoryError("invalid_response") from None
-        asset = self._asset(value)
+        asset = self._asset(_json_response(response), source_album_id)
         if asset.id != asset_id:
             raise MemoryError("invalid_response")
         return asset
@@ -150,7 +235,7 @@ class ImmichMemoryAdapter:
         if content_types != ["application/json"] or len(response.body) > _MAX_RESPONSE:
             raise MemoryError("invalid_response")
         try:
-            value = json.loads(response.body)
+            value = _json_response(response)
             items = value["assets"]["items"]
         except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
             raise MemoryError("invalid_response") from None

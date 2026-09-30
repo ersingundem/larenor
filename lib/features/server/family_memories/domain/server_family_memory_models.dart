@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/server_models.dart';
 
 Map<String, dynamic> _closed(Object? value, Set<String> keys) {
@@ -30,6 +32,139 @@ int _revision(Object? value) {
     throw const LarenorServerException('invalid_response');
   }
   return value;
+}
+
+final class FamilyMemorySourceAlbum {
+  const FamilyMemorySourceAlbum(this.albumId, this.title);
+
+  factory FamilyMemorySourceAlbum.fromJson(Object? value) {
+    final json = _closed(value, const {'albumId', 'title'});
+    return FamilyMemorySourceAlbum(
+      _uuid(json['albumId']),
+      serverText(json['title'], max: 256),
+    );
+  }
+
+  final String albumId, title;
+}
+
+final class FamilyMemorySourceService {
+  const FamilyMemorySourceService(
+    this.serviceId,
+    this.serviceRevision,
+    this.name,
+  );
+
+  factory FamilyMemorySourceService.fromJson(Object? value) {
+    final json = _closed(value, const {'serviceId', 'serviceRevision', 'name'});
+    return FamilyMemorySourceService(
+      _id(json['serviceId']),
+      _revision(json['serviceRevision']),
+      serverText(json['name'], max: 120),
+    );
+  }
+
+  final String serviceId, name;
+  final int serviceRevision;
+}
+
+final class FamilyMemorySourceMember {
+  const FamilyMemorySourceMember(this.accountId, this.revision, this.username);
+
+  factory FamilyMemorySourceMember.fromJson(Object? value) {
+    final json = _closed(value, const {'accountId', 'revision', 'username'});
+    return FamilyMemorySourceMember(
+      _id(json['accountId']),
+      _revision(json['revision']),
+      serverText(json['username'], max: 64),
+    );
+  }
+
+  final String accountId, username;
+  final int revision;
+}
+
+final class FamilyMemorySourceState {
+  const FamilyMemorySourceState({
+    required this.accountId,
+    required this.accountRevision,
+    required this.revision,
+    required this.canManage,
+    required this.binding,
+    required this.albums,
+    required this.services,
+    required this.members,
+  });
+
+  factory FamilyMemorySourceState.fromJson(Object? value) {
+    final json = _closed(value, const {
+      'schemaVersion',
+      'accountId',
+      'accountRevision',
+      'revision',
+      'membersRevision',
+      'canManage',
+      'binding',
+      'albums',
+      'services',
+      'members',
+    });
+    final revision = json['revision'];
+    if (json['schemaVersion'] != 1 ||
+        revision is! int ||
+        revision < 0 ||
+        json['canManage'] is! bool ||
+        json['albums'] is! List ||
+        json['services'] is! List ||
+        json['members'] is! List) {
+      throw const LarenorServerException('invalid_response');
+    }
+    _revision(json['membersRevision']);
+    final albums = (json['albums'] as List)
+        .map(FamilyMemorySourceAlbum.fromJson)
+        .toList();
+    final services = (json['services'] as List)
+        .map(FamilyMemorySourceService.fromJson)
+        .toList();
+    final members = (json['members'] as List)
+        .map(FamilyMemorySourceMember.fromJson)
+        .toList();
+    final binding = json['binding'] == null
+        ? null
+        : FamilyMemoryBinding.fromJson(json['binding']);
+    if (albums.length > 32 ||
+        services.length > 128 ||
+        members.length > 32 ||
+        albums.map((e) => e.albumId).toSet().length != albums.length ||
+        services.map((e) => e.serviceId).toSet().length != services.length ||
+        members.map((e) => e.accountId).toSet().length != members.length ||
+        json['canManage'] == false &&
+            (services.isNotEmpty || members.isNotEmpty) ||
+        !listEquals(
+          albums.map((e) => e.albumId).toList(),
+          binding?.allowedAlbumIds ?? const <String>[],
+        )) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return FamilyMemorySourceState(
+      accountId: _id(json['accountId']),
+      accountRevision: _revision(json['accountRevision']),
+      revision: revision,
+      canManage: json['canManage'] as bool,
+      binding: binding,
+      albums: List.unmodifiable(albums),
+      services: List.unmodifiable(services),
+      members: List.unmodifiable(members),
+    );
+  }
+
+  final String accountId;
+  final int accountRevision, revision;
+  final bool canManage;
+  final FamilyMemoryBinding? binding;
+  final List<FamilyMemorySourceAlbum> albums;
+  final List<FamilyMemorySourceService> services;
+  final List<FamilyMemorySourceMember> members;
 }
 
 final class FamilyMemoryAuthority {

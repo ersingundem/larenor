@@ -20,6 +20,9 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
   bool _disposed = false, busy = false, needsRefresh = false;
   String? failure;
   FamilyMemorySnapshot? snapshot;
+  FamilyMemorySourceState? source;
+  List<FamilyMemorySourceAlbum> availableSourceAlbums = const [];
+  bool get isOwnSource => source?.accountId == _accountId;
   List<FamilyMemoryAsset> searchResults = const [];
 
   bool get _authorized {
@@ -41,13 +44,22 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
     busy = needsRefresh = false;
     failure = null;
     snapshot = null;
+    source = null;
+    availableSourceAlbums = const [];
     searchResults = const [];
     _emit();
   }
 
   Future<void> load({required bool Function() current}) =>
-      _run(current, (api) async {
-        snapshot = await api.snapshot();
+      _run(current, (api, valid) async {
+        final nextSource = await api.sources();
+        if (!valid()) return;
+        final next = nextSource.binding == null ? null : await api.snapshot();
+        if (!valid()) return;
+        _checkSnapshot(nextSource, next);
+        source = nextSource;
+        availableSourceAlbums = nextSource.albums;
+        snapshot = next;
         searchResults = const [];
       });
 
@@ -58,10 +70,12 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
     required List<String> albumIds,
     List<String> personIds = const [],
     required bool Function() current,
-  }) => _run(current, (api) async {
+  }) => _run(current, (api, valid) async {
     final authority = snapshot?.authority;
-    if (authority == null) throw const LarenorServerException('stale_state');
-    searchResults = await api.search(
+    if (authority == null || needsRefresh || !isOwnSource) {
+      throw const LarenorServerException('stale_state');
+    }
+    final next = await api.search(
       authority: authority,
       serviceId: serviceId,
       serviceRevision: serviceRevision,
@@ -69,7 +83,96 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
       albumIds: albumIds,
       personIds: personIds,
     );
+    if (valid()) searchResults = next;
   });
+
+  Future<void> loadSource(
+    String accountId, {
+    required bool Function() current,
+  }) => _run(current, (api, valid) async {
+    final next = await api.sources(accountId: accountId);
+    if (!valid()) return;
+    source = next;
+    availableSourceAlbums = next.albums;
+    if (next.accountId != _accountId) {
+      snapshot = null;
+      searchResults = const [];
+    }
+  });
+
+  Future<void> loadSourceAlbums(
+    FamilyMemorySourceService service, {
+    required bool Function() current,
+  }) => _run(current, (api, valid) async {
+    availableSourceAlbums = const [];
+    final next = await api.sourceAlbums(service);
+    if (valid()) availableSourceAlbums = next;
+  });
+
+  Future<void> grantSource(
+    FamilyMemorySourceService service,
+    List<String> albumIds, {
+    required bool Function() current,
+  }) => _sourceMutation(
+    current,
+    (api, state) => api.grantSource(state, service, albumIds),
+  );
+
+  Future<void> revokeSource({required bool Function() current}) =>
+      _sourceMutation(current, (api, state) => api.revokeSource(state));
+
+  Future<void> faceConsent(bool enabled, {required bool Function() current}) =>
+      _sourceMutation(current, (api, state) {
+        if (!isOwnSource) throw const LarenorServerException('forbidden');
+        return api.faceConsent(state, enabled);
+      });
+
+  Future<void> _sourceMutation(
+    bool Function() current,
+    Future<FamilyMemorySourceState> Function(
+      ServerFamilyMemoriesApi,
+      FamilyMemorySourceState,
+    )
+    action,
+  ) => _run(current, (api, valid) async {
+    final state = source;
+    if (state == null || needsRefresh) {
+      throw const LarenorServerException('stale_state');
+    }
+    final next = await action(api, state);
+    if (!valid()) return;
+    // The mutation has reached Core. Retire previous selections even if the
+    // dependent refreshed snapshot is subsequently unavailable.
+    snapshot = null;
+    searchResults = const [];
+    final nextSnapshot = next.accountId == _accountId && next.binding != null
+        ? await api.snapshot()
+        : null;
+    if (!valid()) return;
+    _checkSnapshot(next, nextSnapshot);
+    source = next;
+    availableSourceAlbums = next.albums;
+    snapshot = nextSnapshot;
+    searchResults = const [];
+  }, mutation: true);
+
+  void _checkSnapshot(
+    FamilyMemorySourceState state,
+    FamilyMemorySnapshot? next,
+  ) {
+    if (next == null) return;
+    final binding = state.binding;
+    if (next.authority.accountId != _accountId ||
+        next.authority.accountId != state.accountId ||
+        next.authority.sessionId != account.session?.sessionFamilyId ||
+        binding == null ||
+        binding.serviceId != next.binding.serviceId ||
+        binding.serviceRevision != next.binding.serviceRevision ||
+        binding.faceSearchEnabled != next.binding.faceSearchEnabled ||
+        !listEquals(binding.allowedAlbumIds, next.binding.allowedAlbumIds)) {
+      throw const LarenorServerException('stale_state');
+    }
+  }
 
   Future<void> createAlbum({
     required String title,
@@ -119,13 +222,16 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
   Future<void> deleteAlbum(
     FamilyMemoryAlbum album, {
     required bool Function() current,
-  }) => _run(current, (api) async {
+  }) => _run(current, (api, valid) async {
     final authority = snapshot?.authority;
     if (authority == null || needsRefresh) {
       throw const LarenorServerException('stale_state');
     }
     await api.delete(authority, album);
-    snapshot = await api.snapshot();
+    if (!valid()) return;
+    final next = await api.snapshot();
+    if (!valid()) return;
+    snapshot = next;
     searchResults = const [];
   }, mutation: true);
 
@@ -141,19 +247,23 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
       FamilyMemoryAuthority authority,
     )
     action,
-  ) => _run(current, (api) async {
+  ) => _run(current, (api, valid) async {
     final authority = snapshot?.authority;
     if (authority == null || needsRefresh) {
       throw const LarenorServerException('stale_state');
     }
     await action(api, authority);
-    snapshot = await api.snapshot();
+    if (!valid()) return;
+    final next = await api.snapshot();
+    if (!valid()) return;
+    snapshot = next;
     searchResults = const [];
   }, mutation: true);
 
   Future<void> _run(
     bool Function() current,
-    Future<void> Function(ServerFamilyMemoriesApi api) action, {
+    Future<void> Function(ServerFamilyMemoriesApi api, bool Function() valid)
+    action, {
     bool mutation = false,
   }) async {
     if (_disposed || busy || !_authorized || !current()) return;
@@ -165,7 +275,7 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
     try {
       await account.withSession((raw, session) async {
         if (!valid()) throw const LarenorServerException('cancelled');
-        await action(ServerFamilyMemoriesApi(raw, session.accessToken));
+        await action(ServerFamilyMemoriesApi(raw, session.accessToken), valid);
       });
       if (valid()) needsRefresh = false;
     } catch (error) {
@@ -173,7 +283,9 @@ final class ServerFamilyMemoriesController extends ChangeNotifier {
       failure = error is LarenorServerException
           ? error.code
           : 'connection_failed';
-      if (mutation) needsRefresh = true;
+      needsRefresh = true;
+      snapshot = null;
+      searchResults = const [];
     } finally {
       if (!_disposed && epoch == _epoch) {
         busy = false;

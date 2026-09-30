@@ -77,6 +77,73 @@ class MemorySnapshotRequest(MemoryVersioned):
     requestId: ObjectId
 
 
+class MemorySourceRequest(MemorySnapshotRequest):
+    accountId: ObjectId | None = None
+
+
+class MemorySourceCatalogRequest(MemorySnapshotRequest):
+    serviceId: ObjectId
+    expectedServiceRevision: Revision
+
+
+class MemorySourceGrantRequest(MemorySourceCatalogRequest):
+    accountId: ObjectId
+    expectedAccountRevision: Revision
+    expectedRevision: int = Field(ge=0, le=2**63 - 2)
+    allowedAlbumIds: list[str] = Field(min_length=1, max_length=32)
+
+
+class MemorySourceRevokeRequest(MemorySourceRequest):
+    accountId: ObjectId
+    expectedAccountRevision: Revision
+    expectedRevision: int = Field(ge=0, le=2**63 - 2)
+
+
+class MemoryFaceConsentRequest(MemorySourceRequest):
+    accountId: None = None
+    expectedRevision: Revision
+    enabled: bool
+
+
+class MemorySourceAlbum(StrictModel):
+    albumId: str
+    title: str = Field(min_length=1, max_length=256)
+
+
+class MemorySourceService(StrictModel):
+    serviceId: ObjectId
+    serviceRevision: Revision
+    name: str
+
+
+class MemorySourceMember(StrictModel):
+    accountId: ObjectId
+    username: str
+    revision: Revision
+
+
+class MemorySourceState(MemoryVersioned):
+    accountId: ObjectId
+    accountRevision: Revision
+    revision: int = Field(ge=0, le=2**63 - 2)
+    membersRevision: Revision
+    canManage: bool
+    binding: MemoryBindingContract | None
+    albums: list[MemorySourceAlbum] = Field(max_length=32)
+    services: list[MemorySourceService] = Field(max_length=128)
+    members: list[MemorySourceMember] = Field(max_length=32)
+
+
+class MemorySourceResponse(StrictModel):
+    requestId: ObjectId
+    source: MemorySourceState
+
+
+class MemorySourceCatalogResponse(StrictModel):
+    requestId: ObjectId
+    albums: list[MemorySourceAlbum] = Field(max_length=512)
+
+
 class MemorySnapshotResponse(StrictModel):
     requestId: ObjectId
     snapshot: MemorySnapshot

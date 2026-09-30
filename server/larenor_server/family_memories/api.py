@@ -14,6 +14,9 @@ from .contracts import (
     MemorySnapshotResponse, ReconcileMemoryAlbumRequest,
     ReplaceMemorySelectionsRequest,
     UpdateMemoryAlbumRequest,
+    MemorySourceRequest, MemorySourceResponse, MemorySourceCatalogRequest,
+    MemorySourceCatalogResponse, MemorySourceGrantRequest,
+    MemorySourceRevokeRequest, MemoryFaceConsentRequest,
 )
 
 
@@ -24,6 +27,31 @@ router = APIRouter(
     responses={status: {"model": ErrorResponse}
                for status in (400, 401, 403, 404, 409, 413, 429, 503)},
 )
+
+
+@router.post("/sources", response_model=MemorySourceResponse)
+def source_state(body: MemorySourceRequest, core: Core, actor: Ready):
+    return core.family_memory_sources.state(actor, body)
+
+
+@router.post("/sources/albums", response_model=MemorySourceCatalogResponse)
+def source_albums(body: MemorySourceCatalogRequest, core: Core, actor: Ready):
+    return core.family_memory_sources.catalog(actor, body)
+
+
+@router.put("/sources", response_model=MemorySourceResponse)
+def grant_source(body: MemorySourceGrantRequest, core: Core, actor: Ready):
+    return core.family_memory_sources.grant(actor, body)
+
+
+@router.delete("/sources", response_model=MemorySourceResponse)
+def revoke_source(body: MemorySourceRevokeRequest, core: Core, actor: Ready):
+    return core.family_memory_sources.revoke(actor, body)
+
+
+@router.put("/sources/face-consent", response_model=MemorySourceResponse)
+def face_consent(body: MemoryFaceConsentRequest, core: Core, actor: Ready):
+    return core.family_memory_sources.consent(actor, body)
 
 
 @router.post("/snapshot", response_model=MemorySnapshotResponse)
