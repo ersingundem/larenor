@@ -213,7 +213,15 @@ def test_sources_reject_paused_restart_state_without_adopting_it(tmp_path):
         assert not any(" POST " in f" {call[0]} " for call in calls)
 
 
-def effect_reply(container, receipts, state, *, delays=(), after_effect=None):
+def effect_reply(
+    container,
+    receipts,
+    state,
+    *,
+    delays=(),
+    delay_seconds=1.0,
+    after_effect=None,
+):
     volumes = {
         volume.intent.binding.resource.name: volume.intent.binding
         for volume in receipts
@@ -237,7 +245,7 @@ def effect_reply(container, receipts, state, *, delays=(), after_effect=None):
         if after_effect is not None:
             after_effect(action)
         if action in delays:
-            time.sleep(1.0)
+            time.sleep(delay_seconds)
             return None
         return b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n"
 
@@ -292,17 +300,22 @@ def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path)
             receipt.volumes,
             state,
             delays={"pause", "unpause"},
+            # The effect request has enough total time to cross a loaded CI
+            # authority gate, then its one-second idle budget expires while
+            # the owned server is still holding the response. The server is
+            # released before the following two-second readback idle budget.
+            delay_seconds=1.5,
         )
         with engine_server(reply, request_timeout=1) as (endpoint, calls):
             adapter = api().UnixDockerComponentSnapshotAdapter(
                 endpoint,
                 authority,
                 peer_uid=lambda _: endpoint.owner_uid,
-                effect_seconds=0.75,
+                effect_seconds=4.0,
             )
-            adapter.sources(time.monotonic() + 8)
-            assert adapter.pause(receipt.container_id, time.monotonic() + 8) is True
-            assert adapter.unpause(receipt.container_id, time.monotonic() + 8) is True
+            adapter.sources(time.monotonic() + 20)
+            assert adapter.pause(receipt.container_id, time.monotonic() + 30) is True
+            assert adapter.unpause(receipt.container_id, time.monotonic() + 30) is True
 
         operations = effect_operations(calls)
         assert len(operations) == 2
@@ -431,11 +444,14 @@ def test_authority_drift_after_pause_does_not_publish_success_or_replay(tmp_path
             )
         ) as (endpoint, calls):
             adapter = api().UnixDockerComponentSnapshotAdapter(
-                endpoint, authority, peer_uid=lambda _: endpoint.owner_uid
+                endpoint,
+                authority,
+                peer_uid=lambda _: endpoint.owner_uid,
+                effect_seconds=10.0,
             )
-            adapter.sources(time.monotonic() + 5)
+            adapter.sources(time.monotonic() + 20)
             with pytest.raises(Exception, match="^component_engine_unavailable$"):
-                adapter.pause(receipt.container_id, time.monotonic() + 5)
+                adapter.pause(receipt.container_id, time.monotonic() + 30)
 
         assert state["paused"] is True
         assert effect_operations(calls) == [
