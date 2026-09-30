@@ -17,6 +17,10 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 30 Eylül F61/F62 ortak hosted launcher ve host provenance
+
+VNC ve packaged RDP runnerları aynı private pinned-Flutter Gradle launcherını kullanır; tracked olmayan gradlewe bağımlılık kaldırıldı. F62 owned Ubuntu shadow/WinPR paket sürümleri exact kurulur, dpkg readback ile doğrulanır ve Android FreeRDP3.31.1den ayrı receiptte kaydedilir. Root 20 Python policy/package/receipt testini geçti; fresh exact no-skip XML koşulu korunur. Bu runner düzeltmesi native interoperability veya cihaz kabulü sayılmadı. [F62 kanıtı](testing/f62-freerdp-native-acceptance-2026-09-30.md).
+
 ### 30 Eylül SSH exact native receipt kapısı
 
 Hosted SSH gatei pinned Temurin17/Python3.12 ile çalışır; exact yedi native testin başlaması ve sıfır skip/error ile bitmesi bounded JSON receipt üzerinden zorunludur. Eksik fixture çevresi gerçek Flutter koşusunda yedi skip üretince parser bunu reddetti; yalnız doğrulanmış sayısal receipt artifacti yayımlanır. Root birleşik native readiness/policy kapısında 26 test geçti. Yeni exact hosted kabulü gerekli; eski yerel veya skipped exit0 başarı sayılmadı. [SSH kanıtı](testing/f63-normal-core-openssh-2026-09-30.md).

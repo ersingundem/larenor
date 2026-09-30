@@ -16,6 +16,17 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 
+if __package__:
+    from .android_acceptance_gradle import (
+        AndroidAcceptanceGradleError,
+        materialized_gradle_command,
+    )
+else:
+    from android_acceptance_gradle import (
+        AndroidAcceptanceGradleError,
+        materialized_gradle_command,
+    )
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_CLASS = "com.ersingundem.larenor.vnc.VncTigerVncAcceptanceTest"
@@ -136,37 +147,6 @@ def tiger_version(xvnc: str) -> str:
         timeout=10,
     ).stdout.strip()
     return value[:1024]
-
-
-def gradle_wrapper_command(workspace: Path) -> list[str]:
-    """Materialize Flutter's reviewed wrapper beside this project's properties."""
-    java = executable("java")
-    flutter = Path(executable("flutter")).resolve(strict=True)
-    source_wrapper = (
-        flutter.parent
-        / "cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
-    )
-    project_properties = ROOT / "android/gradle/wrapper/gradle-wrapper.properties"
-    if not source_wrapper.is_file() or source_wrapper.is_symlink():
-        raise AcceptanceFailure("Flutter Gradle wrapper artifact is unavailable")
-    if not project_properties.is_file() or project_properties.is_symlink():
-        raise AcceptanceFailure("project Gradle wrapper properties are unavailable")
-
-    wrapper = workspace / "gradle/wrapper"
-    wrapper.mkdir(parents=True, mode=0o700)
-    wrapper_jar = wrapper / "gradle-wrapper.jar"
-    wrapper_properties = wrapper / "gradle-wrapper.properties"
-    shutil.copyfile(source_wrapper, wrapper_jar)
-    shutil.copyfile(project_properties, wrapper_properties)
-    wrapper_jar.chmod(0o600)
-    wrapper_properties.chmod(0o600)
-    return [
-        java,
-        "-Dorg.gradle.appname=gradlew",
-        "-classpath",
-        str(wrapper_jar),
-        "org.gradle.wrapper.GradleWrapperMain",
-    ]
 
 
 def verify_report(path: Path = REPORT) -> None:
@@ -341,9 +321,16 @@ def main() -> int:
                 "LARENOR_F61_TIGERVNC_PORT": str(port),
                 "LARENOR_F61_TIGERVNC_PASSWORD": password,
             }
+            try:
+                gradle = materialized_gradle_command(
+                    fixture / "gradle-launcher",
+                    project_android=ROOT / "android",
+                )
+            except AndroidAcceptanceGradleError as error:
+                raise AcceptanceFailure(str(error)) from None
             subprocess.run(
                 [
-                    *gradle_wrapper_command(fixture / "gradle-launcher"),
+                    *gradle,
                     "--no-daemon",
                     ":app:cleanTestDebugUnitTest",
                     ":app:testDebugUnitTest",

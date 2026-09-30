@@ -17,7 +17,8 @@
         "test/features/remote_access/vnc_native_bridge_test.dart",
         "test/features/remote_access/vnc_framebuffer_surface_test.dart",
         "tool/f61_tigervnc_acceptance.py",
-        "tool/tests/vnc_native_workflow_test.py"
+        "tool/tests/vnc_native_workflow_test.py",
+        "tool/android_acceptance_gradle.py"
       ]
     }
   },

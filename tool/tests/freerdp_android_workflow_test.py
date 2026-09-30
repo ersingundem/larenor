@@ -1,7 +1,11 @@
 import json
 from pathlib import Path
 import re
+import tempfile
 import unittest
+from unittest import mock
+
+from tool import android_acceptance_gradle as acceptance_gradle
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -108,6 +112,13 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(host["if"], "matrix.abi == 'x86_64'")
         self.assertIn("x11-utils", host["run"])
         for required in (
+            "apt-cache policy freerdp3-shadow-x11",
+            "apt-cache policy winpr3-utils",
+            'freerdp3-shadow-x11=$shadow_version',
+            'winpr3-utils=$winpr_version',
+            "dpkg-query",
+            "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION",
+            "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION",
             "openssl rand", "::add-mask::", "winpr-hash3", "/sec:nla",
             "/sam-file:", "freerdp-shadow-cli3", "Xvfb",
         ):
@@ -121,14 +132,74 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(script, "python3 tool/f62_packaged_acceptance.py")
         runner = (ROOT / "tool/f62_packaged_acceptance.py").read_text()
         self.assertIn("cwd=ROOT / \"android\"", runner)
+        self.assertIn("materialized_gradle_command", runner)
+        self.assertNotIn('"./gradlew"', runner)
         self.assertIn(":app:connectedDebugAndroidTest", runner)
         self.assertIn("RdpPackagedHostAcceptanceTest", runner)
         self.assertIn("rdpHost=10.0.2.2", runner)
         self.assertIn("rdpPassword={password}", runner)
+        self.assertIn('"ownedHostPackages": package_versions', runner)
         self.assertNotIn("shell=True", runner)
         self.assertLess(runner.index("verify_reports()"), runner.index("client-receipt.json"))
         self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
         self.assertIn("rm -f \"$RUNNER_TEMP/larenor-rdp.sam\"", cleanup["run"])
+
+    def test_shared_launcher_materializes_pinned_flutter_wrapper_and_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            android = root / "android"
+            properties = android / "gradle/wrapper/gradle-wrapper.properties"
+            properties.parent.mkdir(parents=True)
+            properties.write_text("distributionUrl=https\\://example.invalid/gradle.zip\n")
+            flutter = root / "flutter/bin/flutter"
+            wrapper = (
+                root
+                / "flutter/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
+            )
+            flutter.parent.mkdir(parents=True)
+            flutter.write_text("fixture")
+            wrapper.parent.mkdir(parents=True)
+            wrapper.write_bytes(b"pinned-flutter-wrapper")
+
+            def resolved(name):
+                return str(flutter if name == "flutter" else root / "java")
+
+            with mock.patch.object(
+                acceptance_gradle, "_executable", side_effect=resolved
+            ):
+                command = acceptance_gradle.materialized_gradle_command(
+                    root / "launcher", project_android=android
+                )
+            materialized = root / "launcher/gradle/wrapper"
+            self.assertEqual(
+                (materialized / "gradle-wrapper.jar").read_bytes(),
+                b"pinned-flutter-wrapper",
+            )
+            self.assertEqual(command[-1], "org.gradle.wrapper.GradleWrapperMain")
+            for name in ("gradle-wrapper.jar", "gradle-wrapper.properties"):
+                self.assertEqual(
+                    (materialized / name).stat().st_mode & 0o777,
+                    0o600,
+                )
+
+            wrapper.unlink()
+            with mock.patch.object(
+                acceptance_gradle, "_executable", side_effect=resolved
+            ):
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        root / "missing", project_android=android
+                    )
+            symlink_target = root / "symlink-target"
+            symlink_target.write_bytes(b"untrusted-wrapper")
+            wrapper.symlink_to(symlink_target)
+            with mock.patch.object(
+                acceptance_gradle, "_executable", side_effect=resolved
+            ):
+                with self.assertRaises(acceptance_gradle.AndroidAcceptanceGradleError):
+                    acceptance_gradle.materialized_gradle_command(
+                        root / "symlink", project_android=android
+                    )
 
 
 if __name__ == "__main__":

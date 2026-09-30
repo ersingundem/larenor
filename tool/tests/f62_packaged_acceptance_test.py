@@ -1,11 +1,39 @@
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from tool import f62_packaged_acceptance as runner
 
 
 class PackagedRdpReceiptTest(unittest.TestCase):
+    def test_owned_host_package_versions_are_bounded_and_explicit(self):
+        values = {
+            "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+            "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+        }
+        with mock.patch.dict(os.environ, values, clear=False):
+            versions = runner.fixture_package_versions()
+        self.assertEqual(
+            versions,
+            {
+                "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
+                "winpr3-utils": "3.8.0+dfsg-3build3",
+            },
+        )
+        receipt = runner.acceptance_receipt(versions)
+        self.assertEqual(receipt["ownedHostPackages"], versions)
+        self.assertEqual(
+            {key: receipt[key] for key in ("tests", "skipped", "failures", "errors")},
+            {"tests": 1, "skipped": 0, "failures": 0, "errors": 0},
+        )
+        for invalid in ("", "(none)", "version with spaces", "x" * 129):
+            values["RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION"] = invalid
+            with mock.patch.dict(os.environ, values, clear=False):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.fixture_package_versions()
+
     def test_only_the_exact_executed_class_and_method_can_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

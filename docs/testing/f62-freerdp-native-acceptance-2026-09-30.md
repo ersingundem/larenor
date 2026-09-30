@@ -45,7 +45,35 @@ the fixed ignored report directory before launch. A receipt requires exactly one
 new report, exactly the named production class/method and one executed test with
 zero skips/failures/errors. The report and receipt are archived with the package.
 
-Twelve workflow/package/receipt policy tests passed locally. They prove the
+The prior slice's twelve workflow/package/receipt policy tests passed locally. They prove the
 execution and evidence policy, not RDP interoperability. A new exact hosted run
 must execute the packaged native client and pass; no timeout was increased and
 no TLS/NLA/frame/input/retirement assertions were relaxed.
+
+## Fresh-checkout launcher and owned-host package binding
+
+A subsequent readiness audit found that `tool/f62_packaged_acceptance.py`
+still invoked `./gradlew`. That script and its wrapper JAR are intentionally
+ignored and are absent from a fresh checkout. An earlier Flutter APK build may
+materialize them as a side effect, but the real instrumentation receipt must not
+depend on that undocumented prior-task residue.
+
+F61 and F62 now share `tool/android_acceptance_gradle.py`. It copies the wrapper
+JAR from the workflow's pinned Flutter SDK beside the repository's tracked
+`gradle-wrapper.properties` inside a private temporary directory, applies mode
+`0600`, and invokes `GradleWrapperMain` directly. Missing or symlinked wrapper
+artifacts and properties fail closed. Process-start and timeout errors remain
+static so the disposable RDP password in Gradle argv is never printed.
+
+The owned NLA server is a separate distribution component from the immutable
+FreeRDP 3.31.1 Android client source. The workflow now resolves the official
+Ubuntu candidate versions for `freerdp3-shadow-x11` and `winpr3-utils`, installs
+those exact versions, verifies both with `dpkg-query`, and records both bounded
+version strings in the one-test/no-skip client receipt. It does not describe the
+distribution shadow server as the 3.31.1 Android engine.
+
+Twenty focused package/workflow/receipt tests passed after this repair. The
+materialized launcher started real Gradle 9.7.1, and the native RDP unit batch
+passed 14 tests with zero skips, failures or errors. These local gates still do
+not establish emulator-to-NLA interoperability; only a new terminal hosted run
+with the strict instrumentation XML and receipt can do that.
