@@ -68,3 +68,5 @@ distance, token, or room is invented.
   revoke and fresh-discovery re-enable interaction. `18 passed`.
 - `flutter analyze lib/features/room_presence test/features/room_presence`
   reports no issues.
+
+Actual Client acceptance: `server/.venv/bin/python server/tests/support/f57_flutter_acceptance.py` passed 1 Flutter test through the production account APIs, normal Uvicorn Core and authenticated HA TCP/WebSocket registry/state fixture. Two distinct fresh observations moved candidate→present. After HA went offline, exact-CAS consent revoke emptied evidence with zero further upstream calls; a stale re-enable revision was rejected before provider I/O. This does not prove physical BLE ranging.

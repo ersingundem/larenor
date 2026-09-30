@@ -3109,3 +3109,5 @@ Normal Core, yetkili gerçek Frigate klibini sabit full-frame blur ile işler. F
 ### 30 Eylül F57 gerçek mqtt_room ve çevrimdışı rıza iptali
 
 Normal Core enabled mqtt_room registry ve gerçek HA state/distance kontratıyla oda eşlemesi yapar. Aynı transaction içinde şifreli kaynak ve reducer kaydedilir; callback hatası ikisini de geri alır. Offline exact-CAS rıza iptali evidence/previews/receipts temizler; inactive kaynak provider I/O yapmaz. Inline admin kurulum, yeniden canlı discovery ve explicit rıza yolu vardır. 19 Server, 18 Flutter ve analyze geçti. [Kanıt ve sınırlar](testing/f57-home-assistant-mqtt-room-runtime-2026-09-30.md). Gerçek Client TCP ve geniş exact HEAD CI açık; sayaçlar 37/126 ve 3/63.
+
+F57 gerçek Client ek kapısı: üretim Flutter account APIları → normal Uvicorn Core → authenticated HA TCP/WS, 1 geçti. Candidate→present için iki güncel gözlem, HA offline olduktan sonra zero-I/O exact-CAS revoke ve stale revision reddi doğrulandı. Geniş exact HEAD CI ve fiziksel BLE kabulü açık.

@@ -5056,7 +5056,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal Core gerçek authenticated HA mqtt_room kaynağını ve oda eşlemesini kullanır. Şifreli kaynak ve reducer politika tek SQLite transaction içinde atomik kaydedilir; offline exact-CAS rıza iptali tüm kaynak evidence/previews/receipts temizler ve polling durur. Inline admin setup, fresh discovery ile yeniden izin ve unknown/stale davranışı uygulandı. 19 Server, 18 Flutter geçti; analyze temiz. Gerçek Flutter→normal Core→TCP kabulü ile geniş exact HEAD CI hazırlanıyor; fiziksel BLE/oda kabulü açık. Kanıt: docs/testing/f57-home-assistant-mqtt-room-runtime-2026-09-30.md."
+      "reason": "Normal Core gerçek authenticated HA mqtt_room kaynağını ve oda eşlemesini kullanır. Şifreli kaynak ve reducer politika tek SQLite transaction içinde atomik kaydedilir; offline exact-CAS rıza iptali tüm kaynak evidence/previews/receipts temizler ve polling durur. Inline admin setup, fresh discovery ile yeniden izin ve unknown/stale davranışı uygulandı. 19 Server, 18 Flutter geçti; analyze temiz. Gerçek Flutter→normal Core→authenticated TCP/WS kabulü de geçti; geniş exact HEAD CI hazırlanıyor; fiziksel BLE/oda kabulü açık. Kanıt: docs/testing/f57-home-assistant-mqtt-room-runtime-2026-09-30.md."
     },
     {
       "id": "F58",
