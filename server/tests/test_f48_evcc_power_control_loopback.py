@@ -3,6 +3,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
 
+import pytest
+
 from larenor_server.auth import Principal
 from larenor_server.database import Database
 from larenor_server.evcc.control import (
@@ -138,6 +140,92 @@ def test_real_loopback_manual_reduction_has_causal_readback_and_no_replay(
             request_key="loopback-manual-control")
         assert repeated == receipt
         assert sum(method == "POST" for method, _path, _auth in calls) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize("changed_revision", ["account", "home"])
+def test_last_observation_authority_drift_blocks_evcc_write(
+        tmp_path, changed_revision):
+    state = _state()
+    calls = []
+    current = {"account": 5, "home": 3, "gets": 0}
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            current["gets"] += 1
+            if current["gets"] == 3:
+                current[changed_revision] += 1
+            calls.append(("GET", self.path))
+            raw = json.dumps(state, separators=(",", ":")).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_POST(self):
+            calls.append(("POST", self.path))
+            raw = b"13"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(raw)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    database = Database(tmp_path / "core.sqlite3")
+    database.create_schema()
+    with database.transaction() as connection:
+        migrate_power_budget(connection)
+        migrate_evcc_current_control(connection)
+
+    def binding():
+        return EvccBinding(
+            "core", "home", 2, current["home"],
+            lambda _actor: current["account"],
+            EvccConnection(
+                SERVICE_ID, 7, f"http://127.0.0.1:{server.server_port}",
+                "evcc_loopback-key"),
+            lambda: None,
+        )
+
+    control = EvccCurrentControl(
+        database, audit_key=b"c" * 32, clock=lambda: NOW,
+        services=_Services(), binding_resolver=binding,
+        energy_windows=_Windows())
+    control.authorize(
+        _actor(), service_id=SERVICE_ID, service_revision=7,
+        loadpoint_index=1, expected_authority_revision=0, enabled=True)
+    provider = EvccRuntimeProviders(
+        binding(), clock=lambda: NOW, control_authority=control).power_budget
+    gateway = build_power_budget_gateway(
+        provider, database=database, master_key=b"p" * 32,
+        clock=lambda: NOW)
+    try:
+        snapshot = gateway.snapshot(_actor())
+        receipt = gateway.confirm(
+            _actor(), preview_id=snapshot["plan"]["id"],
+            expected_plan_hash=snapshot["plan"]["planHash"],
+            request_key=f"drift-{changed_revision}-control")
+        assert receipt["status"] == "uncertain"
+        assert not any(method == "POST" for method, _path in calls)
+        assert gateway.confirm(
+            _actor(), preview_id=snapshot["plan"]["id"],
+            expected_plan_hash=snapshot["plan"]["planHash"],
+            request_key=f"drift-{changed_revision}-control") == receipt
+        assert not any(method == "POST" for method, _path in calls)
     finally:
         server.shutdown()
         server.server_close()

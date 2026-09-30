@@ -1170,6 +1170,7 @@ class LarenorServerApi {
           {
             'last_active_admin',
             'revision_conflict',
+            'critical_load_protection',
             'username_unavailable',
             'user_limit_reached',
             'service_limit_reached',

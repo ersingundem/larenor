@@ -78,6 +78,6 @@ F46 adlandırılmış gerçek Flutter→normal Core→owned evcc TCP ve ayrı Co
 
 F40 adlandırılmış gerçek Client→normal Core ve ayrı restart kapısında tek catalog/create/cancel journal etkisini ve stale transport receipt uzlaşmasını doğruladı; `awaiting_ci` durumundadır.
 
-F48 ve F59 henüz bu sınıflandırmayı karşılamaz. F48'in kendi kanıt
-dokümanı tam Client→normal Core→servis kabulünü açık bırakır. F59'un kullanılabilir Client kayıt/servis seçme akışı eksiktir ve aktif geliştirmeye alınmıştır; birleşik Client→Core→provider kabulü de açık kalır. Bunları
-sırf test sayısı veya dosya varlığı nedeniyle ilerletmek doğru olmaz.
+F48 adlandırılmış gerçek Client→normal Core→owned evcc üç fazını ve 49 ilişkili Server testini geçti; etkilenen F46 gerçek runnerı root tarafından tekrar doğrulandı. Exact critical-load policy, son I/O actor/home/session drift, tek 6A/4140W readback ve restart hold kanıtıyla `awaiting_ci` durumundadır.
+
+F59 yeni service seçme/kayıt akışı root birleşik kabul doğrulamasını bekliyor; henüz CI bekliyor olarak sayılmadı.

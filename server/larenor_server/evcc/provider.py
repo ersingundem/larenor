@@ -117,6 +117,33 @@ class EvccBinding:
         except Exception:
             raise EvccProviderError("provider_binding_changed") from None
 
+    def assert_budget_authority_current(self, authority):
+        """Recheck the actor, home and service scope carried by an F48 plan."""
+        if not isinstance(authority, BudgetAuthority):
+            raise EvccProviderError("provider_binding_changed")
+        self.assert_current()
+        try:
+            account_revision = self.account_revision(
+                SimpleNamespace(
+                    id=authority.account_id,
+                    family_id=authority.session_id,
+                )
+            )
+        except Exception:
+            raise EvccProviderError("provider_binding_changed") from None
+        self.assert_current()
+        if (
+            authority.core_id != self.core_id
+            or authority.home_id != self.home_id
+            or authority.core_revision != self.core_revision
+            or authority.home_revision != self.home_revision
+            or type(account_revision) is not int
+            or account_revision < 1
+            or authority.account_revision != account_revision
+            or authority.meter_id != self.connection.service_id
+        ):
+            raise EvccProviderError("provider_binding_changed")
+
 
 @dataclass(frozen=True)
 class EvccLoadpoint:
@@ -657,7 +684,7 @@ class EvccPowerBudgetProvider:
             if (minimum is not None and self._authorized(value, item)
                     and item.charge_power_w > minimum):
                 reducible.append(item.charge_power_w - minimum)
-        return BudgetAuthority(
+        authority = BudgetAuthority(
             self._binding.core_id,
             self._binding.home_id,
             key[0],
@@ -676,6 +703,8 @@ class EvccPowerBudgetProvider:
             value.grid_limit_w,
             bool(reducible),
         )
+        self._binding.assert_budget_authority_current(authority)
+        return authority
 
     def inputs(self, actor, authority):
         self._binding.assert_current()

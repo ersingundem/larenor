@@ -4837,7 +4837,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Ev güç bütçesi",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4861,7 +4861,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "69b54bbb gerçek evcc current-control yetkisini F48 planına bağladı: gerçek ölçülen voltaj/faz/minimum akım ve upstream öncelik korunur; açık admin yetkisi olmayan/kritik yükler salt okunur. Kalıcı dispatch niyeti ve 5 dakikalık restart hold, sabit maxcurrent POST ve exact maxCurrent+chargePower readback uygulandı; 23 odaklı server, 38 ilişkili server ve 18 Flutter testi geçti. Tam Client→Core→servis ve exact HEAD CI kabulü docs/testing/f48-evcc-manual-power-control-2026-09-30.md kaydında açık."
+      "reason": "Gerçek Flutter Client→normal TCP Core→owned evcc üç fazlı kabul, explicit critical-load yetkisi, route/logout sıfır POST, ölçülen volt/faz/min akımla tek 6A POST ve exact 4140W readback, restart sonrası kalıcı hold geçti. Core/home/account/session/service son I/O yetki bağlamı düzeltilip driftte sıfır yazı regressionı eklendi; ortak Client yalnız exact 409 critical_load_protection kodunu korur. Root 49 ilişkili Server testi, gerçek F48 üç fazı ve değişiklikten sonra F46 iki fazını doğruladı. Geniş exact HEAD CI bekliyor; fiziksel ev/wiring/critical load MANUAL kapıları açık. Kanıt: docs/testing/f48-evcc-manual-power-control-2026-09-30.md."
     },
     {
       "id": "F46",

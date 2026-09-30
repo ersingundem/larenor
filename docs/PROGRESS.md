@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 42 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host paket kabulündeki gerçek kaynak hatası düzeltildi ve yeni koşu bekleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 43 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33 gerçek Client/Core kabulü geçti; F59 yazıcı kayıt akışı geliştirmede. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F48 gerçek güç bütçesi Client/Core/evcc kabulü
+
+Gerçek Client→normal Core→owned evcc üç fazda critical/default, route/logout sıfır yazı, tek 6A/4140W exact readback ve restart hold davranışını doğruladı. Son I/O boyunca Core/home/account/session/service yetki drift kontrolü eklendi; ortak Client exact 409 güvenli hata kodunu korur. Root 49 ilişkili Server testini, F48 üç fazını ve etkilenen F46 iki fazını geçti. F48 CI bekliyor tablosuna taşındı: 43 özellik geniş CI bekliyor; accepted sayaç değişmedi. [F48 kanıtı](testing/f48-evcc-manual-power-control-2026-09-30.md).
 
 ### 30 Eylül F32 gerçek kiler Client/Core kabulü
 

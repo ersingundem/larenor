@@ -24,6 +24,11 @@ test-only provider is needed.
 - Each affected load receives a durable five-minute hold starting at dispatch.
   The hold survives restart and blocks immediate oscillating commands even when
   an acknowledgement was lost.
+- The final provider guard now resolves a fresh immutable Core binding and
+  checks the exact Core, home revision, account revision, session family and
+  evcc service before and after the last state read and immediately before the
+  POST. A home-resource change or revoked session during that read produces an
+  uncertain durable receipt without sending a household write.
 
 ## Upstream exchange
 
@@ -66,16 +71,42 @@ server/.venv/bin/python -m pytest -q \
   server/tests/test_evcc_runtime_provider.py
 ```
 
-Result: `23 passed`. The coverage includes minimum-current planning, critical
+Result: `25 passed`. The coverage includes minimum-current planning, critical
 default behavior, explicit authority, revision and voltage failure closure,
 durable unknown-ack non-replay, restart hold, exact idempotent receipt, normal
 Core discovery, and a real numeric-loopback TCP exchange through the production
 bounded HTTP transport with causal readback.
 
 The broader related server selection
-`test_evcc_*.py test_f46_*.py test_f47_*.py test_f48_*.py` passed `38/38`.
+`test_evcc_*.py test_f46_*.py test_f47_*.py test_f48_*.py` passed `49/49`.
 The existing power-budget and energy-priority Flutter controller, HTTP,
 loopback, and screen selection passed `18/18`. This server environment does not
 install the `pytest-cov` plugin, so the attempted `--cov` command was rejected
 as an unknown pytest option; executable branch evidence remains in the focused
 unit, Core integration, restart, and real-loopback tests above.
+
+The final normal-production gate runs:
+
+```text
+cd server && uv run python tests/support/f48_flutter_acceptance.py
+3 Flutter phases passed
+```
+
+This starts the unmodified Core composition on TCP against an isolated,
+real-shaped evcc HTTP fixture. The fixture reports three active phases,
+measured voltages `[229,230,231]`, a 6 A minimum, 16 A current limit, 11,040 W
+charge power, 15,300 W grid import, and an 8,400 W HEMS limit. Before authority
+exists, the real Client receives the exact `critical_load_protection` result and
+the fixture sees no POST. Route retirement and a revoked session also produce
+no POST. The authorized Client then confirms a 6,900 W reduction to the exact
+measured minimum of 4,140 W; Core sends exactly one
+`POST /api/loadpoints/1/maxcurrent/6`, reads back both 6 A and 4,140 W, and
+returns a verified receipt. After a full Core restart on the same private
+database, the fixture restores a reducible 16 A / 11,040 W observation without
+sending a command. The durable hold still fails closed with
+`critical_load_protection`, proving the hold rather than the minimum-current
+floor blocks the second effect, and the fixture still has exactly one POST. A
+separate Client parser boundary
+test proves only `409 + critical_load_protection` preserves that safe code;
+the same body under status 400 maps to `invalid_request`, and an unknown 409
+provider detail remains the generic `conflict`.

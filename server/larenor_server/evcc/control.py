@@ -333,6 +333,11 @@ class EvccCurrentControl:
         binding.assert_current()
         return binding
 
+    def _power_binding(self, authority):
+        binding = self._binding()
+        binding.assert_budget_authority_current(authority)
+        return binding
+
     def _index(self, binding, charger_id):
         values = [
             index for index in range(1, 17)
@@ -472,12 +477,12 @@ class EvccCurrentControl:
         if (not authority.can_control
                 or re.fullmatch(r"[0-9a-f]{64}", plan_hash or "") is None):
             raise EvccProviderError("provider_read_only")
-        binding = self._binding()
+        binding = self._power_binding(authority)
         observation = EvccHttpReader(
             self._clock,
             transport_factory=self._transport_factory or ServiceTransport,
         ).state(binding.connection)
-        binding.assert_current()
+        self._power_binding(authority)
         if not self._power_authority_matches(authority, observation):
             raise EvccProviderError("provider_snapshot_changed")
         targets, total_reduction = self._power_targets(
@@ -490,12 +495,12 @@ class EvccCurrentControl:
             def assert_control_current(
                     index=index, position=position, revision=revision,
                     voltage=voltage, phases=phases, minimum=minimum):
-                binding.assert_current()
+                current_binding = self._power_binding(authority)
                 fresh = EvccHttpReader(
                     self._clock,
                     transport_factory=self._transport_factory or ServiceTransport,
-                ).state(binding.connection)
-                binding.assert_current()
+                ).state(current_binding.connection)
+                self._power_binding(authority)
                 values = {item.index: item for item in fresh.loadpoints}
                 current = values.get(index)
                 prior = targets[:position]
@@ -518,17 +523,18 @@ class EvccCurrentControl:
                     raise EvccProviderError("provider_read_only")
 
             self._post(binding, index, target, assert_control_current)
+            self._power_binding(authority)
 
     def readback_power_budget_authorized(
             self, authority, *, plan_hash, actions):
         if re.fullmatch(r"[0-9a-f]{64}", plan_hash or "") is None:
             return None
-        binding = self._binding()
+        binding = self._power_binding(authority)
         observation = EvccHttpReader(
             self._clock,
             transport_factory=self._transport_factory or ServiceTransport,
         ).state(binding.connection)
-        binding.assert_current()
+        self._power_binding(authority)
         if (authority.meter_id != observation.service_id
                 or authority.max_grid_w != observation.physical_grid_limit_w):
             return None
