@@ -3118,7 +3118,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Bileşen bazında internet izinleri",
-      "status": "implemented",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3142,7 +3142,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek bağlantı yolları ve exact egress kapsamı üretimde tamamlandı; testler kullanıcı tercihiyle son doğrulama kapısına bırakıldı, bağımsız inceleme ve exact-head CI henüz çalıştırılmadı."
+      "reason": "Gerçek Flutter ComponentEgress controller→normal TCP Core iki yaşamında grant/configure, owned RFC1918 HA authenticated GET/api/config exact iki upstream call, persistent grant restart ve boş policy revoke sonrası sıfır ek çağrı/forbidden geçti. Normal composition gerçek socket/DNS transportunu kullanır; shadow API/provider yok. İki ajan gerçek runnerı doğruladı; 69 Server, 13 focused Flutter ve analyze geçti. Geniş exact HEAD CI ve gerçek ev HA/Proxmox/Keenetic MANUAL kapıları açık. Kanıt: docs/testing/f13-normal-core-tcp-acceptance-2026-09-30.md."
     },
     {
       "id": "F15",

@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 46 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 30 Eylül 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION üzerinde çalışılıyor. Odaklı kabulü tamamlanan 47 özellik CI bekliyor tablosunda; F45 gerçek bildirim bağlantısı ve yetki yarışı kapandı. F11/F12/F33/F59 gerçek Client/Core kabulü geçti; F37 düzenleme geçmişi geliştirmede; diğer gerçek işlev kapıları doğrulanıyor. F08 exact 09a912b4 Linux cgroup koşusu yeşil; host bundle build geçti; gerçek installer kabulündeki yeni hata inceleniyor. Diğer test/review eksikleri ayrı tabloda. F08 Linux kanıtı kayıtlı; host ve güncel exact HEAD geniş CI sonucu henüz kabul edilmedi. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,10 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+### 30 Eylül F13 gerçek egress grant/revoke kabulü
+
+Gerçek Client→normal Core iki yaşamında grant/configure/restart/revoke, owned RFC1918 HA exact iki authenticated GET/api/config ve revoke sonrası sıfır ek upstream çağrı geçti. 69 Server ve 13 focused Flutter testi, analyze temiz; runner iki ajan tarafından doğrulandı. F13 CI bekliyor tablosuna taşındı: 47 özellik broad CI bekliyor, kabul sayaçları değişmedi. [F13 kanıtı](testing/f13-normal-core-tcp-acceptance-2026-09-30.md).
 
 ### 30 Eylül F19 gerçek iki Core kabulü
 

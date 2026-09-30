@@ -85,3 +85,5 @@ F59 authenticated service catalog ve inline Client kayıt akışı tamamlandı; 
 F20 adlandırılmış gerçek Flutter→normal Core TCP iki yaşamında pin/compare/rotate ve restart doğrulamasını geçti. Gerçek HMAC tamper sonrası startup fail/no reset root tarafından doğrulandı; exact checkpoint query transport boşluğu kapandı. `awaiting_ci`; fiziksel secure-storage ve geniş exact CI ayrı.
 
 F19 iki bağımsız gerçek Core, gerçek Client registry ve owned Jellyfin TCP iki fazında kabul edildi; `awaiting_ci`. F37 kabulündeki edit history eksikliği gerçek kod incelemesinde bulundu ve yalnız bu özellik aktif geliştirmeye alındı; ödeme/create/export varlığı tam kabul sayılmaz.
+
+F13 actual Client→normal Core→owned RFC1918 HA iki yaşamında configure/restart/revoke ve exact iki GET/sıfır üçüncü çağrı kapısını geçti; `awaiting_ci`. Fiziksel ağ ve broad exact CI açık kalır.
