@@ -3673,7 +3673,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Konuşarak otomasyon taslağı",
-      "status": "in_progress",
+      "status": "implemented",
       "dependsOn": [
         "B0",
         "B5",
@@ -3699,7 +3699,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "FINAL.FUNCTION içinde gerçek Android on-device speech giriş/geri okuma, foreground ve izin yaşam döngüsü geliştiriliyor; otomatik komut çalıştırma yok. Yerel model/provider ve platform kabulü geniş CI ile doğrulanacak."
+      "reason": "Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
     },
     {
       "id": "F09",

@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 4 | 0 | 0 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 2 | 0 | 0 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 4 | 0 | 0 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 6 | 1 | 0 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 7 | 0 | 0 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 4 | 0 | 0 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 10 | 0 | 0 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 8 | 0 | 0 | 0 |
@@ -29,7 +29,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F01 | Konuşarak otomasyon taslağı | Çalışılıyor | — |
+| — | Aktif iş yok | — | — |
 
 Bekleyen tüm işler
 
@@ -132,6 +132,7 @@ Tamamlanan ve test/CI bekleyen işler
 | F04 | Çakışan kurallar hakemi | Uygulama tamamlandı · test bekliyor | — |
 | F02 | Otomasyonun deneme haftası | Uygulama tamamlandı · test bekliyor | — |
 | F03 | Geçmişte otomasyon sınaması | Uygulama tamamlandı · test bekliyor | — |
+| F01 | Konuşarak otomasyon taslağı | Uygulama tamamlandı · test bekliyor | — |
 | F07 | Evin alışılmış düzeninden sapmalar | Uygulama tamamlandı · test bekliyor | — |
 | F10 | Kanıta dayalı arıza yardımcısı | Uygulama tamamlandı · test bekliyor | — |
 | F11 | Sınırlı yetkili mini eklentiler | Uygulama tamamlandı · test bekliyor | — |

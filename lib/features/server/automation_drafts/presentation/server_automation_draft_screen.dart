@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../l10n/generated/app_localizations.dart';
@@ -12,6 +15,7 @@ import '../../../media/hub/presentation/media_session_state.dart';
 import '../../data/server_account_controller.dart';
 import '../../providers/server_providers.dart';
 import '../data/server_automation_draft_controller.dart';
+import '../platform/local_draft_speech.dart';
 
 class ServerAutomationDraftScreen extends ConsumerStatefulWidget {
   const ServerAutomationDraftScreen({super.key, required this.gateCurrent});
@@ -24,7 +28,11 @@ class ServerAutomationDraftScreen extends ConsumerStatefulWidget {
 
 class _ServerAutomationDraftScreenState
     extends MediaSessionState<ServerAutomationDraftScreen> {
-  final _transcript = TextEditingController(text: 'ışığı aç');
+  final _transcript = TextEditingController();
+  final _speech = const LocalDraftSpeech();
+  bool _voiceBusy = false;
+  int _voiceEpoch = 0;
+  String? _voiceStatus;
   late final ServerAccountController _account;
   late final ServerAutomationDraftController _controller;
   late final int _accountEpoch;
@@ -79,11 +87,79 @@ class _ServerAutomationDraftScreenState
   }
 
   @override
-  void clearPendingInteraction() => _expire();
+  void clearPendingInteraction() {
+    _voiceEpoch++;
+    _voiceBusy = false;
+    _voiceStatus = null;
+    unawaited(_speech.cancel());
+    _controller.invalidate();
+    // Resume permits a fresh gesture only if the same account, PIN gate and
+    // route are still authorized. A late recognition never creates a draft.
+  }
+
+  Future<void> _voice({bool readBack = false}) async {
+    if (!_active || _voiceBusy || _controller.busy) return;
+    final epoch = ++_voiceEpoch;
+    final generation = sessionGeneration;
+    bool current() =>
+        mounted &&
+        _active &&
+        generation == sessionGeneration &&
+        epoch == _voiceEpoch;
+    final locale = Localizations.localeOf(context).languageCode == 'tr'
+        ? 'tr-TR'
+        : 'en-US';
+    setState(() {
+      _voiceBusy = true;
+      _voiceStatus = null;
+    });
+    try {
+      if (readBack) {
+        await _speech.speak(locale, _transcript.text.trim());
+      } else {
+        final capability = await _speech.probe();
+        if (!current()) return;
+        if (!capability.available) {
+          throw PlatformException(code: 'modelUnavailable');
+        }
+        if (!capability.microphoneGranted) {
+          final granted = await _speech.requestPermission();
+          if (!current()) return;
+          _voiceStatus = granted ? 'ready' : 'permissionDenied';
+          return; // Permission alone never starts recording.
+        }
+        final text = await _speech.recognize(locale);
+        if (!current()) return;
+        _controller.clearDraft();
+        _transcript.text = text;
+        _voiceStatus = 'recognized';
+      }
+    } catch (error) {
+      if (!current()) return;
+      _voiceStatus = error is PlatformException ? error.code : 'unavailable';
+    } finally {
+      if (current()) setState(() => _voiceBusy = false);
+    }
+  }
+
+  String _voiceMessage(AppLocalizations l) => switch (_voiceStatus) {
+    'recognized' => l.serverAutomationDraftSpeechRecognized,
+    'ready' => l.serverAutomationDraftSpeechReady,
+    'permissionDenied' => l.serverAutomationDraftSpeechPermission,
+    'modelUnavailable' ||
+    'voiceUnavailable' ||
+    'unavailable' => l.serverAutomationDraftSpeechUnavailable,
+    'noSpeech' || 'invalidTranscript' => l.serverAutomationDraftSpeechNoMatch,
+    'timeout' => l.serverAutomationDraftSpeechTimeout,
+    _ => '',
+  };
 
   void _expire() {
     if (!mounted || _expired) return;
     _expired = true;
+    _voiceEpoch++;
+    _voiceBusy = false;
+    unawaited(_speech.cancel());
     sessionGeneration++;
     void retire() {
       if (!mounted) return;
@@ -107,6 +183,8 @@ class _ServerAutomationDraftScreenState
     },
     'automation_draft_transcript_unsupported' =>
       l10n.serverAutomationDraftUnsupported,
+    'automation_draft_target_required' =>
+      l10n.serverAutomationDraftSelectTarget,
     'automation_draft_target_missing' =>
       l10n.serverAutomationDraftTargetMissing,
     'automation_draft_expired' => l10n.serverAutomationDraftExpired,
@@ -138,7 +216,7 @@ class _ServerAutomationDraftScreenState
       animation: _controller,
       builder: (context, _) {
         final draft = _controller.draft;
-        final enabled = _active && !_controller.busy;
+        final enabled = _active && !_controller.busy && !_voiceBusy;
         final message = _message(l10n);
         return ServiceRootScaffold(
           title: l10n.serverAutomationDraftTitle,
@@ -162,7 +240,9 @@ class _ServerAutomationDraftScreenState
                   Padding(
                     padding: const EdgeInsets.all(Gap.lg),
                     child: CupertinoTextField(
+                      key: const ValueKey('automation-draft-transcript'),
                       controller: _transcript,
+                      onChanged: (_) => _controller.clearDraft(),
                       enabled: enabled,
                       maxLength: 256,
                       placeholder: l10n.serverAutomationDraftPlaceholder,
@@ -170,9 +250,73 @@ class _ServerAutomationDraftScreenState
                     ),
                   ),
                   SettingsActionTile(
+                    buttonKey: const ValueKey('automation-draft-speech'),
+                    leading: const Icon(CupertinoIcons.mic),
+                    title: Text(l10n.serverAutomationDraftSpeechListen),
+                    additionalInfo: Text(l10n.serverAutomationDraftSpeechLocal),
+                    onTap: enabled ? () => unawaited(_voice()) : null,
+                  ),
+                  SettingsActionTile(
+                    buttonKey: const ValueKey(
+                      'automation-draft-speech-readback',
+                    ),
+                    leading: const Icon(CupertinoIcons.speaker_2),
+                    title: Text(l10n.serverAutomationDraftSpeechReadback),
+                    onTap: enabled && _transcript.text.trim().isNotEmpty
+                        ? () => unawaited(_voice(readBack: true))
+                        : null,
+                  ),
+                  if (_voiceBusy)
+                    SettingsActionTile(
+                      leading: const CupertinoActivityIndicator(),
+                      title: Text(l10n.commonCancel),
+                      onTap: () {
+                        _voiceEpoch++;
+                        unawaited(_speech.cancel());
+                        setState(() => _voiceBusy = false);
+                      },
+                    ),
+                  if (_voiceMessage(l10n).isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(Gap.lg),
+                      child: Text(_voiceMessage(l10n)),
+                    ),
+                  SettingsActionTile(
+                    buttonKey: const ValueKey('automation-draft-targets'),
+                    leading: const Icon(CupertinoIcons.home),
+                    title: Text(l10n.serverAutomationDraftSelectTarget),
+                    additionalInfo: Text(
+                      _controller.selectedTarget?.label ??
+                          l10n.serverAutomationDraftTargetHint,
+                    ),
+                    onTap: enabled
+                        ? () => unawaited(
+                            _controller.loadTargets(() => mounted && _active),
+                          )
+                        : null,
+                  ),
+                  for (final target in _controller.targets)
+                    SettingsActionTile(
+                      buttonKey: ValueKey(
+                        'automation-draft-target-${target.id}',
+                      ),
+                      leading: const Icon(CupertinoIcons.power),
+                      title: Text(target.label),
+                      selected: identical(_controller.selectedTarget, target),
+                      onTap: enabled
+                          ? () => _controller.selectTarget(
+                              target,
+                              () => mounted && _active,
+                            )
+                          : null,
+                    ),
+                  SettingsActionTile(
                     leading: const Icon(CupertinoIcons.eye),
                     title: Text(l10n.serverAutomationDraftPreview),
-                    onTap: enabled && _transcript.text.trim().isNotEmpty
+                    onTap:
+                        enabled &&
+                            _transcript.text.trim().isNotEmpty &&
+                            _controller.selectedTarget != null
                         ? () {
                             FocusScope.of(context).unfocus();
                             _controller.preview(
@@ -259,6 +403,23 @@ class _ServerAutomationDraftScreenState
                   child: Semantics(liveRegion: true, child: Text(message)),
                 ),
               ),
+            if (_controller.needsRefresh)
+              SliverToBoxAdapter(
+                child: SettingsSection(
+                  children: [
+                    SettingsActionTile(
+                      buttonKey: const ValueKey('automation-draft-retry'),
+                      leading: const Icon(CupertinoIcons.refresh),
+                      title: Text(l10n.commonRetry),
+                      onTap: enabled
+                          ? () => unawaited(
+                              _controller.loadTargets(() => mounted && _active),
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
           ],
         );
       },
@@ -267,6 +428,8 @@ class _ServerAutomationDraftScreenState
 
   @override
   void dispose() {
+    _voiceEpoch++;
+    unawaited(_speech.cancel());
     _ticker?.removeListener(_visibilityChanged);
     _account.removeListener(_accountChanged);
     _transcript.dispose();

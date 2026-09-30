@@ -6,6 +6,7 @@ import android.view.KeyEvent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.media3.common.util.UnstableApi
+import com.ersingundem.larenor.speech.LocalSpeechBridge
 import com.ersingundem.larenor.audio.LocalAudioBridge
 import com.ersingundem.larenor.window.WindowPolicyBridge
 import com.ersingundem.larenor.kiosk.KioskBridge
@@ -31,6 +32,7 @@ import com.ersingundem.larenor.playbackquality.AndroidPlaybackCapabilityBridge
 
 @UnstableApi
 class MainActivity : FlutterActivity() {
+    private var localSpeech: LocalSpeechBridge? = null
     private var localAudio: LocalAudioBridge? = null
     private var windowPolicy: WindowPolicyBridge? = null
     private var wellbeing: WellbeingBridge? = null
@@ -54,6 +56,7 @@ class MainActivity : FlutterActivity() {
     private var playbackCapabilities: AndroidPlaybackCapabilityBridge? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        localSpeech = LocalSpeechBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         localAudio = LocalAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         windowPolicy = WindowPolicyBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         wellbeing = WellbeingBridge(this, flutterEngine.dartExecutor.binaryMessenger)
@@ -93,6 +96,7 @@ class MainActivity : FlutterActivity() {
     }
     override fun onResume() {
         super.onResume()
+        localSpeech?.setResumed(true)
         localAudio?.setResumed(true)
         windowPolicy?.setResumed(true)
         wellbeing?.setResumed(true)
@@ -111,6 +115,7 @@ class MainActivity : FlutterActivity() {
         personalCamera?.setResumed(true)
     }
     override fun onPause() {
+        localSpeech?.setResumed(false)
         localAudio?.setResumed(false)
         windowPolicy?.setResumed(false)
         wellbeing?.setResumed(false)
@@ -135,6 +140,7 @@ class MainActivity : FlutterActivity() {
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        localSpeech?.windowChanged()
         wellbeing?.windowFocusChanged()
         kiosk?.windowChanged()
         kioskPeripherals?.setWindowFocused(hasFocus)
@@ -174,6 +180,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        if (localSpeech?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (kioskPeripherals?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (personalCamera?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
@@ -186,6 +193,8 @@ class MainActivity : FlutterActivity() {
         windowPolicy?.windowChanged()
     }
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        localSpeech?.dispose()
+        localSpeech = null
         playbackCapabilities?.dispose()
         playbackCapabilities = null
         personalCamera?.dispose()

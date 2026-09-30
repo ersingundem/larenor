@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
 import '../../domain/server_models.dart';
+import '../../../home_resources/domain/home_resource_models.dart';
 import '../domain/server_automation_draft_models.dart';
 import 'server_automation_draft_api.dart';
 
@@ -21,6 +22,8 @@ final class ServerAutomationDraftController extends ChangeNotifier {
   bool _disposed = false, busy = false, needsRefresh = false;
   String? failure, announcement, targetLabel;
   ServerAutomationDraft? draft;
+  List<HomeResourceRecord> targets = const [];
+  HomeResourceRecord? selectedTarget;
 
   bool get _authorized {
     final session = account.session;
@@ -43,16 +46,55 @@ final class ServerAutomationDraftController extends ChangeNotifier {
     busy = needsRefresh = false;
     failure = announcement = targetLabel = null;
     draft = null;
+    targets = const [];
+    selectedTarget = null;
     _emit();
   }
 
-  Future<void> preview(String transcript, bool Function() current) =>
-      _run(current, (api) async {
-        final result = await api.create(transcript);
-        draft = result.draft;
-        targetLabel = result.targetLabel;
-        announcement = 'created';
-      });
+  void clearDraft() {
+    _epoch++;
+    busy = needsRefresh = false;
+    draft = null;
+    failure = announcement = targetLabel = null;
+    _emit();
+  }
+
+  Future<void> loadTargets(bool Function() current) async {
+    if (_disposed || busy || !_authorized || !current()) return;
+    invalidate();
+    await _run(current, (api) async {
+      targets = await api.targets();
+      selectedTarget = null;
+    });
+  }
+
+  void selectTarget(HomeResourceRecord target, bool Function() current) {
+    if (!_authorized ||
+        busy ||
+        !current() ||
+        !targets.any((item) => identical(item, target))) {
+      return;
+    }
+    _epoch++;
+    selectedTarget = target;
+    draft = null;
+    failure = announcement = targetLabel = null;
+    _emit();
+  }
+
+  Future<void> preview(String transcript, bool Function() current) => _run(
+    current,
+    (api) async {
+      final target = selectedTarget;
+      if (target == null) {
+        throw const LarenorServerException('automation_draft_target_required');
+      }
+      final result = await api.create(transcript, resourceId: target.id);
+      draft = result.draft;
+      targetLabel = result.targetLabel;
+      announcement = 'created';
+    },
+  );
 
   Future<void> activate(bool Function() current) async {
     final selected = draft;
@@ -77,7 +119,12 @@ final class ServerAutomationDraftController extends ChangeNotifier {
       await account.withSession((raw, session) async {
         if (!valid()) throw const LarenorServerException('cancelled');
         await action(
-          ServerAutomationDraftApi(raw, session.accessToken, _context!),
+          ServerAutomationDraftApi(
+            raw,
+            session.accessToken,
+            _context!,
+            isCurrent: valid,
+          ),
         );
       });
     } catch (error) {

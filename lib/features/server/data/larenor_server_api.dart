@@ -1122,6 +1122,18 @@ class LarenorServerApi {
               }.contains(code)) {
         return code as String;
       }
+      if (status == 400 && code == 'automation_draft_transcript_unsupported' ||
+          status == 409 &&
+              {
+                'automation_draft_changed',
+                'automation_draft_expired',
+                'ha_rule_changed',
+                'ocr_candidate_changed',
+              }.contains(code) ||
+          status == 429 && code == 'automation_draft_limit_reached' ||
+          status == 503 && code == 'automation_draft_storage_invalid') {
+        return code as String;
+      }
       if (code == 'password_change_required' && status == 403) {
         return 'password_change_required';
       }

@@ -17,6 +17,7 @@ import '../../../integration_test/support/synthetic_ha_server.dart';
 final _coreId = 'a' * 32;
 final _homeId = 'b' * 32;
 final _resourceId = '3' * 32;
+final _otherResourceId = 'a' * 32;
 final _serviceId = '5' * 32;
 final _trialId = '6' * 32;
 const _token = 'synthetic_loopback_access_token';
@@ -39,6 +40,8 @@ final class _AutomationCore {
   final requests = <String>[];
   Completer<void>? replayGate;
   bool malformedDraft = false;
+  bool multipleTargets = false;
+  String? draftedTarget;
   bool malformedReplay = false;
   int replayRequests = 0;
 
@@ -203,7 +206,15 @@ final class _AutomationCore {
       return _json(request, {
         'scope': context,
         'userRevision': 1,
-        'entries': [resource],
+        'entries': [
+          resource,
+          if (multipleTargets)
+            {
+              ...resource,
+              'ref': {...context, 'kind': 'resource', 'id': _otherResourceId},
+              'label': 'Other lamp',
+            },
+        ],
         'snapshot': 'c' * 64,
         'nextAfter': null,
       });
@@ -228,10 +239,26 @@ final class _AutomationCore {
     )) {
       return _json(request, {'snapshot': snapshot});
     }
+    if (multipleTargets &&
+        path.endsWith(
+          '/home-assistant/$_coreId/$_homeId/resources/$_otherResourceId/snapshot',
+        )) {
+      return _json(request, {
+        'snapshot': {
+          ...snapshot,
+          'ref': {...context, 'kind': 'resource', 'id': _otherResourceId},
+        },
+      });
+    }
     if (path.endsWith('/automation-drafts/$_coreId/$_homeId')) {
       expect((body as Map)['transcript'], 'turn on');
+      draftedTarget = body['resourceId'] as String;
       return _json(request, {
-        'draft': {...draft, if (malformedDraft) 'secret': 'must-reject'},
+        'draft': {
+          ...draft,
+          'target': {'resourceId': draftedTarget},
+          if (malformedDraft) 'secret': 'must-reject',
+        },
       }, status: 201);
     }
     if (path.endsWith('/admin/services')) {
@@ -323,6 +350,49 @@ ServerSession _session(_AutomationCore core) => ServerSession(
 );
 
 void main() {
+  test('F01 multiple targets require a choice and explicit target cannot fall back', () async {
+    final core = await _AutomationCore.start();
+    core.multipleTargets = true;
+    final api = _api(core);
+    addTearDown(() async {
+      api.close();
+      await core.close();
+    });
+    final drafts = ServerAutomationDraftApi(
+      api,
+      _token,
+      ServerContext.fromJson(core.context),
+    );
+    final targets = await drafts.targets();
+    expect(targets.map((target) => target.id), [_resourceId, _otherResourceId]);
+    await expectLater(
+      drafts.create('turn on'),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (e) => e.code,
+          'code',
+          'automation_draft_target_required',
+        ),
+      ),
+    );
+    expect(core.draftedTarget, isNull);
+    final chosen = await drafts.create('turn on', resourceId: _otherResourceId);
+    expect(chosen.draft.resourceId, _otherResourceId);
+    expect(chosen.targetLabel, 'Other lamp');
+    expect(core.draftedTarget, _otherResourceId);
+    await expectLater(
+      drafts.create('turn on', resourceId: 'f' * 32),
+      throwsA(
+        isA<LarenorServerException>().having(
+          (e) => e.code,
+          'code',
+          'automation_draft_target_missing',
+        ),
+      ),
+    );
+    expect(core.draftedTarget, _otherResourceId);
+  });
+
   test('F01-F03 production clients cross loopback HTTP and reject malformed envelopes', () async {
     final core = await _AutomationCore.start();
     final api = _api(core);

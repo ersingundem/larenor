@@ -305,27 +305,105 @@
   "jellyfinQualityAdvisorRemux": "Remux / doğrudan akış",
   "jellyfinQualityAdvisorTranscode": "Dönüştürme",
   "jellyfinQualityAdvisorPath": "Güncel sunucu yolu: {method}",
-  "@jellyfinQualityAdvisorPath": {"placeholders": {"method": {"type": "String"}}},
+  "@jellyfinQualityAdvisorPath": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorEvidence": "Kaynak: {container} · video {video} · ses {audio} · {bitrate}",
-  "@jellyfinQualityAdvisorEvidence": {"placeholders": {"container": {"type": "String"}, "video": {"type": "String"}, "audio": {"type": "String"}, "bitrate": {"type": "String"}}},
+  "@jellyfinQualityAdvisorEvidence": {
+    "placeholders": {
+      "container": {
+        "type": "String"
+      },
+      "video": {
+        "type": "String"
+      },
+      "audio": {
+        "type": "String"
+      },
+      "bitrate": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReason": "Sunucu nedeni: {reason}",
-  "@jellyfinQualityAdvisorReason": {"placeholders": {"reason": {"type": "String"}}},
+  "@jellyfinQualityAdvisorReason": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReasonUnknown": "bildirilmedi",
   "jellyfinQualityAdvisorNetworkUnknown": "Ölçülmüş ağ kapasitesi: kullanılamıyor",
   "jellyfinQualityAdvisorReceiver": "Alıcı kanıtı: Larenor libmpv profili. Fiziksel codec ve HDR desteği doğrulanmadı.",
   "jellyfinQualityAdvisorNetworkReported": "Ağ: {transport}; Android bağlantı tahmini {downstream} Kbps. Bu değer ölçülmüş aktarım hızı değildir.",
-  "@jellyfinQualityAdvisorNetworkReported": {"placeholders": {"transport": {"type": "String"}, "downstream": {"type": "String"}}},
+  "@jellyfinQualityAdvisorNetworkReported": {
+    "placeholders": {
+      "transport": {
+        "type": "String"
+      },
+      "downstream": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReceiverReported": "Alıcı bildirimi: {videoCount} video codec'i, {audioCount} ses codec'i, ekran {resolution}. Fiziksel oynatma kabulü henüz doğrulanmadı.",
-  "@jellyfinQualityAdvisorReceiverReported": {"placeholders": {"videoCount": {"type": "int"}, "audioCount": {"type": "int"}, "resolution": {"type": "String"}}},
+  "@jellyfinQualityAdvisorReceiverReported": {
+    "placeholders": {
+      "videoCount": {
+        "type": "int"
+      },
+      "audioCount": {
+        "type": "int"
+      },
+      "resolution": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorCoreEvidence": "Core kanıtı — codec {codec}, bit hızı {bitrate}, ağ {network}, alıcı {receiver}, HDR {hdr}.",
-  "@jellyfinQualityAdvisorCoreEvidence": {"placeholders": {"codec": {"type": "String"}, "bitrate": {"type": "String"}, "network": {"type": "String"}, "receiver": {"type": "String"}, "hdr": {"type": "String"}}},
+  "@jellyfinQualityAdvisorCoreEvidence": {
+    "placeholders": {
+      "codec": {
+        "type": "String"
+      },
+      "bitrate": {
+        "type": "String"
+      },
+      "network": {
+        "type": "String"
+      },
+      "receiver": {
+        "type": "String"
+      },
+      "hdr": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorStateReported": "bildirildi",
   "jellyfinQualityAdvisorStateVerified": "doğrulandı",
   "jellyfinQualityAdvisorStateUnknown": "bilinmiyor",
   "jellyfinQualityAdvisorGaps": "Doğrulanmamış kanıt: {gaps}",
-  "@jellyfinQualityAdvisorGaps": {"placeholders": {"gaps": {"type": "String"}}},
+  "@jellyfinQualityAdvisorGaps": {
+    "placeholders": {
+      "gaps": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorRecommendations": "Öneriler: {recommendations}",
-  "@jellyfinQualityAdvisorRecommendations": {"placeholders": {"recommendations": {"type": "String"}}},
+  "@jellyfinQualityAdvisorRecommendations": {
+    "placeholders": {
+      "recommendations": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorManualAcceptance": "Bu yalnızca bir öneridir. Alıcı ve cihaz kabulü elle doğrulanmalıdır.",
   "jellyfinQualityAdvisorGapSource": "kaynak telemetrisi",
   "jellyfinQualityAdvisorGapCodec": "codec",
@@ -387,17 +465,29 @@
   "bazarrSearchBudget": "Bu oturum için {maximum} altyazı aramasından {remaining} tanesi kaldı",
   "@bazarrSearchBudget": {
     "placeholders": {
-      "remaining": {"type": "int"},
-      "maximum": {"type": "int"}
+      "remaining": {
+        "type": "int"
+      },
+      "maximum": {
+        "type": "int"
+      }
     }
   },
   "bazarrPreferredSubtitle": "Tercih edilen altyazı: {language}",
   "@bazarrPreferredSubtitle": {
-    "placeholders": {"language": {"type": "String"}}
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   },
   "bazarrSearchConsentTitle": "{language} altyazısı aransın mı?",
   "@bazarrSearchConsentTitle": {
-    "placeholders": {"language": {"type": "String"}}
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   },
   "bazarrSearchConsentBody": "Bazarr yapılandırılmış sağlayıcılarda arama yapacak. Bu işlem bir oturum araması kullanır ve sağlayıcı kotasını tüketebilir.",
   "bazarrSearchConfirmed": "Bazarr yenilemesiyle kullanılabilir olduğu doğrulandı",
@@ -717,7 +807,13 @@
   "serverBackupsReady": "Şifreli yedek için hazır",
   "serverBackupsBlocked": "Yedek geçici olarak engelli",
   "serverBackupsBlockedHint": "{count} etkin işlem tamamlandıktan sonra bu kontrolü yenileyin.",
-  "@serverBackupsBlockedHint": {"placeholders": {"count": {"type": "int"}}},
+  "@serverBackupsBlockedHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverBackupsCreated": "Anlık görüntü kontrolü",
   "serverBackupsCoreVersion": "Core sürümü",
   "serverBackupsDatabaseVersion": "Veritabanı şeması",
@@ -730,7 +826,13 @@
   "serverBackupsManagedVolumes": "Yönetilen bileşen volume alanları",
   "serverBackupsConsistencyBoundary": "Tutarlılık sınırı",
   "serverBackupsConsistencyValue": "Core yazma kilidi ve bileşen durgunluğu, en fazla {seconds} saniye",
-  "@serverBackupsConsistencyValue": {"placeholders": {"seconds": {"type": "int"}}},
+  "@serverBackupsConsistencyValue": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "serverBackupsFamilyBoard": "Aile panosu",
   "serverBackupsExportTitle": "Şifreli Core yedeğini dışa aktar",
   "serverBackupsPassphrase": "Yedek parolası",
@@ -765,7 +867,13 @@
   "serverRecoveryDrillHint": "Güncel bir Core yedeğini üretimden yalıtılmış geçici hedefe geri açar, korunan her kaynağı doğrular ve sınırlı sonuç makbuzu saklar. Üretim servisleri ve cihazları değiştirilmez.",
   "serverRecoveryDrillMonthly": "Her 30 günde çalıştır",
   "serverRecoveryDrillNext": "Sonraki tatbikat: {date}",
-  "@serverRecoveryDrillNext": {"placeholders": {"date": {"type": "String"}}},
+  "@serverRecoveryDrillNext": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "serverRecoveryDrillRunNow": "Tatbikatı şimdi çalıştır",
   "serverRecoveryDrillHistory": "Son tatbikatlar",
   "serverRecoveryDrillManual": "Elle",
@@ -784,7 +892,13 @@
   "serverImmutableBackupNext": "Sonraki yedek",
   "serverImmutableBackupRetention": "Korumalı saklama",
   "serverImmutableBackupDays": "{count} gün",
-  "@serverImmutableBackupDays": {"placeholders": {"count": {"type": "int"}}},
+  "@serverImmutableBackupDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverImmutableBackupQuota": "Uzak kota",
   "serverImmutableBackupEndpoint": "HTTPS hedef origin'i",
   "serverImmutableBackupTargetId": "Hedef kimliği",
@@ -798,7 +912,13 @@
   "serverImmutableBackupPoints": "Geri dönüş noktaları",
   "serverImmutableBackupNoPoints": "Henüz korumalı geri dönüş noktası saklanmadı.",
   "serverImmutableBackupProtectedUntil": "{date} tarihine kadar korumalı",
-  "@serverImmutableBackupProtectedUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@serverImmutableBackupProtectedUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "backupIntro": "Larenor yapılandırmasının şifreli bir kopyasını saklayın. İçeriği seçip Dosyalar ile kaydedin.",
   "backupExport": "Şifreli yedek dışa aktar",
   "backupRestore": "Yedekten geri yükle",
@@ -1572,7 +1692,13 @@
   "serverMusicLongformSleepTimer": "Uyku sayacı",
   "serverMusicLongformSleepOff": "Kapalı",
   "serverMusicLongformMinutes": "{count} dakika",
-  "@serverMusicLongformMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@serverMusicLongformMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverMusicLongformBookmarks": "Yer imleri",
   "serverMusicLongformAddBookmark": "Buraya yer imi ekle",
   "serverMusicLongformRemoveBookmark": "Yer imini kaldır",
@@ -1739,9 +1865,27 @@
   "ambientContentPdf": "PDF {number}",
   "ambientContentWeb": "Web sayfası {number}",
   "ambientContentRemoveMessage": "Bu öğe ortam listesinden kaldırılsın mı? Asıl yerel dosya ve web sayfası değişmez.",
-  "@ambientContentVideo": {"placeholders": {"number": {"type": "int"}}},
-  "@ambientContentPdf": {"placeholders": {"number": {"type": "int"}}},
-  "@ambientContentWeb": {"placeholders": {"number": {"type": "int"}}},
+  "@ambientContentVideo": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@ambientContentPdf": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@ambientContentWeb": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "ambientHint": "Hareketsizlikten sonra gösterilecek saati ve fotoğrafları seçin. Görünüm ayarlarından bekleme ekranını etkinleştirin.",
   "ambientPhotosEnabled": "Seçtiğim fotoğrafları göster",
   "ambientSharedHint": "Bu fotoğraflar ekrana bakan herkese görünür. Yalnızca seçtiğiniz fotoğraflar kopyalanır; fotoğraf arşiviniz taranmaz.",
@@ -1917,11 +2061,47 @@
   "serverTabletFleetRolloutApply": "Profili hazır kademe tabletlerine yayınla",
   "serverTabletFleetRolloutApplied": "Core, doğrulanan profili seçili kademe tabletlerine yayınladı.",
   "serverTabletFleetRolloutRelease": "Larenor {version} ({code}) · sertifika {certificate}",
-  "@serverTabletFleetRolloutRelease": {"placeholders":{"version":{"type":"String"},"code":{"type":"int"},"certificate":{"type":"String"}}},
+  "@serverTabletFleetRolloutRelease": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "code": {
+        "type": "int"
+      },
+      "certificate": {
+        "type": "String"
+      }
+    }
+  },
   "serverTabletFleetRolloutCounts": "Hazır {ready} · bekletilen {deferred} · uygulama güncellemesi {updates} · güncel {current}",
-  "@serverTabletFleetRolloutCounts": {"placeholders":{"ready":{"type":"int"},"deferred":{"type":"int"},"updates":{"type":"int"},"current":{"type":"int"}}},
+  "@serverTabletFleetRolloutCounts": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "deferred": {
+        "type": "int"
+      },
+      "updates": {
+        "type": "int"
+      },
+      "current": {
+        "type": "int"
+      }
+    }
+  },
   "serverTabletFleetRolloutRevision": "Profil revizyonu {revision} · %{percent} kademe",
-  "@serverTabletFleetRolloutRevision": {"placeholders":{"revision":{"type":"int"},"percent":{"type":"int"}}},
+  "@serverTabletFleetRolloutRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "serverIntro": "Kendi Larenor Server sunucunuza giriş yapın. Home Assistant bağlantınız ayrı yapılandırılır.",
   "serverUrl": "Sunucu adresi",
   "serverUsername": "Kullanıcı adı",
@@ -2288,7 +2468,11 @@
   "serverMediaPlaybackPrepare": "Oynatıcı seç",
   "serverMediaPlaybackTarget": "{name} üzerinde oynat",
   "@serverMediaPlaybackTarget": {
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "serverMediaPlaybackConfirmTitle": "Yönetilen oynatma başlatılsın mı?",
   "serverMediaPlaybackConfirmBody": "Core, mevcut oynatmayı değiştirmeden önce bu öğeyi ve oynatıcıyı yeniden denetler.",
@@ -3384,7 +3568,9 @@
   "localNotificationsBackgroundExpiry": "Kira bitişi: {time}",
   "@localNotificationsBackgroundExpiry": {
     "placeholders": {
-      "time": {"type": "String"}
+      "time": {
+        "type": "String"
+      }
     }
   },
   "remoteAccessDeviceLocal": "Bu tablette",
@@ -3408,23 +3594,71 @@
   "irrigationBudgetRefresh": "Önerileri yenile",
   "irrigationBudgetSummary": "Bugünün su bütçesi",
   "irrigationRain": "Tahmini yağış: {millimeters} mm",
-  "@irrigationRain": {"placeholders": {"millimeters": {"type": "double"}}},
+  "@irrigationRain": {
+    "placeholders": {
+      "millimeters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationDailyLimit": "Günlük sınır: {liters} L",
-  "@irrigationDailyLimit": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationDailyLimit": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationUsed": "Kullanılan: {liters} L",
-  "@irrigationUsed": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationUsed": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationPlanned": "Planlanan: {liters} L",
-  "@irrigationPlanned": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationPlanned": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationForecastVerified": "Tahmin kaynağı güncel",
   "irrigationForecastStale": "Tahmin güncel değil; etkilenen bölgeler engelli kalır",
   "irrigationMoisture": "Toprak nemi: %{percent}",
-  "@irrigationMoisture": {"placeholders": {"percent": {"type": "double"}}},
+  "@irrigationMoisture": {
+    "placeholders": {
+      "percent": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationZoneStatus": "Öneri: {status}",
-  "@irrigationZoneStatus": {"placeholders": {"status": {"type": "String"}}},
+  "@irrigationZoneStatus": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
   "irrigationDuration": "Süre: {minutes} dk",
-  "@irrigationDuration": {"placeholders": {"minutes": {"type": "int"}}},
+  "@irrigationDuration": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "irrigationWater": "Tahmini su: {liters} L",
-  "@irrigationWater": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationWater": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationZonePlanned": "planlandı",
   "irrigationZoneDeferred": "ertelendi",
   "irrigationZoneSkipped": "gerekmiyor",
@@ -3604,8 +3838,12 @@
   "personalCameraProfileReady": "{sampleCount} örnekten şifreli profil hazır · {createdAt}",
   "@personalCameraProfileReady": {
     "placeholders": {
-      "sampleCount": {"type": "int"},
-      "createdAt": {"type": "String"}
+      "sampleCount": {
+        "type": "int"
+      },
+      "createdAt": {
+        "type": "String"
+      }
     }
   },
   "personalCameraProfileEnroll": "Bu yüzü kaydet",
@@ -3640,7 +3878,13 @@
   "kioskSensorsCameraPermissionDenied": "Kamera izni verilmemiş",
   "kioskSensorsBattery": "Pil",
   "kioskSensorsBatteryPercent": "%{percent}",
-  "@kioskSensorsBatteryPercent": {"placeholders": {"percent": {"type": "String"}}},
+  "@kioskSensorsBatteryPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "kioskSensorsThermal": "Termal yük",
   "kioskSensorsThermalNone": "Normal",
   "kioskSensorsThermalLight": "Hafif",
@@ -3704,7 +3948,13 @@
   "weeklyMealPlanRetry": "Tekrar dene",
   "weeklyMealPlanIngredients": "Malzemeler",
   "weeklyMealPlanServings": "{count} porsiyon",
-  "@weeklyMealPlanServings": {"placeholders": {"count": {"type": "int"}}},
+  "@weeklyMealPlanServings": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyMealPlanBreakfast": "Kahvaltı",
   "weeklyMealPlanLunch": "Öğle",
   "weeklyMealPlanDinner": "Akşam",
@@ -3713,10 +3963,28 @@
   "weeklyMealPlanShoppingHint": "Malzemeleri yazılabilir Home Assistant alışveriş listesine eklemeden önce ölçeklenmiş miktarları inceleyin.",
   "weeklyMealPlanShoppingFailed": "Alışveriş aktarımı doğrulanamadı. Yeniden denemeden önce seçili listeyi kontrol edin.",
   "weeklyMealPlanShoppingSuccess": "{count} malzeme {list} listesinde doğrulandı.",
-  "@weeklyMealPlanShoppingSuccess": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "@weeklyMealPlanShoppingSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "list": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyMealPlanShoppingConfirmTitle": "Malzemeler eklensin mi?",
   "weeklyMealPlanShoppingConfirmBody": "{count} malzeme {list} listesine eklensin mi? Her öğe güncel bir Home Assistant geri okumasıyla doğrulanır.",
-  "@weeklyMealPlanShoppingConfirmBody": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "@weeklyMealPlanShoppingConfirmBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "list": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyMealPlanShoppingConfirm": "Malzemeleri ekle",
   "weeklyMealPlanShoppingNoWritableList": "Açıklama desteği olan yazılabilir bir Home Assistant yapılacaklar listesi yok.",
   "weeklyMealPlanShoppingChooseList": "Home Assistant yapılacaklar listesi",
@@ -3781,27 +4049,78 @@
   "powerBudgetRefresh": "Önerileri yenile",
   "powerBudgetSummary": "Güncel bütçe",
   "powerBudgetImport": "Şebekeden çekiş: {watts} W",
-  "@powerBudgetImport": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetImport": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetLimit": "Yapılandırılmış sınır: {watts} W",
-  "@powerBudgetLimit": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetLimit": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetReduction": "Önerilen azaltma: {watts} W",
-  "@powerBudgetReduction": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetReduction": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetManualOnly": "Yalnız manuel öneri",
   "powerBudgetNoDeferral": "Şu anda yük erteleme önerisi yok.",
   "powerBudgetDefer": "En fazla {watts} W ertele",
-  "@powerBudgetDefer": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetDefer": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetTarget": "Önerilen hedef: {watts} W",
-  "@powerBudgetTarget": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetTarget": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetPriority": "Öncelik: {priority}",
-  "@powerBudgetPriority": {"placeholders": {"priority": {"type": "int"}}},
+  "@powerBudgetPriority": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetConfirmTitle": "Bu güç planı uygulansın mı?",
   "powerBudgetConfirmBody": "Toplam {watts} W azaltma için {count} uyumlu yük değişikliğini uygula. Kritik yükler kapsam dışıdır. Her cihaz aşağıda gösterilen iletişim kaybı davranışını kullanır.",
-  "@powerBudgetConfirmBody": {"placeholders": {"count": {"type": "int"}, "watts": {"type": "int"}}},
+  "@powerBudgetConfirmBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetConfirmAction": "Manuel güç planını onayla",
   "powerBudgetApplied": "Plan bir kez uygulandı ve geri okumayla doğrulandı.",
   "powerBudgetUncertain": "Sonuç belirsiz. Komutu tekrarlamayın; cihaz durumunu uzlaştırmak için yenileyin.",
   "powerBudgetCommunicationLoss": "İletişim kesilirse: {behavior}",
-  "@powerBudgetCommunicationLoss": {"placeholders": {"behavior": {"type": "String"}}},
+  "@powerBudgetCommunicationLoss": {
+    "placeholders": {
+      "behavior": {
+        "type": "String"
+      }
+    }
+  },
   "powerBudgetLossStop": "şarjı durdur",
   "powerBudgetLossHold": "son güvenli sınırı koru",
   "powerBudgetLossProvider": "cihaz sağlayıcısının güvenli davranışını kullan",
@@ -3914,7 +4233,13 @@
   "kioskRemotePairingHint": "MQTT istemci ve konu kimlikleri açık metaveridir. Sır yalnız oluşturulurken gösterilir.",
   "kioskRemoteEmpty": "Yapılandırılmış eşleştirilmiş erişim yok.",
   "kioskRemoteScopeList": "İzinler: {scopes}",
-  "@kioskRemoteScopeList": {"placeholders": {"scopes": {"type": "String"}}},
+  "@kioskRemoteScopeList": {
+    "placeholders": {
+      "scopes": {
+        "type": "String"
+      }
+    }
+  },
   "kioskRemoteActive": "Etkin",
   "kioskRemoteRevoked": "İptal edildi veya süresi doldu",
   "kioskRemoteRevoke": "İptal et",
@@ -4000,9 +4325,21 @@
   "jellyfinLegacyTrackPreferencesTitle": "Eski dil tercihleri bulundu",
   "jellyfinLegacyTrackPreferencesBody": "Bu Larenor hesabına kaydetmeden önce tutulan seçimleri inceleyin. Eski Jellyfin adresi ve kimlik bilgileri bu cihazda kalır.",
   "jellyfinLegacyTrackPreferencesAudio": "Ses: {language}",
-  "@jellyfinLegacyTrackPreferencesAudio": {"placeholders": {"language": {"type": "String"}}},
+  "@jellyfinLegacyTrackPreferencesAudio": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinLegacyTrackPreferencesSubtitle": "Altyazı: {language}",
-  "@jellyfinLegacyTrackPreferencesSubtitle": {"placeholders": {"language": {"type": "String"}}},
+  "@jellyfinLegacyTrackPreferencesSubtitle": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinLegacyTrackPreferencesOff": "Kapalı",
   "jellyfinLegacyTrackPreferencesConfirm": "Bu tercihleri kullan",
   "jellyfinLegacyTrackPreferencesCancel": "Şimdi değil",
@@ -4156,7 +4493,11 @@
   "jellyfinOfflineMediaReady": "Şifreli çevrimdışı kopya bu cihazda hazır.",
   "jellyfinOfflineMediaProgress": "%{progress} indirildi",
   "@jellyfinOfflineMediaProgress": {
-    "placeholders": {"progress": {"type": "int"}}
+    "placeholders": {
+      "progress": {
+        "type": "int"
+      }
+    }
   },
   "jellyfinWatchPartyTitle": "Birlikte izle",
   "jellyfinWatchPartyHint": "Özel bir oda oluşturun veya paylaşılan kodla katılın. Oynatma değişiklikleri güncel oda ve medya revizyonlarına bağlı kalır.",
@@ -4167,14 +4508,22 @@
   "jellyfinWatchPartyLeave": "Odadan ayrıl",
   "jellyfinWatchPartyTransfer": "Liderliği …{account} hesabına ver",
   "@jellyfinWatchPartyTransfer": {
-    "placeholders": {"account": {"type": "String"}}
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
   },
   "jellyfinWatchPartyRefreshNeeded": "Oda değişti. Güncel yetkiyi yenilemek gerekiyor.",
   "jellyfinWatchPartyStatus": "{count} bağlı · ±{tolerance} ms senkron aralığı",
   "@jellyfinWatchPartyStatus": {
     "placeholders": {
-      "count": {"type": "int"},
-      "tolerance": {"type": "int"}
+      "count": {
+        "type": "int"
+      },
+      "tolerance": {
+        "type": "int"
+      }
     }
   },
   "serverPowerRecoveryTitle": "Düzenli güç kurtarma",
@@ -4206,11 +4555,29 @@
   "serverPowerRecoveryProvisioningFailed": "Proxmox hedefi doğrulanamadı. Güncel kaynakları yenileyip yeniden deneyin.",
   "serverPowerRecoveryProxmoxUnverified": "Kaydedilmiş bu sanal makine hedefinin güncel sağlayıcı yetkisi yok. Kaydetmeden önce doğrulanmış bir Proxmox seçimiyle değiştirin.",
   "serverPowerRecoveryProxmoxTarget": "Doğrulandı: {node} · {kind} #{guestId}",
-  "@serverPowerRecoveryProxmoxTarget": {"placeholders": {"node": {"type": "String"}, "kind": {"type": "String"}, "guestId": {"type": "int"}}},
+  "@serverPowerRecoveryProxmoxTarget": {
+    "placeholders": {
+      "node": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "guestId": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryInvalid": "UPS kimliğini, anahtarı, sınırları ve hedef sırasını denetleyin. Core host en son olmalı.",
   "serverPowerRecoverySave": "Güç politikasını kaydet",
   "serverPowerRecoveryTargetNumber": "Hedef {number}",
-  "@serverPowerRecoveryTargetNumber": {"placeholders": {"number": {"type": "int"}}},
+  "@serverPowerRecoveryTargetNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryTargetLabel": "Hedef adı",
   "serverPowerRecoveryKindService": "Servis",
   "serverPowerRecoveryKindGuest": "Sanal makine",
@@ -4222,7 +4589,13 @@
   "serverPowerRecoveryHistory": "Kurtarma makbuzları",
   "serverPowerRecoveryNoRuns": "Henüz güç kurtarma işlemi başlamadı.",
   "serverPowerRecoveryStepCount": "{count} kalıcı adım",
-  "@serverPowerRecoveryStepCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverPowerRecoveryStepCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryFailed": "Güç kurtarma durumu yüklenemedi.",
   "serverPowerRecoveryOnline": "Şebekede",
   "serverPowerRecoveryOnBattery": "Bataryada",
@@ -4250,7 +4623,13 @@
   "serverHomesTitle": "Evler ve Core'lar",
   "serverHomesIntro": "Her ev bağımsız bir Core oturumu tutar. Ev değişiminde seçilen Core doğrulanmadan önce mevcut ev çalışma alanı kapatılır.",
   "serverHomesCount": "{count} kayıtlı ev",
-  "@serverHomesCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverHomesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverHomesActive": "Etkin ev",
   "serverHomesSwitch": "Bu eve geç",
   "serverHomesRename": "Adını değiştir",
@@ -4259,32 +4638,92 @@
   "serverHomesName": "Ev adı",
   "serverHomesRemoveTitle": "Kayıtlı ev kaldırılsın mı?",
   "serverHomesRemoveHint": "{name} bu cihazdan kaldırılacak ve oturumunu iptal etme denenecek.",
-  "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
+  "@serverHomesRemoveHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "serverHomesOperationFailed": "Kayıtlı ev işlemi tamamlanamadı.",
   "serverHomesRecoveryTarget": "Bu Core için kurtarma hedefi",
   "serverHomesHandoff": "Evler arası aktarımı yetkilendir",
   "serverHomesHandoffTitle": "Hedef evi seçin",
   "serverHomesHandoffHint": "Larenor kaynak ve hedefi kendi Core oturumlarıyla ayrı ayrı doğrular. Evler arasında token veya önbellek paylaşılmaz.",
   "serverHomesHandoffVerified": "{source} ve {target} ayrı ayrı yetkilendirildi.",
-  "@serverHomesHandoffVerified": {"placeholders": {"source": {"type": "String"}, "target": {"type": "String"}}},
+  "@serverHomesHandoffVerified": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiResourcesTitle": "Yapay zekâ kaynakları",
   "serverAiResourcesIntro": "Yerel yapay zekâ işleri için kesin bellek, işlemci ve eşzamanlılık sınırlarını yönetin. Medya oynatılırken düşük CPU sınırı otomatik uygulanır.",
   "serverAiResourcesLocked": "Yapay zekâ kaynak yönetimi kilitli. Ayarlar'a dönüp güncel yönetici oturumunu doğrulayın.",
   "serverAiResourcesCapacity": "Güncel kapasite",
   "serverAiResourcesHardware": "Core donanımı",
   "serverAiResourcesHardwareValue": "{memory} MB bellek · {cpus} CPU çekirdeği",
-  "@serverAiResourcesHardwareValue": {"placeholders": {"memory": {"type": "int"}, "cpus": {"type": "int"}}},
+  "@serverAiResourcesHardwareValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpus": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesAllocated": "Şu an ayrılan",
   "serverAiResourcesAllocatedValue": "{memory} MB · %{limit} CPU sınırının %{cpu}'i",
-  "@serverAiResourcesAllocatedValue": {"placeholders": {"memory": {"type": "int"}, "cpu": {"type": "int"}, "limit": {"type": "int"}}},
+  "@serverAiResourcesAllocatedValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesMeasured": "Ölçülen Core yükü",
   "serverAiResourcesMeasuredValue": "İşlem belleği {memory} MB · normalize sistem yükü %{load}",
-  "@serverAiResourcesMeasuredValue": {"placeholders": {"memory": {"type": "int"}, "load": {"type": "int"}}},
+  "@serverAiResourcesMeasuredValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "load": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesMediaActive": "Medya etkin; yerel yapay zekâ düşük CPU sınırını kullanıyor.",
   "serverAiResourcesMediaIdle": "Güncel medya kirası yok; normal CPU sınırı uygulanıyor.",
   "serverAiResourcesPolicy": "Kaynak politikası",
   "serverAiResourcesPolicyValue": "{memory} MB · %{cpu} CPU · {jobs} iş · medya sırasında %{media}",
-  "@serverAiResourcesPolicyValue": {"placeholders": {"memory": {"type": "int"}, "cpu": {"type": "int"}, "jobs": {"type": "int"}, "media": {"type": "int"}}},
+  "@serverAiResourcesPolicyValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "jobs": {
+        "type": "int"
+      },
+      "media": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesConservative": "Tutumlu",
   "serverAiResourcesBalanced": "Dengeli",
   "serverAiResourcesPerformance": "Performans",
@@ -4292,7 +4731,22 @@
   "serverAiResourcesQueueEmpty": "Kuyrukta yerel yapay zekâ işi yok.",
   "serverAiResourcesQueueHint": "İşler güncel politika içinde öncelikle çalışır. Bu oturumun işini iptal etmek için seçin.",
   "serverAiResourcesJobValue": "Öncelik {priority} · {memory} MB · %{cpu} CPU · {state}",
-  "@serverAiResourcesJobValue": {"placeholders": {"priority": {"type": "int"}, "memory": {"type": "int"}, "cpu": {"type": "int"}, "state": {"type": "String"}}},
+  "@serverAiResourcesJobValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      },
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiResourcesInsufficientHardware": "Donanım yetersiz",
   "serverAiResourcesMediaThrottled": "Medya için bekletiliyor",
   "serverAiResourcesWaiting": "Bekliyor",
@@ -4317,7 +4771,19 @@
   "serverAiMemoryOneWeek": "7 gün",
   "serverAiMemoryOneMonth": "30 gün",
   "serverAiMemoryDetails": "Kaynak: {source} · öğrenen {user}\nBitiş {expires}",
-  "@serverAiMemoryDetails": {"placeholders": {"source": {"type": "String"}, "user": {"type": "String"}, "expires": {"type": "String"}}},
+  "@serverAiMemoryDetails": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "user": {
+        "type": "String"
+      },
+      "expires": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiMemoryCreated": "Hafıza kaydedildi ve doğrulandı.",
   "serverAiMemoryCorrected": "Hafıza düzeltildi ve doğrulandı.",
   "serverAiMemoryForgotten": "Hafıza ve türetilmiş indeksi unutuldu.",
@@ -4337,12 +4803,27 @@
   "serverEvidenceDiagnosticLimited": "Bazı olgular bilinmediği için kesinlik sınırlı.",
   "serverEvidenceDiagnosticSupported": "Sonuç listelenen kaynaklarla destekleniyor.",
   "serverEvidenceDiagnosticSourceValue": "Durum {state} · revizyon {revision}",
-  "@serverEvidenceDiagnosticSourceValue": {"placeholders": {"state": {"type": "String"}, "revision": {"type": "int"}}},
+  "@serverEvidenceDiagnosticSourceValue": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "serverEvidenceDiagnosticFindings": "Bulgular ve bilinmeyenler",
   "serverEvidenceDiagnosticNoFindings": "Arıza bulgusu üretilmedi.",
   "serverEvidenceDiagnosticUnknownHint": "Teşhis bu olguyu açıkça bilinmiyor olarak bırakıyor.",
   "serverEvidenceDiagnosticRedactions": "{count} kaynak ayrıntısı saklanmadan önce temizlendi.",
-  "@serverEvidenceDiagnosticRedactions": {"placeholders": {"count": {"type": "int"}}},
+  "@serverEvidenceDiagnosticRedactions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverEvidenceDiagnosticRepair": "Onarım rehberi",
   "serverEvidenceDiagnosticPreview": "Onarım önizlemesi oluştur",
   "serverEvidenceDiagnosticPreviewOnly": "Bu yetkiye bağlı bir önizlemedir. Onarım çalıştıramaz.",
@@ -4351,7 +4832,13 @@
   "serverTabletFleetProfileHistoryEmpty": "Arşivlenmiş profil yok.",
   "serverTabletFleetHistoryLoaded": "Profil geçmişi Core tarafından doğrulandı.",
   "serverTabletFleetRestoreRevision": "{revision}. revizyonu geri yükle",
-  "@serverTabletFleetRestoreRevision": {"placeholders": {"revision": {"type": "int"}}},
+  "@serverTabletFleetRestoreRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "serverTabletFleetRestoreVerified": "Arşivlenmiş profil yeni bir revizyon olarak geri yüklendi ve doğrulandı.",
   "serverHabitAnomalyTitle": "Alışkanlık anomalileri",
   "serverHabitAnomalyIntro": "Özel bir rutin tabanı oluşturmak için bağlı bir kaynağın yakın tarihli Home Assistant geçmişini okuyun. Eksik, desteklenmeyen veya eski geçmiş bilinmiyor olarak kalır.",
@@ -4368,15 +4855,45 @@
   "serverHabitAnomalyUnknownSpan": "Bilinmiyor: taban için daha uzun zaman aralığı gerekiyor",
   "serverHabitAnomalyUnknownSamples": "Bilinmiyor: daha fazla gözlem gerekiyor",
   "serverHabitAnomalyModel": "Model {model} · {count}/{requiredCount} gözlem",
-  "@serverHabitAnomalyModel": {"placeholders": {"model": {"type": "String"}, "count": {"type": "int"}, "requiredCount": {"type": "int"}}},
+  "@serverHabitAnomalyModel": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "requiredCount": {
+        "type": "int"
+      }
+    }
+  },
   "serverHabitAnomalyUnavailableServices": "2 dakikadaki durum değişiklikleri",
   "serverHabitAnomalyBaseline": "Dayanıklı taban",
   "serverHabitAnomalyBaselineValue": "Merkez {center} · tolerans ±{tolerance} · {count} taban gözlemi",
-  "@serverHabitAnomalyBaselineValue": {"placeholders": {"center": {"type": "String"}, "tolerance": {"type": "String"}, "count": {"type": "int"}}},
+  "@serverHabitAnomalyBaselineValue": {
+    "placeholders": {
+      "center": {
+        "type": "String"
+      },
+      "tolerance": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverHabitAnomalyFeedback": "Gözlem geri bildirimi",
   "serverHabitAnomalyFeedbackHint": "Son sonucu işaretleyin; sonraki model sürümleri normal davranış ile yanlış alarmı ayırabilsin.",
   "serverHabitAnomalyFeedbackRecorded": "Kaydedilen etiket: {label}",
-  "@serverHabitAnomalyFeedbackRecorded": {"placeholders": {"label": {"type": "String"}}},
+  "@serverHabitAnomalyFeedbackRecorded": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "serverHabitAnomalyMarkNormal": "Normal olarak işaretle",
   "serverHabitAnomalyMarkFalsePositive": "Yanlış alarm olarak işaretle",
   "serverAutomationTrialTitle": "Otomasyon deneme haftası",
@@ -4394,14 +4911,32 @@
   "serverAutomationTrialReport": "Yedi günlük karar raporu",
   "serverAutomationTrialZeroWrites": "Yalnız simülasyon · adaptör yazması 0 · fiziksel sonuç iddia edilmez",
   "serverAutomationTrialDuration": "UTC süresi {seconds} saniye; yerel takvim süresi tam yedi gündür.",
-  "@serverAutomationTrialDuration": {"placeholders": {"seconds": {"type": "int"}}},
+  "@serverAutomationTrialDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationTrialDecisions": "Tetiklenen / bastırılan",
   "serverAutomationTrialDecisionLegend": "Sayılar gerçek ve sentetik olay değerlendirmelerini içerir.",
   "serverAutomationTrialRealEvent": "Gerçek servis kontrolü çalıştır",
   "serverAutomationTrialSyntheticEvent": "Sentetik olay ekle",
   "serverAutomationTrialLatestEvent": "Son olay kararı",
   "serverAutomationTrialLocalTime": "Yerel {localTime} · UTC farkı {offset} sn · fold {fold}",
-  "@serverAutomationTrialLocalTime": {"placeholders": {"localTime": {"type": "String"}, "offset": {"type": "int"}, "fold": {"type": "int"}}},
+  "@serverAutomationTrialLocalTime": {
+    "placeholders": {
+      "localTime": {
+        "type": "String"
+      },
+      "offset": {
+        "type": "int"
+      },
+      "fold": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationTrialNoDecision": "Bu olayla eşleşen kural yok.",
   "serverAutomationTrialTriggered": "Tetiklenirdi",
   "serverAutomationTrialSuppressed": "Bastırıldı",
@@ -4411,9 +4946,27 @@
   "serverAutomationReplayComplete": "Tekrar tamamlandı",
   "serverAutomationReplayUnknown": "Bilinmiyor: geçmiş olaylar eksik",
   "serverAutomationReplayCounts": "Mevcut {available}/{requiredCount} · değişen karar {changed}",
-  "@serverAutomationReplayCounts": {"placeholders": {"available": {"type": "int"}, "requiredCount": {"type": "int"}, "changed": {"type": "int"}}},
+  "@serverAutomationReplayCounts": {
+    "placeholders": {
+      "available": {
+        "type": "int"
+      },
+      "requiredCount": {
+        "type": "int"
+      },
+      "changed": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationReplayFingerprint": "Deterministik girdi parmak izi {fingerprint} · adaptör yazması 0 · kuyruk yazması 0",
-  "@serverAutomationReplayFingerprint": {"placeholders": {"fingerprint": {"type": "String"}}},
+  "@serverAutomationReplayFingerprint": {
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
   "serverAutomationDraftTitle": "Korumalı otomasyon taslağı",
   "serverAutomationDraftIntro": "Kısa bir ses dökümünü şemayla doğrulanan önizlemeye dönüştürün. İzinli katalog yalnız açık onaydan sonra etkisiz bir kural oluşturabilir; bu ekran cihaz komutu gönderemez.",
   "serverAutomationDraftTranscript": "Ses dökümü",
@@ -4436,7 +4989,13 @@
   "serverAutomationDraftPreviewTitle": "Hedef, adımlar ve yan etkiler",
   "serverAutomationDraftNoCommand": "Cihaz komutu kullanılamaz · yalnız önizleme ve etkisiz kural oluşturma",
   "serverAutomationDraftExpires": "Bitiş: {expiresAt}",
-  "@serverAutomationDraftExpires": {"placeholders": {"expiresAt": {"type": "String"}}},
+  "@serverAutomationDraftExpires": {
+    "placeholders": {
+      "expiresAt": {
+        "type": "String"
+      }
+    }
+  },
   "serverAutomationDraftConfirm": "Onayla ve kural oluştur",
   "serverAutomationDraftRuleTitle": "Oluşturulan kural",
   "serverAutomationDraftRuleNotRun": "Kural saklandı · cihaz çalıştırılmadı · yürütme için ayrı açık yol gerekir",
@@ -4461,7 +5020,13 @@
   "serverMiniPluginOutput": "Son sınırlı çıktı",
   "serverMiniPluginZeroEffects": "Ağ isteği 0 · dosya sistemi baytı 0 · anahtar okuması 0 · host işlemi 0",
   "serverMiniPluginResourceCount": "Mevcut ev kaynakları: {count}",
-  "@serverMiniPluginResourceCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverMiniPluginResourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverMcpTitle": "Yetkili MCP istemcileri",
   "serverMcpIntro": "Bir istemciye yalnız seçilen mevcut ev araçlarını 30 dakika verin. Prompt metni yetki ekleyemez. İptal veya yetkinin verildiği oturumun kapanması erişimi hemen bitirir.",
   "serverMcpCreate": "İstemci yetkisi oluştur",
@@ -4480,7 +5045,13 @@
   "serverMcpChanged": "MCP istemci yetkisi değişti. Yeniden işlem yapmadan önce yenileyin.",
   "serverMcpFailure": "Core MCP istemci işlemini doğrulayamadı.",
   "serverMcpExpires": "bitiş {time}",
-  "@serverMcpExpires": {"placeholders": {"time": {"type": "String"}}},
+  "@serverMcpExpires": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "serverMcpActive": "Erişim etkin",
   "serverMcpInactive": "Erişim etkin değil",
   "serverMcpRevoke": "Erişimi iptal et",
@@ -4508,7 +5079,13 @@
   "serverSupportActive": "Destek erişimi etkin",
   "serverSupportInactive": "Destek erişimi etkin değil",
   "serverSupportRemaining": "{minutes} dk kaldı",
-  "@serverSupportRemaining": {"placeholders": {"minutes": {"type": "int"}}},
+  "@serverSupportRemaining": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "serverSupportLogPolicy": "Korumalı tanılama etkinliği",
   "serverSupportLogPolicyDetail": "Serbest biçimli günlükler, istek veya yanıt gövdeleri, kimlik bilgileri, çerezler ve yetkilendirme değerleri saklanmaz.",
   "serverSupportViewActivity": "Sınırlı etkinliği görüntüle",
@@ -4518,7 +5095,13 @@
   "serverSupportDenied": "Reddedildi",
   "serverSupportRevoke": "Desteğin bağlantısını kes",
   "serverSupportRevokeConfirm": "{name} desteğinin bağlantısı şimdi kesilsin mi? Mevcut token hemen çalışmayı bırakır.",
-  "@serverSupportRevokeConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "@serverSupportRevokeConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "serverSupportEmpty": "Bu ev için destek oturumu yok.",
   "serverFamilyMemoriesTitle": "Aile anıları",
   "serverFamilyMemoriesSearchHint": "Özel aile fotoğraflarında ara",
@@ -4538,7 +5121,13 @@
   "serverFamilyMemoriesDelete": "Albümü sil",
   "serverFamilyMemoriesDeleteConfirm": "Bu anı albümü silinsin mi? Immich'teki özgün fotoğraflar korunacak.",
   "serverFamilyMemoriesItems": "{count} fotoğraf",
-  "@serverFamilyMemoriesItems": {"placeholders": {"count": {"type": "int"}}},
+  "@serverFamilyMemoriesItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareTitle": "Özel olay paylaşımı",
   "privateEventShareSetupTitle": "Gizlilik kurulumu ve onay",
   "privateEventShareFullFrameExplanation": "Larenor her kareyi kenardan kenara bulanıklaştırır. Yüzleri veya plakaları algılamaz, tanımlamaz ya da konumlandırmaz.",
@@ -4572,11 +5161,32 @@
   "privateEventShareCreatePreview": "Korumalı önizleme oluştur",
   "privateEventShareOriginalStaysPrivate": "Özgün kayıt gizli kalır. Yalnız dönüştürülen çıktı paylaşılır.",
   "privateEventSharePipeline": "İşlem hattı: {id} r{revision}",
-  "@privateEventSharePipeline": {"placeholders": {"id": {"type": "String"}, "revision": {"type": "int"}}},
+  "@privateEventSharePipeline": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareMasks": "Gizlemeler: {masks}",
-  "@privateEventShareMasks": {"placeholders": {"masks": {"type": "String"}}},
+  "@privateEventShareMasks": {
+    "placeholders": {
+      "masks": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareRemovedMetadata": "Kaldırılan metadata: {metadata}",
-  "@privateEventShareRemovedMetadata": {"placeholders": {"metadata": {"type": "String"}}},
+  "@privateEventShareRemovedMetadata": {
+    "placeholders": {
+      "metadata": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareProtectedOutput": "Bu korumalı çıktıyı paylaş",
   "privateEventShareAccessToken": "Paylaşım erişim tokenı",
   "privateEventShareAccessTokenHint": "Bu tokenı kaydedip güvenilir bir kanaldan gönderin. Sonraki yenilemelerde tekrar gösterilmez.",
@@ -4584,9 +5194,21 @@
   "privateEventShareRevealToken": "Tokenı göster",
   "privateEventShareCopyToken": "Tokenı kopyala",
   "privateEventShareRecipient": "Alıcı: {recipient}",
-  "@privateEventShareRecipient": {"placeholders": {"recipient": {"type": "String"}}},
+  "@privateEventShareRecipient": {
+    "placeholders": {
+      "recipient": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareExpires": "Bitiş: {expires}",
-  "@privateEventShareExpires": {"placeholders": {"expires": {"type": "String"}}},
+  "@privateEventShareExpires": {
+    "placeholders": {
+      "expires": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareRevoked": "İptal edildi",
   "privateEventShareConsumed": "Kullanıldı",
   "privateEventShareAvailable": "Kullanılabilir",
@@ -4596,9 +5218,30 @@
   "privateEventShareAuditTruncated": "Yalnız en son erişim kayıtları gösteriliyor.",
   "privateEventShareNoAccess": "Erişim kaydı yok",
   "privateEventShareAuditEntry": "{action} · {recipient} · {occurredAt}",
-  "@privateEventShareAuditEntry": {"placeholders": {"action": {"type": "String"}, "recipient": {"type": "String"}, "occurredAt": {"type": "String"}}},
+  "@privateEventShareAuditEntry": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "recipient": {
+        "type": "String"
+      },
+      "occurredAt": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareDownloadReady": "Doğrulanmış indirme hazır: {fileName} ({bytes} bayt)",
-  "@privateEventShareDownloadReady": {"placeholders": {"fileName": {"type": "String"}, "bytes": {"type": "int"}}},
+  "@privateEventShareDownloadReady": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareNotConnected": "Bağlı değil",
   "privateEventShareNoItems": "Henüz öğe yok",
   "privateEventShareWorking": "İşleniyor",
@@ -4789,5 +5432,16 @@
   "serverAiResourcesCancelling": "İptal bekleniyor",
   "serverAiResourcesFailed": "Sağlayıcı başarısız oldu",
   "serverAiResourcesUncertain": "Çalışma durumu belirsiz",
-  "serverMusicManagerSessionRequired": "Ev müzik sistemini kullanmak için bu Core’da oturum açıp parola değişikliğini tamamla."
+  "serverMusicManagerSessionRequired": "Ev müzik sistemini kullanmak için bu Core’da oturum açıp parola değişikliğini tamamla.",
+  "serverAutomationDraftSpeechListen": "Taslağı söyle",
+  "serverAutomationDraftSpeechLocal": "Cihazdaki kurulu İngilizce veya Türkçe modeli kullanır. Ses bu cihazda kalır. Desteklenen eylemler: aç / kapat.",
+  "serverAutomationDraftSpeechReadback": "Bu metni sesli oku",
+  "serverAutomationDraftSpeechRecognized": "Metni gözden geçir veya düzenle, ardından taslağı önizle. Komut çalıştırılmadı.",
+  "serverAutomationDraftSpeechReady": "Mikrofon izni verildi. Başlamak için Taslağı söyle’ye dokun.",
+  "serverAutomationDraftSpeechPermission": "Mikrofon izni reddedildi. Sistem uygulama ayarlarından izin ver veya taslağı yaz.",
+  "serverAutomationDraftSpeechUnavailable": "Gerekli çevrimdışı konuşma modeli veya ses kurulu değil. Sistem konuşma ayarlarından yükle veya taslağı yaz.",
+  "serverAutomationDraftSpeechNoMatch": "Kullanılabilir bir konuşma tanınmadı. Tekrar dene veya taslağı yaz.",
+  "serverAutomationDraftSpeechTimeout": "Konuşma zaman aşımına uğradı. Yeni deneme için tekrar dokun.",
+  "serverAutomationDraftSelectTarget": "Hedefi seç",
+  "serverAutomationDraftTargetHint": "Doğrulanmış Home Assistant anahtarlarını yükle, ardından hedefi seç."
 }

@@ -9,15 +9,32 @@ import '../../domain/server_models.dart';
 import '../domain/server_automation_draft_models.dart';
 
 final class ServerAutomationDraftApi {
-  const ServerAutomationDraftApi(this.api, this.token, this.context);
+  const ServerAutomationDraftApi(
+    this.api,
+    this.token,
+    this.context, {
+    this.isCurrent,
+  });
+  final bool Function()? isCurrent;
+  void _current() {
+    if (isCurrent?.call() == false) {
+      throw const LarenorServerException('cancelled');
+    }
+  }
+
   final LarenorServerApi api;
   final String token;
   final ServerContext context;
   String get _root => '/automation-drafts/${context.coreId}/${context.homeId}';
 
-  Future<ServerAutomationDraftSelection> create(String transcript) async {
+  Future<ServerAutomationDraftSelection> create(
+    String transcript, {
+    String? resourceId,
+  }) async {
+    _current();
     await _validateCatalog();
-    final selected = await _selectSwitch();
+    final selected = await _selectSwitch(resourceId);
+    _current();
     final target = selected.$1;
     final snapshot = selected.$2;
     final json = serverObject(
@@ -37,13 +54,19 @@ final class ServerAutomationDraftApi {
         },
       ),
     );
+    _current();
+    final result = _draft(json);
+    if (result.resourceId != target.id) {
+      throw const LarenorServerException('invalid_response');
+    }
     return ServerAutomationDraftSelection(
-      draft: _draft(json),
+      draft: result,
       targetLabel: target.label,
     );
   }
 
   Future<ServerAutomationDraft> activate(ServerAutomationDraft draft) async {
+    _current();
     final json = serverObject(
       await api.request(
         'POST',
@@ -57,6 +80,7 @@ final class ServerAutomationDraftApi {
         },
       ),
     );
+    _current();
     final activated = _draft(json);
     if (activated.id != draft.id ||
         activated.resourceId != draft.resourceId ||
@@ -85,34 +109,47 @@ final class ServerAutomationDraftApi {
     }
   }
 
-  Future<(HomeResourceRecord, CoreHaSnapshot)> _selectSwitch() async {
+  Future<List<(HomeResourceRecord, CoreHaSnapshot)>> _targets({
+    String? resourceId,
+  }) async {
     String? after, snapshot;
+    final found = <(HomeResourceRecord, CoreHaSnapshot)>[];
     var seen = 0;
     do {
+      _current();
       final page = await HomeResourcesApi(
         api,
         token,
         context,
       ).list(after: after, snapshot: snapshot, limit: 100);
+      _current();
       snapshot ??= page.snapshot;
       for (final target in page.entries) {
         if (++seen > HomeResourcePage.maximumRecords) {
           throw const LarenorServerException('automation_draft_target_missing');
         }
-        if (target.kind != HomeResourceKind.resource || !target.canWrite) {
+        _current();
+        if ((resourceId != null && target.id != resourceId) ||
+            target.kind != HomeResourceKind.resource ||
+            !target.canWrite) {
           continue;
         }
         final homeAssistant = CoreHaApi(
           api,
           token,
           target,
-          isCurrent: () => true,
+          isCurrent: () => isCurrent?.call() ?? true,
         );
         try {
           final current = await homeAssistant.snapshot();
+          _current();
           if (current.projection.kind == 'switch' &&
               current.projection.commandAvailable) {
-            return (target, current);
+            found.add((target, current));
+            if (found.length > 256) {
+              throw const LarenorServerException('capacity_reached');
+            }
+            if (resourceId != null) return found;
           }
         } on LarenorServerException catch (error) {
           if (!{'not_found', 'ha_binding_missing'}.contains(error.code)) {
@@ -124,7 +161,28 @@ final class ServerAutomationDraftApi {
       }
       after = page.nextAfter;
     } while (after != null);
-    throw const LarenorServerException('automation_draft_target_missing');
+    return found;
+  }
+
+  Future<List<HomeResourceRecord>> targets() async {
+    final found = await _targets();
+    if (found.isEmpty) {
+      throw const LarenorServerException('automation_draft_target_missing');
+    }
+    return List.unmodifiable(found.map((entry) => entry.$1));
+  }
+
+  Future<(HomeResourceRecord, CoreHaSnapshot)> _selectSwitch(
+    String? resourceId,
+  ) async {
+    final found = await _targets(resourceId: resourceId);
+    if (found.isEmpty) {
+      throw const LarenorServerException('automation_draft_target_missing');
+    }
+    if (found.length != 1) {
+      throw const LarenorServerException('automation_draft_target_required');
+    }
+    return found.single;
   }
 
   ServerAutomationDraft _draft(Map<String, dynamic> json) {

@@ -473,27 +473,105 @@
   "jellyfinQualityAdvisorRemux": "Remux / Direct Stream",
   "jellyfinQualityAdvisorTranscode": "Transcode",
   "jellyfinQualityAdvisorPath": "Current server path: {method}",
-  "@jellyfinQualityAdvisorPath": {"placeholders": {"method": {"type": "String"}}},
+  "@jellyfinQualityAdvisorPath": {
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorEvidence": "Source: {container} · video {video} · audio {audio} · {bitrate}",
-  "@jellyfinQualityAdvisorEvidence": {"placeholders": {"container": {"type": "String"}, "video": {"type": "String"}, "audio": {"type": "String"}, "bitrate": {"type": "String"}}},
+  "@jellyfinQualityAdvisorEvidence": {
+    "placeholders": {
+      "container": {
+        "type": "String"
+      },
+      "video": {
+        "type": "String"
+      },
+      "audio": {
+        "type": "String"
+      },
+      "bitrate": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReason": "Server reason: {reason}",
-  "@jellyfinQualityAdvisorReason": {"placeholders": {"reason": {"type": "String"}}},
+  "@jellyfinQualityAdvisorReason": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReasonUnknown": "not reported",
   "jellyfinQualityAdvisorNetworkUnknown": "Measured network capacity: unavailable",
   "jellyfinQualityAdvisorReceiver": "Receiver evidence: Larenor libmpv profile. Physical codec and HDR support are not verified.",
   "jellyfinQualityAdvisorNetworkReported": "Network: {transport}; Android link estimate {downstream} Kbps. This is not measured throughput.",
-  "@jellyfinQualityAdvisorNetworkReported": {"placeholders": {"transport": {"type": "String"}, "downstream": {"type": "String"}}},
+  "@jellyfinQualityAdvisorNetworkReported": {
+    "placeholders": {
+      "transport": {
+        "type": "String"
+      },
+      "downstream": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorReceiverReported": "Receiver report: {videoCount} video codecs, {audioCount} audio codecs, display {resolution}. Physical playback acceptance remains unverified.",
-  "@jellyfinQualityAdvisorReceiverReported": {"placeholders": {"videoCount": {"type": "int"}, "audioCount": {"type": "int"}, "resolution": {"type": "String"}}},
+  "@jellyfinQualityAdvisorReceiverReported": {
+    "placeholders": {
+      "videoCount": {
+        "type": "int"
+      },
+      "audioCount": {
+        "type": "int"
+      },
+      "resolution": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorCoreEvidence": "Core evidence — codec {codec}, bitrate {bitrate}, network {network}, receiver {receiver}, HDR {hdr}.",
-  "@jellyfinQualityAdvisorCoreEvidence": {"placeholders": {"codec": {"type": "String"}, "bitrate": {"type": "String"}, "network": {"type": "String"}, "receiver": {"type": "String"}, "hdr": {"type": "String"}}},
+  "@jellyfinQualityAdvisorCoreEvidence": {
+    "placeholders": {
+      "codec": {
+        "type": "String"
+      },
+      "bitrate": {
+        "type": "String"
+      },
+      "network": {
+        "type": "String"
+      },
+      "receiver": {
+        "type": "String"
+      },
+      "hdr": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorStateReported": "reported",
   "jellyfinQualityAdvisorStateVerified": "verified",
   "jellyfinQualityAdvisorStateUnknown": "unknown",
   "jellyfinQualityAdvisorGaps": "Unverified evidence: {gaps}",
-  "@jellyfinQualityAdvisorGaps": {"placeholders": {"gaps": {"type": "String"}}},
+  "@jellyfinQualityAdvisorGaps": {
+    "placeholders": {
+      "gaps": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorRecommendations": "Suggestions: {recommendations}",
-  "@jellyfinQualityAdvisorRecommendations": {"placeholders": {"recommendations": {"type": "String"}}},
+  "@jellyfinQualityAdvisorRecommendations": {
+    "placeholders": {
+      "recommendations": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinQualityAdvisorManualAcceptance": "Advice only. Receiver and device acceptance must be verified manually.",
   "jellyfinQualityAdvisorGapSource": "source telemetry",
   "jellyfinQualityAdvisorGapCodec": "codec",
@@ -614,17 +692,29 @@
   "bazarrSearchBudget": "{remaining} of {maximum} subtitle searches remain for this session",
   "@bazarrSearchBudget": {
     "placeholders": {
-      "remaining": {"type": "int"},
-      "maximum": {"type": "int"}
+      "remaining": {
+        "type": "int"
+      },
+      "maximum": {
+        "type": "int"
+      }
     }
   },
   "bazarrPreferredSubtitle": "Preferred subtitle: {language}",
   "@bazarrPreferredSubtitle": {
-    "placeholders": {"language": {"type": "String"}}
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   },
   "bazarrSearchConsentTitle": "Search for {language} subtitles?",
   "@bazarrSearchConsentTitle": {
-    "placeholders": {"language": {"type": "String"}}
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   },
   "bazarrSearchConsentBody": "Bazarr will search its configured providers. This uses one session search and may consume provider quota.",
   "bazarrSearchConfirmed": "Available after verified Bazarr refresh",
@@ -1048,7 +1138,13 @@
   "serverBackupsReady": "Ready for an encrypted backup",
   "serverBackupsBlocked": "Backup temporarily blocked",
   "serverBackupsBlockedHint": "Finish {count} active operation(s), then refresh this check.",
-  "@serverBackupsBlockedHint": {"placeholders": {"count": {"type": "int"}}},
+  "@serverBackupsBlockedHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverBackupsCreated": "Snapshot check",
   "serverBackupsCoreVersion": "Core version",
   "serverBackupsDatabaseVersion": "Database schema",
@@ -1061,7 +1157,13 @@
   "serverBackupsManagedVolumes": "Managed component volumes",
   "serverBackupsConsistencyBoundary": "Consistency boundary",
   "serverBackupsConsistencyValue": "Core write lock and component quiescence, bounded to {seconds} seconds",
-  "@serverBackupsConsistencyValue": {"placeholders": {"seconds": {"type": "int"}}},
+  "@serverBackupsConsistencyValue": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "serverBackupsFamilyBoard": "Family board",
   "serverBackupsExportTitle": "Export encrypted Core backup",
   "serverBackupsPassphrase": "Backup passphrase",
@@ -1096,7 +1198,13 @@
   "serverRecoveryDrillHint": "Restore a fresh Core backup into an isolated temporary target, verify every protected resource, and keep a bounded result receipt. Production services and devices are never changed.",
   "serverRecoveryDrillMonthly": "Run every 30 days",
   "serverRecoveryDrillNext": "Next drill: {date}",
-  "@serverRecoveryDrillNext": {"placeholders": {"date": {"type": "String"}}},
+  "@serverRecoveryDrillNext": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "serverRecoveryDrillRunNow": "Run drill now",
   "serverRecoveryDrillHistory": "Recent drills",
   "serverRecoveryDrillManual": "Manual",
@@ -1115,7 +1223,13 @@
   "serverImmutableBackupNext": "Next backup",
   "serverImmutableBackupRetention": "Protected retention",
   "serverImmutableBackupDays": "{count} days",
-  "@serverImmutableBackupDays": {"placeholders": {"count": {"type": "int"}}},
+  "@serverImmutableBackupDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverImmutableBackupQuota": "Remote quota",
   "serverImmutableBackupEndpoint": "HTTPS target origin",
   "serverImmutableBackupTargetId": "Target ID",
@@ -1129,7 +1243,13 @@
   "serverImmutableBackupPoints": "Recovery points",
   "serverImmutableBackupNoPoints": "No protected recovery point has been stored yet.",
   "serverImmutableBackupProtectedUntil": "Protected until {date}",
-  "@serverImmutableBackupProtectedUntil": {"placeholders": {"date": {"type": "String"}}},
+  "@serverImmutableBackupProtectedUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "backupIntro": "Keep an encrypted copy of your Larenor setup. Choose what to include and save it with Files.",
   "backupExport": "Export encrypted backup",
   "backupRestore": "Restore from backup",
@@ -1903,7 +2023,13 @@
   "serverMusicLongformSleepTimer": "Sleep timer",
   "serverMusicLongformSleepOff": "Off",
   "serverMusicLongformMinutes": "{count} minutes",
-  "@serverMusicLongformMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@serverMusicLongformMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverMusicLongformBookmarks": "Bookmarks",
   "serverMusicLongformAddBookmark": "Add bookmark here",
   "serverMusicLongformRemoveBookmark": "Remove bookmark",
@@ -2070,9 +2196,27 @@
   "ambientContentPdf": "PDF {number}",
   "ambientContentWeb": "Web page {number}",
   "ambientContentRemoveMessage": "Remove this item from the ambient list? Original local files and the web page are unchanged.",
-  "@ambientContentVideo": {"placeholders": {"number": {"type": "int"}}},
-  "@ambientContentPdf": {"placeholders": {"number": {"type": "int"}}},
-  "@ambientContentWeb": {"placeholders": {"number": {"type": "int"}}},
+  "@ambientContentVideo": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@ambientContentPdf": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "@ambientContentWeb": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "ambientHint": "Choose the clock and photos shown after inactivity. Enable the idle screen in Display settings.",
   "ambientPhotosEnabled": "Show my selected photos",
   "ambientSharedHint": "These photos are visible to anyone looking at this screen. Only photos you select are copied; your photo library is not scanned.",
@@ -2248,11 +2392,47 @@
   "serverTabletFleetRolloutApply": "Publish profile to ready canary tablets",
   "serverTabletFleetRolloutApplied": "Core published the verified profile to the selected canary tablets.",
   "serverTabletFleetRolloutRelease": "Larenor {version} ({code}) · certificate {certificate}",
-  "@serverTabletFleetRolloutRelease": {"placeholders":{"version":{"type":"String"},"code":{"type":"int"},"certificate":{"type":"String"}}},
+  "@serverTabletFleetRolloutRelease": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "code": {
+        "type": "int"
+      },
+      "certificate": {
+        "type": "String"
+      }
+    }
+  },
   "serverTabletFleetRolloutCounts": "Ready {ready} · deferred {deferred} · app update {updates} · current {current}",
-  "@serverTabletFleetRolloutCounts": {"placeholders":{"ready":{"type":"int"},"deferred":{"type":"int"},"updates":{"type":"int"},"current":{"type":"int"}}},
+  "@serverTabletFleetRolloutCounts": {
+    "placeholders": {
+      "ready": {
+        "type": "int"
+      },
+      "deferred": {
+        "type": "int"
+      },
+      "updates": {
+        "type": "int"
+      },
+      "current": {
+        "type": "int"
+      }
+    }
+  },
   "serverTabletFleetRolloutRevision": "Profile revision {revision} · {percent}% canary",
-  "@serverTabletFleetRolloutRevision": {"placeholders":{"revision":{"type":"int"},"percent":{"type":"int"}}},
+  "@serverTabletFleetRolloutRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "serverIntro": "Sign in to your own Larenor Server. Your Home Assistant connection remains separately configured.",
   "serverUrl": "Server address",
   "serverUsername": "Username",
@@ -2454,19 +2634,25 @@
   "serverEgressAllowed": "Allowed for {count} pinned addresses",
   "@serverEgressAllowed": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "serverEgressRevision": "Policy revision {revision}",
   "@serverEgressRevision": {
     "placeholders": {
-      "revision": {"type": "int"}
+      "revision": {
+        "type": "int"
+      }
     }
   },
   "serverEgressAudit": "{count} recent policy events",
   "@serverEgressAudit": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "serverEgressDisable": "Block access",
@@ -2634,7 +2820,11 @@
   "serverMediaPlaybackPrepare": "Choose a player",
   "serverMediaPlaybackTarget": "Play on {name}",
   "@serverMediaPlaybackTarget": {
-    "placeholders": {"name": {"type": "String"}}
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "serverMediaPlaybackConfirmTitle": "Start managed playback?",
   "serverMediaPlaybackConfirmBody": "Core will recheck this item and player before replacing its current playback.",
@@ -3737,7 +3927,9 @@
   "localNotificationsBackgroundExpiry": "Lease expires {time}",
   "@localNotificationsBackgroundExpiry": {
     "placeholders": {
-      "time": {"type": "String"}
+      "time": {
+        "type": "String"
+      }
     }
   },
   "remoteAccessDeviceLocal": "On this tablet",
@@ -3761,23 +3953,71 @@
   "irrigationBudgetRefresh": "Refresh recommendations",
   "irrigationBudgetSummary": "Today's water budget",
   "irrigationRain": "Forecast rain: {millimeters} mm",
-  "@irrigationRain": {"placeholders": {"millimeters": {"type": "double"}}},
+  "@irrigationRain": {
+    "placeholders": {
+      "millimeters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationDailyLimit": "Daily limit: {liters} L",
-  "@irrigationDailyLimit": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationDailyLimit": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationUsed": "Used: {liters} L",
-  "@irrigationUsed": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationUsed": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationPlanned": "Planned: {liters} L",
-  "@irrigationPlanned": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationPlanned": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationForecastVerified": "Forecast source is current",
   "irrigationForecastStale": "Forecast is stale; affected zones remain blocked",
   "irrigationMoisture": "Soil moisture: {percent}%",
-  "@irrigationMoisture": {"placeholders": {"percent": {"type": "double"}}},
+  "@irrigationMoisture": {
+    "placeholders": {
+      "percent": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationZoneStatus": "Recommendation: {status}",
-  "@irrigationZoneStatus": {"placeholders": {"status": {"type": "String"}}},
+  "@irrigationZoneStatus": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
   "irrigationDuration": "Duration: {minutes} min",
-  "@irrigationDuration": {"placeholders": {"minutes": {"type": "int"}}},
+  "@irrigationDuration": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "irrigationWater": "Estimated water: {liters} L",
-  "@irrigationWater": {"placeholders": {"liters": {"type": "double"}}},
+  "@irrigationWater": {
+    "placeholders": {
+      "liters": {
+        "type": "double"
+      }
+    }
+  },
   "irrigationZonePlanned": "planned",
   "irrigationZoneDeferred": "deferred",
   "irrigationZoneSkipped": "not needed",
@@ -3957,8 +4197,12 @@
   "personalCameraProfileReady": "Encrypted profile ready from {sampleCount} samples · {createdAt}",
   "@personalCameraProfileReady": {
     "placeholders": {
-      "sampleCount": {"type": "int"},
-      "createdAt": {"type": "String"}
+      "sampleCount": {
+        "type": "int"
+      },
+      "createdAt": {
+        "type": "String"
+      }
     }
   },
   "personalCameraProfileEnroll": "Enroll this face",
@@ -3993,7 +4237,13 @@
   "kioskSensorsCameraPermissionDenied": "Camera permission is not granted",
   "kioskSensorsBattery": "Battery",
   "kioskSensorsBatteryPercent": "{percent}%",
-  "@kioskSensorsBatteryPercent": {"placeholders": {"percent": {"type": "String"}}},
+  "@kioskSensorsBatteryPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "kioskSensorsThermal": "Thermal load",
   "kioskSensorsThermalNone": "Normal",
   "kioskSensorsThermalLight": "Light",
@@ -4057,7 +4307,13 @@
   "weeklyMealPlanRetry": "Try again",
   "weeklyMealPlanIngredients": "Ingredients",
   "weeklyMealPlanServings": "{count} servings",
-  "@weeklyMealPlanServings": {"placeholders": {"count": {"type": "int"}}},
+  "@weeklyMealPlanServings": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyMealPlanBreakfast": "Breakfast",
   "weeklyMealPlanLunch": "Lunch",
   "weeklyMealPlanDinner": "Dinner",
@@ -4066,10 +4322,28 @@
   "weeklyMealPlanShoppingHint": "Review the scaled ingredients before adding them to a writable Home Assistant shopping list.",
   "weeklyMealPlanShoppingFailed": "The shopping handoff could not be verified. Check the selected list before retrying.",
   "weeklyMealPlanShoppingSuccess": "{count} ingredients were verified in {list}.",
-  "@weeklyMealPlanShoppingSuccess": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "@weeklyMealPlanShoppingSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "list": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyMealPlanShoppingConfirmTitle": "Add ingredients?",
   "weeklyMealPlanShoppingConfirmBody": "Add {count} ingredients to {list}? Each item is confirmed by a fresh Home Assistant readback.",
-  "@weeklyMealPlanShoppingConfirmBody": {"placeholders": {"count": {"type": "int"}, "list": {"type": "String"}}},
+  "@weeklyMealPlanShoppingConfirmBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "list": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyMealPlanShoppingConfirm": "Add ingredients",
   "weeklyMealPlanShoppingNoWritableList": "No writable Home Assistant todo list with description support is available.",
   "weeklyMealPlanShoppingChooseList": "Home Assistant todo list",
@@ -4134,27 +4408,78 @@
   "powerBudgetRefresh": "Refresh recommendations",
   "powerBudgetSummary": "Current budget",
   "powerBudgetImport": "Grid import: {watts} W",
-  "@powerBudgetImport": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetImport": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetLimit": "Configured limit: {watts} W",
-  "@powerBudgetLimit": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetLimit": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetReduction": "Suggested reduction: {watts} W",
-  "@powerBudgetReduction": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetReduction": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetManualOnly": "Manual recommendation only",
   "powerBudgetNoDeferral": "No load deferral is currently suggested.",
   "powerBudgetDefer": "Defer up to {watts} W",
-  "@powerBudgetDefer": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetDefer": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetTarget": "Suggested target: {watts} W",
-  "@powerBudgetTarget": {"placeholders": {"watts": {"type": "int"}}},
+  "@powerBudgetTarget": {
+    "placeholders": {
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetPriority": "Priority: {priority}",
-  "@powerBudgetPriority": {"placeholders": {"priority": {"type": "int"}}},
+  "@powerBudgetPriority": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetConfirmTitle": "Apply this power plan?",
   "powerBudgetConfirmBody": "Apply {count} compatible load changes for a total {watts} W reduction. Critical loads are excluded. Each device uses the communication-loss behavior shown below.",
-  "@powerBudgetConfirmBody": {"placeholders": {"count": {"type": "int"}, "watts": {"type": "int"}}},
+  "@powerBudgetConfirmBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "watts": {
+        "type": "int"
+      }
+    }
+  },
   "powerBudgetConfirmAction": "Confirm manual power plan",
   "powerBudgetApplied": "The plan was applied once and verified by readback.",
   "powerBudgetUncertain": "The result is uncertain. Do not repeat the command; refresh to reconcile the device state.",
   "powerBudgetCommunicationLoss": "If communication is lost: {behavior}",
-  "@powerBudgetCommunicationLoss": {"placeholders": {"behavior": {"type": "String"}}},
+  "@powerBudgetCommunicationLoss": {
+    "placeholders": {
+      "behavior": {
+        "type": "String"
+      }
+    }
+  },
   "powerBudgetLossStop": "stop charging",
   "powerBudgetLossHold": "hold the last safe limit",
   "powerBudgetLossProvider": "use the device provider's safe behavior",
@@ -4267,7 +4592,13 @@
   "kioskRemotePairingHint": "MQTT client and topic identities are public metadata. The secret is shown only when created.",
   "kioskRemoteEmpty": "No paired remote is configured.",
   "kioskRemoteScopeList": "Permissions: {scopes}",
-  "@kioskRemoteScopeList": {"placeholders": {"scopes": {"type": "String"}}},
+  "@kioskRemoteScopeList": {
+    "placeholders": {
+      "scopes": {
+        "type": "String"
+      }
+    }
+  },
   "kioskRemoteActive": "Active",
   "kioskRemoteRevoked": "Revoked or expired",
   "kioskRemoteRevoke": "Revoke",
@@ -4353,9 +4684,21 @@
   "jellyfinLegacyTrackPreferencesTitle": "Previous language preferences found",
   "jellyfinLegacyTrackPreferencesBody": "Review the retained choices before saving them to this Larenor account. The previous Jellyfin address and credentials stay on this device.",
   "jellyfinLegacyTrackPreferencesAudio": "Audio: {language}",
-  "@jellyfinLegacyTrackPreferencesAudio": {"placeholders": {"language": {"type": "String"}}},
+  "@jellyfinLegacyTrackPreferencesAudio": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinLegacyTrackPreferencesSubtitle": "Subtitles: {language}",
-  "@jellyfinLegacyTrackPreferencesSubtitle": {"placeholders": {"language": {"type": "String"}}},
+  "@jellyfinLegacyTrackPreferencesSubtitle": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "jellyfinLegacyTrackPreferencesOff": "Off",
   "jellyfinLegacyTrackPreferencesConfirm": "Use these preferences",
   "jellyfinLegacyTrackPreferencesCancel": "Not now",
@@ -4509,7 +4852,11 @@
   "jellyfinOfflineMediaReady": "Encrypted offline copy is ready on this device.",
   "jellyfinOfflineMediaProgress": "Downloaded {progress}%",
   "@jellyfinOfflineMediaProgress": {
-    "placeholders": {"progress": {"type": "int"}}
+    "placeholders": {
+      "progress": {
+        "type": "int"
+      }
+    }
   },
   "jellyfinWatchPartyTitle": "Watch together",
   "jellyfinWatchPartyHint": "Create a private room or join with a shared code. Playback changes stay bound to the current room and media revisions.",
@@ -4520,14 +4867,22 @@
   "jellyfinWatchPartyLeave": "Leave room",
   "jellyfinWatchPartyTransfer": "Make …{account} the leader",
   "@jellyfinWatchPartyTransfer": {
-    "placeholders": {"account": {"type": "String"}}
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
   },
   "jellyfinWatchPartyRefreshNeeded": "The room changed. Refreshing the current authority is required.",
   "jellyfinWatchPartyStatus": "{count} connected · ±{tolerance} ms sync window",
   "@jellyfinWatchPartyStatus": {
     "placeholders": {
-      "count": {"type": "int"},
-      "tolerance": {"type": "int"}
+      "count": {
+        "type": "int"
+      },
+      "tolerance": {
+        "type": "int"
+      }
     }
   },
   "serverPowerRecoveryTitle": "Orderly power recovery",
@@ -4559,11 +4914,29 @@
   "serverPowerRecoveryProvisioningFailed": "The Proxmox target could not be verified. Refresh current resources and try again.",
   "serverPowerRecoveryProxmoxUnverified": "This saved VM target has no current provider authority. Replace it with a verified Proxmox selection before saving.",
   "serverPowerRecoveryProxmoxTarget": "Verified {node} · {kind} #{guestId}",
-  "@serverPowerRecoveryProxmoxTarget": {"placeholders": {"node": {"type": "String"}, "kind": {"type": "String"}, "guestId": {"type": "int"}}},
+  "@serverPowerRecoveryProxmoxTarget": {
+    "placeholders": {
+      "node": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "guestId": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryInvalid": "Check the UPS identity, token, limits and target order. The Core host must be last.",
   "serverPowerRecoverySave": "Save power policy",
   "serverPowerRecoveryTargetNumber": "Target {number}",
-  "@serverPowerRecoveryTargetNumber": {"placeholders": {"number": {"type": "int"}}},
+  "@serverPowerRecoveryTargetNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryTargetLabel": "Target name",
   "serverPowerRecoveryKindService": "Service",
   "serverPowerRecoveryKindGuest": "VM",
@@ -4575,7 +4948,13 @@
   "serverPowerRecoveryHistory": "Recovery receipts",
   "serverPowerRecoveryNoRuns": "No power recovery run has started.",
   "serverPowerRecoveryStepCount": "{count} durable steps",
-  "@serverPowerRecoveryStepCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverPowerRecoveryStepCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverPowerRecoveryFailed": "Power recovery status could not be loaded.",
   "serverPowerRecoveryOnline": "Online",
   "serverPowerRecoveryOnBattery": "On battery",
@@ -4603,7 +4982,13 @@
   "serverHomesTitle": "Homes and Cores",
   "serverHomesIntro": "Each home keeps an independent Core session. Switching retires the current home runtime before the selected Core is verified.",
   "serverHomesCount": "{count} saved homes",
-  "@serverHomesCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverHomesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverHomesActive": "Active home",
   "serverHomesSwitch": "Switch to this home",
   "serverHomesRename": "Rename",
@@ -4612,32 +4997,92 @@
   "serverHomesName": "Home name",
   "serverHomesRemoveTitle": "Remove saved home?",
   "serverHomesRemoveHint": "{name} will be removed from this device and its session revocation will be attempted.",
-  "@serverHomesRemoveHint": {"placeholders": {"name": {"type": "String"}}},
+  "@serverHomesRemoveHint": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "serverHomesOperationFailed": "The saved home operation could not be completed.",
   "serverHomesRecoveryTarget": "Recovery target for this Core",
   "serverHomesHandoff": "Authorize cross-home handoff",
   "serverHomesHandoffTitle": "Choose the destination home",
   "serverHomesHandoffHint": "Larenor verifies the source and destination with their own Core sessions. No token or cached data is shared between homes.",
   "serverHomesHandoffVerified": "{source} and {target} were independently authorized.",
-  "@serverHomesHandoffVerified": {"placeholders": {"source": {"type": "String"}, "target": {"type": "String"}}},
+  "@serverHomesHandoffVerified": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiResourcesTitle": "AI resources",
   "serverAiResourcesIntro": "Set hard memory, CPU and concurrency limits for local AI work. Media playback automatically uses the lower CPU ceiling.",
   "serverAiResourcesLocked": "AI resource management is locked. Return to Settings and verify the current administrator session.",
   "serverAiResourcesCapacity": "Current capacity",
   "serverAiResourcesHardware": "Core hardware",
   "serverAiResourcesHardwareValue": "{memory} MB memory · {cpus} CPU cores",
-  "@serverAiResourcesHardwareValue": {"placeholders": {"memory": {"type": "int"}, "cpus": {"type": "int"}}},
+  "@serverAiResourcesHardwareValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpus": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesAllocated": "Allocated now",
   "serverAiResourcesAllocatedValue": "{memory} MB · {cpu}% of {limit}% CPU ceiling",
-  "@serverAiResourcesAllocatedValue": {"placeholders": {"memory": {"type": "int"}, "cpu": {"type": "int"}, "limit": {"type": "int"}}},
+  "@serverAiResourcesAllocatedValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesMeasured": "Measured Core load",
   "serverAiResourcesMeasuredValue": "Process memory {memory} MB · normalized system load {load}%",
-  "@serverAiResourcesMeasuredValue": {"placeholders": {"memory": {"type": "int"}, "load": {"type": "int"}}},
+  "@serverAiResourcesMeasuredValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "load": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesMediaActive": "Media is active; local AI is using the reduced CPU ceiling.",
   "serverAiResourcesMediaIdle": "No current media lease; the normal CPU ceiling applies.",
   "serverAiResourcesPolicy": "Resource policy",
   "serverAiResourcesPolicyValue": "{memory} MB · {cpu}% CPU · {jobs} jobs · {media}% while media plays",
-  "@serverAiResourcesPolicyValue": {"placeholders": {"memory": {"type": "int"}, "cpu": {"type": "int"}, "jobs": {"type": "int"}, "media": {"type": "int"}}},
+  "@serverAiResourcesPolicyValue": {
+    "placeholders": {
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "jobs": {
+        "type": "int"
+      },
+      "media": {
+        "type": "int"
+      }
+    }
+  },
   "serverAiResourcesConservative": "Conservative",
   "serverAiResourcesBalanced": "Balanced",
   "serverAiResourcesPerformance": "Performance",
@@ -4645,7 +5090,22 @@
   "serverAiResourcesQueueEmpty": "No local AI work is queued.",
   "serverAiResourcesQueueHint": "Jobs run by priority within the current policy. Select a job owned by this session to cancel it.",
   "serverAiResourcesJobValue": "Priority {priority} · {memory} MB · {cpu}% CPU · {state}",
-  "@serverAiResourcesJobValue": {"placeholders": {"priority": {"type": "int"}, "memory": {"type": "int"}, "cpu": {"type": "int"}, "state": {"type": "String"}}},
+  "@serverAiResourcesJobValue": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      },
+      "memory": {
+        "type": "int"
+      },
+      "cpu": {
+        "type": "int"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiResourcesInsufficientHardware": "Hardware insufficient",
   "serverAiResourcesMediaThrottled": "Paused for media",
   "serverAiResourcesWaiting": "Waiting",
@@ -4670,7 +5130,19 @@
   "serverAiMemoryOneWeek": "7 days",
   "serverAiMemoryOneMonth": "30 days",
   "serverAiMemoryDetails": "Source: {source} · learned by {user}\nExpires {expires}",
-  "@serverAiMemoryDetails": {"placeholders": {"source": {"type": "String"}, "user": {"type": "String"}, "expires": {"type": "String"}}},
+  "@serverAiMemoryDetails": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "user": {
+        "type": "String"
+      },
+      "expires": {
+        "type": "String"
+      }
+    }
+  },
   "serverAiMemoryCreated": "Memory saved and verified.",
   "serverAiMemoryCorrected": "Memory corrected and verified.",
   "serverAiMemoryForgotten": "Memory and its derived index were forgotten.",
@@ -4690,12 +5162,27 @@
   "serverEvidenceDiagnosticLimited": "Certainty is limited because some facts remain unknown.",
   "serverEvidenceDiagnosticSupported": "The result is supported by the listed sources.",
   "serverEvidenceDiagnosticSourceValue": "State {state} · revision {revision}",
-  "@serverEvidenceDiagnosticSourceValue": {"placeholders": {"state": {"type": "String"}, "revision": {"type": "int"}}},
+  "@serverEvidenceDiagnosticSourceValue": {
+    "placeholders": {
+      "state": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "serverEvidenceDiagnosticFindings": "Findings and unknowns",
   "serverEvidenceDiagnosticNoFindings": "No fault finding was produced.",
   "serverEvidenceDiagnosticUnknownHint": "The diagnostic explicitly leaves this fact unknown.",
   "serverEvidenceDiagnosticRedactions": "{count} source details were redacted before storage.",
-  "@serverEvidenceDiagnosticRedactions": {"placeholders": {"count": {"type": "int"}}},
+  "@serverEvidenceDiagnosticRedactions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverEvidenceDiagnosticRepair": "Repair guidance",
   "serverEvidenceDiagnosticPreview": "Create repair preview",
   "serverEvidenceDiagnosticPreviewOnly": "This is an authorization-bound preview. It cannot execute a repair.",
@@ -4704,7 +5191,13 @@
   "serverTabletFleetProfileHistoryEmpty": "No archived profile is available.",
   "serverTabletFleetHistoryLoaded": "Profile history was verified by Core.",
   "serverTabletFleetRestoreRevision": "Restore revision {revision}",
-  "@serverTabletFleetRestoreRevision": {"placeholders": {"revision": {"type": "int"}}},
+  "@serverTabletFleetRestoreRevision": {
+    "placeholders": {
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "serverTabletFleetRestoreVerified": "The archived profile was restored as a new revision and verified.",
   "serverHabitAnomalyTitle": "Habit anomalies",
   "serverHabitAnomalyIntro": "Read recent Home Assistant history for a bound resource to build a private routine baseline. Missing, unsupported, or stale history stays unknown.",
@@ -4721,15 +5214,45 @@
   "serverHabitAnomalyUnknownSpan": "Unknown: the baseline needs a longer time span",
   "serverHabitAnomalyUnknownSamples": "Unknown: more observations are required",
   "serverHabitAnomalyModel": "Model {model} · {count}/{requiredCount} observations",
-  "@serverHabitAnomalyModel": {"placeholders": {"model": {"type": "String"}, "count": {"type": "int"}, "requiredCount": {"type": "int"}}},
+  "@serverHabitAnomalyModel": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "requiredCount": {
+        "type": "int"
+      }
+    }
+  },
   "serverHabitAnomalyUnavailableServices": "State changes per 2 minutes",
   "serverHabitAnomalyBaseline": "Robust baseline",
   "serverHabitAnomalyBaselineValue": "Center {center} · tolerance ±{tolerance} · {count} baseline observations",
-  "@serverHabitAnomalyBaselineValue": {"placeholders": {"center": {"type": "String"}, "tolerance": {"type": "String"}, "count": {"type": "int"}}},
+  "@serverHabitAnomalyBaselineValue": {
+    "placeholders": {
+      "center": {
+        "type": "String"
+      },
+      "tolerance": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverHabitAnomalyFeedback": "Observation feedback",
   "serverHabitAnomalyFeedbackHint": "Mark the latest result so later model revisions can distinguish normal behavior and false positives.",
   "serverHabitAnomalyFeedbackRecorded": "Recorded label: {label}",
-  "@serverHabitAnomalyFeedbackRecorded": {"placeholders": {"label": {"type": "String"}}},
+  "@serverHabitAnomalyFeedbackRecorded": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "serverHabitAnomalyMarkNormal": "Mark as normal",
   "serverHabitAnomalyMarkFalsePositive": "Mark as false positive",
   "serverAutomationTrialTitle": "Automation trial week",
@@ -4747,14 +5270,32 @@
   "serverAutomationTrialReport": "Seven-day decision report",
   "serverAutomationTrialZeroWrites": "Simulation only · adapter writes 0 · physical outcomes are not claimed",
   "serverAutomationTrialDuration": "UTC duration {seconds} seconds; local calendar duration is exactly seven days.",
-  "@serverAutomationTrialDuration": {"placeholders": {"seconds": {"type": "int"}}},
+  "@serverAutomationTrialDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationTrialDecisions": "Triggered / suppressed",
   "serverAutomationTrialDecisionLegend": "Counts include both real and synthetic event evaluations.",
   "serverAutomationTrialRealEvent": "Run real service check",
   "serverAutomationTrialSyntheticEvent": "Add synthetic event",
   "serverAutomationTrialLatestEvent": "Latest event decision",
   "serverAutomationTrialLocalTime": "Local {localTime} · UTC offset {offset}s · fold {fold}",
-  "@serverAutomationTrialLocalTime": {"placeholders": {"localTime": {"type": "String"}, "offset": {"type": "int"}, "fold": {"type": "int"}}},
+  "@serverAutomationTrialLocalTime": {
+    "placeholders": {
+      "localTime": {
+        "type": "String"
+      },
+      "offset": {
+        "type": "int"
+      },
+      "fold": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationTrialNoDecision": "No rule matched this event.",
   "serverAutomationTrialTriggered": "Would trigger",
   "serverAutomationTrialSuppressed": "Suppressed",
@@ -4764,9 +5305,27 @@
   "serverAutomationReplayComplete": "Replay complete",
   "serverAutomationReplayUnknown": "Unknown: historical events are missing",
   "serverAutomationReplayCounts": "Available {available}/{requiredCount} · changed decisions {changed}",
-  "@serverAutomationReplayCounts": {"placeholders": {"available": {"type": "int"}, "requiredCount": {"type": "int"}, "changed": {"type": "int"}}},
+  "@serverAutomationReplayCounts": {
+    "placeholders": {
+      "available": {
+        "type": "int"
+      },
+      "requiredCount": {
+        "type": "int"
+      },
+      "changed": {
+        "type": "int"
+      }
+    }
+  },
   "serverAutomationReplayFingerprint": "Deterministic input fingerprint {fingerprint} · adapter writes 0 · queue writes 0",
-  "@serverAutomationReplayFingerprint": {"placeholders": {"fingerprint": {"type": "String"}}},
+  "@serverAutomationReplayFingerprint": {
+    "placeholders": {
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
   "serverAutomationDraftTitle": "Guarded automation draft",
   "serverAutomationDraftIntro": "Turn a short voice transcript into a schema-validated preview. The approved catalog can create an inert rule only after explicit confirmation; this screen cannot send a device command.",
   "serverAutomationDraftTranscript": "Voice transcript",
@@ -4789,7 +5348,13 @@
   "serverAutomationDraftPreviewTitle": "Target, steps, and side effects",
   "serverAutomationDraftNoCommand": "Device command unavailable · preview and inert rule creation only",
   "serverAutomationDraftExpires": "Expires at {expiresAt}",
-  "@serverAutomationDraftExpires": {"placeholders": {"expiresAt": {"type": "String"}}},
+  "@serverAutomationDraftExpires": {
+    "placeholders": {
+      "expiresAt": {
+        "type": "String"
+      }
+    }
+  },
   "serverAutomationDraftConfirm": "Confirm and create rule",
   "serverAutomationDraftRuleTitle": "Created rule",
   "serverAutomationDraftRuleNotRun": "Rule stored · device not executed · execution requires a separate explicit path",
@@ -4814,7 +5379,13 @@
   "serverMiniPluginOutput": "Latest bounded output",
   "serverMiniPluginZeroEffects": "Network requests 0 · filesystem bytes 0 · secret reads 0 · host operations 0",
   "serverMiniPluginResourceCount": "Current home resources: {count}",
-  "@serverMiniPluginResourceCount": {"placeholders": {"count": {"type": "int"}}},
+  "@serverMiniPluginResourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "serverMcpTitle": "Authorized MCP clients",
   "serverMcpIntro": "Grant one client only the selected current-home tools for 30 minutes. Prompt text cannot add authority. Revocation and the originating sign-in session end access immediately.",
   "serverMcpCreate": "Create client grant",
@@ -4833,7 +5404,13 @@
   "serverMcpChanged": "The MCP client grant changed. Refresh before acting again.",
   "serverMcpFailure": "Core could not validate the MCP client operation.",
   "serverMcpExpires": "expires {time}",
-  "@serverMcpExpires": {"placeholders": {"time": {"type": "String"}}},
+  "@serverMcpExpires": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "serverMcpActive": "Access active",
   "serverMcpInactive": "Access inactive",
   "serverMcpRevoke": "Revoke access",
@@ -4861,7 +5438,13 @@
   "serverSupportActive": "Support access active",
   "serverSupportInactive": "Support access inactive",
   "serverSupportRemaining": "{minutes} min remaining",
-  "@serverSupportRemaining": {"placeholders": {"minutes": {"type": "int"}}},
+  "@serverSupportRemaining": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "serverSupportLogPolicy": "Protected diagnostic activity",
   "serverSupportLogPolicyDetail": "No free-form logs, request or response bodies, credentials, cookies, or authorization values are stored.",
   "serverSupportViewActivity": "View bounded activity",
@@ -4871,7 +5454,13 @@
   "serverSupportDenied": "Denied",
   "serverSupportRevoke": "Disconnect support",
   "serverSupportRevokeConfirm": "Disconnect {name} now? The current token will stop working immediately.",
-  "@serverSupportRevokeConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "@serverSupportRevokeConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "serverSupportEmpty": "No support session exists for this home.",
   "serverFamilyMemoriesTitle": "Family memories",
   "serverFamilyMemoriesSearchHint": "Search private family photos",
@@ -4891,7 +5480,13 @@
   "serverFamilyMemoriesDelete": "Delete album",
   "serverFamilyMemoriesDeleteConfirm": "Delete this memory album? The original photos in Immich will be kept.",
   "serverFamilyMemoriesItems": "{count} photos",
-  "@serverFamilyMemoriesItems": {"placeholders": {"count": {"type": "int"}}},
+  "@serverFamilyMemoriesItems": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareTitle": "Private event sharing",
   "privateEventShareSetupTitle": "Privacy setup and consent",
   "privateEventShareFullFrameExplanation": "Larenor blurs every frame from edge to edge. It does not detect, identify, or locate faces or license plates.",
@@ -4925,11 +5520,32 @@
   "privateEventShareCreatePreview": "Create protected preview",
   "privateEventShareOriginalStaysPrivate": "The original stays private. Only the transformed artifact is shared.",
   "privateEventSharePipeline": "Pipeline: {id} r{revision}",
-  "@privateEventSharePipeline": {"placeholders": {"id": {"type": "String"}, "revision": {"type": "int"}}},
+  "@privateEventSharePipeline": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "revision": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareMasks": "Masks: {masks}",
-  "@privateEventShareMasks": {"placeholders": {"masks": {"type": "String"}}},
+  "@privateEventShareMasks": {
+    "placeholders": {
+      "masks": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareRemovedMetadata": "Removed metadata: {metadata}",
-  "@privateEventShareRemovedMetadata": {"placeholders": {"metadata": {"type": "String"}}},
+  "@privateEventShareRemovedMetadata": {
+    "placeholders": {
+      "metadata": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareProtectedOutput": "Share this protected output",
   "privateEventShareAccessToken": "Share access token",
   "privateEventShareAccessTokenHint": "Save and send this token through a trusted channel. It is not returned by later refreshes.",
@@ -4937,9 +5553,21 @@
   "privateEventShareRevealToken": "Reveal token",
   "privateEventShareCopyToken": "Copy token",
   "privateEventShareRecipient": "Recipient: {recipient}",
-  "@privateEventShareRecipient": {"placeholders": {"recipient": {"type": "String"}}},
+  "@privateEventShareRecipient": {
+    "placeholders": {
+      "recipient": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareExpires": "Expires: {expires}",
-  "@privateEventShareExpires": {"placeholders": {"expires": {"type": "String"}}},
+  "@privateEventShareExpires": {
+    "placeholders": {
+      "expires": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareRevoked": "Revoked",
   "privateEventShareConsumed": "Consumed",
   "privateEventShareAvailable": "Available",
@@ -4949,9 +5577,30 @@
   "privateEventShareAuditTruncated": "Only the latest access records are shown.",
   "privateEventShareNoAccess": "No access recorded",
   "privateEventShareAuditEntry": "{action} · {recipient} · {occurredAt}",
-  "@privateEventShareAuditEntry": {"placeholders": {"action": {"type": "String"}, "recipient": {"type": "String"}, "occurredAt": {"type": "String"}}},
+  "@privateEventShareAuditEntry": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "recipient": {
+        "type": "String"
+      },
+      "occurredAt": {
+        "type": "String"
+      }
+    }
+  },
   "privateEventShareDownloadReady": "Verified download ready: {fileName} ({bytes} bytes)",
-  "@privateEventShareDownloadReady": {"placeholders": {"fileName": {"type": "String"}, "bytes": {"type": "int"}}},
+  "@privateEventShareDownloadReady": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      },
+      "bytes": {
+        "type": "int"
+      }
+    }
+  },
   "privateEventShareNotConnected": "Not connected",
   "privateEventShareNoItems": "No items yet",
   "privateEventShareWorking": "Working",
@@ -5142,5 +5791,16 @@
   "serverAiResourcesCancelling": "Cancellation pending",
   "serverAiResourcesFailed": "Provider failed",
   "serverAiResourcesUncertain": "Runtime status uncertain",
-  "serverMusicManagerSessionRequired": "Sign in to this Core and complete your password change to use the household music system."
+  "serverMusicManagerSessionRequired": "Sign in to this Core and complete your password change to use the household music system.",
+  "serverAutomationDraftSpeechListen": "Speak a draft",
+  "serverAutomationDraftSpeechLocal": "Uses an installed on-device English or Turkish model. Audio stays on this device. Supported actions: turn on / turn off.",
+  "serverAutomationDraftSpeechReadback": "Read this text aloud",
+  "serverAutomationDraftSpeechRecognized": "Review or edit the text, then preview the draft. No command was executed.",
+  "serverAutomationDraftSpeechReady": "Microphone permission granted. Tap Speak a draft to start.",
+  "serverAutomationDraftSpeechPermission": "Microphone access is denied. Enable it in system app settings or type your draft.",
+  "serverAutomationDraftSpeechUnavailable": "The required offline speech model or voice is unavailable. Install it in system speech settings or type your draft.",
+  "serverAutomationDraftSpeechNoMatch": "No usable speech was recognized. Try again or type your draft.",
+  "serverAutomationDraftSpeechTimeout": "Speech timed out. Tap again to start a new attempt.",
+  "serverAutomationDraftSelectTarget": "Choose the target",
+  "serverAutomationDraftTargetHint": "Load verified Home Assistant switches, then choose one explicitly."
 }
