@@ -23,6 +23,33 @@ _KVM_STEP = WORKFLOW.split(
     "      - name: Enable hosted KVM for owned stream\n", 1
 )[1].split("\n      - name:", 1)[0]
 KVM_SCRIPT = textwrap.dedent(_KVM_STEP.split("        run: |\n", 1)[1])
+_UHID_STEP = WORKFLOW.split(
+    "      - name: Require exact hosted UHID capability\n", 1
+)[1].split("\n      - name:", 1)[0]
+UHID_SCRIPT = textwrap.dedent(_UHID_STEP.split("        run: |\n", 1)[1])
+UHID_HARNESS = r'''
+uname() { builtin test "$*" = -r || exit 96; echo "$KERNEL_RELEASE"; }
+modinfo() {
+  case "$*" in
+    '-F filename uhid') builtin test "$MODULE_PRESENT" = yes ;;
+    '-F vermagic uhid') echo "$MODULE_KERNEL SMP mod_unload" ;;
+    *) exit 97 ;;
+  esac
+}
+apt-cache() {
+  builtin test "$*" = "policy linux-modules-extra-$KERNEL_RELEASE" || exit 98
+  echo "  Candidate: $MODULE_CANDIDATE"
+}
+sudo() {
+  builtin test "$*" = "apt-get install --yes --no-install-recommends linux-modules-extra-$KERNEL_RELEASE=$MODULE_CANDIDATE" || exit 99
+  echo module-install
+}
+dpkg-query() { echo "$MODULE_INSTALLED"; }
+python3() {
+  builtin test "$*" = '-B -m tool.f60_owned_gamepad preflight' || exit 100
+  echo device-preflight
+}
+'''
 KVM_HARNESS = r'''
 function [ {
   case "$*" in
@@ -133,6 +160,45 @@ class F60SunshineAndroidStreamWorkflowTest(unittest.TestCase):
         self.assertIn("python3 -B -m tool.f60_owned_gamepad preflight", section)
         self.assertNotIn("chmod 666 /dev/uhid", WORKFLOW)
         self.assertNotIn("chgrp", WORKFLOW)
+
+    def test_uhid_module_setup_is_tied_to_the_running_owned_kernel(self) -> None:
+        def run(**changes):
+            environment = dict(
+                os.environ,
+                RUNNER_ENVIRONMENT="github-hosted",
+                KERNEL_RELEASE="6.17.0-1022-azure",
+                MODULE_KERNEL="6.17.0-1022-azure",
+                MODULE_PRESENT="no",
+                MODULE_CANDIDATE="6.17.0-1022.22",
+                MODULE_INSTALLED="6.17.0-1022.22",
+            )
+            environment.update(changes)
+            return subprocess.run(
+                ["bash", "-c", UHID_HARNESS + UHID_SCRIPT],
+                env=environment, capture_output=True, text=True, check=False,
+            )
+
+        prepared = run()
+        self.assertEqual(0, prepared.returncode, prepared.stderr)
+        self.assertEqual("module-install\ndevice-preflight\n", prepared.stdout)
+        already_present = run(MODULE_PRESENT="yes")
+        self.assertEqual(0, already_present.returncode, already_present.stderr)
+        self.assertEqual("device-preflight\n", already_present.stdout)
+        for changes in (
+            {"RUNNER_ENVIRONMENT": "self-hosted"},
+            {"KERNEL_RELEASE": "6.17.0-1022-azure;private"},
+            {"KERNEL_RELEASE": "6.17.0-generic"},
+            {"MODULE_CANDIDATE": "(none)"},
+            {"MODULE_CANDIDATE": "untrusted version"},
+            {"MODULE_INSTALLED": "different"},
+            {"MODULE_KERNEL": "6.17.0-9999-azure"},
+        ):
+            with self.subTest(changes=changes):
+                rejected = run(**changes)
+                self.assertNotEqual(0, rejected.returncode)
+                self.assertNotIn("device-preflight", rejected.stdout)
+                if "RUNNER_ENVIRONMENT" in changes or "KERNEL_RELEASE" in changes:
+                    self.assertNotIn("module-install", rejected.stdout)
 
     def test_kvm_preflight_blocks_missing_or_inaccessible_device(self) -> None:
         self.assertEqual(0, self._kvm("ready").returncode)

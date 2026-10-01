@@ -82,7 +82,20 @@ jobs:
           test "$(systemctl is-active avahi-daemon)" = active
 
       - name: Require exact hosted UHID capability
-        run: python3 -B -m tool.f60_owned_gamepad preflight
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          kernel_release="$(uname -r)"
+          [[ "$kernel_release" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-azure$ ]] || exit 1
+          if ! modinfo -F filename uhid >/dev/null 2>&1; then
+            module_package="linux-modules-extra-$kernel_release"
+            candidate="$(apt-cache policy "$module_package" | awk '$1 == "Candidate:" {print $2}')"
+            [[ "$candidate" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || exit 1
+            sudo apt-get install --yes --no-install-recommends "$module_package=$candidate"
+            test "$(dpkg-query --show --showformat='${Version}' "$module_package")" = "$candidate"
+          fi
+          test "$(modinfo -F vermagic uhid | awk '{print $1}')" = "$kernel_release"
+          python3 -B -m tool.f60_owned_gamepad preflight
 
       - name: Build and install exact receipted Moonlight engine
         env:

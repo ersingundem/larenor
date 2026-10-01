@@ -57,3 +57,24 @@ behavior. They are not a hosted UHID or Sunshine stream result.
 Root verification: 116 related F60/queue/progress tests passed, including a new
 regression that module spawn/timeout exceptions cannot expose command data.
 No hosted device result is inferred from these checks.
+
+## Exact changed-source module result and preparation
+
+Run `36802066869` at source `10cfb1385c5e8af6c1b7cd5001897486540b23a8`
+failed with `gamepadKernelModuleUnavailable`. This identifies the module-load
+stage; it still does not publish raw modprobe diagnostics or claim a device or
+stream result.
+
+The next workflow checks existing UHID module metadata. Only when absent, it
+installs the exact APT candidate of `linux-modules-extra-<running Azure release>`;
+the release is strictly parsed before any privilege operation. Installed package
+version and UHID vermagic must match. It installs no kernel image or generic
+meta-package and never reboots. The original helper then requires the real
+character device/sysfs identity. A missing candidate, version drift, module for
+another kernel, or untrusted runner fails before device acceptance.
+
+Root executed the preparation shell under controlled negative cases: wrong
+runner, malformed/non-Azure kernel, missing/malformed candidate, installed version
+drift, and wrong module vermagic. All 29 related workflow/gamepad tests passed;
+scoped actionlint passed. This is a preparation change awaiting actual hosted
+verification, not acceptance of UHID input.
