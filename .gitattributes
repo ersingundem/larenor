@@ -1,1 +1,2 @@
 android/freerdp-certificate-pem.patch whitespace=-blank-at-eol,-space-before-tab
+android/moonlight/patches/0001-embed-library.patch whitespace=-blank-at-eol,-space-before-tab

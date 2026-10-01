@@ -7,7 +7,7 @@
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
 | **CI bekliyor** | **58 seçili özellik / toplam 67 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN/admin alt aşaması bu receiptte kanıtlanmadı; bounded teslim ve sabit bridge-stage düzeltmesi root33/33+15subtest/Kotlin compile geçti, değişmiş kaynaklı gerçek stream kabulü gerekli. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
+| **Yeniden çalışılıyor** | **F60** | Exact36cbe / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) embed-v2 original1test/1failure/0error/0skip, pairingRegistration90s timeout; PIN bridge listening parse öncesi sınır, exact transport nedeni bilinmiyor. Yeni embed-v3 iptal/deadline 40native/0skip ve root63tool geçti; actual embed-v3 APK ve343/345JVM geçti; hosted frame/PCM/input/iki yaşam kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Güvenli last-entered stage tanısı root34/34 ve actual AndroidTest compile geçti; yeni hosted kabul gerekli. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
@@ -16,6 +16,7 @@
 
 ## Son doğrulanan düzeltmeler
 
+- **Tam Flutter:** 7.919 passed/57explicit opt-in skip/0failure, terminal machine done.success=true; tam analyze temiz,1.981 Dart dosyası format değişikliği yok. Hidden loading sayılmaz; skipped normal-Core/SSH runnerları ve Kotlin/native/CI kabulü ayrı. [Kaynak ve sınırlar](testing/final-function-flutter-regression-2026-10-01.md).
 - F14 gerçek Client/normal Core TCP aynı DB restart iki süreç kabulü1+1 ve root11/11 Client testi geçti. Kalıcı oturum/olay kapasitesi ayrıca root9/9 live-source kabulüyle kapandı. [Client/Core](testing/f14-normal-core-acceptance-2026-10-01.md), [retention](testing/f14-support-session-retention-2026-10-01.md).
 - F01/F02/F03 root22/22: default256taslak/128deneme ve signed4096olay fixture kapasitesi restart sonrası toparlanır. Current/live/recent replay, encrypted rules, tamper/child graph ve rollback korunur. [Kanıt](testing/f01-f03-automation-retention-2026-10-01.md).
 - F58 root18/18: default2000 signed hazırlık geçmişi ve normal Core restart; owned HA/OEPL HTTP send/dry-run geçti. Pending/uncertain/current render ACK korunur; fiziksel ekran teslimi iddiası yok. [Kanıt](testing/f58-authenticated-retention-2026-10-01.md).
@@ -27,11 +28,11 @@
 
 F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kaynakta kanıtlanan swallow/dispatch yolu kapatıldı. [Kaynak ve tanı kabulü](testing/f60-pin-delivery-pairing-stage-2026-10-01.md).
 
-F60 changed-source exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) gerçek hosted stream kapısında sürüyor; runhead remoteSHA ile doğrulandı. Henüz kabul sonucu yok.
+F60 exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) **başarısız tamamlandı**: embed-v2 original1test/1failure/0error/0skip, pairingRegistration90s timeout; PIN bridge `listening` parse öncesi sınırdır, reverse/EOF alt nedenini kanıtlamaz. Gerçek stream receipt yok. Bu eski motor koşusu yeni embed-v3 düzeltmesinin kabulü değildir.
 
-[Wellbeing manifest düzeltmesi](testing/wellbeing-product-manifest-regression-2026-10-01.md) root geniş JVM ile doğrulandı. F60 üretim iptal yolunda no-read-timeout ağ çağrısının single-executorı bloke etmesi kaynakta doğrulandı; gerçek active-call cancel/deadline ve owned-stall kabulü üzerinde çalışılıyor.
+[Wellbeing manifest düzeltmesi](testing/wellbeing-product-manifest-regression-2026-10-01.md) root geniş JVM ile doğrulandı. [F60 üretim iptal düzeltmesi](testing/f60-pairing-cancellation-2026-10-01.md) embed-v3 exact Call.cancel, monotonic deadline ve successor ownership ile **40native/0skip + root63tool** kontrolünü geçti. Güncel actual product APK root5verifier ile doğrulandı; geniş required-package JVM345total=343passed/2opt-in skip/0failure ve birleşik root165tool kapısı geçti. Newline/EOF fixture açığı gerçek open-socket RED→GREEN ile kapandı. Yeni strict Sunshine CI kabulü gerekli.
 
-[F62 yaşam döngüsü tanısı](testing/f62-owned-lifecycle-diagnostics-2026-10-01.md) root34/34 ve actual required-package AndroidTest derlemesiyle doğrulandı. Bu yalnız hata sınırını belirler; exactc8291061 / [run36811909218](https://github.com/ersingundem/larenor/actions/runs/36811909218) başladı. Gerçek RDP kabulü henüz açık.
+[F62 yaşam döngüsü tanısı](testing/f62-owned-lifecycle-diagnostics-2026-10-01.md) root34/34 ve actual required-package AndroidTest derlemesiyle doğrulandı. Bu yalnız hata sınırını belirler; exactc8291061 / [run36811909218](https://github.com/ersingundem/larenor/actions/runs/36811909218) x86 owned-host kapısında **başarısız tamamlandı**, arm64 package geçti. Fresh last-entered stage tanısı çıkarılıyor; gerçek RDP kabulü açık.
 
 ## Tarihsel doğrulama kayıtları
 

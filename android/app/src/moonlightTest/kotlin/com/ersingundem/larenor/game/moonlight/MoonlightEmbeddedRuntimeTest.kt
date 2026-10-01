@@ -12,6 +12,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.limelight.Game
 import com.limelight.binding.audio.AndroidAudioRenderer
+import com.limelight.binding.crypto.AndroidCryptoProvider
 import com.limelight.binding.input.ControllerHandler
 import com.limelight.binding.video.MediaCodecDecoderRenderer
 import com.limelight.computers.ComputerDatabaseManager
@@ -20,6 +21,9 @@ import com.limelight.nvstream.NvConnection
 import com.limelight.nvstream.http.ComputerDetails
 import com.limelight.nvstream.http.NvHTTP
 import com.limelight.nvstream.http.PairingManager
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,6 +44,8 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
@@ -55,6 +61,7 @@ class MoonlightEmbeddedRuntimeTest {
     @Test fun packagedEngineExposesTheActualPairVideoAudioAndInputClasses() {
         assertNotNull(PairingManager::class.java.getDeclaredMethod("pair", String::class.java, String::class.java))
         assertNotNull(NvHTTP::class.java.getDeclaredMethod("getAppList"))
+        assertNotNull(NvHTTP::class.java.getDeclaredMethod("cancelPendingRequests"))
         assertNotNull(NvConnection::class.java)
         assertNotNull(Game::class.java)
         assertNotNull(MediaCodecDecoderRenderer::class.java)
@@ -69,9 +76,191 @@ class MoonlightEmbeddedRuntimeTest {
             "onAudioPcmWritten", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
         ))
         assertEquals(
-            "moonlight-android-12.2-larenor-embed-v2",
+            "moonlight-android-12.2-larenor-embed-v3",
             MoonlightEmbeddedRuntime.ENGINE_REVISION,
         )
+    }
+
+    @Test fun stalledPairingRequestCancelsBoundedlyAndReleasesTheSingleWorkerQueue() {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            val context = MoonlightScopedContext.create(
+                RuntimeEnvironment.getApplication(),
+                scope(8),
+            )
+            val http = NvHTTP(
+                ComputerDetails.AddressTuple(server.hostName, server.port),
+                0,
+                "0123456789abcdef",
+                null,
+                AndroidCryptoProvider(context),
+            )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val pairing = executor.submit<PairingManager.PairState> {
+                    http.pairingManager.pair(
+                        "<root status_code=\"200\"><appversion>7.0.0.0</appversion></root>",
+                        "1234",
+                    )
+                }
+                assertNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+                val queued = CountDownLatch(1)
+                executor.execute(queued::countDown)
+
+                http.cancelPendingRequests()
+
+                assertTrue("a cancelled no-timeout call must release the worker", queued.await(2, TimeUnit.SECONDS))
+                try {
+                    pairing.get(2, TimeUnit.SECONDS)
+                    fail("cancelled pairing unexpectedly completed")
+                } catch (expected: ExecutionException) {
+                    assertTrue(expected.cause is java.io.IOException)
+                }
+                assertEquals(1, server.requestCount)
+            } finally {
+                http.cancelPendingRequests()
+                executor.shutdownNow()
+            }
+        }
+    }
+
+    @Test fun pairingCancellationRetainsCallThroughAStalledResponseBody() {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setBody("<root status_code=\"200\"><paired>0</paired></root>")
+                    .setBodyDelay(1, TimeUnit.DAYS),
+            )
+            val context = MoonlightScopedContext.create(
+                RuntimeEnvironment.getApplication(),
+                scope(7),
+            )
+            val http = NvHTTP(
+                ComputerDetails.AddressTuple(server.hostName, server.port),
+                0,
+                "0123456789abcdef",
+                null,
+                AndroidCryptoProvider(context),
+            )
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val pairing = executor.submit<PairingManager.PairState> {
+                    http.pairingManager.pair(
+                        "<root status_code=\"200\"><appversion>7.0.0.0</appversion></root>",
+                        "1234",
+                    )
+                }
+                assertNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+                val queued = CountDownLatch(1)
+                executor.execute(queued::countDown)
+
+                http.cancelPendingRequests()
+
+                assertTrue("body-read cancellation must release the worker", queued.await(2, TimeUnit.SECONDS))
+                try {
+                    pairing.get(2, TimeUnit.SECONDS)
+                    fail("cancelled body read unexpectedly completed")
+                } catch (expected: ExecutionException) {
+                    assertTrue(expected.cause is java.io.IOException)
+                }
+                assertEquals(1, server.requestCount)
+            } finally {
+                http.cancelPendingRequests()
+                executor.shutdownNow()
+            }
+        }
+    }
+
+    @Test fun pairingFlightCancelBeforeAttachCannotAffectSuccessor() {
+        MockWebServer().use { server ->
+            val context = MoonlightScopedContext.create(
+                RuntimeEnvironment.getApplication(),
+                scope(6),
+            )
+            fun client() = NvHTTP(
+                ComputerDetails.AddressTuple(server.hostName, server.port),
+                0,
+                "0123456789abcdef",
+                null,
+                AndroidCryptoProvider(context),
+            )
+
+            val retired = MoonlightPairingFlight()
+            retired.cancel()
+            reject("cancelled") { retired.attach(client()) }
+
+            val successorClient = client()
+            val successor = MoonlightPairingFlight()
+            successor.attach(successorClient)
+            retired.cancel()
+            successor.requireActive()
+            successor.detach(successorClient)
+            successor.finish()
+        }
+    }
+
+    @Test fun pairingDeadlineUsesGrantExpiryAndNativeFiveMinuteMaximum() {
+        assertEquals(1L, pairingDeadlineMillis(1.0, 1_000L))
+        assertEquals(12_500L, pairingDeadlineMillis(13.5, 1_000L))
+        assertEquals(300_000L, pairingDeadlineMillis(999_999.0, 1_000L))
+    }
+
+    @Test fun elapsedPairingDeadlineFencesPersistenceWithoutDrainingTheMainLooper() {
+        var elapsed = 99L
+        val flight = MoonlightPairingFlight(100L) { elapsed }
+        var persisted = false
+
+        elapsed = 100L
+        reject("cancelled") {
+            flight.withActive { persisted = true }
+        }
+
+        assertFalse(persisted)
+    }
+
+    @Test fun pairingDeadlineIsRecheckedAfterFlightLockDelayBeforePersistence() {
+        var elapsed = 99L
+        val flight = MoonlightPairingFlight(100L) { elapsed }
+        val holderEntered = CountDownLatch(1)
+        val releaseHolder = CountDownLatch(1)
+        val waiterStarted = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val holder = executor.submit {
+                flight.withActive {
+                    holderEntered.countDown()
+                    assertTrue(releaseHolder.await(2, TimeUnit.SECONDS))
+                }
+            }
+            assertTrue(holderEntered.await(2, TimeUnit.SECONDS))
+            var persisted = false
+            val waiter = executor.submit<Result<Unit>> {
+                waiterStarted.countDown()
+                runCatching { flight.withActive { persisted = true } }
+            }
+            assertTrue(waiterStarted.await(2, TimeUnit.SECONDS))
+
+            elapsed = 100L
+            releaseHolder.countDown()
+
+            holder.get(2, TimeUnit.SECONDS)
+            val failure = waiter.get(2, TimeUnit.SECONDS).exceptionOrNull()
+            assertEquals("cancelled", (failure as MoonlightRuntimeFailure).code)
+            assertFalse(persisted)
+        } finally {
+            releaseHolder.countDown()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test fun cancelledPairingFlightCannotCommitPrivateRegistration() {
+        val flight = MoonlightPairingFlight()
+        var persisted = false
+        flight.cancel()
+        reject("cancelled") {
+            flight.withActive { persisted = true }
+        }
+        assertFalse(persisted)
     }
 
     @Test fun renderedFrameAndAcceptedPcmWitnessesAreExactBoundedAndLeaseFenced() {

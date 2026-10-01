@@ -53,7 +53,8 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         self.assertEqual(
             set(lock["engineContracts"]),
             {
-                "pairing", "credentialStore", "video", "audio", "input", "stream",
+                "pairing", "credentialStore", "boundedPairingCancellation",
+                "video", "audio", "input", "stream",
                 "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
             },
         )
@@ -119,11 +120,15 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             self.assertEqual(receipt["sourceCommit"], lock["upstream"]["commit"])
             self.assertEqual(receipt["patches"], lock["patches"])
             self.assertEqual(
-                [item["name"] for item in receipt["requiredApiMethods"]],
+                [(item["class"], item["name"]) for item in receipt["requiredApiMethods"]],
                 [
-                    "onConnectionStopCompleted",
-                    "onVideoFrameRendered",
-                    "onAudioPcmWritten",
+                    ("com/limelight/Game.class", "onConnectionStopCompleted"),
+                    ("com/limelight/Game.class", "onVideoFrameRendered"),
+                    ("com/limelight/Game.class", "onAudioPcmWritten"),
+                    (
+                        "com/limelight/nvstream/http/NvHTTP.class",
+                        "cancelPendingRequests",
+                    ),
                 ],
             )
 
@@ -191,7 +196,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
                 verify_install(aar, receipt_path, lock)
 
-    def test_old_receipt_and_aar_without_current_hooks_fail_closed(self):
+    def test_old_receipt_and_aar_without_bounded_pairing_cancel_api_fail_closed(self):
         lock = load_lock()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -200,16 +205,16 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             receipt_path = root / "receipt.json"
             self._aar(current, lock)
             current_receipt = package_receipt(current, lock)
-            self._aar(stale, lock, include_current_api=False)
-            legacy_receipt = dict(current_receipt)
-            legacy_receipt.pop("patches")
-            legacy_receipt.pop("requiredApiMethods")
-            legacy_receipt["aarSha256"] = hashlib.sha256(stale.read_bytes()).hexdigest()
+            self._aar(stale, lock, include_cancel_api=False)
+            stale_claiming_current_contract = json.loads(json.dumps(current_receipt))
+            stale_claiming_current_contract["aarSha256"] = hashlib.sha256(
+                stale.read_bytes()
+            ).hexdigest()
             with zipfile.ZipFile(stale) as archive:
-                legacy_receipt["classesSha256"] = hashlib.sha256(
+                stale_claiming_current_contract["classesSha256"] = hashlib.sha256(
                     archive.read("classes.jar")
                 ).hexdigest()
-            receipt_path.write_text(json.dumps(legacy_receipt))
+            receipt_path.write_text(json.dumps(stale_claiming_current_contract))
 
             with self.assertRaisesRegex(PackageError, "missing_engine_api"):
                 verify_install(stale, receipt_path, lock)
@@ -278,7 +283,14 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);\n"
         )
 
-    def _aar(self, path, lock, extra_abi=None, include_current_api=True):
+    def _aar(
+        self,
+        path,
+        lock,
+        extra_abi=None,
+        include_current_api=True,
+        include_cancel_api=True,
+    ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
             for name in lock["requiredClasses"]:
@@ -286,6 +298,11 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                     jar.writestr(
                         name,
                         self._game_class(include_current_api=include_current_api),
+                    )
+                elif name == "com/limelight/nvstream/http/NvHTTP.class":
+                    jar.writestr(
+                        name,
+                        self._nvhttp_class(include_cancel_api=include_cancel_api),
                     )
                 else:
                     jar.writestr(name, b"fixture")
@@ -331,7 +348,22 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                 (0x0001 | 0x0100, "onVideoFrameRendered", "(JJ)V"),
                 (0x0001 | 0x0100, "onAudioPcmWritten", "(II)V"),
             ]
-        utf8_values = ["com/limelight/Game", "java/lang/Object"]
+        return MoonlightAndroidPackageTest._class_file(
+            "com/limelight/Game", method_specs,
+        )
+
+    @staticmethod
+    def _nvhttp_class(*, include_cancel_api):
+        methods = []
+        if include_cancel_api:
+            methods.append((0x0001 | 0x0100, "cancelPendingRequests", "()V"))
+        return MoonlightAndroidPackageTest._class_file(
+            "com/limelight/nvstream/http/NvHTTP", methods,
+        )
+
+    @staticmethod
+    def _class_file(class_name, method_specs):
+        utf8_values = [class_name, "java/lang/Object"]
         for _access, name, descriptor in method_specs:
             utf8_values.extend((name, descriptor))
         constants = []

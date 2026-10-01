@@ -31,7 +31,7 @@ RECEIPT_NAME = "f60-sunshine-android-discovery-receipt.json"
 PREBUILD_TIMEOUT_SECONDS = 1200
 MOONLIGHT_AAR = ROOT / "android/app/moonlight/moonlight-engine.aar"
 MOONLIGHT_RECEIPT = ROOT / "android/app/moonlight/receipt.json"
-MOONLIGHT_ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v2"
+MOONLIGHT_ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v3"
 MOONLIGHT_SOURCE_COMMIT = "b48494cb96bff23d8886c4775cc4f39a1075495d"
 _EMULATOR_VERSION = re.compile(
     r"Android emulator version ([0-9]+)\.([0-9]+)\.([0-9]+)(?:\.[0-9]+)?"

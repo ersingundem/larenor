@@ -208,6 +208,146 @@ index 5d4e44ec..f5a5d87b 100644
 +                    if (activity instanceof Game) {
 +                        ((Game) activity).onVideoFrameRendered(presentationTimeUs, renderTimeNanos);
 +                    }
+diff --git a/app/src/main/java/com/limelight/nvstream/http/NvHTTP.java b/app/src/main/java/com/limelight/nvstream/http/NvHTTP.java
+index ccf1921a..13b09b5d 100644
+--- a/app/src/main/java/com/limelight/nvstream/http/NvHTTP.java
++++ b/app/src/main/java/com/limelight/nvstream/http/NvHTTP.java
+@@ -22,8 +22,10 @@ import java.security.SecureRandom;
+ import java.security.cert.Certificate;
+ import java.security.cert.CertificateException;
+ import java.security.cert.X509Certificate;
++import java.util.HashSet;
+ import java.util.LinkedList;
+ import java.util.ListIterator;
++import java.util.Set;
+ import java.util.Stack;
+ import java.util.UUID;
+ import java.util.concurrent.TimeUnit;
+@@ -51,15 +53,17 @@ import com.limelight.LimeLog;
+ import com.limelight.nvstream.ConnectionContext;
+ import com.limelight.nvstream.http.PairingManager.PairState;
+ import com.limelight.nvstream.jni.MoonBridge;
+-
++import okhttp3.Call;
+ import okhttp3.ConnectionPool;
+ import okhttp3.HttpUrl;
++import okhttp3.MediaType;
+ import okhttp3.OkHttpClient;
+ import okhttp3.Request;
+ import okhttp3.Response;
+ import okhttp3.ResponseBody;
+-
+-
++import okio.BufferedSource;
++import okio.ForwardingSource;
++import okio.Okio;
+ public class NvHTTP {
+     private String uniqueId;
+     private PairingManager pm;
+@@ -80,6 +84,9 @@ public class NvHTTP {
+     private OkHttpClient httpClientLongConnectTimeout;
+     private OkHttpClient httpClientLongConnectNoReadTimeout;
+     private OkHttpClient httpClientShortConnectTimeout;
++    private final Object callLock = new Object();
++    private final Set<Call> activeCalls = new HashSet<>();
++    private boolean requestsCancelled;
+ 
+     private X509TrustManager defaultTrustManager;
+     private X509TrustManager trustManager;
+@@ -430,17 +437,65 @@ public class NvHTTP {
+     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query) throws IOException {
+         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
+         Request request = new Request.Builder().url(completeUrl).get().build();
+-        Response response = performAndroidTlsHack(client).newCall(request).execute();
++        Call call = performAndroidTlsHack(client).newCall(request);
++        synchronized (callLock) {
++            if (requestsCancelled) {
++                call.cancel();
++                throw new IOException("Canceled");
++            }
++            activeCalls.add(call);
++        }
++        Response response;
++        try {
++            response = call.execute();
++        } catch (IOException | RuntimeException failure) {
++            releaseCall(call);
++            throw failure;
++        }
+ 
+         ResponseBody body = response.body();
+         
+         if (response.isSuccessful()) {
+-            return body;
++            if (body == null) {
++                releaseCall(call);
++                return null;
++            }
++            BufferedSource source = Okio.buffer(new ForwardingSource(body.source()) {
++                @Override
++                public void close() throws IOException {
++                    try {
++                        super.close();
++                    } finally {
++                        releaseCall(call);
++                    }
++                }
++            });
++            return new ResponseBody() {
++                @Override
++                public MediaType contentType() {
++                    return body.contentType();
++                }
++
++                @Override
++                public long contentLength() {
++                    return body.contentLength();
++                }
++
++                @Override
++                public BufferedSource source() {
++                    return source;
++                }
++
++            };
+         }
+         
+-        // Unsuccessful, so close the response body
+-        if (body != null) {
+-            body.close();
++        // Unsuccessful, so close the response body and release the exact call.
++        try {
++            if (body != null) {
++                body.close();
++            }
++        } finally {
++            releaseCall(call);
+         }
+         
+         if (response.code() == 404) {
+@@ -451,6 +506,22 @@ public class NvHTTP {
+         }
+     }
+ 
++    private void releaseCall(Call call) {
++        synchronized (callLock) {
++            activeCalls.remove(call);
++        }
++    }
++
++    /** Permanently cancels this instance and its exact in-flight request, if any. */
++    public void cancelPendingRequests() {
++        synchronized (callLock) {
++            requestsCancelled = true;
++            for (Call call : activeCalls) {
++                call.cancel();
++            }
++        }
++    }
++
+     private String openHttpConnectionToString(OkHttpClient client, HttpUrl baseUrl, String path) throws IOException {
+         return openHttpConnectionToString(client, baseUrl, path, null);
+     }
 diff --git a/app/src/main/jni/moonlight-core/Android.mk b/app/src/main/jni/moonlight-core/Android.mk
 index f32fc9dc..e7c6fffc 100644
 --- a/app/src/main/jni/moonlight-core/Android.mk

@@ -5443,13 +5443,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36811116354",
           "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source exact bounded PIN delivery/bridge-stage gate dispatched; remote sourceSHA and live GitHubrunhead independently matched. Strict real-stream acceptance pending"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact36cbe embed-v2 canonical1test/1failure/0error/0skip at pairingRegistration; PIN bridge listening before accepted parse; reverse/EOF subcause unproved, no stream receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar bounded PIN teslim ve sabit bridge-stage düzeltmesi root33/33 +15subtest ve actual AndroidTest Kotlin derlemesiyle doğrulandı; değişmiş kaynaklı hosted koşu gerekli; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı. Kanıt: docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md. Kaynak incelemesi iptal/expiry/retirementin active NvHTTP no-read-timeout çağrısını kapatmadığını ve single-executorı süresiz bloke edebildiğini kanıtladı; gerçek Call.cancel/flight deadline düzeltmesi ve owned-stall kabulü sürüyor."
+      "reason": "Yeniden çalışılıyor: exact36cbe3a1/run36811116354 embed-v2 original1test/1failure/0error/0skip, pairingRegistration90s timeout; PIN bridge listening yalnız parse öncesi sınırdır, reverse/EOF alt nedeni kanıtlanmadı. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti; streamAccepted=false. Üretimde kanıtlanan no-read-timeout iptal açığı embed-v3 instance-local Call.cancel ve exact pairing-flight/monotonic deadline ile düzeltildi; 40native test/0skip ve root63package/runner testi geçti. Delayed body, undrained timer, lock-delay expiry, cancel-before-attach ve successor ownership korunur; eski v2 CI bu v3 kaynağın kabulü değildir. One-shot newline/EOF fixture açığı gerçek open-socket RED→GREEN ile kapandı; current combined root165tool passed. Gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü açık. Source-bound iki-ABI product dağıtımı önceki yerel24package/69native kapısını geçti; Güncel v3 actual iki-ABI APK root5verifier ile doğrulandı; root345JVM=343passed/2explicit opt-in skip/0failure. Geniş finalHEAD CI ve hosted gerçek stream bekleniyor. GenişJVM338total=336passed/2explicit opt-in skip/0failure manifest düzeltmesi önceki kaynaktır. Fiziksel GPU/controller/host MANUAL ayrı. Kanıt: docs/testing/f60-pairing-cancellation-2026-10-01.md."
     },
     {
       "id": "G11",
@@ -5731,13 +5731,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36811909218",
           "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source owned lifecycle diagnostic gate; remoteSHA and GitHubrunhead independently matched; real frame/DISP/Unicode/two-lifetime acceptance pending"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exactc829 changed-source gate failed x86 owned-host step; arm64 actual package passed. New lifecycle diagnostic pending independent extraction; runtime acceptance unproved"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar tanı uygulandı: fresh private nonce ile AtomicFile last-entered enum; bounded adb okuma ve exact cleanup, diagnostic I/O original kabulü değiştirmez. Root34/34 ve actual required-package AndroidTest Kotlin compile278tasks geçti; stage kesin hata nedeni veya runtime kabulü değildir. Değişmiş kaynaklı hosted koşu gerekli; unchanged-source kör rerun yok. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Yeni exactc8291061/run36811909218 gerçek hosted RDP kapısında sürüyor; henüz kabul yok."
+      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar tanı uygulandı: fresh private nonce ile AtomicFile last-entered enum; bounded adb okuma ve exact cleanup, diagnostic I/O original kabulü değiştirmez. Root34/34 ve actual required-package AndroidTest Kotlin compile278tasks geçti; stage kesin hata nedeni veya runtime kabulü değildir. Değişmiş kaynaklı hosted koşu gerekli; unchanged-source kör rerun yok. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Yeni exactc8291061/run36811909218 x86 owned-host kapısı failed, arm64 package passed; fresh stage tanısı çıkarılıyor. Kabul yok."
     },
     {
       "id": "F61",
@@ -5847,9 +5847,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/final-function-flutter-regression-2026-10-01.md",
+          "commit": "b21eb4a733e7c74074513ea720b5fd70a3824169",
+          "state": "completed",
+          "result": "passed",
+          "label": "Full local Dart frozen-source regression7919passed/57opt-in skipped/0failure; terminal machine done.success=true; full analyze clean/format1981unchanged; native and hosted CI separate"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28,F57root30/30 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM manifest fixture hatası kapandı; root338total/336passed/2explicit opt-in skip/0failure/0error. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra. F57v1migration/recent replay ve newest32terminal bağımsız incelemede düzeltildi; advisory calibration physicaldevicewrite değildir. F60exact36cbe3a1/run36811116354 changed-source stream sürüyor; henüz kabul yok."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28,F57root30/30 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM manifest fixture hatası kapandı; root338total/336passed/2explicit opt-in skip/0failure/0error. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra. F57v1migration/recent replay ve newest32terminal bağımsız incelemede düzeltildi; advisory calibration physicaldevicewrite değildir. F60exact36cbe3a1/run36811116354 embed-v2 pairingRegistration/listening failed; gerçek alt neden ve stream kabulü açık. Embed-v3 Call.cancel/exact-flight/deadline root40native/63tool geçti; güncel product APK ve hosted kabul gerekli."
     },
     {
       "id": "FINAL.UI",

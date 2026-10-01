@@ -28,20 +28,30 @@ ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 MAX_AAR_BYTES = 256 * 1024 * 1024
 MAX_APK_BYTES = 1024 * 1024 * 1024
 GAME_CLASS = "com/limelight/Game.class"
-REQUIRED_GAME_API = (
+NVHTTP_CLASS = "com/limelight/nvstream/http/NvHTTP.class"
+REQUIRED_ENGINE_API = (
     {
+        "class": GAME_CLASS,
         "name": "onConnectionStopCompleted",
         "descriptor": "()V",
         "access": "protected",
     },
     {
+        "class": GAME_CLASS,
         "name": "onVideoFrameRendered",
         "descriptor": "(JJ)V",
         "access": "public",
     },
     {
+        "class": GAME_CLASS,
         "name": "onAudioPcmWritten",
         "descriptor": "(II)V",
+        "access": "public",
+    },
+    {
+        "class": NVHTTP_CLASS,
+        "name": "cancelPendingRequests",
+        "descriptor": "()V",
         "access": "public",
     },
 )
@@ -106,7 +116,7 @@ def load_lock(path=LOCK_PATH):
     )
     _require(
         value["schemaVersion"] == 1
-        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v2",
+        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v3",
         "invalid_lock",
     )
     upstream = value["upstream"]
@@ -150,7 +160,8 @@ def load_lock(path=LOCK_PATH):
     _require(
         value["engineContracts"]
         == [
-            "pairing", "credentialStore", "video", "audio", "input", "stream",
+            "pairing", "credentialStore", "boundedPairingCancellation",
+            "video", "audio", "input", "stream",
             "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
         ],
         "invalid_lock",
@@ -519,9 +530,9 @@ def _class_methods(data):
     return methods
 
 
-def _verify_game_api(data):
+def _verify_engine_api(data, required_api):
     methods = _class_methods(data)
-    for required in REQUIRED_GAME_API:
+    for required in required_api:
         expected_flag = 0x0001 if required["access"] == "public" else 0x0004
         matching = [
             access
@@ -546,7 +557,12 @@ def package_receipt(aar, lock):
             with zipfile.ZipFile(io.BytesIO(classes)) as jar:
                 class_names = set(jar.namelist())
                 _require(all(name in class_names for name in lock["requiredClasses"]), "missing_engine_class")
-                _verify_game_api(jar.read(GAME_CLASS))
+                by_class = {}
+                for required in REQUIRED_ENGINE_API:
+                    by_class.setdefault(required["class"], []).append(required)
+                for class_name, required_api in by_class.items():
+                    _require(class_name in class_names, "missing_engine_class")
+                    _verify_engine_api(jar.read(class_name), required_api)
             native_names = [name for name in names if name.startswith("jni/") and name.endswith(".so")]
             actual_abis = sorted({PurePosixPath(name).parts[1] for name in native_names})
             _require(actual_abis == sorted(lock["supportedAbis"]), "unexpected_aar_abi")
@@ -583,7 +599,7 @@ def package_receipt(aar, lock):
         "aarSha256": _sha256(aar),
         "classesSha256": hashlib.sha256(classes).hexdigest(),
         "requiredClasses": lock["requiredClasses"],
-        "requiredApiMethods": [dict(item) for item in REQUIRED_GAME_API],
+        "requiredApiMethods": [dict(item) for item in REQUIRED_ENGINE_API],
         "patches": [dict(item) for item in lock["patches"]],
         "libraries": libraries,
         "bundledNativeArchives": [
@@ -632,7 +648,7 @@ def _verify_receipt_contract(receipt, lock):
         and receipt["sourceTree"] == lock["upstream"]["tree"]
         and receipt["abis"] == lock["supportedAbis"]
         and receipt["requiredClasses"] == lock["requiredClasses"]
-        and receipt["requiredApiMethods"] == list(REQUIRED_GAME_API)
+        and receipt["requiredApiMethods"] == list(REQUIRED_ENGINE_API)
         and receipt["patches"] == lock["patches"]
         and HEX64.fullmatch(receipt["aarSha256"] or "")
         and HEX64.fullmatch(receipt["classesSha256"] or "")

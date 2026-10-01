@@ -154,6 +154,11 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         for invalid in (
             body.replace(nonce.encode(), b"b" * 64),
             b'{"nonce":"' + nonce.encode() + b'","pin":"1234","schemaVersion":1}\nextra',
+            b'{"schemaVersion":1,"nonce":"'
+            + nonce.encode()
+            + b'","nonce":"'
+            + nonce.encode()
+            + b'","pin":"1234"}\n',
             b'{"schemaVersion":1,"nonce":"' + nonce.encode() + b'","pin":"12x4"}\n',
             b'{"schemaVersion":1,"nonce":"' + nonce.encode() + b'","pin":"1234","extra":true}\n',
             b"x" * (stream.PIN_MESSAGE_BYTES + 1),
@@ -191,6 +196,53 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertGreaterEqual(owned.processes.alive_checks, 2)
             with self.assertRaises(OSError):
                 socket.create_connection(("127.0.0.1", bridge.host_port), timeout=0.1)
+
+    def test_pin_bridge_processes_canonical_line_before_client_eof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            nonce = "f" * 64
+            bridge = stream.OneShotPinBridge(owned, nonce=nonce, timeout_seconds=1)
+            bridge.start()
+            payload = (
+                '{"schemaVersion":1,"nonce":"' + nonce + '","pin":"4821"}\n'
+            ).encode()
+            with socket.create_connection(
+                ("127.0.0.1", bridge.host_port), timeout=1
+            ) as client:
+                client.sendall(payload)
+                bridge.wait()
+                self.assertEqual(
+                    [("a" * 32, "4821", stream.PAIRING_CLIENT_NAME)],
+                    owned.api.approved,
+                )
+                self.assertEqual("pairedClientObserved", bridge.public_stage())
+            bridge.close()
+
+    def test_pin_bridge_receive_rejects_same_read_trailing_and_incomplete_frames(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            bridge = stream.OneShotPinBridge(
+                owned, nonce="1" * 64, timeout_seconds=1
+            )
+            for payload in (
+                b'{"schemaVersion":1}\nextra',
+                b'{"schemaVersion":1}',
+                b"x" * (stream.PIN_MESSAGE_BYTES + 1),
+            ):
+                with self.subTest(size=len(payload)):
+                    reader, writer = socket.socketpair()
+                    try:
+                        writer.sendall(payload)
+                        writer.shutdown(socket.SHUT_WR)
+                        with self.assertRaisesRegex(
+                            stream.StreamAcceptanceFailure,
+                            "private PIN control message is invalid",
+                        ):
+                            bridge._receive(reader)
+                    finally:
+                        reader.close()
+                        writer.close()
+            bridge.close()
 
     def test_pin_bridge_reports_only_fixed_last_completed_stage_on_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -864,7 +916,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -905,7 +957,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -937,7 +989,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -992,7 +1044,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }

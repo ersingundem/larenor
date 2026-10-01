@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+  "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
   "upstream": {
     "name": "Moonlight Android",
     "version": "12.2",
@@ -43,7 +43,7 @@
   "patches": [
     {
       "path": "android/moonlight/patches/0001-embed-library.patch",
-      "sha256": "fecdb1c3f37b9f52eedb8186c59029a54e8d2b241d4291a762ccb34a5ec18bed"
+      "sha256": "85bfb0080400eff2bc05392b4ea1c05b2b72dc152cafea9716008ae2dd222e0d"
     }
   ],
   "reviewedFiles": {
@@ -58,7 +58,8 @@
     "app/src/main/java/com/limelight/nvstream/NvConnection.java": "f29563f1c112bbc271045b6e0a9d8306788d2ef7",
     "app/src/main/java/com/limelight/nvstream/http/PairingManager.java": "65994b61ca9c2cf49a66f9054ce6bac7eb6b6d34",
     "app/src/main/jni/moonlight-core/Android.mk": "f32fc9dc4b71b5e7320254c495151944b7cfabcc",
-    "app/src/main/jni/moonlight-core/simplejni.c": "eef1c5e72fae56eef58c283390449b6015849bde"
+    "app/src/main/jni/moonlight-core/simplejni.c": "eef1c5e72fae56eef58c283390449b6015849bde",
+    "app/src/main/java/com/limelight/nvstream/http/NvHTTP.java": "ccf1921ad3b172f9e3b1af249ef09bab8d255452"
   },
   "toolchain": {
     "java": "17",
@@ -108,6 +109,7 @@
   "engineContracts": [
     "pairing",
     "credentialStore",
+    "boundedPairingCancellation",
     "video",
     "audio",
     "input",

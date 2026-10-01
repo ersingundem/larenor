@@ -314,19 +314,19 @@ class OneShotPinBridge:
     def _receive(self, connection: socket.socket) -> bytes:
         connection.settimeout(self._timeout)
         data = bytearray()
-        while len(data) <= PIN_MESSAGE_BYTES:
+        while len(data) < PIN_MESSAGE_BYTES:
             chunk = connection.recv(min(64, PIN_MESSAGE_BYTES + 1 - len(data)))
             if not chunk:
-                break
+                raise StreamAcceptanceFailure("private PIN control message is invalid")
             data.extend(chunk)
-            if data.endswith(b"\n"):
-                extra = connection.recv(1)
-                if extra:
+            newline = data.find(b"\n")
+            if newline >= 0:
+                if newline != len(data) - 1:
                     raise StreamAcceptanceFailure("private PIN control message is invalid")
-                break
+                return bytes(data)
         if len(data) > PIN_MESSAGE_BYTES:
             raise StreamAcceptanceFailure("private PIN control message is invalid")
-        return bytes(data)
+        raise StreamAcceptanceFailure("private PIN control message is invalid")
 
     def _serve(self) -> None:
         try:
