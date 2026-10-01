@@ -15,6 +15,7 @@ from larenor_server.plugins.jellyfin_playback_runtime import (
     JellyfinPlaybackProtocol,
 )
 from larenor_server.plugins.media_playback_models import (
+    PrivateJellyfinPlaybackInfoAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
     PrivateMediaPlaybackAction,
@@ -24,7 +25,11 @@ from test_jellyfin_bootstrap_executor import prepared  # noqa: F401
 from test_jellyfin_playback_runtime import (
     ITEM,
     TOKEN,
+    USER,
     Connection,
+    local_profile,
+    playback_info_body,
+    playback_info_source,
     response,
     sessions,
 )
@@ -52,6 +57,18 @@ def action(stack):
             expectedPlaybackRevision=100, targetId='c' * 32,
             expectedTargetRevision=100, startSeconds=12),
         plan=stack, apiKey=TOKEN,
+    )
+
+
+def playback_info_authority(stack):
+    return PrivateJellyfinPlaybackInfoAuthority(
+        requestId='9' * 32,
+        authority=PrivateMediaPlaybackAuthority(
+            installationId=JOB, installationRevision=4,
+            snapshotRevision=8, jellyfinServiceRevision=6,
+            itemId=ITEM, mediaKey='movie:tmdb:603'),
+        profile=local_profile(), expectedContentLength=2048,
+        plan=stack, apiKey=TOKEN, userId=USER,
     )
 
 
@@ -94,6 +111,25 @@ def test_read_reconciles_exact_container_and_rechecks_endpoint(
     assert len([call for call in engine.calls if call[0] == 'inspect']) >= 2
     assert connection.closed
     assert TOKEN not in repr(authority(stack)) + repr(result)
+
+
+def test_playback_info_reuses_proved_endpoint_and_rechecks_authority(
+        prepared, monkeypatch):
+    stack, binding, engine, operations = prepared
+    connection = Connection(response(
+        '200 OK', playback_info_body(playback_info_source())))
+    calls = opened(monkeypatch, stack, binding, engine, [connection])
+    gates = []
+
+    result = executor(binding, operations).read_playback_info(
+        playback_info_authority(stack), deadline=time.monotonic() + 1,
+        gate=lambda: gates.append('gate') or True)
+
+    assert result.originalByteOutcome == 'direct_play_supported'
+    assert len(calls) == 1 and len(gates) == 2
+    assert len([call for call in engine.calls if call[0] == 'inspect']) >= 2
+    assert connection.closed
+    assert TOKEN not in repr(playback_info_authority(stack)) + repr(result)
 
 
 def test_execute_opens_three_fresh_proved_streams_and_verifies_final_endpoint(

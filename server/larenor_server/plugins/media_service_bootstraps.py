@@ -58,6 +58,7 @@ class _PrivateView:
 class _PlaybackPrivateView:
     plan: object
     api_key: str
+    user_id: str
     bootstrap_revision: int
 
     def __repr__(self):
@@ -309,7 +310,8 @@ class MediaServiceBootstrapManagement:
                 payload = self.installations._decode(installation)
                 plan = verify_media_stack_plan(payload.plan, load_catalog())
                 return _PlaybackPrivateView(
-                    plan, private.readback.apiKey, row['revision'])
+                    plan, private.readback.apiKey, private.readback.userId,
+                    row['revision'])
         except ApiError:
             raise
         except Exception:

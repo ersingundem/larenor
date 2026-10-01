@@ -1,7 +1,9 @@
 """Strict public and private contracts for managed media playback."""
 
 import re
-from typing import Literal
+import hashlib
+import json
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -16,6 +18,7 @@ _MEDIA_KEY = re.compile(
     r'[0-9]{1,4}:[0-9]{1,5})\Z'
 )
 _QUALITY_TOKEN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.+,\-]{0,63}\Z')
+_CLIENT_REVISION = Annotated[int, Field(ge=1, le=2**53 - 1)]
 
 
 def _exact_schema_version(value):
@@ -71,6 +74,88 @@ class MediaPlaybackQualityObservation(StrictModel):
     transcoding: MediaPlaybackTranscodingEvidence | None
 
 
+class LocalPlaybackClientProfile(StrictModel):
+    """Bounded Client facts used for one provider PlaybackInfo observation."""
+
+    schemaVersion: Literal[1] = 1
+    evidence: Literal['client_reported']
+    profileId: ObjectId
+    profileRevision: _CLIENT_REVISION
+    displayRevision: _CLIENT_REVISION
+    decoderRevision: _CLIENT_REVISION
+    networkRevision: _CLIENT_REVISION
+    policyRevision: _CLIENT_REVISION
+    containers: list[str] = Field(min_length=1, max_length=16)
+    videoCodecs: list[str] = Field(min_length=1, max_length=32)
+    audioCodecs: list[str] = Field(min_length=1, max_length=32)
+    subtitleFormats: list[str] = Field(max_length=16)
+    maxWidth: int = Field(ge=320, le=8192)
+    maxHeight: int = Field(ge=320, le=8192)
+    maxStreamingBitrateBps: int = Field(ge=1, le=1_000_000_000)
+
+    @model_validator(mode='after')
+    def coherent(self):
+        values = (self.containers, self.videoCodecs, self.audioCodecs,
+                  self.subtitleFormats)
+        if (any(len(items) != len(set(items)) for items in values)
+                or any(items != sorted(items) for items in values)
+                or any(_QUALITY_TOKEN.fullmatch(value) is None
+                       for items in values for value in items)):
+            raise ValueError('invalid_local_playback_profile')
+        return self
+
+
+def local_playback_profile_digest(profile):
+    if type(profile) is not LocalPlaybackClientProfile:
+        raise ValueError('invalid_local_playback_profile')
+    return hashlib.sha256(json.dumps(
+        profile.model_dump(mode='json'), sort_keys=True,
+        separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+class PlaybackInfoReadback(StrictModel):
+    schemaVersion: Literal[1] = 1
+    itemId: ObjectId
+    profileDigest: str = Field(pattern=r'^[0-9a-f]{64}$')
+    assurance: Literal['provider_observed_for_client_reported_profile']
+    originalByteOutcome: Literal[
+        'direct_play_supported', 'requires_remux', 'requires_transcode',
+        'unavailable', 'contract_unknown',
+    ]
+    playMethod: Literal[
+        'unknown', 'direct_play', 'direct_stream', 'transcode'
+    ]
+    source: MediaPlaybackSourceStreamEvidence | None
+    transcoding: MediaPlaybackTranscodingEvidence | None
+    reason: Literal[
+        'available', 'multiple_sources', 'original_byte_mismatch',
+        'no_supported_method', 'contract_unsupported',
+    ]
+
+    @model_validator(mode='after')
+    def coherent(self):
+        expected = {
+            'direct_play_supported': ('direct_play', 'available'),
+            'requires_remux': ('direct_stream', 'available'),
+            'requires_transcode': ('transcode', 'available'),
+            'unavailable': ('unknown', 'no_supported_method'),
+        }
+        pair = expected.get(self.originalByteOutcome)
+        if ((pair is not None and (self.playMethod, self.reason) != pair)
+                or (self.originalByteOutcome == 'contract_unknown'
+                    and self.reason not in {
+                        'multiple_sources', 'original_byte_mismatch',
+                        'contract_unsupported'})
+                or (self.playMethod == 'unknown'
+                    and (self.source is not None
+                         or self.transcoding is not None))
+                or (self.playMethod != 'unknown' and self.source is None)
+                or (self.playMethod in {'direct_play', 'direct_stream'}
+                    and self.transcoding is not None)):
+            raise ValueError('invalid_playback_info_readback')
+        return self
+
+
 class MediaPlaybackTarget(StrictModel):
     targetId: str = Field(min_length=1, max_length=128)
     targetRevision: Revision
@@ -118,6 +203,14 @@ class PrepareMediaPlaybackIntentRequest(StrictModel):
         if _MEDIA_KEY.fullmatch(value) is None:
             raise ValueError('invalid_media_playback_item')
         return value
+
+
+class PlaybackInfoRequest(PrepareMediaPlaybackIntentRequest):
+    schemaVersion: Literal[1] = 1
+    profile: LocalPlaybackClientProfile
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
 
 
 class MediaPlaybackIntent(PrepareMediaPlaybackIntentRequest):
@@ -329,6 +422,20 @@ class PrivateJellyfinOfflineMediaChunkAuthority(StrictModel):
     length: int = Field(ge=1, le=32 * 1024)
     plan: MediaStackPlan = Field(repr=False)
     apiKey: str = Field(min_length=32, max_length=128, repr=False)
+
+    _version = field_validator('schemaVersion', mode='before')(
+        _exact_schema_version)
+
+
+class PrivateJellyfinPlaybackInfoAuthority(StrictModel):
+    schemaVersion: Literal[1] = 1
+    requestId: ObjectId
+    authority: PrivateMediaPlaybackAuthority
+    profile: LocalPlaybackClientProfile
+    expectedContentLength: int = Field(ge=1, le=2**63 - 1)
+    plan: MediaStackPlan = Field(repr=False)
+    apiKey: str = Field(min_length=32, max_length=128, repr=False)
+    userId: ObjectId = Field(repr=False)
 
     _version = field_validator('schemaVersion', mode='before')(
         _exact_schema_version)

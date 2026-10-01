@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 import hmac
 import json
+import secrets
+import threading
 import time
 
 from pydantic import ValidationError
@@ -16,6 +18,8 @@ from .media_playback_models import (
     MediaPlaybackReceipt,
     MediaPlaybackWorkerResult,
     OfflineMediaChunkReadback,
+    PlaybackInfoReadback,
+    PlaybackInfoRequest,
     MediaSegmentsAuthority,
     MediaSegmentsReadback,
     MediaSegmentsRequest,
@@ -23,15 +27,20 @@ from .media_playback_models import (
     PrepareMediaPlaybackIntentRequest,
     PrivateJellyfinMediaSegmentsAuthority,
     PrivateJellyfinOfflineMediaChunkAuthority,
+    PrivateJellyfinPlaybackInfoAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
     PrivateMediaPlaybackAction,
     PrivateMediaPlaybackAuthority,
+    local_playback_profile_digest,
 )
 from .media_archive_core_models import PrivateMediaArchiveCollection
 from .media_installations import MAX_INSTALLATIONS
 
 _MAX_RECORDS = 256
+_MAX_PLAYBACK_INFO_OBSERVATIONS = 256
+_MAX_PLAYBACK_INFO_OBSERVATIONS_PER_ACTOR = 32
+_PLAYBACK_INFO_TTL = 30
 _RECEIPT_QUERY = '''SELECT
     r.request_id AS receipt_request_id,
     r.intent_id AS receipt_intent_id,
@@ -88,7 +97,9 @@ class MediaPlaybackWorkerProvider:
             return (current.bootstrap_revision == selected.bootstrap_revision
                     and current.plan == selected.plan
                     and hmac.compare_digest(
-                        current.api_key, selected.api_key))
+                        current.api_key, selected.api_key)
+                    and hmac.compare_digest(
+                        current.user_id, selected.user_id))
         except Exception:
             return False
 
@@ -167,11 +178,123 @@ class MediaPlaybackWorkerProvider:
             raise ValueError('media_playback_authority_changed')
         return result
 
+    def read_playback_info(self, authority, *, request_id, profile,
+                           expected_content_length, deadline, gate):
+        reader = getattr(self.backend, 'read_playback_info', None)
+        if not callable(reader):
+            raise ValueError('media_playback_worker_unavailable')
+        private = self.bootstraps.playback_private(
+            authority.installationId, authority.installationRevision)
+        retained = lambda: self._retained(
+            authority.installationId, authority.installationRevision,
+            private, gate)
+        if retained() is not True:
+            raise ValueError('media_playback_authority_changed')
+        result = reader(
+            PrivateJellyfinPlaybackInfoAuthority(
+                requestId=request_id, authority=authority, profile=profile,
+                expectedContentLength=expected_content_length,
+                plan=private.plan, apiKey=private.api_key,
+                userId=private.user_id),
+            deadline=deadline, gate=retained)
+        if (retained() is not True
+                or type(result) is not PlaybackInfoReadback
+                or result.profileDigest
+                != local_playback_profile_digest(profile)):
+            raise ValueError('media_playback_authority_changed')
+        return result
+
 
 class MediaPlaybackManagement:
     def __init__(self, db, auth, settings, archive, backend=None, context=None):
         self.db, self.auth, self.settings = db, auth, settings
         self.archive, self.backend, self.context = archive, backend, context
+        self._playback_info_observations = {}
+        self._playback_info_lock = threading.RLock()
+
+    def _prune_playback_info(self, now):
+        expired = [
+            key for key, value in self._playback_info_observations.items()
+            if value['expires_at'] <= now
+        ]
+        for key in expired:
+            self._playback_info_observations.pop(key, None)
+
+    def record_playback_info_observation(
+            self, actor, actor_revision, authority, profile, readback):
+        if (self.context is None
+                or type(authority) is not PrivateMediaPlaybackAuthority
+                or type(readback) is not PlaybackInfoReadback
+                or readback.itemId != authority.itemId
+                or readback.profileDigest
+                != local_playback_profile_digest(profile)
+                or self._gate(actor, authority, actor_revision) is not True):
+            raise ApiError('media_playback_authority_changed', 409)
+        now = int(self.settings.clock())
+        with self._playback_info_lock:
+            self._prune_playback_info(now)
+            owned = sum(
+                value['actor_id'] == actor.id
+                for value in self._playback_info_observations.values())
+            if (owned >= _MAX_PLAYBACK_INFO_OBSERVATIONS_PER_ACTOR
+                    or len(self._playback_info_observations)
+                    >= _MAX_PLAYBACK_INFO_OBSERVATIONS):
+                raise ApiError('media_playback_observation_limit_reached', 429)
+            observation_id = None
+            for _ in range(8):
+                observation_id = secrets.token_hex(16)
+                if observation_id not in self._playback_info_observations:
+                    break
+            if (observation_id is None
+                    or observation_id in self._playback_info_observations):
+                raise ApiError(
+                    'media_playback_observation_limit_reached', 429)
+            self._playback_info_observations[observation_id] = {
+                'id': observation_id,
+                'actor_id': actor.id,
+                'family_id': actor.family_id,
+                'actor_revision': actor_revision,
+                'core_id': self.context.coreId,
+                'home_id': self.context.homeId,
+                'authority': authority,
+                'profile_digest': readback.profileDigest,
+                'outcome': readback.originalByteOutcome,
+                'expires_at': now + _PLAYBACK_INFO_TTL,
+            }
+        return observation_id, now, now + _PLAYBACK_INFO_TTL
+
+    def consume_playback_info_observation(
+            self, actor, observation_id, authority):
+        now = int(self.settings.clock())
+        with self._playback_info_lock:
+            self._prune_playback_info(now)
+            stored = self._playback_info_observations.get(observation_id)
+            if (stored is None or stored['actor_id'] != actor.id
+                    or stored['family_id'] != actor.family_id):
+                raise ApiError('not_found', 404)
+            row = dict(stored)
+        if (row['core_id'] != self.context.coreId
+                or row['home_id'] != self.context.homeId
+                or row['authority'] != authority):
+            raise ApiError('offline_media_authority_changed', 409)
+        with self.db.connection() as connection:
+            actor_revision = self._current_actor_revision(connection, actor)
+        if (actor_revision != row['actor_revision']
+                or self._gate(actor, authority, actor_revision) is not True):
+            raise ApiError('offline_media_authority_changed', 409)
+        with self._playback_info_lock:
+            # The DB and current authority checks may cross the inclusive
+            # observation expiry. Recheck under the consuming CAS lock.
+            self._prune_playback_info(int(self.settings.clock()))
+            current = self._playback_info_observations.get(observation_id)
+            if current is None:
+                raise ApiError('not_found', 404)
+            if current != stored:
+                raise ApiError('offline_media_authority_changed', 409)
+            self._playback_info_observations.pop(observation_id, None)
+        if row['outcome'] != 'direct_play_supported':
+            raise ApiError('offline_media_unavailable', 409)
+        return row
 
     def validate_storage(self):
         try:
@@ -460,6 +583,67 @@ class MediaPlaybackManagement:
             supported=readback.supported, reason=readback.reason,
             segments=readback.segments)
         return response.model_dump(mode='python')
+
+    def playback_info(self, actor, body):
+        if type(body) is not PlaybackInfoRequest or self.context is None:
+            raise ApiError('invalid_request')
+        actor_revision = self._actor_revision(actor)
+        current, observation = self.archive._collect(
+            actor, body, member=True)
+        jellyfin = next(
+            item for item in current.sources if item.serviceId == 'jellyfin')
+        if jellyfin.serviceRevision != body.expectedJellyfinServiceRevision:
+            raise ApiError('media_playback_authority_changed', 409)
+        item = next((item for item in observation.jellyfin.items
+                     if item.itemId == body.itemId
+                     and item.mediaKey == body.mediaKey
+                     and item.integrity == 'playable'), None)
+        if item is None or item.sizeBytes < 1:
+            raise ApiError('media_playback_item_changed', 409)
+        authority = PrivateMediaPlaybackAuthority(
+            installationId=current.installationId,
+            installationRevision=current.installationRevision,
+            snapshotRevision=current.snapshotRevision,
+            jellyfinServiceRevision=jellyfin.serviceRevision,
+            itemId=item.itemId, mediaKey=item.mediaKey)
+        reader = getattr(self.backend, 'read_playback_info', None)
+        if not callable(reader):
+            raise ApiError('media_playback_worker_unavailable', 503)
+        deadline = time.monotonic() + 5
+
+        def gate():
+            return (time.monotonic() < deadline
+                    and self._gate(actor, authority, actor_revision))
+
+        try:
+            result = reader(
+                authority, request_id=body.requestId, profile=body.profile,
+                expected_content_length=item.sizeBytes,
+                deadline=deadline, gate=gate)
+            if type(result) is not PlaybackInfoReadback:
+                raise ValueError()
+            if result.profileDigest != local_playback_profile_digest(
+                    body.profile):
+                raise ValueError()
+            if gate() is not True:
+                raise ApiError('media_playback_authority_changed', 409)
+        except ApiError:
+            raise
+        except JellyfinPlaybackExecutionError as error:
+            if error.code == 'jellyfin_playback_authority_changed':
+                raise ApiError(
+                    'media_playback_authority_changed', 409) from None
+            raise ApiError('media_playback_worker_unavailable', 503) from None
+        except ValueError as error:
+            if str(error) == 'media_playback_authority_changed':
+                raise ApiError(
+                    'media_playback_authority_changed', 409) from None
+            raise ApiError('media_playback_worker_unavailable', 503) from None
+        except Exception:
+            raise ApiError('media_playback_worker_unavailable', 503) from None
+        if self._actor_revision(actor) != actor_revision:
+            raise ApiError('media_playback_authority_changed', 409)
+        return actor_revision, authority, result
 
     def prepare(self, actor, body):
         if type(body) is not PrepareMediaPlaybackIntentRequest:

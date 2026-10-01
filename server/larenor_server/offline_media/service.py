@@ -48,6 +48,7 @@ class OfflineMediaService:
         # A new process cannot silently resume an old bearer-backed stream.
         self._playback_leases = {}
         self._playback_lock = threading.RLock()
+        self._playback_create_lock = threading.Lock()
 
     @staticmethod
     def _json(value):
@@ -336,10 +337,25 @@ class OfflineMediaService:
                 self._playback_leases.pop(key, None)
 
     def create_playback_lease(self, actor, body):
+        with self._playback_create_lock:
+            return self._create_playback_lease(actor, body)
+
+    def _create_playback_lease(self, actor, body):
         if type(body) is not CreateOnlinePlaybackLeaseRequest:
             raise ApiError("invalid_request")
         now = int(self.settings.clock())
         self._prune_playback(now)
+        request_hash = hashlib.sha256(
+            self._json(body.model_dump(mode="json")).encode()).hexdigest()
+        with self._playback_lock:
+            existing = self._playback_leases.get(body.requestId)
+        if existing is not None:
+            if (existing["actor_id"] != actor.id
+                    or existing["family_id"] != actor.family_id
+                    or existing["request_hash"] != request_hash):
+                raise ApiError("offline_media_request_conflict", 409)
+            current = self._playback_owned(actor, body.requestId)
+            return {"lease": self._playback_public(current)}
         _current, observation = self.media_playback.archive._collect(
             actor, body, member=True)
         private = self.media_playback._catalog(actor, body)
@@ -353,8 +369,25 @@ class OfflineMediaService:
             actor_revision = self._actor_revision(connection, actor)
         if self.media_playback._gate(actor, private, actor_revision) is not True:
             raise ApiError("offline_media_authority_changed", 409)
-        request_hash = hashlib.sha256(
-            self._json(body.model_dump(mode="json")).encode()).hexdigest()
+        backend = self.media_playback.backend
+        if not callable(getattr(backend, "read_offline_media_chunk", None)):
+            raise ApiError("media_playback_worker_unavailable", 503)
+        # All creates share _playback_create_lock. Capacity rejection must
+        # leave an otherwise current observation available for a later try;
+        # renew/retire/prune cannot introduce a new lease concurrently.
+        now = int(self.settings.clock())
+        self._prune_playback(now)
+        with self._playback_lock:
+            active = sum(
+                value["actor_id"] == actor.id
+                and value["state"] == "active"
+                and value["expires_at"] > now
+                for value in self._playback_leases.values())
+            if (active >= MAX_PLAYBACK_LEASES_PER_ACTOR
+                    or len(self._playback_leases) >= MAX_PLAYBACK_LEASES):
+                raise ApiError("offline_media_limit_reached", 429)
+        selected = self.media_playback.consume_playback_info_observation(
+            actor, body.playbackObservationId, private)
         row = {
             "id": body.requestId, "actor_id": actor.id,
             "family_id": actor.family_id, "actor_revision": actor_revision,
@@ -362,32 +395,13 @@ class OfflineMediaService:
             "media_kind": item.mediaKind,
             "runtime_seconds": item.runtimeSeconds,
             "content_length": item.sizeBytes, "state": "active",
-            "expires_at": now + PLAYBACK_LEASE_TTL,
+            "expires_at": int(self.settings.clock()) + PLAYBACK_LEASE_TTL,
             "request_hash": request_hash, "last_request_id": None,
             "last_request_hash": None,
+            "playback_observation_id": body.playbackObservationId,
+            "profile_digest": selected["profile_digest"],
         }
         with self._playback_lock:
-            existing = self._playback_leases.get(body.requestId)
-        if existing is not None:
-            if (existing["actor_id"] != actor.id
-                    or existing["family_id"] != actor.family_id
-                    or existing["request_hash"] != request_hash):
-                raise ApiError("offline_media_request_conflict", 409)
-            current = self._playback_owned(actor, body.requestId)
-            return {"lease": self._playback_public(current)}
-        backend = self.media_playback.backend
-        if not callable(getattr(backend, "read_offline_media_chunk", None)):
-            raise ApiError("media_playback_worker_unavailable", 503)
-        with self._playback_lock:
-            active = sum(
-                value["actor_id"] == actor.id
-                and value["state"] == "active"
-                and value["expires_at"] > now
-                for value in self._playback_leases.values())
-            if active >= MAX_PLAYBACK_LEASES_PER_ACTOR:
-                raise ApiError("offline_media_limit_reached", 429)
-            if len(self._playback_leases) >= MAX_PLAYBACK_LEASES:
-                raise ApiError("offline_media_limit_reached", 429)
             # A simultaneous identical create returns the exact current lease;
             # a different body can never replace its authority.
             existing = self._playback_leases.get(body.requestId)

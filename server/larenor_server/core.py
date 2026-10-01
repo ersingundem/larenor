@@ -720,7 +720,8 @@ class CoreServices:
             )
             self.jellyfin_track_preferences.validate_storage()
             self.playback_quality = PlaybackQualityService(
-                self.db, self.auth, settings, self.context
+                self.db, self.auth, settings, self.context,
+                media_playback=lambda: self.media_playback,
             )
             self.tablet_fleet = TabletFleetService(
                 self.db, self.auth, settings, key, self.context

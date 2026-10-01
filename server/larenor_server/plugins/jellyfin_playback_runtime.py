@@ -24,6 +24,8 @@ from .media_playback_models import (
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
     OfflineMediaChunkReadback,
+    PlaybackInfoReadback,
+    local_playback_profile_digest,
     MediaSegment,
     MediaSegmentsReadback,
     PrivateMediaPlaybackAction,
@@ -104,6 +106,38 @@ class JellyfinPlaybackProtocol:
                 socket.timeout):
             raise JellyfinPlaybackRuntimeError(
                 uncertain_effect=effect and attempted) from None
+        finally:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _post_json(connection, path, authorization, payload, deadline):
+        reader = _StartupReader(connection, deadline)
+        try:
+            raw = json.dumps(
+                payload, sort_keys=True, separators=(',', ':'),
+                allow_nan=False).encode('utf-8')
+            if len(raw) > 65536:
+                raise ValueError()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError()
+            connection.settimeout(remaining)
+            connection.sendall(_request_bytes(
+                'POST', path, 'jellyfin', {
+                    'Accept': 'application/json',
+                    'Authorization': authorization,
+                    'Content-Type': 'application/json',
+                }, raw))
+            status, body, closed = _response(reader, 262144)
+            if status != 200 or closed is not True or reader.receive(1) != b'':
+                raise ValueError()
+            return body
+        except (OSError, ValueError, TypeError, ProbeTransportError,
+                socket.timeout):
+            raise JellyfinPlaybackRuntimeError() from None
         finally:
             try:
                 connection.close()
@@ -522,6 +556,162 @@ class JellyfinPlaybackProtocol:
             itemId=item_id, offset=offset, contentLength=total,
             contentType=content_type,
             dataBase64=base64.b64encode(content).decode('ascii'))
+
+    @staticmethod
+    def _profile(profile):
+        video = ','.join(profile.videoCodecs)
+        audio = ','.join(profile.audioCodecs)
+        conditions = [
+            {'Condition': 'LessThanEqual', 'Property': 'Width',
+             'Value': str(profile.maxWidth), 'IsRequired': True},
+            {'Condition': 'LessThanEqual', 'Property': 'Height',
+             'Value': str(profile.maxHeight), 'IsRequired': True},
+        ]
+        return {
+            'Name': 'Larenor Core local playback',
+            'MaxStreamingBitrate': profile.maxStreamingBitrateBps,
+            'DirectPlayProfiles': [{
+                'Container': ','.join(profile.containers), 'Type': 'Video',
+                'VideoCodec': video, 'AudioCodec': audio,
+            }],
+            'TranscodingProfiles': [{
+                'Container': 'ts', 'Type': 'Video', 'VideoCodec': 'h264',
+                'AudioCodec': 'aac', 'Context': 'Streaming',
+                'Protocol': 'hls', 'MinSegments': 1,
+                'BreakOnNonKeyFrames': True,
+            }] if ('h264' in profile.videoCodecs
+                   and 'aac' in profile.audioCodecs) else [],
+            'CodecProfiles': [{
+                'Type': 'Video', 'Codec': video, 'Conditions': conditions,
+            }],
+            'SubtitleProfiles': [
+                {'Format': value, 'Method': 'External'}
+                for value in profile.subtitleFormats
+            ],
+        }
+
+    @staticmethod
+    def _profile_digest(profile):
+        return local_playback_profile_digest(profile)
+
+    @staticmethod
+    def _unknown_info(item_id, profile_digest, reason):
+        return PlaybackInfoReadback(
+            itemId=item_id, profileDigest=profile_digest,
+            assurance='provider_observed_for_client_reported_profile',
+            originalByteOutcome='contract_unknown', playMethod='unknown',
+            source=None, transcoding=None, reason=reason)
+
+    @classmethod
+    def _playback_info(cls, body, item_id, expected_length, profile):
+        profile_digest = cls._profile_digest(profile)
+        raw = _json(body)
+        if type(raw) is not dict or raw.get('ErrorCode') is not None:
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+        sources = raw.get('MediaSources')
+        if type(sources) is not list:
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+        if len(sources) != 1:
+            return cls._unknown_info(
+                item_id, profile_digest,
+                'multiple_sources' if sources else 'contract_unsupported')
+        source = sources[0]
+        if type(source) is not dict:
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+        identifier = source.get('Id')
+        size = source.get('Size')
+        if (type(identifier) is not str or not 1 <= len(identifier) <= 128
+                or any(ord(value) < 32 or ord(value) == 127
+                       for value in identifier)
+                or type(size) is not int or type(size) is bool or size < 1):
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+        if size != expected_length:
+            return cls._unknown_info(
+                item_id, profile_digest, 'original_byte_mismatch')
+        support = tuple(source.get(key) for key in (
+            'SupportsDirectPlay', 'SupportsDirectStream',
+            'SupportsTranscoding'))
+        if any(type(value) is not bool for value in support):
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+        if support[0]:
+            method, outcome = 'DirectPlay', 'direct_play_supported'
+        elif support[1]:
+            method, outcome = 'DirectStream', 'requires_remux'
+        elif support[2]:
+            method, outcome = 'Transcode', 'requires_transcode'
+        else:
+            return PlaybackInfoReadback(
+                itemId=item_id, profileDigest=profile_digest,
+                assurance='provider_observed_for_client_reported_profile',
+                originalByteOutcome='unavailable', playMethod='unknown',
+                source=None, transcoding=None, reason='no_supported_method')
+        transcoding = None
+        if method == 'Transcode':
+            # A provider boolean cannot advertise output outside the exact
+            # negotiation profile, even for advisory-only observations.
+            if (not cls._profile(profile)['TranscodingProfiles']
+                    or source.get('TranscodingContainer') != 'ts'
+                    or source.get('TranscodingVideoCodec') != 'h264'
+                    or source.get('TranscodingAudioCodec') != 'aac'):
+                return cls._unknown_info(
+                    item_id, profile_digest, 'contract_unsupported')
+            transcoding = {
+                'Container': source.get('TranscodingContainer'),
+                'VideoCodec': source.get('TranscodingVideoCodec'),
+                'AudioCodec': source.get('TranscodingAudioCodec'),
+                'Bitrate': source.get('TranscodingBitrate'),
+                'TranscodeReasons': source.get('TranscodingReasons', []),
+            }
+        try:
+            observed = cls._quality_observation(
+                {'PlayMethod': method}, {
+                    'Id': item_id, 'Container': source.get('Container'),
+                    'Bitrate': source.get('Bitrate'),
+                    'MediaStreams': source.get('MediaStreams', []),
+                }, transcoding)
+            return PlaybackInfoReadback(
+                itemId=item_id, profileDigest=profile_digest,
+                assurance='provider_observed_for_client_reported_profile',
+                originalByteOutcome=outcome,
+                playMethod=observed['playMethod'],
+                source=observed['source'],
+                transcoding=observed['transcoding'], reason='available')
+        except (ValueError, TypeError, ValidationError):
+            return cls._unknown_info(
+                item_id, profile_digest, 'contract_unsupported')
+
+    def read_playback_info(self, connection, *, api_key, user_id,
+                           installation_id, item_id, profile,
+                           expected_content_length, deadline):
+        self._inputs(api_key, installation_id, deadline)
+        if (type(user_id) is not str or _ID.fullmatch(user_id) is None
+                or type(item_id) is not str or _ID.fullmatch(item_id) is None
+                or type(expected_content_length) is not int
+                or type(expected_content_length) is bool
+                or not 1 <= expected_content_length <= 2**63 - 1):
+            raise JellyfinPlaybackRuntimeError(
+                'invalid_jellyfin_playback_request')
+        authorization = _BASE_AUTH.format(
+            device=installation_id, token=api_key)
+        device_profile = self._profile(profile)
+        body = self._post_json(
+            connection, f'/Items/{item_id}/PlaybackInfo', authorization, {
+                'UserId': user_id,
+                'DeviceProfile': device_profile,
+                'MaxStreamingBitrate': profile.maxStreamingBitrateBps,
+                'EnableDirectPlay': True,
+                'EnableDirectStream': True,
+                'EnableTranscoding': bool(device_profile['TranscodingProfiles']),
+                'AllowVideoStreamCopy': True,
+                'AllowAudioStreamCopy': True,
+            }, deadline)
+        return self._playback_info(
+            body, item_id, expected_content_length, profile)
 
     def execute(self, connections, action, *, api_key, deadline, gate):
         if (type(action) is not PrivateMediaPlaybackAction

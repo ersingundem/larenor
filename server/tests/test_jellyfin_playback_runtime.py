@@ -8,6 +8,7 @@ from larenor_server.plugins.jellyfin_playback_runtime import (
     JellyfinPlaybackRuntimeError,
 )
 from larenor_server.plugins.media_playback_models import (
+    LocalPlaybackClientProfile,
     PrivateMediaPlaybackAction,
 )
 
@@ -15,6 +16,7 @@ from larenor_server.plugins.media_playback_models import (
 TOKEN = 'k' * 32
 INSTALLATION = 'a' * 32
 ITEM = 'b' * 32
+USER = 'f' * 32
 
 
 class Connection:
@@ -75,6 +77,160 @@ def action(**changes):
         'startSeconds': 12,
     }
     return PrivateMediaPlaybackAction(**(values | changes))
+
+
+def local_profile(**changes):
+    values = {
+        'schemaVersion': 1,
+        'evidence': 'client_reported',
+        'profileId': '9' * 32,
+        'profileRevision': 1,
+        'displayRevision': 2,
+        'decoderRevision': 3,
+        'networkRevision': 4,
+        'policyRevision': 5,
+        'containers': ['mkv', 'mp4'],
+        'videoCodecs': ['h264', 'hevc'],
+        'audioCodecs': ['aac', 'eac3'],
+        'subtitleFormats': ['srt'],
+        'maxWidth': 3840,
+        'maxHeight': 2160,
+        'maxStreamingBitrateBps': 40_000_000,
+    }
+    return LocalPlaybackClientProfile(**(values | changes))
+
+
+def playback_info_source(**changes):
+    values = {
+        'Id': 'private-media-source',
+        'Size': 2048,
+        'SupportsDirectPlay': True,
+        'SupportsDirectStream': True,
+        'SupportsTranscoding': True,
+        'Container': 'mkv',
+        'Bitrate': 25_000_000,
+        'MediaStreams': [
+            {'Type': 'Video', 'Codec': 'hevc', 'VideoRange': 'HDR10'},
+            {'Type': 'Audio', 'Codec': 'eac3'},
+        ],
+    }
+    return values | changes
+
+
+def playback_info_body(*sources, **extra):
+    return json.dumps({'MediaSources': list(sources)} | extra,
+                      separators=(',', ':')).encode()
+
+
+def test_playback_info_posts_exact_client_reported_profile_and_returns_only_sanitized_evidence():
+    connection = Connection(response(
+        '200 OK', playback_info_body(playback_info_source())))
+    runtime = JellyfinPlaybackProtocol(revision_seed=100)
+
+    result = runtime.read_playback_info(
+        connection, api_key=TOKEN, user_id=USER,
+        installation_id=INSTALLATION, item_id=ITEM,
+        profile=local_profile(), expected_content_length=2048,
+        deadline=time.monotonic() + 1)
+
+    assert result.originalByteOutcome == 'direct_play_supported'
+    assert result.playMethod == 'direct_play'
+    assert result.source.container == 'mkv'
+    assert result.source.videoCodecs == ['hevc']
+    assert result.source.audioCodecs == ['eac3']
+    assert result.transcoding is None
+    wire = bytes(connection.sent)
+    assert wire.startswith(
+        b'POST /Items/' + ITEM.encode() + b'/PlaybackInfo HTTP/1.1\r\n')
+    payload = json.loads(wire.split(b'\r\n\r\n', 1)[1])
+    assert payload['UserId'] == USER
+    assert payload['MaxStreamingBitrate'] == 40_000_000
+    assert {key: payload[key] for key in (
+        'EnableDirectPlay', 'EnableDirectStream', 'EnableTranscoding',
+        'AllowVideoStreamCopy', 'AllowAudioStreamCopy')} == {
+            'EnableDirectPlay': True,
+            'EnableDirectStream': True,
+            'EnableTranscoding': True,
+            'AllowVideoStreamCopy': True,
+            'AllowAudioStreamCopy': True,
+        }
+    assert payload['DeviceProfile']['DirectPlayProfiles'] == [{
+        'AudioCodec': 'aac,eac3',
+        'Container': 'mkv,mp4',
+        'Type': 'Video',
+        'VideoCodec': 'h264,hevc',
+    }]
+    public = result.model_dump(mode='json')
+    assert 'private-media-source' not in json.dumps(public)
+    assert 'PlaySessionId' not in public
+    assert TOKEN not in repr(result)
+    assert connection.closed
+
+
+@pytest.mark.parametrize(('sources', 'expected'), [
+    ([playback_info_source(), playback_info_source(Id='other')],
+     ('contract_unknown', 'multiple_sources')),
+    ([playback_info_source(Size=1024)],
+     ('contract_unknown', 'original_byte_mismatch')),
+    ([playback_info_source(
+        SupportsDirectPlay=False,
+        SupportsDirectStream=True)],
+     ('requires_remux', 'available')),
+    ([playback_info_source(
+        SupportsDirectPlay=False,
+        SupportsDirectStream=False,
+        SupportsTranscoding=True,
+        TranscodingContainer='ts',
+        TranscodingVideoCodec='h264',
+        TranscodingAudioCodec='aac',
+        TranscodingBitrate=8_000_000,
+        TranscodingReasons=['ContainerNotSupported'])],
+     ('requires_transcode', 'available')),
+])
+def test_playback_info_is_honest_for_ambiguous_sources_and_original_bytes(
+        sources, expected):
+    runtime = JellyfinPlaybackProtocol(revision_seed=100)
+    result = runtime.read_playback_info(
+        Connection(response('200 OK', playback_info_body(*sources))),
+        api_key=TOKEN, user_id=USER, installation_id=INSTALLATION,
+        item_id=ITEM, profile=local_profile(),
+        expected_content_length=2048, deadline=time.monotonic() + 1)
+
+    assert (result.originalByteOutcome, result.reason) == expected
+    assert result.originalByteOutcome != 'direct_play_supported'
+
+
+@pytest.mark.parametrize('reported', [
+    {'videoCodecs': ['hevc'], 'audioCodecs': ['eac3']},
+    {'videoCodecs': ['h264'], 'audioCodecs': ['eac3']},
+])
+def test_playback_info_never_advertises_unreported_transcode_decoders(reported):
+    connection = Connection(response('200 OK', playback_info_body(
+        playback_info_source(
+            SupportsDirectPlay=False, SupportsDirectStream=False,
+            TranscodingContainer='ts', TranscodingVideoCodec='h264',
+            TranscodingAudioCodec='aac', TranscodingBitrate=8_000_000))))
+    result = JellyfinPlaybackProtocol().read_playback_info(
+        connection, api_key=TOKEN, user_id=USER,
+        installation_id=INSTALLATION, item_id=ITEM,
+        profile=local_profile(**reported), expected_content_length=2048,
+        deadline=time.monotonic() + 1)
+    payload = json.loads(bytes(connection.sent).split(b'\r\n\r\n', 1)[1])
+    assert payload['DeviceProfile']['TranscodingProfiles'] == []
+    assert payload['EnableTranscoding'] is False
+    assert result.originalByteOutcome == 'contract_unknown'
+
+
+def test_playback_info_rejects_output_outside_advertised_transcode_profile():
+    result = JellyfinPlaybackProtocol().read_playback_info(
+        Connection(response('200 OK', playback_info_body(playback_info_source(
+            SupportsDirectPlay=False, SupportsDirectStream=False,
+            TranscodingContainer='ts', TranscodingVideoCodec='hevc',
+            TranscodingAudioCodec='aac', TranscodingBitrate=8_000_000)))),
+        api_key=TOKEN, user_id=USER, installation_id=INSTALLATION,
+        item_id=ITEM, profile=local_profile(), expected_content_length=2048,
+        deadline=time.monotonic() + 1)
+    assert result.originalByteOutcome == 'contract_unknown'
 
 
 def test_reads_only_controllable_sessions_over_exact_authenticated_route():

@@ -22,9 +22,11 @@ from .media_playback_models import (
     MediaPlaybackReadback,
     MediaPlaybackWorkerResult,
     OfflineMediaChunkReadback,
+    PlaybackInfoReadback,
     MediaSegmentsReadback,
     PrivateJellyfinMediaSegmentsAuthority,
     PrivateJellyfinOfflineMediaChunkAuthority,
+    PrivateJellyfinPlaybackInfoAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
 )
@@ -194,6 +196,28 @@ class JellyfinPlaybackExecutor:
             raise JellyfinPlaybackExecutionError() from None
         self._final(plan, binding, container_id, proof, gate)
         if type(result) is not OfflineMediaChunkReadback:
+            raise JellyfinPlaybackExecutionError()
+        return result
+
+    def read_playback_info(self, private, *, deadline, gate):
+        if type(private) is not PrivateJellyfinPlaybackInfoAuthority:
+            raise JellyfinPlaybackExecutionError(
+                'invalid_jellyfin_playback_execution')
+        plan, binding, container_id = self._context(private, deadline, gate)
+        connection, proof = self._open(plan, binding, container_id, deadline)
+        try:
+            result = self.protocol.read_playback_info(
+                connection, api_key=private.apiKey,
+                user_id=private.userId,
+                installation_id=private.authority.installationId,
+                item_id=private.authority.itemId,
+                profile=private.profile,
+                expected_content_length=private.expectedContentLength,
+                deadline=deadline)
+        except JellyfinPlaybackRuntimeError:
+            raise JellyfinPlaybackExecutionError() from None
+        self._final(plan, binding, container_id, proof, gate)
+        if type(result) is not PlaybackInfoReadback:
             raise JellyfinPlaybackExecutionError()
         return result
 

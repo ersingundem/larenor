@@ -1,17 +1,123 @@
 import asyncio
 
 from fastapi.testclient import TestClient
+import pytest
 
 from conftest import auth, login
 from larenor_server.app import create_app
+from larenor_server.errors import ApiError
 from larenor_server.offline_media.api import _content
+from larenor_server.plugins.media_playback_models import (
+    PlaybackInfoReadback,
+    PrivateMediaPlaybackAuthority,
+    local_playback_profile_digest,
+)
 from test_f27_offline_media_api import CONTENT, create_body, setup
+from test_jellyfin_playback_runtime import local_profile
 
 
 BASE = "/api/v1/media/offline/playback-leases"
 
 
-def lease_body(installation, current, request_id="1" * 32):
+def test_observation_expiring_during_final_authority_gate_cannot_issue_lease(
+        server, monkeypatch):
+    app, client, _settings, clock = server
+    pair, installation, current, worker = setup(server)
+    body = lease_body(server, pair, installation, current)
+    original = app.state.core.media_playback._gate
+    checks = []
+
+    def cross_expiry(*args, **kwargs):
+        checks.append(True)
+        result = original(*args, **kwargs)
+        if len(checks) == 2:
+            # The create preflight is first; consume's final authority gate
+            # crosses the observation's inclusive expiry boundary.
+            clock.now += 30
+        return result
+
+    monkeypatch.setattr(app.state.core.media_playback, '_gate', cross_expiry)
+    denied = client.post(BASE, headers=auth(pair), json=body)
+    assert denied.status_code == 404
+    assert denied.json()['error']['code'] == 'not_found'
+    assert not app.state.core.offline_media._playback_leases
+    assert worker.calls == []
+
+
+def test_capacity_rejection_preserves_unconsumed_current_observation(
+        server, monkeypatch):
+    import larenor_server.offline_media.service as lease_service
+    app, client, _settings, _clock = server
+    pair, installation, current, worker = setup(server)
+    monkeypatch.setattr(lease_service, 'MAX_PLAYBACK_LEASES_PER_ACTOR', 1)
+    first_body = lease_body(server, pair, installation, current)
+    first = client.post(BASE, headers=auth(pair), json=first_body)
+    assert first.status_code == 201
+    pending = lease_body(
+        server, pair, installation, current, request_id='2' * 32)
+    limited = client.post(BASE, headers=auth(pair), json=pending)
+    assert limited.status_code == 429
+    retired = client.post(
+        BASE + '/' + first_body['requestId'] + '/retire', headers=auth(pair),
+        json={'schemaVersion': 1, 'requestId': '3' * 32,
+              'expectedRevision': 1})
+    assert retired.status_code == 200
+    recovered = client.post(BASE, headers=auth(pair), json=pending)
+    assert recovered.status_code == 201
+    assert client.post(BASE, headers=auth(pair), json=pending).json() == (
+        recovered.json())
+    monkeypatch.setattr(lease_service, 'MAX_PLAYBACK_LEASES_PER_ACTOR', 2)
+    assert client.post(BASE, headers=auth(pair), json=pending | {
+        'requestId': '4' * 32}).status_code == 404
+    assert worker.calls == []
+
+
+def playback_observation(server, pair, installation, current, *,
+                         outcome="direct_play_supported"):
+    core = server[0].state.core
+    actor = core.auth.authenticate(pair["accessToken"])
+    jellyfin = next(
+        value for value in current.sources if value.serviceId == "jellyfin")
+    private = PrivateMediaPlaybackAuthority(
+        installationId=installation["id"],
+        installationRevision=installation["revision"],
+        snapshotRevision=current.snapshotRevision,
+        jellyfinServiceRevision=jellyfin.serviceRevision,
+        itemId="b" * 32, mediaKey="movie:tmdb:603")
+    profile = local_profile()
+    with core.db.connection() as connection:
+        revision = connection.execute(
+            "SELECT revision FROM users WHERE id=?", (actor.id,)
+        ).fetchone()["revision"]
+    method = {
+        "direct_play_supported": "direct_play",
+        "requires_remux": "direct_stream",
+        "requires_transcode": "transcode",
+        "contract_unknown": "unknown",
+    }[outcome]
+    return core.media_playback.record_playback_info_observation(
+        actor, revision, private, profile,
+        PlaybackInfoReadback(
+            itemId=private.itemId,
+            profileDigest=local_playback_profile_digest(profile),
+            assurance="provider_observed_for_client_reported_profile",
+            originalByteOutcome=outcome, playMethod=method,
+            source=(None if method == "unknown" else {
+                "container": "mkv", "bitrate": 25_000_000,
+                "videoCodecs": ["hevc"], "audioCodecs": ["eac3"],
+                "videoRanges": ["HDR10"],
+            }),
+            transcoding=(
+                {"container": "ts", "videoCodec": "h264",
+                 "audioCodec": "aac", "bitrate": 8_000_000,
+                 "reasons": ["ContainerNotSupported"]}
+                if method == "transcode" else None),
+            reason=("contract_unsupported" if method == "unknown"
+                    else "available")))[0]
+
+
+def lease_body(server, pair, installation, current,
+               request_id="1" * 32, *, outcome="direct_play_supported"):
     value = create_body(installation, current, request_id=request_id)
     return {
         key: value[key]
@@ -20,18 +126,20 @@ def lease_body(installation, current, request_id="1" * 32):
             "expectedInstallationRevision", "expectedSnapshotRevision",
             "expectedJellyfinServiceRevision", "itemId", "mediaKey",
         )
-    }
+    } | {"playbackObservationId": playback_observation(
+        server, pair, installation, current, outcome=outcome)}
 
 
 def test_core_bound_lease_streams_exact_ranges_and_retires_without_more_io(
         server):
     pair, installation, current, worker = setup(server)
     client = server[1]
+    body = lease_body(server, pair, installation, current)
     created = client.post(
-        BASE, headers=auth(pair), json=lease_body(installation, current))
+        BASE, headers=auth(pair), json=body)
     assert created.status_code == 201, created.text
     replay = client.post(
-        BASE, headers=auth(pair), json=lease_body(installation, current))
+        BASE, headers=auth(pair), json=body)
     assert replay.status_code == 201 and replay.json() == created.json()
     lease = created.json()["lease"]
     assert set(lease) == {
@@ -131,7 +239,8 @@ def test_lease_family_expiry_restart_and_drift_fail_before_or_after_worker(
         server):
     app, client, _, clock = server
     pair, installation, current, worker = setup(server)
-    body = lease_body(installation, current, request_id="4" * 32)
+    body = lease_body(
+        server, pair, installation, current, request_id="4" * 32)
     created = client.post(BASE, headers=auth(pair), json=body)
     assert created.status_code == 201
     path = BASE + f"/{'4' * 32}/content"
@@ -151,7 +260,11 @@ def test_lease_family_expiry_restart_and_drift_fail_before_or_after_worker(
     restarted = client.get(path, headers=auth(pair))
     assert restarted.status_code == 404 and worker.calls == []
 
-    recreated = client.post(BASE, headers=auth(pair), json=body)
+    recreated = client.post(BASE, headers=auth(pair), json={
+        **body,
+        "playbackObservationId": playback_observation(
+            server, pair, installation, current),
+    })
     assert recreated.status_code == 201
 
     def drift():
@@ -184,7 +297,8 @@ def test_range_parser_is_bounded_and_exact(server):
 def test_cancelled_response_schedules_no_chunk_after_current_read(server):
     app, client, _, _clock = server
     pair, installation, current, worker = setup(server)
-    body = lease_body(installation, current, request_id="6" * 32)
+    body = lease_body(
+        server, pair, installation, current, request_id="6" * 32)
     assert client.post(BASE, headers=auth(pair), json=body).status_code == 201
     actor = app.state.core.auth.authenticate(pair["accessToken"])
 
@@ -203,7 +317,8 @@ def test_cancelled_response_schedules_no_chunk_after_current_read(server):
 def test_authority_drift_before_content_never_reaches_worker(server):
     app, client, _, _clock = server
     pair, installation, current, worker = setup(server)
-    body = lease_body(installation, current, request_id="5" * 32)
+    body = lease_body(
+        server, pair, installation, current, request_id="5" * 32)
     assert client.post(BASE, headers=auth(pair), json=body).status_code == 201
     with app.state.core.db.transaction() as connection:
         connection.execute(
@@ -219,9 +334,20 @@ def test_authority_drift_before_content_never_reaches_worker(server):
 def test_fresh_normal_core_instance_cannot_adopt_previous_playback_lease(server):
     app, client, settings, _clock = server
     pair, installation, current, worker = setup(server)
-    body = lease_body(installation, current, request_id="7" * 32)
+    body = lease_body(
+        server, pair, installation, current, request_id="7" * 32)
     assert client.post(BASE, headers=auth(pair), json=body).status_code == 201
     path = BASE + f"/{'7' * 32}/content"
+    pending_observation = playback_observation(
+        server, pair, installation, current)
+    jellyfin = next(
+        value for value in current.sources if value.serviceId == "jellyfin")
+    private = PrivateMediaPlaybackAuthority(
+        installationId=installation["id"],
+        installationRevision=installation["revision"],
+        snapshotRevision=current.snapshotRevision,
+        jellyfinServiceRevision=jellyfin.serviceRevision,
+        itemId="b" * 32, mediaKey="movie:tmdb:603")
     fresh = create_app(settings)
     with TestClient(fresh) as restarted:
         assert fresh.state.core is not app.state.core
@@ -229,4 +355,71 @@ def test_fresh_normal_core_instance_cannot_adopt_previous_playback_lease(server)
         missing = restarted.get(path, headers=auth(pair))
         assert missing.status_code == 404
         assert missing.json()["error"]["code"] == "not_found"
+        actor = fresh.state.core.auth.authenticate(pair["accessToken"])
+        with pytest.raises(ApiError) as raised:
+            fresh.state.core.media_playback.consume_playback_info_observation(
+                actor, pending_observation, private)
+        assert raised.value.status == 404
     assert worker.calls == []
+
+
+def test_lease_requires_one_current_direct_play_observation(server):
+    app, client, _settings, clock = server
+    pair, installation, current, worker = setup(server)
+    base = create_body(installation, current, request_id="8" * 32)
+    request = {
+        key: base[key]
+        for key in (
+            "schemaVersion", "requestId", "installationId",
+            "expectedInstallationRevision", "expectedSnapshotRevision",
+            "expectedJellyfinServiceRevision", "itemId", "mediaKey",
+        )
+    }
+    missing = client.post(BASE, headers=auth(pair), json=request)
+    assert missing.status_code == 400
+
+    remux_id = playback_observation(
+        server, pair, installation, current, outcome="requires_remux")
+    remux = client.post(
+        BASE, headers=auth(pair),
+        json=request | {"playbackObservationId": remux_id})
+    assert remux.status_code == 409
+    assert remux.json()["error"]["code"] == "offline_media_unavailable"
+    remux_replay = client.post(
+        BASE, headers=auth(pair),
+        json=request | {"playbackObservationId": remux_id})
+    assert remux_replay.status_code == 404
+    assert remux_replay.json()["error"]["code"] == "not_found"
+
+    expired_id = playback_observation(server, pair, installation, current)
+    clock.now += 31
+    expired = client.post(
+        BASE, headers=auth(pair),
+        json=request | {"playbackObservationId": expired_id})
+    assert expired.status_code == 404
+    clock.now -= 31
+
+    direct_id = playback_observation(server, pair, installation, current)
+    first_body = request | {"playbackObservationId": direct_id}
+    first = client.post(BASE, headers=auth(pair), json=first_body)
+    assert first.status_code == 201, first.text
+    assert client.post(
+        BASE, headers=auth(pair), json=first_body).json() == first.json()
+    reused = client.post(
+        BASE, headers=auth(pair),
+        json=first_body | {"requestId": "9" * 32})
+    assert reused.status_code == 404
+    assert worker.calls == []
+
+    other = login(
+        client, "admin", "Synthetic new password 2026",
+        device="Other observed playback family").json()
+    family_id = playback_observation(server, pair, installation, current)
+    hidden = client.post(
+        BASE, headers=auth(other),
+        json=request | {
+            "requestId": "a" * 32,
+            "playbackObservationId": family_id,
+        })
+    assert hidden.status_code == 404
+    assert app.state.core.offline_media._playback_leases.get("a" * 32) is None

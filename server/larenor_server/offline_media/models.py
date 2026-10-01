@@ -92,6 +92,7 @@ class CreateOnlinePlaybackLeaseRequest(PrepareMediaPlaybackIntentRequest):
     """Select one current catalog item for Core-mediated local playback."""
 
     schemaVersion: Literal[1] = 1
+    playbackObservationId: ObjectId
     _version = field_validator("schemaVersion", mode="before")(_exact_version)
 
 

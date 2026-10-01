@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator, model_validator
 
 from ..home_resources.models import FrozenModel, HomeScope, Identity, Revision
+from ..plugins.media_playback_models import LocalPlaybackClientProfile
 
 
 EvidenceState = Literal["reported", "verified", "unknown"]
@@ -66,6 +67,18 @@ CodecToken = Annotated[
 ]
 PositiveRate = Annotated[int, Field(ge=1, le=1_000_000_000)]
 Dimension = Annotated[int, Field(ge=1, le=32768)]
+MediaKey = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=96,
+        pattern=(
+            r"^(?:movie:tmdb:[1-9][0-9]{0,11}|"
+            r"episode:tvdb:[1-9][0-9]{0,11}:"
+            r"[0-9]{1,4}:[0-9]{1,5})$"
+        ),
+    ),
+]
 
 
 def _unique(values, code):
@@ -203,11 +216,102 @@ class PlaybackQualityAdviceRequest(FrozenModel):
         return value
 
 
+class PlaybackInfoObservationRequest(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    installationId: Identity
+    expectedInstallationRevision: Revision
+    expectedSnapshotRevision: Revision
+    expectedJellyfinServiceRevision: Revision
+    itemId: Identity
+    mediaKey: MediaKey
+    localProfile: LocalPlaybackClientProfile
+
+    @field_validator("schemaVersion", mode="before")
+    @classmethod
+    def exact_version(cls, value):
+        if type(value) is not int:
+            raise ValueError("invalid_schema")
+        return value
+
+
 class PlaybackQualityAuthority(HomeScope):
     schemaVersion: Literal[1]
     accountId: Identity
     accountRevision: Revision
     sessionFamilyId: Identity
+
+
+class PlaybackInfoObservationAuthority(PlaybackQualityAuthority):
+    installationId: Identity
+    installationRevision: Revision
+    snapshotRevision: Revision
+    jellyfinServiceRevision: Revision
+    itemId: Identity
+    mediaKey: MediaKey
+    profileId: Identity
+    profileRevision: Annotated[int, Field(ge=1, le=2**53 - 1)]
+    displayRevision: Annotated[int, Field(ge=1, le=2**53 - 1)]
+    decoderRevision: Annotated[int, Field(ge=1, le=2**53 - 1)]
+    networkRevision: Annotated[int, Field(ge=1, le=2**53 - 1)]
+    policyRevision: Annotated[int, Field(ge=1, le=2**53 - 1)]
+    profileDigest: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class PlaybackInfoSourceObservation(FrozenModel):
+    container: CodecToken | None
+    bitrateBps: PositiveRate | None
+    videoCodecs: Annotated[list[CodecToken], Field(max_length=8)]
+    audioCodecs: Annotated[list[CodecToken], Field(max_length=8)]
+    videoRanges: Annotated[list[CodecToken], Field(max_length=8)]
+
+
+class PlaybackInfoTranscodingObservation(FrozenModel):
+    container: CodecToken | None
+    videoCodec: CodecToken | None
+    audioCodec: CodecToken | None
+    bitrateBps: PositiveRate | None
+    reasons: Annotated[list[CodecToken], Field(max_length=16)]
+
+
+class PlaybackInfoProviderObservation(FrozenModel):
+    schemaVersion: Literal[1]
+    assurance: Literal["provider_observed_for_client_reported_profile"]
+    originalByteOutcome: Literal[
+        "direct_play_supported",
+        "requires_remux",
+        "requires_transcode",
+        "unavailable",
+        "contract_unknown",
+    ]
+    playMethod: Literal["unknown", "direct_play", "direct_stream", "transcode"]
+    source: PlaybackInfoSourceObservation | None
+    transcoding: PlaybackInfoTranscodingObservation | None
+    reason: Literal[
+        "available",
+        "multiple_sources",
+        "original_byte_mismatch",
+        "no_supported_method",
+        "contract_unsupported",
+    ]
+    advisoryOnly: Literal[True]
+    physicalAcceptance: Literal["manual"]
+    observedAt: Annotated[int, Field(ge=1, le=253402300799)]
+    expiresAt: Annotated[int, Field(ge=1, le=253402300799)]
+
+    @model_validator(mode="after")
+    def bounded_lifetime(self):
+        if not self.observedAt < self.expiresAt <= self.observedAt + 30:
+            raise ValueError("invalid_playback_info_lifetime")
+        return self
+
+
+class PlaybackInfoObservationResponse(FrozenModel):
+    schemaVersion: Literal[1]
+    requestId: Identity
+    observationId: Identity
+    authority: PlaybackInfoObservationAuthority
+    observation: PlaybackInfoProviderObservation
 
 
 class PlaybackQualityEvidenceStates(FrozenModel):

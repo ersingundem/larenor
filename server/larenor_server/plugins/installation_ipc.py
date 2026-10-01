@@ -36,8 +36,10 @@ from .media_playback_models import (
     MediaPlaybackWorkerResult,
     MediaSegmentsReadback,
     OfflineMediaChunkReadback,
+    PlaybackInfoReadback,
     PrivateJellyfinOfflineMediaChunkAuthority,
     PrivateJellyfinMediaSegmentsAuthority,
+    PrivateJellyfinPlaybackInfoAuthority,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
 )
@@ -111,7 +113,8 @@ def _wire_jellyfin_playback(value=None, error=None):
         }
     if type(value) not in (
             MediaPlaybackReadback, MediaPlaybackWorkerResult,
-            MediaSegmentsReadback, OfflineMediaChunkReadback):
+            MediaSegmentsReadback, OfflineMediaChunkReadback,
+            PlaybackInfoReadback):
         raise InstallationIPCError('invalid_worker_result')
     return {
         'state': 'succeeded',
@@ -1004,6 +1007,11 @@ class InstallationWorkerClient:
             'jellyfin_offline_media_chunk_read', authority,
             OfflineMediaChunkReadback, deadline, gate)
 
+    def read_playback_info(self, authority, *, deadline, gate):
+        return self._jellyfin_playback_exchange(
+            'jellyfin_playback_info_read', authority,
+            PlaybackInfoReadback, deadline, gate)
+
     def execute_media_playback(self, action, *, deadline, gate):
         return self._jellyfin_playback_exchange(
             'jellyfin_playback_execute', action, MediaPlaybackWorkerResult,
@@ -1050,6 +1058,7 @@ class InstallationWorkerClient:
         if (type(private) not in (PrivateJellyfinPlaybackAuthority,
                                  PrivateJellyfinMediaSegmentsAuthority,
                                  PrivateJellyfinOfflineMediaChunkAuthority,
+                                 PrivateJellyfinPlaybackInfoAuthority,
                                  PrivateJellyfinPlaybackAction)
                 or type(deadline) not in (int, float)
                 or type(deadline) is bool or not math.isfinite(deadline)
@@ -1565,6 +1574,7 @@ class InstallationWorkerServer(PreflightWorkerServer):
         if operation in {'jellyfin_playback_read',
                          'jellyfin_media_segments_read',
                          'jellyfin_offline_media_chunk_read',
+                         'jellyfin_playback_info_read',
                          'jellyfin_playback_execute'}:
             if (set(request) != {
                     'protocol', 'requestId', 'operation', 'private'}
@@ -1579,6 +1589,9 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     PrivateJellyfinOfflineMediaChunkAuthority
                     if operation == 'jellyfin_offline_media_chunk_read'
                     else
+                    PrivateJellyfinPlaybackInfoAuthority
+                    if operation == 'jellyfin_playback_info_read'
+                    else
                     PrivateJellyfinMediaSegmentsAuthority
                     if operation == 'jellyfin_media_segments_read'
                     else PrivateJellyfinPlaybackAuthority
@@ -1586,6 +1599,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
                 private = private_model.model_validate_json(raw)
                 method = ('read_offline_media_chunk'
                           if operation == 'jellyfin_offline_media_chunk_read'
+                          else 'read_playback_info'
+                          if operation == 'jellyfin_playback_info_read'
                           else 'read_media_segments'
                           if operation == 'jellyfin_media_segments_read'
                           else 'read_media_playback' if reading
@@ -1600,6 +1615,8 @@ class InstallationWorkerServer(PreflightWorkerServer):
                     return _wire_jellyfin_playback(error=error)
                 expected = (OfflineMediaChunkReadback
                             if operation == 'jellyfin_offline_media_chunk_read'
+                            else PlaybackInfoReadback
+                            if operation == 'jellyfin_playback_info_read'
                             else MediaSegmentsReadback
                             if operation == 'jellyfin_media_segments_read'
                             else MediaPlaybackReadback if reading

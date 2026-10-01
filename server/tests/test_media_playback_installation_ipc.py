@@ -13,15 +13,18 @@ from larenor_server.plugins.jellyfin_playback_executor import (
     JellyfinPlaybackExecutionError,
 )
 from larenor_server.plugins.media_playback_models import (
+    PlaybackInfoReadback,
     MediaPlaybackReadback,
     MediaPlaybackTarget,
     MediaPlaybackWorkerResult,
     PrivateJellyfinPlaybackAction,
     PrivateJellyfinPlaybackAuthority,
+    PrivateJellyfinPlaybackInfoAuthority,
     PrivateMediaPlaybackAction,
     PrivateMediaPlaybackAuthority,
 )
 from test_media_host_preflight import stack
+from test_jellyfin_playback_runtime import USER, local_profile
 
 TOKEN = 'k' * 32
 INSTALLATION = 'a' * 32
@@ -47,6 +50,17 @@ def private_action():
             expectedPlaybackRevision=7, targetId='living-room',
             expectedTargetRevision=3, startSeconds=12),
         plan=stack(), apiKey=TOKEN)
+
+
+def private_playback_info():
+    return PrivateJellyfinPlaybackInfoAuthority(
+        requestId='9' * 32,
+        authority=PrivateMediaPlaybackAuthority(
+            installationId=INSTALLATION, installationRevision=4,
+            snapshotRevision=8, jellyfinServiceRevision=6,
+            itemId=ITEM, mediaKey='movie:tmdb:603'),
+        profile=local_profile(), expectedContentLength=2048,
+        plan=stack(), apiKey=TOKEN, userId=USER)
 
 
 class Backend:
@@ -75,6 +89,21 @@ class Backend:
                 targetId='living-room', targetRevision=4,
                 name='Living room', available=True,
                 currentItemId=ITEM, positionSeconds=12))
+
+    def read_playback_info(self, authority, *, deadline, gate):
+        assert deadline > time.monotonic() and gate() is True
+        self.calls.append(('playback_info', authority))
+        return PlaybackInfoReadback(
+            itemId=ITEM, profileDigest='1' * 64,
+            assurance='provider_observed_for_client_reported_profile',
+            originalByteOutcome='direct_play_supported',
+            playMethod='direct_play',
+            source={
+                'container': 'mkv', 'bitrate': 25_000_000,
+                'videoCodecs': ['hevc'], 'audioCodecs': ['eac3'],
+                'videoRanges': ['HDR10'],
+            },
+            transcoding=None, reason='available')
 
 
 @contextmanager
@@ -108,6 +137,22 @@ def test_private_playback_authority_and_effect_roundtrip_without_secret_repr():
     assert result.playbackRevision == 8
     assert [call[0] for call in backend.calls] == ['read', 'execute']
     assert TOKEN not in repr(authority) + repr(action) + repr(backend.calls)
+
+
+def test_private_playback_info_roundtrips_without_provider_identity_or_secret():
+    authority = private_playback_info()
+    with running() as (backend, client):
+        result = client.read_playback_info(
+            authority, deadline=time.monotonic() + .4, gate=lambda: True)
+
+    assert result.originalByteOutcome == 'direct_play_supported'
+    assert [call[0] for call in backend.calls] == ['playback_info']
+    public = result.model_dump(mode='json')
+    assert set(public) == {
+        'schemaVersion', 'itemId', 'profileDigest', 'assurance',
+        'originalByteOutcome', 'playMethod', 'source', 'transcoding',
+        'reason'}
+    assert TOKEN not in repr(authority) + repr(backend.calls) + repr(result)
 
 
 def test_pre_effect_failure_keeps_typed_no_effect_classification_over_ipc():
