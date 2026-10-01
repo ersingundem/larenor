@@ -41,7 +41,12 @@ data class MoonlightLaunchSpec(
         requireRevision(epoch, "revision")
         require(Regex("^[0-9a-f]{64}$").matches(commandFingerprint))
         require(host.isNotBlank() && host.length <= 255)
-        require(port in 1..65535 && httpsPort in 1..65535)
+        require(port in 1..65535)
+        // Pinned Moonlight persists addresses and the server certificate, but
+        // deliberately treats the HTTPS port as transient. Game and NvHTTP use
+        // zero as "discover from serverinfo"; the HTTPS connection still uses
+        // the stored server-certificate pin.
+        require(httpsPort in 0..65535)
         require(appName.isNotBlank() && appName.length <= 256)
         require(appId >= 0)
         require(Regex("^[0-9A-Fa-f]{16}$").matches(uniqueId))

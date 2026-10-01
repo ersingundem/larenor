@@ -58,6 +58,53 @@ class MoonlightEmbeddedRuntimeTest {
 
     @After fun clearLease() = MoonlightForegroundLeaseRegistry.clearForTest()
 
+    @Test fun persistedComputerKeepsUpstreamUnknownHttpsPortForGameLaunch() {
+        val context = MoonlightScopedContext.create(
+            RuntimeEnvironment.getApplication(),
+            uniqueScope("persisted-https-port"),
+        )
+        val details = ComputerDetails().apply {
+            uuid = "persisted-computer"
+            name = "Fixture"
+            localAddress = ComputerDetails.AddressTuple("192.0.2.1", NvHTTP.DEFAULT_HTTP_PORT)
+            httpsPort = 47_984
+        }
+        ComputerDatabaseManager(context).let { database ->
+            try {
+                assertTrue(database.updateComputer(details))
+            } finally {
+                database.close()
+            }
+        }
+        val persisted = ComputerDatabaseManager(context).let { database ->
+            try {
+                database.getComputerByUUID(details.uuid)
+            } finally {
+                database.close()
+            }
+        }
+        assertNotNull(persisted)
+        assertEquals(
+            "the pinned upstream database intentionally treats HTTPS as transient",
+            0,
+            persisted!!.httpsPort,
+        )
+        assertEquals(NvHTTP.DEFAULT_HTTP_PORT, persisted.localAddress.port)
+
+        val spec = launchSpec().copy(httpsPort = persisted.httpsPort)
+        assertEquals(0, spec.httpsPort)
+
+        for (invalid in listOf(-1, 65_536)) {
+            try {
+                launchSpec().copy(httpsPort = invalid)
+                fail("invalid HTTPS port was accepted")
+            } catch (_: IllegalArgumentException) {
+                // The upstream unknown sentinel is exactly zero; other values
+                // remain fail-closed.
+            }
+        }
+    }
+
     @Test fun packagedEngineExposesTheActualPairVideoAudioAndInputClasses() {
         assertNotNull(PairingManager::class.java.getDeclaredMethod("pair", String::class.java, String::class.java))
         assertNotNull(NvHTTP::class.java.getDeclaredMethod("getAppList"))
