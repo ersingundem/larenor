@@ -2,7 +2,7 @@
 
 ## Current state — 1 October 2026
 
-FINAL.FUNCTION is the only active final. Development and focused validation are complete for 58 selected features / 67 tasks, which await final-HEAD CI. Quiet-host F22/F35 acceptance passed without source changes; F60/F62 remain reworking. The local full Server run was interrupted by disk exhaustion and is not broad acceptance. Accepted counts stay 37/127 tasks and 3/63 selected features. Physical, household and account gates remain MANUAL; the next final starts only after this final completes.
+FINAL.FUNCTION is the only active final. Development and focused validation are complete for 54 selected features / 63 tasks, which await final-HEAD CI. Quiet-host F22/F35 acceptance passed without source changes; F24–F27 return to reworking for a normal player/Core cold-start composition gap; F60/F62 remain reworking. The local full Server run was interrupted by disk exhaustion and is not broad acceptance. Accepted counts stay 37/127 tasks and 3/63 selected features. Physical, household and account gates remain MANUAL; the next final starts only after this final completes.
 
 | Gate | Latest named evidence | Open boundary |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ FINAL.FUNCTION is the only active final. Development and focused validation are 
 | F57 calibration retention | Root30/30normal Core/owned HA/fusion/retention; true256capacity/restart; conservative v1migration/current/replay/uncertain/newest32terminal/tamper/rollback | Broad finalHEAD CI; calibration is advisory/local, no physical mmWave reconfiguration claim |
 | F60 NSD | Embed-v3 exact `36269cf0`, run `36813871246`: canonical 1 test / 0 skips / 0 failures / 0 errors, two fresh discovery lifetimes; bounded receipt independently verified | streamAccepted=false; discovery does not prove streaming |
 | F60 streaming | Embed-v3 cancellation/deadline: 40 native tests, root 165 tool checks, real open-socket PIN newline RED→GREEN | Exact `36269cf0`, [run 36813869676](https://github.com/ersingundem/larenor/actions/runs/36813869676), failed the canonical test at pairingRegistration: 1 test / 1 failure / 0 errors / 0 skips, PIN bridge listening. Exact transport cause remains unproved; strict frame/PCM/input/two-lifetime/stop/disconnect acceptance remains open |
-| F62 native RDP | Exact `c8291061` / run `36811909218`: canonical 1 test / 1 failure / 0 errors / 0 skips; no owned frames or lifecycle stage; serverResizeRequested=false. Early/live diagnostics at `70ab1058` passed root 51 checks, AndroidTest compilation and independent review | [Run 36814807367](https://github.com/ersingundem/larenor/actions/runs/36814807367) awaits strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/two-lifetime acceptance. Diagnostic stages do not prove feature acceptance |
+| F62 native RDP | Exact `c8291061` / run `36811909218`: canonical 1 test / 1 failure / 0 errors / 0 skips; no owned frames or lifecycle stage; serverResizeRequested=false. Early/live diagnostics at `70ab1058` passed root 51 checks, AndroidTest compilation and independent review | [Run 36814807367](https://github.com/ersingundem/larenor/actions/runs/36814807367) failed the canonical test at the expected initial 1280×800 frame wait (1 test / 1 failure / 0 errors / 0 skips); the underlying cause and strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/two-lifetime acceptance remain open. Diagnostic stages do not prove feature acceptance |
 | Product native composition | Embed-v3 actual two-ABI APK passed all 5 root verifiers. Required-package JVM: 345 total / 343 passed / 2 explicit opt-in skips / 0 failures / 0 errors. The separate-source ABI repair passed 2 actual AAR builds, root product verification and 5 workflow/package tests | Hosted exact `36269cf0` failed before this repair; new hosted acceptance is required |
 | Broad Android/Server | Exact `36269cf0`, run `36813872693`, completed failure: dual-native package and all 4 Server shards failed. All 4 Flutter shards, static analysis, emulator journeys, Linux cgroup and host workers passed | Committed backup recovery and other Server failures are under investigation. Local full Server was interrupted by disk exhaustion; F22/F35 quiet retries passed without source changes. Broad final-HEAD acceptance remains open |
 | Security | Exact `81cd4172`, [run 36814632423](https://github.com/ersingundem/larenor/actions/runs/36814632423): all 3 jobs passed after 15 exact historical false-positive fingerprints were classified; new synthetic candidate still blocks | This is named Security evidence, not complete Server/Android/final-HEAD acceptance |
@@ -53,7 +53,7 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-58 seçili özellik / 67 iş CI beklerken, F60/F62 gerçek işlev kapıları
+54 seçili özellik / 63 iş CI beklerken, F24–F27/F60/F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
 

@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+import shutil
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +9,42 @@ from conftest import Clock, auth, ready
 from larenor_server.app import create_app
 from larenor_server.config import Settings
 from support.f41_frigate_fixture import FrigateFixture, provision
+
+
+def _required_media_binary(name: str, environment: str) -> Path:
+    configured = os.environ.get(environment)
+    discovered = shutil.which(name)
+    candidate = configured or discovered
+    if candidate is None:
+        pytest.fail(f"required real {name} runtime is unavailable")
+    path = Path(candidate)
+    if not path.is_absolute():
+        pytest.fail(f"required real {name} runtime path is not absolute")
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        pytest.fail(f"required real {name} runtime path is invalid")
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        pytest.fail(f"required real {name} runtime is not executable")
+    if configured is not None:
+        if discovered is None:
+            pytest.fail(f"required real {name} runtime is absent from PATH")
+        try:
+            discovered_path = Path(discovered).resolve(strict=True)
+        except (OSError, RuntimeError):
+            pytest.fail(f"required real {name} PATH runtime is invalid")
+        if discovered_path != resolved:
+            pytest.fail(f"configured and PATH {name} runtimes differ")
+    return resolved
+
+
+@pytest.fixture(scope="module")
+def media_binaries() -> tuple[Path, Path]:
+    ffmpeg = _required_media_binary("ffmpeg", "LARENOR_TEST_FFMPEG")
+    ffprobe = _required_media_binary("ffprobe", "LARENOR_TEST_FFPROBE")
+    if ffmpeg == ffprobe:
+        pytest.fail("required real ffmpeg and ffprobe runtimes are not distinct")
+    return ffmpeg, ffprobe
 
 
 @pytest.fixture
@@ -40,9 +78,12 @@ def test_private_event_redaction_binaries_must_be_paired(tmp_path):
         )
 
 
-def test_normal_core_real_frigate_redaction_encryption_restart_revoke(tmp_path, frigate):
+def test_normal_core_real_frigate_redaction_encryption_restart_revoke(
+    tmp_path, frigate, media_binaries
+):
     root = tmp_path.resolve()
     clock = Clock()
+    ffmpeg, ffprobe = media_binaries
     settings = Settings(
         root / "data",
         root / "secrets/vault.key",
@@ -50,8 +91,8 @@ def test_normal_core_real_frigate_redaction_encryption_restart_revoke(tmp_path, 
         login_ip_limit=100,
         login_account_limit=100,
         login_global_limit=100,
-        private_event_ffmpeg=Path("/opt/homebrew/bin/ffmpeg"),
-        private_event_ffprobe=Path("/opt/homebrew/bin/ffprobe"),
+        private_event_ffmpeg=ffmpeg,
+        private_event_ffprobe=ffprobe,
     )
     with TestClient(create_app(settings)) as client:
         app = client.app

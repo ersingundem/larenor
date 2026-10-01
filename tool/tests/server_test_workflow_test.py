@@ -82,6 +82,23 @@ def _selected(condition: str, *, event_name: str, scope: str) -> bool:
 
 
 class ServerTestWorkflowTest(unittest.TestCase):
+    def test_server_shards_install_and_verify_real_paired_media_runtime(self):
+        shard = WORKFLOW.split("  server-test-shard:\n", 1)[1].split(
+            "\n  server-test:\n", 1
+        )[0]
+        self.assertIn(
+            "sudo apt-get install --yes --no-install-recommends ffmpeg",
+            shard,
+        )
+        self.assertIn("LARENOR_TEST_FFMPEG=/usr/bin/ffmpeg", shard)
+        self.assertIn("LARENOR_TEST_FFPROBE=/usr/bin/ffprobe", shard)
+        self.assertIn("/usr/bin/ffmpeg -hide_banner -version", shard)
+        self.assertIn("/usr/bin/ffprobe -hide_banner -version", shard)
+        self.assertLess(
+            shard.index("Install and verify the real OCR and media runtimes"),
+            shard.index("Exercise authentication, authorization"),
+        )
+
     def test_reusable_default_scope_selects_every_required_server_gate(self):
         call_scope = re.search(
             r"(?ms)^  workflow_call:\n"

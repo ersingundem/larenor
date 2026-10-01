@@ -3996,7 +3996,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Akıllı altyazı ve dil tercihleri",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4020,14 +4020,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Eski Jellyfin preference endpointi ve aktif oynatıcı tek AES-GCM kişi deposuna bağlandı; authenticated eski kayıtlar startup transaction ile taşınır, mevcut oynatıcı tercihleri korunur. 10 Server, 8 Flutter ve 1 gerçek Flutter→normal Core TCP kabulü geçti, analyze temiz. docs/testing/f24-shared-player-preferences-2026-09-30.md. Tam exact HEAD CI/geniş kabul açık; sayaç artmadı."
+      "reason": "Yeniden çalışılıyor: normal verifiedCore katalog yerel JellyfinPlayerı açmıyor; directLocal soğuk başlangıç Core hesabını restore etmiyor. Playerın Core-only tercih/segment/offline/quality yardımcıları bu normal bileşimde current initialized authority alamıyor. Önceki dar store/API kanıtları bu erişim/restart açığını kapatmaz. Explicit exact Core/home/provider player yolu hazırlanıyor; sessiz hybrid veya private credential yayma yok. docs/testing/f24-f27-player-core-composition-gap-2026-10-01.md."
     },
     {
       "id": "F26",
       "kind": "task",
       "parent": "G06",
       "title": "Oynatma kalitesi danışmanı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4052,14 +4052,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Flutter PlaybackQuality adapter/controller/account session→normal TCP Core→production JellyfinClient→owned authenticated POST /Items/movie-1/PlaybackInfo kapısı geçti; exact bir negotiation, sıfır playback/quality mutation. Android bounded DTO reported codec/HDR/link kanıtını verified yapmaz; conservative 14 Mbps transcode/gaps ve route retirement doğrulandı. Client 6/12/7 response sınırları Server ile eşlendi; hostile 8. recommendation invalid_response. 4 Server, 3 Flutter+1 runner-only skip, AndroidPlaybackCapabilityBridgeTest gerçek JVM BUILD SUCCESSFUL ve analyze temiz; root F04/F26 9 Server testi geçti. Geniş exact CI ve fiziksel decoder/HDR/sustained network MANUAL açık. Kanıt: docs/testing/f26-normal-core-playback-quality-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: normal verifiedCore katalog yerel JellyfinPlayerı açmıyor; directLocal soğuk başlangıç Core hesabını restore etmiyor. Playerın Core-only tercih/segment/offline/quality yardımcıları bu normal bileşimde current initialized authority alamıyor. Önceki dar store/API kanıtları bu erişim/restart açığını kapatmaz. Explicit exact Core/home/provider player yolu hazırlanıyor; sessiz hybrid veya private credential yayma yok. docs/testing/f24-f27-player-core-composition-gap-2026-10-01.md."
     },
     {
       "id": "F25",
       "kind": "task",
       "parent": "G06",
       "title": "Jenerik ve kapanış atlama",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4083,7 +4083,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Coreun paketlenmiş installation backendindeki JellyfinPlaybackRuntime segment read yolu bağlıdır; Client yalnız doğrulanmış güncel segment için skip gösterir. Named worker/API/Client loopback ve exact888dfd46 run36762186381 host package/systemd kapıları geçti. Gerçek segment metadata doğruluğu ve oynatıcı seek MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: normal verifiedCore katalog yerel JellyfinPlayerı açmıyor; directLocal soğuk başlangıç Core hesabını restore etmiyor. Playerın Core-only tercih/segment/offline/quality yardımcıları bu normal bileşimde current initialized authority alamıyor. Önceki dar store/API kanıtları bu erişim/restart açığını kapatmaz. Explicit exact Core/home/provider player yolu hazırlanıyor; sessiz hybrid veya private credential yayma yok. docs/testing/f24-f27-player-core-composition-gap-2026-10-01.md."
     },
     {
       "id": "F21",
@@ -4193,7 +4193,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4218,7 +4218,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core OfflineMediaService paketlenmiş playback providerından yetkili bounded Jellyfin chunk okur; Client vault resume/cancel/corrupt-chunk sınırlarını uygular. Named worker/API/Client/vault ve exact888dfd46 run36762186381 host package/systemd kapıları geçti. DRM bypass yok; gerçek depolama baskısı ve çevrimdışı oynatma MANUAL.MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: normal verifiedCore katalog yerel JellyfinPlayerı açmıyor; directLocal soğuk başlangıç Core hesabını restore etmiyor. Playerın Core-only tercih/segment/offline/quality yardımcıları bu normal bileşimde current initialized authority alamıyor. Önceki dar store/API kanıtları bu erişim/restart açığını kapatmaz. Explicit exact Core/home/provider player yolu hazırlanıyor; sessiz hybrid veya private credential yayma yok. docs/testing/f24-f27-player-core-composition-gap-2026-10-01.md."
     },
     {
       "id": "F28",
@@ -4771,7 +4771,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md. 1 Ekim gerçek media runtime CI bileşimi düzeltildi; FFmpeg/FFprobe pair fail-closed doğrulanır, Homebrew-only fixture yolları kaldırıldı. Root31F42/F44+3workflow/actionlint geçti; priorF44 503 exclusive neden unproved. Yeni Ubuntu CI bekliyor. docs/testing/f42-f44-linux-media-runtime-2026-10-01.md."
     },
     {
       "id": "F41",
@@ -4833,7 +4833,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi. 1 Ekim gerçek media runtime CI bileşimi düzeltildi; FFmpeg/FFprobe pair fail-closed doğrulanır, Homebrew-only fixture yolları kaldırıldı. Root31F42/F44+3workflow/actionlint geçti; priorF44 503 exclusive neden unproved. Yeni Ubuntu CI bekliyor. docs/testing/f42-f44-linux-media-runtime-2026-10-01.md."
     },
     {
       "id": "F45",
@@ -6004,7 +6004,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor. F22/F35 quiet named3test geçti; tam yerel Server disk-full nedeniyle80%te durdu ve geniş kabul değildir. F60stream/F62RDP yeniden çalışılıyor; kabul37/127iş ve3/63özellik korunur. Tam Flutter frozenb21 Darttree7919passed/57explicit skip/0failure; analyze/format temiz. Exact362 v3 actual iki-ABI APK5rootverifier,JVM343passed/2opt-in skip/0failure,root165tool geçti. Hosted362 Android/allServer36813872693 completed failure: iki-ABI contamination ve4Server shard failed;4Flutter shard/staticanalyze/emulatorjourneys/cgroup/hostworkers passed. Committed backup recovery ve diğerServer hataları inceleniyor. FreeRDP ayrı-source ABI düzeltmesi gerçek2AAR ve root product verifier/5test/actionlint geçti; worker umask077 artifact defect dar root3case geçti; yeni hosted kabul gerekli. Exact362 discovery36813871246 geçti; stream36813869676 pairingRegistration90s/listening ile failed, alt transport cause unproved. Security81cd ve70ab all3jobs passed. F62early/live diagnostic exact70ab root51/AndroidTest278tasks/review geçti; native36814807367 sürüyor. İkinciFINAL başlamaz; fiziksel/hesap MANUAL,CORE.WEB sonra; yerel/paket/tanı geniş veya runtime kabul yerine sayılmaz."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. Şimdi54seçili özellik/63iş CI bekliyor; F24-F27 normal player/Core cold-start bileşimi açığı nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul37/127ve3/63 değişmedi. FullFlutter frozenb21 7919passed/57explicit skips/0failure; actualv3 ikiABI APK5verifier ve JVM343passed/2opt-in skip geçti. Hosted362 broad failed: native ABI contamination ve4Server shard. Ayrı-source ABI actual2AAR/product5tests; workerartifact umask3rootcases; F08 listener12passed/1Linuxskip; F30 elapsedEOF root10; backup dörtpowerloss+ikiunprovenpause; F42/F44 root31+3workflow/actionlint/71related gates düzeltmeleri geçti. Yeni broad CI gerekli. F60 exact31/run36816571516 sürüyor; F62exact70ab/run36814807367 canonical1test/1failure,initial1280x800frame wait failed, alt neden incelemede. Security81cd/70ab/cd4 all3passed. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
     },
     {
       "id": "FINAL.UI",

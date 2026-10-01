@@ -8,6 +8,12 @@ installs native libraries inside the source tree, under the ABI-specific
 arm64 and x86 left arm64 libraries in the subsequent x86 AAR. Removing only
 the `.cxx` build directories did not remove those source-tree outputs.
 
+This path was also checked against the
+[official pinned FreeRDP source](https://github.com/FreeRDP/FreeRDP/blob/63b948ca5cb94307fd5444ee6e73927a41ccdab4/client/Android/cmake/ExternalDeps.cmake):
+the dependency install prefix is inside the source tree and includes the ABI.
+That external source confirms the packaging mechanism; the failed hosted
+receipt and actual isolated builds establish this repository's repair.
+
 The workflow now extracts the same verified, pinned archive into a separate
 source tree for each ABI. Both trees receive the same reviewed patches and
 package verification. The existing strict single-ABI and merged-product

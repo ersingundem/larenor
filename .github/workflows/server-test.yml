@@ -197,15 +197,24 @@ jobs:
           "$RUNNER_TEMP/larenor-ci-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
           echo "$RUNNER_TEMP/larenor-ci-tools/bin" >> "$GITHUB_PATH"
 
-      - name: Install and verify the real OCR runtime
+      - name: Install and verify the real OCR and media runtimes
         if: steps.server_scope.outputs.run == 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends poppler-utils tesseract-ocr
+          sudo apt-get install --yes --no-install-recommends ffmpeg
           {
+            echo 'LARENOR_TEST_FFMPEG=/usr/bin/ffmpeg'
+            echo 'LARENOR_TEST_FFPROBE=/usr/bin/ffprobe'
             echo 'LARENOR_TEST_TESSERACT=/usr/bin/tesseract'
             echo 'LARENOR_TEST_PDFTOPPM=/usr/bin/pdftoppm'
           } >> "$GITHUB_ENV"
+          test "$(command -v ffmpeg)" = /usr/bin/ffmpeg
+          test "$(command -v ffprobe)" = /usr/bin/ffprobe
+          test -x /usr/bin/ffmpeg
+          test -x /usr/bin/ffprobe
+          /usr/bin/ffmpeg -hide_banner -version
+          /usr/bin/ffprobe -hide_banner -version
           /usr/bin/tesseract --version
           /usr/bin/tesseract --list-langs | grep -Fx eng
           /usr/bin/pdftoppm -v

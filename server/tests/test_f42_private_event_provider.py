@@ -1,5 +1,7 @@
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
@@ -23,6 +25,61 @@ from larenor_server.private_event_sharing.service import EventShareAuthority
 CAMERA = "a" * 32
 EVENT = "b" * 32
 RECIPIENT = "c" * 32
+
+
+def _required_media_binary(name: str, environment: str) -> Path:
+    configured = os.environ.get(environment)
+    discovered = shutil.which(name)
+    candidate = configured or discovered
+    if candidate is None:
+        pytest.fail(f"required real {name} runtime is unavailable")
+    path = Path(candidate)
+    if not path.is_absolute():
+        pytest.fail(f"required real {name} runtime path is not absolute")
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        pytest.fail(f"required real {name} runtime path is invalid")
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        pytest.fail(f"required real {name} runtime is not executable")
+    if configured is not None:
+        if discovered is None:
+            pytest.fail(f"required real {name} runtime is absent from PATH")
+        try:
+            discovered_path = Path(discovered).resolve(strict=True)
+        except (OSError, RuntimeError):
+            pytest.fail(f"required real {name} PATH runtime is invalid")
+        if discovered_path != resolved:
+            pytest.fail(f"configured and PATH {name} runtimes differ")
+    return resolved
+
+
+@pytest.fixture(scope="module")
+def media_binaries() -> tuple[Path, Path]:
+    ffmpeg = _required_media_binary("ffmpeg", "LARENOR_TEST_FFMPEG")
+    ffprobe = _required_media_binary("ffprobe", "LARENOR_TEST_FFPROBE")
+    if ffmpeg == ffprobe:
+        pytest.fail("required real ffmpeg and ffprobe runtimes are not distinct")
+    return ffmpeg, ffprobe
+
+
+def test_required_media_binary_fails_closed_when_missing_or_mismatched(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("LARENOR_TEST_FFMPEG", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    with pytest.raises(pytest.fail.Exception, match="runtime is unavailable"):
+        _required_media_binary("ffmpeg", "LARENOR_TEST_FFMPEG")
+
+    configured = tmp_path / "configured-ffmpeg"
+    discovered = tmp_path / "path-ffmpeg"
+    for path in (configured, discovered):
+        path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        path.chmod(0o700)
+    monkeypatch.setenv("LARENOR_TEST_FFMPEG", str(configured))
+    monkeypatch.setattr(shutil, "which", lambda _name: str(discovered))
+    with pytest.raises(pytest.fail.Exception, match="runtimes differ"):
+        _required_media_binary("ffmpeg", "LARENOR_TEST_FFMPEG")
 
 
 class CameraRuntime:
@@ -73,10 +130,10 @@ def _migrate(core):
         migrate_private_event_share_provider(connection)
 
 
-def _raw_video(path):
+def _raw_video(path, ffmpeg: Path):
     return subprocess.check_output(
         [
-            "/opt/homebrew/bin/ffmpeg",
+            str(ffmpeg),
             "-v",
             "error",
             "-nostdin",
@@ -92,7 +149,7 @@ def _raw_video(path):
 
 
 def test_encrypted_policy_artifact_and_real_full_frame_redaction(
-    server, tmp_path, monkeypatch
+    server, tmp_path, monkeypatch, media_binaries
 ):
     app, _client, settings, clock = server
     _migrate(app.state.core)
@@ -115,9 +172,10 @@ def test_encrypted_policy_artifact_and_real_full_frame_redaction(
         },
     )
     assert store.policy() == policy
+    ffmpeg, ffprobe = media_binaries
     redactor = FfmpegFullFrameRedactor(
-        Path("/opt/homebrew/bin/ffmpeg"),
-        Path("/opt/homebrew/bin/ffprobe"),
+        ffmpeg,
+        ffprobe,
         tmp_path / "redaction-work",
         store,
         clock,
@@ -147,7 +205,8 @@ def test_encrypted_policy_artifact_and_real_full_frame_redaction(
     assert store.artifact(artifact.artifact_id, 64 * 1024 * 1024) == artifact.content
     output = tmp_path / "redacted.mp4"
     output.write_bytes(artifact.content)
-    original_frames, redacted_frames = _raw_video(source_path), _raw_video(output)
+    original_frames = _raw_video(source_path, ffmpeg)
+    redacted_frames = _raw_video(output, ffmpeg)
     assert len(original_frames) == len(redacted_frames) == 160 * 90 * 10
     size = 160 * 90
     for offset in range(0, len(original_frames), size):
@@ -157,7 +216,7 @@ def test_encrypted_policy_artifact_and_real_full_frame_redaction(
     probe = json.loads(
         subprocess.check_output(
             [
-                "/opt/homebrew/bin/ffprobe", "-v", "error", "-show_streams",
+                str(ffprobe), "-v", "error", "-show_streams",
                 "-show_format", "-show_chapters", "-of", "json", str(output),
             ]
         )
