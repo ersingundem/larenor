@@ -41,6 +41,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
   int _operation = 0;
   bool _closed = false, _scheduled = false, _foreground = true, _focused = true;
   bool _starting = false, _failed = false, _showSetup = false;
+  CupertinoDialogRoute<void>? _confirmationRoute;
   final String _routeId = _id();
   RoomPresenceAccountGateway? _gateway;
   RoomPresenceManagementController? _controller;
@@ -97,6 +98,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     if (!_binding()) return false;
     try {
       final home = _home!, session = home.account.session;
+      final route = ModalRoute.of(context);
       return _foreground &&
           _focused &&
           _window() &&
@@ -107,7 +109,8 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
           session?.context != null &&
           session!.user.mustChangePassword == false &&
           TickerMode.valuesOf(context).enabled &&
-          ModalRoute.of(context)?.isCurrent == true;
+          (route?.isCurrent == true ||
+              route?.isActive == true && _ownedConfirmationCurrent);
     } catch (_) {
       return false;
     }
@@ -230,12 +233,41 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
 
   void _disposeRuntime() {
     _operation++;
+    final confirmation = _confirmationRoute;
+    _confirmationRoute = null;
+    if (confirmation?.isActive == true) {
+      confirmation!.navigator?.removeRoute(confirmation);
+    }
     _controller?.setInteractive(false);
     _controller?.dispose();
     _gateway?.close();
     _controller = null;
     _gateway = null;
     _starting = false;
+  }
+
+  bool get _ownedConfirmationCurrent {
+    final confirmation = _confirmationRoute;
+    if (confirmation?.isCurrent == true) return true;
+    return confirmation?.isActive == true &&
+        confirmation?.animation?.status == AnimationStatus.reverse;
+  }
+
+  void _confirmationRouteChanged(
+    CupertinoDialogRoute<void> route,
+    bool visible,
+  ) {
+    if (!mounted || _closed) return;
+    if (visible) {
+      if (_confirmationRoute != null && !identical(route, _confirmationRoute)) {
+        return;
+      }
+      _confirmationRoute = route;
+    } else {
+      if (!identical(route, _confirmationRoute)) return;
+      _confirmationRoute = null;
+    }
+    _schedule();
   }
 
   void _disposeSource() {
@@ -320,6 +352,7 @@ final class _RoomPresenceRouteState extends ConsumerState<RoomPresenceRoute>
     if (controller != null && _current()) {
       return RoomPresenceManagementScreen(
         controller: controller,
+        onConfirmationRouteChanged: _confirmationRouteChanged,
         setupLabel: tr
             ? RoomPresenceSetupStrings.tr.action
             : RoomPresenceSetupStrings.en.action,

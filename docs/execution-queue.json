@@ -5060,7 +5060,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5084,14 +5084,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: gerçek production RoomPresenceRoute widget regressionı own confirmation dialogu açıldığında parent ModalRoute.isCurrent/didChangeDependencies değişiminin runtime/controllerı emekli ettiğini doğruladı; explicit confirm Core isteği0 kaldı. Sorun Navigator.pop sonrası geçiş varsayımı değildir. Yalnız sahip olunan modal için görünür/current authority lease, foreign route/hesap/ev/focus driftinde emeklilik korunarak hazırlanıyor. Önceki normal Core/provider/restart ve bounded physical evidence korunur; gerçek route confirm düzeltmesi ve named regression kabulü gelmeden CI bekliyor değildir. Fiziksel cihaz/radyo ve geniş final HEAD CI ayrı."
+      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
     {
       "id": "F58",
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5116,7 +5116,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: gerçek production EpaperManagementRoute widget regressionı own confirmation dialogu açıldığında parent ModalRoute.isCurrent/didChangeDependencies değişiminin runtime/controllerı emekli ettiğini doğruladı; explicit confirm Core isteği0 kaldı. Sorun Navigator.pop sonrası geçiş varsayımı değildir. Yalnız sahip olunan modal için görünür/current authority lease, foreign route/hesap/ev/focus driftinde emeklilik korunarak hazırlanıyor. Önceki normal Core/provider/restart ve bounded physical evidence korunur; gerçek route confirm düzeltmesi ve named regression kabulü gelmeden CI bekliyor değildir. Fiziksel cihaz/radyo ve geniş final HEAD CI ayrı."
+      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
     {
       "id": "F59",
@@ -5328,6 +5328,14 @@
           "state": "completed",
           "result": "failed",
           "label": "Exacta703 completedFAILED atactual connectedDebugAndroidTest; preflight/engine/installpassed, fixedouterreason ownedSunshineAndroidstreamfailed; no retained namedcounts/frame/stage receipt, preciseassertioncauseunproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md",
+          "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root 42/42 diagnostic/workflow checks and actionlint; source-hash stage map and descriptor-bound bounded XML; no hosted stream acceptance"
         }
       ],
       "completionCommit": null,
@@ -5691,7 +5699,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 56 seçili özellik / toplam 65 iş geniş son HEAD CI bekliyor. F14 gerçek Client/normal Core restart ve F50 gerçek kapasite/restart düzeltmeleri odaklı kabulü geçti. F57/F58 gerçek production route onay penceresi runtimeı emekli etti; sahipli modal çiti düzeltiliyor. F60 gerçek Android stream hatasının kesin aşaması açık; kaynak/paket bağlı sınırlı tanı 42/42 testten geçti, yeni hosted sonuç gerekli. F62 gerçek Android ilk 1280x800 frame kabulünde başarısız; dar kaynak düzeltmesi inceleniyor. F57/F58/F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 58 seçili özellik / toplam 67 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; dar kaynak düzeltmesi inceleniyor. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur."
     },
     {
       "id": "FINAL.UI",

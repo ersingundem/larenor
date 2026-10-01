@@ -101,10 +101,13 @@ class RoomPresenceManagementScreen extends StatefulWidget {
     required this.controller,
     this.setupLabel,
     this.onSetup,
+    this.onConfirmationRouteChanged,
   });
   final RoomPresenceManagementController controller;
   final String? setupLabel;
   final VoidCallback? onSetup;
+  final void Function(CupertinoDialogRoute<void> route, bool visible)?
+  onConfirmationRouteChanged;
 
   @override
   State<RoomPresenceManagementScreen> createState() =>
@@ -177,10 +180,12 @@ class _RoomPresenceManagementScreenState
     final preview = widget.controller.pendingPreview;
     if (preview == null || preview.deviceId != evidence.deviceId) return;
     final strings = _PresenceStrings.of(context);
-    await showCupertinoDialog<void>(
+    var confirmed = false;
+    late final CupertinoDialogRoute<void> dialogRoute;
+    dialogRoute = CupertinoDialogRoute<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => CupertinoAlertDialog(
+      builder: (_) => CupertinoAlertDialog(
         title: Text(strings.confirmTitle),
         content: Text(strings.confirmBody),
         actions: [
@@ -188,23 +193,37 @@ class _RoomPresenceManagementScreenState
             key: const ValueKey('presence-cancel-calibration'),
             label: strings.cancel,
             onPressed: () {
+              if (!dialogRoute.isCurrent) return;
               widget.controller.cancelPending();
-              Navigator.of(dialogContext).pop();
+              dialogRoute.navigator?.removeRoute(dialogRoute);
             },
           ),
           _DialogAction(
             key: const ValueKey('presence-confirm-calibration'),
             label: strings.confirm,
             onPressed: () {
-              Navigator.of(dialogContext).pop();
-              if (mounted && epoch == _viewEpoch) {
-                widget.controller.confirmPending();
-              }
+              if (!dialogRoute.isCurrent) return;
+              confirmed = true;
+              dialogRoute.navigator?.removeRoute(dialogRoute);
             },
           ),
         ],
       ),
     );
+    widget.onConfirmationRouteChanged?.call(dialogRoute, true);
+    try {
+      await Navigator.of(context).push<void>(dialogRoute);
+      await dialogRoute.completed;
+      await WidgetsBinding.instance.endOfFrame;
+      if (confirmed &&
+          mounted &&
+          epoch == _viewEpoch &&
+          ModalRoute.of(context)?.isCurrent == true) {
+        await widget.controller.confirmPending();
+      }
+    } finally {
+      widget.onConfirmationRouteChanged?.call(dialogRoute, false);
+    }
   }
 
   @override

@@ -2,7 +2,7 @@
 
 Bu kayıt `codex/project-completion-100` dalındaki canlı yazılım kabul durumunu
 özetler. Şu anda yalnız `FINAL.FUNCTION` aktiftir. Yazılımı ve odaklı kanıtı
-tamamlanan 56 seçili özellik / toplam 65 iş `awaiting_ci` durumundadır; bu etiket
+tamamlanan 58 seçili özellik / toplam 67 iş `awaiting_ci` durumundadır; bu etiket
 tam kabul değildir. Kanıtla kabul edilen sayaçlar **37/127 iş** ve **3/63 seçili
 özellik** olarak değişmemiştir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı
 kanıtları ilgili `MANUAL.*` kapılarında kalır.
@@ -63,15 +63,16 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-56 seçili özellik / 65 iş CI beklerken, F57, F58, F60 ve F62 gerçek işlev kapıları
+58 seçili özellik / 67 iş CI beklerken, F60 ve F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
 
-F57/F58 normal production-route widget regressionları own confirmation dialogunun
-parent route dependency değişiminde runtimeı emekli ettiğini doğruladı; confirm
-Core isteği0 kaldı. Navigator.pop sonrası parentcurrent varsayımı değildir.
-Sahipli modal lease ve foreign route/authority emekliliği düzeltiliyor; bu iki
-özellik named route regressionı geçene kadar `reworking` durumundadır.
+F57/F58 gerçek production-route onay hatası kapandı. Root **21/21** focused
+management/route testi ve altı dosya scoped analyze geçti. Yalnız sahipli exact
+dialog runtimeı korur; yabancı route/authority değişimi emekli eder. Captured
+Confirm/Cancel yabancı routeu kaldıramaz; parent kapanışı ve pending temizliği
+doğrulandı. İkisi `awaiting_ci`; fiziksel sensör/köprü/etiket kabulü ayrı.
+[Route kabulü](f57-f58-owned-confirmation-lifecycle-2026-10-01.md).
 
 F62 güncel exact1d/run36805226494 terminal **failure**. Root canonical
 artifact11137802839 (SHA25611f0923dc134ac0ac4e6775189a19fb380bd7140b710cb62c0c27dc37f6c8cef)

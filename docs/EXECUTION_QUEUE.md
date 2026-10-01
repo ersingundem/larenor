@@ -20,7 +20,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 3 | 3 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 0 | 1 | 2 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -29,8 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F57 | Oda düzeyinde yerel varlık algısı | Yeniden çalışılıyor | — |
-| F58 | E-paper mini ev ekranları | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
@@ -172,6 +170,8 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |
+| F57 | Oda düzeyinde yerel varlık algısı | CI bekliyor | — |
+| F58 | E-paper mini ev ekranları | CI bekliyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | CI bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | CI bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | CI bekliyor | — |

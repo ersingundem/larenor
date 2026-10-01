@@ -101,9 +101,15 @@ final class _EpaperStrings {
 }
 
 class EpaperManagementScreen extends StatefulWidget {
-  const EpaperManagementScreen({super.key, required this.controller});
+  const EpaperManagementScreen({
+    super.key,
+    required this.controller,
+    this.onConfirmationRouteChanged,
+  });
 
   final EpaperManagementController controller;
+  final void Function(CupertinoDialogRoute<void> route, bool visible)?
+  onConfirmationRouteChanged;
 
   @override
   State<EpaperManagementScreen> createState() => _EpaperManagementScreenState();
@@ -177,10 +183,12 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
     final preview = widget.controller.pendingPreview;
     if (preview == null || preview.deviceId != device.deviceId) return;
     final strings = _EpaperStrings.of(context);
-    await showCupertinoDialog<void>(
+    var confirmed = false;
+    late final CupertinoDialogRoute<void> dialogRoute;
+    dialogRoute = CupertinoDialogRoute<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => CupertinoAlertDialog(
+      builder: (_) => CupertinoAlertDialog(
         title: Text(strings.confirmTitle(action)),
         content: Column(
           children: [
@@ -201,23 +209,37 @@ class _EpaperManagementScreenState extends State<EpaperManagementScreen> {
             key: const ValueKey('epaper-cancel-action'),
             label: strings.cancel,
             onPressed: () {
+              if (!dialogRoute.isCurrent) return;
               unawaited(widget.controller.cancelPending());
-              Navigator.of(dialogContext).pop();
+              dialogRoute.navigator?.removeRoute(dialogRoute);
             },
           ),
           _EpaperDialogAction(
             key: const ValueKey('epaper-confirm-action'),
             label: strings.confirm,
             onPressed: () {
-              Navigator.of(dialogContext).pop();
-              if (mounted && epoch == _viewEpoch) {
-                widget.controller.confirmPending();
-              }
+              if (!dialogRoute.isCurrent) return;
+              confirmed = true;
+              dialogRoute.navigator?.removeRoute(dialogRoute);
             },
           ),
         ],
       ),
     );
+    widget.onConfirmationRouteChanged?.call(dialogRoute, true);
+    try {
+      await Navigator.of(context).push<void>(dialogRoute);
+      await dialogRoute.completed;
+      await WidgetsBinding.instance.endOfFrame;
+      if (confirmed &&
+          mounted &&
+          epoch == _viewEpoch &&
+          ModalRoute.of(context)?.isCurrent == true) {
+        await widget.controller.confirmPending();
+      }
+    } finally {
+      widget.onConfirmationRouteChanged?.call(dialogRoute, false);
+    }
   }
 
   Future<void> _map() async {

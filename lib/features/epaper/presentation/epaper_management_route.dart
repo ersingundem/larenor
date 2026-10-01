@@ -37,6 +37,7 @@ final class _EpaperManagementRouteState
   int _operation = 0;
   bool _closed = false, _scheduled = false, _connecting = false;
   bool _foreground = true, _focused = true;
+  CupertinoDialogRoute<void>? _confirmationRoute;
   EpaperAccountApi? _api;
   EpaperManagementController? _controller;
 
@@ -85,6 +86,7 @@ final class _EpaperManagementRouteState
     if (!_binding()) return false;
     try {
       final home = _home!, session = home.account.session;
+      final route = ModalRoute.of(context);
       return _foreground &&
           _focused &&
           _window() &&
@@ -95,7 +97,8 @@ final class _EpaperManagementRouteState
           session?.context != null &&
           session!.user.mustChangePassword == false &&
           TickerMode.valuesOf(context).enabled &&
-          ModalRoute.of(context)?.isCurrent == true;
+          (route?.isCurrent == true ||
+              route?.isActive == true && _ownedConfirmationCurrent);
     } catch (_) {
       return false;
     }
@@ -153,6 +156,11 @@ final class _EpaperManagementRouteState
 
   void _retire() {
     _operation++;
+    final confirmation = _confirmationRoute;
+    _confirmationRoute = null;
+    if (confirmation?.isActive == true) {
+      confirmation!.navigator?.removeRoute(confirmation);
+    }
     _connecting = false;
     final controller = _controller;
     _controller = null;
@@ -162,6 +170,30 @@ final class _EpaperManagementRouteState
     if (controller != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
     }
+  }
+
+  bool get _ownedConfirmationCurrent {
+    final confirmation = _confirmationRoute;
+    if (confirmation?.isCurrent == true) return true;
+    return confirmation?.isActive == true &&
+        confirmation?.animation?.status == AnimationStatus.reverse;
+  }
+
+  void _confirmationRouteChanged(
+    CupertinoDialogRoute<void> route,
+    bool visible,
+  ) {
+    if (!mounted || _closed) return;
+    if (visible) {
+      if (_confirmationRoute != null && !identical(route, _confirmationRoute)) {
+        return;
+      }
+      _confirmationRoute = route;
+    } else {
+      if (!identical(route, _confirmationRoute)) return;
+      _confirmationRoute = null;
+    }
+    _schedule();
   }
 
   static String _randomId() {
@@ -235,7 +267,10 @@ final class _EpaperManagementRouteState
     _schedule();
     final controller = _controller;
     if (controller != null && _current()) {
-      return EpaperManagementScreen(controller: controller);
+      return EpaperManagementScreen(
+        controller: controller,
+        onConfirmationRouteChanged: _confirmationRouteChanged,
+      );
     }
     final l10n = AppLocalizations.of(context);
     return CupertinoPageScaffold(
