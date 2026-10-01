@@ -36,6 +36,8 @@ F60 exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/acti
 
 Exact `36269cf05091156ae960106eaec27810ff35fc78` üzerinde [Android ve tüm Server CI](https://github.com/ersingundem/larenor/actions/runs/36813872693) sürüyor. [Security koşusu](https://github.com/ersingundem/larenor/actions/runs/36813874099) yeni bir failure ile tamamlandı ve dar incelemede. Bunlar CI kabulü değildir; 67 CI bekleyen iş ve 37/127, 3/63 tam kabul sayaçları değişmedi. Yerel tam Server koşusundaki F22/F35 hataları ayrıca inceleniyor.
 
+Security failure kaynağı doğrulandı: 15 tam geçmiş fingerprint için yanlış pozitif istisnası hazırlandı; genel dosya/kural/commit istisnası yok. Root tam geçmiş taramasında 0 bulgu, yeni sentetik adayda engelleyici exit17 ve 23 politika testi geçti. [Kaynak ve kapsam](testing/security-exact-history-fingerprints-2026-10-01.md). Yeni hosted Security kabulü henüz yok.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.

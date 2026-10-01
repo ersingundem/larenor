@@ -1,0 +1,18 @@
+# Exact historical false positives from synthetic tests, bounded evidence prose,
+# and one variable-to-variable token argument. No wildcard, path, rule, or commit
+# is ignored; any changed or newly introduced candidate remains blocking.
+077bc6b9eb79144f59447913c629aaac9efc4825:server/tests/support/f59_flutter_acceptance.py:generic-api-key:21
+244d31c8efd4d11ffa54b93613ba40d6cf94a274:server/tests/support/f41_frigate_fixture.py:jwt:25
+445aa08c52d8955d7173d964c0999526eadc0c4f:server/tests/test_f08_f11_final.py:generic-api-key:166
+6d795f961598f02bc5e543075cdbe51ec974bf94:server/tests/test_f59_workshop_retention.py:generic-api-key:243
+6d795f961598f02bc5e543075cdbe51ec974bf94:server/tests/test_f59_workshop_retention.py:generic-api-key:365
+768a511176136c00b8fef103105602e02178e311:test/features/game_streaming/game_stream_recovery_store_test.dart:generic-api-key:145
+8d54993f8138a798bb3fa436dafd9f139b5feebb:docs/testing/f62-native-clipboard-unicode-2026-10-01.md:generic-api-key:52
+b22abd9a966a62a7c946ecb2712bb277aa2808d2:server/tests/test_f10_ha_history_diagnostics.py:generic-api-key:115
+b22abd9a966a62a7c946ecb2712bb277aa2808d2:server/tests/test_f10_ha_history_diagnostics.py:generic-api-key:55
+b22abd9a966a62a7c946ecb2712bb277aa2808d2:server/tests/test_f10_ha_history_diagnostics.py:generic-api-key:94
+b96ca188d4ad1a0a8576e7ccb4e8b071cb5b697a:server/larenor_server/camera_search/frigate.py:generic-api-key:514
+bc65ac5ab55f9d3709660c6bc1dc894d80c93454:docs/testing/f62-probe-diagnostics-2026-10-01.md:generic-api-key:58
+caedb5a1c372d713410e2c9d06104b3df461b025:server/tests/support/f47_flutter_acceptance.py:generic-api-key:25
+cb15b22a7a61e979eea0906ab616d354d3fe36e5:server/tests/test_f01_f03_automation_final.py:generic-api-key:132
+ce9ee3d9ca45aa65989a9280099f6395b2c50d97:docs/execution-queue.json:generic-api-key:3921

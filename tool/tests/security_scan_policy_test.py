@@ -11,6 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/security.yml").read_text()
+GITLEAKS_IGNORE = ROOT / ".gitleaksignore"
 SCAN_JOB = WORKFLOW.split("\n  dependency-scan:\n", 1)[1]
 SCAN_SCRIPT = textwrap.dedent(re.search(
     r"        run: \|\n(.*?)(?=      - name: Summarize dependency scan)",
@@ -96,6 +97,20 @@ class SecurityScanPolicyTest(unittest.TestCase):
         self.assertIn("if: ${{ always() }}", summary)
         self.assertIn("${{ steps.osv.outcome }}", summary)
         self.assertIn('>> "$GITHUB_STEP_SUMMARY"', summary)
+
+    def test_gitleaks_exceptions_are_exact_historical_fingerprints(self):
+        entries = [
+            line for line in GITLEAKS_IGNORE.read_text().splitlines()
+            if line and not line.startswith("#")
+        ]
+        self.assertEqual(len(entries), 15)
+        self.assertEqual(len(entries), len(set(entries)))
+        for entry in entries:
+            with self.subTest(entry=entry):
+                self.assertRegex(
+                    entry,
+                    r"^[0-9a-f]{40}:[^:*?\[\]{}\n]+:(?:generic-api-key|jwt):[1-9][0-9]*$",
+                )
 
 
 if __name__ == "__main__":
