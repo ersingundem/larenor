@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../domain/server_home_registry.dart';
+import '../domain/server_local_media_scope.dart';
 import '../domain/server_models.dart';
 import 'larenor_server_api.dart';
 import 'server_session_store.dart';
@@ -26,6 +27,7 @@ class ServerAccountController extends ChangeNotifier {
   LarenorServerApi? _api;
   ServerSession? _session;
   ServerSession? _pendingSession;
+  ServerLocalMediaScope? _cachedMediaScope;
   List<ServerHomeProfile> _profiles = const [];
   String? _activeProfileId;
   bool _candidateSaved = false;
@@ -47,6 +49,26 @@ class ServerAccountController extends ChangeNotifier {
   bool get initialized => _initialized;
   String? get failure => _failure;
   int get generation => _generation;
+
+  /// Local decryption scope only. Retryable startup never adopts the cached
+  /// token pair as an authenticated session or enables withSession().
+  ServerLocalMediaScope? get localMediaScope {
+    if (_disposed || _working || _mutationInFlight || _pendingSession != null) {
+      return null;
+    }
+    if (_session != null) return ServerLocalMediaScope.fromSession(_session);
+    if (!_initialized &&
+        const {
+          'connection_failed',
+          'timeout',
+          'server_error',
+          'rate_limited',
+        }.contains(_failure)) {
+      return _cachedMediaScope;
+    }
+    return null;
+  }
+
   bool isCurrent(int generation) => !_disposed && generation == _generation;
 
   void _emit() {
@@ -100,6 +122,7 @@ class ServerAccountController extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized || _working || _disposed) return;
     final generation = ++_generation;
+    _cachedMediaScope = null;
     _working = true;
     _mutationInFlight = false;
     _failure = null;
@@ -110,6 +133,7 @@ class ServerAccountController extends ChangeNotifier {
       final stored = await _readStored(generation);
       _check(generation);
       if (stored == null) return;
+      _cachedMediaScope = ServerLocalMediaScope.fromSession(stored);
       if (stored.authMutationPending) {
         await _reject(
           const LarenorServerException('invalid_session'),
@@ -183,6 +207,7 @@ class ServerAccountController extends ChangeNotifier {
       throw const LarenorServerException('already_signed_in');
     }
     final generation = ++_generation;
+    _cachedMediaScope = null;
     _api?.close();
     _refreshing = null;
     _mutationInFlight = false;
@@ -419,6 +444,7 @@ class ServerAccountController extends ChangeNotifier {
       profiles: _profiles,
     );
     final generation = ++_generation;
+    _cachedMediaScope = null;
     _api?.close();
     _api = null;
     _session = null;
@@ -445,6 +471,7 @@ class ServerAccountController extends ChangeNotifier {
       final stored = _profiles
           .singleWhere((item) => item.profileId == profileId)
           .session;
+      _cachedMediaScope = ServerLocalMediaScope.fromSession(stored);
       if (stored.authMutationPending) {
         await _reject(
           const LarenorServerException('invalid_session'),
@@ -521,6 +548,7 @@ class ServerAccountController extends ChangeNotifier {
     );
     final previous = _pendingSession ?? _session;
     final generation = ++_generation;
+    _cachedMediaScope = null;
     _api?.close();
     _api = null;
     _session = null;
@@ -717,6 +745,7 @@ class ServerAccountController extends ChangeNotifier {
     if (_disposed) return;
     var old = _pendingSession ?? _session;
     final generation = ++_generation;
+    _cachedMediaScope = null;
     _api?.close();
     _api = null;
     _session = null;
@@ -766,6 +795,7 @@ class ServerAccountController extends ChangeNotifier {
     _mutationInFlight = false;
     _failure = 'cancelled';
     if (mutation) {
+      _cachedMediaScope = null;
       _session = null;
       _pendingSession = null;
       _candidateSaved = false;
@@ -817,6 +847,7 @@ class ServerAccountController extends ChangeNotifier {
       _check(generation);
     }
     _session = bound;
+    _cachedMediaScope = ServerLocalMediaScope.fromSession(bound);
     _pendingSession = null;
     _candidateSaved = false;
     _failure = null;
@@ -873,6 +904,7 @@ class ServerAccountController extends ChangeNotifier {
     int generation, {
     bool preserveStored = false,
   }) async {
+    _cachedMediaScope = null;
     _session = null;
     _pendingSession = null;
     _candidateSaved = false;
@@ -982,6 +1014,7 @@ class ServerAccountController extends ChangeNotifier {
     _generation++;
     _api?.close();
     _session = null;
+    _cachedMediaScope = null;
     _pendingSession = null;
     _profiles = const [];
     _activeProfileId = null;
