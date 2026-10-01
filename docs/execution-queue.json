@@ -3383,7 +3383,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Elektrik kesintisinde düzenli kapanış",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3405,9 +3405,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "review",
+          "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
+          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+          "state": "completed",
+          "result": "failed",
+          "label": "Independent exact721 production review: F18 admission/drain does not cover F27 normal offline downloads or active transfers; supported software composition gap, not physical UPS MANUAL"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. UID10006 NUT bridge ve UID10005 Proxmox worker, durable outbox/lost-ACK, private IPC/health ve unified package bağlıdır; 75 focused ve 8 package kapısı geçti. Exact888dfd46 run36762186381 cross-UID IPC/systemd kapısı geçti. Gerçek UPS bildirimi/read-only Proxmox gözlemi ve bakım penceresi etkisi MANUAL.SERVICES açık. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor. Bağımsız exact721 incelemesi F18 hold/drain kapısının yeni F27 offline-media grant/chunk/progress ve durable/in-flight transferleri izlemediğini buldu. UPS sırasında yeni indirme kabulü ve drain/checkpoint sırası normal üretim bileşimi açığıdır; fiziksel MANUAL değildir. Ortak DB admission/hold çiti, zaten başlamış transferin tamamlama/revoke yolu, in-flight drain ve restart/deadline fail-closed regresyonu geliştiriliyor. Önceki NUT/Proxmox cross-UID/IPC/paket/lost-ACK kanıtı korunur; yeni F18/F27 kompozisyonu kapanmadan CI bekliyor veya kabul sayılmaz. docs/testing/final-function-supported-path-gaps-2026-10-01.md"
     },
     {
       "id": "G03",
@@ -3572,9 +3581,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36832137026",
+          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact721 named f08-linux-cgroup job: Core UID IPC passed; kernel stress failed reading vanished exact leaf pids.events (FileNotFoundError), parent attribution/fixture coordination needs repair; no new stress acceptance"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux kabulü aşağıda kayıtlı. docs/testing/f08-worker-listener-close-2026-10-01.md. Exact5325/run36816909489 gerçek UID IPC geçti; stress memory.events errno2 ile düştü. Üretim limitlerini değiştirmeyen dispatch-bound observer koordinasyonu root31passed/2explicitLinux skip ile doğrulandı; Exact0c63f7d1/run36818355490 f08-linux-cgroup başarıyla tamamlandı; root exactSHA/iki gerçek Linux testi kabulünü doğruladı. Geniş son birleşik HEAD ve gerçek model kapıları ayrı, CI bekliyor. docs/testing/f08-cgroup-observer-coordination-2026-10-01.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Exact721/run36832137026 Linux cgroup stress pids.events leaf kaybolduğu için başarısız; Core UID IPC geçti. Önceki exact0c63/run36818355490 geçişi korunur; yeni combined gate yerine geçmez. Production limitleri gevşetmeden counter attribution/fixture observer araştırılıyor. Fiziksel/model kalite kabulü MANUAL kalır."
     },
     {
       "id": "F04",
@@ -5675,13 +5693,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36830633169",
           "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exactd81 changed-source actual merge-layout repair; strict owned Sunshine frame/PCM/input/two-lifetime/stop/disconnect gate running; no accepted receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exactd81 actual Sunshine stream failed original1/1/0/0 firstStreamOutput: leaseUncertain, callback unknown_effect; root canonical1394B artifact11147745861 verified. Local merge-layout fix remains proved; runtime cause separate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. ed91234d/run36828275540 original1/1/0/0 başarısız; pairedClientObserved ve owned Game satır57/48 gözlendi. Kaynak incelemesi ve gerçek paket regresyonu, merge köklü düzeni attachToRoot=false ile açma hatasını yeniden üretti. d81febad normal Activity attachment kullanıyor: root eski kaynak1/1/0/0 InflateException RED, son kaynak44 native/0skip GREEN; gerçek StreamView ve SurfaceControl.SECURE/FLAG_SECURE doğrulandı, required AndroidTest compile277 geçti. HTTPS0 ve belirsiz yerel cleanup düzeltmeleri korunur. Değişmiş d81/run36830633169 strict frame/PCM/input/iki yaşam/stop/disconnect koşuyor; runtime kabulü henüz yok. F60 CI bekliyor sayılmaz. Final HEAD geniş CI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/f60-game-merge-layout-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor. Ek exact721 incelemesi normal Start akışının launch/current-game doğrulaması olmadan stream yaptığını buldu; tek session/durable launch→verified→fresh stream sırası geliştiriliyor.  ed91234d/run36828275540 original1/1/0/0 başarısız; pairedClientObserved ve owned Game satır57/48 gözlendi. Kaynak incelemesi ve gerçek paket regresyonu, merge köklü düzeni attachToRoot=false ile açma hatasını yeniden üretti. d81febad normal Activity attachment kullanıyor: root eski kaynak1/1/0/0 InflateException RED, son kaynak44 native/0skip GREEN; gerçek StreamView ve SurfaceControl.SECURE/FLAG_SECURE doğrulandı, required AndroidTest compile277 geçti. HTTPS0 ve belirsiz yerel cleanup düzeltmeleri korunur. Değişmiş d81/run36830633169 original1/1/0/0 strict yayın başarısız: firstStreamOutput/leaseUncertain/callback unknown_effect. Root canonical1394B artifact11147745861 doğruladı; kesin runtime alt nedeni açık, aynıSHA tekrar yok. F60 CI bekliyor sayılmaz. Final HEAD geniş CI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/f60-game-merge-layout-2026-10-01.md"
     },
     {
       "id": "G11",
@@ -6062,10 +6080,18 @@
           "state": "in_progress",
           "result": null,
           "label": "Exact03f changed-source owned strict RDP two-ABI package and real NLA/frame/ACK/input/DISP/Unicode/clipboard/two-lifetime/clean-close gate running; diagnostic repair is not runtime acceptance"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
+          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+          "state": "completed",
+          "result": "failed",
+          "label": "Independent exact721 explicit-plan review found missing basic keyboard/Unicode/IME/display/pointer/audio/microphone/SAF behavior and unsupported Gateway UI exposure; false capability alone is not completion"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. 6bbe8b03/run36826438225 arm64 paket işi geçti; x86 original1test/1failure/0error/0skip unclassified ve owned/body/lifecycle marker yok, resize=false. Root canonical971B artifact11145584314 doğruladı; kesin alt neden kanıtlanmadı. 03f6773a kaynak/nonce bağlı kapalı body markerını ve availability kaydını tamamladı: root67 runner/workflow testi, Ruff, bağımsız inceleme ve required-native AndroidTest compile278 geçti. Host Gradle çıkışı Android writer sonlandı sayılmaz; private nonce yalnız disposable emülatörde kalır. Tanı primary XML/başarı sonucunu değiştirmez; initial-frame gözlemi kaynak bağıyla korunur. Yeni exact03f/run36831825081 koşuyor; gerçek strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/iki yaşam/clean close kabulü açık. F62 CI bekliyor sayılmaz; aynı SHA kör tekrar yok. Final HEAD geniş CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/f62-owned-body-failure-marker-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor. Exact721 plan/kaynak denetimi temel klavye/Türkçe/IME, işlevsel görüntü modları/fullscreen/DPI, relative pointer/wheel, uzak ses/mikrofon/SAF ve gateway capability kapısında gerçek yazılım açıkları buldu; yalnız capability=false tamamlanma değildir. İlk klavye/Unicode dilimi geliştiriliyor; diğer temel davranışlar FUNCTION içinde açık.  6bbe8b03/run36826438225 arm64 paket işi geçti; x86 original1test/1failure/0error/0skip unclassified ve owned/body/lifecycle marker yok, resize=false. Root canonical971B artifact11145584314 doğruladı; kesin alt neden kanıtlanmadı. 03f6773a kaynak/nonce bağlı kapalı body markerını ve availability kaydını tamamladı: root67 runner/workflow testi, Ruff, bağımsız inceleme ve required-native AndroidTest compile278 geçti. Host Gradle çıkışı Android writer sonlandı sayılmaz; private nonce yalnız disposable emülatörde kalır. Tanı primary XML/başarı sonucunu değiştirmez; initial-frame gözlemi kaynak bağıyla korunur. Yeni exact03f/run36831825081 koşuyor; gerçek strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/iki yaşam/clean close kabulü açık. F62 CI bekliyor sayılmaz; aynı SHA kör tekrar yok. Final HEAD geniş CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/f62-owned-body-failure-marker-2026-10-01.md"
     },
     {
       "id": "F61",
@@ -6311,10 +6337,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Exacte09fd755 Security secret-scan/dependency-scan/platform-policy all3 passed; later03f native diagnostics and complete finalHEAD runtime acceptance separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36831975047",
+          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact721 Security secret-scan/dependency-scan/platform-policy all3 passed; Android/Server and strict native runtime acceptance separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36832137026",
+          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact721 combined gate still running; F08Linux stress job failed reading vanished leaf pids.events. Other individual gates retained; no aggregate acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exacte09fd755 Security36831553763 üç işi geçti; sonraki03f native tanı kaynağı ayrı. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 analiz/dört Flutter shardı/aggregate geçti. Son birleşik native HEAD kabulü ayrı. F60 HTTPS0/yerel cleanup ve gerçek paket merge-layout hatası düzeltildi; d81 root eski kaynak InflateException RED/44native GREEN/compile277 geçti. Değişmiş d81/run36830633169 strict yayın kapısı koşuyor; runtime kabulü yok. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni03f bağlı marker root67/compile278/bağımsız inceleme geçti, strict run36831825081 koşuyor; runtime kabulü yok. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.57 seçili özellik/68 iş CI bekliyor; F18/F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exact721952a0 Security36831975047 üç işi geçti. Birleşik Android/Server36832137026 aynıHEAD üzerinde koşuyor; F08 stress leaf pids.events kaybolduğu için başarısız, aggregate yok. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 analiz/dört Flutter shardı/aggregate geçti. Son birleşik native HEAD kabulü ayrı. F60 HTTPS0/yerel cleanup ve gerçek paket merge-layout hatası düzeltildi; d81 root eski kaynak InflateException RED/44native GREEN/compile277 geçti. Değişmiş d81/run36830633169 original1/1/0/0 firstStreamOutput/leaseUncertain/callback unknown_effect ile başarısız; root canonical1394B kayıt doğruladı, runtime kabulü yok. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni03f bağlı marker root67/compile278/bağımsız inceleme geçti, strict run36831825081 koşuyor; runtime kabulü yok. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı. Exact721 üretim kapsamı incelemesi F18/F27 hold-drain, F60 launch→stream ve F62 temel input/display/audio/SAF açıklarını buldu; eski dar yeşil kapılar bunları kapatmaz."
     },
     {
       "id": "FINAL.UI",
