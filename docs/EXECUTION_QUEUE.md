@@ -1,4 +1,4 @@
-F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **37/127 iş kanıtla tamamlandı**.
+F01–F63 yazılım kapısı: **3/63** (fiziksel kabul ayrı). Kalan kuyruk: **35/127 iş kanıtla tamamlandı**.
 
 Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
@@ -9,7 +9,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | B3 — Merkezi kaynak, yetki ve olay sözleşmeleri | 11 | 11 | 0 | 0 | 0 | 0 |
 | B4 — Yazılım yedekleme ve kurtarma temeli | 3 | 3 | 0 | 0 | 0 | 0 |
 | B5 — Erken ortak tablet Client deneyimi | 2 | 2 | 0 | 0 | 0 | 0 |
-| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 4 | 0 | 0 | 9 | 0 |
+| PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 2 | 0 | 0 | 11 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
@@ -107,8 +107,6 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | B5.2 | Kişisel profil ve hassas oturum Client sınırları | Kanıtla tamamlandı | — |
 | K03.remaining | WebPanel ileri tarayıcı işlemleri | Kanıtla tamamlandı | — |
 | K05.remaining | Ortam ekranı video/PDF/web listeleri | Kanıtla tamamlandı | — |
-| K07 | Eşleştirilmiş uzaktan API ve MQTT | Kanıtla tamamlandı | — |
-| K08 | Sınırlı web→native köprü | Kanıtla tamamlandı | — |
 | F06 | Bunu kim, neden yaptı? | Kanıtla tamamlandı | — |
 | F31 | Haftalık menü ve tarif merkezi | Kanıtla tamamlandı | — |
 | F34 | QR etiketli ev envanteri | Kanıtla tamamlandı | — |
@@ -117,6 +115,8 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | PRODUCT.PROVIDERS | Spotify/Apple Music/YouTube Music kullanıcı akışı | CI bekliyor | — |
 | PRODUCT.HEALTH | Kişisel sağlık ve tartı sağlayıcı yazılım sınırı | CI bekliyor | — |
 | PRODUCT.CAMERA | İsteğe bağlı yaklaşma ve kişisel kamera görünümü | CI bekliyor | — |
+| K07 | Eşleştirilmiş uzaktan API ve MQTT | CI bekliyor | — |
+| K08 | Sınırlı web→native köprü | CI bekliyor | — |
 | K09 | Cihaz bilgisi ve kontrollü uzaktan görünüm | CI bekliyor | — |
 | K10 | Hareket, karanlık ve cihaz sensörleri | CI bekliyor | — |
 | K11 | QR/NFC/BLE/USB/TTS/print seçili çevre birimleri | CI bekliyor | — |

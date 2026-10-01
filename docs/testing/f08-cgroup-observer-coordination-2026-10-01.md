@@ -32,4 +32,8 @@ tests exercise a real subprocess, absence of receipts before both barriers,
 malformed/symlink/public acknowledgements and bounded missing acknowledgement.
 Root's focused fixture/systemd/IPC set passed 31 tests; two explicitly opted-in
 Linux gates remain skipped on macOS. This is coordination evidence only. A
-fresh changed-source Linux stress run is required.
+changed-source Linux stress run is now retained below.
+
+## Changed-source Linux acceptance
+
+Root verified [run 36818355490](https://github.com/ersingundem/larenor/actions/runs/36818355490) completed successfully on exact `0c63f7d13c4672786710e2bdb21b6ecceaf5b258`. The named `f08-linux-cgroup` job passed both actual Linux UID IPC and kernel resource tests. Other unrelated scope jobs were intentionally skipped. This is scoped owned-fixture acceptance; final combined HEAD CI and real model/provider workloads remain separate gates. F08 stays `awaiting_ci`.

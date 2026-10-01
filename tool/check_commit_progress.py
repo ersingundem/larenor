@@ -2,7 +2,9 @@
 """Verify evidence-backed progress on every commit added by a pull request."""
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -16,6 +18,12 @@ TRAILER_PREFIX = re.compile(r'(?m)^Larenor-(Queue|Feature)-Progress[ \t]*:')
 TRAILER = re.compile(
     r'(?m)^Larenor-(Queue|Feature)-Progress: '
     r'([0-9]+)/([0-9]+) \(([0-9]+\.[0-9])%\)$')
+LOCAL_EVIDENCE = re.compile(
+    r'(?:docs|contracts|tool|test|server|integration_test)/'
+    r'[A-Za-z0-9_./-]*[A-Za-z0-9_-]')
+CI_EVIDENCE = re.compile(
+    r'https://github\.com/ersingundem/larenor/actions/runs/[1-9][0-9]{0,19}')
+REOPEN_STATUSES = frozenset({'awaiting_ci', 'reworking'})
 
 
 class ProgressCheckError(ValueError):
@@ -72,22 +80,190 @@ def validate_sequence(history, expected):
         raise ProgressCheckError('head_progress_mismatch')
 
 
-def validate_graph(entries, expected):
+class RepositoryQueueHistory:
+    """Load validated queue snapshots from immutable Git trees."""
+
+    def __init__(self, repo, relative):
+        self.repo = repo.resolve()
+        self.relative = relative
+        self._cache = {}
+
+    @classmethod
+    def for_path(cls, repo, queue_path):
+        repo = repo.resolve()
+        try:
+            relative = queue_path.resolve().relative_to(repo)
+        except ValueError:
+            return None
+        return cls(repo, relative)
+
+    def model(self, commit):
+        cached = self._cache.get(commit)
+        if cached is not None:
+            return cached
+        if re.fullmatch(r'[0-9a-f]{40}', commit) is None:
+            raise ProgressCheckError('invalid_commit_range')
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = Path(directory) / 'execution-queue.json'
+            with snapshot.open('wb') as output:
+                completed = subprocess.run(
+                    ['git', 'show', f'{commit}:{self.relative.as_posix()}'],
+                    cwd=self.repo,
+                    stdout=output,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
+            if completed.returncode != 0:
+                raise ProgressCheckError('invalid_queue_ref')
+            model = execution_queue.load_queue(snapshot)
+        self._cache[commit] = model
+        return model
+
+    @staticmethod
+    def progress(model):
+        counts = model.counts()
+        return ProgressValues(
+            (counts['done'], counts['total']),
+            (counts['featuresDone'], counts['featuresTotal']),
+        )
+
+    def _reference_exists(self, commit, reference):
+        if CI_EVIDENCE.fullmatch(reference):
+            return True
+        if LOCAL_EVIDENCE.fullmatch(reference) is None:
+            return False
+        try:
+            execution_queue.reference(reference)
+        except execution_queue.QueueError:
+            return False
+        tree = subprocess.run(
+            ['git', 'ls-tree', '-z', commit, '--', reference],
+            cwd=self.repo,
+            text=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if tree.returncode != 0 or not tree.stdout.endswith(b'\0'):
+            return False
+        records = tree.stdout[:-1].split(b'\0')
+        if len(records) != 1:
+            return False
+        try:
+            metadata, observed_path = records[0].split(b'\t', 1)
+            mode, kind, object_id = metadata.split(b' ', 2)
+        except ValueError:
+            return False
+        if (observed_path.decode('utf-8', 'strict') != reference
+                or mode not in {b'100644', b'100755'}
+                or kind != b'blob'
+                or re.fullmatch(rb'[0-9a-f]{40}', object_id) is None):
+            return False
+        size = subprocess.run(
+            ['git', 'cat-file', '-s', object_id.decode('ascii')],
+            cwd=self.repo,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return (size.returncode == 0 and size.stdout.strip().isascii()
+                and size.stdout.strip().isdigit() and int(size.stdout) > 0)
+
+    @staticmethod
+    def _evidence_references(reason):
+        if not isinstance(reason, str):
+            return set()
+        references = set()
+        for raw in reason.split():
+            token = raw.strip('.,;:()[]{}<>')
+            if (LOCAL_EVIDENCE.fullmatch(token)
+                    or CI_EVIDENCE.fullmatch(token)):
+                references.add(token)
+        return references
+
+    @staticmethod
+    def _proofs(value):
+        return Counter(json.dumps(item, sort_keys=True, separators=(',', ':'))
+                       for item in value)
+
+    def validate_reopening(self, parent, commit):
+        previous = self.model(parent)
+        current = self.model(commit)
+        previous_counts = previous.counts()
+        current_counts = current.counts()
+        if (current_counts['total'] < previous_counts['total']
+                or current_counts['featuresTotal'] < previous_counts['featuresTotal']):
+            raise ProgressCheckError('invalid_progress_reopening')
+        if not set(previous.nodes) <= set(current.nodes):
+            raise ProgressCheckError('invalid_progress_reopening')
+
+        previous_done = {
+            node['id'] for node in previous.tasks() if node['status'] == 'done'
+        }
+        current_done = {
+            node['id'] for node in current.tasks() if node['status'] == 'done'
+        }
+        reopened = previous_done - current_done
+        if not reopened or current_done - previous_done:
+            raise ProgressCheckError('invalid_progress_reopening')
+        if previous_counts['done'] - current_counts['done'] != len(reopened):
+            raise ProgressCheckError('invalid_progress_reopening')
+        selected = set(previous.data['selectedFeatures'])
+        if previous.data['selectedFeatures'] != current.data['selectedFeatures']:
+            raise ProgressCheckError('invalid_progress_reopening')
+        if (previous_counts['featuresDone'] - current_counts['featuresDone']
+                != len(reopened & selected)):
+            raise ProgressCheckError('invalid_progress_reopening')
+
+        mutable = {'status', 'evidence', 'completionCommit', 'reason'}
+        for identifier in reopened:
+            old = previous.nodes[identifier]
+            new = current.nodes[identifier]
+            if (old['kind'] != 'task'
+                    or old['status'] != 'done'
+                    or new['status'] not in REOPEN_STATUSES
+                    or new['completionCommit'] is not None):
+                raise ProgressCheckError('invalid_progress_reopening')
+            if any(old[key] != new[key] for key in old if key not in mutable):
+                raise ProgressCheckError('invalid_progress_reopening')
+            if self._proofs(old['evidence']) - self._proofs(new['evidence']):
+                raise ProgressCheckError('invalid_progress_reopening')
+            old_refs = self._evidence_references(old['reason'])
+            new_refs = self._evidence_references(new['reason'])
+            added_refs = new_refs - old_refs
+            if (new['reason'] == old['reason'] or not added_refs
+                    or not all(self._reference_exists(commit, ref)
+                               for ref in added_refs)):
+                raise ProgressCheckError('invalid_progress_reopening')
+
+
+def validate_graph(entries, expected, queue_history=None):
     """Parallel histories may differ; progress must advance along ancestry."""
     if not entries:
         raise ProgressCheckError('empty_commit_range')
     values_by_commit = {entry.commit: entry.values for entry in entries}
     for entry in entries:
+        if queue_history is not None:
+            current_snapshot = queue_history.progress(
+                queue_history.model(entry.commit))
+            if entry.values != current_snapshot:
+                raise ProgressCheckError('commit_progress_mismatch')
         for parent in entry.parents:
             previous = values_by_commit.get(parent)
             if previous is None:
-                continue  # A parent on the already accepted base is outside the PR range.
+                if queue_history is None:
+                    continue  # An accepted base is outside this checked range.
+                previous = queue_history.progress(queue_history.model(parent))
             current = entry.values
-            if (current.queue[0] < previous.queue[0]
-                    or current.queue[1] < previous.queue[1]
-                    or current.feature[0] < previous.feature[0]
+            if (current.queue[1] < previous.queue[1]
                     or current.feature[1] < previous.feature[1]):
                 raise ProgressCheckError('progress_regressed')
+            if (current.queue[0] < previous.queue[0]
+                    or current.feature[0] < previous.feature[0]):
+                if queue_history is None:
+                    raise ProgressCheckError('progress_regressed')
+                queue_history.validate_reopening(parent, entry.commit)
     if entries[-1].values != expected:
         raise ProgressCheckError('head_progress_mismatch')
 
@@ -155,9 +331,8 @@ def expected_progress_at(repo, head, queue_path):
     """
     repo = repo.resolve()
     queue_path = queue_path.resolve()
-    try:
-        relative = queue_path.relative_to(repo)
-    except ValueError:
+    history = RepositoryQueueHistory.for_path(repo, queue_path)
+    if history is None:
         return expected_progress(queue_path)
     resolved = subprocess.run(
         ['git', 'rev-parse', '--verify', '--end-of-options',
@@ -171,19 +346,7 @@ def expected_progress_at(repo, head, queue_path):
     if (resolved.returncode != 0
             or not re.fullmatch(r'[0-9a-f]{40}', resolved_head)):
         raise ProgressCheckError('invalid_head_ref')
-    with tempfile.TemporaryDirectory() as directory:
-        snapshot = Path(directory) / 'execution-queue.json'
-        with snapshot.open('wb') as output:
-            completed = subprocess.run(
-                ['git', 'show', f'{resolved_head}:{relative.as_posix()}'],
-                cwd=repo,
-                stdout=output,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-        if completed.returncode != 0:
-            raise ProgressCheckError('invalid_queue_ref')
-        return expected_progress(snapshot)
+    return history.progress(history.model(resolved_head))
 
 
 def main(argv=None, stdout=None, stderr=None):
@@ -200,9 +363,11 @@ def main(argv=None, stdout=None, stderr=None):
     try:
         args = parser.parse_args(argv)
         entries = read_progress_entries(args.repo, args.base, args.head)
+        queue_history = RepositoryQueueHistory.for_path(args.repo, args.queue)
         validate_graph(
             entries,
             expected_progress_at(args.repo, args.head, args.queue),
+            queue_history,
         )
         stdout.write(f'Commit ilerleme kapısı: {len(entries)} commit doğrulandı.\n')
         report = format_report(entries)

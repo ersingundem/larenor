@@ -2715,7 +2715,7 @@
       "kind": "task",
       "parent": "KIOSK",
       "title": "Eşleştirilmiş uzaktan API ve MQTT",
-      "status": "done",
+      "status": "awaiting_ci",
       "dependsOn": [
         "S08.6",
         "S08.10"
@@ -2770,15 +2770,15 @@
           "label": "Security; secret scan, platform policy ve dependency scan geçti."
         }
       ],
-      "completionCommit": "0a6c2b296714eda0896dba3b277e331f129e38a6",
-      "reason": "Eşleştirme authority/runtime owner, TLS MQTT SUBACK/PUBACK ve ACL sınırı, replay/rate/scope kalıcılığı ile native lock/refresh/profile komutları test, bağımsız review ve exact CI ile tamamlandı. Fiziksel Huawei/DeX/TalkBack/OEM/DPC, gerçek broker kurulumu ve cihaz ölçümleri MANUAL kalır."
+      "completionCommit": null,
+      "reason": "Önceki exact0a6c2b29 yazılım kabulü tarihsel olarak korunur. Exact5325 geniş CI native command timeout expectedfailed/actualdenied regresyonu verdi; çift deadline yarışı deterministic RED→GREEN ile düzeltildi. Tek command executor deadline, exact external lease retirement ve late/successor guard korunur. Root17source/deadline testi ve analyze geçti; değişen kaynak için geniş exact HEAD CI gerekli, bu nedenle done yerine CI bekliyor. docs/testing/k07-native-command-one-deadline-2026-10-01.md. Eşleştirme/TLS MQTT SUBACK/PUBACK/ACL/replay/rate/scope kapsamı önceki dar kabulde var; fiziksel Huawei/DeX/TalkBack/OEM/DPC, gerçek broker ve cihaz ölçümleri MANUAL ayrı."
     },
     {
       "id": "K08",
       "kind": "task",
       "parent": "KIOSK",
       "title": "Sınırlı web→native köprü",
-      "status": "done",
+      "status": "awaiting_ci",
       "dependsOn": [
         "K03.remaining",
         "K07"
@@ -2832,8 +2832,8 @@
           "label": "Security secret-scan, platform-policy, and dependency-scan passed on the exact source."
         }
       ],
-      "completionCommit": "2a39ca2be54a51e64a1c6517dc8c37ffe370045b",
-      "reason": "Versioned exact-origin/method policy, main-frame Android transport, monotonic one-shot confirmation, and production TTS, user-confirmed bounded PDF print, and visible QR effects are bound to the current Core/home/account/session/policy/route/lifecycle owner. Replacement, logout, background, timeout, renderer loss, capability drift, permission denial, and delayed bind retirement fail closed without stale effect or receipt replay. Independent final review and exact PR #487 Android Build plus Security passed; source/squash stable patch-id matched. Physical Huawei, DeX, TalkBack, OEM and DPC evidence remains MANUAL."
+      "completionCommit": null,
+      "reason": "Önceki exact yazılım kabulü tarihsel kanıtta korunur. K08 üretim kodunda yeni eksik kanıtlanmadı; zorunlu K07 bağımlılığı native command deadline regresyonu sonrası changed-source geniş CI beklediği için K08 de done yerine CI bekler. K07 dar onarımı root17test/analyze geçti; exact HEAD CI ve bağımlılık kabulü tamamlanmadan K08 yeniden done sayılmaz. docs/testing/k07-native-command-one-deadline-2026-10-01.md."
     },
     {
       "id": "K09",
@@ -3574,7 +3574,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux CI bekliyor. docs/testing/f08-worker-listener-close-2026-10-01.md. Exact5325/run36816909489 gerçek UID IPC geçti; stress memory.events errno2 ile düştü. Üretim limitlerini değiştirmeyen dispatch-bound observer koordinasyonu root31passed/2explicitLinux skip ile doğrulandı; yeni Linux kabul gerekli. docs/testing/f08-cgroup-observer-coordination-2026-10-01.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux kabulü aşağıda kayıtlı. docs/testing/f08-worker-listener-close-2026-10-01.md. Exact5325/run36816909489 gerçek UID IPC geçti; stress memory.events errno2 ile düştü. Üretim limitlerini değiştirmeyen dispatch-bound observer koordinasyonu root31passed/2explicitLinux skip ile doğrulandı; Exact0c63f7d1/run36818355490 f08-linux-cgroup başarıyla tamamlandı; root exactSHA/iki gerçek Linux testi kabulünü doğruladı. Geniş son birleşik HEAD ve gerçek model kapıları ayrı, CI bekliyor. docs/testing/f08-cgroup-observer-coordination-2026-10-01.md."
     },
     {
       "id": "F04",

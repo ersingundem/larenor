@@ -151,7 +151,9 @@ void main() {
     },
   );
 
-  test('native command timeout retires its platform session', () async {
+  testWidgets('native command timeout retires its platform session', (
+    tester,
+  ) async {
     final command = Completer<Object?>();
     messenger.setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'start') return {'status': 'active'};
@@ -169,10 +171,9 @@ void main() {
     );
     final lease = await source.bind('scope');
 
-    expect(
-      await lease!.commandExecutor.execute('lockKiosk'),
-      ManagedTabletCommandResult.failed,
-    );
+    final pending = lease!.commandExecutor.execute('lockKiosk');
+    await tester.pump(const Duration(milliseconds: 30));
+    expect(await pending, ManagedTabletCommandResult.failed);
     expect(source.status, NativeManagedTabletSourceStatus.retired);
     expect(
       await lease.commandExecutor.execute('lockKiosk'),

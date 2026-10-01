@@ -242,17 +242,24 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     Future<void>? retired,
   ]) async {
     try {
-      final result = await Future.any<Object?>([
+      return await _untilRetired(
         operation,
-        if (retired != null) retired.then<Object?>((_) => _retiredNativeCall),
-      ]).timeout(config.nativeCallTimeout);
-      if (identical(result, _retiredNativeCall)) {
-        throw StateError('native_tablet_source_retired');
-      }
-      return result as T;
+        retired,
+      ).timeout(config.nativeCallTimeout);
     } on TimeoutException {
       throw StateError('native_tablet_source_timeout');
     }
+  }
+
+  Future<T> _untilRetired<T>(Future<T> operation, Future<void>? retired) async {
+    final result = await Future.any<Object?>([
+      operation,
+      if (retired != null) retired.then<Object?>((_) => _retiredNativeCall),
+    ]);
+    if (identical(result, _retiredNativeCall)) {
+      throw StateError('native_tablet_source_retired');
+    }
+    return result as T;
   }
 
   Future<ManagedTabletTelemetry> _read(
@@ -275,7 +282,10 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
     _assertCurrent(lease);
     Object? raw;
     try {
-      raw = await _awaitNative(
+      // The executor owns the one total command deadline. A second timeout
+      // here can retire the lease first and turn its own failure into denied.
+      // External retirement still wakes this exact native operation promptly.
+      raw = await _untilRetired(
         _channel.invokeMethod<Object?>('command', {
           'sessionId': lease._sessionId,
           'kind': kind,
@@ -293,12 +303,7 @@ final class NativeManagedTabletSource implements ManagedTabletSourcePort {
       return error.code == 'denied'
           ? ManagedTabletCommandResult.denied
           : ManagedTabletCommandResult.failed;
-    } on StateError catch (error) {
-      if (error.message == 'native_tablet_source_timeout' &&
-          _isCurrent(lease)) {
-        await _retireLease(lease);
-        return ManagedTabletCommandResult.failed;
-      }
+    } on StateError {
       return _isCurrent(lease)
           ? ManagedTabletCommandResult.failed
           : ManagedTabletCommandResult.denied;

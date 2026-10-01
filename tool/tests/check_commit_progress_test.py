@@ -1,4 +1,5 @@
 import importlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,180 @@ check_commit_progress = importlib.import_module('check_commit_progress')
 
 
 class CheckCommitProgressTest(unittest.TestCase):
+    def test_allows_exact_evidence_bound_reopening_from_the_base_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, base = self._queue_repository(Path(directory))
+            evidence = repo / 'docs/testing/reopened-ci.md'
+            evidence.parent.mkdir(parents=True, exist_ok=True)
+            evidence.write_text('Changed-source CI is required.\n')
+            self._reopen(queue, ('K07', 'K08'),
+                         reason='Regression evidence: docs/testing/reopened-ci.md')
+            progress = check_commit_progress.expected_progress(queue)
+            head = self._queue_commit(repo, 'truthful reopen', progress)
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue),
+            ])
+
+            self.assertEqual(status, 0)
+
+    def test_rejects_a_forged_first_commit_progress_decrease_without_reopening(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, base = self._queue_repository(Path(directory))
+            original = check_commit_progress.expected_progress(queue)
+            forged = check_commit_progress.ProgressValues(
+                (original.queue[0] - 2, original.queue[1]),
+                original.feature,
+            )
+            head = self._queue_commit(repo, 'forged regression', forged)
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue),
+            ])
+
+            self.assertEqual(status, 2)
+
+    def test_rejects_reopening_without_new_named_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, base = self._queue_repository(Path(directory))
+            self._reopen(queue, ('K07', 'K08'), reason='A regression was found.')
+            progress = check_commit_progress.expected_progress(queue)
+            head = self._queue_commit(repo, 'unnamed regression', progress)
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue),
+            ])
+
+            self.assertEqual(status, 2)
+
+    def test_rejects_directory_traversal_and_spoofed_ci_evidence_tokens(self):
+        reasons = (
+            'Regression evidence: docs/testing',
+            'Regression evidence: docs/testing/../execution-queue.json',
+            'Regression evidence: '
+            'https://github.com/ersingundem/larenor/actions/runs/'
+            '123456789012345678901suffix',
+        )
+        for reason in reasons:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as directory:
+                repo, queue, base = self._queue_repository(Path(directory))
+                (repo / 'docs/testing').mkdir(parents=True, exist_ok=True)
+                self._reopen(queue, ('K07', 'K08'), reason=reason)
+                progress = check_commit_progress.expected_progress(queue)
+                head = self._queue_commit(repo, 'invalid evidence token', progress)
+
+                status = check_commit_progress.main([
+                    '--base', base, '--head', head, '--repo', str(repo),
+                    '--queue', str(queue),
+                ])
+
+                self.assertEqual(status, 2)
+
+    def test_rejects_empty_and_symlink_named_evidence(self):
+        for case in ('empty', 'symlink'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                repo, queue, base = self._queue_repository(Path(directory))
+                evidence = repo / 'docs/testing/reopened-ci.md'
+                evidence.parent.mkdir(parents=True, exist_ok=True)
+                if case == 'empty':
+                    evidence.write_bytes(b'')
+                else:
+                    target = repo / 'evidence-target'
+                    target.write_text('Changed-source CI is required.\n')
+                    evidence.symlink_to(Path('../..') / target.name)
+                self._reopen(
+                    queue, ('K07', 'K08'),
+                    reason='Regression evidence: docs/testing/reopened-ci.md',
+                )
+                progress = check_commit_progress.expected_progress(queue)
+                head = self._queue_commit(repo, case, progress)
+
+                status = check_commit_progress.main([
+                    '--base', base, '--head', head, '--repo', str(repo),
+                    '--queue', str(queue),
+                ])
+
+                self.assertEqual(status, 2)
+
+    def test_rejects_reopening_that_drops_historical_acceptance_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, base = self._queue_repository(Path(directory))
+            evidence = repo / 'docs/testing/reopened-ci.md'
+            evidence.parent.mkdir(parents=True, exist_ok=True)
+            evidence.write_text('Changed-source CI is required.\n')
+            self._reopen(queue, ('K07', 'K08'),
+                         reason='Regression evidence: docs/testing/reopened-ci.md')
+            value = json.loads(queue.read_text())
+            next(node for node in value['nodes'] if node['id'] == 'K07')['evidence'].pop()
+            queue.write_text(json.dumps(value))
+            progress = check_commit_progress.expected_progress(queue)
+            head = self._queue_commit(repo, 'evidence deletion', progress)
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue),
+            ])
+
+            self.assertEqual(status, 2)
+
+    def test_rejects_invalid_status_completion_and_deleted_nodes_during_reopening(self):
+        cases = ('implemented', 'completion_retained', 'deleted')
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                repo, queue, base = self._queue_repository(Path(directory))
+                evidence = repo / 'docs/testing/reopened-ci.md'
+                evidence.parent.mkdir(parents=True, exist_ok=True)
+                evidence.write_text('Changed-source CI is required.\n')
+                self._reopen(queue, ('K07',),
+                             reason='Regression evidence: docs/testing/reopened-ci.md')
+                value = json.loads(queue.read_text())
+                if case == 'implemented':
+                    next(node for node in value['nodes']
+                         if node['id'] == 'K07')['status'] = 'implemented'
+                elif case == 'completion_retained':
+                    next(node for node in value['nodes']
+                         if node['id'] == 'K07')['completionCommit'] = 'a' * 40
+                else:
+                    value['nodes'] = [node for node in value['nodes']
+                                      if node['id'] != 'K08']
+                queue.write_text(json.dumps(value))
+                try:
+                    progress = check_commit_progress.expected_progress(queue)
+                except check_commit_progress.execution_queue.QueueError:
+                    # A deleted referenced node may fail even before the
+                    # transition validator; either path is fail closed.
+                    progress = check_commit_progress.ProgressValues((36, 126), (3, 63))
+                head = self._queue_commit(repo, case, progress)
+
+                status = check_commit_progress.main([
+                    '--base', base, '--head', head, '--repo', str(repo),
+                    '--queue', str(queue),
+                ])
+
+                self.assertEqual(status, 2)
+
+    def test_selected_feature_reopening_exactly_accounts_for_both_counters(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, base = self._queue_repository(Path(directory))
+            evidence = repo / 'docs/testing/reopened-ci.md'
+            evidence.parent.mkdir(parents=True, exist_ok=True)
+            evidence.write_text('Changed-source CI is required.\n')
+            self._reopen(queue, ('F06',),
+                         reason='Regression evidence: docs/testing/reopened-ci.md',
+                         status='reworking')
+            progress = check_commit_progress.expected_progress(queue)
+            head = self._queue_commit(repo, 'feature reopen', progress)
+
+            status = check_commit_progress.main([
+                '--base', base, '--head', head, '--repo', str(repo),
+                '--queue', str(queue),
+            ])
+
+            self.assertEqual(status, 0)
+
     def test_parses_exact_progress_and_rejects_forged_values(self):
         parsed = check_commit_progress.parse_message(
             'feat: example\n\n'
@@ -226,6 +401,49 @@ class CheckCommitProgressTest(unittest.TestCase):
             f'({queue_done * 100 / queue_total:.1f}%)\n'
             f'Larenor-Feature-Progress: {feature_done}/{feature_total} '
             f'({feature_done * 100 / feature_total:.1f}%)')
+
+    def _queue_repository(self, directory):
+        repo = directory / 'repo'
+        repo.mkdir()
+        self._git(repo, 'init', '-q')
+        self._git(repo, 'config', 'user.name', 'Larenor Test')
+        self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
+        queue = repo / 'docs/execution-queue.json'
+        queue.parent.mkdir()
+        queue.write_bytes(subprocess.run(
+            ['git', 'show', 'HEAD:docs/execution-queue.json'],
+            cwd=ROOT, check=True, capture_output=True,
+        ).stdout)
+        self._git(repo, 'add', 'docs/execution-queue.json')
+        self._git(repo, 'commit', '-q', '-m', 'queue base')
+        return repo, queue, self._git(repo, 'rev-parse', 'HEAD').strip()
+
+    @staticmethod
+    def _reopen(queue, identifiers, *, reason, status='awaiting_ci'):
+        value = json.loads(queue.read_text())
+        selected = set(identifiers)
+        found = set()
+        for node in value['nodes']:
+            if node['id'] in selected:
+                if node['status'] != 'done':
+                    raise AssertionError(node['id'])
+                node['status'] = status
+                node['completionCommit'] = None
+                node['reason'] = reason
+                found.add(node['id'])
+        if found != selected:
+            raise AssertionError(selected - found)
+        queue.write_text(json.dumps(value))
+
+    def _queue_commit(self, repo, subject, progress):
+        marker = repo / 'commit-marker'
+        if not marker.exists():
+            marker.write_text(subject)
+        self._git(repo, 'add', '.')
+        self._git(repo, 'commit', '-q', '--cleanup=verbatim', '-m', self._message(
+            subject, *progress.queue, *progress.feature,
+        ))
+        return self._git(repo, 'rev-parse', 'HEAD').strip()
 
     @staticmethod
     def _git(repo, *args):

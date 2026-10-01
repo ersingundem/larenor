@@ -1,12 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 53 seçili özellik / toplam 62 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F21/F24–F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 53 seçili özellik / toplam 64 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F21/F24–F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) olarak güncellendi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **53 seçili özellik / toplam 62 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **CI bekliyor** | **53 seçili özellik / toplam 64 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Exact `31f152c2` [stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36816571516) `readRejected` ile başarısız; loopback accept/peer sonrası parse öncesi okuma hatası, kesin alt neden açık. Discovery iki yaşam/1test/0skip geçti. Gerçek frame/PCM/input/iki yaşam kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact `70ab1058` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) 1 test/1 failure/0 error/0 skip ile başarısız. Owned source frame 1280×800 ilk kare bekleyişini gösterir; yanlış boyutlu ara callback ihtimali ve alt neden açık. Arm64 package geçti; strict runtime kabulü yok |
 | **Yeniden çalışılıyor** | **F21/F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
@@ -17,15 +17,15 @@
 
 ## Son doğrulanan düzeltmeler
 
-Yeni geniş [Android/tüm Server koşusu](https://github.com/ersingundem/larenor/actions/runs/36816909489) exact `5325c083` üzerinde başladı; son kaynak [Security](https://github.com/ersingundem/larenor/actions/runs/36816859672) kabulünü geçti. Geniş sonuç henüz kabul değildir. [Pinned Sunshine/Moonlight sözleşme araştırması](testing/f60-upstream-pairing-contract-review-2026-10-01.md) provider API/name/PIN uyumunu doğruladı; runtime stream yerine sayılmaz.
+Yeni geniş [Android/tüm Server koşusu](https://github.com/ersingundem/larenor/actions/runs/36816909489) exact `5325c083` üzerinde başarısız tamamlandı; son kaynak [Security](https://github.com/ersingundem/larenor/actions/runs/36816859672) kabulünü geçti. Flutter shard0 K07 deadline yarışı, F08 eski stress observer ve üç Server shardındaki dokuz backup/arşiv test hatası mevcut. Bunlar yeni kaynak için geniş kabul değildir; dar neden incelemesi sürüyor. [Pinned Sunshine/Moonlight sözleşme araştırması](testing/f60-upstream-pairing-contract-review-2026-10-01.md) provider API/name/PIN uyumunu doğruladı; runtime stream yerine sayılmaz.
 
 F42/F44 test bileşimi gerçek FFmpeg/FFprobe çiftini CI’da kurup doğrular; iki F42 fixture’ındaki Homebrew-only yollar kaldırıldı. Root 31/31 gerçek media decode/filter ve 3 workflow testi, actionlint ve 71 ilgili politika/kuyruk/progress kontrolü geçti. İkisi **CI bekliyor**; yeni Ubuntu kabulü gerekli, eski F44 503 tek nedeni kanıtlanmadı. [Dar kanıt](testing/f42-f44-linux-media-runtime-2026-10-01.md).
 
-F08 AI worker listener kapanışı bounded accept polling ve exact listener sahipliğiyle düzeltildi; emekli thread yeni listenerı devralamaz veya kabul edilen eski stream’i işleme gönderemez. Root 12 passed/1 explicit Linux user-manager skip geçti. **CI bekliyor**; gerçek Linux kabulü yeni koşuda doğrulanacak. [Mekanizma ve sınırlar](testing/f08-worker-listener-close-2026-10-01.md).
+F08 AI worker listener kapanışı bounded accept polling ve exact listener sahipliğiyle düzeltildi; emekli thread yeni listenerı devralamaz veya kabul edilen eski stream’i işleme gönderemez. Root 12 passed/1 explicit Linux user-manager skip geçti. **CI bekliyor**; sonraki exact0c63f7d1 scoped Linux koşusu aşağıda kaydedildi. [Mekanizma ve sınırlar](testing/f08-worker-listener-close-2026-10-01.md).
 
 F30 medya arşivi artık elapsed EOF/parser hatasını aynı monotonic süre sınırında doğru şekilde sınıflandırır; erken EOF hâlâ protokol hatasıdır. Aynı yazma isteği tekrarlanmaz. Gerçek owned loopback RED→GREEN ve root 10/10 transport testi geçti; **CI bekliyor**. [Dar kanıt](testing/media-archive-deadline-eof-2026-10-01.md).
 
-Backup power-loss fixture’ının yalnız kesilmiş restore/recovery işlemlerindeki süre sınırı 8’den 30 saniyeye çıkarıldı. Hosted committed vaka 8,476 saniye sürdü; süre aşımı güçlü çıkarım, redacted asıl exception nedeniyle kesin kök neden değildir. Dört power-loss ve iki yetkisiz pause vakası root kabulünü geçti; production restore motoru değişmedi. [Dar kanıt ve sınırlar](testing/backup-committed-recovery-2026-10-01.md). Yeni Linux CI sonucu gerekli.
+Backup power-loss fixture’ının yalnız kesilmiş restore/recovery işlemlerindeki süre sınırı 8’den 30 saniyeye çıkarıldı. Hosted committed vaka 8,476 saniye sürdü; süre aşımı güçlü çıkarım, redacted asıl exception nedeniyle kesin kök neden değildir. Dört power-loss ve iki yetkisiz pause vakası root kabulünü geçti; production restore motoru ve kabul kriterleri değiştirilmedi. [Dar kanıt ve sınırlar](testing/backup-committed-recovery-2026-10-01.md). Yeni Linux CI sonucu gerekli.
 
 F60 PIN bridge artık kabul edilen bağlantı, peer doğrulaması, okuma ve parse sınırlarını gizli değer içermeyen ayrı durumlarla kaydeder. Terminal bridge hatası yaşayan owned Gradle alt süreci bounded TERM/KILL ile kapatılıp toplanır; bitmiş Gradle sonucu korunur. Root 60 stream/discovery ve 10 workflow testi geçti. Strict tek named test, gerçek frame/PCM/input/iki yaşam/kapanış kapıları değişmedi; F60 **yeniden çalışılıyor**, yeni kaynaklı hosted kabul açık. [Dar kanıt](testing/f60-pin-transport-observation-2026-10-01.md).
 
@@ -45,7 +45,9 @@ FreeRDP iki-ABI CI paketleme kusuru ayrı kaynak ağaçlarıyla kapatıldı. Roo
 
 Security `81cd4172` ve `70ab1058` kaynaklarında üç işi de geçti. F62 erken/live tanı düzeltmesi `70ab1058` root51, AndroidTest derlemesi ve bağımsız inceleme geçti; [strict native koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) ilk kare bekleyişinde başarısız tamamlandı; kaynak incelemesi sürüyor. Tanı ve paket kanıtı gerçek RDP/stream kabulü yerine sayılmaz.
 
-F08 exact `5325c083` geniş CI’da UID IPC testini geçti; stress testi `memory.events` errno2 ile başarısız. Üretim limitlerini değiştirmeyen [observer koordinasyonu](testing/f08-cgroup-observer-coordination-2026-10-01.md) root31passed/2explicitLinux skip ile doğrulandı; değişen kaynak için yeni gerçek Linux kabulü gerekli. F60 yeni [okuma aşaması tanısı](testing/f60-pin-read-rejection-2026-10-01.md) kesin EOF/deadline nedenini henüz ayırmıyor; yeniden çalışılıyor. Aynı geniş CI’ın Flutter shard0’ı native tablet komut deadline testinde expected failed/actual denied verdi; çift timer/retirement sınırı dar incelemede.
+F08 exact `5325c083` geniş CI’da UID IPC testini geçti; stress testi `memory.events` errno2 ile başarısız. Üretim limitlerini değiştirmeyen [observer koordinasyonu](testing/f08-cgroup-observer-coordination-2026-10-01.md) root31passed/2explicitLinux skip ile doğrulandı; exact0c63f7d1 [36818355490](https://github.com/ersingundem/larenor/actions/runs/36818355490) Linux UID IPC/cgroup işi root exactSHA denetimiyle geçti. Bu scoped kabul, geniş final HEAD yerine sayılmaz; F08 CI bekliyor. F60 yeni [okuma aşaması tanısı](testing/f60-pin-read-rejection-2026-10-01.md) kesin EOF/deadline nedenini henüz ayırmıyor; yeniden çalışılıyor. Aynı geniş CI’ın Flutter shard0’ındaki native tablet komut deadline expected failed/actual denied yarışı [tek deadline düzeltmesiyle](testing/k07-native-command-one-deadline-2026-10-01.md) deterministic RED→GREEN geçti; root17test/analyze kabulü var, değişen kaynak için yeni CI gerekli.
+
+K07’nin yeni native komut regresyonu düzeltildi ve 17 dar test/analyze geçti. Değişen kaynak henüz geniş CI kabulü almadığı için K07 ve ona bağlı K08 önceki done durumundan CI bekliyor durumuna alındı; eski exact kabul kanıtları tarihsel kaldı. Güncel tam kabul 35/127 (%27,6); seçili özellikler 3/63 (%4,8).
 
 ## Tarihsel doğrulama kayıtları
 
