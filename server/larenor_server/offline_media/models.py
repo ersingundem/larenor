@@ -86,3 +86,35 @@ class ReadOfflineMediaChunkRequest(Versioned):
     requestId: ObjectId
     expectedRevision: Revision
     offset: int = Field(ge=0, le=2**63 - 1)
+
+
+class CreateOnlinePlaybackLeaseRequest(PrepareMediaPlaybackIntentRequest):
+    """Select one current catalog item for Core-mediated local playback."""
+
+    schemaVersion: Literal[1] = 1
+    _version = field_validator("schemaVersion", mode="before")(_exact_version)
+
+
+class OnlinePlaybackLease(Versioned):
+    leaseId: ObjectId
+    revision: Revision
+    authority: OfflineMediaAuthority
+    title: str = Field(min_length=1, max_length=240)
+    mediaKind: Literal["movie", "episode"]
+    runtimeSeconds: int | None = Field(default=None, ge=1, le=604_800)
+    contentLength: int = Field(ge=1, le=2**63 - 1)
+    contentType: Literal["application/octet-stream"]
+    byteIntegrity: Literal["source_bound"]
+    supportsByteRanges: Literal[True]
+    state: Literal["active", "retired"]
+    expiresAt: int = Field(ge=1, le=253402300799)
+    restartBehavior: Literal["terminal_invalid"]
+
+
+class OnlinePlaybackLeaseResponse(StrictModel):
+    lease: OnlinePlaybackLease
+
+
+class UpdateOnlinePlaybackLeaseRequest(Versioned):
+    requestId: ObjectId
+    expectedRevision: Revision

@@ -1,15 +1,21 @@
 """Offline media manifest API."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, Response
+import asyncio
+
+from fastapi import APIRouter, Depends, Header, Response
+from fastapi.responses import StreamingResponse
 
 from ..admin.models import ObjectId
 from ..auth import Principal
 from ..dependencies import get_core, require_ready_user
 from ..models import ErrorResponse
 from .models import (CreateOfflineMediaRequest, OfflineMediaManifestResponse,
+                     CreateOnlinePlaybackLeaseRequest,
+                     OnlinePlaybackLeaseResponse,
                      ReadOfflineMediaChunkRequest,
                      RevokeOfflineMediaRequest,
+                     UpdateOnlinePlaybackLeaseRequest,
                      UpdateOfflineMediaProgressRequest)
 
 Core = Annotated[object, Depends(get_core)]
@@ -58,3 +64,85 @@ def progress(grant_id: ObjectId, body: UpdateOfflineMediaProgressRequest,
 def revoke(grant_id: ObjectId, body: RevokeOfflineMediaRequest,
            core: Core, actor: Ready):
     return core.offline_media.revoke(actor, grant_id, body)
+
+
+@router.post("/playback-leases", response_model=OnlinePlaybackLeaseResponse,
+             status_code=201)
+def create_playback_lease(body: CreateOnlinePlaybackLeaseRequest,
+                          core: Core, actor: Ready):
+    return core.offline_media.create_playback_lease(actor, body)
+
+
+@router.post("/playback-leases/{lease_id}/renew",
+             response_model=OnlinePlaybackLeaseResponse)
+def renew_playback_lease(lease_id: ObjectId,
+                         body: UpdateOnlinePlaybackLeaseRequest,
+                         core: Core, actor: Ready):
+    return core.offline_media.renew_playback_lease(actor, lease_id, body)
+
+
+@router.post("/playback-leases/{lease_id}/retire",
+             response_model=OnlinePlaybackLeaseResponse)
+def retire_playback_lease(lease_id: ObjectId,
+                          body: UpdateOnlinePlaybackLeaseRequest,
+                          core: Core, actor: Ready):
+    return core.offline_media.retire_playback_lease(actor, lease_id, body)
+
+
+def _content_headers(lease, start, end, status):
+    headers = {
+        "Accept-Ranges": "bytes", "Cache-Control": "no-store",
+        "Content-Length": str(end - start + 1),
+        "X-Content-Type-Options": "nosniff",
+    }
+    if status == 206:
+        headers["Content-Range"] = (
+            f"bytes {start}-{end}/{lease['content_length']}")
+    return headers
+
+
+def _content(core, actor, lease_id, range_header, *, head):
+    lease = core.offline_media.playback_content(actor, lease_id)
+    selected = core.offline_media.playback_range(
+        lease["content_length"], range_header)
+    if selected is None:
+        return Response(status_code=416, headers={
+            "Accept-Ranges": "bytes",
+            "Content-Range": f"bytes */{lease['content_length']}",
+            "Cache-Control": "no-store",
+        })
+    start, end, status = selected
+    headers = _content_headers(lease, start, end, status)
+    if head:
+        return Response(status_code=status, media_type="application/octet-stream",
+                        headers=headers)
+
+    async def body():
+        offset = start
+        while offset <= end:
+            requested = min(32 * 1024, end - offset + 1)
+            content = await asyncio.to_thread(
+                core.offline_media.playback_chunk,
+                actor, lease_id, offset, requested)
+            if not content:
+                return
+            offset += len(content)
+            yield content
+
+    return StreamingResponse(
+        body(), status_code=status, media_type="application/octet-stream",
+        headers=headers)
+
+
+@router.get("/playback-leases/{lease_id}/content")
+def playback_content(lease_id: ObjectId, core: Core, actor: Ready,
+                     range_header: str | None = Header(default=None,
+                                                       alias="Range")):
+    return _content(core, actor, lease_id, range_header, head=False)
+
+
+@router.head("/playback-leases/{lease_id}/content")
+def playback_content_head(lease_id: ObjectId, core: Core, actor: Ready,
+                          range_header: str | None = Header(default=None,
+                                                            alias="Range")):
+    return _content(core, actor, lease_id, range_header, head=True)
