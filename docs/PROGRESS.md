@@ -1,20 +1,23 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 69 iş CI bekliyor. F21/F24–F27 normal Core oynatıcı ve çevrimdışı erişim geçişini tamamladı. Yalnız F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 57 seçili özellik / toplam 68 iş CI bekliyor. F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **58 seçili özellik / toplam 69 iş; F21/F24–F27 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Exact `691b54c4` [36825268673](https://github.com/ersingundem/larenor/actions/runs/36825268673) original1/1/0/0 başarısız: streamDispatch beforeIssue/IllegalArgumentException ve absentOrUnreadable izin. Kesin guard ile belirsiz yerel oturumun görünür güvenli kapanış açığı odaklı düzeltiliyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
-| **Yeniden çalışılıyor** | **F62** | Exact `5aa76fe8` [36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) arm64 package geçti; x86 original1/1/0/0 başarısız, unclassified ve lifecycle/frame markerı yok. Kesin alt neden açık. Root57/40subtest/AndroidTest compile277 geçti; exact `6bbe8b03` [36826438225](https://github.com/ersingundem/larenor/actions/runs/36826438225) kaynakla sabit test-gövdesi tanısı koşuyor |
-| **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması ve tam işlev/uyum incelemesi. Exact `1916395b` geniş [Android/tüm Server36826527140](https://github.com/ersingundem/larenor/actions/runs/36826527140) sürüyor; aynı kaynak [Security36826516434](https://github.com/ersingundem/larenor/actions/runs/36826516434) üç işi geçti |
+| **CI bekliyor** | **57 seçili özellik / toplam 68 iş; F21/F24/F25/F26 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden çalışılıyor** | **F27** | Exact191 geniş CI'da offline restart/indirme geçti; hesap çıkışının iki bildirimi eşzamanlı vault temizliği başlatıp hata verdi. Tek-seferli authoritative retirement düzeltmesi sürüyor; bütünlük guardları korunur |
+| **Yeniden çalışılıyor** | **F60** | Pinned DB transient HTTPS0 değerini private launch guardı reddediyordu. Değişmiş `092a9727` kaynak: eski guard RED,43native/0skip GREEN ve AndroidTestcompile314 geçti. Belirsiz yerel oturum cleanup eylemi ayrıca düzeltiliyor; gerçek frame/PCM/input/iki yaşam kabulü açık. [Kanıt](testing/f60-persisted-https-port-2026-10-01.md) |
+| **Yeniden çalışılıyor** | **F62** | Exact `6bbe8b03` [36826438225](https://github.com/ersingundem/larenor/actions/runs/36826438225) arm64 paket işi geçti; x86 gerçek NLA host kapısı sürüyor. Root57/40subtest/AndroidTestcompile277 tanı kanıtı runtime kabulü değildir |
+| **Aktif final** | **FINAL.FUNCTION** | Exact `1916395b` geniş [Android/tüm Server36826527140](https://github.com/ersingundem/larenor/actions/runs/36826527140) sürüyor; Flutter shard0 F27 hatası verdi, diğer üç Flutter shardı/static/nativepackage/host/F08 geçti. Server/emulator/productAPK henüz terminal değil. Aynı kaynak [Security36826516434](https://github.com/ersingundem/larenor/actions/runs/36826516434) üç işi geçti |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
-“CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. Sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak süre oranı değildir. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+“CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Yeni gerçek yazılım hatası bulunan F27 bu listeden çıkarıldı. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
-## Son doğrulanan düzeltmeler
+## Tarihsel düzeltme ve koşu checkpointleri
+
+Aşağıdaki sayaçlar ve “sürüyor/düzeltiliyor” ifadeleri kendi kaynaklarının tarihsel durumudur; güncel durum yukarıdaki tablo ve execution queue'dur.
 
 F60 exact `691b54c4` [36825268673](https://github.com/ersingundem/larenor/actions/runs/36825268673) başarısız tamamlandı. Root original **1test/1failure/0error/0skip** ve source/package/named identity ile canonical **1377byte** artifact **11145646517** kaydını production validatorla doğruladı: `firstStreamOutput`, `beforeIssue`, allowlist `java.lang.IllegalArgumentException`, runtimeFailure `none`, komut unknown ve lease absentOrUnreadable. Böylece izin oluşmadan önceki guard yolu daraldı; hangi guardın düştüğü henüz kanıtlanmadı. Bağımsız normal-route incelemesi belirsiz stream sonucunda ekrandaki Stop eyleminin kapalı kaldığını gösterdi; exact yerel retirement eylemi odaklı düzeltmeye alındı. F60 yeniden çalışılıyor; kabul sayacı değişmez. [Dar tanı](testing/native-strict-57f-failure-triage-2026-10-01.md).
 

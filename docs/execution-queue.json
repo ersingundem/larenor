@@ -4277,7 +4277,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4335,7 +4335,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; CI bekliyor. Tamamlanmış şifreli manifest token-free exact scope ile Core offline/soğuk başlangıçta normal account girişinden listelenir ve doğrulanmış local vault playerda açılır. Kota/resume/integrity/expiry/logout/key-loss sınırları korunur; cancellable local-I/O ve native cleanup kapıları geçti. Root110 Client/46 Server. FinalHEAD genişCI; gerçek DRM/provider/decoder/storage kabulü ayrı. docs/testing/media-core-composition-closure-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor: exact1916395b genişCI36826527140 Flutter shard0, normal Core kapalı/restart indirme yolu geçti; account.signOut sırasında iki hesap bildirimi aynı purgeScope işlemini eşzamanlı başlatarak Invalid offline record hatası verdi. Authoritative retirement tek-seferli yaşam döngüsü odaklı düzeltiliyor; vault tamper/integrity guardları korunur. Önceki root110 Client/46 Server kanıtı tarihsel; bu yeni kaynak hatası kapanmadan CI bekliyor sayılmaz. FinalHEAD genişCI ve gerçek cihaz/DRM kabulü ayrı."
     },
     {
       "id": "F28",
@@ -5657,7 +5657,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact691/run36825268673 original1test/1failure/0error/0skip firstStreamOutput; closed dispatch beforeIssue/java.lang.IllegalArgumentException/runtimeFailure none, unknown komut ve leaseAbsentOrUnreadable. Root canonical artifact11145646517/1377bytes/SHA0a32214b doğruladı. Pre-issue guard kesin alt nedeni inceleniyor; belirsiz yerel oturumda görünür güvenli kapanış açığı ayrı odaklı düzeltmeye alındı. Strict frame/PCM/input/iki yaşam/stop/disconnect kapıları korunur; aynıSHA kör rerun yok. FinalHEAD genişCI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact691/run36825268673 original1/1/0/0 firstStreamOutput; beforeIssue/IllegalArgumentException. Gerçek pinned Moonlight DB round-trip httpsPort alanını transient0 okur, private launch guardı bunu reddediyordu. 092a9727 değişmiş kaynak upstream0sentinelini kabul ediyor; eski guard RED,43native/0skip GREEN, AndroidTestcompile314task ve pinned primary source incelemesi geçti. Belirsiz yerel oturumun görünür exact cleanup eylemi ayrı odaklı düzeltmede. Strict frame/PCM/input/iki yaşam/stop/disconnect kabulü henüz yok; aynıSHA kör rerun yok. FinalHEAD genişCI ve MANUAL ayrı. docs/testing/f60-persisted-https-port-2026-10-01.md"
     },
     {
       "id": "G11",
@@ -6238,7 +6238,7 @@
           "commit": "1916395b1d55828c5640b23bd1d04b8ca5f453df",
           "state": "in_progress",
           "result": null,
-          "label": "Exact191 complete branch source: broad Android/Flutter/emulator/required dual-native product and default-all Server gates running; strict F60/F62 separate"
+          "label": "Exact191 broad run still active; Flutter shard0 failed F27 duplicate signout purge; other3Flutter/static/nativepackage/host/F08 passed, Server/emulator/APK pending"
         },
         {
           "kind": "ci",
@@ -6250,7 +6250,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi. F21/F24–F27 normal player/quality/offline bileşimi sonroot110 Client+46 Server ve plan/kaynak incelemesiyle kapandı;58 seçili/69iş CI bekliyor. F60/F62 strict runtime reworking; kabul35/127ve3/63. Frozen fullFlutter7919/57explicit skip, actualv3 ikiABI/JVM343/2opt-in skip tarihsel kanıt. Exact0659 allServer shard0 F44bind503/1823passed1failed; ownedclose fixturea51root18+31geçti, yeni36823315743 all4shards/host/F08passed. F60exact691/36825268673 failed beforeIssue/IllegalArgumentException; kesin guard ve belirsiz yerel oturum kapanışı odaklı düzeltmede. F625aa unclassified/no marker failed; root57/40subtest+compile277 yeni6bbe body tanısı ve36826438225 strictCI sürüyor, alt neden açık. Exact191 Security36826516434 üçişpassed; aynı191 genişAndroid/allServer36826527140 sürüyor, kabul henüz yok. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi.57 seçili/68iş CI bekliyor; F27/F60/F62 reworking; kabul35/127ve3/63. Exact191 Security36826516434 üçişpassed; genişAndroid/allServer36826527140 sürüyor ancak Flutter shard0 F27signout duplicate purge failed; odaklı düzeltme sürüyor. Diğer3Fluttershard/static/nativepackage/host/F08passed; Server/emulator/productAPK henüz terminal değil. F60exact691/36825268673 failed beforeIssue/IllegalArgumentException; pinned DBhttps0guard 092a9727 ile43native/0skip+compile314 geçti, belirsiz yerel cleanup ayrıca düzeltiliyor. F62body tanısı6bbe root57/40subtest+compile277;36826438225arm64packagepassed,x86gerçekhostgate sürüyor. Önceki fullFlutter/allServer/JVMnamed kanıtları tarihsel; başkaFINAL başlamaz;MANUAL/CORE.WEBayrı."
     },
     {
       "id": "FINAL.UI",
