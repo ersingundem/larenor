@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/media/jellyfin/presentation/player/jellyfin_player_screen.dart';
 import 'package:larenor/features/media/jellyfin/data/jellyfin_track_preferences_store.dart';
@@ -92,7 +93,7 @@ Map<String, Object?> _qualityResponse(
 };
 
 Future<void> _scrollUntilBuilt(WidgetTester tester, Finder finder) async {
-  for (var index = 0; index < 60 && finder.evaluate().isEmpty; index++) {
+  for (var index = 0; index < 120 && finder.evaluate().isEmpty; index++) {
     await tester.drag(find.byType(ListView), const Offset(0, -40));
     await tester.pump();
   }
@@ -218,13 +219,15 @@ Map<String, Object?> _onlineLease(
 
 Map<String, Object?> _watchSnapshot({
   required String leaderId,
+  List<String>? participantIds,
   int revision = 1,
   String commandAction = 'play',
   int commandPositionMs = 0,
   String? directiveAction,
   int directivePositionMs = 0,
 }) {
-  final members = leaderId == adminId ? [adminId] : [leaderId, adminId];
+  final members =
+      participantIds ?? (leaderId == adminId ? [adminId] : [leaderId, adminId]);
   return {
     'schemaVersion': 1,
     'authority': {
@@ -343,20 +346,46 @@ final class _Player extends PlatformPlayer {
   var pauses = 0;
   var failPause = false;
   var failSeek = false;
+  var failAudio = false;
+  var failSubtitle = false;
+  var failOpen = false;
+  var nativePlaying = false;
   Completer<void>? deferredSeek;
+  Completer<void>? deferredAudio;
+  Completer<void>? deferredOpen;
   final audioSelections = <String>[];
+  final subtitleSelections = <String>[];
   final seeks = <Duration>[];
+  final lifecycle = <String>[];
 
   void emitTracks(Tracks value) => tracksController.add(value);
+  void emitTrack(Track value) => trackController.add(value);
+  void emitError(String value) => errorController.add(value);
   void emitPosition(Duration value) => positionController.add(value);
   void emitDuration(Duration value) => durationController.add(value);
   void emitPlaying(bool value) => playingController.add(value);
 
   @override
-  Future<void> open(Playable playable, {bool play = true}) async => opens++;
+  Future<void> open(Playable playable, {bool play = true}) async {
+    opens++;
+    if (failOpen) throw StateError('owned open failure');
+    await deferredOpen?.future;
+    nativePlaying = play;
+    lifecycle.add('open-complete');
+  }
 
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    nativePlaying = false;
+    lifecycle.add('stop');
+  }
+
+  @override
+  Future<void> dispose() async {
+    lifecycle.add('dispose');
+    await super.dispose();
+  }
 
   @override
   Future<void> play() async => plays++;
@@ -368,8 +397,17 @@ final class _Player extends PlatformPlayer {
   }
 
   @override
-  Future<void> setAudioTrack(AudioTrack track) async =>
-      audioSelections.add(track.id);
+  Future<void> setAudioTrack(AudioTrack track) async {
+    audioSelections.add(track.id);
+    if (failAudio) throw StateError('owned audio failure');
+    await deferredAudio?.future;
+  }
+
+  @override
+  Future<void> setSubtitleTrack(SubtitleTrack track) async {
+    subtitleSelections.add(track.id);
+    if (failSubtitle) throw StateError('owned subtitle failure');
+  }
 
   @override
   Future<void> seek(Duration position) async {
@@ -380,15 +418,47 @@ final class _Player extends PlatformPlayer {
 }
 
 final class _Preferences extends JellyfinTrackPreferencesStore {
+  _Preferences({
+    this.initial = const JellyfinTrackPreferenceRecord(
+      audioLanguage: 'tr',
+      subtitleLanguage: null,
+    ),
+  });
+
+  final JellyfinTrackPreferenceRecord? initial;
+  final savedAudio = <String>[];
+  final savedSubtitles = <String>[];
+
   @override
   Future<JellyfinTrackPreferenceRecord?> readCurrent({
     required bool Function() isCurrent,
-  }) async => isCurrent()
-      ? const JellyfinTrackPreferenceRecord(
-          audioLanguage: 'tr',
-          subtitleLanguage: null,
-        )
-      : null;
+  }) async => isCurrent() ? initial : null;
+
+  @override
+  Future<JellyfinTrackPreferenceRecord> saveAudioCurrent({
+    required String language,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw StateError('stale audio preference');
+    savedAudio.add(language);
+    return JellyfinTrackPreferenceRecord(
+      audioLanguage: language,
+      subtitleLanguage: initial?.subtitleLanguage,
+    );
+  }
+
+  @override
+  Future<JellyfinTrackPreferenceRecord> saveSubtitleCurrent({
+    required String language,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw StateError('stale subtitle preference');
+    savedSubtitles.add(language);
+    return JellyfinTrackPreferenceRecord(
+      audioLanguage: initial?.audioLanguage,
+      subtitleLanguage: language,
+    );
+  }
 }
 
 final class _Audio extends LocalAudioBridge {
@@ -713,6 +783,381 @@ void main() {
   });
 
   testWidgets(
+    'actual track selectors persist supported languages and keep automatic local',
+    (tester) async {
+      _useTallViewport(tester);
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final source = _Source()
+        ..pending.complete(
+          CoreCatalogPlayerLease(
+            playable: Media('http://127.0.0.1:49100/media'),
+            mode: CoreCatalogPlayerSourceMode.offlineVault,
+            close: () async {},
+          ),
+        );
+      final platform = _Player();
+      final preferences = _Preferences(initial: null);
+      final page = _page();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+            coreCatalogPlayerSourceFactoryProvider.overrideWithValue(
+              (_) => source,
+            ),
+            jellyfinPlayerFactoryProvider.overrideWithValue(
+              () => Player(platformPlayer: platform),
+            ),
+            jellyfinVideoSurfaceProvider.overrideWithValue(
+              (_) => const SizedBox(),
+            ),
+            localAudioBridgeProvider.overrideWithValue(_Audio()),
+            jellyfinTrackPreferencesStoreProvider.overrideWithValue(
+              preferences,
+            ),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: CoreCatalogPlayerScreen(page: page, item: page.items.single),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final open = find.byKey(
+        const ValueKey('core-catalog-player-open-source'),
+      );
+      await _scrollUntilBuilt(tester, open);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+
+      const automatic = AudioTrack('auto', null, null);
+      const english = AudioTrack('1', 'English', 'en-US');
+      const englishSubtitles = SubtitleTrack('4', 'English CC', 'en');
+      platform.emitTracks(
+        const Tracks(
+          audio: [automatic, english],
+          subtitle: [SubtitleTrack('auto', null, null), englishSubtitles],
+        ),
+      );
+      await tester.pump();
+
+      final audio = find.byKey(
+        const ValueKey('core-catalog-player-audio-track'),
+        skipOffstage: false,
+      );
+      await _scrollUntilBuilt(tester, audio);
+      await tester.tap(audio);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English').last);
+      await tester.pumpAndSettle();
+      expect(platform.audioSelections, ['1']);
+      expect(preferences.savedAudio, ['en-us']);
+
+      await tester.tap(audio);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Automatic · this video only').last);
+      await tester.pumpAndSettle();
+      expect(platform.audioSelections, ['1', 'auto']);
+      expect(preferences.savedAudio, ['en-us']);
+
+      final subtitles = find.byKey(
+        const ValueKey('core-catalog-player-subtitle-track'),
+        skipOffstage: false,
+      );
+      await tester.tap(subtitles);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Off').last);
+      await tester.pumpAndSettle();
+      expect(platform.subtitleSelections, ['no']);
+      expect(preferences.savedSubtitles, ['off']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed or logged-out track selection never persists a language',
+    (tester) async {
+      _useTallViewport(tester);
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final source = _Source()
+        ..pending.complete(
+          CoreCatalogPlayerLease(
+            playable: Media('http://127.0.0.1:49100/media'),
+            mode: CoreCatalogPlayerSourceMode.offlineVault,
+            close: () async {},
+          ),
+        );
+      final platform = _Player();
+      final preferences = _Preferences(initial: null);
+      final page = _page();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+            coreCatalogPlayerSourceFactoryProvider.overrideWithValue(
+              (_) => source,
+            ),
+            jellyfinPlayerFactoryProvider.overrideWithValue(
+              () => Player(platformPlayer: platform),
+            ),
+            jellyfinVideoSurfaceProvider.overrideWithValue(
+              (_) => const SizedBox(),
+            ),
+            localAudioBridgeProvider.overrideWithValue(_Audio()),
+            jellyfinTrackPreferencesStoreProvider.overrideWithValue(
+              preferences,
+            ),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: CoreCatalogPlayerScreen(page: page, item: page.items.single),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final open = find.byKey(
+        const ValueKey('core-catalog-player-open-source'),
+      );
+      await _scrollUntilBuilt(tester, open);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      const english = AudioTrack('1', 'English', 'en');
+      platform.emitTracks(const Tracks(audio: [english], subtitle: []));
+      await tester.pump();
+      final audio = find.byKey(
+        const ValueKey('core-catalog-player-audio-track'),
+        skipOffstage: false,
+      );
+      await _scrollUntilBuilt(tester, audio);
+
+      platform.failAudio = true;
+      await tester.tap(audio);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English').last);
+      await tester.pumpAndSettle();
+      expect(preferences.savedAudio, isEmpty);
+
+      platform.failAudio = false;
+      platform.deferredAudio = Completer<void>();
+      await tester.tap(audio);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('English').last);
+      await tester.pump();
+      await fixture.account.signOut();
+      await tester.pump();
+      platform.deferredAudio!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(preferences.savedAudio, isEmpty);
+      expect(platform.stops, greaterThanOrEqualTo(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('hung native open retires its exact lease with generic failure', (
+    tester,
+  ) async {
+    _useTallViewport(tester);
+    final fixture = AdminFixture();
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final probe = _LeaseProbe('http://127.0.0.1:49100/hung');
+    final source = _SequencedSource([probe]);
+    final platform = _Player()..deferredOpen = Completer<void>();
+    final page = _page();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(fixture.account),
+          coreCatalogPlayerSourceFactoryProvider.overrideWithValue(
+            (_) => source,
+          ),
+          jellyfinPlayerFactoryProvider.overrideWithValue(
+            () => Player(platformPlayer: platform),
+          ),
+          jellyfinVideoSurfaceProvider.overrideWithValue(
+            (_) => const SizedBox(),
+          ),
+          localAudioBridgeProvider.overrideWithValue(_Audio()),
+        ],
+        child: CupertinoApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: CoreCatalogPlayerScreen(page: page, item: page.items.single),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final open = find.byKey(const ValueKey('core-catalog-player-open-source'));
+    await _scrollUntilBuilt(tester, open);
+    await tester.tap(open);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump();
+
+    expect(platform.opens, 1);
+    expect(platform.stops, greaterThanOrEqualTo(1));
+    expect(probe.closes, 1);
+    expect(
+      find.byKey(const ValueKey('core-catalog-player-idle')),
+      findsOneWidget,
+    );
+    expect(find.text('Media could not be verified'), findsOneWidget);
+    expect(platform.lifecycle.last, 'stop');
+    expect(platform.nativePlaying, isFalse);
+    platform.deferredOpen!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(probe.closes, 1);
+    expect(platform.lifecycle, containsAllInOrder(['open-complete', 'stop']));
+    expect(platform.lifecycle.last, 'stop');
+    expect(platform.nativePlaying, isFalse);
+    expect(platform.stops, greaterThanOrEqualTo(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'route disposal drains native open before final stop and dispose',
+    (tester) async {
+      _useTallViewport(tester);
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final probe = _LeaseProbe('http://127.0.0.1:49100/disposed');
+      final source = _SequencedSource([probe]);
+      final platform = _Player()..deferredOpen = Completer<void>();
+      final page = _page();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+            coreCatalogPlayerSourceFactoryProvider.overrideWithValue(
+              (_) => source,
+            ),
+            jellyfinPlayerFactoryProvider.overrideWithValue(
+              () => Player(platformPlayer: platform),
+            ),
+            jellyfinVideoSurfaceProvider.overrideWithValue(
+              (_) => const SizedBox(),
+            ),
+            localAudioBridgeProvider.overrideWithValue(_Audio()),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: CoreCatalogPlayerScreen(page: page, item: page.items.single),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final open = find.byKey(
+        const ValueKey('core-catalog-player-open-source'),
+      );
+      await _scrollUntilBuilt(tester, open);
+      await tester.tap(open);
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(platform.lifecycle, isNot(contains('dispose')));
+
+      platform.deferredOpen!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(probe.closes, 1);
+      expect(
+        platform.lifecycle,
+        containsAllInOrder(['open-complete', 'stop', 'dispose']),
+      );
+      expect(platform.lifecycle.last, 'dispose');
+      expect(platform.nativePlaying, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'queued stale player error is ignored and current error retires successor',
+    (tester) async {
+      _useTallViewport(tester);
+      final fixture = AdminFixture();
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final first = _LeaseProbe('http://127.0.0.1:49100/first');
+      final second = _LeaseProbe('http://127.0.0.1:49100/second');
+      final source = _SequencedSource([first, second]);
+      final platform = _Player();
+      final page = _page();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            serverAccountControllerProvider.overrideWithValue(fixture.account),
+            coreCatalogPlayerSourceFactoryProvider.overrideWithValue(
+              (_) => source,
+            ),
+            jellyfinPlayerFactoryProvider.overrideWithValue(
+              () => Player(platformPlayer: platform),
+            ),
+            jellyfinVideoSurfaceProvider.overrideWithValue(
+              (_) => const SizedBox(),
+            ),
+            localAudioBridgeProvider.overrideWithValue(_Audio()),
+          ],
+          child: CupertinoApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: CoreCatalogPlayerScreen(page: page, item: page.items.single),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final open = find.byKey(
+        const ValueKey('core-catalog-player-open-source'),
+      );
+      await _scrollUntilBuilt(tester, open);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      await _scrollUntilBuilt(tester, open);
+
+      platform.emitError('private stale native payload');
+      tester.widget<CupertinoButton>(open).onPressed!();
+      await tester.pumpAndSettle();
+      expect(source.index, 2);
+      expect(first.closes, 1);
+      expect(second.closes, 0);
+      expect(
+        find.byKey(const ValueKey('core-catalog-player-active')),
+        findsOneWidget,
+      );
+
+      platform.emitError('private current native payload');
+      await tester.pump();
+      await tester.pump();
+      expect(second.closes, 1);
+      expect(
+        find.byKey(const ValueKey('core-catalog-player-idle')),
+        findsOneWidget,
+      );
+      expect(find.text('Media could not be verified'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'normal online route observes and revalidates before opening the actual player',
     (tester) async {
       _useTallViewport(tester);
@@ -956,6 +1401,22 @@ void main() {
     await fixture.account.initialize();
     addTearDown(fixture.account.dispose);
     final commands = <Map<String, dynamic>>[];
+    const nextLeader = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    var transfers = 0;
+    var leaves = 0;
+    String? copiedInvitation;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedInvitation =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
     fixture.respond = (request) async {
       if (request.url.path.endsWith('/media/playback/segments')) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -1024,7 +1485,10 @@ void main() {
       }
       if (request.url.path.endsWith('/media/watch-parties')) {
         return fixture.json({
-          'snapshot': _watchSnapshot(leaderId: adminId),
+          'snapshot': _watchSnapshot(
+            leaderId: adminId,
+            participantIds: const [adminId, nextLeader],
+          ),
           'inviteCode': 'd' * 32,
         });
       }
@@ -1037,7 +1501,27 @@ void main() {
             revision: commands.length + 1,
             commandAction: body['action']! as String,
             commandPositionMs: body['positionMs']! as int,
+            participantIds: const [adminId, nextLeader],
           ),
+        });
+      }
+      if (request.url.path.endsWith('/leader')) {
+        transfers++;
+        return fixture.json({
+          'snapshot': _watchSnapshot(
+            leaderId: nextLeader,
+            revision: 4,
+            participantIds: const [adminId, nextLeader],
+          ),
+        });
+      }
+      if (request.url.path.endsWith('/leave')) {
+        leaves++;
+        return fixture.json({
+          'schemaVersion': 1,
+          'state': 'active',
+          'roomRevision': 5,
+          'nextLeaderAccountId': nextLeader,
         });
       }
       return fixture.defaultResponse(request);
@@ -1148,6 +1632,35 @@ void main() {
     expect(commands.last['action'], 'play');
     expect(commands.last['positionMs'], 75000);
     expect(platform.seeks.last, const Duration(seconds: 75));
+    expect(copiedInvitation, isNull);
+    final copy = find.byKey(
+      const ValueKey('core-catalog-player-watch-party-copy'),
+      skipOffstage: false,
+    );
+    await _scrollUntilBuilt(tester, copy);
+    await tester.tap(copy);
+    await tester.pump();
+    expect(copiedInvitation, '${'c' * 32}:3:$_itemId:${'d' * 32}');
+
+    final transfer = find.byKey(
+      const ValueKey('core-catalog-player-watch-party-transfer-$nextLeader'),
+      skipOffstage: false,
+    );
+    await _scrollUntilBuilt(tester, transfer);
+    await tester.tap(transfer);
+    await tester.pump();
+    await tester.pump();
+    expect(transfers, 1);
+
+    final leave = find.byKey(
+      const ValueKey('core-catalog-player-watch-party-leave'),
+      skipOffstage: false,
+    );
+    await _scrollUntilBuilt(tester, leave);
+    await tester.tap(leave);
+    await tester.pump();
+    await tester.pump();
+    expect(leaves, 1);
     expect(tester.takeException(), isNull);
   });
 
