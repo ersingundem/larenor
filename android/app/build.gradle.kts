@@ -14,12 +14,38 @@ repositories {
 
 val freeRdpAar = file("freerdp/freeRDPCore.aar")
 val freeRdpReceipt = file("freerdp/receipt.json")
-if (freeRdpAar.exists() != freeRdpReceipt.exists()) {
+val freeRdpArm64Receipt = file("freerdp/arm64-v8a-receipt.json")
+val freeRdpX86Receipt = file("freerdp/x86_64-receipt.json")
+val productNativeReceipt = file("product-native-receipt.json")
+val productNativeSetting = providers.environmentVariable("LARENOR_PRODUCT_NATIVE_ENGINES").orNull
+if (productNativeSetting != null && productNativeSetting != "required") {
+    throw GradleException("LARENOR_PRODUCT_NATIVE_ENGINES must be unset or exactly 'required'")
+}
+val productNativeFiles = listOf(
+    freeRdpAar,
+    freeRdpArm64Receipt,
+    freeRdpX86Receipt,
+    file("moonlight/moonlight-engine.aar"),
+    file("moonlight/receipt.json"),
+    productNativeReceipt,
+)
+val hasAnyProductNativeFile = productNativeFiles.any { it.exists() }
+val hasProductNative = productNativeFiles.all { it.isFile }
+if (hasAnyProductNativeFile && !hasProductNative && productNativeReceipt.exists()) {
+    throw GradleException("The product native engine package is incomplete")
+}
+if (productNativeSetting == "required" && !hasProductNative) {
+    throw GradleException("The product build requires verified Moonlight and FreeRDP engine packages")
+}
+if (hasProductNative && freeRdpReceipt.exists()) {
+    throw GradleException("The product FreeRDP package cannot be mixed with a single-ABI receipt")
+}
+if (!hasProductNative && freeRdpAar.exists() != freeRdpReceipt.exists()) {
     throw GradleException("FreeRDP AAR and receipt must be installed together")
 }
-val hasFreeRdp = freeRdpAar.isFile && freeRdpReceipt.isFile
+val hasFreeRdp = hasProductNative || (freeRdpAar.isFile && freeRdpReceipt.isFile)
 val verifyFreeRdpPackage by tasks.registering(Exec::class) {
-    onlyIf { hasFreeRdp }
+    onlyIf { hasFreeRdp && !hasProductNative }
     workingDir(rootProject.projectDir.parentFile)
     commandLine(
         "python3", "tool/freerdp_android_package.py", "verify-install",
@@ -34,11 +60,19 @@ if (moonlightAar.exists() != moonlightReceipt.exists()) {
 }
 val hasMoonlight = moonlightAar.isFile && moonlightReceipt.isFile
 val verifyMoonlightPackage by tasks.registering(Exec::class) {
-    onlyIf { hasMoonlight }
+    onlyIf { hasMoonlight && !hasProductNative }
     workingDir(rootProject.projectDir.parentFile)
     commandLine(
         "python3", "tool/moonlight_android_package.py", "verify-install",
         moonlightAar.absolutePath, moonlightReceipt.absolutePath,
+    )
+}
+val verifyProductNativePackage by tasks.registering(Exec::class) {
+    onlyIf { hasProductNative }
+    workingDir(rootProject.projectDir.parentFile)
+    commandLine(
+        "python3", "tool/product_android_native.py", "verify-installed",
+        "--destination", projectDir.absolutePath,
     )
 }
 
@@ -64,6 +98,7 @@ tasks.configureEach {
     if (name == "preBuild") {
         dependsOn(verifyFreeRdpPackage)
         dependsOn(verifyMoonlightPackage)
+        dependsOn(verifyProductNativePackage)
     }
 }
 

@@ -27,7 +27,7 @@ class AndroidSdkSetupPolicyTest(unittest.TestCase):
             for body in blocks:
                 self.assertRegex(body, r"(?m)^        with:\n          packages: platform-tools$")
                 self.assertNotRegex(body, r"(?m)^          packages:.*(?:^| )tools(?: |$)")
-        self.assertEqual(found, 3)
+        self.assertEqual(found, 4)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,165 @@ jobs:
       pull-requests: read
     uses: ./.github/workflows/server-test.yml
 
+  build-product-native-engines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Decide Android and Flutter scope from the exact PR diff
+        id: android_scope
+        run: python3 tool/android_ci_scope.py
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        if: steps.android_scope.outputs.run == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          cache-dependency-path: |
+            android/**/*.gradle*
+            android/gradle/wrapper/gradle-wrapper.properties
+            pubspec.lock
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        if: steps.android_scope.outputs.run == 'true'
+        with:
+          packages: platform-tools
+
+      - name: Install exact native Android toolchains
+        if: steps.android_scope.outputs.run == 'true'
+        run: |
+          sdkmanager \
+            "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" \
+            "ndk;29.0.14206865" "ndk;29.0.13113456" "cmake;4.1.2"
+
+      - name: Build and receipt the source-locked Moonlight engine
+        if: steps.android_scope.outputs.run == 'true'
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/product-moonlight-gradle
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 tool/moonlight_android_package.py verify-lock
+          git clone --no-checkout https://github.com/moonlight-stream/moonlight-android.git "$RUNNER_TEMP/moonlight-source"
+          git -C "$RUNNER_TEMP/moonlight-source" checkout --detach b48494cb96bff23d8886c4775cc4f39a1075495d
+          git -C "$RUNNER_TEMP/moonlight-source" submodule update --init --recursive
+          python3 tool/moonlight_android_package.py verify-source "$RUNNER_TEMP/moonlight-source"
+          mkdir -p "$RUNNER_TEMP/product-native-inputs/moonlight"
+          python3 tool/moonlight_android_package.py build \
+            "$RUNNER_TEMP/moonlight-source" \
+            "$RUNNER_TEMP/moonlight-build" \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/moonlight-engine.aar" \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/receipt.json"
+          python3 tool/moonlight_android_package.py verify-install \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/moonlight-engine.aar" \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/receipt.json"
+          python3 tool/moonlight_android_package.py source-bundle \
+            "$RUNNER_TEMP/moonlight-source" \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/source.tar.gz"
+          cp android/moonlight/NOTICE.md android/moonlight/source-lock.json \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/"
+          cp -R android/moonlight/patches \
+            "$RUNNER_TEMP/product-native-inputs/moonlight/patches"
+
+      - name: Build and receipt both source-locked FreeRDP ABIs
+        if: steps.android_scope.outputs.run == 'true'
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/product-freerdp-gradle
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 tool/freerdp_android_package.py verify-lock
+          archive="$RUNNER_TEMP/freerdp-3.31.1.tar.gz"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz
+          python3 tool/freerdp_android_package.py verify-source "$archive"
+          mkdir "$RUNNER_TEMP/freerdp-source"
+          tar --extract --gzip --file "$archive" \
+            --directory "$RUNNER_TEMP/freerdp-source" \
+            --strip-components=1 --no-same-owner
+          cd "$RUNNER_TEMP/freerdp-source"
+          git apply --check "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
+          git apply "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
+          git apply --check "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
+          git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
+          python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" verify-patch \
+            client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+          cat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+          EOF
+          studio="$RUNNER_TEMP/freerdp-source/client/Android/Studio"
+          mkdir -p "$RUNNER_TEMP/product-native-inputs/freerdp"
+          for abi in arm64-v8a x86_64; do
+            rm -rf "$studio/freeRDPCore/.cxx" "$studio/.cxx"
+            cat > "$studio/release.properties" <<EOF
+          COMPILE_API=37
+          TARGET_API=37
+          MIN_API=29
+          TOOLS_VERSION=37.0.0
+          NDK_VERSION=29.0.13113456
+          CMAKE_VERSION=4.1.2
+          BUILD_UNIVERSAL=true
+          SPLIT_ENABLED=false
+          ABI_FILTERS=$abi
+          SPLIT_ARCHITECTURES=$abi
+          VERSION_NAME=3.31.1
+          VERSION_CODE=3031001
+          CMAKE_ARGUMENTS=-DWITH_FFMPEG=OFF;-DWITH_OPENH264=OFF;-DWITH_OPUS=OFF;-DWITH_WEBP=OFF;-DWITH_JPEG=OFF;-DWITH_PNG=OFF;-DWITH_CJSON=ON;-DWITH_OPENSSL=ON
+          EOF
+            (cd "$studio" && ./gradlew --no-daemon --stacktrace \
+              :freeRDPCore:clean :freeRDPCore:assembleRelease)
+            aar="$studio/freeRDPCore/build/outputs/aar/freeRDPCore-release.aar"
+            cp "$aar" "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-$abi.aar"
+            python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" receipt \
+              "$aar" --abi "$abi" \
+              --output "$RUNNER_TEMP/product-native-inputs/freerdp/$abi-receipt.json"
+            python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" verify-install \
+              "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-$abi.aar" \
+              "$RUNNER_TEMP/product-native-inputs/freerdp/$abi-receipt.json"
+          done
+          cp "$archive" "$RUNNER_TEMP/product-native-inputs/freerdp/source.tar.gz"
+          cp "$GITHUB_WORKSPACE/android/freerdp-native.lock.json" \
+            "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch" \
+            "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch" \
+            "$RUNNER_TEMP/product-native-inputs/freerdp/"
+
+      - name: Compose and reverify the complete product native package
+        if: steps.android_scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          python3 tool/product_android_native.py install \
+            --destination "$RUNNER_TEMP/product-native-validation/app" \
+            --moonlight-aar "$RUNNER_TEMP/product-native-inputs/moonlight/moonlight-engine.aar" \
+            --moonlight-receipt "$RUNNER_TEMP/product-native-inputs/moonlight/receipt.json" \
+            --freerdp-arm64-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-arm64-v8a.aar" \
+            --freerdp-arm64-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/arm64-v8a-receipt.json" \
+            --freerdp-x86-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-x86_64.aar" \
+            --freerdp-x86-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/x86_64-receipt.json"
+          python3 tool/product_android_native.py verify-installed \
+            --destination "$RUNNER_TEMP/product-native-validation/app"
+
+      - name: Preserve exact product engine inputs and corresponding source
+        if: steps.android_scope.outputs.run == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: product-native-inputs-${{ github.sha }}
+          path: ${{ runner.temp }}/product-native-inputs/
+          if-no-files-found: error
+          retention-days: 14
+
   build-debug-apk:
+    needs: build-product-native-engines
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -80,6 +238,25 @@ jobs:
       - run: dart run build_runner build
         if: steps.android_scope.outputs.run == 'true'
 
+      - name: Download the exact product native engine inputs
+        if: steps.android_scope.outputs.run == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: product-native-inputs-${{ github.sha }}
+          path: ${{ runner.temp }}/product-native-inputs
+
+      - name: Install and verify both product native engines
+        if: steps.android_scope.outputs.run == 'true'
+        run: |
+          python3 tool/product_android_native.py install \
+            --destination "$GITHUB_WORKSPACE/android/app" \
+            --moonlight-aar "$RUNNER_TEMP/product-native-inputs/moonlight/moonlight-engine.aar" \
+            --moonlight-receipt "$RUNNER_TEMP/product-native-inputs/moonlight/receipt.json" \
+            --freerdp-arm64-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-arm64-v8a.aar" \
+            --freerdp-arm64-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/arm64-v8a-receipt.json" \
+            --freerdp-x86-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-x86_64.aar" \
+            --freerdp-x86-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/x86_64-receipt.json"
+
       # Android's SDK now ships fractional platform revisions (e.g.
       # android-37.0), but Gradle/AGP still resolve compileSdk by the plain
       # "android-<N>" hash. Symlink so compileSdk 37 (required by
@@ -96,7 +273,13 @@ jobs:
 
       - name: Build debug APK with a monotonic CI versionCode
         if: steps.android_scope.outputs.run == 'true'
-        run: flutter build apk --debug --build-number "$(python3 tool/android_signing.py version-code)"
+        env:
+          LARENOR_PRODUCT_NATIVE_ENGINES: required
+        run: flutter build apk --debug --target-platform android-arm64,android-x64 --build-number "$(python3 tool/android_signing.py version-code)"
+
+      - name: Verify both native engines in the one debug APK
+        if: steps.android_scope.outputs.run == 'true'
+        run: python3 tool/product_android_native.py verify-apk build/app/outputs/flutter-apk/app-debug.apk --destination "$GITHUB_WORKSPACE/android/app"
 
       - name: Native audio, kiosk, window, health privacy and platform contracts
         if: steps.android_scope.outputs.run == 'true'
@@ -214,6 +397,25 @@ jobs:
             ln -s "$platform_dir/android-37.0" "$platform_dir/android-37"
           fi
 
+      - name: Download the exact product native engine inputs
+        if: steps.signing.outputs.available == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: product-native-inputs-${{ github.sha }}
+          path: ${{ runner.temp }}/product-native-inputs
+
+      - name: Install and verify both product native engines
+        if: steps.signing.outputs.available == 'true'
+        run: |
+          python3 tool/product_android_native.py install \
+            --destination "$GITHUB_WORKSPACE/android/app" \
+            --moonlight-aar "$RUNNER_TEMP/product-native-inputs/moonlight/moonlight-engine.aar" \
+            --moonlight-receipt "$RUNNER_TEMP/product-native-inputs/moonlight/receipt.json" \
+            --freerdp-arm64-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-arm64-v8a.aar" \
+            --freerdp-arm64-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/arm64-v8a-receipt.json" \
+            --freerdp-x86-aar "$RUNNER_TEMP/product-native-inputs/freerdp/freeRDPCore-x86_64.aar" \
+            --freerdp-x86-receipt "$RUNNER_TEMP/product-native-inputs/freerdp/x86_64-receipt.json"
+
       - name: Materialize and verify the private signing identity
         if: steps.signing.outputs.available == 'true'
         env:
@@ -226,7 +428,13 @@ jobs:
 
       - name: Build signed release APK
         if: steps.signing.outputs.available == 'true'
-        run: flutter build apk --release --build-number "$(python3 tool/android_signing.py version-code)"
+        env:
+          LARENOR_PRODUCT_NATIVE_ENGINES: required
+        run: flutter build apk --release --target-platform android-arm64,android-x64 --build-number "$(python3 tool/android_signing.py version-code)"
+
+      - name: Verify both native engines in the one signed release APK
+        if: steps.signing.outputs.available == 'true'
+        run: python3 tool/product_android_native.py verify-apk build/app/outputs/flutter-apk/app-release.apk --destination "$GITHUB_WORKSPACE/android/app"
 
       - name: Verify APK signature, package and version
         if: steps.signing.outputs.available == 'true'

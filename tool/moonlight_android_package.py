@@ -27,6 +27,24 @@ ABI_MACHINE = {"arm64-v8a": 183, "x86_64": 62}
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 MAX_AAR_BYTES = 256 * 1024 * 1024
 MAX_APK_BYTES = 1024 * 1024 * 1024
+GAME_CLASS = "com/limelight/Game.class"
+REQUIRED_GAME_API = (
+    {
+        "name": "onConnectionStopCompleted",
+        "descriptor": "()V",
+        "access": "protected",
+    },
+    {
+        "name": "onVideoFrameRendered",
+        "descriptor": "(JJ)V",
+        "access": "public",
+    },
+    {
+        "name": "onAudioPcmWritten",
+        "descriptor": "(II)V",
+        "access": "public",
+    },
+)
 
 
 class PackageError(ValueError):
@@ -394,6 +412,130 @@ def _elf_machine(data):
     return struct.unpack(order + "H", data[18:20])[0]
 
 
+class _ClassReader:
+    def __init__(self, data):
+        self.data = data
+        self.offset = 0
+
+    def take(self, size):
+        _require(
+            type(size) is int
+            and 0 <= size <= len(self.data) - self.offset,
+            "invalid_engine_class",
+        )
+        value = self.data[self.offset:self.offset + size]
+        self.offset += size
+        return value
+
+    def u1(self):
+        return self.take(1)[0]
+
+    def u2(self):
+        return struct.unpack(">H", self.take(2))[0]
+
+    def u4(self):
+        return struct.unpack(">I", self.take(4))[0]
+
+
+def _skip_class_attributes(reader, count):
+    _require(count <= 65535, "invalid_engine_class")
+    for _ in range(count):
+        reader.u2()
+        reader.take(reader.u4())
+
+
+def _skip_class_members(reader, count):
+    _require(count <= 65535, "invalid_engine_class")
+    for _ in range(count):
+        reader.u2()
+        reader.u2()
+        reader.u2()
+        _skip_class_attributes(reader, reader.u2())
+
+
+def _class_methods(data):
+    _require(
+        type(data) is bytes and 16 <= len(data) <= 16 * 1024 * 1024,
+        "invalid_engine_class",
+    )
+    reader = _ClassReader(data)
+    _require(reader.u4() == 0xCAFEBABE, "invalid_engine_class")
+    reader.u2()
+    reader.u2()
+    constant_count = reader.u2()
+    _require(1 < constant_count <= 65535, "invalid_engine_class")
+    constants = [None] * constant_count
+    index = 1
+    while index < constant_count:
+        tag = reader.u1()
+        if tag == 1:
+            size = reader.u2()
+            try:
+                constants[index] = reader.take(size).decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise PackageError("invalid_engine_class") from error
+        elif tag in (3, 4):
+            reader.take(4)
+        elif tag in (5, 6):
+            reader.take(8)
+            index += 1
+            _require(index < constant_count, "invalid_engine_class")
+        elif tag in (7, 8, 16, 19, 20):
+            reader.take(2)
+        elif tag in (9, 10, 11, 12, 17, 18):
+            reader.take(4)
+        elif tag == 15:
+            reader.take(3)
+        else:
+            raise PackageError("invalid_engine_class")
+        index += 1
+
+    reader.u2()
+    reader.u2()
+    reader.u2()
+    interfaces_count = reader.u2()
+    _require(interfaces_count <= 65535, "invalid_engine_class")
+    reader.take(interfaces_count * 2)
+    _skip_class_members(reader, reader.u2())
+
+    methods = set()
+    methods_count = reader.u2()
+    _require(methods_count <= 65535, "invalid_engine_class")
+    for _ in range(methods_count):
+        access = reader.u2()
+        name_index = reader.u2()
+        descriptor_index = reader.u2()
+        _require(
+            0 < name_index < constant_count
+            and 0 < descriptor_index < constant_count
+            and type(constants[name_index]) is str
+            and type(constants[descriptor_index]) is str,
+            "invalid_engine_class",
+        )
+        methods.add((constants[name_index], constants[descriptor_index], access))
+        _skip_class_attributes(reader, reader.u2())
+    _skip_class_attributes(reader, reader.u2())
+    _require(reader.offset == len(data), "invalid_engine_class")
+    return methods
+
+
+def _verify_game_api(data):
+    methods = _class_methods(data)
+    for required in REQUIRED_GAME_API:
+        expected_flag = 0x0001 if required["access"] == "public" else 0x0004
+        matching = [
+            access
+            for name, descriptor, access in methods
+            if name == required["name"] and descriptor == required["descriptor"]
+        ]
+        _require(
+            len(matching) == 1
+            and matching[0] & 0x0007 == expected_flag
+            and not matching[0] & 0x0008,
+            "missing_engine_api",
+        )
+
+
 def package_receipt(aar, lock):
     _require(aar.is_file() and not aar.is_symlink() and aar.stat().st_size <= MAX_AAR_BYTES, "invalid_aar")
     try:
@@ -404,6 +546,7 @@ def package_receipt(aar, lock):
             with zipfile.ZipFile(io.BytesIO(classes)) as jar:
                 class_names = set(jar.namelist())
                 _require(all(name in class_names for name in lock["requiredClasses"]), "missing_engine_class")
+                _verify_game_api(jar.read(GAME_CLASS))
             native_names = [name for name in names if name.startswith("jni/") and name.endswith(".so")]
             actual_abis = sorted({PurePosixPath(name).parts[1] for name in native_names})
             _require(actual_abis == sorted(lock["supportedAbis"]), "unexpected_aar_abi")
@@ -440,6 +583,8 @@ def package_receipt(aar, lock):
         "aarSha256": _sha256(aar),
         "classesSha256": hashlib.sha256(classes).hexdigest(),
         "requiredClasses": lock["requiredClasses"],
+        "requiredApiMethods": [dict(item) for item in REQUIRED_GAME_API],
+        "patches": [dict(item) for item in lock["patches"]],
         "libraries": libraries,
         "bundledNativeArchives": [
             {
@@ -475,6 +620,8 @@ def _verify_receipt_contract(receipt, lock):
             "aarSha256",
             "classesSha256",
             "requiredClasses",
+            "requiredApiMethods",
+            "patches",
             "libraries",
             "bundledNativeArchives",
             "licenseSha256",
@@ -485,6 +632,8 @@ def _verify_receipt_contract(receipt, lock):
         and receipt["sourceTree"] == lock["upstream"]["tree"]
         and receipt["abis"] == lock["supportedAbis"]
         and receipt["requiredClasses"] == lock["requiredClasses"]
+        and receipt["requiredApiMethods"] == list(REQUIRED_GAME_API)
+        and receipt["patches"] == lock["patches"]
         and HEX64.fullmatch(receipt["aarSha256"] or "")
         and HEX64.fullmatch(receipt["classesSha256"] or "")
         and receipt["licenseSha256"] == lock["upstream"]["licenseSha256"],

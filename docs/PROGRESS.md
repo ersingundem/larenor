@@ -58,6 +58,11 @@ F01/F02/F03 kapasite açığı root live-source **22/22** testle kapandı; 256 t
 
 F58 retention root live-source **18/18** kabulüyle kapandı: normal Core restart, signed2000 hazırlık fixture kapasitesi, gerçek owned HA/OEPL HTTP send/dry-run ve yakın replay geçti. Pending/dispatching/uncertain etkiler, son32terminal kayıt ve güncel render ACK korunur; no resend/tamper/rollback/no orphan kontrolü geçti. [Kanıt](testing/f58-authenticated-retention-2026-10-01.md). F58 **CI bekliyor**.
 
+
+İki motorun birleşik Android dağıtımı yerelde doğrulandı: eski receipted Moonlight AARın eksik callback API yüzeyi yeni verifier tarafından reddedilir; exact patch/API bağlı güncel AAR yeniden derlendi. Root24/24 package/product kontrolü, actionlint ve actual required-mode installed/APK verifier geçti. Gerçek iki-ABI debug APK SHA256ea17fc26…; focused native69/69 geçti. Geniş JVM338 toplamı335passed/2skip/1failed olduğundan tam yeşil değil. [Build kanıtı ve sınırlar](testing/product-android-dual-native-actual-build-2026-10-01.md).
+
+Exact3feb F60 run36808021320 **failure**: original1test/1failure/0skip, pairingRegistration timeout (owned awaitResult frame99/680). Exact36c F62 run36808149011 **failure**, arm64 package success: original1test/1failure/0skip; bounded stage unclassified, serverResizeRequested=false. Bu sonuçlar runtime kabulü değildir; kör rerun yapılmadan dar neden araştırılıyor.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.

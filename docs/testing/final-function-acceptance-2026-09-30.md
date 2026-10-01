@@ -63,6 +63,9 @@ F14 retention root live-source 9/9 normal Core/retention kabulüyle kapandı ve 
 Güncel CI bekleyen toplam 56 seçili özellik / 65 iş; 4 özellik yeniden
 çalışılıyor. Kabul sayaçları 37/127 ve 3/63 değişmedi.
 
+
+Yerel birleşik product dağıtımı actual required-mode iki-ABI debug APK ile doğrulandı; eski Moonlight callback/patch kontratı reddedilir, güncel source-built AAR kabul edilir. Root24package kontrolü ve focused69 native geçti; geniş JVM338 toplamı335passed/2skip/1failed olduğundan tam yeşil değildir. [Named build proof](product-android-dual-native-actual-build-2026-10-01.md). F60 stream36808021320 original1/1failure/0skip pairingRegistration timeout; F62 native36808149011 original1/1failure/0skip/unclassified/serverResizeRequested=false. İkisi runtime kabulü ve geniş finalHEAD CI değildir.
+
 ## Tarihsel yerel kabul tabanı — 30 Eylül
 
 Aşağıdaki sonuçlar önceki `06f5551a242aca47ebcf0f2476881e2deec5d1da` uygulama

@@ -110,13 +110,22 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             aar = Path(directory) / "moonlight.aar"
             self._aar(aar, lock)
-            receipt = package_receipt(aar, lock)
+            receipt = json.loads(json.dumps(package_receipt(aar, lock)))
             self.assertEqual(set(receipt["abis"]), set(lock["supportedAbis"]))
             self.assertEqual(
                 {item["name"] for item in receipt["libraries"]["arm64-v8a"]},
                 set(lock["requiredLibraries"]),
             )
             self.assertEqual(receipt["sourceCommit"], lock["upstream"]["commit"])
+            self.assertEqual(receipt["patches"], lock["patches"])
+            self.assertEqual(
+                [item["name"] for item in receipt["requiredApiMethods"]],
+                [
+                    "onConnectionStopCompleted",
+                    "onVideoFrameRendered",
+                    "onAudioPcmWritten",
+                ],
+            )
 
             mixed = Path(directory) / "mixed.aar"
             self._aar(mixed, lock, extra_abi="armeabi-v7a")
@@ -182,6 +191,43 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
                 verify_install(aar, receipt_path, lock)
 
+    def test_old_receipt_and_aar_without_current_hooks_fail_closed(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            current = root / "current.aar"
+            stale = root / "stale.aar"
+            receipt_path = root / "receipt.json"
+            self._aar(current, lock)
+            current_receipt = package_receipt(current, lock)
+            self._aar(stale, lock, include_current_api=False)
+            legacy_receipt = dict(current_receipt)
+            legacy_receipt.pop("patches")
+            legacy_receipt.pop("requiredApiMethods")
+            legacy_receipt["aarSha256"] = hashlib.sha256(stale.read_bytes()).hexdigest()
+            with zipfile.ZipFile(stale) as archive:
+                legacy_receipt["classesSha256"] = hashlib.sha256(
+                    archive.read("classes.jar")
+                ).hexdigest()
+            receipt_path.write_text(json.dumps(legacy_receipt))
+
+            with self.assertRaisesRegex(PackageError, "missing_engine_api"):
+                verify_install(stale, receipt_path, lock)
+
+    def test_patch_identity_is_part_of_install_receipt(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            aar = root / "moonlight.aar"
+            receipt_path = root / "receipt.json"
+            self._aar(aar, lock)
+            receipt = json.loads(json.dumps(package_receipt(aar, lock)))
+            receipt["patches"][0]["sha256"] = "0" * 64
+            receipt_path.write_text(json.dumps(receipt))
+
+            with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
+                verify_install(aar, receipt_path, lock)
+
     def _transformed_tree(self, root, lock):
         (root / "app/src/main").mkdir(parents=True)
         (root / "app/build.gradle").write_text(
@@ -232,11 +278,17 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);\n"
         )
 
-    def _aar(self, path, lock, extra_abi=None):
+    def _aar(self, path, lock, extra_abi=None, include_current_api=True):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
             for name in lock["requiredClasses"]:
-                jar.writestr(name, b"fixture")
+                if name == "com/limelight/Game.class":
+                    jar.writestr(
+                        name,
+                        self._game_class(include_current_api=include_current_api),
+                    )
+                else:
+                    jar.writestr(name, b"fixture")
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"manifest")
             archive.writestr("classes.jar", classes.getvalue())
@@ -269,6 +321,37 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         value[:6] = b"\x7fELF\x02\x01"
         value[18:20] = struct.pack("<H", machine)
         return bytes(value)
+
+    @staticmethod
+    def _game_class(*, include_current_api):
+        method_specs = []
+        if include_current_api:
+            method_specs = [
+                (0x0004 | 0x0100, "onConnectionStopCompleted", "()V"),
+                (0x0001 | 0x0100, "onVideoFrameRendered", "(JJ)V"),
+                (0x0001 | 0x0100, "onAudioPcmWritten", "(II)V"),
+            ]
+        utf8_values = ["com/limelight/Game", "java/lang/Object"]
+        for _access, name, descriptor in method_specs:
+            utf8_values.extend((name, descriptor))
+        constants = []
+        for value in utf8_values:
+            encoded = value.encode("utf-8")
+            constants.append(b"\x01" + struct.pack(">H", len(encoded)) + encoded)
+        constants.insert(1, b"\x07" + struct.pack(">H", 1))
+        constants.insert(3, b"\x07" + struct.pack(">H", 3))
+        payload = bytearray(b"\xca\xfe\xba\xbe")
+        payload += struct.pack(">HHH", 0, 52, len(constants) + 1)
+        payload += b"".join(constants)
+        payload += struct.pack(">HHHH", 0x0021, 2, 4, 0)
+        payload += struct.pack(">H", 0)
+        payload += struct.pack(">H", len(method_specs))
+        next_index = 5
+        for access, _name, _descriptor in method_specs:
+            payload += struct.pack(">HHHH", access, next_index, next_index + 1, 0)
+            next_index += 2
+        payload += struct.pack(">H", 0)
+        return bytes(payload)
 
     @staticmethod
     def _git(root, *args):
