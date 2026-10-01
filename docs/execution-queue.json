@@ -5293,11 +5293,19 @@
           "commit": "5fa91e438806decc81d24c4e8a28058bbd53cea3",
           "state": "in_progress",
           "result": null,
-          "label": "Stream step cancelled during APK prebuild before instrumentation;cleanup passed,no receipt/failure code;GitHub terminal run conclusion not available"
+          "label": "Stream step cancelled during APK prebuild before instrumentation;cleanup passed,no receipt;stale GET conflicts with terminal backend,old live concurrency lease released"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36804692946",
+          "commit": "a703289d617380c768f5b50761609c0b2913ce24",
+          "state": "in_progress",
+          "result": null,
+          "label": "One missing-gate retry after pre-test external cancellation; exact SHA verified,hosted UHID passed andreceipted engine building;no stream receipt yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve tablet-only retirement odaklı kabulü geçti; UI Sunshine eşlemesinin kaldığını açıklar. Exact5fa91e43/run36802851003 gerçek Android NSD için canonical source-bound1test/0skip/0failure/0error receipt verdi; iki discovery lifetime ve engine/source/package binding root+bağımsız ajan tarafından doğrulandı. streamAccepted=false: keşif, yayın kabulü değildir. Same-source stream36802861944 emulator boot sonrası erken APK prebuild sırasında cancelled step verdi; instrumentation/named test/provider failure code/receipt yok, cleanup geçti, external neden kanıtsız ve run terminal metadata bekleniyor. Gerçek UHID kernel/device/effectiveACL hazırlığı geçti; named gate iki frame/fullPCM yaşamı, touch/mouse→XI2, gamepad→UHID/evdev BTN_SOUTH etkisi, causal stop, exact daemon shutdown→connectionTerminated, no redispatch ve local-clear ister. Hosted stream sonucu ve geniş HEAD CI açık; F60 CI bekliyor/done yapılmaz. Receipt featureAccepted=false/providerPairingRemoved=false korunur; fiziksel controller/gecikme MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve tablet-only retirement odaklı kabulü geçti; UI Sunshine eşlemesinin kaldığını açıklar. Exact5fa91e43/run36802851003 gerçek Android NSD canonical source-bound1test/0skip/0failure/0error receipt verdi; iki fresh discovery lifetime ve engine/source/package binding doğrulandı. streamAccepted=false: keşif, yayın kabulü değildir. Same-source stream36802861944 emulator boot sonrası APK prebuild sırasında cancelled; instrumentation/provider failure code/receipt yok, cleanup geçti. Terminal backend ve stale GET farklı; eski live concurrency lease kalktı. Eksik gate için tek retry exacta703289d/run36804692946 çalışıyor; gerçek hostedUHID hazırlığı geçti ve engine derleniyor. Named gate iki frame/fullPCM yaşamı, touch/mouse→XI2, gamepad→UHID/evdev BTN_SOUTH etkisi, causal stop, exact daemon shutdown→connectionTerminated, no redispatch ve local-clear ister. Hosted stream ve geniş HEAD CI açık; F60 tamamlandı/CI bekliyor yapılmaz. Receipt featureAccepted=false/providerPairingRemoved=false; fiziksel controller/gecikme MANUAL ayrı."
     },
     {
       "id": "G11",
@@ -5525,11 +5533,11 @@
           "commit": "8d54993f8138a798bb3fa436dafd9f139b5feebb",
           "state": "in_progress",
           "result": null,
-          "label": "Exact8d source verified; x86 owned fixture build failed before Android/runtime; arm64 package still running, terminal run/receipt not available"
+          "label": "Exact8d x86 owned fixture CMake configure_failed before compile/Android/runtime; bounded native report absent because runner never ran;arm64 APK still building, overall metadata pending"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano Client/native yolu45 Flutter/15 native ve analyze geçti. Exactd69cb0bd/run36801363639 original1test/1failure/0error/0skip ile resizedFrameWait aşamasında düştü; arm64 paket geçti, Android post-resize frame/kanal/close kabulü yok. İncelenen FreeRDP3.31.1 JNI Unicode düzeltmesi UTF16→standard UTF8, emoji/surrogate/NUL/64KiB ve payload silme sınırlarını korur; yeni engine identity eski AARı reddeder. Root exact release+locked patches ile gerçek x86_64 AARı yeniden derledi ve receipt/verify-install geçti; yeni paketle app/AndroidTest compile ve24 RDP unit/0skip/0failure/0error geçti. Source-built owned Linux shadow fixture actual CLIPRDR/DISP ve iki authenticated lifetime ister: ilkinde gerçek Unicode remote etkisi/DISP→host resize→frame/ACK, ikincide clipboard kapalı/zero transfer. Source/patch/binary/witness hashes bağlıdır; safe serverResizeRequested tanısı sonraki gerçek failureı ayırır. Root105 Python check, actionlint ve diff check geçti; Linux fixture build ve yeni exact hosted gate henüz açık. Geniş HEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı; F62 tamamlandı/CI bekliyor yapılmaz,58/67 ve37/127,3/63 sayaçları korunur. Exact8d54993f/run36804331620 x86 owned fixture build hazırlığında failed; Android/runtime başlamadı, arm64 paket işi sürüyor. Gerçek dar build nedeni inceleniyor."
+      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano yazılım yolu45 Flutter/15 native ve analyze geçti. Exactd69 native koşusu resizedFrameWait/1failure/0skip ile failed. Exact8d54993f gerçek Unicode x86_64 AAR rebuild/receipt/verify-install, app+AndroidTest compile,24 RDP unit/0skip/0failure/0error ve105 Python kontrolünü geçti; JNI UTF16→standard UTF8/emoji/NUL/surrogate/64KiB/payload silme source/package identity ile bağlıdır. Aynı kaynak CI36804331620 x86 CMake configure_failed verdi; Android/runtime başlamadı, private CMake alt nedeni yok, arm64 APK sürüyor. Yeni fixture ayarı yalnız privateSAM/NLA/NTLM scopeunda Linux-default KRB5 REQUIRED bağımlılığını explicitOFF yapar; önceki exact hata nedeni henüz kanıtlanmaz. Bounded configure/build failure receipt gerçek Git SHA+source/patch/log hashes ve yalnız fatalblock fixedreason/location yayımlar; rawlogs gizlidir, skippedAndroid raporu yüklenmez. DirectCLI PYTHONPATHsiz farklıcwdde ve112 Python/policy/queue kontrolü, actionlint geçti. İki actual authenticated lifetime için CLIPRDR Unicode remote etkisi/DISP→resize→frame/ACK ve clipboardkapalı zero-transfer hosted gate açık. Geniş HEAD CI/fiziksel MANUAL ayrı; F62 tamamlandı/CI bekliyor değildir;58/67 ve37/127,3/63 korunur."
     },
     {
       "id": "F61",
@@ -5641,7 +5649,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Yazılımı/odaklı kabulü tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 gerçek hosted native receipt geçti. F60 exact5fa Android discovery canonical1test/0skip/2-lifetime geçti; streamAccepted=false ve gerçek stream/input/gamepad/disconnect kabulü açık. F62 exactd69 resizedFrameWait failed; yeni JNI Unicode AARı rebuild/receipt, app+AndroidTest compile,24 RDP unit ve105 Python kontrolünü geçti. Exact8d54993f/run36804331620 owned Linux CLIPRDR/DISP iki-lifetime gate başladı; x86 fixture build failed, arm64 paket sürüyor ve runtime/manual kapıları açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 hosted native receipt geçti. F60 exact5fa Android discovery1test/0skip/2-lifetime geçti; gerçek stream/input/gamepad/disconnect için exacta703/run36804692946 sürüyor. F62 exactd69 resizedFrameWait failed; exact8d Unicode AAR/compile/24unit geçti, Linux fixture configure_failed. Source-only KRB5 scope/strict build diagnostics/directCLI ve112 yerel kontrolü geçti; iki-lifetime Linux/Android gate ve MANUAL açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63."
     },
     {
       "id": "FINAL.UI",

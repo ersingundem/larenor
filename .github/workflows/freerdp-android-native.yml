@@ -96,7 +96,8 @@
         {
           "name": "Build exact owned FreeRDP channel fixture",
           "if": "matrix.abi == 'x86_64'",
-          "run": "set -euo pipefail\numask 077\nbuild_packages=(build-essential pkg-config libssl-dev zlib1g-dev libcjson-dev libx11-dev libxext-dev libxinerama-dev libxdamage-dev libxfixes-dev libxtst-dev libxi-dev libxkbfile-dev)\nbuild_versions=()\ninstall_arguments=()\nfor package in \"${build_packages[@]}\"; do\n  version=\"$(apt-cache policy \"$package\" | awk '$1 == \"Candidate:\" {print $2}')\"\n  [[ \"$version\" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || exit 1\n  build_versions+=(\"$version\")\n  install_arguments+=(\"$package=$version\")\ndone\nsudo apt-get install --yes --no-install-recommends \"${install_arguments[@]}\"\nfor index in \"${!build_packages[@]}\"; do\n  test \"$(dpkg-query -W -f='${Version}' \"${build_packages[$index]}\")\" = \"${build_versions[$index]}\"\ndone\npython3 tool/f62_owned_shadow_channels.py prepare \"$RUNNER_TEMP/freerdp-3.31.1.tar.gz\" \"$RUNNER_TEMP/f62-owned-shadow-source\"\npython3 tool/f62_owned_shadow_channels.py build \"$RUNNER_TEMP/f62-owned-shadow-source\" \"$RUNNER_TEMP/f62-owned-shadow-build\" --cmake \"$ANDROID_HOME/cmake/4.1.2/bin/cmake\" --log \"$RUNNER_TEMP/f62-owned-shadow-build.log\" --jobs 2\nbinary=\"$RUNNER_TEMP/f62-owned-shadow-build/server/shadow/cli/freerdp-shadow-cli\"\ntest -x \"$binary\"\n{\n  echo \"RDP_ACCEPTANCE_SHADOW_BINARY=$binary\"\n  echo \"RDP_ACCEPTANCE_SHADOW_BUILD=$RUNNER_TEMP/f62-owned-shadow-build\"\n  echo \"RDP_ACCEPTANCE_SHADOW_SOURCE=$RUNNER_TEMP/f62-owned-shadow-source\"\n} >> \"$GITHUB_ENV\"\n"
+          "run": "set -euo pipefail\numask 077\nmkdir -m 0700 \"$RUNNER_TEMP/freerdp-public-owned-fixture\"\nbuild_packages=(build-essential pkg-config libssl-dev zlib1g-dev libcjson-dev libx11-dev libxext-dev libxinerama-dev libxdamage-dev libxfixes-dev libxtst-dev libxi-dev libxkbfile-dev)\nbuild_versions=()\ninstall_arguments=()\nfor package in \"${build_packages[@]}\"; do\n  version=\"$(apt-cache policy \"$package\" | awk '$1 == \"Candidate:\" {print $2}')\"\n  [[ \"$version\" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || exit 1\n  build_versions+=(\"$version\")\n  install_arguments+=(\"$package=$version\")\ndone\nsudo apt-get install --yes --no-install-recommends \"${install_arguments[@]}\"\nfor index in \"${!build_packages[@]}\"; do\n  test \"$(dpkg-query -W -f='${Version}' \"${build_packages[$index]}\")\" = \"${build_versions[$index]}\"\ndone\npython3 tool/f62_owned_shadow_channels.py prepare \"$RUNNER_TEMP/freerdp-3.31.1.tar.gz\" \"$RUNNER_TEMP/f62-owned-shadow-source\"\npython3 tool/f62_owned_shadow_channels.py build \"$RUNNER_TEMP/f62-owned-shadow-source\" \"$RUNNER_TEMP/f62-owned-shadow-build\" --cmake \"$ANDROID_HOME/cmake/4.1.2/bin/cmake\" --log \"$RUNNER_TEMP/f62-owned-shadow-build.log\" --failure-receipt \"$RUNNER_TEMP/freerdp-public-owned-fixture/failure.json\" --jobs 2\nbinary=\"$RUNNER_TEMP/f62-owned-shadow-build/server/shadow/cli/freerdp-shadow-cli\"\ntest -x \"$binary\"\n{\n  echo \"RDP_ACCEPTANCE_SHADOW_BINARY=$binary\"\n  echo \"RDP_ACCEPTANCE_SHADOW_BUILD=$RUNNER_TEMP/f62-owned-shadow-build\"\n  echo \"RDP_ACCEPTANCE_SHADOW_SOURCE=$RUNNER_TEMP/f62-owned-shadow-source\"\n} >> \"$GITHUB_ENV\"\n",
+          "id": "owned_fixture"
         },
         {
           "name": "Build one exact native ABI with optional channels default-off",
@@ -153,7 +154,8 @@
             "disable-spellchecker": true,
             "disable-linux-hw-accel": false,
             "script": "python3 tool/f62_packaged_acceptance.py"
-          }
+          },
+          "id": "packaged_acceptance"
         },
         {
           "name": "Stop the owned RDP host",
@@ -171,9 +173,20 @@
           }
         },
         {
+          "name": "Upload bounded owned fixture build failure",
+          "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "if": "failure() && matrix.abi == 'x86_64' && steps.owned_fixture.outcome == 'failure'",
+          "with": {
+            "name": "freerdp-owned-fixture-${{ github.sha }}-failure-diagnostics",
+            "path": "${{ runner.temp }}/freerdp-public-owned-fixture/failure.json",
+            "if-no-files-found": "warn",
+            "retention-days": 14
+          }
+        },
+        {
           "name": "Upload bounded native failure diagnostics",
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
-          "if": "failure() && matrix.abi == 'x86_64'",
+          "if": "failure() && matrix.abi == 'x86_64' && steps.packaged_acceptance.outcome == 'failure'",
           "with": {
             "name": "freerdp-3.31.1-${{ github.sha }}-failure-diagnostics",
             "path": "${{ runner.temp }}/freerdp-public-acceptance/failure.json",

@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 import struct
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -53,6 +55,39 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             self.assertEqual((output / "source.txt").read_text(), "after\n")
             with self.assertRaisesRegex(subject.FixtureError, "output_must_not_exist"):
                 subject.prepare_source(archive, output, patch)
+
+    def test_direct_cli_imports_without_pythonpath_from_repo_and_unrelated_cwd(self):
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        script = subject.ROOT / "tool/f62_owned_shadow_channels.py"
+        help_result = subprocess.run(
+            [sys.executable, "tool/f62_owned_shadow_channels.py", "--help"],
+            cwd=subject.ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn("verify-source", help_result.stdout)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "not-the-pinned-source.tar.gz"
+            archive.write_bytes(b"invalid")
+            archive.chmod(0o600)
+            verify_result = subprocess.run(
+                [sys.executable, str(script), "verify-source", str(archive)],
+                cwd=root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        self.assertEqual(verify_result.returncode, 2)
+        self.assertIn("source_digest_mismatch", verify_result.stderr)
+        self.assertNotIn("ModuleNotFoundError", verify_result.stderr)
 
     def test_patch_binds_context_cleanup_before_shadow_resources(self):
         relative = "server/shadow/shadow_client.c"
@@ -202,17 +237,214 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
                 mock.patch.object(subject, "verify_patched_source"),
                 mock.patch.object(subject.subprocess, "run", side_effect=run),
             ):
-                executable = subject.build_fixture(source, build, cmake, log, jobs=2)
+                failure_receipt = root / "failure.json"
+                executable = subject.build_fixture(
+                    source,
+                    build,
+                    cmake,
+                    log,
+                    jobs=2,
+                    failure_receipt=failure_receipt,
+                )
             self.assertEqual(len(calls), 2)
             self.assertIn("-DWITH_LARENOR_F62_OWNED_CHANNELS=ON", calls[0][0])
             self.assertIn("-DWITH_SHADOW_SUBSYSTEM=ON", calls[0][0])
             self.assertIn("-DWITH_X11=ON", calls[0][0])
+            self.assertIn("-DWITH_KRB5=OFF", calls[0][0])
             self.assertIn("-DCHANNEL_CLIPRDR_SERVER=ON", calls[0][0])
             self.assertIn("-DCHANNEL_DISP_SERVER=ON", calls[0][0])
             self.assertEqual(calls[1][0][-3:], ["freerdp-shadow-cli", "--parallel", "2"])
             self.assertEqual(executable, build / subject.SHADOW_CLI_RELATIVE)
             self.assertEqual(log.stat().st_mode & 0o777, 0o600)
             self.assertNotIn("source", calls[0][1]["env"])
+            self.assertFalse(failure_receipt.exists())
+
+    def test_configure_failure_publishes_only_canonical_bounded_diagnostic(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            cmake = root / "cmake"
+            cmake.write_text("#!/bin/sh\n", encoding="utf-8")
+            cmake.chmod(0o700)
+            log = root / "private.log"
+            receipt = root / "failure.json"
+
+            def run(_argv, **kwargs):
+                kwargs["stdout"].write(
+                    b"CMake Error at /private/secret/not-owned.cmake:912: Could NOT find SecretKit\n"
+                )
+                return mock.Mock(returncode=1)
+
+            with (
+                mock.patch.object(subject, "verify_patched_source"),
+                mock.patch.object(subject, "source_revision", return_value="1" * 40),
+                mock.patch.object(subject.subprocess, "run", side_effect=run),
+                self.assertRaisesRegex(subject.FixtureError, "configure_failed"),
+            ):
+                subject.build_fixture(
+                    source,
+                    root / "build",
+                    cmake,
+                    log,
+                    jobs=1,
+                    failure_receipt=receipt,
+                )
+            result = json.loads(receipt.read_text(encoding="ascii"))
+            self.assertEqual(receipt.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(result["stage"], "configure")
+            self.assertEqual(result["code"], "configure_failed")
+            self.assertEqual(result["reason"], "missing_dependency")
+            self.assertTrue(result["cmakeInstalled"])
+            self.assertEqual(result["sourceRevision"], "1" * 40)
+            self.assertEqual(result["upstreamSourceRevision"], subject.SOURCE_COMMIT)
+            self.assertEqual(result["sourceSha256"], subject.SOURCE_SHA256)
+            self.assertEqual(result["patchSha256"], subject.PATCH_SHA256)
+            self.assertIsNone(result["sourceLocation"])
+            self.assertRegex(result["privateLogSha256"], r"^[0-9a-f]{64}$")
+            self.assertNotIn("SecretKit", receipt.read_text(encoding="ascii"))
+            self.assertNotIn("/private", receipt.read_text(encoding="ascii"))
+
+    def test_compile_failure_publishes_allowlisted_source_location(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            cmake = root / "cmake"
+            cmake.write_text("#!/bin/sh\n", encoding="utf-8")
+            cmake.chmod(0o700)
+            log = root / "private.log"
+            receipt = root / "failure.json"
+            calls = 0
+
+            def run(_argv, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return mock.Mock(returncode=0)
+                kwargs["stdout"].write(
+                    b"/tmp/source/server/shadow/shadow_larenor_channels.c:42:7: error: stopped\n"
+                )
+                return mock.Mock(returncode=1)
+
+            with (
+                mock.patch.object(subject, "verify_patched_source"),
+                mock.patch.object(subject, "source_revision", return_value="2" * 40),
+                mock.patch.object(subject.subprocess, "run", side_effect=run),
+                self.assertRaisesRegex(subject.FixtureError, "compile_failed"),
+            ):
+                subject.build_fixture(
+                    source,
+                    root / "build",
+                    cmake,
+                    log,
+                    jobs=1,
+                    failure_receipt=receipt,
+                )
+            result = json.loads(receipt.read_text(encoding="ascii"))
+            self.assertEqual(result["stage"], "build")
+            self.assertEqual(result["code"], "compile_failed")
+            self.assertEqual(result["reason"], "compile_failed")
+            self.assertEqual(
+                result["sourceLocation"],
+                {"path": "server/shadow/shadow_larenor_channels.c", "line": 42},
+            )
+
+    def test_configure_reason_ignores_optional_missing_package_before_actual_fatal(self):
+        data = (
+            b"-- Could NOT find PkgOptional (missing: PkgOptional_DIR)\n"
+            b"CMake Error at /tmp/source/server/shadow/CMakeLists.txt:60 (message):\n"
+            b"  fixture configuration is invalid\n"
+        )
+        self.assertEqual(subject._diagnostic_reason("configure", data), "invalid_configuration")
+        self.assertEqual(
+            subject._diagnostic_location(subject._fatal_diagnostic_block("configure", data)),
+            {"path": "server/shadow/CMakeLists.txt", "line": 60},
+        )
+
+    def test_diagnostic_write_error_preserves_original_configure_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            cmake = root / "cmake"
+            cmake.write_text("#!/bin/sh\n", encoding="utf-8")
+            cmake.chmod(0o700)
+
+            with (
+                mock.patch.object(subject, "verify_patched_source"),
+                mock.patch.object(
+                    subject.subprocess, "run", return_value=mock.Mock(returncode=1)
+                ),
+                mock.patch.object(
+                    subject, "_write_failure_receipt", side_effect=OSError("unwritable")
+                ),
+                self.assertRaisesRegex(subject.FixtureError, "configure_failed"),
+            ):
+                subject.build_fixture(
+                    source,
+                    root / "build",
+                    cmake,
+                    root / "private.log",
+                    jobs=1,
+                    failure_receipt=root / "failure.json",
+                )
+
+    def test_failure_diagnostic_rejects_unsafe_log_and_receipt_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cmake = root / "cmake"
+            cmake.write_bytes(b"cmake")
+            cmake.chmod(0o700)
+            log = root / "private.log"
+            log.write_bytes(b"CMake Error")
+            log.chmod(0o644)
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_build_log"):
+                subject._write_failure_receipt(
+                    log,
+                    root / "failure.json",
+                    stage="configure",
+                    code="configure_failed",
+                    cmake=cmake,
+                )
+
+            log.chmod(0o600)
+            linked_log = root / "linked.log"
+            linked_log.symlink_to(log)
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_build_log"):
+                subject._write_failure_receipt(
+                    linked_log,
+                    root / "failure.json",
+                    stage="configure",
+                    code="configure_failed",
+                    cmake=cmake,
+                )
+
+            oversized = root / "oversized.log"
+            oversized.write_bytes(b"x" * (subject.MAX_BUILD_LOG_SIZE + 1))
+            oversized.chmod(0o600)
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_build_log"):
+                subject._write_failure_receipt(
+                    oversized,
+                    root / "failure.json",
+                    stage="configure",
+                    code="configure_failed",
+                    cmake=cmake,
+                )
+
+            target = root / "target.json"
+            target.write_text("preserve", encoding="ascii")
+            linked_receipt = root / "linked.json"
+            linked_receipt.symlink_to(target)
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_failure_receipt"):
+                subject._write_failure_receipt(
+                    log,
+                    linked_receipt,
+                    stage="configure",
+                    code="configure_failed",
+                    cmake=cmake,
+                )
+            self.assertEqual(target.read_text(encoding="ascii"), "preserve")
 
     def test_build_rejects_unbounded_jobs_and_existing_outputs(self):
         with tempfile.TemporaryDirectory() as temporary:

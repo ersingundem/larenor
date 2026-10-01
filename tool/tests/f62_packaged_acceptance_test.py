@@ -1091,7 +1091,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             value for value in workflow["jobs"]["package"]["steps"]
             if value.get("name") == "Upload bounded native failure diagnostics"
         )
-        self.assertEqual(step["if"], "failure() && matrix.abi == 'x86_64'")
+        self.assertEqual(
+            step["if"],
+            "failure() && matrix.abi == 'x86_64' && steps.packaged_acceptance.outcome == 'failure'",
+        )
         self.assertEqual(
             step["with"]["path"],
             "${{ runner.temp }}/freerdp-public-acceptance/failure.json",

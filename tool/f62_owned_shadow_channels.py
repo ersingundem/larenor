@@ -6,14 +6,21 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import stat
 import struct
 import subprocess
 import sys
 import tarfile
+from typing import Optional
 import urllib.request
 import urllib.parse
+
+if __package__:
+    from .native_acceptance_receipt import NativeAcceptanceReceiptError, source_revision
+else:
+    from native_acceptance_receipt import NativeAcceptanceReceiptError, source_revision
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,10 +60,39 @@ MAX_MEMBER_SIZE = 32 * 1024 * 1024
 MAX_MEMBERS = 20000
 MAX_CHANNEL_EVENTS = 8
 MAX_FIXTURE_BINARY_SIZE = 256 * 1024 * 1024
+MAX_BUILD_LOG_SIZE = 4 * 1024 * 1024
 SHADOW_CLI_RELATIVE = Path("server/shadow/cli/freerdp-shadow-cli")
 FLAG_CLIPBOARD_EFFECT = 0x00000001
 FLAG_DISP_EFFECT = 0x00000002
 KNOWN_FLAGS = FLAG_CLIPBOARD_EFFECT | FLAG_DISP_EFFECT
+DIAGNOSTIC_SOURCE_PATHS = (
+    "CMakeLists.txt",
+    "cmake/FindKRB5.cmake",
+    "cmake/JsonDetect.cmake",
+    "cmake/PlatformDefaults.cmake",
+    "server/shadow/CMakeLists.txt",
+    "server/shadow/X11/CMakeLists.txt",
+    "server/shadow/shadow_channels.c",
+    "server/shadow/shadow_client.c",
+    "server/shadow/shadow_larenor_channels.c",
+    "winpr/CMakeLists.txt",
+    "winpr/libwinpr/sspi/CMakeLists.txt",
+    "winpr/libwinpr/utils/CMakeLists.txt",
+)
+_DIAGNOSTIC_REASONS = {
+    "configure": (
+        ("missing_dependency", (b"Could NOT find", b"REQUIRED but not found")),
+        (
+            "configure_test_failed",
+            (b"is not able to compile", b"Failed to detect", b"compiler identification is unknown"),
+        ),
+        ("invalid_configuration", (b"CMake Error", b"FATAL_ERROR")),
+    ),
+    "build": (
+        ("link_failed", (b"undefined reference", b"ld returned")),
+        ("compile_failed", (b"fatal error:", b" error:")),
+    ),
+}
 
 
 class FixtureError(ValueError):
@@ -308,7 +344,129 @@ def _private_log(path: Path):
     return os.fdopen(fd, "wb")
 
 
-def build_fixture(source: Path, build: Path, cmake: Path, log: Path, *, jobs: int):
+def _fatal_diagnostic_block(stage: str, data: bytes) -> bytes:
+    lines = data.splitlines()
+    if stage == "configure":
+        marker = b"CMake Error"
+        width = 16
+    else:
+        marker = None
+        width = 4
+    for index, line in enumerate(lines):
+        if (marker is not None and marker in line) or (
+            marker is None
+            and any(
+                token in line
+                for token in (b"fatal error:", b" error:", b"undefined reference", b"ld returned")
+            )
+        ):
+            return b"\n".join(item[:1024] for item in lines[index : index + width])
+    return b""
+
+
+def _diagnostic_reason(stage: str, data: bytes) -> str:
+    block = _fatal_diagnostic_block(stage, data)
+    for reason, tokens in _DIAGNOSTIC_REASONS[stage]:
+        if any(token in block for token in tokens):
+            return reason
+    return "configure_failed" if stage == "configure" else "build_failed"
+
+
+def _diagnostic_location(data: bytes):
+    text = data.decode("utf-8", errors="replace")
+    for relative in sorted(DIAGNOSTIC_SOURCE_PATHS, key=len, reverse=True):
+        match = re.search(
+            r"(?:^|[ /])" + re.escape(relative) + r":([1-9][0-9]{0,5})(?:[^0-9]|$)",
+            text,
+            flags=re.MULTILINE,
+        )
+        if match:
+            return {"path": relative, "line": int(match.group(1))}
+    return None
+
+
+def _write_failure_receipt(log: Path, output: Path, *, stage: str, code: str, cmake: Path):
+    require(stage in ("configure", "build"), "invalid_diagnostic_stage")
+    require(
+        code == ("configure_failed" if stage == "configure" else "compile_failed"),
+        "invalid_diagnostic_code",
+    )
+    fd = None
+    try:
+        fd, metadata = _open_regular(log, max_size=MAX_BUILD_LOG_SIZE, exact_mode=0o600)
+        digest = _sha256_fd(fd)
+        data = os.read(fd, metadata.st_size + 1)
+        require(len(data) == metadata.st_size, "invalid_build_log")
+    except FixtureError as error:
+        raise FixtureError("invalid_build_log") from error
+    finally:
+        if fd is not None:
+            os.close(fd)
+    try:
+        revision = source_revision(ROOT)
+    except NativeAcceptanceReceiptError as error:
+        raise FixtureError("invalid_failure_receipt") from error
+    receipt = {
+        "schemaVersion": 1,
+        "stage": stage,
+        "code": code,
+        "reason": _diagnostic_reason(stage, data),
+        "sourceRevision": revision,
+        "sourceVersion": SOURCE_VERSION,
+        "upstreamSourceRevision": SOURCE_COMMIT,
+        "sourceSha256": SOURCE_SHA256,
+        "patchSha256": PATCH_SHA256,
+        "cmakeInstalled": cmake.is_file() and not cmake.is_symlink(),
+        "privateLogSha256": digest,
+        "sourceLocation": _diagnostic_location(_fatal_diagnostic_block(stage, data)),
+    }
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        output_fd = os.open(output, flags, 0o600)
+    except OSError as error:
+        raise FixtureError("invalid_failure_receipt") from error
+    try:
+        os.fchmod(output_fd, 0o600)
+        metadata = os.fstat(output_fd)
+        require(
+            stat.S_ISREG(metadata.st_mode)
+            and metadata.st_nlink == 1
+            and metadata.st_uid == os.getuid()
+            and stat.S_IMODE(metadata.st_mode) == 0o600,
+            "invalid_failure_receipt",
+        )
+        payload = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode(
+            "ascii"
+        )
+        with os.fdopen(output_fd, "wb", closefd=False) as stream:
+            stream.write(payload)
+            stream.flush()
+        os.fsync(output_fd)
+    finally:
+        os.close(output_fd)
+
+
+def _record_failure(log: Path, output: Optional[Path], *, stage: str, code: str, cmake: Path):
+    if output is None:
+        return
+    try:
+        _write_failure_receipt(log, output, stage=stage, code=code, cmake=cmake)
+    except (FixtureError, OSError):
+        # Diagnostic publication must not replace the original build failure.
+        pass
+
+
+def build_fixture(
+    source: Path,
+    build: Path,
+    cmake: Path,
+    log: Path,
+    *,
+    jobs: int,
+    failure_receipt: Optional[Path] = None,
+):
     require(source.is_dir() and not source.is_symlink(), "invalid_prepared_source")
     require(not build.exists() and not build.is_symlink(), "build_must_not_exist")
     require(cmake.is_file() and not cmake.is_symlink(), "invalid_cmake")
@@ -340,6 +498,7 @@ def build_fixture(source: Path, build: Path, cmake: Path, log: Path, *, jobs: in
         "-DWITH_SHADOW_SUBSYSTEM=ON",
         "-DWITH_CLIENT=OFF",
         "-DWITH_CLIENT_COMMON=OFF",
+        "-DWITH_KRB5=OFF",
         "-DWITH_FFMPEG=OFF",
         "-DWITH_OPENH264=OFF",
         "-DWITH_OPUS=OFF",
@@ -365,20 +524,54 @@ def build_fixture(source: Path, build: Path, cmake: Path, log: Path, *, jobs: in
         "--parallel",
         str(jobs),
     ]
+    configure_failed = False
+    compile_failed = False
     with _private_log(log) as stream:
-        configured = subprocess.run(
-            configure, stdout=stream, stderr=subprocess.STDOUT, env=environment, timeout=300, check=False
+        try:
+            configured = subprocess.run(
+                configure,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                env=environment,
+                timeout=300,
+                check=False,
+            )
+            configure_failed = configured.returncode != 0
+        except subprocess.TimeoutExpired:
+            configure_failed = True
+        if not configure_failed:
+            try:
+                compiled = subprocess.run(
+                    compile_command,
+                    stdout=stream,
+                    stderr=subprocess.STDOUT,
+                    env=environment,
+                    timeout=900,
+                    check=False,
+                )
+                compile_failed = compiled.returncode != 0
+            except subprocess.TimeoutExpired:
+                compile_failed = True
+        stream.flush()
+        os.fsync(stream.fileno())
+    if configure_failed:
+        _record_failure(
+            log,
+            failure_receipt,
+            stage="configure",
+            code="configure_failed",
+            cmake=cmake,
         )
-        require(configured.returncode == 0, "configure_failed")
-        compiled = subprocess.run(
-            compile_command,
-            stdout=stream,
-            stderr=subprocess.STDOUT,
-            env=environment,
-            timeout=900,
-            check=False,
+        raise FixtureError("configure_failed")
+    if compile_failed:
+        _record_failure(
+            log,
+            failure_receipt,
+            stage="build",
+            code="compile_failed",
+            cmake=cmake,
         )
-        require(compiled.returncode == 0, "compile_failed")
+        raise FixtureError("compile_failed")
     executable = build / SHADOW_CLI_RELATIVE
     try:
         fd, metadata = _open_regular(executable, max_size=MAX_FIXTURE_BINARY_SIZE)
@@ -483,6 +676,7 @@ def main(argv=None):
     build.add_argument("build", type=Path)
     build.add_argument("--cmake", required=True, type=Path)
     build.add_argument("--log", required=True, type=Path)
+    build.add_argument("--failure-receipt", type=Path)
     build.add_argument("--jobs", type=int, default=2)
     witness = commands.add_parser("verify-witness")
     witness.add_argument("path", type=Path)
@@ -497,7 +691,14 @@ def main(argv=None):
         elif args.command == "prepare":
             prepare_source(args.archive, args.output)
         elif args.command == "build":
-            build_fixture(args.source, args.build, args.cmake, args.log, jobs=args.jobs)
+            build_fixture(
+                args.source,
+                args.build,
+                args.cmake,
+                args.log,
+                jobs=args.jobs,
+                failure_receipt=args.failure_receipt,
+            )
         elif args.command == "verify-witness":
             print(json.dumps(read_witness(args.path), sort_keys=True))
         elif args.command == "verify-lifetimes":

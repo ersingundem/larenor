@@ -116,6 +116,28 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, paths)
 
+    def test_fixture_failure_cannot_upload_missing_android_report_or_raw_log(self):
+        steps = self.workflow["jobs"]["package"]["steps"]
+        fixture = next(step for step in steps if step.get("name") ==
+                       "Build exact owned FreeRDP channel fixture")
+        acceptance = next(step for step in steps if step.get("name") ==
+                          "Exercise the packaged Android client against the NLA host")
+        native_failure = next(step for step in steps if step.get("name") ==
+                              "Upload bounded native failure diagnostics")
+        fixture_failure = next(step for step in steps if step.get("name") ==
+                               "Upload bounded owned fixture build failure")
+        self.assertEqual(fixture["id"], "owned_fixture")
+        self.assertEqual(acceptance["id"], "packaged_acceptance")
+        self.assertIn('--failure-receipt "$RUNNER_TEMP/freerdp-public-owned-fixture/failure.json"',
+                      fixture["run"])
+        self.assertIn("steps.owned_fixture.outcome == 'failure'", fixture_failure["if"])
+        self.assertIn("steps.packaged_acceptance.outcome == 'failure'", native_failure["if"])
+        self.assertEqual(fixture_failure["with"]["path"],
+                         "${{ runner.temp }}/freerdp-public-owned-fixture/failure.json")
+        self.assertIn("${{ github.sha }}", fixture_failure["with"]["name"])
+        self.assertNotIn("f62-owned-shadow-build.log", json.dumps(fixture_failure))
+        self.assertEqual(fixture_failure["with"]["if-no-files-found"], "warn")
+
     def test_xorg_preflight_directory_precedes_idempotent_package_copy(self):
         steps = self.workflow["jobs"]["package"]["steps"]
         preflight = next(

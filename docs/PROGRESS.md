@@ -17,6 +17,14 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F62 Linux fixture configure sınırı
+
+Exact8d54993f [native36804331620](https://github.com/ersingundem/larenor/actions/runs/36804331620) x86 işi **configure_failed** ile derleme/Android/runtime öncesinde düştü; arm64 APK işi sürüyor. Private CMake logunun alt nedeni mevcut artifactlardan kurulamadı. Pinned kaynak Linux'ta Kerberos'u varsayılan açıp REQUIRED yapıyor; bu private SAM/NLA/NTLM fixture Kerberos kapsamı vaat etmediği için yeni ayar açıkça **WITH_KRB5=OFF** kullanır. Bu portability düzeltmesi eski koşunun kesin hata nedeni olarak sunulmaz; TLS/NLA/SAM/SPKI kapıları korunur.
+
+Yeni helper yalnız failed configure/build için exact source/patch/log hash bağlı bounded failure JSON yayımlar; actual fatal CMake blocktan fixed reason ve allowlisted relative path/line çıkarır, raw mesaj/env/option/absolute path yayımlamaz. Optional missing dependency mesajı ilgisiz fatalı yanlış sınıflandıramaz. Diagnostic write hatası original failureı değiştirmez. Direct CLI PYTHONPATH unset ve başka cwd'de doğrulandı; **112 Python kontrolü**, exact archive verifier, workflow actionlint ve diff kontrolü geçti. Android runner başlamadan native rapor upload edilmiyor. [Kaynak ve tanı kanıtı](testing/f62-owned-shadow-channels-2026-10-01.md).
+
+F60 eski cancelled-step koşusunun live concurrency lease'i kalktı; exacta703289d [retry36804692946](https://github.com/ersingundem/larenor/actions/runs/36804692946) gerçek hosted runnerda çalışıyor, UHID hazırlığı geçti ve engine derleniyor. Eski run GET'i stale olduğundan bilinmeyen final conclusiona kabul verilmez.58 seçili/toplam67 iş CI bekliyor; F60/F62 yeniden çalışılıyor ve37/127,3/63 kabul sayaçları korunur.
+
 ### 1 Ekim F60 gerçek Android keşif kabulü
 
 Exact5fa91e43 [discovery36802851003](https://github.com/ersingundem/larenor/actions/runs/36802851003) yeşil tamamlandı. Root ve bağımsız ajan canonical public receiptin exact source/class/method, **1test/0skip/0failure/0error**, iki fresh discovery lifetime ve receipted Moonlight engine/source/package binding eşitliğini doğruladı. **streamAccepted=false**; bu gerçek NSD keşif kanıtıdır, yayın/girdi kabulü değildir. [Receipt ve sınırları](testing/f60-android-junit-aggregate-2026-10-01.md).
