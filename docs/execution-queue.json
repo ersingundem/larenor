@@ -5328,15 +5328,7 @@
           "commit": "0036260b9d6eb09336b881889e885328f63d6520",
           "state": "completed",
           "result": "failed",
-          "label": "Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36796253857",
-          "commit": "0036260b9d6eb09336b881889e885328f63d6520",
-          "state": "completed",
-          "result": "failed",
-          "label": "Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt"
+          "label": "Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt; same-source companion 36796253857 also failed at this preparation boundary"
         },
         {
           "kind": "ci",
@@ -5344,15 +5336,7 @@
           "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
           "state": "completed",
           "result": "failed",
-          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36797304940",
-          "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
-          "state": "completed",
-          "result": "failed",
-          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt"
+          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt; same-source companion 36797304940 also failed at this preparation boundary"
         },
         {
           "kind": "test",
@@ -5537,10 +5521,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact57f original1test/1failure/0error/0skip;pairedClientObserved then firstStreamOutput line223; stream native_observed assertion failed, actual command state/cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-stream-command-observation-2026-10-01.md",
+          "commit": "c9fee6d7ed83807af7917c89b26a7315966ce6cb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root59 runner/workflow tests; AndroidTest compile278tasks; fixed source-bound command enums only, strict native acceptance unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36822674910",
+          "commit": "c9fee6d7ed83807af7917c89b26a7315966ce6cb",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exactc9 changed diagnostic source; actual owned stream CI running, no terminal receipt or acceptance yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact57f92945/run36819571890 original1test/1failure/0error/0skip. Parsed-peer ACK sonrası pairedClientObserved geçti; firstStreamOutput line223 stream native_observed assertionı başarısız. Makbuz actual command state veya provider alt nedenini kanıtlamaz. Frame/PCM/input/iki yaşam/stop/disconnect gerçek kabulü açık. AynıSHA kör rerun yok; bounded neden incelemesi ve dar düzeltme gerekir. Root actual required-native derleme/paket/dar politika testleri runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact57f/run36819571890 original1test/1failure/0error/0skip; pairedClientObserved ardından firstStreamOutput native_observed assertionı başarısız. Kesin command/provider alt nedeni kanıtlanmadı. Fixed source-bound enum tanısı c9fee6d7 ile eklendi; root59 ve actual AndroidTest compile278task geçti. Yeni exactc9/run36822674910 gerçek stream CI sürüyor; terminal kabul yok. Frame/PCM/input/iki yaşam/stop/disconnect strict kapıları korunur, aynıSHA kör rerun yok. Geniş finalHEAD ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
     },
     {
       "id": "G11",
@@ -5857,10 +5857,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact57f arm64 package passed;x86 original1test/1failure/0error/0skip;initialFrameWait terminal exception/serverResizeRequested=false;session failure code and underlying cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-initial-terminal-classification-2026-10-01.md",
+          "commit": "5aa76fe85e522b2648b5957ebab5f47270af608d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root44 runner/workflow tests; actual AndroidTest compile277tasks; initial terminal enum bound to exact owned source and tuple, strict acceptance unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36822994907",
+          "commit": "5aa76fe85e522b2648b5957ebab5f47270af608d",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact5aa changed terminal-classification source; arm64/x86 package-runtime CI running, no terminal acceptance yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact57f92945/run36819574142 arm64 actual package geçti; x86 original1test/1failure/0error/0skip initialFrameWait içinde RdpOwnedInitialFrameTerminalFailure ile başarısız. serverResizeRequested=false; lifecycle marker/session failure code yok. Terminal oturum sınırı doğrulandı; kesin native alt neden ve resize hatası kanıtlanmadı. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Actual ikiABI APK/dar native/runner testleri runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact57f/run36819574142 arm64 package geçti; x86 original1test/1failure/0error/0skip initialFrameWait içinde terminal oturumla başarısız. serverResizeRequested=false; kesin native alt neden veya resize hatası kanıtlanmadı. Source-bound fixed terminal enum5aa76fe8 ile eklendi; root44 ve actual AndroidTest compile277task geçti. Exact5aa/run36822994907 arm64/x86 package/runtime CI sürüyor, terminal kabul yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur; aynıSHA kör rerun yok. Geniş finalHEAD ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -6047,13 +6063,29 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36820807607",
           "commit": "0659ac292acae05a458550f33b142c1b2100ea2d",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact0659 allServer: host/F08/shards1-3 passed; shard0 F44 bind returned503 before cancellation boundary,1823passed/1failed; exact cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f44-frigate-fixture-close-2026-10-01.md",
+          "commit": "a51c8006c73aa9dfceaf0c4255d52943d0a79098",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root real WebSocket close RED/GREEN;18focused+31shared passed; owned fixture waits/echoes masked close, production unchanged; historical503 cause unproved"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36823315743",
+          "commit": "a51c8006c73aa9dfceaf0c4255d52943d0a79098",
           "state": "in_progress",
           "result": null,
-          "label": "Exact0659 changed backend/backup allServer CI started;not final complete-head acceptance"
+          "label": "Exacta51 changed owned Frigate fixture; allServer CI running, host/F08 passed; later Client changes require their own finalHEAD gate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. 53seçili özellik/64iş CI bekliyor; F21/F24–F27 normal player kontrolleri/watch-party ownership ve offline cold-start bileşimi eksikleri nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul35/127ve3/63. Frozenb21 fullFlutter7919passed/57explicit skips; actualv3 ikiABI APK5verifier/JVM343passed/2opt-in skip. Exact5325 broad failed: K07deadline yarışı,F08memory.events,7F30archive,2backup. K07root17 düzeltme ve F08exact0c/Linux36818355490,F30exact0fef/Linux36819883119/37JUnit geçti; production kabul gevşetilmedi. F60/F62 exact57f strict CI başarısız; bounded source tanısı native stream/initial-frame sınırlarını daralttı, kesin alt neden incelemede. Son birleşik HEAD genişCI gerekli. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. 53seçili özellik/64iş CI bekliyor; F21/F24–F27 son normal player kontrolleri/quality ve offline cold-start navigasyon kapısında reworking; F60/F62 strict runtime açık. Kabul35/127ve3/63. Frozenb21 fullFlutter7919passed/57explicit skip; actualv3 ikiABI APK/JVM343passed/2opt-in skip. Exact5325 K07/F08/F30/backup hataları dar değişmiş-source kanıtıyla ele alındı. Exact0659 allServer shard0 tekF44bind503,1823passed/1failed; host/F08/diğer3shard geçti. Owned WS close fixturea51 root18+31geçti, kesin eski503neden iddiası yok; yenia51 allServer36823315743sürüyor. F60c9/36822674910 ve F625aa/36822994907 source-bound tanılı strict CI sürüyor; derleme runtime değildir. Son birleşikHEAD genişCI gerekir. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",

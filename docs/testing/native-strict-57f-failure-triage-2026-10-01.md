@@ -45,3 +45,11 @@ remaining cause with bounded source-based diagnostics or a concrete
 regression before running changed source again. Do not rerun the same
 source or replace native evidence with compilation, synthetic frames,
 relaxed assertions, or longer waits.
+
+## Changed-source diagnostic gates
+
+The exact `c9fee6d7ed83807af7917c89b26a7315966ce6cb` [F60 run 36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) now binds fixed command-state enums to the original source/test/stage identity. Root59 runner/workflow checks and actual AndroidTest compilation278 tasks passed. It remains running; no terminal stream receipt is claimed.
+
+The exact `5aa76fe85e522b2648b5957ebab5f47270af608d` [F62 run 36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) adds a fixed initial-terminal classification captured from the same failed session tuple. Root44 runner/workflow checks and actual AndroidTest compilation277 tasks passed. Both ABI jobs remain running; no terminal runtime acceptance is claimed.
+
+These changed-source gates preserve every original acceptance requirement. Neither compilation nor diagnostic-field coverage repairs or proves the old native failure by itself.
