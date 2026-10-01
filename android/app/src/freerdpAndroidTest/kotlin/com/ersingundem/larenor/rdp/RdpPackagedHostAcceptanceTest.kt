@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 class RdpPackagedHostAcceptanceTest {
     @Test
     fun nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose() =
-        diagnoseOwnedTestBody { entered ->
+        diagnoseOwnedTestBody { entered, registerFailureMarker ->
             val arguments = InstrumentationRegistry.getArguments()
             val diagnosticNonce = arguments.required("rdpDiagnosticNonce")
             val context = ApplicationProvider.getApplicationContext<Context>()
@@ -41,6 +41,7 @@ class RdpPackagedHostAcceptanceTest {
                 AtomicLifecycleStorage(context, diagnosticNonce),
                 entered,
             )
+            registerFailureMarker(diagnostic::bodyFailure)
             diagnostic.enter("testInitialization")
 
             val host = arguments.required("rdpHost")
@@ -542,6 +543,10 @@ internal class OwnedLifecycleDiagnostic(
         runCatching { storage.remove() }
     }
 
+    fun bodyFailure(stage: String, throwableClass: String) {
+        runCatching { storage.write(bodyFailureMarker(stage, throwableClass)) }
+    }
+
     fun initialFrameFailure(
         kind: InitialFrameFailureKind,
         callbackCount: Int,
@@ -641,25 +646,48 @@ internal class RdpOwnedTestBodyFailure(
     }
 }
 
-internal fun diagnoseOwnedTestBody(body: ((String) -> Unit) -> Unit) {
+internal fun bodyFailureMarker(stage: String, throwableClass: String): String {
+    require(stage in OWNED_LIFECYCLE_STAGES)
+    require(throwableClass in OWNED_BODY_THROWABLE_CLASSES)
+    return "bodyFailure|v1|$stage|$throwableClass"
+}
+
+internal fun diagnoseOwnedTestBody(
+    body: (
+        entered: (String) -> Unit,
+        registerFailureMarker: ((String, String) -> Unit) -> Unit,
+    ) -> Unit,
+) {
     var lifecycleStage = "testInitialization"
+    var failureMarker: ((String, String) -> Unit)? = null
     val entered: (String) -> Unit = { stage ->
         require(stage in OWNED_LIFECYCLE_STAGES)
         lifecycleStage = stage
     }
+    val registerFailureMarker: (((String, String) -> Unit) -> Unit) = { marker ->
+        check(failureMarker == null)
+        failureMarker = marker
+    }
+    fun classified(cause: Throwable): RdpOwnedTestBodyFailure {
+        val failure = ownedTestBodyFailure(lifecycleStage, cause)
+        runCatching {
+            failureMarker?.invoke(failure.lifecycleStage, failure.throwableClass)
+        }
+        return failure
+    }
     try {
-        body(entered)
+        body(entered, registerFailureMarker)
     } catch (cause: RdpOwnedClassifiedFailure) {
         throw cause
     } catch (cause: InterruptedException) {
         Thread.currentThread().interrupt()
-        throw ownedTestBodyFailure(lifecycleStage, cause)
+        throw classified(cause)
     } catch (cause: AssertionError) {
-        throw ownedTestBodyFailure(lifecycleStage, cause)
+        throw classified(cause)
     } catch (cause: Exception) {
-        throw ownedTestBodyFailure(lifecycleStage, cause)
+        throw classified(cause)
     } catch (cause: LinkageError) {
-        throw ownedTestBodyFailure(lifecycleStage, cause)
+        throw classified(cause)
     }
 }
 

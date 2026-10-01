@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import secrets
@@ -202,7 +203,7 @@ _TEST_BODY_MARKER = re.compile(
     + r")$"
 )
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "d684fb5f972105531f5811515481756893f096a518a99d11c2d1f2bbfd9df479"
+    "a8f38129c28931722263b6158e8328aabace4f158ffdf90933ea32ddbdd65c46"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -660,9 +661,14 @@ def failure_receipt(
     initial_frame_terminal = diagnostic.get("initialFrameTerminal")
     has_test_body_failure = "testBodyFailure" in diagnostic
     test_body_failure = diagnostic.get("testBodyFailure")
+    has_owned_body_failure = "ownedBodyFailure" in diagnostic
+    owned_body_failure = diagnostic.get("ownedBodyFailure")
+    has_marker_availability = "ownedMarkerAvailability" in diagnostic
+    marker_availability = diagnostic.get("ownedMarkerAvailability")
     diagnostic_shape = set(diagnostic) - {
         "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
-        "initialFrameTerminal", "testBodyFailure",
+        "initialFrameTerminal", "testBodyFailure", "ownedBodyFailure",
+        "ownedMarkerAvailability",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
@@ -676,6 +682,17 @@ def failure_receipt(
             "code", "exceptionType", "frames", "counts", "acceptanceStage"}, {
             "code", "exceptionType", "frames", "reportShape", "childSuiteCount"})):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    if has_marker_availability:
+        if (type(marker_availability) is not dict
+                or set(marker_availability) != {"channel", "record", "writer"}
+                or marker_availability["channel"] not in {"available", "unavailable"}
+                or marker_availability["record"] not in {
+                    "observed", "absent", "invalid", "readUnavailable",
+                }
+                or marker_availability["writer"] not in {"observed", "unknown"}
+                or (marker_availability["writer"] == "observed")
+                != (marker_availability["record"] == "observed")):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
     exception_type = diagnostic.get("exceptionType")
     frames = diagnostic.get("frames")
@@ -693,6 +710,26 @@ def failure_receipt(
     identity = diagnostic.get("identity")
     probe_outcome = diagnostic.get("probeOutcome")
     acceptance_stage = diagnostic.get("acceptanceStage")
+    if has_owned_body_failure:
+        if (not has_marker_availability
+                or marker_availability != {
+                    "channel": "available", "record": "observed",
+                    "writer": "observed",
+                }
+                or code != "instrumentation_test_failure"
+                or counts != {
+                    "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+                }
+                or not _classification_source_matches()
+                or type(owned_body_failure) is not dict
+                or set(owned_body_failure) != {
+                    "lifecycleStage", "throwableClass",
+                }
+                or owned_body_failure["lifecycleStage"]
+                not in _TEST_LIFECYCLE_STAGE_SET
+                or owned_body_failure["throwableClass"]
+                not in _TEST_BODY_THROWABLE_TYPES):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     expected_stage = _ACCEPTANCE_STAGES.get(exception_type)
     if ((acceptance_stage is None) != (expected_stage is None)
             or acceptance_stage is not None and (
@@ -917,9 +954,14 @@ def _publish_failed_run(
     code: str | None = None,
     server_resize_requested: bool | None = None,
     test_lifecycle_stage: str | None = None,
+    owned_marker_evidence: _OwnedMarkerEvidence | None = None,
 ) -> None:
     diagnostic = (failure_diagnostic() if code is None
                   else _static_diagnostic(code))
+    if owned_marker_evidence is not None:
+        diagnostic = _apply_owned_marker_evidence(
+            diagnostic, owned_marker_evidence,
+        )
     exception_type = diagnostic.get("exceptionType")
     terminal = _INITIAL_FRAME_TERMINAL_EXCEPTIONS.get(exception_type)
     if terminal is not None:
@@ -935,10 +977,18 @@ def _publish_failed_run(
         observation = getattr(
             test_lifecycle_stage, "initial_frame_observation", None,
         )
+        if (observation is None
+                and owned_marker_evidence is not None
+                and owned_marker_evidence.channel == "available"
+                and owned_marker_evidence.record == "observed"
+                and owned_marker_evidence.writer == "observed"
+                and owned_marker_evidence.stage == test_lifecycle_stage):
+            observation = owned_marker_evidence.initial_frame_observation
         kind = _INITIAL_FRAME_FAILURE_KINDS.get(
             diagnostic.get("exceptionType"),
         )
         if (observation is not None
+                and _classification_source_matches()
                 and _valid_initial_frame_observation(kind, observation)):
             diagnostic["initialFrameObservation"] = observation
     publish_public_failure(diagnostic, runner_temp, package_versions)
@@ -980,6 +1030,58 @@ class _ObservedLifecycleStage(str):
         value = str.__new__(cls, stage)
         value.initial_frame_observation = observation
         return value
+
+
+class _ObservedBodyFailure(str):
+    def __new__(
+        cls,
+        stage: str,
+        throwable_class: str,
+    ) -> _ObservedBodyFailure:
+        value = str.__new__(cls, stage)
+        value.body_failure = {
+            "lifecycleStage": stage,
+            "throwableClass": throwable_class,
+        }
+        return value
+
+
+@dataclass(frozen=True)
+class _OwnedMarkerEvidence:
+    channel: str
+    record: str
+    writer: str
+    stage: str | None = None
+    body_failure: dict[str, str] | None = None
+    initial_frame_observation: dict[str, object] | None = None
+
+    def availability(self) -> dict[str, str]:
+        return {
+            "channel": self.channel,
+            "record": self.record,
+            "writer": self.writer,
+        }
+
+
+def _merge_owned_marker_evidence(
+    previous: _OwnedMarkerEvidence,
+    observed: _OwnedMarkerEvidence,
+) -> _OwnedMarkerEvidence:
+    if previous.record == "invalid":
+        return previous
+    if observed.record == "invalid":
+        return observed
+    if observed.record == "observed":
+        if (previous.body_failure is not None
+                and (previous.stage != observed.stage
+                     or previous.body_failure != observed.body_failure)):
+            return _OwnedMarkerEvidence("available", "invalid", "unknown")
+        return observed
+    if previous.record == "observed":
+        return previous
+    if observed.channel == "available" or previous.channel != "available":
+        return observed
+    return previous
 
 
 def _valid_initial_frame_observation(
@@ -1038,9 +1140,15 @@ def _decode_test_lifecycle_marker(
         value = raw.decode("ascii").strip()
     except UnicodeDecodeError:
         return None, None
+    parts = value.split("|")
+    if len(parts) == 4 and parts[:2] == ["bodyFailure", "v1"]:
+        _, _, stage, throwable_class = parts
+        if (stage not in _TEST_LIFECYCLE_STAGE_SET
+                or throwable_class not in _TEST_BODY_THROWABLE_TYPES):
+            return None, None
+        return _ObservedBodyFailure(stage, throwable_class), None
     if value in _TEST_LIFECYCLE_STAGE_SET:
         return value, None
-    parts = value.split("|")
     if len(parts) != 9 or parts[0] != "initialFrameWait" or parts[1] != "v1":
         return None, None
     _, _, kind, raw_count, raw_capped, raw_width, raw_height, phase, raw_code = parts
@@ -1089,12 +1197,11 @@ def _peek_test_lifecycle_stage(nonce: str, *, timeout: float = 5) -> str | None:
     prefix = _test_lifecycle_adb_prefix(adb)
     if prefix is None:
         return None
-    result: subprocess.CompletedProcess[bytes] | None = None
     try:
         result = subprocess.run(
             [
                 *prefix, "exec-out", "run-as", _TEST_PACKAGE,
-                "dd", f"if={filename}", "bs=128", "count=1",
+                "dd", f"if={filename}", "bs=129", "count=1",
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -1103,8 +1210,6 @@ def _peek_test_lifecycle_stage(nonce: str, *, timeout: float = 5) -> str | None:
             timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired):
-        pass
-    if result is None:
         return None
     if result.returncode != 0 or len(result.stdout) > 128:
         return None
@@ -1112,6 +1217,102 @@ def _peek_test_lifecycle_stage(nonce: str, *, timeout: float = 5) -> str | None:
     if stage is not None and observation is not None:
         return _ObservedLifecycleStage(stage, observation)
     return stage
+
+
+def _read_owned_marker(
+    nonce: str,
+    *,
+    timeout: float = 5,
+) -> _OwnedMarkerEvidence:
+    try:
+        filename = _test_lifecycle_filename(nonce)
+    except ValueError:
+        return _OwnedMarkerEvidence("unavailable", "absent", "unknown")
+    adb = _adb_path()
+    if adb is None:
+        return _OwnedMarkerEvidence("unavailable", "absent", "unknown")
+    prefix = _test_lifecycle_adb_prefix(adb)
+    if prefix is None:
+        return _OwnedMarkerEvidence("unavailable", "absent", "unknown")
+    deadline = time.monotonic() + max(0.0, timeout)
+
+    def invoke(arguments: list[str]) -> subprocess.CompletedProcess[bytes] | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            return subprocess.run(
+                [*prefix, "exec-out", "run-as", _TEST_PACKAGE, *arguments],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=remaining,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    channel = invoke(["true"])
+    if channel is None or channel.returncode != 0:
+        return _OwnedMarkerEvidence("unavailable", "absent", "unknown")
+    exists = invoke(["test", "-e", filename])
+    if exists is None:
+        return _OwnedMarkerEvidence("available", "readUnavailable", "unknown")
+    if exists.returncode == 1:
+        return _OwnedMarkerEvidence("available", "absent", "unknown")
+    if exists.returncode != 0:
+        return _OwnedMarkerEvidence("available", "readUnavailable", "unknown")
+    result = invoke(["dd", f"if={filename}", "bs=129", "count=1"])
+    if result is None or result.returncode != 0:
+        return _OwnedMarkerEvidence("available", "readUnavailable", "unknown")
+    if not result.stdout or len(result.stdout) > 128:
+        return _OwnedMarkerEvidence("available", "invalid", "unknown")
+    stage, observation = _decode_test_lifecycle_marker(result.stdout)
+    if stage is None:
+        return _OwnedMarkerEvidence("available", "invalid", "unknown")
+    body_failure = getattr(stage, "body_failure", None)
+    observed_stage = str(stage)
+    if observation is not None:
+        observed_stage = str(_ObservedLifecycleStage(stage, observation))
+    return _OwnedMarkerEvidence(
+        "available", "observed", "observed",
+        stage=observed_stage,
+        body_failure=body_failure,
+        initial_frame_observation=observation,
+    )
+
+
+def _apply_owned_marker_evidence(
+    diagnostic: dict[str, object],
+    evidence: _OwnedMarkerEvidence,
+) -> dict[str, object]:
+    updated = dict(diagnostic)
+    updated["ownedMarkerAvailability"] = evidence.availability()
+    exact_counts = {
+        "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+    }
+    body_failure = evidence.body_failure
+    serialized_body = diagnostic.get("testBodyFailure")
+    serialized_stage = diagnostic.get("acceptanceStage")
+    conflicts = body_failure is not None and (
+        serialized_body is not None and serialized_body != body_failure
+        or serialized_stage is not None and serialized_stage != "testBody"
+    )
+    if conflicts:
+        updated["ownedMarkerAvailability"] = {
+            "channel": "available", "record": "invalid", "writer": "unknown",
+        }
+        return updated
+    if (diagnostic.get("code") == "instrumentation_test_failure"
+            and diagnostic.get("counts") == exact_counts
+            and evidence.channel == "available"
+            and evidence.record == "observed"
+            and evidence.writer == "observed"
+            and body_failure is not None
+            and evidence.stage == body_failure.get("lifecycleStage")
+            and _classification_source_matches()):
+        updated["ownedBodyFailure"] = dict(body_failure)
+    return updated
 
 
 def _cleanup_test_lifecycle_stage(nonce: str) -> None:
@@ -1163,6 +1364,9 @@ class _OwnedLifecycleObserver:
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._stage: str | None = None
+        self._evidence = _OwnedMarkerEvidence(
+            "unavailable", "absent", "unknown",
+        )
         self._thread = threading.Thread(target=self._observe, daemon=True)
 
     def start(self) -> None:
@@ -1175,13 +1379,22 @@ class _OwnedLifecycleObserver:
     def _observe(self) -> None:
         while not self._stop.is_set():
             try:
-                stage = _peek_test_lifecycle_stage(self._nonce, timeout=1)
+                evidence = _read_owned_marker(self._nonce, timeout=1)
             except Exception:
                 # Diagnostic failures must never replace the owned test result.
-                stage = None
-            if isinstance(stage, str) and stage in _TEST_LIFECYCLE_STAGE_SET:
-                with self._lock:
-                    self._stage = stage
+                evidence = _OwnedMarkerEvidence(
+                    "unavailable", "absent", "unknown",
+                )
+            with self._lock:
+                if self._stop.is_set():
+                    return
+                self._evidence = _merge_owned_marker_evidence(
+                    self._evidence, evidence,
+                )
+                self._stage = (
+                    self._evidence.stage
+                    if self._evidence.record == "observed" else None
+                )
             if self._stop.is_set():
                 return
             self._stop.wait(0.5)
@@ -1189,6 +1402,10 @@ class _OwnedLifecycleObserver:
     def last_stage(self) -> str | None:
         with self._lock:
             return self._stage
+
+    def last_evidence(self) -> _OwnedMarkerEvidence:
+        with self._lock:
+            return self._evidence
 
     def stop(self) -> str | None:
         self._stop.set()
@@ -1198,6 +1415,29 @@ class _OwnedLifecycleObserver:
             except RuntimeError:
                 pass
         return self.last_stage()
+
+    def observe_after_host_exit(
+        self,
+    ) -> tuple[str | None, _OwnedMarkerEvidence]:
+        """Stop polling and make one final bounded read after host exit."""
+        self.stop()
+        if self._thread.is_alive():
+            return self.last_stage(), self.last_evidence()
+        try:
+            observed = _read_owned_marker(self._nonce, timeout=1)
+        except Exception:
+            observed = _OwnedMarkerEvidence(
+                "unavailable", "absent", "unknown",
+            )
+        with self._lock:
+            self._evidence = _merge_owned_marker_evidence(
+                self._evidence, observed,
+            )
+            self._stage = (
+                self._evidence.stage
+                if self._evidence.record == "observed" else None
+            )
+            return self._stage, self._evidence
 
 
 def _stop_owned_process(process: subprocess.Popen[bytes]) -> None:
@@ -1727,7 +1967,10 @@ def _run_owned_shadow_baseline(
     runner_temp: Path,
     diagnostic_nonce: str,
     timeout: float = 1200,
-) -> tuple[int, dict[str, object] | None, bool | None, str | None]:
+) -> tuple[
+    int, dict[str, object] | None, bool | None, str | None,
+    _OwnedMarkerEvidence,
+]:
     """Run two authenticated lifetimes against one owned patched shadow host."""
     _test_lifecycle_filename(diagnostic_nonce)
     environment = {**os.environ, "DISPLAY": _DISPLAY}
@@ -1741,6 +1984,11 @@ def _run_owned_shadow_baseline(
     lifecycle = _OwnedLifecycleObserver(diagnostic_nonce)
     selector = selectors.DefaultSelector()
     deadline = time.monotonic() + timeout
+    host_gradle_exited = False
+    host_exit_observed = False
+    final_stage: str | None = None
+    final_evidence = lifecycle.last_evidence()
+    pending_error: BaseException | None = None
     with tempfile.TemporaryDirectory(
         prefix="larenor-f62-channels-", dir=runner_temp,
     ) as temporary:
@@ -1801,17 +2049,22 @@ def _run_owned_shadow_baseline(
                     raise subprocess.TimeoutExpired(command, timeout)
                 gradle_status = gradle.poll()
                 if gradle_status is not None:
+                    host_gradle_exited = True
                     if gradle_status != 0:
                         shadow_log_size = _drain_shadow_output(
                             shadow.stdout.fileno(), shadow_log_fd, shadow_log_size,
                         )
                         os.fsync(shadow_log_fd)
+                        final_stage, final_evidence = (
+                            lifecycle.observe_after_host_exit()
+                        )
+                        host_exit_observed = True
                         return (
                             gradle_status,
                             None,
                             _server_resize_requested(shadow_log_path),
-                            lifecycle.stop()
-                            or _peek_test_lifecycle_stage(diagnostic_nonce),
+                            final_stage,
+                            final_evidence,
                         )
                     if (
                         key_witness.complete
@@ -1822,7 +2075,14 @@ def _run_owned_shadow_baseline(
                     ):
                         evidence = _channel_evidence(witness_base)
                         evidence["shadowBinarySha256"] = shadow_binary_digest
-                        return 0, evidence, None, None
+                        final_stage, final_evidence = (
+                            lifecycle.observe_after_host_exit()
+                        )
+                        host_exit_observed = True
+                        return (
+                            0, evidence, None, None,
+                            final_evidence,
+                        )
                     if gradle_finished_at is None:
                         gradle_finished_at = time.monotonic()
                     elif time.monotonic() - gradle_finished_at >= 5:
@@ -1902,7 +2162,7 @@ def _run_owned_shadow_baseline(
                     _mark_clipboard_effect()
                     clip_marked = True
         except BaselineFailure as error:
-            error.test_lifecycle_stage = lifecycle.stop()
+            pending_error = error
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -1917,7 +2177,7 @@ def _run_owned_shadow_baseline(
                     error.server_resize_requested = None
             raise
         except subprocess.TimeoutExpired as error:
-            error.test_lifecycle_stage = lifecycle.stop()
+            pending_error = error
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -1932,14 +2192,25 @@ def _run_owned_shadow_baseline(
                     error.server_resize_requested = None
             raise
         except OSError as error:
-            error.test_lifecycle_stage = lifecycle.stop()
+            pending_error = error
             raise
         finally:
-            lifecycle.stop()
             selector.close()
             if gradle is not None and gradle.poll() is None:
                 _stop_owned_process(gradle)
-            _cleanup_test_lifecycle_stage(diagnostic_nonce)
+            if host_gradle_exited:
+                if not host_exit_observed:
+                    final_stage, final_evidence = (
+                        lifecycle.observe_after_host_exit()
+                    )
+                    host_exit_observed = True
+            else:
+                lifecycle.stop()
+                final_stage = lifecycle.last_stage()
+                final_evidence = lifecycle.last_evidence()
+            if pending_error is not None:
+                pending_error.test_lifecycle_stage = final_stage
+                pending_error.owned_marker_evidence = final_evidence
             if xinput is not None:
                 _stop_owned_process(xinput)
             if shadow is not None:
@@ -1973,6 +2244,7 @@ def main() -> int:
                 channel_evidence,
                 server_resize_requested,
                 test_lifecycle_stage,
+                owned_marker_evidence,
             ) = _run_owned_shadow_baseline(
                 [
                     *gradle, "--no-daemon",
@@ -1997,6 +2269,7 @@ def main() -> int:
             code=error.code,
             server_resize_requested=error.server_resize_requested,
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
+            owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
         )
         raise AcceptanceFailure(str(error)) from None
     except subprocess.TimeoutExpired as error:
@@ -2009,6 +2282,7 @@ def main() -> int:
                 error, "server_resize_requested", None,
             ),
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
+            owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
         )
         raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
     except (AndroidAcceptanceGradleError, OSError) as error:
@@ -2016,6 +2290,7 @@ def main() -> int:
             runner_temp, package_versions,
             code="instrumentation_launch_unavailable",
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
+            owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None
@@ -2025,6 +2300,7 @@ def main() -> int:
             package_versions,
             server_resize_requested=server_resize_requested,
             test_lifecycle_stage=test_lifecycle_stage,
+            owned_marker_evidence=owned_marker_evidence,
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation failed; public diagnostics written")

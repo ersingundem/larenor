@@ -17,8 +17,12 @@ class RdpPackagedLifecycleDiagnosticTest {
     @Test
     fun bodyFailureMarkerIsClosedStageAndExactThrowableWithoutPrivateMessage() {
         val secret = "private-provider-and-credential-detail"
+        val markers = mutableListOf<String>()
         val failure = try {
-            diagnoseOwnedTestBody { entered ->
+            diagnoseOwnedTestBody { entered, registerFailureMarker ->
+                registerFailureMarker { stage, throwable ->
+                    markers += bodyFailureMarker(stage, throwable)
+                }
                 entered("providerInspection")
                 throw IllegalStateException(secret)
             }
@@ -35,10 +39,14 @@ class RdpPackagedLifecycleDiagnosticTest {
             failure.message,
         )
         assertFalse(failure.stackTraceToString().contains(secret))
+        assertEquals(
+            listOf("bodyFailure|v1|providerInspection|java.lang.IllegalStateException"),
+            markers,
+        )
 
         class PrivateFailure : RuntimeException(secret)
         val unclassified = try {
-            diagnoseOwnedTestBody { entered ->
+            diagnoseOwnedTestBody { entered, _ ->
                 entered("runtimeValidation")
                 throw PrivateFailure()
             }
@@ -61,7 +69,7 @@ class RdpPackagedLifecycleDiagnosticTest {
             AssertionError("private"),
         )
         val observedTyped = try {
-            diagnoseOwnedTestBody { throw typed }
+            diagnoseOwnedTestBody { _, _ -> throw typed }
             fail("typed failure must escape")
             error("unreachable")
         } catch (caught: AssertionError) {
@@ -72,7 +80,7 @@ class RdpPackagedLifecycleDiagnosticTest {
         Thread.interrupted()
         try {
             val interrupted = try {
-                diagnoseOwnedTestBody { entered ->
+                diagnoseOwnedTestBody { entered, _ ->
                     entered("firstSecurityWait")
                     throw InterruptedException("private")
                 }
@@ -89,7 +97,7 @@ class RdpPackagedLifecycleDiagnosticTest {
 
         val fatal = object : VirtualMachineError("private") {}
         val observedFatal = try {
-            diagnoseOwnedTestBody { throw fatal }
+            diagnoseOwnedTestBody { _, _ -> throw fatal }
             fail("fatal error must escape")
             error("unreachable")
         } catch (caught: VirtualMachineError) {
@@ -99,7 +107,7 @@ class RdpPackagedLifecycleDiagnosticTest {
 
         val death = ThreadDeath()
         val observedDeath = try {
-            diagnoseOwnedTestBody { throw death }
+            diagnoseOwnedTestBody { _, _ -> throw death }
             fail("thread death must escape")
             error("unreachable")
         } catch (caught: ThreadDeath) {

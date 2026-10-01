@@ -218,6 +218,15 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             runner._CHANNEL_PHASE_CLIP,
         ))
         evidence = CHANNEL_EVIDENCE.copy()
+        marker_evidence = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage="complete",
+        )
+        lifecycle = SimpleNamespace(
+            start=lambda: None,
+            stop=lambda: None,
+            last_evidence=lambda: marker_evidence,
+            observe_after_host_exit=lambda: (None, marker_evidence),
+        )
         with tempfile.TemporaryDirectory() as temporary:
             with (
                 mock.patch.object(
@@ -229,7 +238,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     ),
                 ),
                 mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
-                mock.patch.object(runner, "_OwnedLifecycleObserver"),
+                mock.patch.object(
+                    runner, "_OwnedLifecycleObserver", return_value=lifecycle,
+                ),
                 mock.patch.object(runner, "_cleanup_test_lifecycle_stage"),
                 mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
                 mock.patch.object(runner.os, "read", side_effect=lambda _fd, _size: next(output)),
@@ -246,7 +257,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                         ["owned-gradle"], runner_temp=Path(temporary),
                         diagnostic_nonce="d" * 64,
                     ),
-                    (0, evidence, None, None),
+                    (0, evidence, None, None, marker_evidence),
                 )
         resize.assert_called_once_with()
         marker.assert_called_once_with()
@@ -454,7 +465,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             run.call_args_list[0].args[0],
             [
                 "/sdk/adb", "exec-out", "run-as", runner._TEST_PACKAGE,
-                "dd", f"if=files/f62-owned-stage-{nonce}", "bs=128", "count=1",
+                "dd", f"if=files/f62-owned-stage-{nonce}", "bs=129", "count=1",
             ],
         )
         self.assertEqual(
@@ -527,6 +538,151 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["timeout"], 1)
         self.assertNotIn("rm", run.call_args.args[0])
 
+    def test_owned_marker_reader_distinguishes_channel_absent_read_and_observed(self):
+        nonce = "d" * 64
+        adb = Path("/sdk/adb")
+        scenarios = (
+            (
+                [SimpleNamespace(returncode=1, stdout=b"")],
+                runner._OwnedMarkerEvidence(
+                    channel="unavailable", record="absent", writer="unknown",
+                ),
+            ),
+            (
+                [
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=1, stdout=b""),
+                ],
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="absent", writer="unknown",
+                ),
+            ),
+            (
+                [
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=1, stdout=b""),
+                ],
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="readUnavailable", writer="unknown",
+                ),
+            ),
+            (
+                [
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=0, stdout=b"private"),
+                ],
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="invalid", writer="unknown",
+                ),
+            ),
+            (
+                [
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(
+                        returncode=0,
+                        stdout=(
+                            b"bodyFailure|v1|providerInspection|"
+                            b"java.lang.IllegalStateException"
+                        ),
+                    ),
+                ],
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="observed", writer="observed",
+                    stage="providerInspection",
+                    body_failure={
+                        "lifecycleStage": "providerInspection",
+                        "throwableClass": "java.lang.IllegalStateException",
+                    },
+                ),
+            ),
+        )
+        for completed, expected in scenarios:
+            with self.subTest(expected=expected), mock.patch.object(
+                runner, "_adb_path", return_value=adb,
+            ), mock.patch.object(
+                runner.subprocess, "run", side_effect=completed,
+            ) as run:
+                self.assertEqual(
+                    runner._read_owned_marker(nonce, timeout=1), expected,
+                )
+                timeouts = [
+                    call.kwargs["timeout"] for call in run.call_args_list
+                ]
+                self.assertTrue(all(0 < value <= 1 for value in timeouts))
+                self.assertEqual(timeouts, sorted(timeouts, reverse=True))
+                self.assertTrue(all(
+                    call.kwargs["stderr"] is runner.subprocess.DEVNULL
+                    for call in run.call_args_list
+                ))
+
+    def test_owned_marker_reader_rejects_truncated_valid_prefix_and_bad_nonce(self):
+        nonce = "d" * 64
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+            mock.patch.object(
+                runner.subprocess,
+                "run",
+                side_effect=[
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    SimpleNamespace(
+                        returncode=0,
+                        stdout=(
+                            b"bodyFailure|v1|runtimeValidation|"
+                            b"java.lang.AssertionError" + b" " * 80
+                        )[:129],
+                    ),
+                ],
+            ),
+        ):
+            self.assertEqual(
+                runner._read_owned_marker(nonce, timeout=1),
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="invalid", writer="unknown",
+                ),
+            )
+        self.assertEqual(
+            runner._read_owned_marker("bad", timeout=1),
+            runner._OwnedMarkerEvidence(
+                channel="unavailable", record="absent", writer="unknown",
+            ),
+        )
+
+    def test_owned_marker_reader_shares_one_deadline_across_all_adb_steps(self):
+        nonce = "d" * 64
+        completed = [
+            SimpleNamespace(returncode=0, stdout=b""),
+            SimpleNamespace(returncode=0, stdout=b""),
+            SimpleNamespace(returncode=0, stdout=b"initialFrameWait"),
+        ]
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+            mock.patch.object(
+                runner.time, "monotonic",
+                side_effect=[10.0, 10.0, 10.6, 11.1],
+            ),
+            mock.patch.object(
+                runner.subprocess, "run", side_effect=completed,
+            ) as process,
+        ):
+            self.assertEqual(
+                runner._read_owned_marker(nonce, timeout=1),
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="readUnavailable",
+                    writer="unknown",
+                ),
+            )
+        self.assertEqual(process.call_count, 2)
+        self.assertAlmostEqual(
+            process.call_args_list[0].kwargs["timeout"], 1.0,
+        )
+        self.assertAlmostEqual(
+            process.call_args_list[1].kwargs["timeout"], 0.4,
+        )
+
     def test_lifecycle_observer_preserves_stage_after_marker_disappears(self):
         absent = threading.Event()
         calls = []
@@ -534,11 +690,16 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         def peek(nonce, *, timeout):
             calls.append((nonce, timeout))
             if len(calls) == 1:
-                return "initialFrameWait"
+                return runner._OwnedMarkerEvidence(
+                    "available", "observed", "observed",
+                    stage="initialFrameWait",
+                )
             absent.set()
-            return None
+            return runner._OwnedMarkerEvidence(
+                "available", "absent", "unknown",
+            )
 
-        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+        with mock.patch.object(runner, "_read_owned_marker", side_effect=peek):
             observer = runner._OwnedLifecycleObserver("d" * 64)
             observer.start()
             try:
@@ -550,20 +711,23 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertTrue(all(call == ("d" * 64, 1) for call in calls))
         self.assertFalse(observer._thread.is_alive())
 
-    def test_lifecycle_observer_retains_valid_inflight_peek_when_stopped(self):
+    def test_lifecycle_observer_drops_inflight_peek_after_stop(self):
         entered = threading.Event()
         observer = runner._OwnedLifecycleObserver("d" * 64)
 
         def peek(_nonce, *, timeout):
             entered.set()
             self.assertTrue(observer._stop.wait(timeout=1))
-            return "initialFrameWait"
+            return runner._OwnedMarkerEvidence(
+                "available", "observed", "observed",
+                stage="initialFrameWait",
+            )
 
-        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+        with mock.patch.object(runner, "_read_owned_marker", side_effect=peek):
             observer.start()
             try:
                 self.assertTrue(entered.wait(timeout=1))
-                self.assertEqual(observer.stop(), "initialFrameWait")
+                self.assertIsNone(observer.stop())
             finally:
                 observer.stop()
         self.assertFalse(observer._thread.is_alive())
@@ -579,11 +743,13 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             if len(calls) == 1:
                 entered.set()
                 release.wait(timeout=2)
-                return "private-host\nsecret"
+                return runner._OwnedMarkerEvidence(
+                    "available", "invalid", "unknown",
+                )
             second.set()
             raise OSError("private secondary I/O failure")
 
-        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+        with mock.patch.object(runner, "_read_owned_marker", side_effect=peek):
             observer = runner._OwnedLifecycleObserver("d" * 64)
             observer.start()
             try:
@@ -598,10 +764,39 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 self.assertIsNone(observer.stop())
         self.assertFalse(observer._thread.is_alive())
 
+    def test_lifecycle_observer_suppresses_late_cache_when_join_fails(self):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def peek(_nonce, *, timeout):
+            entered.set()
+            release.wait(timeout=2)
+            return runner._OwnedMarkerEvidence(
+                "available", "observed", "observed",
+                stage="initialFrameWait",
+            )
+
+        with (
+            mock.patch.object(runner, "_read_owned_marker", side_effect=peek),
+            mock.patch.object(runner, "_cleanup_test_lifecycle_stage") as cleanup,
+        ):
+            observer = runner._OwnedLifecycleObserver("d" * 64)
+            observer.start()
+            self.assertTrue(entered.wait(timeout=1))
+            with mock.patch.object(observer._thread, "join", return_value=None):
+                observer.stop()
+            cleanup.assert_not_called()
+            release.set()
+            observer._thread.join(timeout=1)
+            self.assertFalse(observer._thread.is_alive())
+            self.assertIsNone(observer.last_stage())
+            cleanup.assert_not_called()
+
     def test_failed_gradle_keeps_stage_observed_before_package_teardown(self):
         observer = runner._OwnedLifecycleObserver("d" * 64)
         stage_gone = threading.Event()
         peek_entered = threading.Event()
+        reads = []
 
         def peek(_nonce, *, timeout=5):
             if stage_gone.is_set():
@@ -609,6 +804,25 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             peek_entered.set()
             self.assertTrue(observer._stop.wait(timeout=1))
             return "initialFrameWait"
+
+        def read_marker(_nonce, *, timeout=5):
+            reads.append(timeout)
+            if len(reads) == 1:
+                peek_entered.set()
+                self.assertTrue(observer._stop.wait(timeout=1))
+                return runner._OwnedMarkerEvidence(
+                    "available", "observed", "observed",
+                    stage="initialFrameWait",
+                )
+            self.assertTrue(stage_gone.is_set())
+            return runner._OwnedMarkerEvidence(
+                "available", "observed", "observed",
+                stage="providerInspection",
+                body_failure={
+                    "lifecycleStage": "providerInspection",
+                    "throwableClass": "java.lang.IllegalStateException",
+                },
+            )
 
         class Gradle:
             def poll(self):
@@ -627,8 +841,14 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             with (
                 mock.patch.object(runner, "_OwnedLifecycleObserver", return_value=observer),
+                mock.patch.object(
+                    runner, "_read_owned_marker", side_effect=read_marker,
+                ),
                 mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek),
-                mock.patch.object(runner, "_cleanup_test_lifecycle_stage") as cleanup,
+                mock.patch.object(
+                    runner, "_cleanup_test_lifecycle_stage",
+                    side_effect=lambda _nonce: self.assertTrue(stage_gone.is_set()),
+                ) as cleanup,
                 mock.patch.object(
                     runner, "_start_owned_shadow",
                     return_value=(shadow, 8, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
@@ -646,11 +866,114 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                         ["owned-gradle"], runner_temp=Path(temporary),
                         diagnostic_nonce="d" * 64, timeout=5,
                     ),
-                    (1, None, False, "initialFrameWait"),
+                    (
+                        1, None, False, "providerInspection",
+                        runner._OwnedMarkerEvidence(
+                            "available", "observed", "observed",
+                            stage="providerInspection",
+                            body_failure={
+                                "lifecycleStage": "providerInspection",
+                                "throwableClass": "java.lang.IllegalStateException",
+                            },
+                        ),
+                    ),
                 )
-        cleanup.assert_called_once_with("d" * 64)
+        cleanup.assert_not_called()
         self.assertTrue(stage_gone.is_set())
+        self.assertEqual(reads, [1, 1])
         self.assertFalse(observer._thread.is_alive())
+
+    def test_baseline_failure_stops_host_and_leaves_marker_without_terminal_writer(self):
+        order = []
+
+        class Process:
+            def __init__(self, name, *, stopped=False, stdout=None, stop_after=None):
+                self.name = name
+                self.stopped = stopped
+                self.stdout = stdout
+                self.stop_after = stop_after
+                self.polls = 0
+
+            def poll(self):
+                self.polls += 1
+                if self.stop_after is not None and self.polls >= self.stop_after:
+                    return 1
+                return 1 if self.stopped else None
+
+        class Selector:
+            def register(self, *_args):
+                pass
+
+            def select(self, *, timeout):
+                return []
+
+            def close(self):
+                order.append("selectorClosed")
+
+        class Lifecycle:
+            def start(self):
+                pass
+
+            def stop(self):
+                order.append("observerStopped")
+                return None
+
+            def last_evidence(self):
+                return runner._OwnedMarkerEvidence(
+                    "available", "absent", "unknown",
+                )
+
+            def last_stage(self):
+                return None
+
+            def observe_after_host_exit(self):
+                order.append("markerFinalized")
+                return (
+                    None,
+                    runner._OwnedMarkerEvidence(
+                        "available", "absent", "unknown",
+                    ),
+                )
+
+        shadow = Process("shadow", stdout=SimpleNamespace(fileno=lambda: 7))
+        xinput = Process("xinput", stdout=object(), stop_after=2)
+        gradle = Process("gradle")
+
+        def stop_process(process):
+            order.append(f"{process.name}Stopped")
+            process.stopped = True
+
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                mock.patch.object(
+                    runner, "_start_owned_shadow",
+                    return_value=(
+                        shadow, 8, "c" * 64, 9,
+                        Path(temporary) / "shadow.log", 0,
+                    ),
+                ),
+                mock.patch.object(
+                    runner.subprocess, "Popen", side_effect=[xinput, gradle],
+                ),
+                mock.patch.object(
+                    runner, "_OwnedLifecycleObserver", return_value=Lifecycle(),
+                ),
+                mock.patch.object(
+                    runner.selectors, "DefaultSelector", return_value=Selector(),
+                ),
+                mock.patch.object(runner, "_drain_shadow_output", return_value=0),
+                mock.patch.object(runner, "_server_resize_requested", return_value=False),
+                mock.patch.object(runner, "_stop_owned_process", side_effect=stop_process),
+                mock.patch.object(runner.os, "fsync"),
+                mock.patch.object(runner.os, "close"),
+            ):
+                with self.assertRaises(runner.BaselineFailure):
+                    runner._run_owned_shadow_baseline(
+                        ["owned-gradle"], runner_temp=Path(temporary),
+                        diagnostic_nonce="d" * 64, timeout=5,
+                    )
+        self.assertLess(order.index("gradleStopped"), order.index("observerStopped"))
+        self.assertNotIn("markerFinalized", order)
 
     def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
         completed = [
@@ -1352,6 +1675,166 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner._decode_test_lifecycle_marker(raw), (None, None),
                 )
 
+    def test_body_failure_marker_decoder_is_closed_and_rejects_injection(self):
+        observed, initial = runner._decode_test_lifecycle_marker(
+            b"bodyFailure|v1|providerInspection|java.lang.IllegalStateException",
+        )
+        self.assertIsNone(initial)
+        self.assertEqual(observed, "providerInspection")
+        self.assertEqual(observed.body_failure, {
+            "lifecycleStage": "providerInspection",
+            "throwableClass": "java.lang.IllegalStateException",
+        })
+        for raw in (
+            b"bodyFailure|v1|private|java.lang.AssertionError",
+            b"bodyFailure|v1|runtimeValidation|private.Secret",
+            b"bodyFailure|v1|runtimeValidation|java.lang.AssertionError|secret",
+            b"bodyFailure|v2|runtimeValidation|java.lang.AssertionError",
+            b"bodyFailure|v1|runtimeValidation|java.lang.AssertionError\nsecret",
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    runner._decode_test_lifecycle_marker(raw), (None, None),
+                )
+
+    def test_body_marker_only_upgrades_exact_named_failure_with_bound_source(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "unclassified",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+        }
+        marker = runner._OwnedMarkerEvidence(
+            channel="available",
+            record="observed",
+            writer="observed",
+            stage="providerInspection",
+            body_failure={
+                "lifecycleStage": "providerInspection",
+                "throwableClass": "java.lang.IllegalStateException",
+            },
+        )
+        with mock.patch.object(
+            runner, "_classification_source_matches", return_value=True,
+        ):
+            upgraded = runner._apply_owned_marker_evidence(base, marker)
+        self.assertEqual(upgraded["exceptionType"], "unclassified")
+        self.assertEqual(upgraded["ownedBodyFailure"], marker.body_failure)
+        self.assertEqual(upgraded["ownedMarkerAvailability"], {
+            "channel": "available", "record": "observed", "writer": "observed",
+        })
+        for changed in (
+            {**base, "code": "instrumentation_test_error"},
+            {**base, "counts": {"tests": 2, "skipped": 0, "failures": 1, "errors": 0}},
+            {**base, "counts": {"tests": 1, "skipped": 0, "failures": 0, "errors": 1}},
+        ):
+            with mock.patch.object(
+                runner, "_classification_source_matches", return_value=True,
+            ):
+                rejected = runner._apply_owned_marker_evidence(changed, marker)
+            self.assertNotIn("ownedBodyFailure", rejected)
+        with mock.patch.object(
+            runner, "_classification_source_matches", return_value=False,
+        ):
+            rejected = runner._apply_owned_marker_evidence(base, marker)
+        self.assertNotIn("ownedBodyFailure", rejected)
+
+    def test_marker_evidence_conflict_and_unavailability_never_infer_failure(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "unclassified",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+        }
+        for evidence, availability in (
+            (
+                runner._OwnedMarkerEvidence(
+                    channel="unavailable", record="absent", writer="unknown",
+                ),
+                {"channel": "unavailable", "record": "absent", "writer": "unknown"},
+            ),
+            (
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="readUnavailable", writer="unknown",
+                ),
+                {"channel": "available", "record": "readUnavailable", "writer": "unknown"},
+            ),
+            (
+                runner._OwnedMarkerEvidence(
+                    channel="available", record="invalid", writer="unknown",
+                ),
+                {"channel": "available", "record": "invalid", "writer": "unknown"},
+            ),
+        ):
+            diagnostic = runner._apply_owned_marker_evidence(base, evidence)
+            self.assertEqual(diagnostic["ownedMarkerAvailability"], availability)
+            self.assertNotIn("ownedBodyFailure", diagnostic)
+
+    def test_ordinary_lifecycle_marker_preserves_primary_xml_classification(self):
+        exception_type = (
+            "com.ersingundem.larenor.rdp."
+            "RdpOwnedInitialFrameNoCallbackFailure"
+        )
+        diagnostic = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": exception_type,
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 115,
+            }],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+            "acceptanceStage": "initialFrameWait",
+        }
+        result = runner._apply_owned_marker_evidence(
+            diagnostic,
+            runner._OwnedMarkerEvidence(
+                channel="available", record="observed", writer="observed",
+                stage="initialFrameWait",
+            ),
+        )
+        self.assertEqual(result["exceptionType"], exception_type)
+        self.assertEqual(result["acceptanceStage"], "initialFrameWait")
+        self.assertEqual(result["ownedMarkerAvailability"], {
+            "channel": "available", "record": "observed", "writer": "observed",
+        })
+        self.assertNotIn("ownedBodyFailure", result)
+
+    def test_failure_receipt_rejects_forged_owned_marker_fields(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "unclassified",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+            "ownedMarkerAvailability": {
+                "channel": "available", "record": "observed", "writer": "observed",
+            },
+            "ownedBodyFailure": {
+                "lifecycleStage": "providerInspection",
+                "throwableClass": "java.lang.IllegalStateException",
+            },
+        }
+        with mock.patch.object(
+            runner, "_classification_source_matches", return_value=True,
+        ):
+            receipt = runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64,
+                diagnostic=base,
+            )
+        self.assertEqual(
+            receipt["diagnostic"]["ownedBodyFailure"], base["ownedBodyFailure"],
+        )
+        for changed in (
+            {**base, "ownedMarkerAvailability": {**base["ownedMarkerAvailability"], "extra": True}},
+            {**base, "ownedMarkerAvailability": {"channel": "private", "record": "observed", "writer": "observed"}},
+            {**base, "ownedBodyFailure": {"lifecycleStage": "private", "throwableClass": "java.lang.AssertionError"}},
+            {**base, "ownedBodyFailure": {"lifecycleStage": "providerInspection", "throwableClass": "private.Secret"}},
+            {**base, "message": "private"},
+        ):
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=changed,
+                )
+
     def test_failure_publication_uses_observation_only_for_matching_throwable(self):
         observation = {
             "callbackCount": 0,
@@ -1360,7 +1843,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             "sessionPhase": "active",
             "failureCode": None,
         }
-        stage = runner._ObservedLifecycleStage("initialFrameWait", observation)
+        stage = "initialFrameWait"
+        marker = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed",
+            stage=stage,
+            initial_frame_observation=observation,
+        )
         exact_type = (
             "com.ersingundem.larenor.rdp."
             "RdpOwnedInitialFrameNoCallbackFailure"
@@ -1383,6 +1871,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             runner._publish_failed_run(
                 Path("/private/tmp/public"), {},
                 test_lifecycle_stage=stage,
+                owned_marker_evidence=marker,
             )
         published = publish.call_args.args[0]
         self.assertEqual(published["initialFrameObservation"], observation)
@@ -1405,6 +1894,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             runner._publish_failed_run(
                 Path("/private/tmp/public"), {},
                 test_lifecycle_stage=stage,
+                owned_marker_evidence=marker,
             )
         self.assertNotIn(
             "initialFrameObservation", publish.call_args.args[0],
@@ -1839,7 +2329,13 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
             def failed_process(*_args, **_kwargs):
                 report.write_text(failure_xml)
-                return 1, None, True, "initialFrameWait"
+                return (
+                    1, None, True, "initialFrameWait",
+                    runner._OwnedMarkerEvidence(
+                        "available", "observed", "observed",
+                        stage="initialFrameWait",
+                    ),
+                )
             environment = {
                 "RUNNER_TEMP": str(root),
                 "RDP_ACCEPTANCE_PASSWORD": "disposable-password",
