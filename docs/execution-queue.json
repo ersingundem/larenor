@@ -4277,7 +4277,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Seyahat için çevrimdışı medya",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4332,10 +4332,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Root46 offline screen/account navigation/vault/Core loopback tests; cached local scope with Core unavailable"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f27-authoritative-retirement-idempotency-2026-10-01.md",
+          "commit": "243cc694536e0a3f348495bbd741da1952b8cbfd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root oldsource duplicatepurge RED; final49Client/0skip plus6fileanalysis GREEN incl dispose/failure/retry/reentry and Core offline/zero-redownload"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f27-authoritative-retirement-idempotency-2026-10-01.md",
+          "commit": "243cc694536e0a3f348495bbd741da1952b8cbfd",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent single-flight exactscope/authority/transient/disposal/retry review; permanent IOfailure remains pending, vault guards unchanged, no eventualpurge claim"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact1916395b genişCI36826527140 Flutter shard0, normal Core kapalı/restart indirme yolu geçti; account.signOut sırasında iki hesap bildirimi aynı purgeScope işlemini eşzamanlı başlatarak Invalid offline record hatası verdi. Authoritative retirement tek-seferli yaşam döngüsü odaklı düzeltiliyor; vault tamper/integrity guardları korunur. Önceki root110 Client/46 Server kanıtı tarihsel; bu yeni kaynak hatası kapanmadan CI bekliyor sayılmaz. FinalHEAD genişCI ve gerçek cihaz/DRM kabulü ayrı."
+      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; CI bekliyor. 1916395b geniş koşusunda bulunan hesap çıkışı temizleme yarışı 243cc694 ile düzeltildi. Tek işlem rezervasyonu bildirimlerden önce kurulur; başarısız temizlik yakalanmış grant/scope ile bekler ve hesap yaşam döngüsünde yeniden denenebilir. Root birleşik 49 Client testi (0 atlanan), altı dosya analizi ve bağımsız inceleme geçti. Vault bütünlük korumaları değişmedi; kalıcı I/O hatasında başarı veya kesin temizlenme iddiası yok. Önceki Core kapalı/restart/yeniden indirmesiz kabul kanıtı korunur. Yeni kaynak geniş CI ve fiziksel decoder/DRM/storage pressure MANUAL kapıları ayrı. docs/testing/f27-authoritative-retirement-idempotency-2026-10-01.md"
     },
     {
       "id": "F28",
@@ -5424,14 +5440,6 @@
           "label": "12 Client widget tests and scoped analyze passed; UI states Sunshine pairing remains"
         },
         {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36797303341",
-          "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
-          "state": "completed",
-          "result": "failed",
-          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt; same-source companion 36797304940 also failed at this preparation boundary"
-        },
-        {
           "kind": "test",
           "ref": "docs/testing/f60-owned-input-disconnect-android-2026-10-01.md",
           "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
@@ -5446,14 +5454,6 @@
           "state": "completed",
           "result": "passed",
           "label": "Canonical Moonlight full app/test APK build400tasks plus source-locked APK verifier; root128 tool/build-policy/queue/progress checks and workflow actionlint; hosted effects unproven"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36801358423",
-          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
-          "state": "completed",
-          "result": "failed",
-          "label": "Full real app/test APK400tasks and instrumentation Gradle returned success, but public receipt rejected unsupported ddmlib testsuites aggregate; named exact1/0skip receipt remains unproven"
         },
         {
           "kind": "ci",
@@ -5651,13 +5651,29 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36828275540",
           "commit": "ed91234d41667c4c546dbbf6d96de61baaed0134",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source HTTPS0 composition repair; strict actual Sunshine frame/PCM/input/two-lifetime/stop/disconnect gate running; no accepted receipt"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exacted912 changed HTTPS0 source: strict original1/1/0/0 failed; pairedClientObserved, unclassified, owned Game.kt frames57/48. Root canonical998B artifact11146891530 validated; underlying cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
+          "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root49 composedClient/0skip plus6fileanalysis; own28modules cover cold recovery visible action, wrongsession receipt, exact serialized retirement and no stop replay"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
+          "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent3P1 findings fixed and root source reviewed; visible cold recovery, exact returnedid, refresh serialization and close-generation fences; providerstop notclaimed"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact691/run36825268673 original1/1/0/0 firstStreamOutput; beforeIssue/IllegalArgumentException. Gerçek pinned Moonlight DB round-trip httpsPort alanını transient0 okur, private launch guardı bunu reddediyordu. 092a9727 değişmiş kaynak upstream0sentinelini kabul ediyor; eski guard RED,43native/0skip GREEN, AndroidTestcompile314task ve pinned primary source incelemesi geçti. Belirsiz yerel oturumun görünür exact cleanup eylemi ayrı odaklı düzeltmede. Exacted912/run36828275540 değişmiş kaynak strict frame/PCM/input/iki yaşam/stop/disconnect koşuyor; kabul henüz yok; aynıSHA kör rerun yok. FinalHEAD genişCI ve MANUAL ayrı. docs/testing/f60-persisted-https-port-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor. 691b54c4/run36825268673 başlatma öncesinde IllegalArgumentException verdi. Pinned Moonlight DB round-trip geçici HTTPS portunu 0 okur; 092a9727 düzeltmesi bu upstream değerini kabul ediyor: eski guard RED,43 native test (0 atlanan) GREEN ve AndroidTest derlemesi geçti. Yerel belirsiz oturum kapatma a67f0d0e ile düzeltildi; root49 Client testi/analiz ve bağımsız inceleme geçti. Değişmiş ed91234d/run36828275540 gerçek yayın kapısı original1/1/0/0 başarısız: pairedClientObserved, owned LarenorMoonlightGame.kt satır57/48, exception unclassified. Canonical998B artifact11146891530 root üretim validatorı ile doğrulandı; native/provider alt neden henüz kanıtlanmadı. Frame/PCM/input/iki yaşam/stop/disconnect kabulü açık. Aynı SHA kör tekrar yok; final HEAD geniş CI ve MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md"
     },
     {
       "id": "G11",
@@ -6011,13 +6027,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36826438225",
           "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact6bbe changed test-body classification source; owned FreeRDP host runtime CI running, no accepted runtime receipt"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact6bbe arm64package passed; x86 original1/1/0/0 still unclassified/no owned frame/body/lifecycle marker,resizefalse; canonical artifact11145584314 root verified, no runtime acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact5aa/run36822994907 arm64 package geçti; x86 original1test/1failure/0error/0skip unclassified, owned frame/lifecycle/initial-terminal marker yok, resize=false. Kesin native alt neden kanıtlanmadı. Exact6bbe source-locked test-body aşama/sınıf tanısı root57 runner/workflow+40subtest, actual AndroidTest compile277 ve bağımsız inceleme geçti; yeni36826438225 owned-host CI sürüyor. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime korunur; aynıSHA kör rerun yok. FinalHEAD genişCI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor. 6bbe8b03/run36826438225 arm64 paket işini geçti; x86 gerçek RDP original1test/1failure/0error/0skip başarısız: unclassified, owned frame/body/lifecycle/initial marker yok, resize=false. Root canonical971B artifact11145584314 kaydını üretim validatorı ile doğruladı. Whole-body guard kaynakla sabit olsa da kayıt hangi native/provider/runner alt nedeninin düştüğünü kanıtlamıyor. Özel job log incelendi; kaynak ve nonce ile bağlı ayrı hata markerı geliştiriliyor. Root57/40subtest ve compile277 tanı/derleme kanıtı runtime kabulü değildir. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/iki yaşam/clean close korunur; aynı SHA kör tekrar yok. Final HEAD geniş CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md"
     },
     {
       "id": "F61",
@@ -6236,9 +6252,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36826527140",
           "commit": "1916395b1d55828c5640b23bd1d04b8ca5f453df",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact191 broad run still active; Flutter shard0 failed F27 duplicate signout purge; other3Flutter/static/nativepackage/APK/host/F08 passed, Server/emulator pending"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact191 broad: all4 Server shards/aggregate, emulator journeys, nativepackage/APK, other3 Flutter/static/host/F08 passed; Flutter0 F27 duplicate signout purge failed, fixed243; changed-source Flutter CI needed"
         },
         {
           "kind": "ci",
@@ -6250,7 +6266,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi.57 seçili/68iş CI bekliyor; F27/F60/F62 reworking; kabul35/127ve3/63. Exact191 Security36826516434 üçişpassed; genişAndroid/allServer36826527140 sürüyor ancak Flutter shard0 F27signout duplicate purge failed; odaklı düzeltme sürüyor. Diğer3Fluttershard/static/nativepackage/host/F08passed; Server/emulator/productAPK henüz terminal değil. F60exact691/36825268673 failed beforeIssue/IllegalArgumentException; pinned DBhttps0guard 092a9727 ile43native/0skip+compile314 geçti, stricted912/run36828275540 başladı, belirsiz yerel cleanup ayrıca düzeltiliyor. F62body tanısı6bbe root57/40subtest+compile277;36826438225arm64packagepassed,x86gerçekhostgate sürüyor. Önceki fullFlutter/allServer/JVMnamed kanıtları tarihsel; başkaFINAL başlamaz;MANUAL/CORE.WEBayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exact191 Security üç işi geçti. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; yeni kaynak Flutter CI gerekiyor. F60 HTTPS0 ve yerel cleanup düzeltildi; strict ed912/run36828275540 original1/1/0/0 başarısız, pairedClientObserved/ownedGame57/48/unclassified; kesin alt neden açık. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni bağlı marker geliştiriliyor. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",

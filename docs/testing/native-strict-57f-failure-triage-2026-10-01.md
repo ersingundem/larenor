@@ -89,3 +89,43 @@ and strict stream runs.
 - [36791191000](https://github.com/ersingundem/larenor/actions/runs/36791191000) — exact `47909b66b1d1bda844f97783e4ac851931a76739`, completed/failed: Owned Sunshine host setup passed, no readiness receipt, exact child cleanup succeeded
 - [36792376426](https://github.com/ersingundem/larenor/actions/runs/36792376426) — exact `04552c724fd8a5f981a3f9f64986605f218604a1`, completed/failed: Receipted Moonlight build passed; Android emulator boot timed out before Python, NSD or provider acceptance
 - [36796250482](https://github.com/ersingundem/larenor/actions/runs/36796250482) — exact `0036260b9d6eb09336b881889e885328f63d6520`, completed/failed: Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt; same-source companion 36796253857 also failed at this preparation boundary
+
+## F62 whole-body diagnostic run
+
+Exact `6bbe8b039f17c2eef12023d23f4476b94d2a3ade` [run36826438225](https://github.com/ersingundem/larenor/actions/runs/36826438225)
+completed unsuccessfully. Arm64 packaging passed; the x86 named original test
+reports **1 test, 1 failure, 0 errors, 0 skips**. The closed diagnostic remains
+`unclassified`, with no owned frame, test-body/lifecycle/initial marker, and
+`serverResizeRequested=false`. The presence of the new body guard does not
+prove that the test body executed or that the app crashed.
+
+Root production failure-receipt validation and canonical byte comparison
+passed for artifact **11145584314**, **971 bytes**, JSON SHA-256
+`aeff032ed7f0bb7ee6a2d6eae9f0f0ed601b4c2db32b4d85c22cd6ceefae7092`.
+The exact completed job110253070899 log is retained privately for source-based
+inspection. No specific provider/native/runner cause is accepted yet, and no
+same-SHA retry is authorized by this evidence.
+
+Additional superseded early records archived for the bounded F60 evidence array:
+
+- [36797303341](https://github.com/ersingundem/larenor/actions/runs/36797303341) — exact `1887ff9a0b19468ff344434863f83e08878e0d18`, completed/failed: Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt; same-source companion 36797304940 also failed at this preparation boundary
+- [36801358423](https://github.com/ersingundem/larenor/actions/runs/36801358423) — exact `d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01`, completed/failed: Full real app/test APK400tasks and instrumentation Gradle returned success, but public receipt rejected unsupported ddmlib testsuites aggregate; named exact1/0skip receipt remains unproven
+
+
+## F60 changed HTTPS-port source: new runtime failure
+
+Exact `ed91234d41667c4c546dbbf6d96de61baaed0134`
+[run 36828275540](https://github.com/ersingundem/larenor/actions/runs/36828275540)
+completed unsuccessfully with the original named test: **1 test, 1 failure,
+0 errors, 0 skips**. The closed diagnostic reports `pairedClientObserved`,
+`unclassified`, and owned `LarenorMoonlightGame.kt` frames at lines 57 and 48.
+It contains no dispatch or accepted frame/audio/input/two-lifetime evidence.
+Those owned frames narrow the investigation; they do not identify a specific
+native/provider cause or prove that the previous HTTPS0 issue persists.
+
+Root production `write_failure_receipt` validation and canonical byte equality
+passed for artifact **11146891530**, **998 bytes**, JSON SHA-256
+`47f55c3faf1c0ec73ecb8bdbd634e5823747506806c9a76167619c738093202a`.
+The exact failed job **110258793929** log is retained privately. No unchanged-source
+retry or runtime success is claimed. The later a67f0d0e Client local-close slice
+is outside this run's source and needs its own changed-source CI.
