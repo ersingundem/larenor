@@ -7,8 +7,8 @@
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
 | **CI bekliyor** | **53 seçili özellik / toplam 64 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Exact `31f152c2` [stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36816571516) `readRejected` ile başarısız; loopback accept/peer sonrası parse öncesi okuma hatası, kesin alt neden açık. Discovery iki yaşam/1test/0skip geçti. Gerçek frame/PCM/input/iki yaşam kabulü açık |
-| **Yeniden çalışılıyor** | **F62** | Exact `70ab1058` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) 1 test/1 failure/0 error/0 skip ile başarısız. Owned source frame 1280×800 ilk kare bekleyişini gösterir; yanlış boyutlu ara callback ihtimali ve alt neden açık. Arm64 package geçti; strict runtime kabulü yok |
+| **Yeniden çalışılıyor** | **F60** | Exact `57f92945` [stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36819571890) 1 test/1 failure/0 error/0 skip; pairing gözlendi, `firstStreamOutput` assertionı başarısız. Gerçek frame/PCM/input/iki yaşam kabulü ve kesin alt neden açık |
+| **Yeniden çalışılıyor** | **F62** | Exact `57f92945` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36819574142) 1 test/1 failure/0 error/0 skip; ilk kare bekleyişinde terminal oturum, resize henüz istenmedi. Arm64 package geçti; native alt neden ve strict runtime kabulü açık |
 | **Yeniden çalışılıyor** | **F21/F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
@@ -55,11 +55,13 @@ F62 ilk kare bekleyişi artık değişmeyen30sn sınırında bounded polling, ex
 
 F30 geniş CI’daki7archive verifier/encoder/engine hatası için positive gerçek media fixture range/colorspace açık tanımlandı; üretim equality/hash/decode/durable kabulü değiştirilmedi. Root37gerçek FFmpeg testi,3workflow/11subtest/actionlint geçti. Exact `0fef589b0228049a119821d4e97af8b7c080e888` [Ubuntu36819883119](https://github.com/ersingundem/larenor/actions/runs/36819883119) başarılı; root exactSHA ve JUnit37test/0failure/0error/0skip kaydını doğruladı. Geniş finalHEAD CI hâlâ gerekli; F30 CI bekliyor. [Sınırlar](testing/f30-explicit-color-fixture-2026-10-01.md).
 
-F60/F62 yeni exact `57f929459a22ab6082e400194e31e0162545f672` [stream36819571890](https://github.com/ersingundem/larenor/actions/runs/36819571890) ve [RDP36819574142](https://github.com/ersingundem/larenor/actions/runs/36819574142) koşularına gönderildi. Sonuç henüz runtime kabulü değildir; ikisi yeniden çalışılıyor,64iş/53seçiliözellik CI bekliyor ve35/127,3/63 kabul sayaçları korunur.
+F60/F62 exact `57f929459a22ab6082e400194e31e0162545f672` [stream36819571890](https://github.com/ersingundem/larenor/actions/runs/36819571890) ve [RDP36819574142](https://github.com/ersingundem/larenor/actions/runs/36819574142) koşuları başarısız tamamlandı. Root exact kaynak, tek named test, 1/1/0/0 sayaçları ve private artifact JSON hashlerini doğruladı. F60 pairing sonrasındaki stream sonucu assertionında, F62 ilk kare öncesi terminal oturumda düşüyor; yayımlanan kanıt kesin provider/native alt nedenini vermiyor. [Dar tanı ve sınırlar](testing/native-strict-57f-failure-triage-2026-10-01.md). İkisi yeniden çalışılıyor;64iş/53seçiliözellik CI bekliyor ve35/127,3/63 kabul sayaçları korunur.
 
 Backup test sunucusunun verified stream bekleme sınırı son yetki kontrolünü kapsayacak şekilde ayrıldı; deliberate post-effect gecikmesi, freshGET ve tekPOST/no replay kabulü korunur. Eski1sfixture deterministicRED, root iki hosted failure node2/2GREEN; production sınırları değişmedi. Yeni Linux kabulü gerekli. [Dar kanıt](testing/backup-effect-timeout-fixture-2026-10-01.md).
 
 F26/F27 Core PlaybackInfo→single-use observation→original-byte lease backend bağlantısı root64provider/IPC/API testiyle geçti. Bildirilmemiş transcode decoderı, consuming-lock TTL yarışı ve kapasitede gözlem kaybı5RED→GREEN ile kapandı. Player kontrolleri/ortak izleme ownership ve offlinecold-start eksikleri açık olduğundan F21/F24–F27 yeniden çalışılıyor; tam kabul sayacı artmaz. [Backend kanıtı](testing/f26-core-playback-info-observation-2026-10-01.md).
+
+F27 token-free yerel medya scope'u root **62 hesap/context testi** ve scoped analizden geçti; offline başlangıçta cached token API oturumu olarak kullanılmaz. Gerçek offline inventory/player navigasyonu tamamlanıyor; F27 yeniden çalışılıyor. [Hesap sınırı](testing/f27-offline-account-local-scope-2026-10-01.md). Backend ve backup düzeltmeleri için [tüm Server CI](https://github.com/ersingundem/larenor/actions/runs/36820807607) exact `0659ac292acae05a458550f33b142c1b2100ea2d` üzerinde başladı; bu koşu daha sonraki Client değişikliklerinin kabulü değildir.
 
 ## Tarihsel doğrulama kayıtları
 

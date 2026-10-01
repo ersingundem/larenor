@@ -5534,13 +5534,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36819571890",
           "commit": "57f929459a22ab6082e400194e31e0162545f672",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact57f source changed PIN ACK fixture;strict owned Sunshine stream run started;not acceptance"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact57f original1test/1failure/0error/0skip;pairedClientObserved then firstStreamOutput line223; stream native_observed assertion failed, actual command state/cause unproved"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact31/run36816571516 strict owned stream failed; PIN bridge readRejected, instrumentation_report_missing, ownedframes[]. Bu yeni tanı kabul edilmiş loopback bağlantısı ve doğrulanmış peer sonrası canonical PIN/nonce parse öncesi bounded read hatasını ayırır; EOF/deadline/socket/framing alt nedeni kanıtlanmaz. Host terminal bridge failure sonrası exact Gradle childı kapattığı için missing report app crash kanıtı değildir. docs/testing/f60-pin-read-rejection-2026-10-01.md. Exact362 discovery iki fresh production NSD yaşamı/1test/0skip geçti, streamAccepted=false. Root60stream/discovery+10workflow,40native iptal/deadline,actual v3iki-ABI APK5verifier,JVM343passed/2explicit skip geçer; bunlar gerçek stream yerine sayılmaz. Parsed-peer ACK source incelemesi/dar fixture onarımı sürüyor; aynıSHA kör rerun yok. Gerçek frame/PCM/input/iki yaşam/stop/disconnect kabulü ve geniş finalHEAD CI açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Canonical PIN parse sonrası sabit ACK+EOF owned fixture düzeltmesi root56runner/workflow ve actual required-native AndroidTest derlemesini geçti; yeni hosted stream kabulü gerekli. docs/testing/f60-pin-peer-ack-2026-10-01.md. Yeni exact57f koşusu 36819571890 başladı; henüz runtime kabulü yok."
+      "reason": "Yeniden çalışılıyor: exact57f92945/run36819571890 original1test/1failure/0error/0skip. Parsed-peer ACK sonrası pairedClientObserved geçti; firstStreamOutput line223 stream native_observed assertionı başarısız. Makbuz actual command state veya provider alt nedenini kanıtlamaz. Frame/PCM/input/iki yaşam/stop/disconnect gerçek kabulü açık. AynıSHA kör rerun yok; bounded neden incelemesi ve dar düzeltme gerekir. Root actual required-native derleme/paket/dar politika testleri runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
     },
     {
       "id": "G11",
@@ -5854,13 +5854,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36819574142",
           "commit": "57f929459a22ab6082e400194e31e0162545f672",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact57f source changed initial-frame diagnosis;strict packaged RDP run started;not acceptance"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact57f arm64 package passed;x86 original1test/1failure/0error/0skip;initialFrameWait terminal exception/serverResizeRequested=false;session failure code and underlying cause unproved"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Root bounded makbuz policy doğrulandı: canonical1/1/0/0, AssertionError ownedframes290/115 initial1280x800frameWait; lifecycle marker yok, ara yanlışboyut callback ihtimali açık; exactalt neden incelemede, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. İlk kare30sn sınırı korunarak terminal/no-callback/yanlış-boyut/stall fixed diagnostics hazırlandı; root43runner ve actual required-native AndroidTest derlemesi geçti. Yeni gerçek hosted runtime kabulü açık. docs/testing/f62-initial-frame-wait-diagnostics-2026-10-01.md. Yeni exact57f koşusu 36819574142 başladı; henüz runtime kabulü yok."
+      "reason": "Yeniden çalışılıyor: exact57f92945/run36819574142 arm64 actual package geçti; x86 original1test/1failure/0error/0skip initialFrameWait içinde RdpOwnedInitialFrameTerminalFailure ile başarısız. serverResizeRequested=false; lifecycle marker/session failure code yok. Terminal oturum sınırı doğrulandı; kesin native alt neden ve resize hatası kanıtlanmadı. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Actual ikiABI APK/dar native/runner testleri runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -6042,10 +6042,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact5325 Security passed;independent broad Android/allServer/runtime gates remain open"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36820807607",
+          "commit": "0659ac292acae05a458550f33b142c1b2100ea2d",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact0659 changed backend/backup allServer CI started;not final complete-head acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. 53seçili özellik/64iş CI bekliyor; F21/F24–F27 normal player kontrolleri/watch-party ownership ve offline cold-start bileşimi eksikleri nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul35/127ve3/63. Frozenb21 fullFlutter7919passed/57explicit skips; actualv3 ikiABI APK5verifier/JVM343passed/2opt-in skip. Exact5325 broad failed: K07deadline yarışı,F08memory.events,7F30archive,2backup. K07root17 düzeltme ve F08exact0c/Linux36818355490,F30exact0fef/Linux36819883119/37JUnit geçti; production kabul gevşetilmedi. F60/F62 exact57f yeni strict CI sonuçları bekleniyor. Son birleşik HEAD genişCI gerekli. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. 53seçili özellik/64iş CI bekliyor; F21/F24–F27 normal player kontrolleri/watch-party ownership ve offline cold-start bileşimi eksikleri nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul35/127ve3/63. Frozenb21 fullFlutter7919passed/57explicit skips; actualv3 ikiABI APK5verifier/JVM343passed/2opt-in skip. Exact5325 broad failed: K07deadline yarışı,F08memory.events,7F30archive,2backup. K07root17 düzeltme ve F08exact0c/Linux36818355490,F30exact0fef/Linux36819883119/37JUnit geçti; production kabul gevşetilmedi. F60/F62 exact57f strict CI başarısız; bounded source tanısı native stream/initial-frame sınırlarını daralttı, kesin alt neden incelemede. Son birleşik HEAD genişCI gerekli. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
     },
     {
       "id": "FINAL.UI",
