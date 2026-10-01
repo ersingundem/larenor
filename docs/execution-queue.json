@@ -5246,6 +5246,30 @@
           "state": "completed",
           "result": "failed",
           "label": "Engine/KVM passed; copyJniLibsflutterBuildDebug failed because fresh APK prebuild skipped the Flutter JNI producer; no terminal Android report or receipt"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-apk-prebuild-2026-10-01.md",
+          "commit": "4270b60029969dcf56bb22957ac5e12e2ce56eea",
+          "state": "completed",
+          "result": "passed",
+          "label": "Canonical Moonlight full app/test APK build400tasks plus source-locked APK verifier; root128 tool/build-policy/queue/progress checks and workflow actionlint; hosted effects unproven"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36801358423",
+          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source actual owned Sunshine production NSD discovery; exact SHA verified, no receipt yet"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36801361054",
+          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source two-stream OSC/UHID/evdev input/disconnect/local-retirement gate; exact SHA verified, no receipt yet"
         }
       ],
       "completionCommit": null,
@@ -5438,6 +5462,22 @@
           "state": "completed",
           "result": "failed",
           "label": "Original1 test/1failure/0error/0skip; actual key witness and host resize passed, post-resize assertion not distinguished; changed-source static diagnostics needed"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-post-resize-failure-diagnostics-2026-10-01.md",
+          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root27 parser tests; actual ddmlib32.4.1 JAR hash/bytecode confirms no-type XML;277-task receipted instrumentation compile record; no hosted acceptance"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36801363639",
+          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source owned NLA/frame/key/resize/ACK/close gate with actual Android report-format diagnostics; exact SHA verified, no receipt yet"
         }
       ],
       "completionCommit": null,
