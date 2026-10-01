@@ -1,21 +1,22 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 53 seçili özellik / toplam 64 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F21/F24–F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) olarak güncellendi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 69 iş CI bekliyor. F21/F24–F27 normal Core oynatıcı ve çevrimdışı erişim geçişini tamamladı. Yalnız F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **53 seçili özellik / toplam 64 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Eski exact57f strict stream başarısız. Source-bound command tanısı root59/actual AndroidTest compile278task geçti; yeni exact `c9fee6d7` [36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) sürüyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
-| **Yeniden çalışılıyor** | **F62** | Eski exact57f strict initial-frame başarısız. Source-bound terminal tanısı root44/actual AndroidTest compile277task geçti; yeni exact `5aa76fe8` [36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) sürüyor. Native alt neden ve strict runtime kabulü açık |
-| **Yeniden çalışılıyor** | **F21/F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
+| **CI bekliyor** | **58 seçili özellik / toplam 69 iş; F21/F24–F27 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden çalışılıyor** | **F60** | Exact `c9fee6d7` [36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) strict stream başarısız: unknown ve izin kaydı absentOrUnreadable. Yeni closed dispatch-stage tanısı root42 JVM/60 araç kontrolü/actual AndroidTest compile277 geçti; exact `691b54c4` [36825268673](https://github.com/ersingundem/larenor/actions/runs/36825268673) sürüyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
+| **Yeniden çalışılıyor** | **F62** | Exact `5aa76fe8` [36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) arm64 package geçti; x86 original1/1/0/0 başarısız, unclassified ve lifecycle/frame markerı yok. Kesin alt neden açık; test-gövdesi/report ayrımı hazırlanıyor |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
 “CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. Sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak süre oranı değildir. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ## Son doğrulanan düzeltmeler
+
+F21/F24–F27 normal verified-Core katalogdan açık “Bu cihazda oynat” girişine, gerçek player kontrollerine ve Core kapalıyken tamamlanmış şifreli indirmelere bağlandı. Kalite danışmanı izin kotasını tüketmeyen `assess-item` kullanır; explicit Play için consumable `observe-item` korunur. Root son birleşik **110 Client** ve **46 Server** testini geçti; plan/kaynak incelemesinde yazılım bileşimi açığı kalmadı. Bu beş iş **CI bekliyor** tablosuna taşındı, kabul sayacı artırılmadı. [Kaynak, test ve sınırlar](testing/media-core-composition-closure-2026-10-01.md).
 
 Yeni geniş [Android/tüm Server koşusu](https://github.com/ersingundem/larenor/actions/runs/36816909489) exact `5325c083` üzerinde başarısız tamamlandı; son kaynak [Security](https://github.com/ersingundem/larenor/actions/runs/36816859672) kabulünü geçti. Flutter shard0 K07 deadline yarışı, F08 eski stress observer ve üç Server shardındaki dokuz backup/arşiv test hatası mevcut. Bunlar yeni kaynak için geniş kabul değildir; dar neden incelemesi sürüyor. [Pinned Sunshine/Moonlight sözleşme araştırması](testing/f60-upstream-pairing-contract-review-2026-10-01.md) provider API/name/PIN uyumunu doğruladı; runtime stream yerine sayılmaz.
 

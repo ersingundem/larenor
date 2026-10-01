@@ -48,8 +48,20 @@ relaxed assertions, or longer waits.
 
 ## Changed-source diagnostic gates
 
-The exact `c9fee6d7ed83807af7917c89b26a7315966ce6cb` [F60 run 36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) now binds fixed command-state enums to the original source/test/stage identity. Root59 runner/workflow checks and actual AndroidTest compilation278 tasks passed. It remains running; no terminal stream receipt is claimed.
+The exact `c9fee6d7ed83807af7917c89b26a7315966ce6cb` [F60 run 36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) completed unsuccessfully: original **1 test / 1 failure / 0 errors / 0 skips**, `firstStreamOutput`, `unknown/unknown/unknown`, and `leaseAbsentOrUnreadable`. Its canonical diagnostic artifact `11144616141` has JSON SHA-256 `f97ad4b061ef3b2142a3d8d22d0f0fc5ce269a3d8be59f3c45a39fd933f3e87a`. This does not distinguish a failure before lease issuance from a later launch/callback or readback failure. Root59 runner/workflow checks and actual AndroidTest compilation278 tasks were software evidence, not stream acceptance.
 
-The exact `5aa76fe85e522b2648b5957ebab5f47270af608d` [F62 run 36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) adds a fixed initial-terminal classification captured from the same failed session tuple. Root44 runner/workflow checks and actual AndroidTest compilation277 tasks passed. Both ABI jobs remain running; no terminal runtime acceptance is claimed.
+The exact `5aa76fe85e522b2648b5957ebab5f47270af608d` [F62 run 36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) completed unsuccessfully. The arm64 package passed; x86 reports the original named **1 test / 1 failure / 0 errors / 0 skips**, `unclassified`, no owned frames or lifecycle/initial-terminal marker, and `serverResizeRequested=false`. Root independently verified canonical artifact `11145056729`, 971 bytes, JSON SHA-256 `cd3018590759cde68f64a2af2c30faa55f27927e148431dd133fbd386f02ae50`, with the production failure-receipt validator. It does not establish the previous initial-frame cause, an app crash, or any particular native defect. Root44 runner/workflow checks and actual AndroidTest compilation277 tasks remain separate software evidence.
+
+The changed exact `691b54c4bf9a5ec7158b22d6142cc17644ccccb9` [F60 run 36825268673](https://github.com/ersingundem/larenor/actions/runs/36825268673) adds a closed, exact-command dispatch-stage and failure-code trace. Root verified actual JVM XML42/0failure/0error/0skip, actual AndroidTest compile277 tasks and60 runner/workflow tests. The run is in progress; no accepted runtime receipt is claimed. [Trace and trust boundary](f60-stream-dispatch-stage-diagnostics-2026-10-01.md).
 
 These changed-source gates preserve every original acceptance requirement. Neither compilation nor diagnostic-field coverage repairs or proves the old native failure by itself.
+
+## Bounded queue history
+
+The queue evidence array is limited to32 entries. Two unaccepted same-source
+APK-prebuild failures, [discovery36799033298](https://github.com/ersingundem/larenor/actions/runs/36799033298)
+and [stream36799039362](https://github.com/ersingundem/larenor/actions/runs/36799039362),
+are retained here and in the historical progress record rather than taking
+two array slots needed for the new exact691 validation/run. Both failed before
+instrumentation at the Flutter JNI producer boundary; neither proved a stream
+or a provider defect. No accepted runtime evidence was removed.

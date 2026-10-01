@@ -1,5 +1,10 @@
 # F24–F27 normal player/Core composition gap — 1 October 2026
 
+**Historical finding, now superseded:** the ordinary Core-bound player and
+offline cold-start composition blockers below were repaired and independently
+reviewed. F21/F24–F27 now await CI; they are not accepted/done. See the
+[named source and validation closure](media-core-composition-closure-2026-10-01.md).
+
 Independent review and root source inspection found a normal product route
 gap. `MediaHubScreen` sends a verified Core home to
 `ServerMediaCatalogScreen`; the local Jellyfin player remains behind the
