@@ -45,12 +45,8 @@ void main() {
           'certificateFingerprint':
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
-        'activate' ||
-        'open' ||
-        'input' ||
-        'resize' ||
-        'ackFrame' ||
-        'cancel' => null,
+        'open' => {'schemaVersion': 1, 'unicodeTextInput': true},
+        'activate' || 'input' || 'resize' || 'ackFrame' || 'cancel' => null,
         _ => throw MissingPluginException(),
       };
     });
@@ -97,7 +93,7 @@ void main() {
         isAndroid: true,
       );
       final channel = await openClipboard(engine);
-      channel.key(const RdpKeyEvent(physicalKey: 30, down: true));
+      channel.key(const RdpKeyEvent(physicalKey: 0x00070004, down: true));
       expect(await channel.sendClipboardText('İstanbul\n😀'), isTrue);
       channel.text('composed');
       await Future<void>.delayed(Duration.zero);
@@ -218,6 +214,32 @@ void main() {
     },
   );
 
+  test(
+    'false key reply is nonfatal but false pointer reply retires channel',
+    () async {
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final channel = await openClipboard(engine);
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call);
+        return call.method == 'input' ? false : null;
+      });
+      channel.key(const RdpKeyEvent(physicalKey: 0x00070004, down: true));
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+      channel.pointer(const RdpPointerEvent(x: 1, y: 1, buttons: 0));
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((call) => call.method == 'cancel'), hasLength(1));
+      channel.key(const RdpKeyEvent(physicalKey: 0x00070004, down: false));
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((call) => call.method == 'input'), hasLength(2));
+      engine.close();
+    },
+  );
+
   test('verified native capability and probe stay exact and scoped', () async {
     final engine = RdpMethodChannelEngine(
       methods: methods,
@@ -260,6 +282,10 @@ void main() {
         request,
         credential: const RdpCredential(password: 'temporary'),
         isCurrent: () => true,
+      );
+      expect(
+        (opened as RdpNegotiatedInputChannel).supportsUnicodeInput,
+        isTrue,
       );
       final open = calls.singleWhere((call) => call.method == 'open');
       final arguments = open.arguments as Map;

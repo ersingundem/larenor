@@ -66,12 +66,14 @@ class RdpNativeBridgeTest {
             plan: RdpNativeNegotiated,
             listener: RdpJniOperation.Listener,
         ) = object : RdpJniOperation {
+            override val unicodeInputSupported = true
             override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
                 listener.onSecurity(RdpJniSecurity("TLSv1.2", true, PIN))
                 return true
             }
 
             override fun input(sequence: Long, event: RdpJniInput): Boolean {
+                if (event is RdpJniInput.Key) return true
                 val clipboard = event as? RdpJniInput.Channel ?: return false
                 if (clipboard.kind != RdpJniChannel.CLIPBOARD) return false
                 inputs += clipboard.payload.copyOf()
@@ -190,6 +192,33 @@ class RdpNativeBridgeTest {
     }
 
     @Test
+    fun openPublishesNegotiatedUnicodeAndUnsupportedKeyIsNonFatal() {
+        openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
+            val unsupported = Result()
+            fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "requestId" to REQUEST_ID,
+                "sequence" to 1L,
+                "kind" to "key",
+                "physicalKey" to 0x000c00e9L,
+                "down" to true,
+            )), unsupported)
+            assertNull(unsupported.error)
+            assertEquals(false, unsupported.value)
+
+            val supported = Result()
+            fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "requestId" to REQUEST_ID,
+                "sequence" to 1L,
+                "kind" to "key",
+                "physicalKey" to 0x00070004L,
+                "down" to true,
+            )), supported)
+            assertNull(supported.error)
+            assertNull(supported.value)
+        }
+    }
+
+    @Test
     fun clipboardChannelRejectsDisabledMalformedOversizeUnknownStaleAndBackgroundWithoutDispatch() {
         fun rejected(
             mode: RdpClipboardMode = RdpClipboardMode.CLIENT_TO_REMOTE,
@@ -240,6 +269,7 @@ class RdpNativeBridgeTest {
         )), opened)
         await(opened)
         assertNull(opened.error)
+        assertEquals(mapOf("schemaVersion" to 1, "unicodeTextInput" to true), opened.value)
         return OpenClipboardBridge(bridge, runtime, activity)
     }
 

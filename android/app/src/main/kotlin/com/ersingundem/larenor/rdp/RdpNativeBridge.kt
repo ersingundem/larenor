@@ -177,7 +177,10 @@ class RdpNativeBridge(
                             opened.close()
                             error(result, "staleSession")
                         } else {
-                            result.success(null)
+                            result.success(mapOf(
+                                "schemaVersion" to 1,
+                                "unicodeTextInput" to opened.unicodeInputSupported,
+                            ))
                         }
                     }
                 } catch (failure: RdpNativeFailure) {
@@ -279,6 +282,10 @@ class RdpNativeBridge(
                     current.channel(sequence, RdpJniChannel.CLIPBOARD, payload)
                 }
                 else -> fail("invalidRequest")
+            }
+            if (!accepted && value["kind"] == "key" && current.failureCode == null) {
+                result.success(false)
+                return
             }
             if (!accepted) fail(current.failureCode ?: "busy")
             result.success(null)

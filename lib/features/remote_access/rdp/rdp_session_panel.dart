@@ -751,7 +751,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               ),
                             ),
                           ],
-                          if (c.capabilities?.supportsIme == true) ...[
+                          if (c.supportsUnicodeInput) ...[
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                               child: CupertinoTextField(
@@ -866,10 +866,12 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
       return KeyEventResult.ignored;
     }
     final physical = event.physicalKey.usbHidUsage;
-    if (physical <= 0 || physical > 0xffffffff) return KeyEventResult.ignored;
-    widget.controller.key(
-      RdpKeyEvent(physicalKey: physical, down: event is KeyDownEvent),
+    final remote = RdpKeyEvent(
+      physicalKey: physical,
+      down: event is KeyDownEvent,
     );
+    if (!remote.supported) return KeyEventResult.ignored;
+    widget.controller.key(remote);
     return KeyEventResult.handled;
   }
 

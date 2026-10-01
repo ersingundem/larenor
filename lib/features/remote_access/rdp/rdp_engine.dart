@@ -36,6 +36,11 @@ abstract interface class RdpFrameChannel implements RdpChannel {
   Future<void> acknowledgeFrame(int sequence);
 }
 
+/// Authenticated, per-session input capability returned by native open.
+abstract interface class RdpNegotiatedInputChannel implements RdpChannel {
+  bool get supportsUnicodeInput;
+}
+
 abstract interface class RdpEngine {
   Future<RdpCapabilities> capabilities({required bool Function() isCurrent});
   Future<RdpCertificateProbe> inspect(
@@ -238,7 +243,7 @@ class RdpMethodChannelEngine implements RdpEngine {
   }
 }
 
-class _RdpMethodChannel implements RdpFrameChannel {
+class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
   _RdpMethodChannel({
     required this.methods,
     required this.events,
@@ -257,6 +262,9 @@ class _RdpMethodChannel implements RdpFrameChannel {
   int _inputSequence = 0;
   bool _closed = false;
   bool _clipboardEnabled = false;
+
+  @override
+  bool supportsUnicodeInput = false;
 
   @override
   Future<void> get done => _done.future;
@@ -279,12 +287,17 @@ class _RdpMethodChannel implements RdpFrameChannel {
     final gateway = Uint8List.fromList(utf8.encode(credential.gatewayPassword));
     try {
       await methods.invokeMethod<void>('activate', {'requestId': requestId});
-      await methods.invokeMethod<void>('open', {
+      final response = await methods.invokeMethod<Object?>('open', {
         'request': _request(request),
         'requestId': requestId,
         'password': password,
         'gatewayPassword': gateway,
       });
+      final parsed = _strict(response, {'schemaVersion', 'unicodeTextInput'});
+      if (parsed['schemaVersion'] != 1 || parsed['unicodeTextInput'] is! bool) {
+        throw const RdpFailure('invalid_response');
+      }
+      supportsUnicodeInput = parsed['unicodeTextInput']! as bool;
     } on PlatformException catch (error) {
       throw RdpFailure(_failure(error.code));
     } finally {
@@ -397,11 +410,16 @@ class _RdpMethodChannel implements RdpFrameChannel {
     if (_closed || !isCurrent()) return;
     final sequence = consumeInputSequence ? ++_inputSequence : _inputSequence;
     try {
-      await methods.invokeMethod<void>(method, {
+      final response = await methods.invokeMethod<Object?>(method, {
         'requestId': requestId,
         'sequence': sequence,
         ...event,
       });
+      final ignoredKey =
+          method == 'input' && event['kind'] == 'key' && response == false;
+      if (response != null && !ignoredKey) {
+        throw const RdpFailure('invalid_response');
+      }
     } catch (_) {
       close();
     }
@@ -417,16 +435,20 @@ class _RdpMethodChannel implements RdpFrameChannel {
     }),
   );
   @override
-  void key(RdpKeyEvent event) => unawaited(
-    _invoke('input', {
-      'kind': 'key',
-      'physicalKey': event.physicalKey,
-      'down': event.down,
-    }),
-  );
+  void key(RdpKeyEvent event) {
+    if (!event.supported) return;
+    unawaited(
+      _invoke('input', {
+        'kind': 'key',
+        'physicalKey': event.physicalKey,
+        'down': event.down,
+      }),
+    );
+  }
+
   @override
   void text(String value) {
-    if (!validRdpImeText(value)) return;
+    if (!supportsUnicodeInput || !validRdpImeText(value)) return;
     unawaited(_invoke('input', {'kind': 'ime', 'text': value}));
   }
 

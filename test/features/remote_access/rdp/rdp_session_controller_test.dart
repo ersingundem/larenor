@@ -41,7 +41,10 @@ class Trust implements RdpTrustStore {
   }
 }
 
-class Channel implements RdpChannel {
+class Channel implements RdpChannel, RdpNegotiatedInputChannel {
+  Channel({this.supportsUnicodeInput = true});
+  @override
+  final bool supportsUnicodeInput;
   int closes = 0;
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
@@ -80,10 +83,12 @@ class Engine implements RdpEngine {
     this.supportsNla = true,
     this.clientRequiresNla = true,
     this.supportsClipboard = false,
+    this.negotiatedUnicodeInput = true,
   });
   final bool available, supportsNla, clientRequiresNla;
   final bool supportsClipboard;
-  final channel = Channel();
+  final bool negotiatedUnicodeInput;
+  late final channel = Channel(supportsUnicodeInput: negotiatedUnicodeInput);
   int inspections = 0, opens = 0, closes = 0;
   String? passwordSeen;
   Completer<RdpCertificateProbe>? delayed;
@@ -434,7 +439,7 @@ void main() {
     await connectWithPassword(c);
     expect(c.phase, RdpSessionPhase.connected);
     c.pointer(const RdpPointerEvent(x: .5, y: .5, buttons: 0));
-    c.key(const RdpKeyEvent(physicalKey: 42, down: true));
+    c.key(const RdpKeyEvent(physicalKey: 0x00070004, down: true));
     current = false;
     c.synchronize();
     expect(c.phase, RdpSessionPhase.closed);
@@ -445,6 +450,41 @@ void main() {
     expect(engine.channel.pointers, hasLength(1));
     c.dispose();
   });
+
+  test(
+    'unsupported keyboard usage is ignored without closing the session',
+    () async {
+      final trust = Trust()
+        ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+      final engine = Engine(), c = controller(engine, trust, () => true);
+      await connectWithPassword(c);
+      c.key(const RdpKeyEvent(physicalKey: 0x000c00e9, down: true));
+      c.key(const RdpKeyEvent(physicalKey: 0x000700e0, down: true));
+      expect(c.phase, RdpSessionPhase.connected);
+      expect(engine.channel.closes, 0);
+      expect(engine.channel.keys.map((event) => event.physicalKey), [
+        0x000700e0,
+      ]);
+      c.dispose();
+    },
+  );
+
+  test(
+    'IME is enabled only by the authenticated session negotiation',
+    () async {
+      for (final negotiated in [false, true]) {
+        final trust = Trust()
+          ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+        final engine = Engine(negotiatedUnicodeInput: negotiated);
+        final c = controller(engine, trust, () => true);
+        await connectWithPassword(c);
+        expect(c.supportsUnicodeInput, negotiated);
+        c.text('İstanbul 😀');
+        expect(engine.channel.texts, negotiated ? ['İstanbul 😀'] : isEmpty);
+        c.dispose();
+      }
+    },
+  );
 
   test('late inspection after sign-out cannot publish or open', () async {
     var current = true;

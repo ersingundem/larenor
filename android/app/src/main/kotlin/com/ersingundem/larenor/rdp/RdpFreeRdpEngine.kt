@@ -42,8 +42,9 @@ object RdpFreeRdpPackage {
             "maxHeight" to 8192,
             "maxDpi" to 640,
         ),
-        // Unicode local setting alone does not prove the server input flag.
-        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to false),
+        // Per-session open still requires the authenticated server-side
+        // Unicode input flag before exposing text input to Dart.
+        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
         // No remote clipboard callback is exposed to the Client yet.
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
@@ -185,6 +186,8 @@ interface RdpJniOperation {
         fun onDisconnected()
     }
 
+    /** Authenticated peer fact, sampled by the packaged operation after connect. */
+    val unicodeInputSupported: Boolean get() = false
     /** Must synchronously copy the mutable credentials into native-owned memory. */
     fun start(password: CharArray, gatewayPassword: CharArray?): Boolean
     fun input(sequence: Long, event: RdpJniInput): Boolean
@@ -284,6 +287,9 @@ class RdpFreeRdpSession internal constructor(
     @Volatile
     var pendingFrame: RdpNativeFrame? = null
         private set
+    @Volatile
+    var unicodeInputSupported = false
+        private set
     private var lastInputSequence = 0L
     private var lastFrameSequence = 0L
     private var terminal = false
@@ -301,6 +307,7 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "connectionFailed")
             failRdp("connectionFailed")
         }
+        unicodeInputSupported = capabilities.ime && operation.unicodeInputSupported
     }
 
     override fun onSecurity(evidence: RdpJniSecurity) {
@@ -403,15 +410,14 @@ class RdpFreeRdpSession internal constructor(
     }
 
     fun key(sequence: Long, physicalKey: Long, down: Boolean): Boolean {
-        if (physicalKey !in 1..0xffffffffL) {
-            terminate(RdpJniPhase.FAILED, "inputUnavailable")
-            return false
-        }
+        // Consumer/system usages remain available to Flutter/Android. They do
+        // not corrupt the RDP session and consume no ordered input sequence.
+        if (!isSupportedUsbKeyboardUsage(physicalKey)) return false
         return input(sequence, RdpJniInput.Key(physicalKey, down))
     }
 
     fun ime(sequence: Long, text: String): Boolean {
-        if (!capabilities.ime || text.isEmpty() || text.indexOf('\u0000') >= 0) {
+        if (!unicodeInputSupported || text.isEmpty() || text.indexOf('\u0000') >= 0) {
             terminate(RdpJniPhase.FAILED, "inputUnavailable")
             return false
         }
@@ -523,6 +529,12 @@ class RdpFreeRdpSession internal constructor(
         const val MAX_IME_BYTES = 4096
         const val MAX_CHANNEL_BYTES = 64 * 1024
     }
+}
+
+internal fun isSupportedUsbKeyboardUsage(value: Long): Boolean {
+    if (value !in 1..0xffffffffL || (value ushr 16).toInt() != 0x07) return false
+    val usage = (value and 0xffff).toInt()
+    return usage in 0x04..0x65 || usage in 0x67..0x73 || usage in 0xe0..0xe7
 }
 
 private fun failRdp(code: String): Nothing = throw RdpNativeFailure(code)

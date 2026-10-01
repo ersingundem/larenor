@@ -80,6 +80,28 @@ class RdpFreeRdpEngineTest {
     }
 
     @Test
+    fun negotiatedUnicodeInputIsBoundToTheAuthenticatedSession() {
+        for (supported in listOf(false, true)) {
+            val fixture = Fixture(unicodeInput = supported)
+            val session = fixture.active()
+            assertEquals(supported, session.unicodeInputSupported)
+        }
+    }
+
+    @Test
+    fun unsupportedUsbKeyboardUsageIsNonFatalAndDoesNotConsumeSequence() {
+        val fixture = Fixture()
+        val session = fixture.active()
+        assertFalse(session.key(1, 0x000c00e9, true))
+        assertEquals(RdpJniPhase.ACTIVE, session.phase)
+        assertNull(session.failureCode)
+        assertEquals(0, fixture.operation.inputs)
+        assertTrue(session.key(1, 0x000700e0, true))
+        assertEquals(1, fixture.operation.inputs)
+        assertEquals(RdpJniPhase.ACTIVE, session.phase)
+    }
+
+    @Test
     fun framebufferAndDexResizeAreBoundedAndRequireOneFrameAck() {
         val acknowledgedFixture = Fixture()
         val acknowledged = acknowledgedFixture.active()
@@ -226,8 +248,11 @@ class RdpFreeRdpEngineTest {
     }
 
     @Test
-    fun reviewedPackageRejectsUnprovedImeBeforeNativeInput() {
-        val fixture = Fixture(capabilityMap = RdpFreeRdpPackage.capabilities())
+    fun reviewedPackageRejectsUnprovedPeerUnicodeBeforeNativeInput() {
+        val fixture = Fixture(
+            capabilityMap = RdpFreeRdpPackage.capabilities(),
+            unicodeInput = false,
+        )
         val session = fixture.active()
         assertTrue(session.key(1, 0x70004, true))
         assertFalse(session.ime(2, "İstanbul"))
@@ -242,7 +267,7 @@ class RdpFreeRdpEngineTest {
         val channels = capabilities.toChannel()["channels"] as Map<*, *>
         assertEquals(listOf("disabled", "clientToRemote"), channels["clipboardModes"])
         assertEquals(true, channels["clipboard"])
-        assertFalse(capabilities.ime)
+        assertTrue(capabilities.ime)
         try {
             Fixture(
                 clipboard = RdpClipboardMode.BIDIRECTIONAL,
@@ -260,6 +285,7 @@ class RdpFreeRdpEngineTest {
     private class Fixture(
         private val clipboard: RdpClipboardMode = RdpClipboardMode.DISABLED,
         private val capabilityMap: Map<String, Any?> = availableCapabilities(),
+        private val unicodeInput: Boolean = true,
     ) {
         lateinit var operation: Operation
         private val runtime = object : RdpJniRuntime {
@@ -276,7 +302,7 @@ class RdpFreeRdpEngineTest {
                 request: RdpNativeRequest,
                 plan: RdpNativeNegotiated,
                 listener: RdpJniOperation.Listener,
-            ) = Operation(listener).also { operation = it }
+            ) = Operation(listener, unicodeInput).also { operation = it }
         }
 
         fun open(): RdpFreeRdpSession {
@@ -292,7 +318,10 @@ class RdpFreeRdpEngineTest {
         }
     }
 
-    private class Operation(private var listener: RdpJniOperation.Listener?) : RdpJniOperation {
+    private class Operation(
+        private var listener: RdpJniOperation.Listener?,
+        override val unicodeInputSupported: Boolean = true,
+    ) : RdpJniOperation {
         var starts = 0
         var closes = 0
         var inputs = 0

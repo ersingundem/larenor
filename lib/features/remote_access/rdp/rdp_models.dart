@@ -542,4 +542,11 @@ class RdpKeyEvent {
   final int physicalKey;
   final bool down;
   bool get valid => physicalKey >= 1 && physicalKey <= 0xffffffff;
+  bool get supported {
+    if (!valid || physicalKey >> 16 != 0x07) return false;
+    final usage = physicalKey & 0xffff;
+    return usage >= 0x04 && usage <= 0x65 ||
+        usage >= 0x67 && usage <= 0x73 ||
+        usage >= 0xe0 && usage <= 0xe7;
+  }
 }

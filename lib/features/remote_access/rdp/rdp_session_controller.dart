@@ -45,6 +45,7 @@ class RdpSessionController extends ChangeNotifier {
   RdpCapabilities? capabilities;
   RdpCertificatePin? pendingCertificate;
   String? error;
+  bool supportsUnicodeInput = false;
   bool get hasSensitiveInput => _passwordDecision != null;
   bool get canSendClipboard =>
       phase == RdpSessionPhase.connected &&
@@ -114,6 +115,7 @@ class RdpSessionController extends ChangeNotifier {
     pendingCertificate = null;
     _channel?.close();
     _channel = null;
+    supportsUnicodeInput = false;
     _engine?.close();
     _engine = null;
   }
@@ -141,6 +143,7 @@ class RdpSessionController extends ChangeNotifier {
     phase = RdpSessionPhase.checking;
     error = null;
     capabilities = null;
+    supportsUnicodeInput = false;
     _engine = engineFactory();
     _timer = Timer(connectTimeout, () {
       if (generation == _generation) _finish(code: 'timed_out');
@@ -258,6 +261,8 @@ class RdpSessionController extends ChangeNotifier {
       _check(generation);
     }
     _channel = channel;
+    supportsUnicodeInput =
+        channel is RdpNegotiatedInputChannel && channel.supportsUnicodeInput;
     _timer?.cancel();
     _timer = null;
     phase = RdpSessionPhase.connected;
@@ -378,7 +383,7 @@ class RdpSessionController extends ChangeNotifier {
 
   void key(RdpKeyEvent event) {
     if (phase != RdpSessionPhase.connected ||
-        !event.valid ||
+        !event.supported ||
         !_current(_generation)) {
       return;
     }
@@ -387,7 +392,7 @@ class RdpSessionController extends ChangeNotifier {
 
   void text(String value) {
     if (phase != RdpSessionPhase.connected ||
-        capabilities?.supportsIme != true ||
+        !supportsUnicodeInput ||
         !validRdpImeText(value) ||
         !_current(_generation)) {
       return;

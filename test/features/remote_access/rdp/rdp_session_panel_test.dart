@@ -50,7 +50,10 @@ class UiTrust implements RdpTrustStore {
   }) async {}
 }
 
-class UiChannel implements RdpChannel {
+class UiChannel implements RdpChannel, RdpNegotiatedInputChannel {
+  UiChannel({required this.supportsUnicodeInput});
+  @override
+  final bool supportsUnicodeInput;
   final doneCompleter = Completer<void>();
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
@@ -84,7 +87,7 @@ class UiChannel implements RdpChannel {
 class UiEngine implements RdpEngine {
   UiEngine({this.supportsIme = false});
   final bool supportsIme;
-  final channel = UiChannel();
+  late final channel = UiChannel(supportsUnicodeInput: supportsIme);
   final requests = <RdpSessionRequest>[];
   int capabilityReads = 0;
   @override
@@ -501,6 +504,9 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
     expect(engine.channel.pointers, isNotEmpty);
+    expect(engine.channel.keys, hasLength(2));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.audioVolumeUp);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.audioVolumeUp);
     expect(engine.channel.keys, hasLength(2));
     await tester.enterText(key('rdp-text-input'), 'İstanbul');
     await press(tester, 'rdp-text-send');

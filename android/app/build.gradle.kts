@@ -170,6 +170,7 @@ android {
 
     if (hasFreeRdp) {
         sourceSets.getByName("main").java.srcDir("src/freerdp/kotlin")
+        sourceSets.getByName("test").java.srcDir("src/freerdpTest/kotlin")
         sourceSets.getByName("androidTest").java.srcDir("src/freerdpAndroidTest/kotlin")
     }
     if (hasMoonlight) {

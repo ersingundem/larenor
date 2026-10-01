@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
-import android.view.KeyEvent
 import com.ersingundem.larenor.rdp.RdpAuthenticatedOutputGate
 import com.ersingundem.larenor.rdp.RdpClipboardMode
 import com.ersingundem.larenor.rdp.RdpFreeRdpIdentity
@@ -18,6 +17,7 @@ import com.ersingundem.larenor.rdp.RdpJniCertificateProbe
 import com.ersingundem.larenor.rdp.RdpNativeDisplay
 import com.ersingundem.larenor.rdp.RdpNativeFailure
 import com.ersingundem.larenor.rdp.RdpNativeFrame
+import com.ersingundem.larenor.rdp.RdpKeyboardLayout
 import com.ersingundem.larenor.rdp.RdpNativeNegotiated
 import com.ersingundem.larenor.rdp.RdpNativeRequest
 import com.freerdp.freerdpcore.application.GlobalApp
@@ -87,6 +87,7 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
             "sendCursorEvent" to 4,
             "sendKeyEvent" to 3,
             "sendUnicodeKeyEvent" to 3,
+            "isUnicodeInputSupported" to 1,
             "sendClipboardData" to 2,
             "sendMonitorLayout" to 3,
         )
@@ -319,6 +320,9 @@ private class FreeRdpOperation(
     private val plan: RdpNativeNegotiated,
     private var listener: RdpJniOperation.Listener?,
 ) : BaseConnection(context, request.targetHost, request.targetPort, request.username), RdpJniOperation {
+    @Volatile
+    override var unicodeInputSupported = false
+        private set
     private var password: CharArray? = null
     private var gatewayPassword: CharArray? = null
     private var bitmap: Bitmap? = null
@@ -333,7 +337,15 @@ private class FreeRdpOperation(
         this.password = password.copyOf()
         this.gatewayPassword = gatewayPassword?.copyOf()
         return try {
-            create(baseUri(request.display.width, request.display.height, plan.clipboardMode != RdpClipboardMode.DISABLED))
+            create(packagedConnectionUri(
+                request.targetHost,
+                request.targetPort,
+                request.username,
+                request.display.width,
+                request.display.height,
+                plan.clipboardMode != RdpClipboardMode.DISABLED,
+                request.keyboardLayout,
+            ))
             connect()
             await(45) && securityPublished.await(5, TimeUnit.SECONDS) &&
                 !terminal.get() && securityGate.canDeliverFrames()
@@ -370,6 +382,9 @@ private class FreeRdpOperation(
     @Synchronized override fun connected() {
         if (terminal.get()) return
         val evidence = securityGate.connectionSucceeded() ?: return
+        unicodeInputSupported = runCatching {
+            LibFreeRDP.isUnicodeInputSupported(instance)
+        }.getOrDefault(false)
         val consumer = listener ?: return
         consumer.onSecurity(evidence)
         // The consumer may retire the operation while handling security.
@@ -432,8 +447,12 @@ private class FreeRdpOperation(
 
     override fun input(sequence: Long, event: RdpJniInput): Boolean = when (event) {
         is RdpJniInput.Pointer -> pointer(event)
-        is RdpJniInput.Key -> LibFreeRDP.sendKeyEvent(instance, hidToAndroid(event.physicalKey) ?: return false, event.down)
-        is RdpJniInput.Ime -> false
+        is RdpJniInput.Key -> LibFreeRDP.sendKeyEvent(
+            instance,
+            usbKeyboardVirtualKey(event.physicalKey) ?: return false,
+            event.down,
+        )
+        is RdpJniInput.Ime -> unicode(event)
         is RdpJniInput.Channel -> when (event.kind) {
             com.ersingundem.larenor.rdp.RdpJniChannel.CLIPBOARD -> clipboard(event)
             else -> false
@@ -465,6 +484,25 @@ private class FreeRdpOperation(
         } catch (_: Exception) { false }
     }
 
+    private fun unicode(event: RdpJniInput.Ime): Boolean {
+        if (!unicodeInputSupported) return false
+        val value = try {
+            val decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+            decoder.decode(ByteBuffer.wrap(event.utf8)).toString()
+        } catch (_: Exception) {
+            return false
+        }
+        val units = strictUtf16Units(value)
+        if (units.isEmpty()) return false
+        for (unit in units) {
+            if (!LibFreeRDP.sendUnicodeKeyEvent(instance, unit, true) ||
+                !LibFreeRDP.sendUnicodeKeyEvent(instance, unit, false)) return false
+        }
+        return true
+    }
+
     override fun resize(sequence: Long, display: RdpNativeDisplay): Boolean =
         LibFreeRDP.sendMonitorLayout(instance, display.width, display.height)
 
@@ -493,25 +531,57 @@ private class FreeRdpOperation(
         private const val PTR_BUTTON2 = 0x2000
         private const val PTR_BUTTON3 = 0x4000
 
-        private fun hidToAndroid(value: Long): Int? {
-            val usage = (value and 0xffff).toInt()
-            return when (usage) {
-                in 0x04..0x1d -> KeyEvent.KEYCODE_A + usage - 0x04
-                in 0x1e..0x26 -> KeyEvent.KEYCODE_1 + usage - 0x1e
-                0x27 -> KeyEvent.KEYCODE_0
-                0x28 -> KeyEvent.KEYCODE_ENTER
-                0x29 -> KeyEvent.KEYCODE_ESCAPE
-                0x2a -> KeyEvent.KEYCODE_DEL
-                0x2b -> KeyEvent.KEYCODE_TAB
-                0x2c -> KeyEvent.KEYCODE_SPACE
-                0x4f -> KeyEvent.KEYCODE_DPAD_RIGHT
-                0x50 -> KeyEvent.KEYCODE_DPAD_LEFT
-                0x51 -> KeyEvent.KEYCODE_DPAD_DOWN
-                0x52 -> KeyEvent.KEYCODE_DPAD_UP
-                else -> null
+    }
+}
+
+internal fun usbKeyboardVirtualKey(value: Long): Int? {
+    if ((value ushr 16).toInt() != 0x07) return null
+    val usage = (value and 0xffff).toInt()
+    return when (usage) {
+        in 0x04..0x1d -> 0x41 + usage - 0x04
+        in 0x1e..0x26 -> 0x31 + usage - 0x1e
+        0x27 -> 0x30
+        0x28 -> 0x0d; 0x29 -> 0x1b; 0x2a -> 0x08; 0x2b -> 0x09; 0x2c -> 0x20
+        0x2d -> 0xbd; 0x2e -> 0xbb; 0x2f -> 0xdb; 0x30 -> 0xdd
+        0x31 -> 0xdc; 0x32 -> 0xe2; 0x33 -> 0xba; 0x34 -> 0xde
+        0x35 -> 0xc0; 0x36 -> 0xbc; 0x37 -> 0xbe; 0x38 -> 0xbf
+        0x39 -> 0x14
+        in 0x3a..0x45 -> 0x70 + usage - 0x3a
+        0x46 -> 0x2c; 0x47 -> 0x91; 0x48 -> 0x13; 0x49 -> 0x2d
+        0x4a -> 0x24; 0x4b -> 0x21; 0x4c -> 0x2e; 0x4d -> 0x23
+        0x4e -> 0x22; 0x4f -> 0x27; 0x50 -> 0x25; 0x51 -> 0x28; 0x52 -> 0x26
+        0x53 -> 0x90; 0x54 -> 0x6f; 0x55 -> 0x6a; 0x56 -> 0x6d; 0x57 -> 0x6b
+        0x58 -> 0x0d
+        in 0x59..0x61 -> 0x61 + usage - 0x59
+        0x62 -> 0x60; 0x63 -> 0x6e; 0x64 -> 0xe2; 0x65 -> 0x5d
+        0x67 -> 0xbb
+        in 0x68..0x73 -> 0x7c + usage - 0x68
+        0xe0 -> 0xa2; 0xe1 -> 0xa0; 0xe2 -> 0xa4; 0xe3 -> 0x5b
+        0xe4 -> 0xa3; 0xe5 -> 0xa1; 0xe6 -> 0xa5; 0xe7 -> 0x5c
+        else -> null
+    }
+}
+
+internal fun strictUtf16Units(value: String): IntArray {
+    if (value.isEmpty() || value.indexOf('\u0000') >= 0) return IntArray(0)
+    val result = IntArray(value.length)
+    var index = 0
+    while (index < value.length) {
+        val unit = value[index].code
+        if (unit in 0xd800..0xdbff) {
+            if (index + 1 >= value.length || value[index + 1].code !in 0xdc00..0xdfff) {
+                return IntArray(0)
             }
+            result[index] = unit
+            result[index + 1] = value[index + 1].code
+            index += 2
+        } else {
+            if (unit in 0xdc00..0xdfff) return IntArray(0)
+            result[index] = unit
+            index++
         }
     }
+    return result
 }
 
 private fun unavailable(): Nothing = throw RdpNativeFailure("engineUnavailable")
@@ -532,6 +602,7 @@ internal fun packagedConnectionUri(
     width: Int,
     height: Int,
     clipboard: Boolean,
+    keyboardLayout: RdpKeyboardLayout = RdpKeyboardLayout.AUTOMATIC,
 ): Uri {
     val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
     return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
@@ -541,5 +612,10 @@ internal fun packagedConnectionUri(
         .appendQueryParameter("size", "${width}x$height")
         .appendQueryParameter("dynamic-resolution", "+")
         .appendQueryParameter("clipboard", if (clipboard) "+" else "-")
+        .appendQueryParameter("kbd", when (keyboardLayout) {
+            RdpKeyboardLayout.AUTOMATIC -> "unicode:on"
+            RdpKeyboardLayout.TURKISH_Q -> "layout:1055,unicode:on"
+            RdpKeyboardLayout.US -> "layout:1033,unicode:on"
+        })
         .build()
 }

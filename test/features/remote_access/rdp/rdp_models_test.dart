@@ -64,6 +64,32 @@ void main() {
     },
   );
 
+  test('keyboard accepts the bounded USB HID surface used by RDP', () {
+    for (final usage in [
+      0x00070004, // A
+      0x0007001e, // 1
+      0x00070038, // slash
+      0x0007003a, // F1
+      0x0007004c, // Delete
+      0x00070054, // keypad divide
+      0x000700e0, // left control
+      0x000700e7, // right GUI
+    ]) {
+      expect(
+        RdpKeyEvent(physicalKey: usage, down: true).supported,
+        isTrue,
+        reason: 'usage 0x${usage.toRadixString(16)}',
+      );
+    }
+    for (final usage in [0, 0x00070000, 0x00070066, 0x000c00e9]) {
+      expect(
+        RdpKeyEvent(physicalKey: usage, down: true).supported,
+        isFalse,
+        reason: 'usage 0x${usage.toRadixString(16)}',
+      );
+    }
+  });
+
   test('strict capabilities distinguish unavailable and secure RDP', () {
     final f = fixture();
     final available = RdpCapabilities.fromJson(f['availableCapabilities']);
