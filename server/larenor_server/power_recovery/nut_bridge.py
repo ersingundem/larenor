@@ -764,6 +764,7 @@ class NutBridgeRuntime:
         self.notify_socket = Path(notify_socket)
         self.peer_uid = peer_uid
         self._listener = self._notify_thread = None
+        self._notify_identity = None
         try:
             descriptor = os.open(
                 self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600,
@@ -794,6 +795,10 @@ class NutBridgeRuntime:
         return uid
 
     def _bind_notify(self):
+        listener = None
+        pending = None
+        pending_identity = None
+        published_path = False
         try:
             expected_uid = (
                 pwd.getpwnam(self.config.notify_user).pw_uid
@@ -815,23 +820,83 @@ class NutBridgeRuntime:
                 current = os.stat(self.notify_socket, follow_symlinks=False)
                 if (
                     not stat.S_ISSOCK(current.st_mode)
+                    or current.st_nlink != 1
                     or current.st_uid != os.geteuid()
+                    or current.st_gid != os.getegid()
                     or stat.S_IMODE(current.st_mode) != 0o660
                 ):
                     raise ValueError()
-                self.notify_socket.unlink()
+            # A pathname becomes externally visible at bind(), before chmod()
+            # and listen(). Build the listener at an unguessable private name
+            # in the same directory, then atomically publish only the fully
+            # configured socket.
+            pending = self.notify_socket.parent / (
+                ".larenor-nut-" + uuid.uuid4().hex + ".sock"
+            )
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            listener.bind(str(self.notify_socket))
-            os.chmod(self.notify_socket, 0o660)
+            listener.bind(str(pending))
+            bound = os.stat(pending, follow_symlinks=False)
+            pending_identity = (bound.st_dev, bound.st_ino)
+            os.chmod(pending, 0o660)
             listener.listen(8)
             listener.settimeout(0.2)
+            ready = os.stat(pending, follow_symlinks=False)
+            if (
+                not stat.S_ISSOCK(ready.st_mode)
+                or ready.st_nlink != 1
+                or (ready.st_dev, ready.st_ino) != pending_identity
+                or ready.st_uid != os.geteuid()
+                or ready.st_gid != os.getegid()
+                or stat.S_IMODE(ready.st_mode) != 0o660
+            ):
+                raise ValueError()
+            os.replace(pending, self.notify_socket)
+            published_path = True
+            published = os.stat(self.notify_socket, follow_symlinks=False)
+            if (
+                not stat.S_ISSOCK(published.st_mode)
+                or published.st_nlink != 1
+                or (published.st_dev, published.st_ino) != pending_identity
+                or published.st_uid != ready.st_uid
+                or published.st_gid != ready.st_gid
+                or stat.S_IMODE(published.st_mode) != 0o660
+            ):
+                raise ValueError()
+            self._notify_identity = (
+                published.st_dev, published.st_ino, published.st_uid,
+                published.st_gid, published.st_mode, published.st_nlink,
+                published.st_ctime_ns,
+            )
             self._listener = listener
             return expected_uid
         except Exception:
             try:
-                listener.close()
+                if listener is not None:
+                    listener.close()
             except Exception:
                 pass
+            if pending is not None and pending_identity is not None:
+                try:
+                    current = os.stat(pending, follow_symlinks=False)
+                    if (
+                        stat.S_ISSOCK(current.st_mode)
+                        and (current.st_dev, current.st_ino) == pending_identity
+                        and current.st_uid == os.geteuid()
+                    ):
+                        pending.unlink()
+                except OSError:
+                    pass
+            if published_path and pending_identity is not None:
+                try:
+                    current = os.stat(self.notify_socket, follow_symlinks=False)
+                    if (
+                        stat.S_ISSOCK(current.st_mode)
+                        and (current.st_dev, current.st_ino) == pending_identity
+                        and current.st_uid == os.geteuid()
+                    ):
+                        self.notify_socket.unlink()
+                except OSError:
+                    pass
             raise NutBridgeError() from None
 
     @staticmethod
@@ -909,12 +974,22 @@ class NutBridgeRuntime:
         thread, self._notify_thread = self._notify_thread, None
         if thread is not None:
             thread.join(timeout=2)
-        try:
-            current = os.stat(self.notify_socket, follow_symlinks=False)
-            if stat.S_ISSOCK(current.st_mode) and current.st_uid == os.geteuid():
-                self.notify_socket.unlink()
-        except OSError:
-            pass
+        identity, self._notify_identity = self._notify_identity, None
+        if identity is not None:
+            try:
+                current = os.stat(self.notify_socket, follow_symlinks=False)
+                if (
+                    stat.S_ISSOCK(current.st_mode)
+                    and (
+                        current.st_dev, current.st_ino, current.st_uid,
+                        current.st_gid, current.st_mode, current.st_nlink,
+                        current.st_ctime_ns,
+                    ) == identity
+                    and current.st_uid == os.geteuid()
+                ):
+                    self.notify_socket.unlink()
+            except OSError:
+                pass
         descriptor, self._lock = getattr(self, "_lock", -1), -1
         if descriptor >= 0:
             try:

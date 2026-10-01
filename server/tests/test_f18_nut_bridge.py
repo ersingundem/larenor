@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
+import stat
 import sys
 import tempfile
 import threading
@@ -175,6 +177,157 @@ def test_notify_ipc_ack_means_durable_enqueue_and_filters_environment(tmp_path):
         shutil.rmtree(socket_root, ignore_errors=True)
     assert not thread.is_alive()
     assert not socket_path.exists()
+
+
+def test_notify_socket_path_is_published_only_after_listener_is_ready(
+    tmp_path, monkeypatch
+):
+    config = _config(tmp_path)
+    outbox = NutBridgeOutbox(config, clock=lambda: NOW)
+    socket_root = Path(tempfile.mkdtemp(
+        prefix="lnut-", dir="/private/tmp" if Path("/private/tmp").is_dir() else "/tmp"
+    ))
+    os.chown(socket_root, os.geteuid(), os.getegid())
+    socket_root.chmod(0o770)
+    socket_path = socket_root / "notify.sock"
+    runtime = NutBridgeRuntime(
+        config, outbox, notify_socket=socket_path,
+        peer_uid=lambda _connection: os.geteuid(),
+    )
+    stopped = threading.Event()
+    chmod_entered = threading.Event()
+    allow_ready = threading.Event()
+    real_chmod = os.chmod
+
+    def held_chmod(path, mode, *args, **kwargs):
+        info = os.stat(path, follow_symlinks=False)
+        if stat.S_ISSOCK(info.st_mode) and not chmod_entered.is_set():
+            chmod_entered.set()
+            assert allow_ready.wait(2)
+        return real_chmod(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(os, "chmod", held_chmod)
+    server = threading.Thread(target=runtime.serve, args=(stopped,), daemon=True)
+    result = []
+
+    def send_when_published():
+        deadline = time.monotonic() + 2
+        while not socket_path.exists() and time.monotonic() < deadline:
+            time.sleep(0.005)
+        try:
+            result.append(send_notification(
+                socket_path,
+                {"UPSNAME": config.ups_name, "NOTIFYTYPE": "LOWBATT"},
+                expected_uid=os.geteuid(), expected_gid=os.getegid(),
+                peer_uid=lambda _connection: os.geteuid(),
+            ))
+        except Exception as error:
+            result.append(error)
+
+    sender = threading.Thread(target=send_when_published, daemon=True)
+    server.start()
+    try:
+        assert chmod_entered.wait(1)
+        sender.start()
+        # Keep the bind-to-ready interval open long enough for a prematurely
+        # published canonical path to be observed deterministically.
+        time.sleep(0.05)
+        allow_ready.set()
+        sender.join(3)
+        assert not sender.is_alive()
+        assert len(result) == 1 and isinstance(result[0], str)
+        assert len(result[0]) == 32
+        assert outbox.status()["pending"] == 1
+    finally:
+        allow_ready.set()
+        stopped.set()
+        server.join(timeout=2)
+        runtime.close()
+        shutil.rmtree(socket_root, ignore_errors=True)
+
+
+@pytest.mark.parametrize("foreign", ["wrong-mode", "symlink"])
+def test_notify_socket_publication_rejects_foreign_canonical_path(
+    tmp_path, foreign
+):
+    config = _config(tmp_path)
+    outbox = NutBridgeOutbox(config, clock=lambda: NOW)
+    socket_root = Path(tempfile.mkdtemp(
+        prefix="lnut-", dir="/private/tmp" if Path("/private/tmp").is_dir() else "/tmp"
+    ))
+    os.chown(socket_root, os.geteuid(), os.getegid())
+    socket_root.chmod(0o770)
+    socket_path = socket_root / "notify.sock"
+    foreign_listener = None
+    if foreign == "wrong-mode":
+        foreign_listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        foreign_listener.bind(str(socket_path))
+        socket_path.chmod(0o600)
+    else:
+        target = socket_root / "target"
+        target.write_text("not a socket", encoding="ascii")
+        socket_path.symlink_to(target)
+    runtime = NutBridgeRuntime(
+        config, outbox, notify_socket=socket_path,
+        peer_uid=lambda _connection: os.geteuid(),
+    )
+    try:
+        with pytest.raises(NutBridgeError, match="bridge_unavailable"):
+            runtime.serve(threading.Event())
+        assert os.path.lexists(socket_path)
+        if foreign == "wrong-mode":
+            info = os.stat(socket_path, follow_symlinks=False)
+            assert stat.S_ISSOCK(info.st_mode)
+            assert stat.S_IMODE(info.st_mode) == 0o600
+        else:
+            assert socket_path.is_symlink()
+    finally:
+        runtime.close()
+        if foreign_listener is not None:
+            foreign_listener.close()
+        if os.path.lexists(socket_path):
+            socket_path.unlink()
+        target = socket_root / "target"
+        if target.exists():
+            target.unlink()
+        socket_root.rmdir()
+
+
+def test_close_does_not_unlink_successor_socket_identity(tmp_path):
+    config = _config(tmp_path)
+    outbox = NutBridgeOutbox(config, clock=lambda: NOW)
+    socket_root = Path(tempfile.mkdtemp(
+        prefix="lnut-", dir="/private/tmp" if Path("/private/tmp").is_dir() else "/tmp"
+    ))
+    os.chown(socket_root, os.geteuid(), os.getegid())
+    socket_root.chmod(0o770)
+    socket_path = socket_root / "notify.sock"
+    runtime = NutBridgeRuntime(
+        config, outbox, notify_socket=socket_path,
+        peer_uid=lambda _connection: os.geteuid(),
+    )
+    successor = None
+    try:
+        assert runtime._bind_notify() == os.geteuid()
+        socket_path.unlink()
+        successor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        successor.bind(str(socket_path))
+        socket_path.chmod(0o660)
+        replacement = os.stat(socket_path, follow_symlinks=False)
+
+        runtime.close()
+
+        current = os.stat(socket_path, follow_symlinks=False)
+        assert (current.st_dev, current.st_ino) == (
+            replacement.st_dev, replacement.st_ino
+        )
+    finally:
+        runtime.close()
+        if successor is not None:
+            successor.close()
+        if os.path.lexists(socket_path):
+            socket_path.unlink()
+        socket_root.rmdir()
 
 
 def test_worker_uses_actual_upsc_snapshot_and_exact_core_contract(tmp_path):
