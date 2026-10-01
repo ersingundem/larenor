@@ -31,7 +31,13 @@ import wave
 import xml.etree.ElementTree as ET
 
 from tool.android_acceptance_gradle import materialized_gradle_command
-from tool.f60_sunshine_android_discovery import emulator_version, package_identity
+from tool.f60_sunshine_android_discovery import (
+    DiscoveryAcceptanceFailure,
+    emulator_version,
+    package_identity,
+    prebuild_android_test as prebuild_owned_android_test,
+)
+from tool.f60_owned_gamepad import OwnedGamepadAccess
 from tool.f60_sunshine_owned_host import (
     DISPLAY,
     OWNED_MDNS_NAME,
@@ -167,6 +173,10 @@ def _control_message(*, nonce: str, phase: str) -> bytes:
             "touch_armed",
             "touch_sent",
             "touch_observed",
+            "gamepad_ready",
+            "gamepad_armed",
+            "gamepad_sent",
+            "gamepad_observed",
             "disconnect_ready",
             "owned_sunshine_stopped",
         }
@@ -440,7 +450,7 @@ def start_owned_visual(owned: OwnedSunshineHost) -> None:
 class Xi2KeyWitness:
     def __init__(self, owned: OwnedSunshineHost) -> None:
         self._owned = owned
-        self._process: Optional[subprocess.Popen[str]] = None
+        self._process: Optional[subprocess.Popen[bytes]] = None
         self._done = threading.Event()
         self._failure: Optional[BaseException] = None
         self._thread: Optional[threading.Thread] = None
@@ -474,7 +484,6 @@ class Xi2KeyWitness:
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                text=True,
                 cwd=str(self._owned.material.root),
                 env=environment,
                 close_fds=True,
@@ -488,23 +497,31 @@ class Xi2KeyWitness:
     def _read(self) -> None:
         try:
             assert self._process is not None and self._process.stdout is not None
-            event: Optional[str] = None
+            event: Optional[bytes] = None
             pressed = False
             total = 0
-            for line in self._process.stdout:
-                total += len(line.encode("utf-8"))
+            while True:
+                line = self._process.stdout.readline(XI2_LINE_BYTES + 1)
+                if not line:
+                    break
+                total += len(line)
                 if total > MAX_COMMAND_OUTPUT:
                     raise StreamAcceptanceFailure("owned XI2 observation is too large")
-                match = re.fullmatch(r"EVENT type [0-9]+ \((KeyPress|KeyRelease)\)\n", line)
-                if match:
+                if not line.endswith(b"\n") or len(line) > XI2_LINE_BYTES:
+                    raise StreamAcceptanceFailure("owned XI2 observation is malformed")
+                if line.startswith(b"EVENT"):
+                    event = None
+                    match = re.fullmatch(rb"EVENT type [0-9]+ \(([A-Za-z]+)\)\n", line)
+                    if match is None:
+                        raise StreamAcceptanceFailure("owned XI2 observation is malformed")
                     event = match.group(1)
                     continue
-                detail = re.fullmatch(r"\s+detail: ([0-9]+)\n", line)
+                detail = re.fullmatch(rb"\s+detail: ([0-9]+)\n", line)
                 if detail is None or int(detail.group(1)) != KEY_A_CODE:
                     continue
-                if event == "KeyPress":
+                if event == b"KeyPress":
                     pressed = True
-                elif event == "KeyRelease" and pressed:
+                elif event == b"KeyRelease" and pressed:
                     self.observed = True
                     return
         except BaseException as error:
@@ -711,6 +728,7 @@ class PhaseControlBridge:
         *,
         nonce: str,
         paired_client_uuid: Callable[[], Optional[str]],
+        gamepad: OwnedGamepadAccess,
         timeout_seconds: float = CONTROL_TIMEOUT_SECONDS,
         witness_factory: Callable[[OwnedSunshineHost], Xi2PointerWitness] = Xi2PointerWitness,
     ) -> None:
@@ -719,6 +737,7 @@ class PhaseControlBridge:
         self._owned = owned
         self._nonce = nonce
         self._paired_client_uuid = paired_client_uuid
+        self._gamepad = gamepad
         self._timeout = timeout_seconds
         self._witness_factory = witness_factory
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -733,6 +752,7 @@ class PhaseControlBridge:
         self._connection: Optional[socket.socket] = None
         self._witness: Optional[Xi2PointerWitness] = None
         self.touch_observed = False
+        self.gamepad_observed = False
         self.provider_pairing_present_before_disconnect = False
         self.sunshine_stopped = False
         self._thread = threading.Thread(
@@ -773,6 +793,14 @@ class PhaseControlBridge:
                 self._witness.wait(self._timeout)
                 self.touch_observed = True
                 self._send(control, "touch_observed")
+                self._expect(control, "gamepad_ready")
+                self._gamepad.arm()
+                self._send(control, "gamepad_armed")
+                self._expect(control, "gamepad_sent")
+                self._gamepad.wait_effect()
+                self._gamepad.disarm()
+                self.gamepad_observed = True
+                self._send(control, "gamepad_observed")
                 self._expect(control, "disconnect_ready")
                 client_uuid = self._paired_client_uuid()
                 if client_uuid is None:
@@ -789,6 +817,10 @@ class PhaseControlBridge:
         except BaseException as error:
             self._failure = error
         finally:
+            try:
+                self._gamepad.disarm()
+            except BaseException as error:
+                self._failure = self._failure or error
             if self._witness is not None:
                 try:
                     self._witness.close()
@@ -809,6 +841,7 @@ class PhaseControlBridge:
             raise StreamAcceptanceFailure("private phase bridge failed") from self._failure
         if not (
             self.touch_observed
+            and self.gamepad_observed
             and self.provider_pairing_present_before_disconnect
             and self.sunshine_stopped
         ):
@@ -835,7 +868,9 @@ class PhaseControlBridge:
         except OSError:
             pass
         if self._thread.is_alive():
-            self._thread.join(timeout=2)
+            # Allow the bounded nofollow evdev close and ACL restoration to finish
+            # before the owned Sunshine context can remove the virtual device.
+            self._thread.join(timeout=20)
         if self._thread.is_alive():
             raise StreamAcceptanceFailure("private phase bridge cleanup failed")
 
@@ -917,23 +952,9 @@ def prebuild_android_test(
     if not gradle or any(not isinstance(value, str) or not value for value in gradle):
         raise StreamAcceptanceFailure("Android stream Gradle launcher is invalid")
     try:
-        completed = runner(
-            [
-                *gradle,
-                "--no-daemon",
-                ":app:assembleDebug",
-                ":app:assembleDebugAndroidTest",
-                "-x",
-                ":app:compileFlutterBuildDebug",
-            ],
-            cwd=ROOT / "android",
-            check=False,
-            timeout=PREBUILD_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
+        prebuild_owned_android_test(gradle, runner=runner)
+    except DiscoveryAcceptanceFailure as error:
         raise StreamAcceptanceFailure("owned Sunshine Android prebuild failed") from error
-    if completed.returncode != 0:
-        raise StreamAcceptanceFailure("owned Sunshine Android prebuild failed")
 
 
 def verify_report(root: Path = REPORTS) -> dict[str, int | str]:
@@ -984,6 +1005,7 @@ def write_receipt(
 ) -> None:
     expected_host_proof = {
         "touchMouseEffect": True,
+        "gamepadEffect": True,
         "providerPairingPresentBeforeDisconnect": True,
         "ownedSunshineStopped": True,
     }
@@ -992,7 +1014,7 @@ def write_receipt(
     payload = {
         "schemaVersion": 1,
         "gate": "owned_sunshine_android_stream",
-        "scope": "twoStreamInputDisconnectAndLocalRetirement",
+        "scope": "twoStreamOscInputDisconnectAndLocalRetirement",
         "sourceRevision": source_revision(ROOT),
         "provider": "Sunshine",
         "providerTag": "v2026.914.233613",
@@ -1010,6 +1032,7 @@ def write_receipt(
             "softwareKeyEffect": True,
             "connectionStopped": True,
             "touchMouseEffect": True,
+            "gamepadEffect": True,
             "secondConnectionStarted": True,
             "secondRenderedFrame": True,
             "secondFullPcmWrite": True,
@@ -1023,12 +1046,16 @@ def write_receipt(
         },
         "streamAccepted": True,
         "featureAccepted": False,
+        "inputMode": "moonlightOnScreenController",
         "limits": {
             "providerPairingRemoval": "unaccepted",
             "physicalDisplay": "manual",
             "physicalAudio": "manual",
             "physicalPointerDevice": "manual",
-            "physicalController": "manual",
+            "externalController": "manual",
+            "controllerRumble": "manual",
+            "gameConsumption": "manual",
+            "inputLatency": "manual",
         },
     }
     encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
@@ -1073,7 +1100,9 @@ def _run() -> int:
     xi2: Optional[Xi2KeyWitness] = None
     pin_reverse_installed = False
     control_reverse_installed = False
-    with OwnedSunshineHost.start(stream_profile=True) as owned:
+    with OwnedGamepadAccess(os.environ) as gamepad, OwnedSunshineHost.start(
+        stream_profile=True
+    ) as owned:
         readiness = owned.public_readiness()
         if readiness.get("state") != "host_ready" or readiness.get("streamAccepted") is not False:
             raise StreamAcceptanceFailure("owned Sunshine host is not ready")
@@ -1085,6 +1114,7 @@ def _run() -> int:
             owned,
             nonce=nonce,
             paired_client_uuid=lambda: bridge.paired_client_uuid,
+            gamepad=gamepad,
         )
         xi2 = Xi2KeyWitness(owned)
         tone_state: dict[str, object] = {}
@@ -1175,6 +1205,7 @@ def _run() -> int:
         moonlight_package=moonlight_package,
         host_proof={
             "touchMouseEffect": phase_bridge.touch_observed,
+            "gamepadEffect": phase_bridge.gamepad_observed,
             "providerPairingPresentBeforeDisconnect": (
                 phase_bridge.provider_pairing_present_before_disconnect
             ),

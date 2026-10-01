@@ -10,6 +10,7 @@ import textwrap
 import unittest
 from unittest import mock
 
+from tool import f60_sunshine_android_discovery as discovery
 from tool.f60_sunshine_android_discovery import (
     DiscoveryAcceptanceFailure,
     TEST_CLASS,
@@ -55,6 +56,41 @@ kvm_ready=no
 
 
 class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
+    def test_discovery_prebuild_failure_never_starts_provider(self) -> None:
+        prebuild = discovery.prebuild_android_test
+        run = mock.Mock(return_value=mock.Mock(returncode=1))
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.dict(os.environ, {"RUNNER_TEMP": temporary}), \
+                mock.patch.object(discovery, "REPORTS", Path(temporary) / "reports"), \
+                mock.patch.object(discovery, "emulator_version", return_value="37.1.11.0"), \
+                mock.patch.object(discovery, "package_identity", return_value={}), \
+                mock.patch.object(discovery, "materialized_gradle_command", return_value=["gradlew"]), \
+                mock.patch.object(discovery, "prebuild_android_test", side_effect=lambda gradle: prebuild(gradle, runner=run)), \
+                mock.patch.object(discovery.OwnedSunshineHost, "start") as start:
+            with self.assertRaisesRegex(DiscoveryAcceptanceFailure, "prebuild failed"):
+                discovery.main()
+            start.assert_not_called()
+            args, options = run.call_args
+            self.assertEqual(["gradlew", "--no-daemon", ":app:assembleDebug", ":app:assembleDebugAndroidTest"], args[0])
+            self.assertNotIn("-x", args[0])
+            self.assertEqual(1200, options["timeout"])
+
+    def test_discovery_prebuild_finishes_before_provider_deadline(self) -> None:
+        order = []
+        with tempfile.TemporaryDirectory() as temporary, \
+                mock.patch.dict(os.environ, {"RUNNER_TEMP": temporary}), \
+                mock.patch.object(discovery, "REPORTS", Path(temporary) / "reports"), \
+                mock.patch.object(discovery, "emulator_version", return_value="37.1.11.0"), \
+                mock.patch.object(discovery, "package_identity", return_value={}), \
+                mock.patch.object(discovery, "materialized_gradle_command", return_value=["gradlew"]), \
+                mock.patch.object(discovery, "prebuild_android_test", side_effect=lambda _gradle: order.append("prebuild")), \
+                mock.patch.object(discovery.OwnedSunshineHost, "start", side_effect=lambda: (
+                    order.append("provider"), (_ for _ in ()).throw(DiscoveryAcceptanceFailure("stop"))
+                )[1]):
+            with self.assertRaises(DiscoveryAcceptanceFailure):
+                discovery.main()
+        self.assertEqual(["prebuild", "provider"], order)
+
     def _run_workflow_guard(self, **changes: str) -> subprocess.CompletedProcess[str]:
         reference = "refs/heads/codex/project-completion-100"
         values = {

@@ -1,15 +1,26 @@
 package com.ersingundem.larenor.game.moonlight
 
+import android.content.SharedPreferences
 import android.os.SystemClock
+import android.preference.PreferenceManager
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.ersingundem.larenor.MainActivity
+import com.limelight.binding.input.virtual_controller.DigitalButton
+import com.limelight.binding.input.virtual_controller.DigitalPad
+import com.limelight.binding.input.virtual_controller.LeftAnalogStick
+import com.limelight.binding.input.virtual_controller.LeftTrigger
+import com.limelight.binding.input.virtual_controller.RightAnalogStick
+import com.limelight.binding.input.virtual_controller.RightTrigger
+import com.limelight.binding.input.virtual_controller.VirtualControllerElement
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -64,7 +75,14 @@ class MoonlightOwnedSunshineStreamTest {
             val currentActivity = requireNotNull(activity.get())
             val value = requireNotNull(runtime.get())
             val authority = authority()
+            val oscFixture = ScopedOscPreferenceFixture(
+                @Suppress("DEPRECATION")
+                PreferenceManager.getDefaultSharedPreferences(
+                    MoonlightScopedContext.create(currentActivity.applicationContext, authority.scope),
+                ),
+            )
             try {
+                oscFixture.enable()
                 value.bindAuthority(authority)
                 val endpoints = discoverEndpoints(currentActivity)
                 assertEquals(1, endpoints.size)
@@ -210,6 +228,9 @@ class MoonlightOwnedSunshineStreamTest {
                     control.exchange("touch_ready", "touch_armed")
                     dispatchOwnedTouchAndMouse(firstGame)
                     control.exchange("touch_sent", "touch_observed")
+                    control.exchange("gamepad_ready", "gamepad_armed")
+                    dispatchOwnedOscA(firstGame)
+                    control.exchange("gamepad_sent", "gamepad_observed")
 
                     val stopped = command(value, authority, session, "stop", "stop")
                     assertEquals("native_observed", stopped.state)
@@ -293,8 +314,15 @@ class MoonlightOwnedSunshineStreamTest {
                     })
                 }
             } finally {
-                value.close()
-                MoonlightForegroundLeaseRegistry.clearForTest()
+                try {
+                    value.close()
+                } finally {
+                    try {
+                        oscFixture.restore()
+                    } finally {
+                        MoonlightForegroundLeaseRegistry.clearForTest()
+                    }
+                }
             }
         }
     }
@@ -428,6 +456,70 @@ class MoonlightOwnedSunshineStreamTest {
                 source = InputDevice.SOURCE_MOUSE_RELATIVE,
                 toolType = MotionEvent.TOOL_TYPE_MOUSE,
             ).use(game::dispatchGenericMotionEvent)
+        }
+    }
+
+    private fun dispatchOwnedOscA(game: LarenorMoonlightGame) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val elements = mutableListOf<VirtualControllerElement>()
+            collectVisibleControllerElements(game.window.decorView, elements)
+            assertEquals(
+                "source-locked default Moonlight OSC hierarchy changed",
+                listOf(
+                    DigitalPad::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                    LeftTrigger::class.java,
+                    RightTrigger::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                    LeftAnalogStick::class.java,
+                    RightAnalogStick::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                    DigitalButton::class.java,
+                ),
+                elements.map { it.javaClass },
+            )
+            val aButton = elements[1] as DigitalButton
+            assertTrue("Moonlight OSC A button is not attached", aButton.isAttachedToWindow)
+            assertTrue("Moonlight OSC A button has no touch target", aButton.width > 0 && aButton.height > 0)
+            val downTime = SystemClock.uptimeMillis()
+            pointerEvent(
+                downTime = downTime,
+                eventTime = downTime,
+                action = MotionEvent.ACTION_DOWN,
+                source = InputDevice.SOURCE_TOUCHSCREEN,
+                toolType = MotionEvent.TOOL_TYPE_FINGER,
+                x = aButton.width / 2f,
+                y = aButton.height / 2f,
+            ).use(aButton::dispatchTouchEvent)
+            pointerEvent(
+                downTime = downTime,
+                eventTime = downTime + 1,
+                action = MotionEvent.ACTION_UP,
+                source = InputDevice.SOURCE_TOUCHSCREEN,
+                toolType = MotionEvent.TOOL_TYPE_FINGER,
+                x = aButton.width / 2f,
+                y = aButton.height / 2f,
+            ).use(aButton::dispatchTouchEvent)
+        }
+    }
+
+    private fun collectVisibleControllerElements(
+        view: View,
+        destination: MutableList<VirtualControllerElement>,
+    ) {
+        if (view is VirtualControllerElement && view.visibility == View.VISIBLE && view.isShown) {
+            destination += view
+        }
+        if (view is ViewGroup) {
+            repeat(view.childCount) { index ->
+                collectVisibleControllerElements(view.getChildAt(index), destination)
+            }
         }
     }
 
@@ -704,6 +796,29 @@ class MoonlightOwnedSunshineStreamTest {
         val appsByObservation: Map<String, String>,
     )
 
+    private class ScopedOscPreferenceFixture(
+        private val preferences: SharedPreferences,
+    ) {
+        private val previous = OSC_KEYS.associateWith { key ->
+            preferences.all[key].also { value -> require(value == null || value is Boolean) }
+        }
+
+        fun enable() {
+            require(!preferences.getBoolean(OSC_ONLY_L3_R3, false))
+            require(!preferences.getBoolean(OSC_FLIP_FACE_BUTTONS, false))
+            check(preferences.edit().putBoolean(OSC_ENABLED, true).commit())
+            check(preferences.getBoolean(OSC_ENABLED, false))
+        }
+
+        fun restore() {
+            val editor = preferences.edit()
+            previous.forEach { (key, value) ->
+                if (value == null) editor.remove(key) else editor.putBoolean(key, value as Boolean)
+            }
+            check(editor.commit())
+        }
+    }
+
     companion object {
         private const val REQUIRED_ARGUMENT = "larenorF60OwnedStream"
         private const val MDNS_INSTANCE_ARGUMENT = "larenorF60OwnedMdnsInstance"
@@ -733,6 +848,10 @@ class MoonlightOwnedSunshineStreamTest {
         private const val CONTROL_READ_TIMEOUT_MILLIS = 90_000
         private const val MAX_PIN_PAYLOAD_BYTES = 256
         private const val MAX_CONTROL_PAYLOAD_BYTES = 512
+        private const val OSC_ENABLED = "checkbox_show_onscreen_controls"
+        private const val OSC_ONLY_L3_R3 = "checkbox_only_show_L3R3"
+        private const val OSC_FLIP_FACE_BUTTONS = "checkbox_flip_face_buttons"
+        private val OSC_KEYS = setOf(OSC_ENABLED, OSC_ONLY_L3_R3, OSC_FLIP_FACE_BUTTONS)
         private const val MAX_OBSERVATION_BYTES = 64 * 1024
         private const val MAX_APPS = 256
         private const val MAX_JS_REVISION = 9_007_199_254_740_991L

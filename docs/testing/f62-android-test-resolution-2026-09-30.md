@@ -32,3 +32,13 @@ consistent resolution. The focused policy test verifies the scoped constraint,
 the matching stable test dependency and absence of a global force. This proof
 only clears dependency resolution. A new hosted run must still execute the
 strict one-test/no-skip NLA acceptance before F62 can claim interoperability.
+
+## Moonlight scope correction — 2026-10-01
+
+A real full Moonlight app/test APK prebuild reproduced the same strict
+`1.3.0` versus `1.7.0` conflict at `:app:mergeDebugAndroidTestAssets`.
+The debug-runtime constraint now covers `hasFreeRdp || hasMoonlight`, matching
+the already shared instrumentation dependency scope. A receipted Moonlight
+full prebuild then passed all 400 tasks and its source-locked APK verifier.
+This establishes dependency/build compatibility only; the owned hosted
+Sunshine gate is still required. See [F60 prebuild evidence](f60-apk-prebuild-2026-10-01.md).

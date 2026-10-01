@@ -113,6 +113,7 @@ class F60SunshineAndroidStreamWorkflowTest(unittest.TestCase):
         self.assertIn("f60-sunshine-android-stream-receipt.json", WORKFLOW)
         self.assertIn("x11-apps", WORKFLOW)
         self.assertIn("xinput", WORKFLOW)
+        self.assertIn("packages=(acl ", WORKFLOW)
         self.assertIn("pulseaudio-utils", WORKFLOW)
         self.assertNotIn("continue-on-error", WORKFLOW)
         self.assertNotIn("-noaudio", WORKFLOW)
@@ -121,6 +122,17 @@ class F60SunshineAndroidStreamWorkflowTest(unittest.TestCase):
         self.assertIn("disable-linux-hw-accel: false", WORKFLOW)
         self.assertNotIn("-accel off", WORKFLOW)
         self.assertNotIn("uses: ./.github/workflows/f60-sunshine-owned-host.yml", WORKFLOW)
+
+    def test_hosted_uhid_preflight_is_before_engine_build_and_runtime_acl_window(self) -> None:
+        preflight = "      - name: Require exact hosted UHID capability\n"
+        engine = "      - name: Build and install exact receipted Moonlight engine\n"
+        run = "      - name: Run real owned Sunshine stream and local retirement lifecycle\n"
+        self.assertLess(WORKFLOW.index(preflight), WORKFLOW.index(engine))
+        self.assertLess(WORKFLOW.index(engine), WORKFLOW.index(run))
+        section = WORKFLOW.split(preflight, 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("python3 -B -m tool.f60_owned_gamepad preflight", section)
+        self.assertNotIn("chmod 666 /dev/uhid", WORKFLOW)
+        self.assertNotIn("chgrp", WORKFLOW)
 
     def test_kvm_preflight_blocks_missing_or_inaccessible_device(self) -> None:
         self.assertEqual(0, self._kvm("ready").returncode)

@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          packages=(avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-apps x11-utils x11-xserver-utils xinput xvfb)
+          packages=(acl avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-apps x11-utils x11-xserver-utils xinput xvfb)
           for package in "${packages[@]}"; do
             candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
             case "$candidate" in ""|"(none)") exit 1;; esac
@@ -80,6 +80,9 @@ jobs:
           done
           sudo systemctl start avahi-daemon
           test "$(systemctl is-active avahi-daemon)" = active
+
+      - name: Require exact hosted UHID capability
+        run: python3 -B -m tool.f60_owned_gamepad preflight
 
       - name: Build and install exact receipted Moonlight engine
         env:

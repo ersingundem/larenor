@@ -138,7 +138,7 @@ F37 immutable correction/terminal balance/payment/export actual normal Client/Co
 1. **F22 — CI bekliyor:** kalıcı occurrence dispatcher, bearer bağımsız current family/user revision authority ve final receipt cancellation gate bağlandı. Root gerçek Client/Core/Jellyfin iki yaşamı, F22 35/ortak F22-F28 46 Server ve scoped analyze geçti. Handoff sonrası belirsiz etki replay edilmez; fiziksel receiver MANUAL ayrı.
 2. **F28 — CI bekliyor:** durable deadline pause/production Unix IPC/taze provider medya readback bağlandı. Root gerçek Client/Core iki yaşamı, ortak 46 Server/37 Flutter ve scoped analyze geçti; effect/receipt arası takeover409 ve lost-ACK unknown/no replay korundu. Fiziksel receiver MANUAL ayrı.
 3. **F47 — CI bekliyor:** recorded socTemp history ve current reserve karşılaştırması normal Core API/Client UIye bağlandı. Root 18 Server, F47/F28 ortak 37 Flutter, scoped analyze ve gerçek Client/Core/evcc/HA iki yaşamını geçti. Tarihsel policy/capacity/manual preference ve sürekli reserve uyumu bilinmiyor olarak korunur; fiziksel inverter MANUAL ayrı.
-4. **F60 — yeniden çalışılıyor:** Exact Moonlight12.2 source/package ve iki byte-identical AAR, gerçek izole APK link/DEX/ABI kanıtı root tarafından doğrulandı (6 paket testi). Üretim Client pairing/catalog, Core v2 ve scoped native runtime entegrasyonu halen açık; paket kanıtı playback/input veya CI bekliyor sayılmaz. [Kanıt](f60-moonlight-android-package-2026-09-30.md).
+4. **F60 — yeniden çalışılıyor:** Exact Moonlight12.2 source/package ve iki byte-identical AAR, gerçek izole APK link/DEX/ABI kanıtı root tarafından doğrulandı (6 paket testi). Üretim Client pairing/catalog, Core v2 ve scoped native runtime entegrasyonu 1 Ekim odaklı kabulüyle bağlandı. Açık kalan kapı gerçek owned Sunshine discovery/iki yayın yaşamı/frame/full PCM/touch/gamepad/kopuş/local retirement receiptidir; paket kanıtı bu etkileri veya CI bekliyor durumunu kurmaz. [Kanıt](f60-moonlight-android-package-2026-09-30.md).
 5. **F61 — CI bekliyor:** run36783304533 exactf83deee786ef0ce4f47a9beccbb6c3f0ed8bdea7 gerçek TigerVNC1.13.1 X509Vnc/SPKI/password/frame/input/960×720 resize/retirement/no replay kabulünü yeşil tamamladı. Root original class/method/1test/0skip/0failure/0error canonical receipt eşitliğini doğruladı; 5 gerçek TLS regresyonu ve54 araç testi de geçti. Geniş son HEAD CI ve fiziksel MANUAL ayrıca açık.
 6. **F62 — native kanıt bekliyor:** run `36772277001` exact `f5b382ce` her iki AAR/APKyi, NLA host ve emulatoru geçti; named instrumentation çalışıp altı saniyede düştü. Generic saklanan log assertionı göstermedi. Bounded source/package bağlı public failure tanısı root 28 araç testini geçti; yeni exact packaged one-test/no-skip receipt gerekli.
 7. **F63 — güçlü named exact CI geçti:** run `36772281257`, exact `f5b382cec7e3d4ced65535e8e538e696fbb3fec6`, gerçek Linux SSH/SFTP/tunnel, normal Core/no-replay, Android APK ve kontrat adımlarını yeşil bitirdi. Root güçlü yedi named test/sıfır skip/sourceRevision receiptini indirdi ve doğruladı. Geniş sonraki HEAD CI ve fiziksel MANUAL ayrıca açık.
@@ -248,3 +248,17 @@ remote clipboard readback; the current NLA shadow fixture lacks cliprdr.
 Exact7fccce52/run36797967344 failed its Android/NLA baseline and is under private
 diagnosis. Full hosted channels remain open: F62 is reworking,58/67 await CI,
 and37/127,3/63 acceptance counters stay unchanged.
+
+
+F60 exact2af5e8cc discovery36799033298 and stream36799039362 completed failed
+at copyJniLibsflutterBuildDebug: the fresh prebuild had skipped its Flutter JNI
+producer. No terminal Android report or receipt exists. The shared real APK
+prebuild now completes before provider timers; a subsequent real local build
+exposed and corrected Moonlight's runner1.3.0/1.7.0 app/test conflict. Canonical
+Moonlight install verification, full app/test APK assembly (400 tasks), and
+source-locked APK verification passed. OSC touch must produce exact owned
+UHID/evdev BTN_SOUTH down/sync/up/sync before stream stop. Byte-bounded XI2 key
+parsing rejects unrelated Motion fields that previously completed a stale
+release. These are build and gate-integrity results, not hosted effect receipt.
+F60 stays reworking; all acceptance and CI-waiting counters are unchanged.
+See [prebuild evidence](f60-apk-prebuild-2026-10-01.md).

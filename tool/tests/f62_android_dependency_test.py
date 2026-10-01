@@ -13,7 +13,7 @@ class FreeRdpAndroidDependencyTest(unittest.TestCase):
 
         self.assertEqual(build.count(constraint), 1)
         self.assertEqual(build.count(instrumentation), 1)
-        self.assertIn("constraints {\n        if (hasFreeRdp) {", build)
+        self.assertIn("constraints {\n        if (hasFreeRdp || hasMoonlight) {", build)
         self.assertLess(build.index(constraint), build.index(instrumentation))
         self.assertNotIn("resolutionStrategy.force", build)
         self.assertNotIn('implementation("androidx.test:runner:', build)

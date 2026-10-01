@@ -5235,21 +5235,21 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36799033298",
           "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source actual configured SDK discovery probe; no NSD acceptance yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Engine/KVM passed; copyJniLibsflutterBuildDebug failed because fresh APK prebuild skipped the Flutter JNI producer; no terminal Android report or receipt"
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36799039362",
           "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source two-stream owned input/disconnect/local-retirement gate; no receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Engine/KVM passed; copyJniLibsflutterBuildDebug failed because fresh APK prebuild skipped the Flutter JNI producer; no terminal Android report or receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki ve kalıcı retirement yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7 emulator/KVM boot hatası ve exact0036260b tool module entrypoint hatası dar düzeltildi. Exact1887ff9a discovery36797303341/stream36797304940 engine/KVM sonrasında PATHte bulunmayan emulator identity probeuyla düştü; provider/NSD/terminal Android report/receipt kurulmadı. Shared SDK executable düzeltmesi eski exact kaynak RED→GREEN ve13 discovery kontrolüyle doğrulandı. Canonical AAR ile production/AndroidTest compile ve33 native/0skip XML geçti. Yeni owned gate iki gerçek frame/full-PCM yaşamı, Game touch/mouse→XI2, causal graceful stop, exact Sunshine daemon shutdown→connectionTerminated, zero redispatch ve exact local-clear ister; hosted sonucu henüz yok. Tablet-only kaldırma fence-first/generation/no-replay ve12 Client widget testiyle doğrulandı; Sunshine eşlemesi kalır. GET/unpair upstreamde yoktur; otomatik admin silme zorunlu ürün kapsamı değildir. Gerçek hosted yayın/girdi/gamepad ve geniş exact HEAD CI açık; F60 CI bekliyor/done yapılmaz. Fiziksel controller/gecikme MANUAL ayrı. Receipt featureAccepted=false/providerPairingRemoved=false kalır."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki ve kalıcı retirement yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7 emulator/KVM boot hatası ve exact0036260b tool module entrypoint hatası dar düzeltildi. Exact1887ff9a discovery36797303341/stream36797304940 engine/KVM sonrasında PATHte bulunmayan emulator identity probeuyla düştü; provider/NSD/terminal Android report/receipt kurulmadı. Shared SDK executable düzeltmesi eski exact kaynak RED→GREEN ve13 discovery kontrolüyle doğrulandı. Canonical AAR ile production/AndroidTest compile ve33 native/0skip XML geçti. Yeni owned gate iki gerçek frame/full-PCM yaşamı, Game touch/mouse→XI2, causal graceful stop, exact Sunshine daemon shutdown→connectionTerminated, zero redispatch ve exact local-clear ister; hosted sonucu henüz yok. Tablet-only kaldırma fence-first/generation/no-replay ve12 Client widget testiyle doğrulandı; Sunshine eşlemesi kalır. GET/unpair upstreamde yoktur; otomatik admin silme zorunlu ürün kapsamı değildir. Gerçek hosted yayın/girdi/gamepad ve geniş exact HEAD CI açık; F60 CI bekliyor/done yapılmaz. Fiziksel controller/gecikme MANUAL ayrı. Receipt featureAccepted=false/providerPairingRemoved=false kalır. Exact2af5e8cc discovery36799033298/stream36799039362 aynı eksik Flutter JNI build girdisiyle başarısız tamamlandı. Ortak gerçek prebuild provider öncesine taşındı; Moonlight debug runner çakışması düzeltildi ve canonical source-locked400-task APK build/verifier geçti. OSC gamepad/UI→owned UHID evdev effect ve bounded key-parser bütünlüğü gatee eklendi; değişen kaynakta gerçek hosted receipt henüz yok."
     },
     {
       "id": "G11",

@@ -281,6 +281,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 self.assertIn("keyboard = disabled\n", config)
                 self.assertIn("mouse = disabled\n", config)
                 self.assertIn("controller = disabled\n", config)
+                self.assertNotIn("gamepad = xseries\n", config)
                 self.assertNotIn("private-password", config)
                 apps = json.loads(material.apps.read_text(encoding="utf-8"))
                 self.assertEqual(apps, {"env": {}, "apps": [{"name": "Desktop"}]})
@@ -288,7 +289,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 workspace.close()
             self.assertFalse(workspace.root.exists())
 
-    def test_stream_profile_enables_only_owned_keyboard_and_mouse_input(self):
+    def test_stream_profile_enables_owned_keyboard_mouse_and_xseries_input(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = host.PrivateWorkspace.create(Path(temporary))
             try:
@@ -300,7 +301,8 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 config = material.config.read_text(encoding="utf-8")
                 self.assertIn("keyboard = enabled\n", config)
                 self.assertIn("mouse = enabled\n", config)
-                self.assertIn("controller = disabled\n", config)
+                self.assertIn("controller = enabled\n", config)
+                self.assertIn("gamepad = xseries\n", config)
             finally:
                 workspace.close()
 

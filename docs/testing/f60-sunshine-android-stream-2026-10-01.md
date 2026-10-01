@@ -44,11 +44,16 @@ One exact Android test must complete, without skips:
    listener before Android dispatches a real production touch down/move/up and
    relative mouse motion/button sequence. Acceptance requires two distinct
    X11 pointer positions plus an exact primary-button press/release pair.
-8. Deliberate stop of the first lifetime succeeds only after the production
+8. Android taps the actual scoped Moonlight on-screen A button only after the
+   host arms its exact newly owned Xbox Series evdev node. The host requires
+   real `BTN_SOUTH` down/sync/up/sync before acknowledging this step. ACL
+   grants and restoration require descriptor-bound effective-permission
+   readback; `SYN_DROPPED` invalidates the observation.
+9. Deliberate stop of the first lifetime succeeds only after the production
    connection reports that `NvConnection.stop()` returned. Native retires that
    exact session and creates a fresh second session, which must independently
    reach connection-started, rendered-frame, and full-PCM-write evidence.
-9. Immediately before forced disconnect, the host verifies the exact private
+10. Immediately before forced disconnect, the host verifies the exact private
    Sunshine client UUID captured after pairing is still present and enabled;
    a same-name replacement cannot satisfy this check. It then stops only the
    exact registered owned Sunshine process group. Android accepts only the
@@ -70,8 +75,9 @@ value. The bridge closes after its first message.
 A distinct `adb reverse` connection maps Android loopback port `49362` to an
 ephemeral host-only listener. It carries at most 512 bytes per canonical ASCII
 JSON line, uses the same one-run nonce, and accepts only the fixed ordered phase
-sequence `touch_ready`, `touch_sent`, and `disconnect_ready`. Host replies are
-limited to `touch_armed`, `touch_observed`, and
+sequence `touch_ready`, `touch_sent`, `gamepad_ready`, `gamepad_sent`, and
+`disconnect_ready`. Host replies are limited to `touch_armed`,
+`touch_observed`, `gamepad_armed`, `gamepad_observed`, and
 `owned_sunshine_stopped`. Coordinates, process identifiers, and the paired
 client UUID remain process-private.
 
@@ -84,6 +90,38 @@ Probe events are cleared before Android input evidence is collected. Every XI2
 `EVENT` header, including unknown event kinds, resets the current parser state;
 truncated relevant events fail closed.
 
+The stream-only Sunshine profile enables controller input and fixes the
+emulated profile to `xseries`; readiness profiles keep controller input
+disabled. Before any provider deadline, a hosted-runner-only preflight verifies
+the exact `/dev/uhid` character-device/sysfs identity, loading only the fixed
+`uhid` module when absent. After both APKs are prebuilt, a private ACL scope
+opens that exact character device with `O_PATH|O_NOFOLLOW`, validates its
+device/inode/rdev tuple, and retains the descriptor for the whole lease. The
+initial ACL must contain only the base owner, group, and other entries; any
+pre-existing named user/group or mask fails closed. ACL changes and restoration
+address only `/proc/<owned-process>/fd/<descriptor>`, so replacement of the
+device pathname cannot redirect them. The current runner UID receives `rw` and
+the explicit ACL mask is the union of that permission and the unchanged base
+group permission. A descriptor-bound `getfacl` readback must prove the named
+entry, mask, unchanged base entries, and effective `rw` before the host opens
+the node. It records every existing evdev identity before Sunshine starts.
+
+At `gamepad_ready`, the host requires exactly one new, unsymlinked evdev whose
+sysfs device number matches its `st_rdev` and whose name, vendor/product, unique
+identity, and physical-path prefix match the pinned Sunshine Xbox Series
+profile. Only that node receives a temporary current-UID read ACL. The host
+uses the same descriptor-anchored, base-only ACL validation and mask/readback
+proof before the host opens it read-only with `O_NOFOLLOW`. Pre-arm reports are
+drained before `gamepad_armed`. `gamepad_observed` requires an actual evdev
+`BTN_SOUTH` down report committed by `SYN_REPORT`, followed by `BTN_SOUTH` up
+and its own `SYN_REPORT`; any `SYN_DROPPED` invalidates the evidence. Native
+packet submission alone is insufficient. No `EVIOCGRAB`, global input-node
+permission, group mutation, or mode `0666` is used. Both ACLs are restored from
+their private in-memory snapshots through the retained descriptors on success,
+cancellation, and failure. Restoration is read back, retried a bounded two
+times on transient failure, and the snapshot plus descriptor remain retained
+if both attempts fail.
+
 The PIN is never written to a file, command argument, environment value, log,
 JUnit report, public receipt, or artifact. Sunshine credentials, provider
 addresses, TLS material, native binding identifiers, upstream app identifiers,
@@ -93,7 +131,8 @@ frames, and PCM bytes are also excluded from artifacts.
 
 The workflow may publish a receipt only after the exact named JUnit case passes,
 the PIN bridge observes the paired client, the owned tone injector succeeds,
-XI2 observes the key and pointer/button effects, both stream lifetimes produce
+XI2 observes the key and pointer/button effects, evdev observes the on-screen
+A-button effect, both stream lifetimes produce
 their required output, the exact owned Sunshine process stops, the second
 lifetime reports a real remote termination without redispatch, and Native
 locally retires the binding. The UUID itself never enters the receipt. The receipt binds the
@@ -101,9 +140,10 @@ repository revision and Moonlight package hashes and exposes only bounded
 proof booleans.
 
 `streamAccepted: true` means only the named
-`twoStreamInputDisconnectAndLocalRetirement` scope: real pairing, catalog,
+`twoStreamOscInputDisconnectAndLocalRetirement` scope: real pairing, catalog,
 launch, two independent frame/PCM lifetimes, software key and mouse effects,
-graceful stop, provider-process disconnect, zero redispatch, and local binding
+the Moonlight on-screen-controller A-button effect, graceful stop,
+provider-process disconnect, zero redispatch, and local binding
 retirement. The same receipt says
 `featureAccepted: false`, `localBindingCleared: true`,
 `providerPairingRemoved: false`, and records provider pairing removal as
@@ -112,7 +152,7 @@ acceptance, and this partial scope does not complete F60 functional acceptance.
 
 ## Current unpair compatibility boundary
 
-The supported product promise is tablet-only removal with `local_cleared|unknown`, as the Client explicitly explains. Automatic Sunshine administrator pairing deletion is an optional separate capability; it is not a mandatory F60 acceptance step. The partial stream gate still cannot close gamepad, physical-device input, physical latency, or broad commit CI acceptance.
+The supported product promise is tablet-only removal with `local_cleared|unknown`, as the Client explicitly explains. Automatic Sunshine administrator pairing deletion is an optional separate capability; it is not a mandatory F60 acceptance step. The partial stream gate still cannot close external controller hardware, rumble, game consumption, physical input latency, or broad commit CI acceptance.
 
 The pinned Moonlight client implements `NvHTTP.unpair()` as an unauthenticated
 GameStream `GET /unpair`. The pinned Sunshine `nvhttp.cpp` does not register
@@ -136,7 +176,8 @@ The visual proof is an actual MediaCodec rendered-frame callback, not a pixel
 comparison or a quality judgment. The audio proof is an accepted complete PCM
 write, not physical audibility. The key witness is software input delivered to
 the owned X11 server; it does not prove a physical keyboard. Physical display,
-speaker, physical mouse/touchscreen, controller, Wi-Fi, latency, HDR, HEVC,
+speaker, physical mouse/touchscreen, external USB/Bluetooth controller, rumble,
+game consumption, Wi-Fi, latency, HDR, HEVC,
 AV1, DRM, and household-host
 behavior remain manual or separately named acceptance work.
 
@@ -181,6 +222,12 @@ required.
   <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/platform/linux/audio.cpp>
 - Sunshine mouse/button input gates and forwarding:
   <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/input.cpp>
+- Sunshine controller and gamepad configuration:
+  <https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html#controller>
+- Linux kernel UHID userspace transport contract:
+  <https://docs.kernel.org/hid/uhid.html>
+- Linux kernel input event and synchronization contract:
+  <https://docs.kernel.org/input/event-codes.html>
 - Sunshine launched-application and process-group lifecycle:
   <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/process.cpp>
 - Pinned xinput 1.6.4 XI2 subscription order:
@@ -200,10 +247,12 @@ The focused checks are:
 
 ```text
 python3 -m unittest \
+  tool.tests.f60_owned_gamepad_test \
   tool.tests.f60_sunshine_owned_host_test \
   tool.tests.f60_sunshine_android_stream_test \
   tool.tests.f60_sunshine_android_stream_workflow_test
 python3 -m py_compile \
+  tool/f60_owned_gamepad.py \
   tool/f60_sunshine_owned_host.py \
   tool/f60_sunshine_android_stream.py
 actionlint .github/workflows/f60-sunshine-android-stream.yml

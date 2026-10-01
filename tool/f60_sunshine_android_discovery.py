@@ -13,6 +13,7 @@ import stat
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
+from typing import Any, Callable, Sequence
 
 from tool.android_acceptance_gradle import materialized_gradle_command
 from tool.f60_sunshine_owned_host import OwnedSunshineHost, _sunshine_mdns_instance_name
@@ -27,6 +28,7 @@ TEST_CLASS = (
 )
 TEST_NAME = "discoversTheExactOwnedSunshineServiceAcrossFreshDiscoveryLifetimes"
 RECEIPT_NAME = "f60-sunshine-android-discovery-receipt.json"
+PREBUILD_TIMEOUT_SECONDS = 1200
 MOONLIGHT_AAR = ROOT / "android/app/moonlight/moonlight-engine.aar"
 MOONLIGHT_RECEIPT = ROOT / "android/app/moonlight/receipt.json"
 MOONLIGHT_ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v2"
@@ -209,12 +211,33 @@ def write_receipt(
         os.close(descriptor)
 
 
+def prebuild_android_test(
+    gradle: Sequence[str], *, runner: Callable[..., Any] = subprocess.run,
+) -> None:
+    if not gradle or any(not isinstance(value, str) or not value for value in gradle):
+        raise DiscoveryAcceptanceFailure("Android discovery Gradle launcher is invalid")
+    try:
+        completed = runner(
+            [*gradle, "--no-daemon", ":app:assembleDebug", ":app:assembleDebugAndroidTest"],
+            cwd=ROOT / "android", check=False, timeout=PREBUILD_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise DiscoveryAcceptanceFailure("owned Sunshine Android prebuild failed") from error
+    if completed.returncode != 0:
+        raise DiscoveryAcceptanceFailure("owned Sunshine Android prebuild failed")
+
+
 def main() -> int:
     version = emulator_version()
     moonlight_package = package_identity()
     for report in REPORTS.rglob("TEST-*.xml"):
         report.unlink()
     runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve()
+    with tempfile.TemporaryDirectory(prefix="f60-discovery-prebuild-", dir=runner_temp) as temporary:
+        gradle = materialized_gradle_command(
+            Path(temporary) / "launcher", project_android=ROOT / "android",
+        )
+        prebuild_android_test(gradle)
     expected_instance = _sunshine_mdns_instance_name()
     with OwnedSunshineHost.start() as owned:
         readiness = owned.public_readiness()

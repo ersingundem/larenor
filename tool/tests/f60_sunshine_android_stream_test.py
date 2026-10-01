@@ -142,6 +142,23 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 socket.create_connection(("127.0.0.1", bridge.host_port), timeout=0.1)
 
     def test_private_phase_bridge_requires_exact_touch_then_stops_owned_sunshine(self) -> None:
+        class Gamepad:
+            def __init__(self) -> None:
+                self.armed = False
+                self.observed = False
+                self.disarmed = False
+
+            def arm(self) -> None:
+                self.armed = True
+
+            def wait_effect(self) -> None:
+                if not self.armed:
+                    raise AssertionError("gamepad not armed")
+                self.observed = True
+
+            def disarm(self) -> None:
+                self.disarmed = True
+
         class Witness:
             def __init__(self, _owned) -> None:
                 self.started = False
@@ -163,6 +180,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             owned = _Owned(Path(temporary))
             nonce = "e" * 64
             witnesses = []
+            gamepad = Gamepad()
 
             def witness_factory(current):
                 witness = Witness(current)
@@ -173,6 +191,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 owned,
                 nonce=nonce,
                 paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
+                gamepad=gamepad,
                 timeout_seconds=2,
                 witness_factory=witness_factory,
             )
@@ -182,6 +201,8 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 for request, response in (
                     ("touch_ready", "touch_armed"),
                     ("touch_sent", "touch_observed"),
+                    ("gamepad_ready", "gamepad_armed"),
+                    ("gamepad_sent", "gamepad_observed"),
                     ("disconnect_ready", "owned_sunshine_stopped"),
                 ):
                     control.write(stream._control_message(nonce=nonce, phase=request))
@@ -192,10 +213,43 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             bridge.wait()
             bridge.close()
             self.assertTrue(bridge.touch_observed)
+            self.assertTrue(bridge.gamepad_observed)
+            self.assertTrue(gamepad.observed)
+            self.assertTrue(gamepad.disarmed)
             self.assertTrue(bridge.provider_pairing_present_before_disconnect)
             self.assertTrue(bridge.sunshine_stopped)
             self.assertTrue(owned.processes.sunshine_stopped)
             self.assertTrue(witnesses[0].closed)
+
+    def test_key_witness_accepts_only_the_actual_a_press_release_after_utf8_listing(self) -> None:
+        witness = stream.Xi2KeyWitness(None)
+        witness._process = _PointerProcess(io.BytesIO(
+            "owned device é\n".encode("utf-8")
+            + b"EVENT type 2 (KeyPress)\n    detail: 38\n"
+            + b"EVENT type 6 (Motion)\n    detail: 56\n"
+            + b"EVENT type 3 (KeyRelease)\n    detail: 38\n"
+        ))
+        witness._read()
+        witness.wait(1)
+        self.assertTrue(witness.observed)
+
+    def test_key_witness_rejects_stale_release_fields_and_unbounded_or_truncated_lines(self) -> None:
+        for body in (
+            b"EVENT type 2 (KeyPress)\n    detail: 38\n"
+            b"EVENT type 3 (KeyRelease)\n    detail: 56\n"
+            b"EVENT type 6 (Motion)\n    detail: 38\n",
+            b"EVENT type 2 (KeyPress)\n    detail: 38\nEVENT type 3 (KeyRelease)",
+            b"x" * (stream.XI2_LINE_BYTES + 1) + b"\n"
+            b"EVENT type 2 (KeyPress)\n    detail: 38\n"
+            b"EVENT type 3 (KeyRelease)\n    detail: 38\n",
+        ):
+            with self.subTest(size=len(body)):
+                witness = stream.Xi2KeyWitness(None)
+                witness._process = _PointerProcess(io.BytesIO(body))
+                witness._read()
+                self.assertFalse(witness.observed)
+                with self.assertRaises(stream.StreamAcceptanceFailure):
+                    witness.wait(1)
 
     def test_pointer_witness_requires_movement_and_primary_button_pair(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -385,8 +439,6 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 "--no-daemon",
                 ":app:assembleDebug",
                 ":app:assembleDebugAndroidTest",
-                "-x",
-                ":app:compileFlutterBuildDebug",
             ],
             calls[0][0],
         )
@@ -397,6 +449,15 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
 
     def test_main_finishes_prebuild_before_starting_owned_provider(self) -> None:
         order = []
+
+        class GamepadContext:
+            def __enter__(self):
+                order.append("gamepad-acl")
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
         with tempfile.TemporaryDirectory() as temporary, \
                 mock.patch.dict(os.environ, {"RUNNER_TEMP": temporary}), \
                 mock.patch.object(stream, "REPORTS", Path(temporary) / "reports"), \
@@ -409,6 +470,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                     side_effect=lambda _gradle: order.append("prebuild"),
                 ), \
                 mock.patch.object(
+                    stream, "OwnedGamepadAccess", return_value=GamepadContext()
+                ), \
+                mock.patch.object(
                     stream.OwnedSunshineHost,
                     "start",
                     side_effect=lambda **_kwargs: (
@@ -418,7 +482,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 ):
             with self.assertRaises(stream.StreamAcceptanceFailure):
                 stream.main()
-        self.assertEqual(["prebuild", "provider"], order)
+        self.assertEqual(["prebuild", "gamepad-acl", "provider"], order)
 
     def test_sigterm_unwinds_the_exact_owned_host_context(self) -> None:
         closed: list[type[BaseException] | None] = []
@@ -442,6 +506,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 mock.patch.object(stream, "package_identity", return_value={}), \
                 mock.patch.object(stream, "materialized_gradle_command", return_value=["gradlew"]), \
                 mock.patch.object(stream, "prebuild_android_test"), \
+                mock.patch.object(stream, "OwnedGamepadAccess", return_value=_InterruptHost()), \
                 mock.patch.object(stream.OwnedSunshineHost, "start", return_value=_InterruptHost()), \
                 mock.patch.object(
                     stream,
@@ -450,7 +515,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 ):
             with self.assertRaises(KeyboardInterrupt):
                 stream.main()
-        self.assertEqual([KeyboardInterrupt], closed)
+        self.assertEqual([KeyboardInterrupt, KeyboardInterrupt], closed)
         self.assertIs(signal.getsignal(signal.SIGTERM), previous_term)
         self.assertIs(signal.getsignal(signal.SIGINT), previous_interrupt)
 
@@ -504,6 +569,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                                    "sourceTree": "e" * 40},
                 host_proof={
                     "touchMouseEffect": True,
+                    "gamepadEffect": True,
                     "providerPairingPresentBeforeDisconnect": True,
                     "ownedSunshineStopped": True,
                 },
@@ -514,12 +580,14 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertTrue(receipt["streamAccepted"])
             self.assertFalse(receipt["featureAccepted"])
             self.assertEqual(
-                "twoStreamInputDisconnectAndLocalRetirement", receipt["scope"]
+                "twoStreamOscInputDisconnectAndLocalRetirement", receipt["scope"]
             )
             self.assertTrue(receipt["proof"]["renderedFrame"])
             self.assertTrue(receipt["proof"]["fullPcmWrite"])
             self.assertTrue(receipt["proof"]["softwareKeyEffect"])
             self.assertTrue(receipt["proof"]["touchMouseEffect"])
+            self.assertTrue(receipt["proof"]["gamepadEffect"])
+            self.assertEqual("moonlightOnScreenController", receipt["inputMode"])
             self.assertTrue(receipt["proof"]["connectionTerminated"])
             self.assertTrue(receipt["proof"]["zeroRedispatch"])
             self.assertTrue(
@@ -530,7 +598,8 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertEqual(
                 "unaccepted", receipt["limits"]["providerPairingRemoval"]
             )
-            self.assertEqual("manual", receipt["limits"]["physicalController"])
+            self.assertEqual("manual", receipt["limits"]["externalController"])
+            self.assertEqual("manual", receipt["limits"]["controllerRumble"])
             for forbidden in ("pin", "nonce", "address", "certificate", "uuid", "password"):
                 self.assertNotIn(forbidden, raw.lower())
 
