@@ -19,6 +19,44 @@ from test_jellyfin_playback_runtime import local_profile
 BASE = "/api/v1/media/offline/playback-leases"
 
 
+@pytest.mark.parametrize('operation', ['head', 'renew', 'renew_after_read'])
+def test_expiry_crossing_authority_or_renew_cas_never_reactivates_lease(
+        server, monkeypatch, operation):
+    app, client, _settings, clock = server
+    pair, installation, current, worker = setup(server)
+    body = lease_body(server, pair, installation, current)
+    assert client.post(BASE, headers=auth(pair), json=body).status_code == 201
+    service = app.state.core.offline_media
+    if operation == 'renew_after_read':
+        original = service._playback_owned
+
+        def crossing(*args, **kwargs):
+            row = original(*args, **kwargs)
+            clock.now += 120
+            return row
+
+        monkeypatch.setattr(service, '_playback_owned', crossing)
+    else:
+        original = app.state.core.media_playback._gate
+
+        def crossing(*args, **kwargs):
+            result = original(*args, **kwargs)
+            clock.now += 120
+            return result
+
+        monkeypatch.setattr(app.state.core.media_playback, '_gate', crossing)
+    path = BASE + '/' + body['requestId']
+    if operation == 'head':
+        denied = client.head(path + '/content', headers=auth(pair))
+    else:
+        denied = client.post(path + '/renew', headers=auth(pair), json={
+            'schemaVersion': 1, 'requestId': '7' * 32,
+            'expectedRevision': 1})
+    assert denied.status_code == 409
+    assert service._playback_leases[body['requestId']]['revision'] == 1
+    assert worker.calls == []
+
+
 def test_observation_expiring_during_final_authority_gate_cannot_issue_lease(
         server, monkeypatch):
     app, client, _settings, clock = server

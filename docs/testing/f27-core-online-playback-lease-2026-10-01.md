@@ -45,6 +45,14 @@ length-mismatch, unavailable, and unknown outcomes never create a lease.
 
 ## Focused evidence
 
+Root's final inclusive-expiry review found three reproducible cases in which
+the 120-second lease could expire during the authority read or between that
+read and the renewal CAS. The old code returned content headers or renewed the
+expired lease. All three first failed; the consuming read and renewal lock now
+recheck inclusive expiry. The complete 12-test online lease module passes, with
+zero skips. Expired retirement remains available; expired content or renewal
+cannot reactivate access.
+
 `server/tests/test_f27_online_playback_lease.py` crosses the normal Core HTTP
 router using TestClient and an injected bounded chunk-readback fixture over independent create, HEAD, GET, renew,
 retire, family-drift, restart-loss, expiry/range, pre-worker drift, and

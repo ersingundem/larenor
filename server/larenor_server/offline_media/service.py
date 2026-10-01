@@ -323,7 +323,9 @@ class OfflineMediaService:
         with self._playback_lock:
             current = self._playback_leases.get(lease_id)
             if (current is None or current["state"] != row["state"]
-                    or current["revision"] != row["revision"]):
+                    or current["revision"] != row["revision"]
+                    or not terminal and int(self.settings.clock())
+                    >= current["expires_at"]):
                 raise ApiError("offline_media_authority_changed", 409)
         return row
 
@@ -433,7 +435,9 @@ class OfflineMediaService:
         row = self._playback_owned(actor, lease_id, body.expectedRevision)
         with self._playback_lock:
             current = self._playback_leases.get(lease_id)
-            if current is None or current["revision"] != row["revision"]:
+            if (current is None or current["revision"] != row["revision"]
+                    or current["state"] != "active"
+                    or int(self.settings.clock()) >= current["expires_at"]):
                 raise ApiError("offline_media_authority_changed", 409)
             current = dict(current)
             current.update(revision=current["revision"] + 1,
