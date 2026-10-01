@@ -6038,10 +6038,34 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact6bbe arm64package passed; x86 original1/1/0/0 still unclassified/no owned frame/body/lifecycle marker,resizefalse; canonical artifact11145584314 root verified, no runtime acceptance"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
+          "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root67 runner/workflow checks, pinned Ruff, required-native AndroidTest compile278; bounded source/nonce body marker, original XML/success unchanged; no local instrumentation acceptance"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
+          "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent final ACK: host exit does not prove Android writer exit; no premature nonce cleanup, bounded shared deadline/cache fences and source-bound initial-frame/body observations; strict acceptance unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36831825081",
+          "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact03f changed-source owned strict RDP two-ABI package and real NLA/frame/ACK/input/DISP/Unicode/clipboard/two-lifetime/clean-close gate running; diagnostic repair is not runtime acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. 6bbe8b03/run36826438225 arm64 paket işini geçti; x86 gerçek RDP original1test/1failure/0error/0skip başarısız: unclassified, owned frame/body/lifecycle/initial marker yok, resize=false. Root canonical971B artifact11145584314 kaydını üretim validatorı ile doğruladı. Whole-body guard kaynakla sabit olsa da kayıt hangi native/provider/runner alt nedeninin düştüğünü kanıtlamıyor. Özel job log incelendi; kaynak ve nonce ile bağlı ayrı hata markerı geliştiriliyor. Root57/40subtest ve compile277 tanı/derleme kanıtı runtime kabulü değildir. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/iki yaşam/clean close korunur; aynı SHA kör tekrar yok. Final HEAD geniş CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor. 6bbe8b03/run36826438225 arm64 paket işi geçti; x86 original1test/1failure/0error/0skip unclassified ve owned/body/lifecycle marker yok, resize=false. Root canonical971B artifact11145584314 doğruladı; kesin alt neden kanıtlanmadı. 03f6773a kaynak/nonce bağlı kapalı body markerını ve availability kaydını tamamladı: root67 runner/workflow testi, Ruff, bağımsız inceleme ve required-native AndroidTest compile278 geçti. Host Gradle çıkışı Android writer sonlandı sayılmaz; private nonce yalnız disposable emülatörde kalır. Tanı primary XML/başarı sonucunu değiştirmez; initial-frame gözlemi kaynak bağıyla korunur. Yeni exact03f/run36831825081 koşuyor; gerçek strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/iki yaşam/clean close kabulü açık. F62 CI bekliyor sayılmaz; aynı SHA kör tekrar yok. Final HEAD geniş CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/f62-owned-body-failure-marker-2026-10-01.md"
     },
     {
       "id": "F61",
@@ -6279,10 +6303,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact1f35 changed F27 retirement/F60 local-close source: complete Analyze&Test passed; static-analysis, all4 Flutter shards and aggregate green. Source-specific Client CI, not final combined native HEAD acceptance"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36831553763",
+          "commit": "e09fd755231a99fe85c99034ef083b19ad95a014",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exacte09fd755 Security secret-scan/dependency-scan/platform-policy all3 passed; later03f native diagnostics and complete finalHEAD runtime acceptance separate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exact191 Security üç işi geçti. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 analiz/dört Flutter shardı/aggregate geçti. Son birleşik native HEAD kabulü ayrı. F60 HTTPS0/yerel cleanup ve gerçek paket merge-layout hatası düzeltildi; d81 root eski kaynak InflateException RED/44native GREEN/compile277 geçti. Değişmiş d81/run36830633169 strict yayın kapısı koşuyor; runtime kabulü yok. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni bağlı marker geliştiriliyor. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exacte09fd755 Security36831553763 üç işi geçti; sonraki03f native tanı kaynağı ayrı. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 analiz/dört Flutter shardı/aggregate geçti. Son birleşik native HEAD kabulü ayrı. F60 HTTPS0/yerel cleanup ve gerçek paket merge-layout hatası düzeltildi; d81 root eski kaynak InflateException RED/44native GREEN/compile277 geçti. Değişmiş d81/run36830633169 strict yayın kapısı koşuyor; runtime kabulü yok. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni03f bağlı marker root67/compile278/bağımsız inceleme geçti, strict run36831825081 koşuyor; runtime kabulü yok. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",

@@ -151,3 +151,21 @@ The new exact d81
 [run36830633169](https://github.com/ersingundem/larenor/actions/runs/36830633169)
 is pending actual stream acceptance; the old failed receipt is not rewritten
 as a success and no later frame/audio/input/retirement effect is claimed.
+
+
+## Changed-source F62 diagnostic boundary at03f6773a
+
+Exact `03f6773ad2d8b02b026714f27bcceff9b5a66eb0` retains a closed
+source/nonce-bound body-failure marker and reports marker-channel availability
+without inventing a missing writer cause. Root67 runner/workflow checks,
+required-native AndroidTest compile278, pinned Ruff and independent final
+review passed. Host Gradle termination is only an observation boundary; it
+never authorizes nonce cleanup or proves the on-device writer exited. The
+private marker remains on the disposable owned emulator. Original named JUnit,
+counts, XML classifications and all strict success conditions stay authoritative.
+
+[Changed-source strict run36831825081](https://github.com/ersingundem/larenor/actions/runs/36831825081)
+was independently verified at that exact source and is running. No actual RDP
+acceptance receipt exists yet; the6bbe unclassified cause is still unknown.
+F62 remains reworking and the69-task/58-feature CI-waiting counts are unchanged.
+[Source and bounded evidence](f62-owned-body-failure-marker-2026-10-01.md).
