@@ -137,9 +137,15 @@ def _task_limit(observation_root, dispatch_id):
                 limited = True
                 break
             if child == 0:
-                time.sleep(5)
-                os._exit(0)
+                while True:
+                    signal.pause()
             children.append(child)
+        if not limited:
+            raise AssertionError("pids limit was not enforced")
+        _exclusive(observation_root / f"{dispatch_id}.limited", b"eagain\n")
+        # Keep the exact owned tasks alive while the observer proves that the
+        # configured leaf is at pids.max and both leaf counters advanced.
+        _wait_observation(observation_root, dispatch_id, "observed")
     finally:
         for child in children:
             try:
@@ -151,10 +157,6 @@ def _task_limit(observation_root, dispatch_id):
                 os.waitpid(child, 0)
             except ChildProcessError:
                 pass
-    if not limited:
-        raise AssertionError("pids limit was not enforced")
-    # Preserve the cgroup until the observer reads the real pids.events counter.
-    _wait_observation(observation_root, dispatch_id, "observed")
     raise SystemExit(73)
 
 

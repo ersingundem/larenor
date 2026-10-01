@@ -109,3 +109,147 @@ def test_counter_requires_new_event_not_historical_positive_value(tmp_path):
     }
     with pytest.raises(AssertionError):
         linux._wait_counter(path, "oom_kill", baseline={"oom": 10, "oom_kill": 5})
+
+
+def _pids_tree(tmp_path, *, leaf_max=2, current=8):
+    parent = tmp_path / "parent"
+    leaf = parent / "owned.service"
+    leaf.mkdir(parents=True)
+    (leaf / "pids.max").write_text("8\n", encoding="ascii")
+    (leaf / "pids.current").write_text(f"{current}\n", encoding="ascii")
+    (leaf / "pids.events").write_text(f"max {leaf_max}\n", encoding="ascii")
+    (leaf / "pids.events.local").write_text(
+        f"max {leaf_max}\n", encoding="ascii"
+    )
+    return parent, leaf
+
+
+def _remove_leaf(leaf):
+    for path in leaf.iterdir():
+        path.unlink()
+    leaf.rmdir()
+
+
+def _linux_fixture():
+    spec = importlib.util.spec_from_file_location(
+        "f08_linux_fixture", Path(__file__).with_name("test_f08_cgroup_stress_linux.py"),
+    )
+    linux = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(linux)
+    return linux
+
+
+def test_pids_limit_accepts_exact_leaf_local_and_hierarchical_delta(tmp_path):
+    linux = _linux_fixture()
+    _parent, leaf = _pids_tree(tmp_path)
+    baseline = linux._pids_limit_baseline(leaf, expected_max=8)
+    (leaf / "pids.events").write_text("max 3\n", encoding="ascii")
+    (leaf / "pids.events.local").write_text("max 3\n", encoding="ascii")
+
+    assert linux._wait_pids_limit(leaf, baseline, timeout=0.025) == {"max": 1}
+
+
+def test_pids_attribution_requires_exact_configured_leaf_limit(tmp_path):
+    linux = _linux_fixture()
+    _parent, leaf = _pids_tree(tmp_path)
+    (leaf / "pids.max").write_text("9\n", encoding="ascii")
+
+    with pytest.raises(AssertionError):
+        linux._pids_limit_baseline(leaf, expected_max=8)
+
+
+def test_pids_attribution_rejects_missing_or_recreated_leaf(tmp_path):
+    linux = _linux_fixture()
+    _parent, leaf = _pids_tree(tmp_path)
+    baseline = linux._pids_limit_baseline(leaf, expected_max=8)
+    _remove_leaf(leaf)
+    with pytest.raises(FileNotFoundError):
+        linux._wait_pids_limit(leaf, baseline, timeout=0.025)
+
+    leaf.mkdir()
+    (leaf / "pids.max").write_text("8\n", encoding="ascii")
+    (leaf / "pids.current").write_text("8\n", encoding="ascii")
+    (leaf / "pids.events").write_text("max 3\n", encoding="ascii")
+    (leaf / "pids.events.local").write_text("max 3\n", encoding="ascii")
+    with pytest.raises(AssertionError):
+        linux._wait_pids_limit(leaf, baseline, timeout=0.025)
+
+
+def test_pids_attribution_requires_current_equal_to_exact_max(tmp_path):
+    linux = _linux_fixture()
+    _parent, leaf = _pids_tree(tmp_path, current=7)
+    baseline = linux._pids_limit_baseline(leaf, expected_max=8)
+    (leaf / "pids.events").write_text("max 3\n", encoding="ascii")
+    (leaf / "pids.events.local").write_text("max 3\n", encoding="ascii")
+    with pytest.raises(AssertionError):
+        linux._wait_pids_limit(leaf, baseline, timeout=0.025)
+
+
+@pytest.mark.parametrize("counter", ["pids.events", "pids.events.local"])
+def test_pids_attribution_requires_both_leaf_counter_deltas(tmp_path, counter):
+    linux = _linux_fixture()
+    _parent, leaf = _pids_tree(tmp_path)
+    baseline = linux._pids_limit_baseline(leaf, expected_max=8)
+    (leaf / counter).write_text("max 3\n", encoding="ascii")
+    with pytest.raises(pytest.fail.Exception, match="counter did not advance"):
+        linux._wait_pids_limit(leaf, baseline, timeout=0.025, sleeper=lambda _: None)
+
+
+@pytest.mark.parametrize("invalid", ["owner", "mode", "symlink", "size", "content"])
+def test_limit_marker_is_private_fixed_and_bound_to_owner(tmp_path, invalid):
+    linux = _linux_fixture()
+    marker = tmp_path / "marker"
+    _private(marker, b"eagain\n")
+    linux._wait_limit_marker(marker, expected_uid=marker.stat().st_uid, timeout=0.025)
+    expected_uid = marker.stat().st_uid
+    if invalid == "owner":
+        expected_uid += 1
+    elif invalid == "mode":
+        marker.chmod(0o644)
+    elif invalid == "symlink":
+        target = tmp_path / "target"
+        marker.rename(target)
+        marker.symlink_to(target)
+    elif invalid == "size":
+        _private(marker, b"eagain\nextra")
+    else:
+        _private(marker, b"foreign")
+    with pytest.raises((AssertionError, OSError)):
+        linux._wait_limit_marker(marker, expected_uid=expected_uid, timeout=0.025)
+
+
+@pytest.mark.parametrize("observer_timeout", [False, True])
+def test_task_limit_keeps_children_until_marker_is_observed(
+    tmp_path, monkeypatch, observer_timeout,
+):
+    children = iter([101, 102, 103, 104, 105, 106, 107])
+    killed = []
+    waited = []
+
+    def fork():
+        try:
+            return next(children)
+        except StopIteration:
+            raise OSError(fixture.errno.EAGAIN, "bounded") from None
+
+    monkeypatch.setattr(fixture.os, "fork", fork)
+    monkeypatch.setattr(fixture.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.setattr(fixture.os, "waitpid", lambda pid, _flags: waited.append(pid))
+
+    def observed(root, dispatch_id, stage):
+        assert stage == "observed"
+        assert (root / f"{dispatch_id}.limited").read_bytes() == b"eagain\n"
+        assert killed == [] and waited == []
+        if observer_timeout:
+            raise TimeoutError("bounded")
+
+    monkeypatch.setattr(fixture, "_wait_observation", observed)
+    if observer_timeout:
+        with pytest.raises(TimeoutError, match="bounded"):
+            fixture._task_limit(tmp_path, DISPATCH_ID)
+    else:
+        with pytest.raises(SystemExit) as stopped:
+            fixture._task_limit(tmp_path, DISPATCH_ID)
+        assert stopped.value.code == 73
+    assert [pid for pid, _signal in killed] == list(range(101, 108))
+    assert waited == list(range(101, 108))

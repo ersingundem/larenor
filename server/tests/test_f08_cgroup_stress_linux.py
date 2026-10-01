@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -131,6 +132,73 @@ def _sibling_memory_events(parent, owned):
         for path in parent.iterdir()
         if path.is_dir() and path != owned
     }
+
+
+def _pids_limit_baseline(cgroup, *, expected_max):
+    assert (cgroup / "pids.max").read_text(encoding="ascii").strip() == str(
+        expected_max
+    )
+    return {
+        "leaf_inode": cgroup.stat().st_ino,
+        "expected_max": expected_max,
+        "leaf_events": _flat_keyed(cgroup / "pids.events"),
+        "leaf_local": _flat_keyed(cgroup / "pids.events.local"),
+    }
+
+
+def _wait_pids_limit(cgroup, baseline, *, timeout=5, sleeper=time.sleep):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        assert cgroup.stat().st_ino == baseline["leaf_inode"]
+        assert (cgroup / "pids.max").read_text(encoding="ascii").strip() == str(
+            baseline["expected_max"]
+        )
+        assert (cgroup / "pids.current").read_text(encoding="ascii").strip() == str(
+            baseline["expected_max"]
+        )
+        values = _flat_keyed(cgroup / "pids.events")
+        local = _flat_keyed(cgroup / "pids.events.local")
+        assert all(
+            values.get(name, -1) >= value
+            for name, value in baseline["leaf_events"].items()
+        )
+        assert all(
+            local.get(name, -1) >= value
+            for name, value in baseline["leaf_local"].items()
+        )
+        deltas = {
+            name: value - baseline["leaf_events"].get(name, 0)
+            for name, value in values.items()
+        }
+        local_deltas = {
+            name: value - baseline["leaf_local"].get(name, 0)
+            for name, value in local.items()
+        }
+        if deltas.get("max", 0) > 0 and local_deltas.get("max", 0) > 0:
+            return deltas
+        sleeper(0.02)
+    pytest.fail("owned pids limit counter did not advance")
+
+
+def _wait_limit_marker(path, *, expected_uid, timeout=5, sleeper=time.sleep):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError:
+            sleeper(0.02)
+            continue
+        try:
+            info = os.fstat(descriptor)
+            assert stat.S_ISREG(info.st_mode)
+            assert info.st_uid == expected_uid
+            assert info.st_mode & 0o077 == 0
+            assert info.st_size == 7
+            assert os.read(descriptor, 8) == b"eagain\n"
+            return
+        finally:
+            os.close(descriptor)
+    pytest.fail("owned pids limit marker did not appear")
 
 
 def _release(setpriv, python, socket_path, kind, dispatch_id, cpu):
@@ -345,8 +413,13 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
                 assert _flat_keyed(parent / "memory.events.local") == local_baseline
                 assert _sibling_memory_events(parent, cgroup) == siblings
             elif kind == "assistant":
+                baseline = _pids_limit_baseline(cgroup, expected_max=8)
                 _acknowledge(setpriv, environment, observation_root, dispatch_id, "start")
-                stats[kind] = _wait_counter(cgroup / "pids.events", "max")
+                _wait_limit_marker(
+                    observation_root / f"{dispatch_id}.limited",
+                    expected_uid=AI_UID,
+                )
+                stats[kind] = _wait_pids_limit(cgroup, baseline)
             else:
                 assert (
                     cgroup / "cpu.max"
