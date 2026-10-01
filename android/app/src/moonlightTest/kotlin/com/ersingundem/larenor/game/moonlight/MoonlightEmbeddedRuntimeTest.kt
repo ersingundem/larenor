@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import com.limelight.Game
+import com.limelight.R
 import com.limelight.binding.audio.AndroidAudioRenderer
 import com.limelight.binding.crypto.AndroidCryptoProvider
 import com.limelight.binding.input.ControllerHandler
@@ -21,6 +22,7 @@ import com.limelight.nvstream.NvConnection
 import com.limelight.nvstream.http.ComputerDetails
 import com.limelight.nvstream.http.NvHTTP
 import com.limelight.nvstream.http.PairingManager
+import com.limelight.ui.StreamView
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
@@ -683,6 +685,34 @@ class MoonlightEmbeddedRuntimeTest {
         assertEquals(null, root.parent)
         requireLaunchDisplay(2, 2)
         reject("foreground_required") { requireLaunchDisplay(2, 0) }
+    }
+
+    @Test fun packagedMergeGameLayoutAttachesBeforeSecuringItsRealStreamSurface() {
+        val activity = Robolectric.buildActivity(LarenorMoonlightGame::class.java).get()
+        secureMoonlightWindow(activity)
+
+        // This is the packaged Moonlight resource. Its root is <merge>, so the
+        // old manual inflate(parent, false) path deterministically threw.
+        activity.setContentView(R.layout.activity_game)
+
+        val content = activity.findViewById<ViewGroup>(android.R.id.content)
+        val stream = activity.findViewById<StreamView>(R.id.surfaceView)
+        assertNotNull(stream)
+        assertTrue(stream.parent === content)
+        val surfaceFlags = SurfaceView::class.java.getDeclaredField("mSurfaceFlags").let { field ->
+            field.isAccessible = true
+            field.getInt(stream)
+        }
+        val secureSurfaceFlag = Class.forName("android.view.SurfaceControl")
+            .getDeclaredField("SECURE")
+            .let { field ->
+                field.isAccessible = true
+                field.getInt(null)
+            }
+        assertTrue(surfaceFlags and secureSurfaceFlag != 0)
+        assertTrue(
+            activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
+        )
     }
 
     @Test fun registrationMappingIsExactCasPrivateAndRestartSafe() {

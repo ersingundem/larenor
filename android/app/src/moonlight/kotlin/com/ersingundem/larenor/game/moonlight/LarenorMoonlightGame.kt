@@ -21,7 +21,6 @@ class LarenorMoonlightGame : Game() {
     private var resumed = false
     private var focused = false
     private var claimed = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
         val token = intent?.getStringExtra(EXTRA_LAUNCH_TOKEN)
             ?: throw MoonlightRuntimeFailure("foreground_required")
@@ -53,10 +52,11 @@ class LarenorMoonlightGame : Game() {
     }
 
     override fun setContentView(layoutResID: Int) {
-        val parent = window.decorView.findViewById<ViewGroup>(android.R.id.content)
-        val content = layoutInflater.inflate(layoutResID, parent, false)
+        // Moonlight's activity_game root is <merge>. Activity/PhoneWindow must
+        // attach it; manually inflating with attachToRoot=false always fails.
+        super.setContentView(layoutResID)
+        val content = window.decorView.findViewById<ViewGroup>(android.R.id.content)
         secureMoonlightSurfaces(content)
-        super.setContentView(content)
     }
 
     override fun onResume() {
@@ -170,7 +170,9 @@ internal fun requireLaunchDisplay(expectedDisplayId: Int, actualDisplayId: Int) 
 }
 
 internal fun secureMoonlightSurfaces(view: View) {
-    if (view is SurfaceView) view.setSecure(true)
+    if (view is SurfaceView) {
+        view.setSecure(true)
+    }
     if (view is ViewGroup) {
         repeat(view.childCount) { secureMoonlightSurfaces(view.getChildAt(it)) }
     }
