@@ -14,6 +14,8 @@ import java.io.FileOutputStream
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -86,10 +88,12 @@ class RdpPackagedHostAcceptanceTest {
         )
         val security = CountDownLatch(1)
         val frameReady = ArrayBlockingQueue<Unit>(8)
+        val frameCallbacks = BoundedFrameCallbacks()
         val closed = CountDownLatch(1)
         val observer = object : RdpNativeSessionObserver {
             override fun onSecurity() = security.countDown()
             override fun onFrame() {
+                frameCallbacks.observed()
                 frameReady.offer(Unit)
             }
             override fun onClosed(code: String?) = closed.countDown()
@@ -112,7 +116,9 @@ class RdpPackagedHostAcceptanceTest {
                     session.phase == RdpJniPhase.AWAITING_FRAME_ACK,
             )
             diagnostic.enter("initialFrameWait")
-            val initial = awaitFrame(session, frameReady, 1280, 800, 30)
+            val initial = awaitInitialFrame(
+                session, frameReady, frameCallbacks, diagnostic, 1280, 800, 30,
+            )
             assertRenderedPixels(initial, 1280, 800)
             assertEquals(180, initial.dpi)
             assertTrue(session.acknowledgeFrame(initial.sequence))
@@ -299,6 +305,111 @@ class RdpPackagedHostAcceptanceTest {
         }
     }
 
+    private fun awaitInitialFrame(
+        session: RdpFreeRdpSession,
+        ready: ArrayBlockingQueue<Unit>,
+        callbacks: BoundedFrameCallbacks,
+        diagnostic: OwnedLifecycleDiagnostic,
+        width: Int,
+        height: Int,
+        timeoutSeconds: Long,
+    ): RdpNativeFrame {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        var lastDimensions: Pair<Int, Int>? = null
+        while (true) {
+            if (session.phase == RdpJniPhase.FAILED || session.phase == RdpJniPhase.CANCELLED) {
+                failInitialFrame(
+                    InitialFrameFailureKind.TERMINAL,
+                    session,
+                    callbacks,
+                    lastDimensions,
+                    diagnostic,
+                )
+            }
+            val remaining = deadline - System.nanoTime()
+            if (remaining <= 0) {
+                if (
+                    session.phase == RdpJniPhase.FAILED ||
+                    session.phase == RdpJniPhase.CANCELLED
+                ) {
+                    failInitialFrame(
+                        InitialFrameFailureKind.TERMINAL,
+                        session,
+                        callbacks,
+                        lastDimensions,
+                        diagnostic,
+                    )
+                }
+                val kind = when {
+                    callbacks.count == 0 -> InitialFrameFailureKind.NO_CALLBACK
+                    lastDimensions != null -> InitialFrameFailureKind.SIZE_MISMATCH
+                    else -> InitialFrameFailureKind.STALLED_AFTER_CALLBACK
+                }
+                failInitialFrame(kind, session, callbacks, lastDimensions, diagnostic)
+            }
+            val token = ready.poll(
+                minOf(remaining, TimeUnit.MILLISECONDS.toNanos(250)),
+                TimeUnit.NANOSECONDS,
+            ) ?: continue
+            if (session.phase == RdpJniPhase.FAILED || session.phase == RdpJniPhase.CANCELLED) {
+                failInitialFrame(
+                    InitialFrameFailureKind.TERMINAL,
+                    session,
+                    callbacks,
+                    lastDimensions,
+                    diagnostic,
+                )
+            }
+            val frame = session.pendingFrame
+                ?: failInitialFrame(
+                    InitialFrameFailureKind.STALLED_AFTER_CALLBACK,
+                    session,
+                    callbacks,
+                    lastDimensions,
+                    diagnostic,
+                )
+            lastDimensions = frame.width to frame.height
+            if (frame.width == width && frame.height == height) return frame
+            if (!session.acknowledgeFrame(frame.sequence)) {
+                val kind = if (
+                    session.phase == RdpJniPhase.FAILED ||
+                    session.phase == RdpJniPhase.CANCELLED
+                ) {
+                    InitialFrameFailureKind.TERMINAL
+                } else {
+                    InitialFrameFailureKind.STALLED_AFTER_CALLBACK
+                }
+                failInitialFrame(kind, session, callbacks, lastDimensions, diagnostic)
+            }
+        }
+    }
+
+    private fun failInitialFrame(
+        kind: InitialFrameFailureKind,
+        session: RdpFreeRdpSession,
+        callbacks: BoundedFrameCallbacks,
+        lastDimensions: Pair<Int, Int>?,
+        diagnostic: OwnedLifecycleDiagnostic,
+    ): Nothing {
+        val callbackSnapshot = callbacks.snapshot()
+        diagnostic.initialFrameFailure(
+            kind,
+            callbackSnapshot.first,
+            callbackSnapshot.second,
+            lastDimensions,
+            session.phase,
+            session.failureCode,
+        )
+        val cause = AssertionError("owned initial frame wait did not complete")
+        throw when (kind) {
+            InitialFrameFailureKind.TERMINAL -> RdpOwnedInitialFrameTerminalFailure(cause)
+            InitialFrameFailureKind.NO_CALLBACK -> RdpOwnedInitialFrameNoCallbackFailure(cause)
+            InitialFrameFailureKind.SIZE_MISMATCH -> RdpOwnedInitialFrameSizeMismatchFailure(cause)
+            InitialFrameFailureKind.STALLED_AFTER_CALLBACK ->
+                RdpOwnedInitialFrameStalledAfterCallbackFailure(cause)
+        }
+    }
+
     private fun assertRenderedPixels(frame: RdpNativeFrame, width: Int, height: Int) {
         val pixels = frame.pixels.duplicate()
         var observedPixel = false
@@ -419,6 +530,49 @@ internal class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
         runCatching { storage.remove() }
     }
 
+    fun initialFrameFailure(
+        kind: InitialFrameFailureKind,
+        callbackCount: Int,
+        callbackCountCapped: Boolean,
+        lastDimensions: Pair<Int, Int>?,
+        phase: RdpJniPhase,
+        failureCode: String?,
+    ) {
+        val phaseValue = when (phase) {
+            RdpJniPhase.ACTIVE -> "active"
+            RdpJniPhase.AWAITING_FRAME_ACK -> "awaitingFrameAck"
+            RdpJniPhase.FAILED -> "failed"
+            RdpJniPhase.CANCELLED -> "cancelled"
+            RdpJniPhase.CONNECTING -> return
+        }
+        val safeCode = failureCode?.takeIf {
+            it in setOf(
+                "connectionFailed", "frameBackpressure",
+                "framebufferUnavailable", "staleSession",
+            )
+        }
+        if (phase == RdpJniPhase.FAILED && safeCode == null) return
+        if (phase == RdpJniPhase.CANCELLED && failureCode != null) return
+        if (
+            phase in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
+            failureCode != null
+        ) return
+        val width = lastDimensions?.first?.toString() ?: "-"
+        val height = lastDimensions?.second?.toString() ?: "-"
+        val marker = listOf(
+            "initialFrameWait",
+            "v1",
+            kind.wire,
+            callbackCount.coerceIn(0, BoundedFrameCallbacks.MAX).toString(),
+            if (callbackCountCapped) "1" else "0",
+            width,
+            height,
+            phaseValue,
+            safeCode ?: "-",
+        ).joinToString("|")
+        if (marker.length <= 128) runCatching { storage.write(marker) }
+    }
+
     private companion object {
         val STAGES = setOf(
             "testInitialization",
@@ -446,6 +600,43 @@ internal class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
     }
 }
 
+internal enum class InitialFrameFailureKind(val wire: String) {
+    TERMINAL("terminal"),
+    NO_CALLBACK("noCallback"),
+    SIZE_MISMATCH("sizeMismatch"),
+    STALLED_AFTER_CALLBACK("stalledAfterCallback"),
+}
+
+internal class BoundedFrameCallbacks {
+    private val countValue = AtomicInteger(0)
+    private val overflow = AtomicBoolean(false)
+
+    val count: Int get() = countValue.get()
+
+    fun snapshot(): Pair<Int, Boolean> {
+        while (true) {
+            val before = countValue.get()
+            val capped = before >= MAX || overflow.get()
+            if (before == countValue.get()) return before to capped
+        }
+    }
+
+    fun observed() {
+        while (true) {
+            val current = countValue.get()
+            if (current >= MAX) {
+                overflow.set(true)
+                return
+            }
+            if (countValue.compareAndSet(current, current + 1)) return
+        }
+    }
+
+    companion object {
+        const val MAX = 4096
+    }
+}
+
 private inline fun <T> diagnoseStage(
     failure: (Throwable) -> AssertionError,
     body: () -> T,
@@ -461,6 +652,10 @@ private inline fun <T> diagnoseStage(
 }
 
 private class RdpOwnedResizedFrameWaitFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameTerminalFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameNoCallbackFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameSizeMismatchFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameStalledAfterCallbackFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedResizedFramePixelsFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedResizedFrameAckFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedCleanCloseFailure(cause: Throwable) : AssertionError(cause)

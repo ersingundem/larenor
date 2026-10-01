@@ -144,7 +144,19 @@ _FAILURE_CODES = frozenset({
     "host_channel_fixture_unavailable",
     "host_channel_witness_invalid",
 })
+_INITIAL_FRAME_FAILURE_KINDS = {
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameTerminalFailure":
+        "terminal",
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameNoCallbackFailure":
+        "noCallback",
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameSizeMismatchFailure":
+        "sizeMismatch",
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameStalledAfterCallbackFailure":
+        "stalledAfterCallback",
+}
 _ACCEPTANCE_STAGES = {
+    **{exception_type: "initialFrameWait"
+       for exception_type in _INITIAL_FRAME_FAILURE_KINDS},
     "com.ersingundem.larenor.rdp.RdpOwnedResizedFrameWaitFailure":
         "resizedFrameWait",
     "com.ersingundem.larenor.rdp.RdpOwnedResizedFramePixelsFailure":
@@ -556,12 +568,16 @@ def failure_receipt(
     resize_requested = diagnostic.get("serverResizeRequested")
     has_test_lifecycle_stage = "testLifecycleStage" in diagnostic
     test_lifecycle_stage = diagnostic.get("testLifecycleStage")
+    has_initial_frame_observation = "initialFrameObservation" in diagnostic
+    initial_frame_observation = diagnostic.get("initialFrameObservation")
     diagnostic_shape = set(diagnostic) - {
-        "serverResizeRequested", "testLifecycleStage",
+        "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
                 and test_lifecycle_stage not in _TEST_LIFECYCLE_STAGE_SET)
+            or (has_initial_frame_observation
+                and initial_frame_observation is None)
             or diagnostic_shape not in ({"code", "exceptionType", "frames"}, {
             "code", "exceptionType", "frames", "counts"}, {
             "code", "exceptionType", "frames", "counts", "identity"}, {
@@ -595,6 +611,14 @@ def failure_receipt(
                     frame["file"] == "RdpPackagedHostAcceptanceTest.kt"
                     for frame in frames
                 ))):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    initial_kind = _INITIAL_FRAME_FAILURE_KINDS.get(exception_type)
+    if has_initial_frame_observation and (
+            initial_kind is None
+            or test_lifecycle_stage != "initialFrameWait"
+            or not _valid_initial_frame_observation(
+                initial_kind, initial_frame_observation,
+            )):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     if probe_outcome is not None and (
             probe_outcome not in _PROBE_OUTCOMES
@@ -780,6 +804,15 @@ def _publish_failed_run(
         diagnostic["serverResizeRequested"] = server_resize_requested
     if test_lifecycle_stage is not None:
         diagnostic["testLifecycleStage"] = test_lifecycle_stage
+        observation = getattr(
+            test_lifecycle_stage, "initial_frame_observation", None,
+        )
+        kind = _INITIAL_FRAME_FAILURE_KINDS.get(
+            diagnostic.get("exceptionType"),
+        )
+        if (observation is not None
+                and _valid_initial_frame_observation(kind, observation)):
+            diagnostic["initialFrameObservation"] = observation
     publish_public_failure(diagnostic, runner_temp, package_versions)
 
 
@@ -808,6 +841,103 @@ def _test_lifecycle_filename(nonce: str) -> str:
     if _DIAGNOSTIC_NONCE.fullmatch(nonce) is None:
         raise ValueError("invalid packaged RDP diagnostic nonce")
     return f"files/f62-owned-stage-{nonce}"
+
+
+class _ObservedLifecycleStage(str):
+    def __new__(
+        cls,
+        stage: str,
+        observation: dict[str, object],
+    ) -> _ObservedLifecycleStage:
+        value = str.__new__(cls, stage)
+        value.initial_frame_observation = observation
+        return value
+
+
+def _valid_initial_frame_observation(
+    kind: str | None,
+    observation: object,
+) -> bool:
+    if type(observation) is not dict or set(observation) != {
+        "callbackCount", "callbackCountCapped", "lastFrame",
+        "sessionPhase", "failureCode",
+    }:
+        return False
+    callback_count = observation["callbackCount"]
+    capped = observation["callbackCountCapped"]
+    last_frame = observation["lastFrame"]
+    phase = observation["sessionPhase"]
+    failure_code = observation["failureCode"]
+    if (type(callback_count) is not int or not 0 <= callback_count <= 4096
+            or type(capped) is not bool
+            or capped != (callback_count == 4096)
+            or phase not in {"active", "awaitingFrameAck", "failed", "cancelled"}
+            or failure_code not in {
+                None, "connectionFailed", "frameBackpressure",
+                "framebufferUnavailable", "staleSession",
+            }):
+        return False
+    if last_frame is not None and (
+            type(last_frame) is not dict
+            or set(last_frame) != {"width", "height"}
+            or any(type(last_frame[key]) is not int
+                   or not 1 <= last_frame[key] <= 8192
+                   for key in ("width", "height"))):
+        return False
+    if kind == "terminal":
+        return (
+            phase == "failed" and failure_code is not None
+            or phase == "cancelled" and failure_code is None
+        )
+    if phase not in {"active", "awaitingFrameAck"} or failure_code is not None:
+        return False
+    if kind == "noCallback":
+        return callback_count == 0 and not capped and last_frame is None and phase == "active"
+    if kind == "sizeMismatch":
+        return (
+            callback_count > 0 and last_frame is not None
+            and (last_frame["width"], last_frame["height"]) != _SOURCE_DIMENSIONS
+        )
+    if kind == "stalledAfterCallback":
+        return callback_count > 0 and last_frame is None
+    return False
+
+
+def _decode_test_lifecycle_marker(
+    raw: bytes,
+) -> tuple[str | None, dict[str, object] | None]:
+    try:
+        value = raw.decode("ascii").strip()
+    except UnicodeDecodeError:
+        return None, None
+    if value in _TEST_LIFECYCLE_STAGE_SET:
+        return value, None
+    parts = value.split("|")
+    if len(parts) != 9 or parts[0] != "initialFrameWait" or parts[1] != "v1":
+        return None, None
+    _, _, kind, raw_count, raw_capped, raw_width, raw_height, phase, raw_code = parts
+    if kind not in set(_INITIAL_FRAME_FAILURE_KINDS.values()):
+        return None, None
+    try:
+        callback_count = int(raw_count)
+        capped = {"0": False, "1": True}[raw_capped]
+        if (raw_width == "-") != (raw_height == "-"):
+            return None, None
+        last_frame = None if raw_width == "-" else {
+            "width": int(raw_width), "height": int(raw_height),
+        }
+    except (KeyError, ValueError):
+        return None, None
+    observation = {
+        "callbackCount": callback_count,
+        "callbackCountCapped": capped,
+        "lastFrame": last_frame,
+        "sessionPhase": phase,
+        "failureCode": None if raw_code == "-" else raw_code,
+    }
+    if not _valid_initial_frame_observation(kind, observation):
+        return None, None
+    return "initialFrameWait", observation
 
 
 def _test_lifecycle_adb_prefix(adb: Path) -> list[str] | None:
@@ -850,11 +980,10 @@ def _peek_test_lifecycle_stage(nonce: str, *, timeout: float = 5) -> str | None:
         return None
     if result.returncode != 0 or len(result.stdout) > 128:
         return None
-    try:
-        stage = result.stdout.decode("ascii").strip()
-    except UnicodeDecodeError:
-        return None
-    return stage if stage in _TEST_LIFECYCLE_STAGE_SET else None
+    stage, observation = _decode_test_lifecycle_marker(result.stdout)
+    if stage is not None and observation is not None:
+        return _ObservedLifecycleStage(stage, observation)
+    return stage
 
 
 def _cleanup_test_lifecycle_stage(nonce: str) -> None:

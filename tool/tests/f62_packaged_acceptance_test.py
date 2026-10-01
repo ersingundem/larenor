@@ -942,6 +942,245 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertNotIn("private fixture", serialized)
         self.assertNotIn("private host", serialized)
 
+    def test_initial_frame_failure_variants_share_only_the_fixed_wait_stage(self):
+        variants = (
+            "RdpOwnedInitialFrameTerminalFailure",
+            "RdpOwnedInitialFrameNoCallbackFailure",
+            "RdpOwnedInitialFrameSizeMismatchFailure",
+            "RdpOwnedInitialFrameStalledAfterCallbackFailure",
+        )
+        for variant in variants:
+            stage_type = f"com.ersingundem.larenor.rdp.{variant}"
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                body = (
+                    stage_type + ": private runtime detail\n"
+                    " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                    "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+                    "RdpPackagedHostAcceptanceTest.kt:115)\n"
+                )
+                (directory / "TEST-device.xml").write_text(
+                    self._failure_xml(exception_type=None, body=body),
+                )
+                diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(diagnostic["exceptionType"], stage_type)
+            self.assertEqual(diagnostic["acceptanceStage"], "initialFrameWait")
+            self.assertNotIn("private runtime detail", json.dumps(diagnostic))
+            receipt = runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64,
+                diagnostic=diagnostic,
+            )
+            self.assertNotIn(
+                "initialFrameObservation", receipt["diagnostic"],
+            )
+
+    def test_initial_frame_observation_is_bounded_and_matches_throwable_kind(self):
+        prefix = "com.ersingundem.larenor.rdp."
+        base = {
+            "code": "instrumentation_test_failure",
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 115,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+            "acceptanceStage": "initialFrameWait",
+        }
+        cases = (
+            (
+                "RdpOwnedInitialFrameNoCallbackFailure",
+                {
+                    "callbackCount": 0,
+                    "callbackCountCapped": False,
+                    "lastFrame": None,
+                    "sessionPhase": "active",
+                    "failureCode": None,
+                },
+            ),
+            (
+                "RdpOwnedInitialFrameSizeMismatchFailure",
+                {
+                    "callbackCount": 3,
+                    "callbackCountCapped": False,
+                    "lastFrame": {"width": 1024, "height": 768},
+                    "sessionPhase": "active",
+                    "failureCode": None,
+                },
+            ),
+            (
+                "RdpOwnedInitialFrameStalledAfterCallbackFailure",
+                {
+                    "callbackCount": 1,
+                    "callbackCountCapped": False,
+                    "lastFrame": None,
+                    "sessionPhase": "active",
+                    "failureCode": None,
+                },
+            ),
+            (
+                "RdpOwnedInitialFrameTerminalFailure",
+                {
+                    "callbackCount": 1,
+                    "callbackCountCapped": False,
+                    "lastFrame": {"width": 1024, "height": 768},
+                    "sessionPhase": "failed",
+                    "failureCode": "frameBackpressure",
+                },
+            ),
+            (
+                "RdpOwnedInitialFrameTerminalFailure",
+                {
+                    "callbackCount": 0,
+                    "callbackCountCapped": False,
+                    "lastFrame": None,
+                    "sessionPhase": "cancelled",
+                    "failureCode": None,
+                },
+            ),
+        )
+        for variant, observation in cases:
+            with self.subTest(variant=variant, phase=observation["sessionPhase"]):
+                diagnostic = {
+                    **base,
+                    "exceptionType": prefix + variant,
+                    "initialFrameObservation": observation,
+                    "testLifecycleStage": "initialFrameWait",
+                }
+                receipt = runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=diagnostic,
+                )
+                self.assertEqual(
+                    receipt["diagnostic"]["initialFrameObservation"], observation,
+                )
+
+        invalid = (
+            {**cases[0][1], "callbackCount": 1},
+            {**cases[1][1], "lastFrame": {"width": 1280, "height": 800}},
+            {**cases[2][1], "callbackCount": 0},
+            {**cases[3][1], "failureCode": "privateFailure"},
+            {**cases[4][1], "failureCode": "connectionFailed"},
+            {**cases[3][1], "callbackCount": 4097},
+            {**cases[3][1], "callbackCountCapped": 1},
+            {**cases[3][1], "lastFrame": {"width": 0, "height": 768}},
+        )
+        variants = (
+            cases[0][0], cases[1][0], cases[2][0], cases[3][0], cases[4][0],
+            cases[3][0], cases[3][0], cases[3][0],
+        )
+        for variant, observation in zip(variants, invalid):
+            with self.subTest(invalid=observation):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.failure_receipt(
+                        {}, revision="a" * 40, package_digest="b" * 64,
+                        diagnostic={
+                            **base,
+                            "exceptionType": prefix + variant,
+                            "initialFrameObservation": observation,
+                            "testLifecycleStage": "initialFrameWait",
+                        },
+                    )
+        with self.assertRaises(runner.AcceptanceFailure):
+            runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64,
+                diagnostic={
+                    **base,
+                    "exceptionType": prefix + cases[0][0],
+                    "initialFrameObservation": None,
+                    "testLifecycleStage": "initialFrameWait",
+                },
+            )
+
+    def test_initial_frame_marker_decoder_rejects_unbounded_or_injected_data(self):
+        valid = b"initialFrameWait|v1|sizeMismatch|3|0|1024|768|active|-"
+        self.assertEqual(
+            runner._decode_test_lifecycle_marker(valid),
+            (
+                "initialFrameWait",
+                {
+                    "callbackCount": 3,
+                    "callbackCountCapped": False,
+                    "lastFrame": {"width": 1024, "height": 768},
+                    "sessionPhase": "active",
+                    "failureCode": None,
+                },
+            ),
+        )
+        self.assertEqual(
+            runner._decode_test_lifecycle_marker(b"resizedFrameWait"),
+            ("resizedFrameWait", None),
+        )
+        for raw in (
+            b"initialFrameWait|v1|sizeMismatch|3|0|1024|768|active|-|secret",
+            b"initialFrameWait|v1|private|3|0|1024|768|active|-",
+            b"initialFrameWait|v1|terminal|1|0|-|-|cancelled|connectionFailed",
+            b"initialFrameWait|v1|noCallback|0|0|-|-|active|private",
+            b"initialFrameWait\nprivate-host",
+            b"\xff",
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    runner._decode_test_lifecycle_marker(raw), (None, None),
+                )
+
+    def test_failure_publication_uses_observation_only_for_matching_throwable(self):
+        observation = {
+            "callbackCount": 0,
+            "callbackCountCapped": False,
+            "lastFrame": None,
+            "sessionPhase": "active",
+            "failureCode": None,
+        }
+        stage = runner._ObservedLifecycleStage("initialFrameWait", observation)
+        exact_type = (
+            "com.ersingundem.larenor.rdp."
+            "RdpOwnedInitialFrameNoCallbackFailure"
+        )
+        exact = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": exact_type,
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 115,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+            "acceptanceStage": "initialFrameWait",
+        }
+        with (
+            mock.patch.object(runner, "failure_diagnostic", return_value=exact),
+            mock.patch.object(runner, "publish_public_failure") as publish,
+        ):
+            runner._publish_failed_run(
+                Path("/private/tmp/public"), {},
+                test_lifecycle_stage=stage,
+            )
+        published = publish.call_args.args[0]
+        self.assertEqual(published["initialFrameObservation"], observation)
+        self.assertEqual(published["testLifecycleStage"], "initialFrameWait")
+
+        generic = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "java.lang.AssertionError",
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 115,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+        }
+        with (
+            mock.patch.object(runner, "failure_diagnostic", return_value=generic),
+            mock.patch.object(runner, "publish_public_failure") as publish,
+        ):
+            runner._publish_failed_run(
+                Path("/private/tmp/public"), {},
+                test_lifecycle_stage=stage,
+            )
+        self.assertNotIn(
+            "initialFrameObservation", publish.call_args.args[0],
+        )
+
     def test_post_resize_stage_rejects_injected_type_text_identity_and_source(self):
         stage_type = (
             "com.ersingundem.larenor.rdp."

@@ -51,6 +51,8 @@ K07’nin yeni native komut regresyonu düzeltildi ve 17 dar test/analyze geçti
 
 F60 owned PIN teslimi artık canonical parse sonrası nonsecret ACK ve EOF ister; root56 runner/workflow testi ve iki native motor zorunlu actual AndroidTest derlemesi geçti. Strict stream kabulü hâlâ açık; F60 yeniden çalışılıyor. [Dar sınır](testing/f60-pin-peer-ack-2026-10-01.md).
 
+F62 ilk kare bekleyişi artık değişmeyen30sn sınırında bounded polling, exact throwable sınıfı ve optional nonce-bound private ölçülerle terminal/no-callback/yanlış-boyut/stall sınırlarını ayırır. Root43runner testi ve actual required-native AndroidTest derlemesi geçti; gerçek RDP runtime kabulü açık, yeniden çalışılıyor. [Dar sınır](testing/f62-initial-frame-wait-diagnostics-2026-10-01.md).
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
