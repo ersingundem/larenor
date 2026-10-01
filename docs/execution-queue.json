@@ -5718,10 +5718,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+          "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root34/34 runner/parser checks; actual required-native AndroidTest compile278tasks; fixed last-entered enum diagnostic only, strict runtime acceptance unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36811909218",
+          "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source owned lifecycle diagnostic gate; remoteSHA and GitHubrunhead independently matched; real frame/DISP/Unicode/two-lifetime acceptance pending"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar tanı uygulandı: fresh private nonce ile AtomicFile last-entered enum; bounded adb okuma ve exact cleanup, diagnostic I/O original kabulü değiştirmez. Root34/34 ve actual required-package AndroidTest Kotlin compile278tasks geçti; stage kesin hata nedeni veya runtime kabulü değildir. Değişmiş kaynaklı hosted koşu gerekli; unchanged-source kör rerun yok. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar tanı uygulandı: fresh private nonce ile AtomicFile last-entered enum; bounded adb okuma ve exact cleanup, diagnostic I/O original kabulü değiştirmez. Root34/34 ve actual required-package AndroidTest Kotlin compile278tasks geçti; stage kesin hata nedeni veya runtime kabulü değildir. Değişmiş kaynaklı hosted koşu gerekli; unchanged-source kör rerun yok. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Yeni exactc8291061/run36811909218 gerçek hosted RDP kapısında sürüyor; henüz kabul yok."
     },
     {
       "id": "F61",

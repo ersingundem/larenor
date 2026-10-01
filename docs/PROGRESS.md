@@ -31,7 +31,7 @@ F60 changed-source exact36cbe3a1 / [run36811116354](https://github.com/ersingund
 
 [Wellbeing manifest düzeltmesi](testing/wellbeing-product-manifest-regression-2026-10-01.md) root geniş JVM ile doğrulandı. F60 üretim iptal yolunda no-read-timeout ağ çağrısının single-executorı bloke etmesi kaynakta doğrulandı; gerçek active-call cancel/deadline ve owned-stall kabulü üzerinde çalışılıyor.
 
-[F62 yaşam döngüsü tanısı](testing/f62-owned-lifecycle-diagnostics-2026-10-01.md) root34/34 ve actual required-package AndroidTest derlemesiyle doğrulandı. Bu yalnız sonraki değişmiş kaynaklı koşunun hata sınırını belirler; gerçek RDP kabulü henüz açık.
+[F62 yaşam döngüsü tanısı](testing/f62-owned-lifecycle-diagnostics-2026-10-01.md) root34/34 ve actual required-package AndroidTest derlemesiyle doğrulandı. Bu yalnız hata sınırını belirler; exactc8291061 / [run36811909218](https://github.com/ersingundem/larenor/actions/runs/36811909218) başladı. Gerçek RDP kabulü henüz açık.
 
 ## Tarihsel doğrulama kayıtları
 
