@@ -53,6 +53,16 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
   veya gerçek hosted kabul iddiası değildir. Eksik altı product/kiosk dependency
   satırı özellik matrisine named kanıt ve açık fiziksel sınırlarıyla eklendi.
 
+## Güncel uzun kullanım açıkları — 1 Ekim
+
+Kaynak incelemesi F01/F02/F03/F14/F57/F58/F59 kalıcı geçmiş sınırlarının
+terminal/süresi dolmuş kayıtlardan sonra da yeni kullanımı engellediğini
+buldu. Önceki focused testler bu kapasite/restart davranışını kapsamıyor.
+Bu yedi özellik yeniden çalışılıyora alındı; yalnız CI eksiği değildir.
+[İnceleme ve düzeltme kapısı](final-function-retention-review-2026-10-01.md).
+Güncel CI bekleyen toplam 51 seçili özellik / 60 iş; 9 özellik yeniden
+çalışılıyor. Kabul sayaçları 37/127 ve 3/63 değişmedi.
+
 ## Tarihsel yerel kabul tabanı — 30 Eylül
 
 Aşağıdaki sonuçlar önceki `06f5551a242aca47ebcf0f2476881e2deec5d1da` uygulama

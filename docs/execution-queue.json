@@ -3613,7 +3613,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3637,14 +3637,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "Yeniden çalışılıyor: 128 kalıcı trial ve 4096 olay sınırında bitmiş eski trial/geçmiş temizlenmediğinden yeni kullanım restart sonrasında da kalıcı 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F03",
       "kind": "task",
       "parent": "G04",
       "title": "Geçmişte otomasyon sınaması",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3668,14 +3668,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "Yeniden çalışılıyor: 128 kalıcı trial ve 4096 olay sınırında bitmiş eski trial/geçmiş temizlenmediğinden yeni kullanım restart sonrasında da kalıcı 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
     },
     {
       "id": "F01",
       "kind": "task",
       "parent": "G04",
       "title": "Konuşarak otomasyon taslağı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3701,7 +3701,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
+      "reason": "Yeniden çalışılıyor: 256 kalıcı taslak/activated kayıt limiti dolunca süresi dolmuş geçmiş temizlenmediğinden sonraki create restart sonrasında da 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
     },
     {
       "id": "F09",
@@ -3872,7 +3872,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3914,7 +3914,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Uygulama ve gerçek Client/Core odaklı kabul tamamlandı; geniş final HEAD CI bekleniyor. Controller geç yanıtı current hesap/ev/rol/epoch kontrolünden sonra commit eder; yalnız sahip olunan token/confirmation dialogu authority değişiminde emekli edilir, foreign route korunur. Belirsiz create açık GET-only refresh ile uzlaşır; ikinci POST veya tek gösterimli tokenı geri alma yok. Root 11/11 Client/widget testi ve scoped analyze, gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı encrypted DB restart yaşamında 1+1 kabulünü doğruladı; mevcut named Server 3/3 geçti. Pano platform hatası güvenli retry olarak yakalanır; late cleanup yalnız exact owned değeri silmeye çalışır, OS CAS veya immutable string silme garantisi verilmez. Geniş CI ve MANUAL ayrı; eski failedreview tarihsel kalır. Kanıt: docs/testing/f14-normal-core-acceptance-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: 64 kalıcı oturum/1024 olay sınırında eski expired/revoked geçmiş temizlenmediğinden yeni oturum ve supporter read restart sonrasında da 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Controller geç yanıtı current hesap/ev/rol/epoch kontrolünden sonra commit eder; yalnız sahip olunan token/confirmation dialogu authority değişiminde emekli edilir, foreign route korunur. Belirsiz create açık GET-only refresh ile uzlaşır; ikinci POST veya tek gösterimli tokenı geri alma yok. Root 11/11 Client/widget testi ve scoped analyze, gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı encrypted DB restart yaşamında 1+1 kabulünü doğruladı; mevcut named Server 3/3 geçti. Pano platform hatası güvenli retry olarak yakalanır; late cleanup yalnız exact owned değeri silmeye çalışır, OS CAS veya immutable string silme garantisi verilmez. Geniş CI ve MANUAL ayrı; eski failedreview tarihsel kalır. Kanıt: docs/testing/f14-normal-core-acceptance-2026-10-01.md."
     },
     {
       "id": "F19",
@@ -5060,7 +5060,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5093,14 +5093,14 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: Aktif cihazın applied kalibrasyon makbuzları yalnız provider revoke ile siliniyor; 256 makbuz sınırı dolunca yeni onay kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
     {
       "id": "F58",
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5134,14 +5134,14 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: Preview/provider-command/poll geçmişi temizlenmiyor; 2000 sınırı dolunca yeni kullanım restart sonrasında da kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
     {
       "id": "F59",
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5165,7 +5165,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek authenticated service catalog→Client inline selection→provider-derived yazıcı kaydı→preview/confirm→receipt readback normal TCP Core ve owned OctoPrint üzerinde geçti. Client stable service registration kimliği kayıp ACK/restart replayini çift kayıt olmadan korur; mid-I/O admin revoke sıfır persisted row verir. Gerçek API filament grams sağlamadığı için schema v4 honest unknown/null saklar; caller safety/job beyanı başlangıç kanıtı değildir. 21 Server, 21 Flutter ve iki gerçek normal Core/Client fazı geçti; root Server selection ve gerçek runnerı doğruladı. Geniş exact HEAD CI ve fiziksel yazıcı/sensör güvenliği MANUAL kapısı açık. Kanıt: docs/testing/f59-real-provider-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: Terminal intent geçmişi temizlenmiyor; 10000 sınırı dolunca yeni komut restart sonrasında da kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek authenticated service catalog→Client inline selection→provider-derived yazıcı kaydı→preview/confirm→receipt readback normal TCP Core ve owned OctoPrint üzerinde geçti. Client stable service registration kimliği kayıp ACK/restart replayini çift kayıt olmadan korur; mid-I/O admin revoke sıfır persisted row verir. Gerçek API filament grams sağlamadığı için schema v4 honest unknown/null saklar; caller safety/job beyanı başlangıç kanıtı değildir. 21 Server, 21 Flutter ve iki gerçek normal Core/Client fazı geçti; root Server selection ve gerçek runnerı doğruladı. Geniş exact HEAD CI ve fiziksel yazıcı/sensör güvenliği MANUAL kapısı açık. Kanıt: docs/testing/f59-real-provider-2026-09-30.md."
     },
     {
       "id": "F60",
@@ -5741,7 +5741,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 58 seçili özellik / toplam 67 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; subscriber sonrası fixture refresh düzeltmesi fresh exact kaynak ve bağımsız incelemeyle doğrulandı; yeni hosted runtime sonucu gerekli. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur. Temiz checkout product APKsı optional Moonlight/FreeRDP paketlerini hazırlamıyor; iki gerçek motorun aynı dağıtım APKsında doğrulanması geliştiriliyor. Fecc Android run 36808321597 nested manuel çağrıda Server işlerini atladı; Reusable scope varsayılanı düzeltildi; root 10/10 test ve actionlint geçti; değişmiş kaynaklı gerçek Server koşusu gerekli. Fecc Security run 36808202647 geçti; bütün CI yerine sayılmaz. Fecc analyze format kapısının iki Dart test dosyası düzeltildi; root exact no-write format kontrolü geçti, davranış değişmedi."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 51 seçili özellik / toplam 60 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; subscriber sonrası fixture refresh düzeltmesi fresh exact kaynak ve bağımsız incelemeyle doğrulandı; yeni hosted runtime sonucu gerekli. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur. Temiz checkout product APKsı optional Moonlight/FreeRDP paketlerini hazırlamıyor; iki gerçek motorun aynı dağıtım APKsında doğrulanması geliştiriliyor. Fecc Android run 36808321597 nested manuel çağrıda Server işlerini atladı; Reusable scope varsayılanı düzeltildi; root 10/10 test ve actionlint geçti; değişmiş kaynaklı gerçek Server koşusu gerekli. Fecc Security run 36808202647 geçti; bütün CI yerine sayılmaz. Fecc analyze format kapısının iki Dart test dosyası düzeltildi; root exact no-write format kontrolü geçti, davranış değişmedi. Yeni doğrulanmış lifetime kapasite açıkları F01/F02/F03/F14/F57/F58/F59 yeniden çalışılıyora alındı; bunlar yalnız CI eksiği değildir."
     },
     {
       "id": "FINAL.UI",

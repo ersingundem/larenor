@@ -22,6 +22,19 @@ latest-HEAD CI. `MANUAL` covers physical receivers, radios, displays, household
 credentials and provider-specific behavior that a disposable fixture cannot
 establish.
 
+## Current implementation exceptions — 1 October
+
+The earlier focused evidence below does not cover long-running storage
+capacity. Source review found no pruning path for expired/terminal durable
+history in F01, F02/F03, F14, F57, F58 and F59. Their fixed capacities eventually
+block new operations across restart. These seven features are **reworking**,
+not merely awaiting CI. Safe authenticated retention and capacity/replay/restart
+acceptance must close these concrete gaps. See the
+[bounded retention review](final-function-retention-review-2026-10-01.md).
+Current implementation-complete totals are **51 selected features / 60 tasks**;
+accepted totals stay **3/63 features and 37/127 tasks**. F60/F62 remain reworking
+for their separate real native runtime and combined delivery gates.
+
 ## F01–F21
 
 | Feature | User entry | Real production route and prerequisite | Named software evidence | Restart, cancellation, empty/error and manual limits |
@@ -122,7 +135,6 @@ They still gate claims made by the F01–F63 routes above.
 | PRODUCT.PROVIDERS | Actual Flutter → normal Core → private installation IPC → owned Music Assistant TCP passed two restart lifetimes and 26 Server/runtime cases. Verified admin navigation, dynamic secret form, lost-create ACK readback, HTTPS Spotify flow and explicit cancellation are covered. [Named evidence](product-music-provider-normal-core-acceptance-2026-09-30.md). | Awaiting final-HEAD CI. Real provider accounts/subscriptions/playback rights and physical receivers remain MANUAL.MEDIA. |
 | PRODUCT.HEALTH | Production Android SDK/HA mapping plus private account/foreground gates passed 100 Flutter and 21 native wellbeing checks; scoped analysis clean. [Named evidence](product-health-software-acceptance-2026-09-30.md). | Awaiting final-HEAD CI. Huawei/Apple account approvals, physical sensors and OEM/GMS behavior remain MANUAL.HEALTH. |
 | K09 controlled app view | Root independently passed actual KioskScreen→normal Core TCP→exact pairing authority→owned TLS MQTT, 25 focused tests and full Flutter analyze. Explicit confirmation, bounded/non-retained PNG, active/retired receipt, delayed-CONNACK successor isolation and no policy write are verified. | CI waiting; physical tablet/OEM lifecycle and deployed MQTT remain MANUAL. Android MediaProjection remains visibly unsupported. |
-
 | K10 local sensors | Explicit in-memory sensor observation, actual native host/focus retirement and accessible tablet controls passed 24 Flutter and 12 Android cases. [Named evidence](k10-local-sensor-tablet.tdd.md). | Awaiting final-HEAD CI; physical sensor/OEM and 24-hour battery/thermal behavior remain MANUAL.KIOSK. Sensor data never authorizes household actions. |
 | K11 peripherals | Explicit native retirement, uncertain-ACK fencing and stale asynchronous callback bounds passed 19 Flutter and 6 native cases. [Named evidence](k11-production-input-retirement-2026-09-30.md). | Awaiting final-HEAD CI; real QR/NFC/BLE/USB/TTS/print device and permission acceptance remain MANUAL.KIOSK. |
 | K12 watchdog/usage | Durable explicit recovery throttling, content-free bounded usage and real WebPanel renderer/retry integration passed 55 Flutter cases. [Named evidence](k12-watchdog-local-usage-foundation.tdd.md). | Awaiting final-HEAD CI; physical process-death and long-idle checks remain MANUAL.KIOSK. Android force-stop/automatic OS relaunch are not supported claims. |

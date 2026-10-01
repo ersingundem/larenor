@@ -14,13 +14,13 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
-| G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 3 | 5 | 0 |
+| G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 1 | 3 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
-| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 1 | 5 | 0 |
+| G10 — Ağ, varlık algısı ve yeni cihazlar | 6 | 0 | 0 | 4 | 2 | 0 |
 | G11 — Proxmox'tan bağımsız uzak erişim | 4 | 1 | 0 | 1 | 2 | 0 |
 | FINAL — Bütün yazılım sonrası son frontend ve yayın | 6 | 0 | 0 | 1 | 0 | 0 |
 | MANUAL — Kullanıcıyla son kurulum ve fiziksel kabul | 9 | 0 | 0 | 0 | 0 | 9 |
@@ -29,6 +29,13 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
+| F02 | Otomasyonun deneme haftası | Yeniden çalışılıyor | — |
+| F03 | Geçmişte otomasyon sınaması | Yeniden çalışılıyor | — |
+| F01 | Konuşarak otomasyon taslağı | Yeniden çalışılıyor | — |
+| F14 | Süreli destek oturumu | Yeniden çalışılıyor | — |
+| F57 | Oda düzeyinde yerel varlık algısı | Yeniden çalışılıyor | — |
+| F58 | E-paper mini ev ekranları | Yeniden çalışılıyor | — |
+| F59 | 3D yazıcı ve atölye merkezi | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
@@ -130,15 +137,11 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F52 | DeX'te iki ekrana farklı görev | CI bekliyor | — |
 | F08 | Yapay zekâ kaynak yöneticisi | CI bekliyor | — |
 | F04 | Çakışan kurallar hakemi | CI bekliyor | — |
-| F02 | Otomasyonun deneme haftası | CI bekliyor | — |
-| F03 | Geçmişte otomasyon sınaması | CI bekliyor | — |
-| F01 | Konuşarak otomasyon taslağı | CI bekliyor | — |
 | F09 | Görülebilir, süreli AI hafızası | CI bekliyor | — |
 | F07 | Evin alışılmış düzeninden sapmalar | CI bekliyor | — |
 | F10 | Kanıta dayalı arıza yardımcısı | CI bekliyor | — |
 | F11 | Sınırlı yetkili mini eklentiler | CI bekliyor | — |
 | F12 | Yetkili MCP kapısı | CI bekliyor | — |
-| F14 | Süreli destek oturumu | CI bekliyor | — |
 | F19 | Birden fazla ev, bağımsız Core | CI bekliyor | — |
 | F24 | Akıllı altyazı ve dil tercihleri | CI bekliyor | — |
 | F26 | Oynatma kalitesi danışmanı | CI bekliyor | — |
@@ -170,8 +173,5 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F49 | Bahçe sulama ve su bütçesi | CI bekliyor | — |
 | F55 | Zigbee/Thread ağ ve güncelleme merkezi | CI bekliyor | — |
 | F56 | Eski cihazlar için akıllı kumanda | CI bekliyor | — |
-| F57 | Oda düzeyinde yerel varlık algısı | CI bekliyor | — |
-| F58 | E-paper mini ev ekranları | CI bekliyor | — |
-| F59 | 3D yazıcı ve atölye merkezi | CI bekliyor | — |
 | F63 | SSH terminal, SFTP ve güvenli tüneller | CI bekliyor | — |
 | F61 | Bağımsız VNC uzak ekran | CI bekliyor | — |
