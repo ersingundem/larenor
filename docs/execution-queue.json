@@ -3635,7 +3635,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f01-f03-automation-retention-2026-10-01.md",
+          "commit": "ce9ee3d9ca45aa65989a9280099f6395b2c50d97",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source22/22 retention/normal Core gates; default256/128 and signed4096-event restart capacity; no household device writes"
+        }
+      ],
       "completionCommit": null,
       "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
@@ -3666,7 +3675,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f01-f03-automation-retention-2026-10-01.md",
+          "commit": "ce9ee3d9ca45aa65989a9280099f6395b2c50d97",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source22/22 retention/normal Core gates; default256/128 and signed4096-event restart capacity; no household device writes"
+        }
+      ],
       "completionCommit": null,
       "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
@@ -3699,7 +3717,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f01-f03-automation-retention-2026-10-01.md",
+          "commit": "ce9ee3d9ca45aa65989a9280099f6395b2c50d97",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source22/22 retention/normal Core gates; default256/128 and signed4096-event restart capacity; no household device writes"
+        }
+      ],
       "completionCommit": null,
       "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
@@ -5139,6 +5166,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Root 21/21 management and production-route regressions; six-file scoped analysis clean; exact confirmation/readback, foreign navigation and parent removal"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f58-authenticated-retention-2026-10-01.md",
+          "commit": "3007a305718ac1d30e077cabec46ebb920425b42",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source 18/18 retention/normal Core gates including default2000 signed history and restart"
         }
       ],
       "completionCommit": null,
@@ -5149,7 +5184,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "3D yazıcı ve atölye merkezi",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5173,7 +5208,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: Terminal intent geçmişi temizlenmiyor; 10000 sınırı dolunca yeni komut restart sonrasında da kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek authenticated service catalog→Client inline selection→provider-derived yazıcı kaydı→preview/confirm→receipt readback normal TCP Core ve owned OctoPrint üzerinde geçti. Client stable service registration kimliği kayıp ACK/restart replayini çift kayıt olmadan korur; mid-I/O admin revoke sıfır persisted row verir. Gerçek API filament grams sağlamadığı için schema v4 honest unknown/null saklar; caller safety/job beyanı başlangıç kanıtı değildir. 21 Server, 21 Flutter ve iki gerçek normal Core/Client fazı geçti; root Server selection ve gerçek runnerı doğruladı. Geniş exact HEAD CI ve fiziksel yazıcı/sensör güvenliği MANUAL kapısı açık. Kanıt: docs/testing/f59-real-provider-2026-09-30.md."
+      "reason": "CI bekliyor: HMAC doğrulamalı terminal intent/effect retention kalıcı 10000 kapasite/restart açığını kapattı. Root live-source 28/28 normal Core, owned OctoPrint/Moonraker HTTP ve retention kontrolü geçti. Gerçek tek applied receipt kaynaklı bounded signed10000 geçmiş fixture sonrası restart/new confirm yalnız bir yeni provider etkisi üretir; 10000 gerçek yazıcı komutu iddiası değildir. Current intent, inclusive24h/recent replay ve tüm unknown/pre-dispatch/uncertain etkiler korunur. Tamper, resealed mismatched child ve silme hatası sıfır kalıcı deletion/transaction rollback verir; kapasite artışı ve otomatik resend yok. Önceki gerçek Client/Core/provider kabulü korunur; fiziksel yazıcı/sensör MANUAL, geniş finalHEAD CI ayrı. Kanıt: docs/testing/f59-workshop-intent-retention-2026-10-01.md."
     },
     {
       "id": "F60",
@@ -5367,13 +5402,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36808021320",
           "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source exact diagnostic gate dispatched via registered Server scope f60-stream; source SHA independently verified; acceptance pending"
+          "state": "completed",
+          "result": "failed",
+          "label": "Canonical original1test/1failure/0error/0skip; pairingRegistration timeout owned source99/680; no accepted stream receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run 36802851003 gerçek Android NSD keşfini tek test, sıfır atlama ve iki yaşam ile doğruladı; streamAccepted=false. Exact a703289d / run 36804692946 motor derleme ve kurulumundan sonra gerçek connectedDebugAndroidTest adımında başarısız oldu; kesin assertion/aşaması eldeki makbuzla bilinmiyor. Yeni tanı yalnız kaynak/paket bağlı sabit neden, doğrulanmış test kimliği ve sınırlı kaynak satırları yayımlar. Kaynak hash değişirse aşama tahmin edilmez; XML okuması descriptor ve boyut sınırına bağlıdır. Root 42/42 tanı/workflow testi ve actionlint geçti. Değişmiş kaynakla yeni hosted sonuç gerekli; aynı kaynak körlemesine rerun edilmez. Frame/PCM, XI2/gamepad etkisi, stop, kopuş ve replay olmadan yerel temizleme kabulü açık. Fiziksel host/GPU/controller ve sağlayıcı eşlemesi MANUAL, geniş son HEAD CI ayrı. Kanıt: docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md. Yeni exact 3feb723c / run 36808021320 başladı; sonuç bekleniyor, kabul henüz yok. Temiz checkout product APKsında iki gerçek native motorun birlikte materialize/verify edilmesi ayrıca açık; yalnız ayrı native APK kabulü dağıtım kanıtı değildir."
+      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar teslim ve sabit bridge-stage düzeltmesi odaklı doğrulanıyor; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVMde1 manifest hatası açık. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı."
     },
     {
       "id": "G11",
@@ -5631,13 +5666,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36808149011",
           "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source strict packaged Android/native gate; exact source SHA independently verified; no accepted runtime receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Canonical original1test/1failure/0error/0skip; unclassified exception/no owned frames/serverResizeRequested=false; exact cause unproved, arm64 package passed"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Exact 1d1ccf2e / run 36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 APK paketlemesini geçti; gerçek Android testi başarısız oldu. Root canonical source/class/method/package/fixture kimliğini doğruladı: 1 test, 1 failure, 0 error, 0 skip; owned kaynak satırları 255 ve 98, güvenlik callbackinden sonra beklenen ilk 1280x800 frame bekleyişini gösterir. serverResizeRequested=false. Bu sonuç hiç callback olmadığını veya hatanın kesin alt nedenini kanıtlamaz. DISP, Unicode pano ve iki authenticated yaşam kabulü açık. Önceki resize/configure hataları tarihsel korunur. Yerel derleme ve unit kanıtları runtime kabulü değildir. Geniş son HEAD CI ve fiziksel Windows/Huawei/DeX kabulü ayrı. Pinned kaynakta subscriber oluşmadan Activate refreshinin kaybolabileceği sıra doğrulandı. Fixture-only düzeltme subscriber/event kaydından sonra normal full refreshi yeniden ister; dispatch hatası bağlantıyı kapatır. Root exact archive fresh prepare/hash/sıra, 18/18 odaklı kontrol ve bağımsız kaynak incelemesini doğruladı. Bu eski hosted hatanın kesin nedeni iddiası değildir; aynı strict Android gate değişmiş kaynakla geçmelidir. Kanıt: docs/testing/f62-initial-frame-subscriber-2026-10-01.md. Yeni exact 36c3e015 / run 36808149011 başladı; sonuç bekleniyor, kabul henüz yok. Temiz checkout product APKsında iki gerçek native motorun birlikte materialize/verify edilmesi ayrıca açık; yalnız ayrı native APK kabulü dağıtım kanıtı değildir."
+      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar güvenli stage/cause tanısı geliştiriliyor; unchanged-source kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM1manifest hatası açık. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı."
     },
     {
       "id": "F61",
@@ -5749,7 +5784,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 51 seçili özellik / toplam 60 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; subscriber sonrası fixture refresh düzeltmesi fresh exact kaynak ve bağımsız incelemeyle doğrulandı; yeni hosted runtime sonucu gerekli. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur. Temiz checkout product APKsı optional Moonlight/FreeRDP paketlerini hazırlamıyor; iki gerçek motorun aynı dağıtım APKsında doğrulanması geliştiriliyor. Fecc Android run 36808321597 nested manuel çağrıda Server işlerini atladı; Reusable scope varsayılanı düzeltildi; root 10/10 test ve actionlint geçti; değişmiş kaynaklı gerçek Server koşusu gerekli. Fecc Security run 36808202647 geçti; bütün CI yerine sayılmaz. Fecc analyze format kapısının iki Dart test dosyası düzeltildi; root exact no-write format kontrolü geçti, davranış değişmedi. Yeni doğrulanmış lifetime kapasite açıkları F01/F02/F03/F14/F57/F58/F59 yeniden çalışılıyora alındı; bunlar yalnız CI eksiği değildir."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan57seçili özellik/66iş CI bekliyor; F57retention, F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM335passed/2skip/1manifest failure açık. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra."
     },
     {
       "id": "FINAL.UI",

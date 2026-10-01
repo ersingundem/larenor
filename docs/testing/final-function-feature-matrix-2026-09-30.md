@@ -29,11 +29,11 @@ capacity. Source review found no pruning path for expired/terminal durable
 history in F01, F02/F03, F14, F57, F58 and F59. Their fixed capacities eventually
 block new operations across restart. F14 retention is now closed by root live-source 9/9 normal Core/retention
 tests; F01/F02/F03 also passed22/22 live-source retention gates. Only
-F57/F59 remain **reworking** for history retention; F58 passed root18/18
+F57 remains **reworking** for history retention; F59 passed root28/28 normal Core/owned HTTP/retention gates and awaits CI; F58 passed root18/18
 live-source retention/normal Core gates and awaits CI. Safe authenticated retention and capacity/replay/restart
 acceptance must close these concrete gaps. See the
 [bounded retention review](final-function-retention-review-2026-10-01.md).
-Current implementation-complete totals are **56 selected features / 65 tasks**;
+Current implementation-complete totals are **57 selected features / 66 tasks**;
 accepted totals stay **3/63 features and 37/127 tasks**. F60/F62 remain reworking
 for their separate real native runtime and combined delivery gates.
 

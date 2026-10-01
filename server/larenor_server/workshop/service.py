@@ -34,6 +34,7 @@ _PREVIEW_TTL_SECONDS = 60
 _MAX_PREVIEWS = 128
 _MAX_ACTOR_PREVIEWS = 4
 _SAFETY_TTL_SECONDS = 30
+_TERMINAL_REPLAY_SECONDS = 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -290,6 +291,91 @@ class WorkshopService:
         if row["code"] == "worker_ack_unknown" and readback is not None:
             raise ValueError("invalid_workshop_effect")
         return row, readback
+
+    def _validate_intent_effect(self, intent, effect):
+        self._validate_intent(intent)
+        if effect is None:
+            return
+        effect, readback = self._validate_effect(effect)
+        if (
+            effect["intent_id"] != intent["id"]
+            or effect["created_at"] < intent["created_at"]
+        ):
+            raise ValueError("invalid_workshop_effect_graph")
+        if effect["status"] == "applied" and (
+            readback is None
+            or readback.commandId != effect["command_id"]
+            or readback.printerId != intent["printer_id"]
+            or readback.action != intent["action"]
+            or readback.providerRevision != effect["provider_revision"]
+        ):
+            raise ValueError("invalid_workshop_effect_graph")
+
+    def _validated_history(self, connection):
+        printers = connection.execute(
+            "SELECT * FROM workshop_printers ORDER BY id"
+        ).fetchall()
+        intents = connection.execute(
+            "SELECT * FROM workshop_intents ORDER BY sequence"
+        ).fetchall()
+        effects = connection.execute(
+            "SELECT * FROM workshop_effects ORDER BY intent_id"
+        ).fetchall()
+        printer_ids = {row["id"] for row in printers}
+        intent_by_id = {row["id"]: row for row in intents}
+        effect_by_intent = {row["intent_id"]: row for row in effects}
+        if (
+            len(printers) > schema.MAX_PRINTERS
+            or len(intent_by_id) != len(intents)
+            or len(effect_by_intent) != len(effects)
+        ):
+            raise ValueError("invalid_workshop_history")
+        for row in printers:
+            self._validate_printer(row)
+        for row in intents:
+            if row["printer_id"] not in printer_ids:
+                raise ValueError("orphan_workshop_intent")
+            self._validate_intent_effect(row, effect_by_intent.get(row["id"]))
+        if any(row["intent_id"] not in intent_by_id for row in effects):
+            raise ValueError("orphan_workshop_effect")
+        return intents, effect_by_intent
+
+    def _make_intent_room(self, connection, now):
+        intents, effect_by_intent = self._validated_history(connection)
+        if len(intents) < schema.MAX_INTENTS:
+            return
+        if len(intents) > schema.MAX_INTENTS:
+            raise ValueError("workshop_intent_limit")
+        cutoff = now - _TERMINAL_REPLAY_SECONDS
+        current_by_printer = {}
+        for intent in intents:
+            current_by_printer[intent["printer_id"]] = intent["id"]
+        removable = []
+        for intent in intents:
+            effect = effect_by_intent.get(intent["id"])
+            if (
+                current_by_printer[intent["printer_id"]] == intent["id"]
+                or intent["created_at"] >= cutoff
+            ):
+                continue
+            if effect is None or (
+                effect["status"] == "applied" and effect["created_at"] < cutoff
+            ):
+                removable.append(intent["id"])
+        if not removable:
+            raise ApiError("workshop_limit_reached", 409)
+        connection.executemany(
+            "DELETE FROM workshop_effects WHERE intent_id=?",
+            ((intent_id,) for intent_id in removable),
+        )
+        connection.executemany(
+            "DELETE FROM workshop_intents WHERE id=?",
+            ((intent_id,) for intent_id in removable),
+        )
+        if connection.execute(
+            "SELECT COUNT(*) FROM workshop_intents"
+        ).fetchone()[0] >= schema.MAX_INTENTS:
+            raise ApiError("workshop_limit_reached", 409)
 
     def _binding(self, connection, service_id, revision):
         try:
@@ -1161,10 +1247,7 @@ class WorkshopService:
                         actor, binding, printer_id, command_body.action, now,
                         observation,
                     )
-                    if connection.execute(
-                        "SELECT COUNT(*) FROM workshop_intents"
-                    ).fetchone()[0] >= schema.MAX_INTENTS:
-                        raise ApiError("workshop_limit_reached", 409)
+                    self._make_intent_room(connection, now)
                     intent_id = uuid.uuid4().hex
                     connection.execute(
                         "INSERT INTO workshop_intents "
@@ -1242,28 +1325,8 @@ class WorkshopService:
     def validate_storage(self):
         try:
             with self.db.connection() as connection:
-                printers = connection.execute(
-                    "SELECT * FROM workshop_printers ORDER BY id"
-                ).fetchall()
-                intents = connection.execute(
-                    "SELECT * FROM workshop_intents ORDER BY sequence"
-                ).fetchall()
-                effects = connection.execute(
-                    "SELECT * FROM workshop_effects ORDER BY intent_id"
-                ).fetchall()
-                if len(printers) > schema.MAX_PRINTERS or len(intents) > schema.MAX_INTENTS:
+                intents, _effects = self._validated_history(connection)
+                if len(intents) > schema.MAX_INTENTS:
                     raise ValueError("workshop_limit")
-                printer_ids = {row["id"] for row in printers}
-                intent_ids = {row["id"] for row in intents}
-                for row in printers:
-                    self._validate_printer(row)
-                for row in intents:
-                    self._validate_intent(row)
-                    if row["printer_id"] not in printer_ids:
-                        raise ValueError("orphan_workshop_intent")
-                for row in effects:
-                    self._validate_effect(row)
-                    if row["intent_id"] not in intent_ids:
-                        raise ValueError("orphan_workshop_effect")
         except (ValueError, sqlite3.Error):
             raise StartupError("workshop_storage_invalid") from None

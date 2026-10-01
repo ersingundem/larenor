@@ -2,7 +2,7 @@
 
 Bu kayıt `codex/project-completion-100` dalındaki canlı yazılım kabul durumunu
 özetler. Şu anda yalnız `FINAL.FUNCTION` aktiftir. Yazılımı ve odaklı kanıtı
-tamamlanan 58 seçili özellik / toplam 67 iş `awaiting_ci` durumundadır; bu etiket
+tamamlanan 57 seçili özellik / toplam 66 iş `awaiting_ci` durumundadır; bu etiket
 tam kabul değildir. Kanıtla kabul edilen sayaçlar **37/127 iş** ve **3/63 seçili
 özellik** olarak değişmemiştir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı
 kanıtları ilgili `MANUAL.*` kapılarında kalır.
@@ -58,9 +58,9 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
 Kaynak incelemesi F01/F02/F03/F14/F57/F58/F59 kalıcı geçmiş sınırlarının
 terminal/süresi dolmuş kayıtlardan sonra da yeni kullanımı engellediğini
 buldu. Önceki focused testler bu kapasite/restart davranışını kapsamıyor.
-F14 retention root live-source 9/9 normal Core/retention kabulüyle kapandı ve yeniden CI bekliyora geçti. F01/F02/F03 retention da root22/22 kabulüyle kapandı; F58 retention root18/18 kabulüyle CI bekliyora geçti; F57/F59 geçmiş açıkları yalnız CI eksiği değildir.
+F14 retention root live-source 9/9 normal Core/retention kabulüyle kapandı ve yeniden CI bekliyora geçti. F01/F02/F03 retention da root22/22 kabulüyle kapandı; F58 retention root18/18 kabulüyle CI bekliyora geçti; F59root28/28 retention/normal Core kabulüyle CI bekliyora geçti; F57 geçmiş açığı yalnız CI eksiği değildir.
 [İnceleme ve düzeltme kapısı](final-function-retention-review-2026-10-01.md).
-Güncel CI bekleyen toplam 56 seçili özellik / 65 iş; 4 özellik yeniden
+Güncel CI bekleyen toplam 57 seçili özellik / 66 iş; 3 özellik yeniden
 çalışılıyor. Kabul sayaçları 37/127 ve 3/63 değişmedi.
 
 

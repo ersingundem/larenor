@@ -1,70 +1,29 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi. Yalnız FINAL.FUNCTION aktif. Geliştirme ve odaklı doğrulaması tamamlanan 56 seçili özellik / toplam 65 iş CI bekliyor tablosunda; F57/F59/F60/F62 yeniden çalışılıyor. F14 gerçek Client/Core restart kabulü, F50 kapasite/restart ve F57/F58 sahipli onay penceresi düzeltmeleri tamamlandı. İki özellikte kalıcı geçmiş kapasitesi/restart açığı, F60 gerçek stream ve F62 gerçek RDP frame/kanal kabulü açık. Son dal HEAD’inin geniş CI kabulü henüz yok. Fiziksel cihaz ve hesap kapıları MANUAL kayıtlarında; bütün FINAL adımlarından sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 57 seçili özellik / toplam 66 iş CI bekliyor. F57/F60/F62 yeniden çalışılıyor; yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
-```text
-Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
-S06 koordinatörü    ████████████████████  6/6 yazılım dilimi
-S06.3 kaynak temeli  ████████████████████  6/6 alt adım
-S08.7 HA kapsamı     ████████████████████  5/5 yazılım kapısı; fiziksel kabul ayrı
-Yeni 63 özellik     █░░░░░░░░░░░░░░░░░░░  3/63 kabul edildi (%4,8)
-```
-
-Bu sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak toplam sürenin
-oranı değildir. Önceki kapsam için belirtilen yaklaşık %65 tahmini,
-sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma oranı
-olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
-[Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
-ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
-
-## Güncel durum ayrımı — 1 Ekim
+## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | Geliştirme ve adlandırılmış odaklı kabulü tamamlanan **56 seçili özellik / toplam 65 iş** | Birleşik son dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Android NSD exact 5fa91e43 / run 36802851003 geçti. Stream exact a703289d / run 36804692946 gerçek Android testinde başarısız. Kaynak/paket bağlı sınırlı tanı 42/42 testten geçti. Yeni exact 3feb723c / [run 36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) başladı; kabul sonucu henüz yok. |
-| **Yeniden çalışılıyor** | **F62** | Exact 1d1ccf2e / run 36805226494 Linux fixture ve arm64 APK geçti; gerçek Android testi beklenen ilk 1280x800 frame bekleyişinde başarısız: 1 test, 1 failure, 0 skip. Subscriber sonrası refresh sırası kaynakta düzeltildi; fresh exact kaynak/hash, 18/18 kontrol ve bağımsız inceleme geçti. Yeni exact 36c3e015 / [run 36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) başladı. Gerçek runtime, DISP/Unicode/iki yaşam kabulü açık. |
-| **Yeniden çalışılıyor** | **F57/F59** | Kaynakta doğrulanmış kalıcı geçmiş kapasitesi açığı. Eski terminal/expired kayıtlar kapasiteyi ömür boyu tüketiyor; HMAC doğrulamalı güvenli retention ve restart/replay kabulü gerekli. |
-| **Aktif final** | **FINAL.FUNCTION** | F60/F62 işlev açıkları ve kabul kapıları, tam inceleme ve geniş final HEAD CI |
+| **CI bekliyor** | **57 seçili özellik / toplam 66 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden çalışılıyor** | **F57** | Aktif sağlayıcının 256 kalibrasyon makbuzunda kalıcı kapasite/restart açığı; güvenli retention ve odaklı kabul bitmedi |
+| **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN teslim/bridge alt aşaması bu receiptte kanıtlanmadı; dar kaynak düzeltmesi inceleniyor. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
+| **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
+| **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
+| **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
-F14 önceki inceleme açıkları kapatıldı: root **11/11 Client/widget**, temiz scoped analyze ve gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı DB restart yaşamında **1+1** kabulünü doğruladı. Named Server **3/3** geçti. [Yeni kabul](testing/f14-normal-core-acceptance-2026-10-01.md); [tarihsel failedreview](testing/f14-support-sessions-review-2026-10-01.md) korunur. F50 kapasite açığı root 33/33 regresyon ve normal Core kabulüyle kapandı ve CI bekliyora geçti. F57/F58 production-route RED’i sahipli exact dialog çitiyle kapandı. Root **21/21** management/route testi ve scoped analyze geçti; iki özellik CI bekliyora taşındı. [Route kabulü](testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md).
-CI bekliyor etiketi kabul sayacını artırmaz: **37/127 iş ve 3/63 özellik** değişmedi.
-Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında kalır. Exact1d ve doc-head
-e52b0708 Security koşuları yalnız Security kanıtıdır; geniş HEAD CI değildir.
+“CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. Sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak süre oranı değildir. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
-Dağıtım incelemesi yeni bir birleşik paket açığı buldu: normal product APK buildi
-Moonlight/FreeRDP AAR çiftlerini hazırlamıyor. İki gerçek motorun aynı APKda
-source/receipt bağlı doğrulanması geliştiriliyor; F60/F62 yeniden çalışılıyor
-kalır. Exact fecc Security run 36808202647 geçti. Android run 36808321597 başladı,
-ancak nested manuel çağrıda Server işleri atlandığından geniş Server kabulü
-sayılmaz. Reusable scope varsayılanı düzeltildi; root 10/10 workflow/scope testi
-ve actionlint geçti. Değişmiş kaynaklı tam koşu gerekli. Aynı eski Android
-koşusunun format hatası iki adlandırılmış Dart test dosyasında düzeltildi;
-root exact no-write format kontrolünü doğruladı. Test davranışı değiştirilmedi.
+## Son doğrulanan düzeltmeler
 
-
-Yeni [retention incelemesi](testing/final-function-retention-review-2026-10-01.md)
-önceki odaklı kabulün kapsamadığı gerçek uzun kullanım açıklarını kaydeder.
-Bu iki açık kayıt yalnız CI beklemiyor; düzeltme/kabul bitene kadar yeniden çalışılıyor.
-CI bekleyen güncel toplam **56 seçili özellik / 65 iş**, kabul sayaçları
-**37/127 ve 3/63** olarak korunur.
-
-
-F14 kalıcı geçmiş kapasitesi düzeltmesi root live-source **9/9** testle doğrulandı: gerçek 64 oturum sonrası aynı DB restart ve 1024 olay kapasitesi toparlanır; canlı/yakın terminal kayıt, exact token issuance ve HMAC tamper reddi korunur. [Retention kabulü](testing/f14-support-session-retention-2026-10-01.md). F14 yeniden **CI bekliyor**; kabul sayacı değişmedi.
-
-
-F01/F02/F03 kapasite açığı root live-source **22/22** testle kapandı; 256 taslak/128 deneme ve signed4096-olay geçmişi aynı DB restart sonrası toparlanır. Canlı/current trial, inclusive24h replay ve encrypted rule korunur; tamper ve kapasite reddi transaction rollback yapar. [Kabul ve fixture sınırı](testing/f01-f03-automation-retention-2026-10-01.md). Üç özellik **CI bekliyor**, sayaç değişmedi.
-
-
-F58 retention root live-source **18/18** kabulüyle kapandı: normal Core restart, signed2000 hazırlık fixture kapasitesi, gerçek owned HA/OEPL HTTP send/dry-run ve yakın replay geçti. Pending/dispatching/uncertain etkiler, son32terminal kayıt ve güncel render ACK korunur; no resend/tamper/rollback/no orphan kontrolü geçti. [Kanıt](testing/f58-authenticated-retention-2026-10-01.md). F58 **CI bekliyor**.
-
-
-İki motorun birleşik Android dağıtımı yerelde doğrulandı: eski receipted Moonlight AARın eksik callback API yüzeyi yeni verifier tarafından reddedilir; exact patch/API bağlı güncel AAR yeniden derlendi. Root24/24 package/product kontrolü, actionlint ve actual required-mode installed/APK verifier geçti. Gerçek iki-ABI debug APK SHA256ea17fc26…; focused native69/69 geçti. Geniş JVM338 toplamı335passed/2skip/1failed olduğundan tam yeşil değil. [Build kanıtı ve sınırlar](testing/product-android-dual-native-actual-build-2026-10-01.md).
-
-Exact3feb F60 run36808021320 **failure**: original1test/1failure/0skip, pairingRegistration timeout (owned awaitResult frame99/680). Exact36c F62 run36808149011 **failure**, arm64 package success: original1test/1failure/0skip; bounded stage unclassified, serverResizeRequested=false. Bu sonuçlar runtime kabulü değildir; kör rerun yapılmadan dar neden araştırılıyor.
-
-
-Eski exactfecc Android koşusunun iki yeni Flutter hatası dar şekilde düzeltildi: owned TLS MQTT fixture teardown reseti için bounded graceful close ve gerçek retired-reset/successor regresyonu; legacy kaynak label testi mevcut açıklayıcı provenance metnini bekler. Root **7passed +1 explicit runner-only skip**, scoped Dart analyze ve exact format geçti; production MQTT değişmedi. [Kanıt](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekli.
+- F14 gerçek Client/normal Core TCP aynı DB restart iki süreç kabulü1+1 ve root11/11 Client testi geçti. Kalıcı oturum/olay kapasitesi ayrıca root9/9 live-source kabulüyle kapandı. [Client/Core](testing/f14-normal-core-acceptance-2026-10-01.md), [retention](testing/f14-support-session-retention-2026-10-01.md).
+- F01/F02/F03 root22/22: default256taslak/128deneme ve signed4096olay fixture kapasitesi restart sonrası toparlanır. Current/live/recent replay, encrypted rules, tamper/child graph ve rollback korunur. [Kanıt](testing/f01-f03-automation-retention-2026-10-01.md).
+- F58 root18/18: default2000 signed hazırlık geçmişi ve normal Core restart; owned HA/OEPL HTTP send/dry-run geçti. Pending/uncertain/current render ACK korunur; fiziksel ekran teslimi iddiası yok. [Kanıt](testing/f58-authenticated-retention-2026-10-01.md).
+- **F59 root28/28:** default10000 signed geçmiş sonrası restart/new confirm kapasitesi toparlanır. Current/inclusive24h/replay/unknown effects, tamper ve rollback korunur. Owned OctoPrint/Moonraker HTTP kabulü geçti;10000 fiziksel yazıcı komutu iddiası yok. **CI bekliyor**. [Kanıt](testing/f59-workshop-intent-retention-2026-10-01.md).
+- F50root33/33 kapasite/restart; F57/F58root21/21 sahipli confirmation dialog production-route kabulü önceki kanıttır. F57’nin yeni retention açığı bu eski route kanıtıyla kapanmış sayılmaz.
+- Normal product APK artık source/receipt/API bağlı gerçek Moonlight+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Actual required-mode debug APK SHA256ea17fc26…; root24/24package, installed/APK verifier ve focused69/69native geçti. GenişJVM338toplam=335passed/2skip/1manifest failure; tam yeşil değildir. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
+- Eski fecc Android koşusunda Server nested scope atlandı; defaultall düzeltmesi10/10 ve actionlint geçti. Format hatası iki Dart testinde düzeltildi. MQTT fixture TLS teardown ve legacy qualifiedlabel regresyonları root7passed+1explicit runner-onlyskip/scoped analyze/format geçti. [Flutter düzeltmeleri](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekir; eski fecc Security başarısı bütün CI yerine sayılmaz.
 
 ## Tarihsel doğrulama kayıtları
 

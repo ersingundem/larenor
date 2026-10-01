@@ -33,7 +33,7 @@ F58 also awaits CI after root live-source18/18 retention/normal Core tests,
 including default2000 signed preparation history and same-DB restart with
 real owned HA/OEPL HTTP. Pending/unknown effects and current render ACK remain
 protected; no physical display delivery is claimed.
-F57/F59 remain `reworking` until their repair acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
-Current totals: **65 tasks / 56 selected features awaiting CI**, **4 features
+F59 also awaits CI after root live-source28/28 normal Core, owned HTTP and authenticated retention gates, including default10000 signed historical capacity and same-DB restart. F57 remains `reworking` until its repair acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
+Current totals: **66 tasks / 57 selected features awaiting CI**, **3 features
 reworking**, **37/127 tasks and 3/63 selected features accepted**. No acceptance
 counter was advanced by this review.
