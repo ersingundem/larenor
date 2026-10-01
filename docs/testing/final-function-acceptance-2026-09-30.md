@@ -2,7 +2,7 @@
 
 Bu kayıt `codex/project-completion-100` dalındaki canlı yazılım kabul durumunu
 özetler. Şu anda yalnız `FINAL.FUNCTION` aktiftir. Yazılımı ve odaklı kanıtı
-tamamlanan 57 seçili özellik / toplam 66 iş `awaiting_ci` durumundadır; bu etiket
+tamamlanan 55 seçili özellik / toplam 64 iş `awaiting_ci` durumundadır; bu etiket
 tam kabul değildir. Kanıtla kabul edilen sayaçlar **37/127 iş** ve **3/63 seçili
 özellik** olarak değişmemiştir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı
 kanıtları ilgili `MANUAL.*` kapılarında kalır.
@@ -15,8 +15,9 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
 - F60 discovery exact `5fa91e438806decc81d24c4e8a28058bbd53cea3`, run
   `36802851003`, bir canonical test / sıfır skip ve iki taze NSD yaşamıyla
   geçti; makbuz `streamAccepted=false` der. Ayrı stream exact
-  `a703289d617380c768f5b50761609c0b2913ce24`, run `36804692946`, gerçek adımda
-  hâlâ aktiftir ve kabul makbuzu yoktur. F60 `reworking` kalır.
+  `a703289d617380c768f5b50761609c0b2913ce24`, run `36804692946`, gerçek connected Android test adımında
+  başarısız tamamlandı. Sabit dış neden kesin assertion/aşamasını kanıtlamaz;
+  kabul makbuzu yoktur. F60 `reworking` kalır.
 - F62'nin önceki exact `8d` kaynağında Unicode AAR uygulama/test derlemesi ve
   24 native unit geçti; hosted run `36804331620` ise arm64 paketlemesi başarılı
   olmasına rağmen x86 fixture configure ve ikincil absent-report upload
@@ -51,13 +52,23 @@ sözleşme ve geri kazanma sınırları, kuyruk/kanıt tutarlılığı olarak y�
 Geçmiş kırmızı koşular yalnız tarihsel tanı kaydıdır; güncel durum yerine
 sunulmaz ve değişen kaynak kanıtı olmadan kabul verilmez.
 
-F14 bağımsız Client incelemesinde token penceresi/clipboard current-authority
-çiti, geç yanıt state commit’i ve belirsiz create sonrası görünür uzlaşma
-eksikleri bulundu. Adlandırılmış Server dosyası 3/3 geçti; bu Client/TCP kabulü
-değildir. F14 `reworking` olarak yeniden açıldı; [inceleme kaydı](f14-support-sessions-review-2026-10-01.md).
+F14 tarihsel failedreview korunur; bulunan Client açıkları şimdi kapatıldı. Root
+11/11 controller/dialog/navigation/clipboard-error testi, scoped analyze ve
+gerçek normal Core TCP iki ayrı Client süreci/DB restart kabulünü 1+1 geçti.
+Named Server 3/3 kanıtı ayrı korunur. F14 `awaiting_ci`; [yeni kabul](f14-normal-core-acceptance-2026-10-01.md).
+
+F50 normal Core HTTP64distinctplan+aynı DB restart sonrası65inciPUT
+200 yerine429 comfort_limit_reached verdi. Güvenli bounded retention ve
+regression kabulü hazırlanıyor; F50 `reworking`, CI bekliyor değildir.
 
 ## Açık kapı
 
-57 seçili özellik / 66 iş CI beklerken, F14, F60 ve F62 gerçek işlev kapıları
+55 seçili özellik / 64 iş CI beklerken, F50, F57, F58, F60 ve F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
+
+F57/F58 normal production-route widget regressionları own confirmation dialogunun
+parent route dependency değişiminde runtimeı emekli ettiğini doğruladı; confirm
+Core isteği0 kaldı. Navigator.pop sonrası parentcurrent varsayımı değildir.
+Sahipli modal lease ve foreign route/authority emekliliği düzeltiliyor; bu iki
+özellik named route regressionı geçene kadar `reworking` durumundadır.

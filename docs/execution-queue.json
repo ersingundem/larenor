@@ -3872,7 +3872,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3906,7 +3906,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: bağımsız gerçek Client/Core incelemesi destek tokenı dialogunun hesap/ev/rol değişiminde açık kalabildiğini, copy callback’inin current authority kontrolü yapmadığını ve action yanıtlarının invalidate sonrası eski state’i yazabildiğini buldu. Belirsiz create sonucunda görünür yeniden listeleme/uzlaşma akışı da eksik. Mevcut normal Core dosyası gerçekten 3 Server testidir ve 3/3 geçti; önceki 6+44 sayısı Client/TCP/widget kabulü değildir. Bu nedenle F14 CI bekleyenlerden çıkarıldı. Dialog sahipliği ve oturum çiti, yanıt sonrası commit kontrolü, tekrar create göndermeden refresh/reconcile ile gerçek Flutter→normal Core TCP ve restart kabulü hazırlanıyor. Server HMAC/tek gösterimli token/20 dakika/sabit salt okunur kapsamları mevcut; bunlar eksik Client kapısını kapatmaz. Kanıt: docs/testing/f14-support-sessions-review-2026-10-01.md."
+      "reason": "Uygulama ve gerçek Client/Core odaklı kabul tamamlandı; geniş final HEAD CI bekleniyor. Controller geç yanıtı current hesap/ev/rol/epoch kontrolünden sonra commit eder; yalnız sahip olunan token/confirmation dialogu authority değişiminde emekli edilir, foreign route korunur. Belirsiz create açık GET-only refresh ile uzlaşır; ikinci POST veya tek gösterimli tokenı geri alma yok. Root 11/11 Client/widget testi ve scoped analyze, gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı encrypted DB restart yaşamında 1+1 kabulünü doğruladı; mevcut named Server 3/3 geçti. Pano platform hatası güvenli retry olarak yakalanır; late cleanup yalnız exact owned değeri silmeye çalışır, OS CAS veya immutable string silme garantisi verilmez. Geniş CI ve MANUAL ayrı; eski failedreview tarihsel kalır. Kanıt: docs/testing/f14-normal-core-acceptance-2026-10-01.md."
     },
     {
       "id": "F19",
@@ -4817,7 +4817,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4841,7 +4841,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek authenticated HA source/entity registry, server-only iklim/perde gözlemi ve durable tek gönderimli climate/cover worker uygulandı. Client kayıp confirm yanıtında exact preview/requesti korur; refresh/yeni intent engellenir, süresi geçen attempted preview yalnız aynı confirm ile Core kalıcı makbuzuna uzlaşır. 17 Server, 28 Flutter + 1 gerçek Client→normal Core→TCP/WS HA geçti; fixture lostACK sonrasında tam bir climate mutation ve readback doğruladı, signout yeni isteği durdurdu. Analyze temiz; geniş kabul/exact CI ve fiziksel iklim/perde kabulü açık."
+      "reason": "Yeniden çalışılıyor: normal Core gerçek HTTP kabulünde 64 distinct plan yenilemesinden ve aynı DB ile restarttan sonra 65inci PUT beklenen 200 yerine kalıcı 429 comfort_limit_reached verdi. MAX_PLANS64 ve MAX_PREVIEWS128 kapasitesi güvenli retention olmadan tükeniyor. HMAC doğrulanmış transaction içinde current plan, unexpired preview, dispatching/unknown effect parentları ve replay penceresini koruyan bounded retention hazırlanıyor; cap artırımı veya kör kayıt silme yok. Önceki climate/cover tek gönderimli lostACK/readback odaklı kabulü korunur, bu gerçek limit açığını kapatmaz. Düzeltme ve regression kabulü gelmeden F50 CI bekliyor değildir. Fiziksel iklim/perde MANUAL ve geniş final HEAD CI ayrı."
     },
     {
       "id": "F48",
@@ -5043,7 +5043,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5067,14 +5067,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek HA mqtt_room kaynağı ve atomik politika/depolama uygulandı; 19 Server, 18 Flutter ve gerçek Flutter→normal Core→HA TCP/WS candidate/present/offline rıza iptali geçti. Tam commit geniş CI kabulü açık."
+      "reason": "Yeniden çalışılıyor: gerçek production RoomPresenceRoute widget regressionı own confirmation dialogu açıldığında parent ModalRoute.isCurrent/didChangeDependencies değişiminin runtime/controllerı emekli ettiğini doğruladı; explicit confirm Core isteği0 kaldı. Sorun Navigator.pop sonrası geçiş varsayımı değildir. Yalnız sahip olunan modal için görünür/current authority lease, foreign route/hesap/ev/focus driftinde emeklilik korunarak hazırlanıyor. Önceki normal Core/provider/restart ve bounded physical evidence korunur; gerçek route confirm düzeltmesi ve named regression kabulü gelmeden CI bekliyor değildir. Fiziksel cihaz/radyo ve geniş final HEAD CI ayrı."
     },
     {
       "id": "F58",
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5099,7 +5099,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek HA/OpenEPaperLink inventory, JPEG dry-run artifact, güncel cihaz/source doğrulaması ve durable tek gönderim uygulandı; 10 Server, 13 Flutter (+1 izole koşucu skip), gerçek Flutter→normal Core→HA TCP/WS 1/1 ve analyze geçti. Header/scan/dimension doğrulaması ve Client decode fiziksel pixel teslimi değildir; readback_observed/physicalDeliveryVerified=false. Geniş exact commit CI kabulü açık."
+      "reason": "Yeniden çalışılıyor: gerçek production EpaperManagementRoute widget regressionı own confirmation dialogu açıldığında parent ModalRoute.isCurrent/didChangeDependencies değişiminin runtime/controllerı emekli ettiğini doğruladı; explicit confirm Core isteği0 kaldı. Sorun Navigator.pop sonrası geçiş varsayımı değildir. Yalnız sahip olunan modal için görünür/current authority lease, foreign route/hesap/ev/focus driftinde emeklilik korunarak hazırlanıyor. Önceki normal Core/provider/restart ve bounded physical evidence korunur; gerçek route confirm düzeltmesi ve named regression kabulü gelmeden CI bekliyor değildir. Fiziksel cihaz/radyo ve geniş final HEAD CI ayrı."
     },
     {
       "id": "F59",
@@ -5308,13 +5308,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36804692946",
           "commit": "a703289d617380c768f5b50761609c0b2913ce24",
-          "state": "in_progress",
-          "result": null,
-          "label": "One missing-gate retry after pre-test external cancellation; exactSHA verified, hostedUHID and receiptedenginebuild/install passed; real stream/localretirement step running, no acceptance receipt"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exacta703 completedFAILED atactual connectedDebugAndroidTest; preflight/engine/installpassed, fixedouterreason ownedSunshineAndroidstreamfailed; no retained namedcounts/frame/stage receipt, preciseassertioncauseunproved"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yolu ve tablet üzerinden yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run36802851003, tek test ve sıfır atlama ile iki yeni Android NSD keşif yaşamını doğruladı; streamAccepted=false. Exact a703289d / run36804692946, hosted UHID ve gerçek motor derleme/kurulumunu geçti; iki yayın yaşamının girdi, kopuş ve yerel temizleme adımı çalışıyor, kabul receipt’i yok. Gerçek frame/PCM, touch/mouse→XI2, gamepad→UHID/evdev BTN_SOUTH, normal stop, daemon kapanışı→connectionTerminated ve tekrar göndermeden yerel temizleme kanıtı olmadan F60 CI bekliyor yapılmaz. Eski 36802861944 erken APK prebuild sırasında cancelled; test/receipt yok, terminal backend ile stale GET farklı ve live lease kalktı. UI sağlayıcı eşlemesinin kaldığını açıklar; providerPairingRemoved=false. Fiziksel controller/gecikme MANUAL, geniş final HEAD CI ayrı. 57/66 CI bekliyor ve 37/127,3/63 kabul sayıları korunur."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run36802851003 tek test/sıfır atlama/iki yaşam ile gerçek Android NSD keşfini doğruladı; streamAccepted=false. Exact a703289d / run36804692946 hosted UHID ve motor derleme/kurulumundan sonra gerçek connectedDebugAndroidTest adımında failed tamamlandı. Sabit outerreason yalnız owned Sunshine Android stream failed; adlandırılmış test sayısı, owned source frame veya aşama receipt’i tutulmadı. Precise assertion nedeni kanıtlanamadığından aynı kaynak körlemesine yeniden çalıştırılmaz; yalnız güvenli kaynak/paket bağlı failure tanısı ekleniyor. Frame/PCM, gerçek XI2/gamepad etkisi, normal stop, daemon kapanışı ve tekrar göndermeden yerel temizleme kabulü hâlâ açık; F60 CI bekliyor değildir. Sağlayıcı eşlemesini kaldırma fiziksel/controller/gecikme MANUAL, geniş final HEAD CI ayrı. 55/64 CI bekliyor ve 37/127,3/63 kabul korunur."
     },
     {
       "id": "G11",
@@ -5562,7 +5562,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: gerçek Unicode x86_64 AAR, paket receipt’i ve kurulum doğrulaması, app+AndroidTest derlemesi ve 24 RDP unit testi sıfır atlama/hata ile geçti. Exact 1d1ccf2e / run36805226494, Linux CLIPRDR/DISP fixture derlemesini gerçekten geçti; iki authenticated Android yaşamının TLS/NLA/SPKI, DISP→resize→frame/ACK, Unicode uzak pano etkisi ve kapalı panoda sıfır transfer kabul receipt’i henüz yok. Gerçek runtime kapısı açık olduğundan F62 CI bekliyor değildir. Geçmiş exact 8d / run36804331620 terminal failed: arm64 AAR/APK passed, x86 configure_failed; exact d69 resizedFrameWait failed. Yeni SAM fixture Kerberos kapsamını kapatır; 112 yerel kontrolü ve güvenli hata tanısı geçti, eski hata nedeni kanıtlanmaz. Geniş final HEAD CI ile Windows/Huawei/DeX ve ileri kanallar için MANUAL ayrı; 57/66 CI bekliyor ve 37/127,3/63 kabul korunur."
+      "reason": "Yeniden çalışılıyor: gerçek Unicode x86_64 AAR, paket receipt’i ve kurulum doğrulaması, app+AndroidTest derlemesi ve 24 RDP unit testi sıfır atlama/hata ile geçti. Exact 1d1ccf2e / run36805226494, Linux CLIPRDR/DISP fixture derlemesini gerçekten geçti; iki authenticated Android yaşamının TLS/NLA/SPKI, DISP→resize→frame/ACK, Unicode uzak pano etkisi ve kapalı panoda sıfır transfer kabul receipt’i henüz yok. Gerçek runtime kapısı açık olduğundan F62 CI bekliyor değildir. Geçmiş exact 8d / run36804331620 terminal failed: arm64 AAR/APK passed, x86 configure_failed; exact d69 resizedFrameWait failed. Yeni SAM fixture Kerberos kapsamını kapatır; 112 yerel kontrolü ve güvenli hata tanısı geçti, eski hata nedeni kanıtlanmaz. Geniş final HEAD CI ile Windows/Huawei/DeX ve ileri kanallar için MANUAL ayrı; 55/64 CI bekliyor ve 37/127,3/63 kabul korunur."
     },
     {
       "id": "F61",
@@ -5674,7 +5674,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 57 seçili/toplam 66 iş geniş final HEAD CI bekliyor. F14 bağımsız incelemede gerçek token dialogu, geç yanıt ve yeniden uzlaşma eksikleriyle yeniden açıldı; Client düzeltmesi ve normal Core TCP kapısı çalışılıyor. F60 gerçek Android NSD keşfi geçti; a703/run36804692946 yayın/girdi/kopuş receipt’i henüz yok. F62 1d/run36805226494 Linux fixture derlemesi geçti; iki Android yaşamının Unicode/DISP receipt’i henüz yok. F14/F60/F62 yeniden çalışılıyor; F61 hosted native kabulü geçti. İkinci FINAL başlamaz; tam kabul 37/127 ve 3/63 korunur."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 55 seçili/toplam64 iş geniş final HEAD CI bekliyor. F14 root11Client/widget ve gerçek normal Core TCP iki süreç/restart kabulüyle CI bekliyora geçti. F50 normal HTTP64distinctplan+restart ardından65inciyenileme429 ile yeniden açıldı; güvenli bounded retention hazırlanıyor. F60 a703/run36804692946 gerçek Android testinde failed; kesin assertion receipt olmadan bilinmiyor. Kaynak/paket bağlı güvenli dar tanı ekleniyor, kör rerun yok. F62 1d/run36805226494 Linux fixture derlemesi ve arm64paket geçti; iki Android yaşamının Unicode/DISP receipt’i henüz yok. F57/F58 production route own confirmation dialogu runtimeı emekli etti ve confirm0 kaldı; sahipli modal çiti düzeltiliyor. F50/F57/F58/F60/F62 yeniden çalışılıyor; F61 hosted native kabulü geçti. İkinci FINAL başlamaz; tam kabul37/127 ve3/63 korunur."
     },
     {
       "id": "FINAL.UI",

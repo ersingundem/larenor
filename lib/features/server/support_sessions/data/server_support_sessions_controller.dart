@@ -55,18 +55,28 @@ final class ServerSupportSessionsController extends ChangeNotifier {
     return value;
   }
 
-  Future<void> load(bool Function() current) => _run(current, (api) async {
-    sessions = await api.list();
-  });
+  Future<void> load(bool Function() current) =>
+      _run(current, (api) => api.list(), (value) => sessions = value);
+
+  /// Reconciles an uncertain mutation by reading Core state only. This never
+  /// repeats a create or revoke request and cannot recover a one-view token.
+  Future<void> refresh(bool Function() current) =>
+      _run(current, (api) => api.list(), (value) {
+        sessions = value;
+        detail = null;
+        needsRefresh = false;
+      }, allowRefresh: true);
 
   Future<void> loadDetail(
     ServerSupportSession session,
     bool Function() current,
   ) {
     detail = null;
-    return _run(current, (api) async {
-      detail = await api.detail(session);
-    });
+    return _run(
+      current,
+      (api) => api.detail(session),
+      (value) => detail = value,
+    );
   }
 
   Future<void> create({
@@ -74,20 +84,22 @@ final class ServerSupportSessionsController extends ChangeNotifier {
     required String supporterName,
     required List<String> permissions,
     required bool Function() current,
-  }) => _run(current, (api) async {
-    final issued = await api.create(
+  }) => _run(
+    current,
+    (api) => api.create(
       supporterId: supporterId,
       supporterName: supporterName,
       permissions: permissions,
-    );
-    sessions = List.unmodifiable([issued.session, ...sessions]);
-    _issuedToken = issued.accessToken;
-    announcement = 'created';
-  });
+    ),
+    (issued) {
+      sessions = List.unmodifiable([issued.session, ...sessions]);
+      _issuedToken = issued.accessToken;
+      announcement = 'created';
+    },
+  );
 
   Future<void> revoke(ServerSupportSession session, bool Function() current) =>
-      _run(current, (api) async {
-        final revoked = await api.revoke(session);
+      _run(current, (api) => api.revoke(session), (revoked) {
         sessions = List.unmodifiable([
           for (final value in sessions)
             if (value.id == revoked.id) revoked else value,
@@ -96,11 +108,19 @@ final class ServerSupportSessionsController extends ChangeNotifier {
         announcement = 'revoked';
       });
 
-  Future<void> _run(
+  Future<void> _run<T>(
     bool Function() current,
-    Future<void> Function(ServerSupportSessionsApi) action,
-  ) async {
-    if (_disposed || busy || !_authorized || !current() || needsRefresh) return;
+    Future<T> Function(ServerSupportSessionsApi) request,
+    void Function(T) commit, {
+    bool allowRefresh = false,
+  }) async {
+    if (_disposed ||
+        busy ||
+        !_authorized ||
+        !current() ||
+        needsRefresh && !allowRefresh) {
+      return;
+    }
     final epoch = _epoch;
     bool valid() => !_disposed && epoch == _epoch && _authorized && current();
     busy = true;
@@ -109,9 +129,11 @@ final class ServerSupportSessionsController extends ChangeNotifier {
     try {
       await account.withSession((raw, session) async {
         if (!valid()) throw const LarenorServerException('cancelled');
-        await action(
+        final value = await request(
           ServerSupportSessionsApi(raw, session.accessToken, _context!),
         );
+        if (!valid()) throw const LarenorServerException('cancelled');
+        commit(value);
       });
     } catch (error) {
       if (!valid()) return;

@@ -30,7 +30,27 @@ class _ServerSupportSessionsScreenState
   late final ServerSupportSessionsController _controller;
   late final int _accountEpoch;
   ValueListenable<TickerModeData>? _ticker;
-  bool _visible = true, _expired = false, _wasCurrent = true;
+  bool _visible = true, _expired = false;
+  Route<dynamic>? _ownedDialog;
+  CupertinoDialogRoute<void>? _tokenDialog;
+
+  bool get _ownedCoverCurrent {
+    final route = _ownedDialog;
+    if (route?.isCurrent == true) return true;
+    return route is TransitionRoute<dynamic> &&
+        route.isActive &&
+        route.animation?.status == AnimationStatus.reverse;
+  }
+
+  Future<void> _releaseOwnedDialog(Route<dynamic> route) async {
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !identical(_ownedDialog, route)) return;
+    if (ModalRoute.of(context)?.isCurrent == true) {
+      _ownedDialog = null;
+    } else {
+      _expire();
+    }
+  }
 
   bool get _active =>
       !_expired &&
@@ -73,13 +93,12 @@ class _ServerSupportSessionsScreenState
       ticker.addListener(_visibilityChanged);
     }
     final current = ModalRoute.isCurrentOf(context) ?? true;
-    if (_wasCurrent && !current) _expire();
-    _wasCurrent = current;
+    if (!current && !_ownedCoverCurrent) _expire();
   }
 
   void _visibilityChanged() {
     _visible = _ticker?.value.enabled ?? true;
-    if (!_visible) _expire();
+    if (!_visible && !_ownedCoverCurrent) _expire();
   }
 
   @override
@@ -91,6 +110,12 @@ class _ServerSupportSessionsScreenState
     sessionGeneration++;
     void retire() {
       if (!mounted) return;
+      final ownedDialog = _ownedDialog;
+      _ownedDialog = null;
+      _tokenDialog = null;
+      if (ownedDialog?.isActive == true) {
+        ownedDialog!.navigator?.removeRoute(ownedDialog);
+      }
       _controller.invalidate();
       setState(() {});
     }
@@ -121,80 +146,86 @@ class _ServerSupportSessionsScreenState
     var resources = true;
     var egress = false;
     var activity = true;
-    final result =
-        await showCupertinoDialog<
-          ({String id, String name, List<String> permissions})
-        >(
-          context: context,
-          builder: (dialogContext) => StatefulBuilder(
-            builder: (context, setDialogState) => CupertinoAlertDialog(
-              title: Text(l10n.serverSupportCreate),
-              content: Column(
-                children: [
-                  const SizedBox(height: Gap.lg),
-                  CupertinoTextField(
-                    controller: supporterName,
-                    maxLength: 80,
-                    placeholder: l10n.serverSupportName,
-                  ),
-                  const SizedBox(height: Gap.md),
-                  CupertinoTextField(
-                    controller: supporterId,
-                    maxLength: 96,
-                    placeholder: l10n.serverSupportId,
-                    autocorrect: false,
-                  ),
-                  _toggle(l10n.serverSupportCoreHealth, health, (value) {
-                    setDialogState(() => health = value);
-                  }),
-                  _toggle(l10n.serverSupportAuditVerify, audit, (value) {
-                    setDialogState(() => audit = value);
-                  }),
-                  _toggle(l10n.serverSupportResourceCount, resources, (value) {
-                    setDialogState(() => resources = value);
-                  }),
-                  _toggle(l10n.serverSupportEgressSummary, egress, (value) {
-                    setDialogState(() => egress = value);
-                  }),
-                  _toggle(l10n.serverSupportActivityRead, activity, (value) {
-                    setDialogState(() => activity = value);
-                  }),
-                ],
+    late final CupertinoDialogRoute<
+      ({String id, String name, List<String> permissions})
+    >
+    createDialog;
+    createDialog = CupertinoDialogRoute(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => CupertinoAlertDialog(
+          title: Text(l10n.serverSupportCreate),
+          content: Column(
+            children: [
+              const SizedBox(height: Gap.lg),
+              CupertinoTextField(
+                controller: supporterName,
+                maxLength: 80,
+                placeholder: l10n.serverSupportName,
               ),
-              actions: [
-                CupertinoDialogAction(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: Text(l10n.commonCancel),
-                ),
-                CupertinoDialogAction(
-                  isDefaultAction: true,
-                  onPressed: () {
-                    final id = supporterId.text.trim();
-                    final name = supporterName.text.trim();
-                    final permissions = [
-                      if (activity) supportActivityRead,
-                      if (egress) supportEgressSummary,
-                      if (audit) supportAuditVerify,
-                      if (health) supportCoreHealth,
-                      if (resources) supportResourceCount,
-                    ]..sort();
-                    if (name.isNotEmpty &&
-                        RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,95}$')
-                            .hasMatch(id) &&
-                        permissions.isNotEmpty) {
-                      Navigator.pop(dialogContext, (
-                        id: id,
-                        name: name,
-                        permissions: permissions,
-                      ));
-                    }
-                  },
-                  child: Text(l10n.serverSupportCreate),
-                ),
-              ],
-            ),
+              const SizedBox(height: Gap.md),
+              CupertinoTextField(
+                controller: supporterId,
+                maxLength: 96,
+                placeholder: l10n.serverSupportId,
+                autocorrect: false,
+              ),
+              _toggle(l10n.serverSupportCoreHealth, health, (value) {
+                setDialogState(() => health = value);
+              }),
+              _toggle(l10n.serverSupportAuditVerify, audit, (value) {
+                setDialogState(() => audit = value);
+              }),
+              _toggle(l10n.serverSupportResourceCount, resources, (value) {
+                setDialogState(() => resources = value);
+              }),
+              _toggle(l10n.serverSupportEgressSummary, egress, (value) {
+                setDialogState(() => egress = value);
+              }),
+              _toggle(l10n.serverSupportActivityRead, activity, (value) {
+                setDialogState(() => activity = value);
+              }),
+            ],
           ),
-        );
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.commonCancel),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                final id = supporterId.text.trim();
+                final name = supporterName.text.trim();
+                final permissions = [
+                  if (activity) supportActivityRead,
+                  if (egress) supportEgressSummary,
+                  if (audit) supportAuditVerify,
+                  if (health) supportCoreHealth,
+                  if (resources) supportResourceCount,
+                ]..sort();
+                if (name.isNotEmpty &&
+                    RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:-]{2,95}$')
+                        .hasMatch(id) &&
+                    permissions.isNotEmpty) {
+                  Navigator.pop(dialogContext, (
+                    id: id,
+                    name: name,
+                    permissions: permissions,
+                  ));
+                }
+              },
+              child: Text(l10n.serverSupportCreate),
+            ),
+          ],
+        ),
+      ),
+    );
+    _ownedDialog = createDialog;
+    final result = await Navigator.of(context).push(createDialog);
+    await createDialog.completed;
+    await _releaseOwnedDialog(createDialog);
     supporterId.dispose();
     supporterName.dispose();
     if (result == null || !mounted || !_active) return;
@@ -206,35 +237,108 @@ class _ServerSupportSessionsScreenState
     );
     final token = _controller.takeIssuedToken();
     if (token == null || !mounted || !_active) return;
-    await showCupertinoDialog<void>(
+    final generation = sessionGeneration;
+    final accountEpoch = _account.generation;
+    late final CupertinoDialogRoute<void> tokenDialog;
+    var copying = false;
+    var copyFailed = false;
+    bool dialogCurrent() =>
+        mounted &&
+        !_expired &&
+        identical(_tokenDialog, tokenDialog) &&
+        identical(_ownedDialog, tokenDialog) &&
+        tokenDialog.isCurrent &&
+        sessionCurrent(generation) &&
+        _account.isCurrent(accountEpoch) &&
+        _account.initialized &&
+        !_account.working &&
+        _account.session?.user.canAdminister == true &&
+        widget.gateCurrent();
+    tokenDialog = CupertinoDialogRoute<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(l10n.serverSupportTokenTitle),
-        content: Column(
-          children: [
-            const SizedBox(height: Gap.lg),
-            Text(l10n.serverSupportTokenOnce),
-            const SizedBox(height: Gap.md),
-            Text(token),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
+          title: Text(l10n.serverSupportTokenTitle),
+          content: Column(
+            children: [
+              const SizedBox(height: Gap.lg),
+              Text(l10n.serverSupportTokenOnce),
+              const SizedBox(height: Gap.md),
+              Text(token),
+              if (copyFailed) ...[
+                const SizedBox(height: Gap.md),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    l10n.commonError,
+                    style: TextStyle(
+                      color: CupertinoColors.systemRed.resolveFrom(context),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: copying
+                  ? null
+                  : () async {
+                      if (!dialogCurrent()) return;
+                      setDialogState(() {
+                        copying = true;
+                        copyFailed = false;
+                      });
+                      try {
+                        await Clipboard.setData(ClipboardData(text: token));
+                      } catch (_) {
+                        if (dialogCurrent() && dialogContext.mounted) {
+                          setDialogState(() {
+                            copying = false;
+                            copyFailed = true;
+                          });
+                        }
+                        return;
+                      }
+                      if (!dialogCurrent()) {
+                        try {
+                          final current = await Clipboard.getData('text/plain');
+                          if (current?.text == token) {
+                            await Clipboard.setData(
+                              const ClipboardData(text: ''),
+                            );
+                          }
+                        } catch (_) {
+                          // Clipboard cleanup is best effort. Authority stays retired
+                          // even when the platform cannot read or clear the value.
+                        }
+                        return;
+                      }
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).removeRoute(tokenDialog);
+                      }
+                    },
+              child: Text(l10n.serverSupportCopyAndClose),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                if (dialogCurrent()) {
+                  Navigator.of(dialogContext).removeRoute(tokenDialog);
+                }
+              },
+              child: Text(l10n.serverSupportCloseWithoutCopy),
+            ),
           ],
         ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: token));
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: Text(l10n.serverSupportCopyAndClose),
-          ),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(l10n.serverSupportCloseWithoutCopy),
-          ),
-        ],
       ),
     );
+    _tokenDialog = tokenDialog;
+    _ownedDialog = tokenDialog;
+    await Navigator.of(context).push<void>(tokenDialog);
+    if (identical(_tokenDialog, tokenDialog)) _tokenDialog = null;
+    await _releaseOwnedDialog(tokenDialog);
   }
 
   Widget _toggle(String label, bool value, ValueChanged<bool> onChanged) =>
@@ -250,8 +354,10 @@ class _ServerSupportSessionsScreenState
     await _controller.loadDetail(session, () => mounted && _active);
     final detail = _controller.detail;
     if (!mounted || !_active || detail?.session.id != session.id) return;
-    await showCupertinoDialog<void>(
+    late final CupertinoDialogRoute<void> activityDialog;
+    activityDialog = CupertinoDialogRoute<void>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text(l10n.serverSupportActivityTitle),
         content: SizedBox(
@@ -284,14 +390,20 @@ class _ServerSupportSessionsScreenState
         ],
       ),
     );
+    _ownedDialog = activityDialog;
+    await Navigator.of(context).push<void>(activityDialog);
+    await activityDialog.completed;
+    await _releaseOwnedDialog(activityDialog);
   }
 
   Future<void> _revoke(
     AppLocalizations l10n,
     ServerSupportSession session,
   ) async {
-    final confirmed = await showCupertinoDialog<bool>(
+    late final CupertinoDialogRoute<bool> revokeDialog;
+    revokeDialog = CupertinoDialogRoute<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text(l10n.serverSupportRevoke),
         content: Text(l10n.serverSupportRevokeConfirm(session.supporterName)),
@@ -308,6 +420,10 @@ class _ServerSupportSessionsScreenState
         ],
       ),
     );
+    _ownedDialog = revokeDialog;
+    final confirmed = await Navigator.of(context).push(revokeDialog);
+    await revokeDialog.completed;
+    await _releaseOwnedDialog(revokeDialog);
     if (confirmed == true && mounted && _active) {
       await _controller.revoke(session, () => mounted && _active);
     }
@@ -401,6 +517,28 @@ class _ServerSupportSessionsScreenState
                 child: Text(l10n.serverSupportIntro),
               ),
             ),
+            if (message.isNotEmpty || _controller.needsRefresh)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(Gap.xl),
+                  child: Column(
+                    children: [
+                      Semantics(liveRegion: true, child: Text(message)),
+                      if (_controller.needsRefresh) ...[
+                        const SizedBox(height: Gap.md),
+                        CupertinoButton.filled(
+                          onPressed: _active && !_controller.busy
+                              ? () => _controller.refresh(
+                                  () => mounted && _active,
+                                )
+                              : null,
+                          child: Text(l10n.commonRefresh),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             if (_controller.busy)
               const SliverFilledMessage(
                 child: CupertinoActivityIndicator(radius: 14),
@@ -410,13 +548,6 @@ class _ServerSupportSessionsScreenState
             else
               for (final session in _controller.sessions)
                 SliverToBoxAdapter(child: _session(l10n, session, enabled)),
-            if (message.isNotEmpty || _controller.needsRefresh)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(Gap.xl),
-                  child: Semantics(liveRegion: true, child: Text(message)),
-                ),
-              ),
           ],
         );
       },
