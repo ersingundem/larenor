@@ -245,8 +245,13 @@ cases,15 native XML cases/zero skips and full Flutter analyze passed. Foreground
 explicit read, strict UTF-8/64KiB, sequence, payload erasure, read/submission
 deadlines and successor no-replay are verified. Accepted submission is not
 remote clipboard readback; the current NLA shadow fixture lacks cliprdr.
-Exact7fccce52/run36797967344 failed its Android/NLA baseline and is under private
-diagnosis. Full hosted channels remain open: F62 is reworking,58/67 await CI,
+Exact7fccce52/run36797967344 passed initial frame/ACK/key and owned host
+resize before its original1test/1failure/0error/0skip result. Five fixed
+post-resize diagnostics preserve the original assertions; actual
+AGP9.4.1/ddmlib32.4.1 no-type XML is now handled using the exact first throwable
+header plus owned test/method/frame fences. Root27 parser tests, exact JAR
+hash/bytecode and277-task receipted Kotlin compile record were verified.
+Changed-source hosted result is still required. Full hosted channels remain open: F62 is reworking,58/67 await CI,
 and37/127,3/63 acceptance counters stay unchanged.
 
 

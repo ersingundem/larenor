@@ -109,24 +109,38 @@ class RdpPackagedHostAcceptanceTest {
                     session.phase == RdpJniPhase.AWAITING_FRAME_ACK,
             )
             val initial = awaitFrame(session, frameReady, 1280, 800, 30)
+            assertRenderedPixels(initial, 1280, 800)
             assertEquals(180, initial.dpi)
             assertTrue(session.acknowledgeFrame(initial.sequence))
 
             // The host runner observes this exact software HID key pair through XI2,
-            // then changes the owned Xvfb root to 1024x768. No clipboard, IME or
+            // then changes the owned Xorg output to 1024x768. No clipboard, IME or
             // client DISP claim is part of this shadow-server baseline.
             assertTrue(session.key(1, 0x70004, true))
             assertTrue(session.key(2, 0x70004, false))
 
-            val resized = awaitFrame(session, frameReady, 1024, 768, 30)
-            assertEquals(180, resized.dpi)
-            assertTrue(session.acknowledgeFrame(resized.sequence))
+            val resized = diagnoseStage(::RdpOwnedResizedFrameWaitFailure) {
+                awaitFrame(session, frameReady, 1024, 768, 30)
+            }
+            diagnoseStage(::RdpOwnedResizedFramePixelsFailure) {
+                assertRenderedPixels(resized, 1024, 768)
+                assertEquals(180, resized.dpi)
+            }
+            diagnoseStage(::RdpOwnedResizedFrameAckFailure) {
+                assertTrue(session.acknowledgeFrame(resized.sequence))
+            }
         } finally {
-            session.close()
+            diagnoseStage(::RdpOwnedCleanCloseFailure) {
+                session.close()
+            }
         }
-        assertEquals(RdpJniPhase.CANCELLED, session.phase)
-        assertTrue("session close callback", closed.await(5, TimeUnit.SECONDS))
-        assertTrue(password.all { it == '\u0000' })
+        diagnoseStage(::RdpOwnedCleanCloseFailure) {
+            assertEquals(RdpJniPhase.CANCELLED, session.phase)
+            assertTrue("session close callback", closed.await(5, TimeUnit.SECONDS))
+        }
+        diagnoseStage(::RdpOwnedCredentialClearFailure) {
+            assertTrue(password.all { it == '\u0000' })
+        }
     }
 
     private fun awaitFrame(
@@ -145,19 +159,22 @@ class RdpPackagedHostAcceptanceTest {
             )
             val frame = requireNotNull(session.pendingFrame)
             if (frame.width == width && frame.height == height) {
-                val pixels = frame.pixels.duplicate()
-                var observedPixel = false
-                while (pixels.hasRemaining()) {
-                    if (pixels.get().toInt() != 0) {
-                        observedPixel = true
-                        break
-                    }
-                }
-                assertTrue("remote ${width}x$height framebuffer contains rendered pixels", observedPixel)
                 return frame
             }
             assertTrue("intermediate frame acknowledgement", session.acknowledgeFrame(frame.sequence))
         }
+    }
+
+    private fun assertRenderedPixels(frame: RdpNativeFrame, width: Int, height: Int) {
+        val pixels = frame.pixels.duplicate()
+        var observedPixel = false
+        while (pixels.hasRemaining()) {
+            if (pixels.get().toInt() != 0) {
+                observedPixel = true
+                break
+            }
+        }
+        assertTrue("remote ${width}x$height framebuffer contains rendered pixels", observedPixel)
     }
 
     private fun android.os.Bundle.required(key: String): String =
@@ -176,3 +193,23 @@ class RdpPackagedHostAcceptanceTest {
         }
     }
 }
+
+private inline fun <T> diagnoseStage(
+    failure: (Throwable) -> AssertionError,
+    body: () -> T,
+): T = try {
+    body()
+} catch (cause: AssertionError) {
+    throw failure(cause)
+} catch (cause: RuntimeException) {
+    throw failure(cause)
+} catch (cause: InterruptedException) {
+    Thread.currentThread().interrupt()
+    throw failure(cause)
+}
+
+private class RdpOwnedResizedFrameWaitFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedResizedFramePixelsFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedResizedFrameAckFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedCleanCloseFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedCredentialClearFailure(cause: Throwable) : AssertionError(cause)

@@ -83,6 +83,18 @@ _FAILURE_CODES = frozenset({
     "host_keyboard_witness_missing",
     "host_resize_unavailable",
 })
+_ACCEPTANCE_STAGES = {
+    "com.ersingundem.larenor.rdp.RdpOwnedResizedFrameWaitFailure":
+        "resizedFrameWait",
+    "com.ersingundem.larenor.rdp.RdpOwnedResizedFramePixelsFailure":
+        "resizedFramePixels",
+    "com.ersingundem.larenor.rdp.RdpOwnedResizedFrameAckFailure":
+        "resizedFrameAck",
+    "com.ersingundem.larenor.rdp.RdpOwnedCleanCloseFailure":
+        "cleanClose",
+    "com.ersingundem.larenor.rdp.RdpOwnedCredentialClearFailure":
+        "credentialClear",
+}
 _KNOWN_EXCEPTION_TYPES = frozenset({
     "com.ersingundem.larenor.rdp.RdpNativeFailure",
     "java.lang.AssertionError",
@@ -99,11 +111,16 @@ _KNOWN_EXCEPTION_TYPES = frozenset({
     "kotlin.KotlinNullPointerException",
     "org.junit.ComparisonFailure",
     "org.junit.runners.model.TestTimedOutException",
-})
+}) | frozenset(_ACCEPTANCE_STAGES)
 _OWNED_FRAME = re.compile(
     r"\s*at (com\.ersingundem\.larenor\.rdp\.[A-Za-z0-9_.$]+"
     r"\.(?:[A-Za-z0-9_$]+|<init>|<clinit>))"
     r"\(([A-Za-z][A-Za-z0-9_]{0,127}\.(?:kt|java)):(\d{1,6})\)\s*"
+)
+_ACCEPTANCE_STAGE_FRAME = re.compile(
+    r"\s*at com\.ersingundem\.larenor\.rdp\.RdpPackagedHostAcceptanceTest\."
+    + re.escape(TEST_NAME)
+    + r"\(RdpPackagedHostAcceptanceTest\.kt:\d{1,6}\)\s*"
 )
 _OWNED_SOURCE_FILES = frozenset(
     path.name
@@ -272,12 +289,16 @@ def _failure_element_diagnostic(
     code: str,
     counts: dict[str, int],
 ) -> dict[str, object]:
-    raw_type = element.attrib.get("type", "")
+    declared_type = element.attrib.get("type", "")
+    raw_type = declared_type
     text = "".join(element.itertext())
+    first = text.splitlines()[0].strip() if text.splitlines() else ""
+    header_type = first.split(":", 1)[0]
     if raw_type not in _KNOWN_EXCEPTION_TYPES:
-        first = text.splitlines()[0].strip() if text.splitlines() else ""
-        candidate = first.split(":", 1)[0]
-        raw_type = candidate if candidate in _KNOWN_EXCEPTION_TYPES else "unclassified"
+        raw_type = (
+            header_type if header_type in _KNOWN_EXCEPTION_TYPES
+            else "unclassified"
+        )
     frames: list[dict[str, object]] = []
     seen: set[tuple[str, int]] = set()
     for line in text.splitlines():
@@ -298,12 +319,35 @@ def _failure_element_diagnostic(
         frames.append({"file": filename, "line": source_line})
         if len(frames) == _MAX_FRAMES:
             break
+    stage_type = (
+        declared_type if declared_type in _ACCEPTANCE_STAGES
+        else header_type if not declared_type and header_type in _ACCEPTANCE_STAGES
+        else None
+    )
+    acceptance_stage = _ACCEPTANCE_STAGES.get(stage_type)
+    if acceptance_stage is not None and not (
+            code == "instrumentation_test_failure"
+            and _ACCEPTANCE_STAGE_FRAME.search(text) is not None):
+        # Merely placing a known class name in an untrusted report must not
+        # upgrade a failure. The original exact test and its owned source frame
+        # are both required for a bounded stage classification.
+        raw_type = "unclassified"
+        acceptance_stage = None
+    elif acceptance_stage is not None:
+        raw_type = stage_type
+    elif raw_type in _ACCEPTANCE_STAGES:
+        # A stage class found outside the actual connected-test shapes (an
+        # exact declared type, or an absent type plus first throwable header)
+        # is untrusted message content.
+        raw_type = "unclassified"
     diagnostic = {
         "code": code,
         "exceptionType": raw_type,
         "frames": frames,
         "counts": counts,
     }
+    if acceptance_stage is not None:
+        diagnostic["acceptanceStage"] = acceptance_stage
     outcomes = _PROBE_OUTCOME.findall(text)
     if (len(outcomes) == 1
             and any(frame["file"] == "RdpPackagedRuntime.kt" for frame in frames)):
@@ -419,6 +463,7 @@ def failure_receipt(
             "code", "exceptionType", "frames", "counts"}, {
             "code", "exceptionType", "frames", "counts", "identity"}, {
             "code", "exceptionType", "frames", "counts", "probeOutcome"}, {
+            "code", "exceptionType", "frames", "counts", "acceptanceStage"}, {
             "code", "exceptionType", "frames", "reportShape", "childSuiteCount"}):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
@@ -437,6 +482,17 @@ def failure_receipt(
     counts = diagnostic.get("counts")
     identity = diagnostic.get("identity")
     probe_outcome = diagnostic.get("probeOutcome")
+    acceptance_stage = diagnostic.get("acceptanceStage")
+    expected_stage = _ACCEPTANCE_STAGES.get(exception_type)
+    if ((acceptance_stage is None) != (expected_stage is None)
+            or acceptance_stage is not None and (
+                code != "instrumentation_test_failure"
+                or acceptance_stage != expected_stage
+                or not any(
+                    frame["file"] == "RdpPackagedHostAcceptanceTest.kt"
+                    for frame in frames
+                ))):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     if probe_outcome is not None and (
             probe_outcome not in _PROBE_OUTCOMES
             or not any(frame["file"] == "RdpPackagedRuntime.kt" for frame in frames)):

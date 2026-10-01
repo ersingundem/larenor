@@ -13,10 +13,13 @@ from tool import f62_packaged_acceptance as runner
 class PackagedRdpReceiptTest(unittest.TestCase):
     @staticmethod
     def _failure_xml(*, exception_type="java.lang.AssertionError", body=""):
+        failure_type = (
+            "" if exception_type is None else f' type="{exception_type}"'
+        )
         return (
             '<testsuite tests="1" skipped="0" failures="1" errors="0">'
             f'<testcase classname="{runner.TEST_CLASS}" '
-            f'name="{runner.TEST_NAME}"><failure type="{exception_type}">'
+            f'name="{runner.TEST_NAME}"><failure{failure_type}>'
             f'{body}</failure></testcase></testsuite>'
         )
 
@@ -438,6 +441,122 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertNotIn(secret, public)
             self.assertNotIn("/home/runner", public)
             self.assertNotIn("Forged.kt", public)
+            self.assertNotIn("acceptanceStage", diagnostic)
+
+    def test_post_resize_failure_exposes_only_fixed_source_bound_stage(self):
+        stage_type = (
+            "com.ersingundem.larenor.rdp."
+            "RdpOwnedResizedFrameWaitFailure"
+        )
+        body = (
+            stage_type + ": private fixture and pixel material\n"
+            " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+            "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+            "RdpPackagedHostAcceptanceTest.kt:131)\n"
+            "Caused by: java.lang.AssertionError: private host identity\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "TEST-device.xml").write_text(
+                # ddmlib's connected-test XmlTestRunListener serializes only
+                # the stack trace text inside <failure>; it emits no type
+                # attribute. The first trace header therefore carries the
+                # concrete throwable class.
+                self._failure_xml(exception_type=None, body=body),
+            )
+
+            diagnostic = runner.failure_diagnostic(directory)
+
+        self.assertEqual(diagnostic["exceptionType"], stage_type)
+        self.assertEqual(diagnostic["acceptanceStage"], "resizedFrameWait")
+        self.assertEqual(diagnostic["frames"], [{
+            "file": "RdpPackagedHostAcceptanceTest.kt", "line": 131,
+        }])
+        serialized = json.dumps(diagnostic)
+        self.assertNotIn("private fixture", serialized)
+        self.assertNotIn("private host", serialized)
+
+    def test_post_resize_stage_rejects_injected_type_text_identity_and_source(self):
+        stage_type = (
+            "com.ersingundem.larenor.rdp."
+            "RdpOwnedResizedFrameAckFailure"
+        )
+        valid_frame = (
+            " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+            "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+            "RdpPackagedHostAcceptanceTest.kt:139)\n"
+        )
+        cases = (
+            (
+                "java.lang.AssertionError",
+                stage_type + ": injected only in a message\n" + valid_frame,
+                None,
+            ),
+            (
+                None,
+                "java.lang.AssertionError: " + stage_type + " injected in message\n"
+                + valid_frame,
+                None,
+            ),
+            (
+                stage_type,
+                stage_type + "\n at private.injected.Client.run(Secret.kt:1)\n",
+                None,
+            ),
+            (
+                stage_type,
+                stage_type + "\n" + valid_frame,
+                "anotherMethod",
+            ),
+        )
+        for exception_type, body, replacement in cases:
+            with self.subTest(exception_type=exception_type, replacement=replacement):
+                with tempfile.TemporaryDirectory() as temporary:
+                    directory = Path(temporary)
+                    xml = self._failure_xml(
+                        exception_type=exception_type, body=body,
+                    )
+                    if replacement is not None:
+                        xml = xml.replace(runner.TEST_NAME, replacement, 1)
+                    (directory / "TEST-device.xml").write_text(xml)
+                    diagnostic = runner.failure_diagnostic(directory)
+                self.assertNotIn("acceptanceStage", diagnostic)
+                if exception_type == stage_type:
+                    self.assertEqual(diagnostic["exceptionType"], "unclassified")
+
+    def test_failure_receipt_requires_exact_stage_type_pair(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": (
+                "com.ersingundem.larenor.rdp."
+                "RdpOwnedResizedFrameAckFailure"
+            ),
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 139,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+            "acceptanceStage": "resizedFrameAck",
+        }
+        receipt = runner.failure_receipt(
+            {}, revision="a" * 40, package_digest="b" * 64,
+            diagnostic=base,
+        )
+        self.assertEqual(
+            receipt["diagnostic"]["acceptanceStage"], "resizedFrameAck",
+        )
+        for changed in (
+            {**base, "acceptanceStage": "resizedFramePixels"},
+            {**base, "acceptanceStage": "privateInjectedStage"},
+            {**base, "exceptionType": "java.lang.AssertionError"},
+            {**base, "code": "instrumentation_test_error"},
+        ):
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=changed,
+                )
 
     def test_android_aggregate_failure_exposes_only_bounded_probe_outcome(self):
         with tempfile.TemporaryDirectory() as temporary:
