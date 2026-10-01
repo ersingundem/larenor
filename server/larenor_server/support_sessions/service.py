@@ -14,6 +14,7 @@ from .models import CreateSupportSession, RevokeSupportSession, SupportAccess
 
 
 MAX_LIFETIME_SECONDS = 20 * 60
+TERMINAL_REPLAY_SECONDS = 24 * 60 * 60
 PERMISSIONS = {
     "core:health.read",
     "core:audit.verify",
@@ -87,6 +88,31 @@ class SupportSessionService:
         for row in events:
             self._verified_event(row)
         return sessions, events
+
+    def _compact_terminal_history(self, connection, now):
+        """Remove only authenticated terminal history outside the replay window.
+
+        Stored ``active`` rows remain authoritative until their expiry plus the
+        replay window. Revoked rows use their authenticated update time. The
+        foreign-key cascade removes only events owned by the same retired
+        session. Validation happens before the first delete, so tamper and
+        over-cap storage fail closed without a partial cleanup.
+        """
+        sessions, events = self._validate(connection)
+        cutoff = now - TERMINAL_REPLAY_SECONDS
+        retired = []
+        for row in sessions:
+            terminal_at = row["updated_at"] if row["state"] == "revoked" else row["expires_at"]
+            if terminal_at < cutoff:
+                retired.append((terminal_at, row["id"]))
+        for _terminal_at, session_id in sorted(retired):
+            connection.execute("DELETE FROM support_sessions WHERE id=?", (session_id,))
+        event_count = (
+            connection.execute("SELECT COUNT(*) FROM support_session_events").fetchone()[0]
+            if retired
+            else len(events)
+        )
+        return len(sessions) - len(retired), event_count
 
     def validate_storage(self):
         try:
@@ -166,7 +192,7 @@ class SupportSessionService:
         if not now + 60 <= body.expiresAt <= now + MAX_LIFETIME_SECONDS:
             raise ApiError("invalid_request")
         with self.resources._transaction(actor, core_id, home_id, admin=True) as (connection, _facts):
-            sessions, _events = self._validate(connection)
+            self._validate(connection)
             existing = connection.execute(
                 "SELECT * FROM support_sessions WHERE owner_id=? AND family_id=? AND core_id=? "
                 "AND home_id=? AND request_key=?",
@@ -179,7 +205,8 @@ class SupportSessionService:
                 ):
                     raise ApiError("idempotency_conflict", 409)
                 raise ApiError("support_session_token_already_issued", 409)
-            if len(sessions) >= schema.MAX_SESSIONS:
+            session_count, _event_count = self._compact_terminal_history(connection, now)
+            if session_count >= schema.MAX_SESSIONS:
                 raise ApiError("support_session_limit_reached", 429)
             raw = secrets.token_bytes(32)
             token = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
@@ -284,7 +311,9 @@ class SupportSessionService:
         return row, permissions
 
     def _record_event(self, connection, session, permission, outcome):
-        count = connection.execute("SELECT COUNT(*) FROM support_session_events").fetchone()[0]
+        _session_count, count = self._compact_terminal_history(
+            connection, float(self.settings.clock())
+        )
         if count >= schema.MAX_EVENTS:
             raise ApiError("support_session_event_limit_reached", 429)
         row = {

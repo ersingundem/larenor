@@ -21,8 +21,12 @@ operations. Capacity refusal must roll back any attempted pruning. Named
 capacity recovery, replay, tamper, rollback and restart gates are required;
 normal Core/provider paths remain separate from mocked unit fixtures.
 
-All seven features are `reworking` until their specific repair acceptance is
-complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
-Current totals: **60 tasks / 51 selected features awaiting CI**, **9 features
+F14 is now `awaiting_ci`: root live-source 9/9 normal Core/retention tests
+passed, including actual 64-session restart and 1024-event capacity recovery,
+live/recent replay, old-token rejection and tamper/no-deletion gates. See
+[f14-support-session-retention-2026-10-01.md](f14-support-session-retention-2026-10-01.md).
+The other six history features remain `reworking` until their specific repair
+acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
+Current totals: **61 tasks / 52 selected features awaiting CI**, **8 features
 reworking**, **37/127 tasks and 3/63 selected features accepted**. No acceptance
 counter was advanced by this review.

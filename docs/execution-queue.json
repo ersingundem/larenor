@@ -3872,7 +3872,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3914,7 +3914,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: 64 kalıcı oturum/1024 olay sınırında eski expired/revoked geçmiş temizlenmediğinden yeni oturum ve supporter read restart sonrasında da 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Controller geç yanıtı current hesap/ev/rol/epoch kontrolünden sonra commit eder; yalnız sahip olunan token/confirmation dialogu authority değişiminde emekli edilir, foreign route korunur. Belirsiz create açık GET-only refresh ile uzlaşır; ikinci POST veya tek gösterimli tokenı geri alma yok. Root 11/11 Client/widget testi ve scoped analyze, gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı encrypted DB restart yaşamında 1+1 kabulünü doğruladı; mevcut named Server 3/3 geçti. Pano platform hatası güvenli retry olarak yakalanır; late cleanup yalnız exact owned değeri silmeye çalışır, OS CAS veya immutable string silme garantisi verilmez. Geniş CI ve MANUAL ayrı; eski failedreview tarihsel kalır. Kanıt: docs/testing/f14-normal-core-acceptance-2026-10-01.md."
+      "reason": "CI bekliyor: gerçek Client/Core TCP ve aynı DB restart kabulüne ek olarak 64 oturum/1024 olay uzun kullanım açığı kapandı. HMAC doğrulamalı transaction retention canlı oturumları ve inclusive 24 saat terminal replay/tek token issuance kaydını korur; yalnız eski expired/revoked parent ve FK olayları temizlenir. Root live-source 9/9 normal Core/retention testi geçti; sınırlar artırılmadı, eski token 401, tamper 503/sıfır silme. Son dal HEAD geniş CI ve fiziksel/MANUAL kapıları ayrı; kabul sayacı artırılmadı."
     },
     {
       "id": "F19",
