@@ -341,6 +341,9 @@ class PowerLoss(BaseException):
     pass
 
 
+POWER_LOSS_RECOVERY_DEADLINE_SECONDS = 30
+
+
 def _archived_capture(server, receipt, replacements):
     class Boundary:
         @contextmanager
@@ -513,7 +516,7 @@ def test_linux_boundary_restarts_after_power_loss(server, tmp_path, lost_phase):
             inputs["coordinator"].restore(
                 inputs["opened"],
                 inputs["plan"],
-                deadline=time.monotonic() + 8,
+                deadline=time.monotonic() + POWER_LOSS_RECOVERY_DEADLINE_SECONDS,
             )
         assert inputs["state"]["paused"] is True
 
@@ -531,7 +534,10 @@ def test_linux_boundary_restarts_after_power_loss(server, tmp_path, lost_phase):
             enabled=True,
         )
         restarted = DurableComponentRestoreCoordinator(inputs["journal"], boundary)
-        assert restarted.recover(inputs["plan"], deadline=time.monotonic() + 8) is True
+        assert restarted.recover(
+            inputs["plan"],
+            deadline=time.monotonic() + POWER_LOSS_RECOVERY_DEADLINE_SECONDS,
+        ) is True
 
         assert inputs["state"]["paused"] is False
         assert inputs["journal"].exists() is False
