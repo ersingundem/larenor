@@ -26,7 +26,7 @@ void main() {
         l10n,
         const AiMemorySource('assistant', 'Imported receipt'),
       ),
-      'Assistant source: Imported receipt',
+      'Previously declared assistant source: Imported receipt',
     );
     expect(
       serverAiMemorySourceLabel(

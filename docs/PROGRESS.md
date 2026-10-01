@@ -63,6 +63,9 @@ F58 retention root live-source **18/18** kabulüyle kapandı: normal Core restar
 
 Exact3feb F60 run36808021320 **failure**: original1test/1failure/0skip, pairingRegistration timeout (owned awaitResult frame99/680). Exact36c F62 run36808149011 **failure**, arm64 package success: original1test/1failure/0skip; bounded stage unclassified, serverResizeRequested=false. Bu sonuçlar runtime kabulü değildir; kör rerun yapılmadan dar neden araştırılıyor.
 
+
+Eski exactfecc Android koşusunun iki yeni Flutter hatası dar şekilde düzeltildi: owned TLS MQTT fixture teardown reseti için bounded graceful close ve gerçek retired-reset/successor regresyonu; legacy kaynak label testi mevcut açıklayıcı provenance metnini bekler. Root **7passed +1 explicit runner-only skip**, scoped Dart analyze ve exact format geçti; production MQTT değişmedi. [Kanıt](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekli.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.

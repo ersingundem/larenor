@@ -215,91 +215,106 @@ void main() {
     'held CONNACK cannot install listeners or tear down its successor',
     () async {
       final fixture = await _HeldConnackTlsMqttFixture.start();
-      addTearDown(fixture.close);
-      final broker = MqttClientLocalBroker(
-        securityContext: fixture.clientContext,
-      );
-      addTearDown(broker.disconnect);
+      await _exerciseRetiredConnect(fixture);
+    },
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
 
-      final retiredConnect = broker.connect(
-        settings: fixture.settings,
-        clientId: 'larenor-tablet-retired',
-        username: 'fixture-user',
-        password: 'fixture-password',
-        onMessage: (_) async {},
-        onDisconnected: () {},
+  test(
+    'retired transport reset is contained and cannot tear down its successor',
+    () async {
+      final fixture = await _HeldConnackTlsMqttFixture.start(
+        releaseMode: _HeldConnectionRelease.reset,
       );
-      final retired = expectLater(
-        retiredConnect,
-        throwsA(
-          isA<StateError>().having(
-            (error) => error.message,
-            'message',
-            'mqtt_connect_retired',
-          ),
-        ),
-      );
-      await fixture.firstConnectObserved.timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => throw StateError('first_connect_not_observed'),
-      );
-
-      await broker.disconnect();
-      await broker
-          .connect(
-            settings: fixture.settings,
-            clientId: 'larenor-tablet-successor',
-            username: 'fixture-user',
-            password: 'fixture-password',
-            onMessage: (_) async {},
-            onDisconnected: () {},
-          )
-          .timeout(
-            const Duration(seconds: 3),
-            onTimeout: () => throw StateError('successor_connect_timeout'),
-          );
-      await broker
-          .subscribe('larenor/tablets/device-1/commands')
-          .timeout(
-            const Duration(seconds: 3),
-            onTimeout: () => throw StateError('successor_subscribe_timeout'),
-          );
-      await broker
-          .publish(
-            'larenor/tablets/device-1/telemetry',
-            utf8.encode('{"state":"successor"}'),
-            retained: false,
-          )
-          .timeout(
-            const Duration(seconds: 3),
-            onTimeout: () => throw StateError('successor_publish_timeout'),
-          );
-
-      final successorObservation = await fixture.successorObservation.timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => throw StateError('successor_not_observed'),
-      );
-      fixture.releaseFirstConnack();
-      await retired.timeout(
-        const Duration(seconds: 7),
-        onTimeout: () => throw StateError('retired_connect_did_not_finish'),
-      );
-      expect(
-        successorObservation,
-        const _ObservedSession(
-          clientId: 'larenor-tablet-successor',
-          username: 'fixture-user',
-          password: 'fixture-password',
-          subscription: 'larenor/tablets/device-1/commands',
-          publishedTopic: 'larenor/tablets/device-1/telemetry',
-          publishedPayload: '{"state":"successor"}',
-          publishedRetained: false,
-        ),
-      );
+      await _exerciseRetiredConnect(fixture);
     },
     timeout: const Timeout(Duration(seconds: 20)),
   );
 }
+
+Future<void> _exerciseRetiredConnect(_HeldConnackTlsMqttFixture fixture) async {
+  addTearDown(fixture.close);
+  final broker = MqttClientLocalBroker(securityContext: fixture.clientContext);
+  addTearDown(broker.disconnect);
+
+  final retiredConnect = broker.connect(
+    settings: fixture.settings,
+    clientId: 'larenor-tablet-retired',
+    username: 'fixture-user',
+    password: 'fixture-password',
+    onMessage: (_) async {},
+    onDisconnected: () {},
+  );
+  final retired = expectLater(
+    retiredConnect,
+    throwsA(
+      isA<StateError>().having(
+        (error) => error.message,
+        'message',
+        'mqtt_connect_retired',
+      ),
+    ),
+  );
+  await fixture.firstConnectObserved.timeout(
+    const Duration(seconds: 3),
+    onTimeout: () => throw StateError('first_connect_not_observed'),
+  );
+
+  await broker.disconnect();
+  await broker
+      .connect(
+        settings: fixture.settings,
+        clientId: 'larenor-tablet-successor',
+        username: 'fixture-user',
+        password: 'fixture-password',
+        onMessage: (_) async {},
+        onDisconnected: () {},
+      )
+      .timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => throw StateError('successor_connect_timeout'),
+      );
+  await broker
+      .subscribe('larenor/tablets/device-1/commands')
+      .timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => throw StateError('successor_subscribe_timeout'),
+      );
+  await broker
+      .publish(
+        'larenor/tablets/device-1/telemetry',
+        utf8.encode('{"state":"successor"}'),
+        retained: false,
+      )
+      .timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => throw StateError('successor_publish_timeout'),
+      );
+
+  final successorObservation = await fixture.successorObservation.timeout(
+    const Duration(seconds: 3),
+    onTimeout: () => throw StateError('successor_not_observed'),
+  );
+  fixture.releaseFirstConnack();
+  await retired.timeout(
+    const Duration(seconds: 7),
+    onTimeout: () => throw StateError('retired_connect_did_not_finish'),
+  );
+  expect(
+    successorObservation,
+    const _ObservedSession(
+      clientId: 'larenor-tablet-successor',
+      username: 'fixture-user',
+      password: 'fixture-password',
+      subscription: 'larenor/tablets/device-1/commands',
+      publishedTopic: 'larenor/tablets/device-1/telemetry',
+      publishedPayload: '{"state":"successor"}',
+      publishedRetained: false,
+    ),
+  );
+}
+
+enum _HeldConnectionRelease { connack, reset }
 
 final class _HeldConnackTlsMqttFixture {
   _HeldConnackTlsMqttFixture._({
@@ -331,7 +346,9 @@ final class _HeldConnackTlsMqttFixture {
     tls: true,
   );
 
-  static Future<_HeldConnackTlsMqttFixture> start() async {
+  static Future<_HeldConnackTlsMqttFixture> start({
+    _HeldConnectionRelease releaseMode = _HeldConnectionRelease.connack,
+  }) async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'larenor-mqtt-held-connack-',
     );
@@ -388,7 +405,12 @@ final class _HeldConnackTlsMqttFixture {
       accepted += 1;
       final connectionNumber = accepted;
       final worker = connectionNumber == 1
-          ? _holdFirst(socket, firstConnectObserved, firstConnackRelease.future)
+          ? _holdFirst(
+              socket,
+              firstConnectObserved,
+              firstConnackRelease.future,
+              releaseMode,
+            )
           : _serveSuccessor(socket, successorObservation);
       workers.add(worker);
       unawaited(
@@ -416,11 +438,16 @@ final class _HeldConnackTlsMqttFixture {
     SecureSocket socket,
     Completer<void> observed,
     Future<void> release,
+    _HeldConnectionRelease releaseMode,
   ) async {
     final packet = await _MqttPacketReader(socket).next();
     expect(packet.type, 1);
     if (!observed.isCompleted) observed.complete();
     await release;
+    if (releaseMode == _HeldConnectionRelease.reset) {
+      socket.destroy();
+      return;
+    }
     socket.add(const [0x20, 0x02, 0x00, 0x00]);
     await socket.flush();
     await socket.done;
@@ -480,7 +507,13 @@ final class _HeldConnackTlsMqttFixture {
     await connections.cancel();
     await server.close();
     for (final socket in sockets) {
-      socket.destroy();
+      try {
+        await socket.close().timeout(const Duration(seconds: 1));
+      } on SocketException {
+        socket.destroy();
+      } on TimeoutException {
+        socket.destroy();
+      }
     }
     await Future.wait(workers.map((worker) => worker.catchError((_) {})))
         .timeout(const Duration(seconds: 2), onTimeout: () => <void>[]);
