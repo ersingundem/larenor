@@ -45,6 +45,57 @@ class RdpNativeBridgeTest {
         override fun endOfStream() = Unit
     }
 
+    private class ClipboardRuntime(
+        private val advertisedCapabilities: Map<String, Any?>,
+    ) : RdpJniRuntime {
+        val inputs = mutableListOf<ByteArray>()
+
+        override fun identity() = RdpFreeRdpIdentity(
+            RdpFreeRdpPackage.VERSION,
+            RdpFreeRdpPackage.SOURCE_COMMIT,
+            RdpFreeRdpPackage.SOURCE_SHA256,
+            "x86_64",
+            1,
+            emptySet(),
+        )
+
+        override fun capabilities() = advertisedCapabilities
+
+        override fun create(
+            request: RdpNativeRequest,
+            plan: RdpNativeNegotiated,
+            listener: RdpJniOperation.Listener,
+        ) = object : RdpJniOperation {
+            override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
+                listener.onSecurity(RdpJniSecurity("TLSv1.2", true, PIN))
+                return true
+            }
+
+            override fun input(sequence: Long, event: RdpJniInput): Boolean {
+                val clipboard = event as? RdpJniInput.Channel ?: return false
+                if (clipboard.kind != RdpJniChannel.CLIPBOARD) return false
+                inputs += clipboard.payload.copyOf()
+                return true
+            }
+
+            override fun resize(sequence: Long, display: RdpNativeDisplay) = true
+            override fun acknowledgeFrame(sequence: Long) = true
+            override fun close() = Unit
+            override fun detach() = Unit
+        }
+    }
+
+    private class OpenClipboardBridge(
+        val bridge: RdpNativeBridge,
+        val runtime: ClipboardRuntime,
+        private val activity: org.robolectric.android.controller.ActivityController<android.app.Activity>,
+    ) : AutoCloseable {
+        override fun close() {
+            bridge.dispose()
+            activity.pause().stop().destroy()
+        }
+    }
+
     @Test
     fun blockedOpenRejectsSecondNetworkJobAndClosesSecretBuffers() {
         val started = CountDownLatch(1)
@@ -123,6 +174,88 @@ class RdpNativeBridgeTest {
         }
     }
 
+    @Test
+    fun clipboardChannelUsesExactOwnedWireAndWipesCallerBytes() {
+        openClipboardBridge(RdpClipboardMode.CLIENT_TO_REMOTE).use { fixture ->
+            val payload = "Merhaba dünya\n\tpanoya".encodeToByteArray()
+            val expected = payload.copyOf()
+            val result = Result()
+
+            fixture.bridge.onMethodCall(MethodCall("input", clipboardInput(payload)), result)
+
+            assertNull(result.error)
+            assertEquals(listOf(expected.toList()), fixture.runtime.inputs.map(ByteArray::toList))
+            assertTrue(payload.all { it == 0.toByte() })
+        }
+    }
+
+    @Test
+    fun clipboardChannelRejectsDisabledMalformedOversizeUnknownStaleAndBackgroundWithoutDispatch() {
+        fun rejected(
+            mode: RdpClipboardMode = RdpClipboardMode.CLIENT_TO_REMOTE,
+            payload: ByteArray = "private".encodeToByteArray(),
+            sequence: Long = 1,
+            channel: String = "clipboard",
+            requestId: String = REQUEST_ID,
+            background: Boolean = false,
+            expectedCode: String,
+        ) {
+            openClipboardBridge(mode).use { fixture ->
+                if (background) fixture.bridge.setWindowFocused(false)
+                val result = Result()
+                fixture.bridge.onMethodCall(
+                    MethodCall("input", clipboardInput(payload, sequence, channel, requestId)),
+                    result,
+                )
+                assertEquals(expectedCode, result.error)
+                assertTrue(payload.all { it == 0.toByte() })
+                assertTrue(fixture.runtime.inputs.isEmpty())
+            }
+        }
+
+        rejected(mode = RdpClipboardMode.DISABLED, expectedCode = "channelUnavailable")
+        rejected(payload = byteArrayOf(0xc3.toByte(), 0x28), expectedCode = "invalidRequest")
+        rejected(payload = byteArrayOf('a'.code.toByte(), 0, 'b'.code.toByte()), expectedCode = "invalidRequest")
+        rejected(payload = ByteArray(RdpFreeRdpSession.MAX_CHANNEL_BYTES + 1) { 1 }, expectedCode = "invalidRequest")
+        rejected(channel = "audio", expectedCode = "invalidRequest")
+        rejected(requestId = FOREIGN_REQUEST_ID, expectedCode = "staleSession")
+        rejected(sequence = 2, expectedCode = "staleSession")
+        rejected(background = true, expectedCode = "foregroundRequired")
+    }
+
+    private fun openClipboardBridge(mode: RdpClipboardMode): OpenClipboardBridge {
+        val runtime = ClipboardRuntime(availableCapabilities())
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
+            .windowFocusChanged(true)
+        val bridge = RdpNativeBridge(activity.get(), Messenger(), runtime)
+        bridge.setResumed(true)
+        bridge.onListen(REQUEST_ID, Sink())
+        val activated = Result()
+        bridge.onMethodCall(MethodCall("activate", mapOf("requestId" to REQUEST_ID)), activated)
+        assertNull(activated.error)
+        val opened = Result()
+        bridge.onMethodCall(MethodCall("open", mapOf(
+            "request" to request(mode), "requestId" to REQUEST_ID,
+            "password" to "secret".encodeToByteArray(), "gatewayPassword" to ByteArray(0),
+        )), opened)
+        await(opened)
+        assertNull(opened.error)
+        return OpenClipboardBridge(bridge, runtime, activity)
+    }
+
+    private fun clipboardInput(
+        payload: ByteArray,
+        sequence: Long = 1,
+        channel: String = "clipboard",
+        requestId: String = REQUEST_ID,
+    ) = mapOf<String, Any?>(
+        "requestId" to requestId,
+        "sequence" to sequence,
+        "kind" to "channel",
+        "channel" to channel,
+        "payload" to payload,
+    )
+
     private fun await(result: Result) {
         repeat(400) {
             Shadows.shadowOf(Looper.getMainLooper()).idle()
@@ -145,11 +278,13 @@ class RdpNativeBridgeTest {
         ),
         "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
         "channels" to mapOf(
-            "clipboardModes" to listOf("disabled"), "audio" to false, "files" to false,
+            "clipboardModes" to listOf("disabled", "clientToRemote"),
+            "audio" to false,
+            "files" to false,
         ),
     )
 
-    private fun request() = mapOf<String, Any?>(
+    private fun request(mode: RdpClipboardMode = RdpClipboardMode.DISABLED) = mapOf<String, Any?>(
         "schemaVersion" to 1,
         "requestId" to REQUEST_ID,
         "targetHost" to "fixture.invalid",
@@ -164,13 +299,18 @@ class RdpNativeBridgeTest {
             "externalDisplay" to false, "dynamicResize" to true,
         ),
         "keyboardLayout" to "turkishQ",
-        "clipboardMode" to "disabled",
+        "clipboardMode" to when (mode) {
+            RdpClipboardMode.DISABLED -> "disabled"
+            RdpClipboardMode.CLIENT_TO_REMOTE -> "clientToRemote"
+            RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
+        },
         "audio" to false,
         "files" to false,
     )
 
     companion object {
         private const val REQUEST_ID = "11111111-1111-4111-8111-111111111111"
+        private const val FOREIGN_REQUEST_ID = "22222222-2222-4222-8222-222222222222"
         private const val PIN = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     }
 }

@@ -13,6 +13,7 @@ abstract interface class RdpChannel {
   void pointer(RdpPointerEvent event);
   void key(RdpKeyEvent event);
   void text(String value);
+  Future<bool> sendClipboardText(String value);
   void resize(RdpDisplaySpec display);
   void close();
 }
@@ -255,6 +256,7 @@ class _RdpMethodChannel implements RdpFrameChannel {
   StreamSubscription<Object?>? _subscription;
   int _inputSequence = 0;
   bool _closed = false;
+  bool _clipboardEnabled = false;
 
   @override
   Future<void> get done => _done.future;
@@ -262,6 +264,9 @@ class _RdpMethodChannel implements RdpFrameChannel {
   Stream<RdpFrame> get frames => _frames.stream;
 
   Future<void> open(RdpSessionRequest request, RdpCredential credential) async {
+    _clipboardEnabled =
+        request.settings.clipboardMode == RdpClipboardMode.clientToRemote &&
+        request.channels.clipboard;
     _subscription = events
         .receiveBroadcastStream(requestId)
         .listen(
@@ -423,6 +428,34 @@ class _RdpMethodChannel implements RdpFrameChannel {
   void text(String value) {
     if (!validRdpImeText(value)) return;
     unawaited(_invoke('input', {'kind': 'ime', 'text': value}));
+  }
+
+  @override
+  Future<bool> sendClipboardText(String value) async {
+    if (!_clipboardEnabled ||
+        _closed ||
+        !isCurrent() ||
+        !validRdpClipboardText(value)) {
+      return false;
+    }
+    final payload = Uint8List.fromList(utf8.encode(value));
+    try {
+      await methods
+          .invokeMethod<void>('input', {
+            'requestId': requestId,
+            'sequence': ++_inputSequence,
+            'kind': 'channel',
+            'channel': 'clipboard',
+            'payload': payload,
+          })
+          .timeout(const Duration(seconds: 5));
+      return !_closed && isCurrent();
+    } catch (_) {
+      close();
+      return false;
+    } finally {
+      payload.fillRange(0, payload.length, 0);
+    }
   }
 
   @override

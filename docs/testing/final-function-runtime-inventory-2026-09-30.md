@@ -238,3 +238,13 @@ and stream36797304940 failed the shared bare-emulator identity probe before
 provider workspace/NSD/instrumentation/receipt; the SDK-path regression is
 old-source RED/current GREEN. New hosted input/disconnect and gamepad evidence
 remain open, so F60 remains reworking and58/67 CI-waiting counts do not change.
+
+F62 explicit clipboard software path is connected end to end through Flutter,
+strict native admission and the packaged FreeRDP API. Root45 focused Flutter
+cases,15 native XML cases/zero skips and full Flutter analyze passed. Foreground
+explicit read, strict UTF-8/64KiB, sequence, payload erasure, read/submission
+deadlines and successor no-replay are verified. Accepted submission is not
+remote clipboard readback; the current NLA shadow fixture lacks cliprdr.
+Exact7fccce52/run36797967344 failed its Android/NLA baseline and is under private
+diagnosis. Full hosted channels remain open: F62 is reworking,58/67 await CI,
+and37/127,3/63 acceptance counters stay unchanged.

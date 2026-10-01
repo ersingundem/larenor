@@ -5435,13 +5435,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36797967344",
           "commit": "7fccce520ff8e1abcf45a16d6ffb4d16c8a72bb2",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source bounded XI2 parser and observed display lifecycle; owned packaged Android baseline started, no receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Original1 test/1failure/0error/0skip; actual key witness and host resize passed, post-resize assertion not distinguished; changed-source static diagnostics needed"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: consumer ACK/terminal yarışı dar RED regresyonla düzeltildi. Native sertifika callbacki yalnız exact endpoint/SPKI pinini kabul eder; güvenlik ve kare gerçek OnConnectionSuccess sonrası açılır. TLS1.2 min/max enforce edilir. Root22 native/0skip, production/AndroidTest compile315 task,38 RDP Flutter testi/scoped analyze ve31 runner/workflow testi geçti. IME=false; yalnız disabled/clientToRemote pano modları ilan edilir, legacy bidirectional sessizce değişmez. Logical displayId/process-local revision, invalid Display ve kapanan native stream eski oturumu kapatır; tekrar bağlantı yalnız açık kullanıcı eylemidir. Canonical legacy15/new17 packet ve paired-null tuple sınırları13 native/0skip ve49 Flutter RDP/window testiyle geçti; scoped analyze temiz. Fiziksel kimlik veya kaçırılmış hotplug callback kanıtı değildir. Owned shadow baseline gerçek software HID→XI2 effect, host resize/ACK/close ister; clipboard/IME/clientDISP veya fiziksel kabul iddiası vermez. Exacte05df8ea/run36794954941 tamamlandı: gerçek tek-output Xorg resize preflightı ve iki ABI paket/APK buildi geçti, x86 gerçek Android NLA kapısı başarısız. Dış XI2 witness ilgisiz UTF8 device satırını strict ASCII çözerken düştü; terminal JUnit sayımı yok ve Android key/frame/resize kabulü kurulmadı. Byte-parser düzeltmesi eski kaynağa karşı aynı regresyonda RED→GREEN ve75 runner/workflow/kuyruk/progress kontrolüyle doğrulandı; değişen kaynak hosted kabulü gerekir. Tam display/clipboard/Android kabulü açık, F62 CI bekliyor/done yapılmaz;58 seçili/toplam67 CI bekliyor ve kabul sayaçları korunur."
+      "reason": "Reworking: strict Client/native clipboard software submission is now connected to packaged FreeRDP. Root45 Flutter cases,15 native XML cases/zero failures/errors/skips, receipted production Kotlin compile and full Flutter analyze passed. Explicit foreground plain-text read only; strict UTF8/64KiB/NUL, shared sequence, payload erasure, generation/channel fences, five-second read/submission deadlines and no successor replay. Accepted submission is not remote clipboard readback; the owned NLA shadow fixture lacks cliprdr. Logical display lifecycle previously passed13 native and49 Flutter/window checks. Exact7fccce52/run36797967344 completed failed at the packaged Android/NLA step; Private diagnosis confirms original1 test/1failure/0error/0skip after initial frame/ACK/key and host resize; post-resize frame/ACK/close/credential assertion remains uncertain, fixed stage diagnostics are being prepared. Actual Android baseline, cliprdr/clientDISP and physical MANUAL gates remain open. No CI-waiting/done promotion:58 selected/67 total await broad CI;37/127 and3/63 acceptance counters stay unchanged."
     },
     {
       "id": "F61",
@@ -5553,7 +5553,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. 58 seçili özellik ve toplam67 iş odaklı yazılım kabulünden sonra geniş exact HEAD CI bekliyor. F60 normal Core/Client/native v2 yetki ve kalıcı cleanup entegrasyonu tamamlandı; gerçek owned Sunshine NSD/pairing/stream/frame/audio/input/stop/local retirement kabulü açık. F61 gerçek hosted native receipt geçti. F62 display lifecycle düzeltmesi13 native ve49 Flutter kontrolünü geçti; exact7fccce52 hosted RDP/channel receipt hâlâ bekleniyor. İkinci FINAL başlatılmaz."
+      "reason": "Only active FINAL: evidence-based real Client/Core/provider review.58 selected/67 total completed software items await broad exact HEAD CI. F60 owned Sunshine stream/input/disconnect/gamepad acceptance remains open. F61 exact hosted native receipt passed. F62 clipboard software path now passes45 Flutter/15 native checks and full analyze; actual NLA/cliprdr/clientDISP acceptance remains open. Exact7fccce52/run36797967344 failed the Android/NLA baseline and needs fixed post-resize diagnostics after initial frame/ACK/HID and host resize passed. No second FINAL starts; acceptance counters remain37/127 and3/63."
     },
     {
       "id": "FINAL.UI",

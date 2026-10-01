@@ -9,7 +9,11 @@ class RdpFailure implements Exception {
 
 Never _invalid([String code = 'invalid_response']) => throw RdpFailure(code);
 
-bool validRdpImeText(String value) {
+bool validRdpImeText(String value) => _validUtf8Text(value, 4096);
+
+bool validRdpClipboardText(String value) => _validUtf8Text(value, 64 * 1024);
+
+bool _validUtf8Text(String value, int maximumBytes) {
   if (value.isEmpty) return false;
   var bytes = 0;
   for (var index = 0; index < value.length; index++) {
@@ -29,7 +33,7 @@ bool validRdpImeText(String value) {
     } else {
       bytes += 3;
     }
-    if (bytes > 4096) return false;
+    if (bytes > maximumBytes) return false;
   }
   return true;
 }

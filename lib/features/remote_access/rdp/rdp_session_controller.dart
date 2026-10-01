@@ -19,6 +19,8 @@ enum RdpSessionPhase {
   failed,
 }
 
+enum RdpClipboardSendResult { submitted, empty, invalid, unavailable, failed }
+
 class RdpSessionController extends ChangeNotifier {
   RdpSessionController({
     required this.profile,
@@ -44,6 +46,15 @@ class RdpSessionController extends ChangeNotifier {
   RdpCertificatePin? pendingCertificate;
   String? error;
   bool get hasSensitiveInput => _passwordDecision != null;
+  bool get canSendClipboard =>
+      phase == RdpSessionPhase.connected &&
+      settings.clipboardMode == RdpClipboardMode.clientToRemote &&
+      capabilities?.supportedClipboardModes.contains(
+            RdpClipboardMode.clientToRemote,
+          ) ==
+          true &&
+      _channel != null &&
+      _current(_generation);
   Stream<RdpFrame> get frames => _channel is RdpFrameChannel
       ? (_channel! as RdpFrameChannel).frames
       : const Stream<RdpFrame>.empty();
@@ -382,6 +393,44 @@ class RdpSessionController extends ChangeNotifier {
       return;
     }
     _channel?.text(value);
+  }
+
+  Future<RdpClipboardSendResult> sendClipboardFrom(
+    Future<String?> Function() read,
+  ) async {
+    if (!canSendClipboard) return RdpClipboardSendResult.unavailable;
+    final generation = _generation, channel = _channel!;
+    try {
+      final value = await read().timeout(const Duration(seconds: 5));
+      if (!_current(generation) ||
+          !identical(channel, _channel) ||
+          !canSendClipboard) {
+        return RdpClipboardSendResult.unavailable;
+      }
+      if (value == null || value.isEmpty) return RdpClipboardSendResult.empty;
+      if (!validRdpClipboardText(value)) return RdpClipboardSendResult.invalid;
+      final submitted = await channel
+          .sendClipboardText(value)
+          .timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              channel.close();
+              return false;
+            },
+          );
+      if (!_current(generation) ||
+          !identical(channel, _channel) ||
+          !canSendClipboard) {
+        return RdpClipboardSendResult.unavailable;
+      }
+      return submitted
+          ? RdpClipboardSendResult.submitted
+          : RdpClipboardSendResult.failed;
+    } catch (_) {
+      return _current(generation) && identical(channel, _channel)
+          ? RdpClipboardSendResult.failed
+          : RdpClipboardSendResult.unavailable;
+    }
   }
 
   void synchronize() {

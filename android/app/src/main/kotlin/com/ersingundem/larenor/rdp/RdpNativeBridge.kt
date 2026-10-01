@@ -245,32 +245,46 @@ class RdpNativeBridge(
     }
 
     private fun input(raw: Any?, result: MethodChannel.Result) {
-        requireForeground()
-        val value = owned(raw, setOf("requestId", "sequence", "kind", "x", "y", "buttons"),
-            setOf("requestId", "sequence", "kind", "physicalKey", "down"),
-            setOf("requestId", "sequence", "kind", "text"))
-        val current = session ?: fail("staleSession")
-        val sequence = sequence(value["sequence"])
-        val accepted = when (value["kind"]) {
-            "pointer" -> current.pointer(
-                sequence,
-                (value["x"] as? Number)?.toDouble() ?: fail("invalidRequest"),
-                (value["y"] as? Number)?.toDouble() ?: fail("invalidRequest"),
-                integer(value["buttons"], 0, 31),
-            )
-            "key" -> current.key(
-                sequence,
-                (value["physicalKey"] as? Number)?.toLong() ?: fail("invalidRequest"),
-                value["down"] as? Boolean ?: fail("invalidRequest"),
-            )
-            "ime" -> current.ime(
-                sequence,
-                RdpNativeImeText.parse(value["text"]).value,
-            )
-            else -> fail("invalidRequest")
+        // StandardMessageCodec gives us the caller-owned ByteArray. Wipe it even
+        // when foreground, shape, ownership, sequence or channel validation fails.
+        val sensitivePayload = (raw as? Map<*, *>)?.get("payload") as? ByteArray
+        try {
+            requireForeground()
+            val value = owned(raw, setOf("requestId", "sequence", "kind", "x", "y", "buttons"),
+                setOf("requestId", "sequence", "kind", "physicalKey", "down"),
+                setOf("requestId", "sequence", "kind", "text"),
+                setOf("requestId", "sequence", "kind", "channel", "payload"))
+            val current = session ?: fail("staleSession")
+            val sequence = sequence(value["sequence"])
+            val accepted = when (value["kind"]) {
+                "pointer" -> current.pointer(
+                    sequence,
+                    (value["x"] as? Number)?.toDouble() ?: fail("invalidRequest"),
+                    (value["y"] as? Number)?.toDouble() ?: fail("invalidRequest"),
+                    integer(value["buttons"], 0, 31),
+                )
+                "key" -> current.key(
+                    sequence,
+                    (value["physicalKey"] as? Number)?.toLong() ?: fail("invalidRequest"),
+                    value["down"] as? Boolean ?: fail("invalidRequest"),
+                )
+                "ime" -> current.ime(
+                    sequence,
+                    RdpNativeImeText.parse(value["text"]).value,
+                )
+                "channel" -> {
+                    if (value["channel"] != "clipboard") fail("invalidRequest")
+                    val payload = value["payload"] as? ByteArray ?: fail("invalidRequest")
+                    validateClipboardPayload(payload)
+                    current.channel(sequence, RdpJniChannel.CLIPBOARD, payload)
+                }
+                else -> fail("invalidRequest")
+            }
+            if (!accepted) fail(current.failureCode ?: "busy")
+            result.success(null)
+        } finally {
+            sensitivePayload?.fill(0)
         }
-        if (!accepted) fail(current.failureCode ?: "busy")
-        result.success(null)
     }
 
     private fun resize(raw: Any?, result: MethodChannel.Result) {
@@ -399,6 +413,26 @@ private fun sequence(raw: Any?): Long {
     val value = (raw as? Number)?.toLong() ?: fail("invalidRequest")
     if (value !in 1..9_007_199_254_740_991L) fail("invalidRequest")
     return value
+}
+
+private fun validateClipboardPayload(bytes: ByteArray) {
+    if (bytes.isEmpty() || bytes.size > RdpFreeRdpSession.MAX_CHANNEL_BYTES || bytes.any { it == 0.toByte() }) {
+        fail("invalidRequest")
+    }
+    val decoder = StandardCharsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+    val scratch = CharArray(bytes.size)
+    try {
+        val output = CharBuffer.wrap(scratch)
+        val decoded = decoder.decode(ByteBuffer.wrap(bytes), output, true)
+        if (decoded.isError) decoded.throwException()
+        val flushed = decoder.flush(output)
+        if (flushed.isError) flushed.throwException()
+    } catch (_: Exception) {
+        fail("invalidRequest")
+    } finally {
+        scratch.fill('\u0000')
+    }
 }
 
 private fun decode(bytes: ByteArray, empty: Boolean): CharArray {

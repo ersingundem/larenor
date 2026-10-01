@@ -7,7 +7,7 @@ import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_session_controller.dart';
 
-import 'rdp_models_test.dart' show fixture, profile;
+import 'rdp_models_test.dart' show fixture, profile, packagedCapabilities;
 
 class Trust implements RdpTrustStore {
   RdpCertificatePin? pin;
@@ -47,6 +47,9 @@ class Channel implements RdpChannel {
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
   final texts = <String>[];
+  final clipboards = <String>[];
+  bool clipboardAccepted = true;
+  Completer<bool>? clipboardReply;
   final doneValue = Completer<void>();
   @override
   Future<void> get done => doneValue.future;
@@ -64,6 +67,11 @@ class Channel implements RdpChannel {
   void text(String value) => texts.add(value);
   @override
   void resize(RdpDisplaySpec display) => displays.add(display);
+  @override
+  Future<bool> sendClipboardText(String value) async {
+    clipboards.add(value);
+    return clipboardReply?.future ?? clipboardAccepted;
+  }
 }
 
 class Engine implements RdpEngine {
@@ -71,8 +79,10 @@ class Engine implements RdpEngine {
     this.available = true,
     this.supportsNla = true,
     this.clientRequiresNla = true,
+    this.supportsClipboard = false,
   });
   final bool available, supportsNla, clientRequiresNla;
+  final bool supportsClipboard;
   final channel = Channel();
   int inspections = 0, opens = 0, closes = 0;
   String? passwordSeen;
@@ -90,6 +100,8 @@ class Engine implements RdpEngine {
       ...raw,
       if (available)
         'security': {...raw['security'] as Map, 'nla': supportsNla},
+      if (available && supportsClipboard)
+        'channels': packagedCapabilities()['channels'],
     });
   }
 
@@ -204,6 +216,129 @@ class DelayedVault extends Vault {
 }
 
 void main() {
+  RdpSessionController clipboardController(
+    RdpEngine Function() engineFactory, {
+    bool Function()? current,
+    RdpClipboardMode mode = RdpClipboardMode.clientToRemote,
+  }) => RdpSessionController(
+    profile: profile,
+    trust: Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
+    engineFactory: engineFactory,
+    isCurrent: current ?? () => true,
+    display: const RdpDisplaySpec(width: 640, height: 480, dpi: 160),
+    settings: RdpProfileSettings(clipboardMode: mode),
+  );
+
+  test(
+    'clipboard requires opt-in before reading and rejects invalid text',
+    () async {
+      final offEngine = Engine();
+      final off = clipboardController(
+        () => offEngine,
+        mode: RdpClipboardMode.disabled,
+      );
+      await connectWithPassword(off);
+      var reads = 0;
+      expect(
+        await off.sendClipboardFrom(() async {
+          reads++;
+          return 'private';
+        }),
+        RdpClipboardSendResult.unavailable,
+      );
+      expect(reads, 0);
+      expect(offEngine.channel.clipboards, isEmpty);
+      off.dispose();
+
+      final engine = Engine(supportsClipboard: true),
+          c = clipboardController(() => engine);
+      await connectWithPassword(c);
+      for (final value in [null, '']) {
+        expect(
+          await c.sendClipboardFrom(() async => value),
+          RdpClipboardSendResult.empty,
+        );
+      }
+      for (final value in ['bad\u0000text', '\ud800', '😀' * 16385]) {
+        expect(
+          await c.sendClipboardFrom(() async => value),
+          RdpClipboardSendResult.invalid,
+        );
+      }
+      expect(engine.channel.clipboards, isEmpty);
+      expect(
+        await c.sendClipboardFrom(() async => 'İstanbul\n😀'),
+        RdpClipboardSendResult.submitted,
+      );
+      expect(engine.channel.clipboards, ['İstanbul\n😀']);
+      engine.channel.clipboardAccepted = false;
+      expect(
+        await c.sendClipboardFrom(() async => 'retry'),
+        RdpClipboardSendResult.failed,
+      );
+      expect(
+        await c.sendClipboardFrom(() async => throw StateError('private')),
+        RdpClipboardSendResult.failed,
+      );
+      c.dispose();
+    },
+  );
+
+  test(
+    'pending clipboard read cannot enter an explicit successor connection',
+    () async {
+      final engines = <Engine>[];
+      final c = clipboardController(() {
+        final e = Engine(supportsClipboard: true);
+        engines.add(e);
+        return e;
+      });
+      await connectWithPassword(c);
+      final read = Completer<String?>();
+      final pending = c.sendClipboardFrom(() => read.future);
+      c.disconnect();
+      final reconnecting = c.reconnect();
+      await flush();
+      expect(c.phase, RdpSessionPhase.nlaRequired);
+      await c.authenticate('new-one-time-password');
+      await reconnecting;
+      read.complete('old-session-private');
+      expect(await pending, RdpClipboardSendResult.unavailable);
+      expect(engines, hasLength(2));
+      expect(engines.expand((e) => e.channel.clipboards), isEmpty);
+      c.dispose();
+    },
+  );
+
+  test(
+    'authority retirement suppresses late read and submission success',
+    () async {
+      var current = true;
+      final engine = Engine(supportsClipboard: true);
+      final c = clipboardController(() => engine, current: () => current);
+      await connectWithPassword(c);
+      final read = Completer<String?>();
+      final pending = c.sendClipboardFrom(() => read.future);
+      current = false;
+      read.complete('late');
+      expect(await pending, RdpClipboardSendResult.unavailable);
+      expect(engine.channel.clipboards, isEmpty);
+      c.dispose();
+
+      final successorEngine = Engine(supportsClipboard: true);
+      final successor = clipboardController(() => successorEngine);
+      await connectWithPassword(successor);
+      successorEngine.channel.clipboardReply = Completer<bool>();
+      final submitting = successor.sendClipboardFrom(() async => 'in-flight');
+      await flush();
+      successor.retire();
+      successorEngine.channel.clipboardReply!.complete(true);
+      expect(await submitting, RdpClipboardSendResult.unavailable);
+      expect(successorEngine.channel.clipboards, ['in-flight']);
+      successor.dispose();
+    },
+  );
+
   test('unavailable engine is explicit and never opens a transport', () async {
     final engine = Engine(available: false),
         c = controller(engine, Trust(), () => true);

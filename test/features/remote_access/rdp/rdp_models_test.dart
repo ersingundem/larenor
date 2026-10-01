@@ -36,6 +36,34 @@ const profile = RemoteProfile(
 );
 
 void main() {
+  test(
+    'clipboard text validates UTF-8 bytes without replacing invalid text',
+    () {
+      for (final value in [
+        '',
+        'bad\u0000text',
+        '\ud800',
+        '\udc00',
+        '\ud800x',
+        'x' * 65537,
+        'İ' * 32769,
+        '😀' * 16385,
+      ]) {
+        expect(validRdpClipboardText(value), isFalse);
+      }
+      for (final value in [
+        'İstanbul\n\t😀',
+        'x' * 65536,
+        'İ' * 32768,
+        '😀' * 16384,
+      ]) {
+        expect(validRdpClipboardText(value), isTrue);
+      }
+      expect(validRdpImeText('x' * 4096), isTrue);
+      expect(validRdpImeText('x' * 4097), isFalse);
+    },
+  );
+
   test('strict capabilities distinguish unavailable and secure RDP', () {
     final f = fixture();
     final available = RdpCapabilities.fromJson(f['availableCapabilities']);

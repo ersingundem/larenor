@@ -66,6 +66,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   String? _settingsNotice;
   bool _resumed = true, _focused = true, _retired = false;
   WindowDisplayIdentity? _controllerDisplayIdentity;
+  bool _clipboardBusy = false;
+  RdpClipboardSendResult? _clipboardNotice;
 
   WindowDisplayIdentity? _loadedDisplayIdentity() {
     final state = ref.read(windowPolicySnapshotProvider);
@@ -292,6 +294,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     }
     if (_controller?.phase != RdpSessionPhase.connected) {
       _remoteText.clear();
+      _clipboardNotice = null;
     }
     setState(() {});
   }
@@ -306,6 +309,32 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _remoteText.clear();
   }
 
+  Future<void> _sendClipboard() async {
+    final controller = _controller;
+    if (!_current() ||
+        controller == null ||
+        !controller.canSendClipboard ||
+        _clipboardBusy) {
+      return;
+    }
+    setState(() {
+      _clipboardBusy = true;
+      _clipboardNotice = null;
+    });
+    try {
+      final outcome = await controller.sendClipboardFrom(
+        () async => (await Clipboard.getData(Clipboard.kTextPlain))?.text,
+      );
+      if (_current() &&
+          identical(controller, _controller) &&
+          controller.canSendClipboard) {
+        setState(() => _clipboardNotice = outcome);
+      }
+    } finally {
+      if (mounted) setState(() => _clipboardBusy = false);
+    }
+  }
+
   void _ownerChanged() {
     if (!_current()) _retire();
   }
@@ -316,6 +345,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _password.clear();
     _gatewayPassword.clear();
     _remoteText.clear();
+    _clipboardNotice = null;
     for (final field in [_domain, _gatewayHost, _gatewayPort, _gatewayUser]) {
       field.clear();
     }
@@ -693,6 +723,34 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                             controller: c,
                             label: l.rdpInputReady,
                           ),
+                          if (c.canSendClipboard) ...[
+                            action(
+                              'rdp-clipboard-send',
+                              l.rdpClipboardSend,
+                              _clipboardBusy
+                                  ? null
+                                  : () => unawaited(_sendClipboard()),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Semantics(
+                                liveRegion: true,
+                                child: _clipboardBusy
+                                    ? const CupertinoActivityIndicator()
+                                    : Text(switch (_clipboardNotice) {
+                                        RdpClipboardSendResult.submitted =>
+                                          l.rdpClipboardSubmitted,
+                                        RdpClipboardSendResult.empty =>
+                                          l.rdpClipboardEmpty,
+                                        RdpClipboardSendResult.invalid =>
+                                          l.rdpClipboardInvalid,
+                                        RdpClipboardSendResult.failed =>
+                                          l.rdpClipboardFailed,
+                                        _ => l.rdpClipboardHint,
+                                      }),
+                              ),
+                            ),
+                          ],
                           if (c.capabilities?.supportsIme == true) ...[
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),

@@ -56,6 +56,9 @@ class UiChannel implements RdpChannel {
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
   final texts = <String>[];
+  final clipboards = <String>[];
+  bool clipboardAccepted = true;
+  Completer<bool>? clipboardReply;
   @override
   Future<void> get done => doneCompleter.future;
   @override
@@ -71,6 +74,11 @@ class UiChannel implements RdpChannel {
   void resize(RdpDisplaySpec display) => displays.add(display);
   @override
   void text(String value) => texts.add(value);
+  @override
+  Future<bool> sendClipboardText(String value) async {
+    clipboards.add(value);
+    return clipboardReply?.future ?? clipboardAccepted;
+  }
 }
 
 class UiEngine implements RdpEngine {
@@ -142,7 +150,207 @@ Future<void> connectRdp(WidgetTester tester) async {
   }
 }
 
+Future<void> enableClipboard(WidgetTester tester) async {
+  await connectRdp(tester);
+  await press(tester, 'rdp-clipboard-clientToRemote');
+  await press(tester, 'rdp-settings-save');
+  await connectRdp(tester);
+}
+
 void main() {
+  testWidgets(
+    'lost clipboard submission retires once and permits explicit reconnect',
+    (tester) async {
+      final ui = RemoteUi(), engines = <UiEngine>[];
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () {
+          final e = UiEngine();
+          engines.add(e);
+          return e;
+        },
+        rdpTrust: UiTrust(),
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            SystemChannels.platform,
+            (call) async =>
+                call.method == 'Clipboard.getData' ? {'text': 'private'} : null,
+          );
+      await openRdp(tester, ui);
+      await enableClipboard(tester);
+      final old = engines.last.channel;
+      old.clipboardReply = Completer<bool>();
+      await tester.ensureVisible(key('rdp-clipboard-send'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('rdp-clipboard-send'));
+      await tester.pump();
+      expect(old.clipboards, ['private']);
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+      expect(old.doneCompleter.isCompleted, isTrue);
+      expect(key('rdp-clipboard-send'), findsNothing);
+      expect(find.textContaining('submitted to this session'), findsNothing);
+      await press(tester, 'rdp-reconnect');
+      await tester.enterText(key('rdp-password'), 'new-password');
+      await press(tester, 'rdp-authenticate');
+      expect(engines.last.channel, isNot(same(old)));
+      old.clipboardReply!.complete(true);
+      await tester.pumpAndSettle();
+      expect(engines.last.channel.clipboards, isEmpty);
+      await press(tester, 'rdp-clipboard-send');
+      expect(engines.last.channel.clipboards, ['private']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final locale in ['en', 'tr']) {
+    testWidgets('$locale clipboard is explicit, scoped and accessible at 2x', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final ui = RemoteUi(), engines = <UiEngine>[];
+      await ui.mount(
+        tester,
+        width: locale == 'en' ? 1280 : 600,
+        scale: 2,
+        locale: locale,
+        rdpEngine: () {
+          final engine = UiEngine();
+          engines.add(engine);
+          return engine;
+        },
+        rdpTrust: UiTrust(),
+      );
+      var reads = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.getData') {
+              reads++;
+              expect(call.arguments, Clipboard.kTextPlain);
+              return {'text': 'İstanbul\n😀'};
+            }
+            return null;
+          });
+      await openRdp(tester, ui);
+      await enableClipboard(tester);
+      expect(reads, 0);
+      expect(engines.expand((e) => e.channel.clipboards), isEmpty);
+      expect(
+        tester.getSize(key('rdp-clipboard-send')).height,
+        greaterThanOrEqualTo(48),
+      );
+      await press(tester, 'rdp-clipboard-send');
+      expect(reads, 1);
+      expect(engines.last.channel.clipboards, ['İstanbul\n😀']);
+      expect(
+        find.textContaining(
+          locale == 'en' ? 'submitted to this session' : 'bu oturuma iletildi',
+        ),
+        findsOneWidget,
+      );
+      expect(ui.values.values, isNot(contains('İstanbul\n😀')));
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    });
+  }
+
+  testWidgets(
+    'clipboard disabled never reads, and native refusal is not success',
+    (tester) async {
+      final ui = RemoteUi(), engines = <UiEngine>[];
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () {
+          final e = UiEngine();
+          engines.add(e);
+          return e;
+        },
+        rdpTrust: UiTrust(),
+      );
+      var reads = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.getData') {
+              reads++;
+              return {'text': 'private'};
+            }
+            return null;
+          });
+      await openRdp(tester, ui);
+      await connectRdp(tester);
+      expect(key('rdp-clipboard-send'), findsNothing);
+      expect(reads, 0);
+      await press(tester, 'rdp-clipboard-clientToRemote');
+      await press(tester, 'rdp-settings-save');
+      await connectRdp(tester);
+      engines.last.channel.clipboardAccepted = false;
+      await press(tester, 'rdp-clipboard-send');
+      expect(reads, 1);
+      expect(find.textContaining('submitted to this session'), findsNothing);
+      expect(
+        find.textContaining('Check the session before trying again'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final timeout in [false, true]) {
+    testWidgets(
+      'pending clipboard ${timeout ? 'timeout' : 'foreground retirement'} never sends late data',
+      (tester) async {
+        final ui = RemoteUi(), engines = <UiEngine>[];
+        await ui.mount(
+          tester,
+          width: 1280,
+          rdpEngine: () {
+            final e = UiEngine();
+            engines.add(e);
+            return e;
+          },
+          rdpTrust: UiTrust(),
+        );
+        final pending = Completer<Map<String, Object?>?>();
+        var reads = 0;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+              if (call.method == 'Clipboard.getData') {
+                reads++;
+                return pending.future;
+              }
+              return null;
+            });
+        await openRdp(tester, ui);
+        await enableClipboard(tester);
+        await tester.ensureVisible(key('rdp-clipboard-send'));
+        await tester.pumpAndSettle();
+        await tester.tap(key('rdp-clipboard-send'));
+        await tester.pump();
+        expect(reads, 1);
+        if (timeout) {
+          await tester.pump(const Duration(seconds: 6));
+          await tester.pumpAndSettle();
+          expect(
+            find.textContaining('Check the session before trying again'),
+            findsOneWidget,
+          );
+        } else {
+          ui.interaction.setActive(false);
+          await tester.pumpAndSettle();
+          expect(key('rdp-session-panel'), findsNothing);
+        }
+        pending.complete({'text': 'late-private'});
+        await tester.pumpAndSettle();
+        expect(engines.expand((e) => e.channel.clipboards), isEmpty);
+        expect(find.textContaining('submitted to this session'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('tablet panel exposes unavailable native engine honestly', (
     tester,
   ) async {
