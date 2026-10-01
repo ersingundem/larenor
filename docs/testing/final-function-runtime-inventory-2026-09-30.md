@@ -11,6 +11,14 @@ bileşimini; adlandırılmış hosted koşu yalnız çalıştırdığı exact re
 ekran, kimlik bilgisi ve provider davranışını kapsar. Bunların hiçbiri tek
 başına geniş latest-HEAD CI yerine geçmez.
 
+## Güncel uzlaşma — 1 Ekim 2026
+
+Normal Core oynatıcı ve çevrimdışı girişteki F21/F24/F25/F26/F27 bileşim açıkları root110 Client/46 Server ve bağımsız incelemeyle kapandı; bu beş iş CI bekliyor. Güncel toplam **58 seçili özellik/69 iş CI bekliyor**, kabul **35/127 iş ve3/63 özellik**. Yalnız **F60/F62 yeniden çalışılıyor**, yalnız **FINAL.FUNCTION aktif**. Exact191 geniş Android/tüm Server36826527140 sürüyor, Security36826516434 üç işi geçti. Strict F60/691/36825268673 beforeIssue/IllegalArgumentException ile başarısız; F62/6bbe/36826438225 sürüyor. Kesin F60 guard ve belirsiz yerel oturum kapanışı düzeltiliyor; gerçek runtime kabulü henüz yok. [Medya kapanışı](media-core-composition-closure-2026-10-01.md), [güncel named kapılar](final-function-acceptance-2026-09-30.md), [execution queue](../EXECUTION_QUEUE.md).
+
+## Tarihsel kaynak incelemeleri ve checkpointler
+
+Aşağıdaki normal-route, sayaç ve CI kayıtları adlandırdıkları önceki kaynakların kanıtıdır. Eski “güncel/latest” ifadeleri bugünkü kuyruk durumunun yerine kullanılmaz.
+
 | İş | Somut açık | Düzeltme / kabul |
 | --- | --- | --- |
 | F01 | Kapanmış: Android on-device STT/TTS ve güncel HA hedefli taslak/confirm akışı bağlandı | 10 native + 11 Flutter + 3 Server + 1 gerçek Flutter→normal Core→TCP HA kapısı geçti; model/cihaz ve exact-head CI açık |
