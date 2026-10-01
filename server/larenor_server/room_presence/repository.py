@@ -33,6 +33,9 @@ from .models import (
 MAX_STATE_BYTES = 8 * 1024 * 1024
 MAX_DEVICES = 100
 MAX_RECEIPTS = 256
+CALIBRATION_PREVIEW_TTL_MS = 120_000
+CALIBRATION_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000
+RETAINED_CALIBRATION_RECEIPTS = 32
 
 
 def _digest(value):
@@ -50,17 +53,19 @@ class RoomPresenceRepository:
         self._key = key
         self._cipher = AESGCM(key)
         self._lock = threading.RLock()
+        self._migration_required = False
         self._state = self._empty()
         self.validate_storage()
 
     @staticmethod
     def _empty():
         return {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "revision": 0,
             "devices": {},
             "previews": {},
             "receipts": {},
+            "receiptTimes": {},
         }
 
     def _aad(self, revision):
@@ -102,15 +107,18 @@ class RoomPresenceRepository:
         return value.strip()
 
     def _validate_state(self, value):
-        if not isinstance(value, dict) or set(value) != {
-            "schemaVersion",
-            "revision",
-            "devices",
-            "previews",
-            "receipts",
-        }:
+        old_keys = {
+            "schemaVersion", "revision", "devices", "previews", "receipts",
+        }
+        new_keys = old_keys | {"receiptTimes"}
+        if not isinstance(value, dict) or set(value) not in (old_keys, new_keys):
             raise ValueError("invalid_room_presence_state")
-        if value["schemaVersion"] != 1 or type(value["revision"]) is not int:
+        old_state = set(value) == old_keys and value["schemaVersion"] == 1
+        if not old_state and not (
+            set(value) == new_keys and value["schemaVersion"] == 2
+        ):
+            raise ValueError("invalid_room_presence_state")
+        if type(value["revision"]) is not int:
             raise ValueError("invalid_room_presence_state")
         if not 0 <= value["revision"] <= 2**63 - 1:
             raise ValueError("invalid_room_presence_state")
@@ -126,6 +134,24 @@ class RoomPresenceRepository:
             or len(previews) > MAX_RECEIPTS
             or not isinstance(receipts, dict)
             or len(receipts) > MAX_RECEIPTS
+        ):
+            raise ValueError("invalid_room_presence_state")
+        if old_state:
+            now_ms = int(self.settings.clock() * 1000)
+            value = dict(value)
+            value["schemaVersion"] = 2
+            value["receiptTimes"] = {
+                request_id: now_ms for request_id in receipts
+            }
+            self._migration_required = True
+        receipt_times = value["receiptTimes"]
+        if (
+            not isinstance(receipt_times, dict)
+            or set(receipt_times) != set(receipts)
+            or any(
+                type(timestamp) is not int or not 0 <= timestamp <= 2**63 - 1
+                for timestamp in receipt_times.values()
+            )
         ):
             raise ValueError("invalid_room_presence_state")
         home_revisions = set()
@@ -246,13 +272,109 @@ class RoomPresenceRepository:
                 raise ValueError("invalid_room_presence_state")
         if len(home_revisions) > 1:
             raise ValueError("invalid_room_presence_state")
+        validated_previews = {}
         for request_id, raw in previews.items():
-            if CalibrationPreview.model_validate(raw).requestId != request_id:
+            preview = CalibrationPreview.model_validate(raw)
+            if (
+                preview.requestId != request_id
+                or preview.deviceId not in devices
+                or (preview.authority.coreId, preview.authority.homeId)
+                != (self.scope.coreId, self.scope.homeId)
+                or preview.nextCalibrationRevision
+                != preview.previousCalibrationRevision + 1
+            ):
                 raise ValueError("invalid_room_presence_state")
+            validated_previews[request_id] = preview
         for request_id, raw in receipts.items():
-            if CalibrationReceipt.model_validate(raw).requestId != request_id:
+            receipt = CalibrationReceipt.model_validate(raw)
+            if (
+                receipt.requestId != request_id
+                or receipt.deviceId not in devices
+                or (receipt.authority.coreId, receipt.authority.homeId)
+                != (self.scope.coreId, self.scope.homeId)
+            ):
+                raise ValueError("invalid_room_presence_state")
+            preview = validated_previews.get(request_id)
+            if preview is None:
+                # Older releases removed expired preview parents before their
+                # receipts. Their v1 migration timestamp is conservative, and
+                # no unavailable parent relationship is invented.
+                continue
+            exact_parent = (
+                receipt.authority == preview.authority
+                and receipt.deviceId == preview.deviceId
+                and receipt.deviceRevision == preview.deviceRevision
+                and receipt.modelRevision == preview.modelRevision
+                and receipt.roomId == preview.roomId
+                and receipt.roomRevision == preview.roomRevision
+                and receipt.policyRevision == preview.policyRevision
+                and receipt.consentRevision == preview.consentRevision
+                and receipt.previousCalibrationRevision
+                == preview.previousCalibrationRevision
+            )
+            if not exact_parent or (
+                receipt.status == "applied"
+                and receipt.observedCalibrationRevision
+                != preview.nextCalibrationRevision
+            ) or (
+                receipt.status != "applied"
+                and receipt.observedCalibrationRevision is not None
+            ):
                 raise ValueError("invalid_room_presence_state")
         return value
+
+    @staticmethod
+    def _calibration_retention_candidates(state, now_ms):
+        previews = {
+            key: CalibrationPreview.model_validate(value)
+            for key, value in state["previews"].items()
+        }
+        receipts = {
+            key: CalibrationReceipt.model_validate(value)
+            for key, value in state["receipts"].items()
+        }
+        protected = {
+            key for key, receipt in receipts.items()
+            if receipt.status == "uncertain"
+        }
+        for device_id, record in state["devices"].items():
+            current_revision = record["calibrationRevision"]
+            protected.update(
+                key for key, receipt in receipts.items()
+                if receipt.deviceId == device_id
+                and receipt.status == "applied"
+                and receipt.observedCalibrationRevision == current_revision
+            )
+        terminal = {
+            key for key, receipt in receipts.items()
+            if receipt.status in {"applied", "rejected"}
+        }
+        newest = sorted(
+            terminal,
+            key=lambda key: (state["receiptTimes"][key], key),
+            reverse=True,
+        )[:RETAINED_CALIBRATION_RECEIPTS]
+        protected.update(newest)
+        inclusive_cutoff = now_ms - CALIBRATION_REPLAY_WINDOW_MS
+        protected.update(
+            key for key in receipts
+            if state["receiptTimes"][key] >= inclusive_cutoff
+        )
+        return {
+            key for key in receipts
+            if key not in protected
+            and receipts[key].status in {"applied", "rejected"}
+        }
+
+    def _calibration_capacity(self, state, now_ms):
+        receipt_candidates = self._calibration_retention_candidates(state, now_ms)
+        untouched_previews = {
+            key for key, value in state["previews"].items()
+            if key not in state["receipts"]
+            and value["expiresAtMs"] <= now_ms
+        }
+        preview_candidates = receipt_candidates | untouched_previews
+        return receipt_candidates, preview_candidates
 
     def _decode(self, row):
         if (
@@ -441,7 +563,13 @@ class RoomPresenceRepository:
     def validate_storage(self):
         try:
             with self._lock:
+                self._migration_required = False
                 self._sync()
+                if self._migration_required:
+                    before = self._state["revision"]
+                    self._state["revision"] = before + 1
+                    self._persist(before)
+                    self._migration_required = False
         except (
             InvalidTag,
             UnicodeError,
@@ -569,6 +697,11 @@ class RoomPresenceRepository:
             key: value
             for key, value in state["receipts"].items()
             if value.get("deviceId") != device_id
+        }
+        state["receiptTimes"] = {
+            key: value
+            for key, value in state["receiptTimes"].items()
+            if key in state["receipts"]
         }
         before = state["revision"]
         state["revision"] = before + 1
@@ -860,12 +993,15 @@ class RoomPresenceRepository:
                     return value
                 if command.requestId in self._state["receipts"]:
                     raise ApiError("idempotency_conflict", 409)
-            self._state["previews"] = {
-                key: value
-                for key, value in self._state["previews"].items()
-                if value["expiresAtMs"] > now_ms
-            }
-            if len(self._state["previews"]) >= MAX_RECEIPTS:
+            receipt_candidates, preview_candidates = self._calibration_capacity(
+                self._state, now_ms
+            )
+            if (
+                len(self._state["previews"]) - len(preview_candidates)
+                >= MAX_RECEIPTS
+                or len(self._state["receipts"]) - len(receipt_candidates)
+                >= MAX_RECEIPTS
+            ):
                 raise ApiError("revision_conflict", 409)
             request_id = command.requestId or secrets.token_hex(16)
             preview = CalibrationPreview(
@@ -881,9 +1017,14 @@ class RoomPresenceRepository:
                 consentRevision=policy.device.consentRevision,
                 previousCalibrationRevision=record["calibrationRevision"],
                 nextCalibrationRevision=record["calibrationRevision"] + 1,
-                expiresAtMs=now_ms + 120_000,
+                expiresAtMs=now_ms + CALIBRATION_PREVIEW_TTL_MS,
             )
             before = self._state["revision"]
+            for key in receipt_candidates:
+                self._state["receipts"].pop(key)
+                self._state["receiptTimes"].pop(key)
+            for key in preview_candidates:
+                self._state["previews"].pop(key, None)
             self._state["previews"][request_id] = preview.model_dump(mode="json")
             self._state["revision"] = before + 1
             try:
@@ -961,11 +1102,21 @@ class RoomPresenceRepository:
                 observedCalibrationRevision=preview.nextCalibrationRevision,
                 status="applied",
             )
-            if len(self._state["receipts"]) >= MAX_RECEIPTS:
+            now_ms = int(self.settings.clock() * 1000)
+            receipt_candidates, preview_candidates = self._calibration_capacity(
+                self._state, now_ms
+            )
+            if len(self._state["receipts"]) - len(receipt_candidates) >= MAX_RECEIPTS:
                 raise ApiError("revision_conflict", 409)
             before = self._state["revision"]
+            for key in receipt_candidates:
+                self._state["receipts"].pop(key)
+                self._state["receiptTimes"].pop(key)
+            for key in preview_candidates:
+                self._state["previews"].pop(key, None)
             record["calibrationRevision"] = preview.nextCalibrationRevision
             self._state["receipts"][request_id] = receipt.model_dump(mode="json")
+            self._state["receiptTimes"][request_id] = now_ms
             self._state["revision"] = before + 1
             try:
                 self._persist(before)

@@ -2,7 +2,7 @@
 
 ## Current state — 1 October 2026
 
-FINAL.FUNCTION is the only active final.57selected features/66tasks are implementation-complete and awaiting final-HEAD CI; F57/F60/F62 remain reworking. Accepted counts stay37/127tasks and3/63selected features. Physical/household/account gates remain MANUAL; no second final starts before this final completes.
+FINAL.FUNCTION is the only active final.58selected features/67tasks are implementation-complete and awaiting final-HEAD CI; F60/F62 remain reworking. Accepted counts stay37/127tasks and3/63selected features. Physical/household/account gates remain MANUAL; no second final starts before this final completes.
 
 | Gate | Latest named evidence | Open boundary |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ FINAL.FUNCTION is the only active final.57selected features/66tasks are implemen
 | F14 support lifecycle/retention | Root11/11Client, normal TCP two-process sameDBrestart1+1, Server3/3; retention9/9 | Broad finalHEAD CI; actual clipboard/supporter MANUAL |
 | F58 e-paper retention | Root18/18, signed2000history/restart, owned HA/OEPL HTTP | Actual physical label/display delivery MANUAL; broadCI |
 | F59 workshop retention | Root28/28normal Core/owned HTTP/default10000signedhistory/restart; current/replay/unknown/tamper/rollback | Physical printer/sensors MANUAL; broadCI |
-| F57 calibration retention | Agent slice under independent review | Migration/replay/current/uncertain/true256capacity acceptance not yet closed |
+| F57 calibration retention | Root30/30normal Core/owned HA/fusion/retention; true256capacity/restart; conservative v1migration/current/replay/uncertain/newest32terminal/tamper/rollback | Broad finalHEAD CI; calibration is advisory/local, no physical mmWave reconfiguration claim |
 | F60 NSD | Exact5fa91e43/run36802851003 canonical1test/0skip, two fresh discovery lifetimes; streamAccepted=false | Does not prove streaming |
 | F60 streaming | Exact3feb723c/[run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320), original1test/1failure/0error/0skip, pairingRegistration wait owned99/680 | PIN/admin substage unproved; changed-source bounded delivery+bridge-stage root33/33+15subtest/Kotlincompile passes. Strict real frame/PCM/input/two-life/stop/disconnect gate remains open |
 | F62 native RDP | Exact36c3e015/[run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011), original1test/1failure/0error/0skip;unclassified/frames[]/serverResizeRequested=false;arm64package passed | Current cause unproved. Prior initial-frame/subscriber evidence is historical; strict frame/ACK/key/DISP/Unicode/disabledclipboard/two-life gate remains open |

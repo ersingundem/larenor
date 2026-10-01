@@ -24,18 +24,9 @@ establish.
 
 ## Current implementation exceptions — 1 October
 
-The earlier focused evidence below does not cover long-running storage
-capacity. Source review found no pruning path for expired/terminal durable
-history in F01, F02/F03, F14, F57, F58 and F59. Their fixed capacities eventually
-block new operations across restart. F14 retention is now closed by root live-source 9/9 normal Core/retention
-tests; F01/F02/F03 also passed22/22 live-source retention gates. Only
-F57 remains **reworking** for history retention; F59 passed root28/28 normal Core/owned HTTP/retention gates and awaits CI; F58 passed root18/18
-live-source retention/normal Core gates and awaits CI. Safe authenticated retention and capacity/replay/restart
-acceptance must close these concrete gaps. See the
-[bounded retention review](final-function-retention-review-2026-10-01.md).
-Current implementation-complete totals are **57 selected features / 66 tasks**;
-accepted totals stay **3/63 features and 37/127 tasks**. F60/F62 remain reworking
-for their separate real native runtime and combined delivery gates.
+The durable-history capacity gaps in F01/F02/F03/F14/F57/F58/F59 are now closed by named live-source retention/restart gates: root22/22automation,9/9support,30/30calibration,18/18e-paper and28/28workshop. Current/live/recent replay, uncertain operations, authenticated parent/child relationships and rollback are protected. Synthetic signed capacity fixtures are distinguished from actual provider operations in each evidence document. F57 calibration is advisory/local state, not a physical device write. See the [bounded retention review](final-function-retention-review-2026-10-01.md).
+
+Current implementation-complete totals are **58selected features/67tasks**; accepted totals stay **3/63features and37/127tasks**. Only F60/F62 remain reworking for their real native runtime gates. Source-bound combined two-ABI product APK composition passes local package/native gates; broadJVM has one manifest fixture failure under repair. Local packaging does not establish hosted stream/RDP acceptance.
 
 ## F01–F21
 

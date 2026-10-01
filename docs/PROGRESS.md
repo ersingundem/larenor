@@ -1,13 +1,12 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 57 seçili özellik / toplam 66 iş CI bekliyor. F57/F60/F62 yeniden çalışılıyor; yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 67 iş CI bekliyor. F60/F62 yeniden çalışılıyor; yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **57 seçili özellik / toplam 66 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F57** | Aktif sağlayıcının 256 kalibrasyon makbuzunda kalıcı kapasite/restart açığı; güvenli retention ve odaklı kabul bitmedi |
+| **CI bekliyor** | **58 seçili özellik / toplam 67 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN/admin alt aşaması bu receiptte kanıtlanmadı; bounded teslim ve sabit bridge-stage düzeltmesi root33/33+15subtest/Kotlin compile geçti, değişmiş kaynaklı gerçek stream kabulü gerekli. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
@@ -21,11 +20,14 @@
 - F01/F02/F03 root22/22: default256taslak/128deneme ve signed4096olay fixture kapasitesi restart sonrası toparlanır. Current/live/recent replay, encrypted rules, tamper/child graph ve rollback korunur. [Kanıt](testing/f01-f03-automation-retention-2026-10-01.md).
 - F58 root18/18: default2000 signed hazırlık geçmişi ve normal Core restart; owned HA/OEPL HTTP send/dry-run geçti. Pending/uncertain/current render ACK korunur; fiziksel ekran teslimi iddiası yok. [Kanıt](testing/f58-authenticated-retention-2026-10-01.md).
 - **F59 root28/28:** default10000 signed geçmiş sonrası restart/new confirm kapasitesi toparlanır. Current/inclusive24h/replay/unknown effects, tamper ve rollback korunur. Owned OctoPrint/Moonraker HTTP kabulü geçti;10000 fiziksel yazıcı komutu iddiası yok. **CI bekliyor**. [Kanıt](testing/f59-workshop-intent-retention-2026-10-01.md).
-- F50root33/33 kapasite/restart; F57/F58root21/21 sahipli confirmation dialog production-route kabulü önceki kanıttır. F57’nin yeni retention açığı bu eski route kanıtıyla kapanmış sayılmaz.
+- **F57 root30/30:** gerçek256kapasite/restart, v1migration-time inclusive24h, current/recent replay, newest32terminal ve uncertain koruması geçti. Parent/cipher tamper ve write rollback reddi korunur. Advisory/localcalibration; fiziksel mmWave reconfiguration iddiası yok. **CI bekliyor**. [Kanıt](testing/f57-calibration-retention-2026-10-01.md).
+- F50root33/33 kapasite/restart; F57/F58root21/21 sahipli confirmation dialog production-route kabulü önceki kanıttır. F57’nin yeni retention açığı ayrıca root30/30 ile kapandı; eski route kanıtı tek başına retention kabulü değildir.
 - Normal product APK artık source/receipt/API bağlı gerçek Moonlight+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Actual required-mode debug APK SHA256ea17fc26…; root24/24package, installed/APK verifier ve focused69/69native geçti. GenişJVM338toplam=335passed/2skip/1manifest failure; tam yeşil değildir. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
 - Eski fecc Android koşusunda Server nested scope atlandı; defaultall düzeltmesi10/10 ve actionlint geçti. Format hatası iki Dart testinde düzeltildi. MQTT fixture TLS teardown ve legacy qualifiedlabel regresyonları root7passed+1explicit runner-onlyskip/scoped analyze/format geçti. [Flutter düzeltmeleri](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekir; eski fecc Security başarısı bütün CI yerine sayılmaz.
 
 F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kaynakta kanıtlanan swallow/dispatch yolu kapatıldı. [Kaynak ve tanı kabulü](testing/f60-pin-delivery-pairing-stage-2026-10-01.md).
+
+F60 changed-source exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) gerçek hosted stream kapısında sürüyor; runhead remoteSHA ile doğrulandı. Henüz kabul sonucu yok.
 
 ## Tarihsel doğrulama kayıtları
 

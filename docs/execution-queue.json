@@ -5095,7 +5095,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Oda düzeyinde yerel varlık algısı",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5128,7 +5128,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: Aktif cihazın applied kalibrasyon makbuzları yalnız provider revoke ile siliniyor; 256 makbuz sınırı dolunca yeni onay kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
+      "reason": "CI bekliyor: AES-GCM doğrulamalı bounded calibration receipt/preview retention gerçek256kapasite/restart açığını kapattı. Root live-source30/30 retention, normal Core HTTP, owned HA MQTT-room ve fusion testi geçti. V2 authenticated receiptTimes; bütün legacyv1receipts migration-time ile inclusive24h korunur, gecikmiş confirm erken budanmaz. Current calibration, tüm uncertain receipts, inclusive24h/recent replay ve newest32terminal korunur; tamamlanmamış preview korunur. Parent mismatch/ciphertext tamper reddi ve write-failure rollback sıfır kalıcı deletion verir. Calibration advisory/localrevisiondır, mmWave fiziksel reconfiguration/providerwrite iddiası değildir; gerçek owned provider request trace confirm/replayde değişmez. Önceki root21/21 production-dialog-route kanıtı korunur. Geniş finalHEAD CI ve fiziksel cihaz/radyo MANUAL ayrı. Kanıt: docs/testing/f57-calibration-retention-2026-10-01.md."
     },
     {
       "id": "F58",
@@ -5422,6 +5422,22 @@
           "state": "completed",
           "result": "passed",
           "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md",
+          "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root33/33+15subtests; actual required-package AndroidTest Kotlin compilation; bounded one-use delivery and fixed bridge enum. Old exact cause unproved; runtime separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36811116354",
+          "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source exact bounded PIN delivery/bridge-stage gate dispatched; remote sourceSHA and live GitHubrunhead independently matched. Strict real-stream acceptance pending"
         }
       ],
       "completionCommit": null,
@@ -5809,7 +5825,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan57seçili özellik/66iş CI bekliyor; F57retention, F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM335passed/2skip/1manifest failure açık. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28,F57root30/30 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM335passed/2skip/1manifest failure açık. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra. F57v1migration/recent replay ve newest32terminal bağımsız incelemede düzeltildi; advisory calibration physicaldevicewrite değildir. F60exact36cbe3a1/run36811116354 changed-source stream sürüyor; henüz kabul yok."
     },
     {
       "id": "FINAL.UI",
