@@ -1,7 +1,9 @@
 package com.ersingundem.larenor.game.moonlight
 
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -32,7 +34,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MoonlightOwnedSunshineStreamTest {
     @Test
-    fun productionNsdPairCatalogLaunchStreamWitnessStopAndLocalRetirement() {
+    fun productionNsdPairCatalogTwoStreamLifetimesTouchStopDisconnectAndLocalRetirement() {
         val arguments = InstrumentationRegistry.getArguments()
         assumeTrue(
             "F60 owned Sunshine streaming is a named opt-in gate",
@@ -202,44 +204,94 @@ class MoonlightOwnedSunshineStreamTest {
                 val witness = awaitWitness(value, authority, session)
                 assertEquals(1, witness.renderedFrameCount)
                 assertEquals(1, witness.acceptedAudioWriteCount)
-                dispatchOwnedKeyA()
+                val firstGame = currentOwnedGame()
+                dispatchOwnedKeyA(firstGame)
+                OwnedControlClient(nonce, CONTROL_PORT).use { control ->
+                    control.exchange("touch_ready", "touch_armed")
+                    dispatchOwnedTouchAndMouse(firstGame)
+                    control.exchange("touch_sent", "touch_observed")
 
-                val stopped = command(value, authority, session, "stop", "stop")
-                assertEquals("native_observed", stopped.state)
-                assertEquals("stopped", stopped.result)
-                assertEquals("connectionStopped", stopped.observationKind)
-                value.retireExactSession(session.sessionId, session.sessionRevision)
-                value.bindAuthority(authority)
+                    val stopped = command(value, authority, session, "stop", "stop")
+                    assertEquals("native_observed", stopped.state)
+                    assertEquals("stopped", stopped.result)
+                    assertEquals("connectionStopped", stopped.observationKind)
+                    value.retireExactSession(session.sessionId, session.sessionRevision)
+                    value.bindAuthority(authority)
 
-                val scoped = MoonlightScopedContext.create(
-                    currentActivity.applicationContext, authority.scope,
-                )
-                val registrationStore = MoonlightRegistrationStore(
-                    java.io.File(scoped.noBackupFilesDir, "registrations.json"),
-                )
-                val privatePairing = requireNotNull(
-                    registrationStore.pairing(refreshed.registration.nativeReceiptId),
-                )
-
-                val revoked = awaitResult(REVOKE_TIMEOUT_SECONDS) { callback ->
-                    value.revoke(
-                        authority,
-                        requestId = id("revoke-request"),
-                        revocationId = id("revocation"),
-                        hostId = refreshed.registration.hostId,
-                        expectedHostRevision = refreshed.registration.hostRevision,
-                        expectedPairingRevision = refreshed.registration.pairingRevision,
-                        expectedCatalogRevision = refreshed.registration.catalogRevision,
-                        callback = callback,
+                    val disconnectedSession = session.copy(
+                        sessionId = id("disconnect-session"),
+                        sessionRevision = 2,
+                        expiresAtEpochSeconds = expiresAt(MAXIMUM_SESSION_SECONDS.toLong()),
                     )
+                    value.bindSession(authority, disconnectedSession)
+                    val relaunched = command(
+                        value, authority, disconnectedSession, "launch", "disconnect-launch",
+                    )
+                    assertEquals("native_observed", relaunched.state)
+                    assertEquals("appRunning", relaunched.result)
+                    assertEquals("currentGameMatched", relaunched.observationKind)
+                    val reconnected = command(
+                        value, authority, disconnectedSession, "stream", "disconnect-stream",
+                    )
+                    assertEquals("native_observed", reconnected.state)
+                    assertEquals("streaming", reconnected.result)
+                    assertEquals("connectionStarted", reconnected.observationKind)
+                    val secondWitness = awaitWitness(value, authority, disconnectedSession)
+                    assertEquals(1, secondWitness.renderedFrameCount)
+                    assertEquals(1, secondWitness.acceptedAudioWriteCount)
+
+                    control.exchange("disconnect_ready", "owned_sunshine_stopped")
+                    val terminated = awaitRemoteTermination(
+                        value, authority, disconnectedSession,
+                    )
+                    assertEquals(MoonlightLeaseState.RETIRED, terminated.state)
+                    assertEquals("connectionTerminated", terminated.observationKind)
+                    val reconciled = requireNotNull(value.reconcile(
+                        authority,
+                        id("disconnect-stream-reconcile"),
+                        "command",
+                        id("disconnect-stream-command"),
+                    ) as? MoonlightCommandReceipt)
+                    assertEquals("native_observed", reconciled.state)
+                    assertEquals("streaming", reconciled.result)
+                    assertEquals("connectionStarted", reconciled.observationKind)
+                    assertEquals(reconnected.readbackRevision, reconciled.readbackRevision)
+                    assertEquals(reconnected.nativeReceiptDigest, reconciled.nativeReceiptDigest)
+                    value.retireExactSession(
+                        disconnectedSession.sessionId, disconnectedSession.sessionRevision,
+                    )
+                    value.bindAuthority(authority)
+
+                    val scoped = MoonlightScopedContext.create(
+                        currentActivity.applicationContext, authority.scope,
+                    )
+                    val registrationStore = MoonlightRegistrationStore(
+                        java.io.File(scoped.noBackupFilesDir, "registrations.json"),
+                    )
+                    val privatePairing = requireNotNull(
+                        registrationStore.pairing(refreshed.registration.nativeReceiptId),
+                    )
+
+                    val revoked = awaitResult(REVOKE_TIMEOUT_SECONDS) { callback ->
+                        value.revoke(
+                            authority,
+                            requestId = id("revoke-request"),
+                            revocationId = id("revocation"),
+                            hostId = refreshed.registration.hostId,
+                            expectedHostRevision = refreshed.registration.hostRevision,
+                            expectedPairingRevision = refreshed.registration.pairingRevision,
+                            expectedCatalogRevision = refreshed.registration.catalogRevision,
+                            callback = callback,
+                        )
+                    }
+                    assertEquals("local_cleared", revoked.status)
+                    assertNotNull(revoked.readbackRevision)
+                    assertEquals(null, registrationStore.pairing(privatePairing.receiptId))
+                    assertEquals(null, registrationStore.registration(refreshed.registration.hostId))
+                    assertEquals(null, com.limelight.computers.ComputerDatabaseManager(scoped).let { database ->
+                        try { database.getComputerByUUID(privatePairing.upstreamHostUuid) } finally { database.close() }
+                    })
                 }
-                assertEquals("local_cleared", revoked.status)
-                assertNotNull(revoked.readbackRevision)
-                assertEquals(null, registrationStore.pairing(privatePairing.receiptId))
-                assertEquals(null, registrationStore.registration(refreshed.registration.hostId))
-                assertEquals(null, com.limelight.computers.ComputerDatabaseManager(scoped).let { database ->
-                    try { database.getComputerByUUID(privatePairing.upstreamHostUuid) } finally { database.close() }
-                })
             } finally {
                 value.close()
                 MoonlightForegroundLeaseRegistry.clearForTest()
@@ -289,7 +341,23 @@ class MoonlightOwnedSunshineStreamTest {
         )
     }
 
-    private fun dispatchOwnedKeyA() {
+    private fun awaitRemoteTermination(
+        runtime: MoonlightEmbeddedRuntime,
+        authority: MoonlightAuthority,
+        session: MoonlightBoundSession,
+    ): MoonlightTerminalWitnessSnapshot {
+        val deadline = SystemClock.elapsedRealtime() + REMOTE_TERMINATION_TIMEOUT_SECONDS * 1_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val witness = runtime.terminalWitness(
+                authority, session.sessionId, session.sessionRevision,
+            )
+            if (witness != null) return witness
+            SystemClock.sleep(POLL_MILLIS)
+        }
+        throw AssertionError("exact second session did not receive a terminal Game callback")
+    }
+
+    private fun currentOwnedGame(): LarenorMoonlightGame {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val activity = AtomicReference<LarenorMoonlightGame?>()
         val deadline = SystemClock.elapsedRealtime() + ACTIVITY_TIMEOUT_SECONDS * 1_000
@@ -304,11 +372,112 @@ class MoonlightOwnedSunshineStreamTest {
             }
             if (activity.get() == null) SystemClock.sleep(POLL_MILLIS)
         }
-        val game = requireNotNull(activity.get())
+        return requireNotNull(activity.get())
+    }
+
+    private fun dispatchOwnedKeyA(game: LarenorMoonlightGame) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val now = SystemClock.uptimeMillis()
             game.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0))
             game.dispatchKeyEvent(KeyEvent(now, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, KeyEvent.KEYCODE_A, 0))
+        }
+    }
+
+    private fun dispatchOwnedTouchAndMouse(game: LarenorMoonlightGame) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val downTime = SystemClock.uptimeMillis()
+            val touchActions = listOf(
+                Triple(MotionEvent.ACTION_DOWN, 96f, 96f),
+                Triple(MotionEvent.ACTION_MOVE, 132f, 118f),
+                Triple(MotionEvent.ACTION_UP, 132f, 118f),
+            )
+            touchActions.forEachIndexed { index, (action, x, y) ->
+                pointerEvent(
+                    downTime = downTime,
+                    eventTime = downTime + index + 1L,
+                    action = action,
+                    source = InputDevice.SOURCE_TOUCHSCREEN,
+                    toolType = MotionEvent.TOOL_TYPE_FINGER,
+                    x = x,
+                    y = y,
+                ).use(game::dispatchTouchEvent)
+            }
+            pointerEvent(
+                downTime = downTime,
+                eventTime = downTime + 4,
+                action = MotionEvent.ACTION_MOVE,
+                source = InputDevice.SOURCE_MOUSE_RELATIVE,
+                toolType = MotionEvent.TOOL_TYPE_MOUSE,
+                relativeX = 18f,
+                relativeY = 12f,
+            ).use(game::dispatchGenericMotionEvent)
+            pointerEvent(
+                downTime = downTime,
+                eventTime = downTime + 5,
+                action = MotionEvent.ACTION_BUTTON_PRESS,
+                source = InputDevice.SOURCE_MOUSE_RELATIVE,
+                toolType = MotionEvent.TOOL_TYPE_MOUSE,
+                buttonState = MotionEvent.BUTTON_PRIMARY,
+            ).use(game::dispatchGenericMotionEvent)
+            pointerEvent(
+                downTime = downTime,
+                eventTime = downTime + 6,
+                action = MotionEvent.ACTION_BUTTON_RELEASE,
+                source = InputDevice.SOURCE_MOUSE_RELATIVE,
+                toolType = MotionEvent.TOOL_TYPE_MOUSE,
+            ).use(game::dispatchGenericMotionEvent)
+        }
+    }
+
+    private fun pointerEvent(
+        downTime: Long,
+        eventTime: Long,
+        action: Int,
+        source: Int,
+        toolType: Int,
+        x: Float = 0f,
+        y: Float = 0f,
+        relativeX: Float = 0f,
+        relativeY: Float = 0f,
+        buttonState: Int = 0,
+    ): MotionEvent {
+        val properties = MotionEvent.PointerProperties().apply {
+            id = 0
+            this.toolType = toolType
+        }
+        val coordinates = MotionEvent.PointerCoords().apply {
+            this.x = x
+            this.y = y
+            pressure = 1f
+            size = 1f
+            setAxisValue(MotionEvent.AXIS_RELATIVE_X, relativeX)
+            setAxisValue(MotionEvent.AXIS_RELATIVE_Y, relativeY)
+        }
+        return MotionEvent.obtain(
+            downTime,
+            eventTime,
+            action,
+            1,
+            arrayOf(properties),
+            arrayOf(coordinates),
+            0,
+            buttonState,
+            1f,
+            1f,
+            0,
+            0,
+            source,
+            0,
+        )
+    }
+
+    private inline fun MotionEvent.use(block: (MotionEvent) -> Boolean) {
+        try {
+            assertTrue("owned Game did not accept a production input event", block(this))
+        } finally {
+            recycle()
         }
     }
 
@@ -471,6 +640,57 @@ class MoonlightOwnedSunshineStreamTest {
         }
     }
 
+    private class OwnedControlClient(nonce: String, port: Int) : AutoCloseable {
+        private val expectedNonce = nonce.also { require(NONCE.matches(it)) }
+        private val socket = Socket().apply {
+            tcpNoDelay = true
+            soTimeout = CONTROL_READ_TIMEOUT_MILLIS
+            connect(
+                InetSocketAddress(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), port),
+                CONTROL_CONNECT_TIMEOUT_MILLIS,
+            )
+        }
+
+        fun exchange(sentPhase: String, expectedPhase: String) {
+            require(CONTROL_PHASE.matches(sentPhase) && CONTROL_PHASE.matches(expectedPhase))
+            val payload = JSONObject()
+                .put("schemaVersion", 1)
+                .put("nonce", expectedNonce)
+                .put("phase", sentPhase)
+                .toString()
+                .plus("\n")
+                .toByteArray(Charsets.US_ASCII)
+            require(payload.size <= MAX_CONTROL_PAYLOAD_BYTES)
+            socket.getOutputStream().apply {
+                write(payload)
+                flush()
+            }
+            val bytes = ArrayList<Byte>()
+            val deadline = SystemClock.elapsedRealtime() + CONTROL_READ_TIMEOUT_MILLIS
+            while (bytes.size <= MAX_CONTROL_PAYLOAD_BYTES) {
+                val remaining = deadline - SystemClock.elapsedRealtime()
+                if (remaining <= 0) throw AssertionError("owned control phase ACK timed out")
+                socket.soTimeout = remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                val next = socket.getInputStream().read()
+                if (next < 0) throw AssertionError("owned control channel closed before its phase ACK")
+                if (next == '\n'.code) break
+                require(next in 0x20..0x7e)
+                bytes += next.toByte()
+            }
+            require(bytes.size in 1 until MAX_CONTROL_PAYLOAD_BYTES)
+            val value = JSONObject(bytes.toByteArray().toString(Charsets.US_ASCII))
+            require(value.length() == 3)
+            require(value.getInt("schemaVersion") == 1)
+            require(value.getString("nonce") == expectedNonce)
+            require(value.getString("phase") == expectedPhase)
+            require(value.keys().asSequence().toSet() == setOf("schemaVersion", "nonce", "phase"))
+        }
+
+        override fun close() {
+            runCatching { socket.close() }
+        }
+    }
+
     private data class RegisteredApp(
         val observationId: String,
         val appId: String,
@@ -490,6 +710,7 @@ class MoonlightOwnedSunshineStreamTest {
         private const val PIN_NONCE_ARGUMENT = "larenorF60PinNonce"
         private const val PIN_PORT_ARGUMENT = "larenorF60PinPort"
         private const val PIN_PORT = 49_361
+        private const val CONTROL_PORT = 49_362
         private const val SUNSHINE_PORT = 47_989
         private const val OWNED_DISPLAY_NAME = "Larenor-F60-Owned"
         private const val OWNED_APP_NAME = "Desktop"
@@ -503,17 +724,22 @@ class MoonlightOwnedSunshineStreamTest {
         private const val CATALOG_TIMEOUT_SECONDS = 60L
         private const val COMMAND_TIMEOUT_SECONDS = 90L
         private const val OUTPUT_TIMEOUT_SECONDS = 120L
+        private const val REMOTE_TERMINATION_TIMEOUT_SECONDS = 60L
         private const val ACTIVITY_TIMEOUT_SECONDS = 30L
         private const val REVOKE_TIMEOUT_SECONDS = 60L
         private const val POLL_MILLIS = 100L
         private const val PIN_CONNECT_TIMEOUT_MILLIS = 5_000
+        private const val CONTROL_CONNECT_TIMEOUT_MILLIS = 5_000
+        private const val CONTROL_READ_TIMEOUT_MILLIS = 90_000
         private const val MAX_PIN_PAYLOAD_BYTES = 256
+        private const val MAX_CONTROL_PAYLOAD_BYTES = 512
         private const val MAX_OBSERVATION_BYTES = 64 * 1024
         private const val MAX_APPS = 256
         private const val MAX_JS_REVISION = 9_007_199_254_740_991L
         private val NONCE = Regex("^[0-9a-f]{64}$")
         private val MDNS_INSTANCE = Regex("^[A-Za-z0-9-]{1,63}$")
         private val PIN = Regex("^[0-9]{4}$")
+        private val CONTROL_PHASE = Regex("^[a-z_]{1,48}$")
         private val IDENTITY = Regex("^[0-9a-f]{32}$")
         private lateinit var idSeed: String
     }

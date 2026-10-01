@@ -8,12 +8,14 @@ import os
 import subprocess
 import textwrap
 import unittest
+from unittest import mock
 
 from tool.f60_sunshine_android_discovery import (
     DiscoveryAcceptanceFailure,
     TEST_CLASS,
     TEST_NAME,
     package_identity,
+    emulator_version,
     parse_emulator_version,
     verify_report,
 )
@@ -194,6 +196,58 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
                 DiscoveryAcceptanceFailure
             ):
                 parse_emulator_version(output)
+
+    def test_version_uses_actual_sdk_executable_when_emulator_is_absent_from_path(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="sdk with spaces ") as temporary:
+            sdk = Path(temporary)
+            executable = sdk / "emulator" / "emulator"
+            executable.parent.mkdir()
+            executable.write_text(
+                '#!/bin/sh\n'
+                'test "$1" = -version || exit 91\n'
+                'test "$ANDROID_HOME" = "$ANDROID_SDK_ROOT" || exit 92\n'
+                'test -z "$F60_PRIVATE_SENTINEL" || exit 93\n'
+                'echo "Android emulator version 37.1.11.0"\n',
+                encoding="utf-8",
+            )
+            executable.chmod(0o700)
+            for sdk_key in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+                with self.subTest(sdk_key=sdk_key), mock.patch.dict(
+                    os.environ,
+                    {sdk_key: str(sdk), "PATH": "/usr/bin:/bin", "F60_PRIVATE_SENTINEL": "private"},
+                    clear=True,
+                ):
+                    self.assertEqual("37.1.11.0", emulator_version())
+
+    def test_version_rejects_conflicting_sdk_roots_and_missing_configured_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for environment in (
+                {"ANDROID_HOME": str(root), "ANDROID_SDK_ROOT": str(root / "other")},
+                {"ANDROID_HOME": str(root)},
+                {"ANDROID_HOME": "relative-sdk"},
+            ):
+                with self.subTest(environment=environment), mock.patch.dict(
+                    os.environ, {**environment, "PATH": "/usr/bin:/bin"}, clear=True,
+                ), mock.patch("tool.f60_sunshine_android_discovery.shutil.which") as which:
+                    with self.assertRaises(DiscoveryAcceptanceFailure):
+                        emulator_version()
+                    which.assert_not_called()
+
+    def test_version_resolves_path_only_without_a_configured_sdk(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "emulator"
+            executable.write_text(
+                '#!/bin/sh\necho "Android emulator version 36.5.10.0"\n',
+                encoding="utf-8",
+            )
+            executable.chmod(0o700)
+            with mock.patch.dict(os.environ, {"PATH": temporary}, clear=True):
+                self.assertEqual("36.5.10.0", emulator_version())
+            executable.unlink()
+            with mock.patch.dict(os.environ, {"PATH": temporary}, clear=True):
+                with self.assertRaises(DiscoveryAcceptanceFailure):
+                    emulator_version()
 
     def test_workflow_uses_supported_software_renderer_for_modern_emulator(self) -> None:
         self.assertIn("-gpu swiftshader", WORKFLOW)

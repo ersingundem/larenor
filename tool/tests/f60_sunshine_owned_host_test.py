@@ -3,6 +3,7 @@ import io
 import json
 import os
 from pathlib import Path
+import signal
 import stat
 import subprocess
 import textwrap
@@ -287,7 +288,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 workspace.close()
             self.assertFalse(workspace.root.exists())
 
-    def test_stream_profile_enables_only_owned_keyboard_input(self):
+    def test_stream_profile_enables_only_owned_keyboard_and_mouse_input(self):
         with tempfile.TemporaryDirectory() as temporary:
             workspace = host.PrivateWorkspace.create(Path(temporary))
             try:
@@ -298,7 +299,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 )
                 config = material.config.read_text(encoding="utf-8")
                 self.assertIn("keyboard = enabled\n", config)
-                self.assertIn("mouse = disabled\n", config)
+                self.assertIn("mouse = enabled\n", config)
                 self.assertIn("controller = disabled\n", config)
             finally:
                 workspace.close()
@@ -683,6 +684,31 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
         cleanup.close()
         for process in (sunshine, xvfb, pulse):
             self.assertEqual(process.calls, ["terminate", ("wait", host.STOP_TIMEOUT_SECONDS)])
+
+    def test_exact_owned_sunshine_group_can_stop_without_targeting_other_children(self):
+        cleanup = host.OwnedProcesses()
+        pulse, sunshine = _Process(101), _Process(103)
+        cleanup.add("pulseaudio", pulse)
+        cleanup.add("sunshine", sunshine)
+        with mock.patch.object(host.os, "getpgid", return_value=103) as getpgid, \
+                mock.patch.object(host.os, "killpg") as killpg:
+            cleanup.stop_sunshine()
+        getpgid.assert_called_once_with(103)
+        killpg.assert_called_once_with(103, signal.SIGTERM)
+        self.assertEqual(sunshine.calls, [("wait", host.STOP_TIMEOUT_SECONDS)])
+        self.assertEqual(pulse.calls, [])
+        cleanup.close()
+        self.assertEqual(pulse.calls, ["terminate", ("wait", host.STOP_TIMEOUT_SECONDS)])
+
+        for invalid_group in (102, 104):
+            cleanup = host.OwnedProcesses()
+            process = _Process(103)
+            cleanup.add("sunshine", process)
+            with mock.patch.object(host.os, "getpgid", return_value=invalid_group), \
+                    mock.patch.object(host.os, "killpg") as killpg:
+                with self.assertRaises(host.HostFailure):
+                    cleanup.stop_sunshine()
+            killpg.assert_not_called()
 
     def test_spawn_plan_has_no_shell_gpu_or_secret_and_uses_private_logs(self):
         with tempfile.TemporaryDirectory() as temporary:

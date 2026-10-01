@@ -814,6 +814,40 @@ class MoonlightEmbeddedRuntime internal constructor(
         return witness
     }
 
+    /**
+     * Process-private terminal evidence for the exact bound session. A remote
+     * disconnect is accepted only from the Game callback that owns this lease;
+     * Activity destruction and provider/process inference remain unknown.
+     */
+    internal fun terminalWitness(
+        expected: MoonlightAuthority,
+        sessionId: String,
+        expectedSessionRevision: Long,
+    ): MoonlightTerminalWitnessSnapshot? {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(expectedSessionRevision, "revision")
+        val captured = capture(expected)
+        val token = synchronized(lock) {
+            currentLocked(captured)
+            boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            activeLeaseToken ?: throw MoonlightRuntimeFailure("authority_changed")
+        }
+        val witness = MoonlightForegroundLeaseRegistry.terminalWitnessSnapshot(token)
+        synchronized(lock) {
+            currentLocked(captured)
+            val session = boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            if (activeLeaseToken != token ||
+                (witness != null && (witness.sessionId != session.sessionId ||
+                    witness.epoch != session.sessionRevision))
+            ) throw MoonlightRuntimeFailure("authority_changed")
+        }
+        return witness
+    }
+
     fun retireCurrentAuthority() {
         val (previous, prompt) = synchronized(lock) {
             generation += 1

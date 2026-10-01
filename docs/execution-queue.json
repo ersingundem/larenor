@@ -5211,21 +5211,21 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36797303341",
           "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source repo-root module discovery run started; no provider acceptance yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt"
         },
         {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36797304940",
           "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source repo-root module stream/local-retirement run started; no receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek owned Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7/run36792376426 receipted engine buildini geçti, fakat /dev/kvm erişimi olmadan -accel off ile emülatör açılışı zaman aşımına düştü; Python/NSD başlamadı. Discovery/stream workflowları artık KVM character-device ve read/write erişimi ister, hardware acceleration açık ve desteklenen swiftshader kullanır. Root95 host/stream/workflow/kuyruk/progress kontrolü ve actionlint geçti. Pinned Sunshine GameStream GET/unpair rotasını sunmuyor: local_cleared yalnız exact Core/tablet registration retirement/readback anlamına gelir; Client Sunshine eşlemesinin korunduğunu açıklar. Gerçek production NSD/pair/catalog/launch/rendered-frame/full-PCM/software-key/causal-stop/local-clear hosted gate ayrı partial streamAndLocalRetirement receipt ister; featureAccepted=false ve providerPairingRemoved=false. Gerçek yayın ile touch/gamepad/beklenmeyen kopuş yazılım kabulü açık; F60 CI bekliyor/done olmaz. Otomatik Sunshine admin eşleme silme mevcut ürün kapsamının zorunlu adımı değildir. Yerel kaldırma fence-first/generation/no-replay sınırları33 native test ve AndroidTest compile ile doğrulandı; Client12 widget testi ve scoped analyze geçti. Exact0036260b discovery36796250482 ve stream36796253857 engine/KVM geçti; tool modülü bulunamadığı için provider workspace/NSD/instrumentation başlamadan düştü, receipt yok. Repo-root python -m çağrısı ve54 F60 kontrolüyle dar düzeltme geçti; değişen kaynak hosted kabulü hâlâ açık."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki ve kalıcı retirement yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7 emulator/KVM boot hatası ve exact0036260b tool module entrypoint hatası dar düzeltildi. Exact1887ff9a discovery36797303341/stream36797304940 engine/KVM sonrasında PATHte bulunmayan emulator identity probeuyla düştü; provider/NSD/terminal Android report/receipt kurulmadı. Shared SDK executable düzeltmesi eski exact kaynak RED→GREEN ve13 discovery kontrolüyle doğrulandı. Canonical AAR ile production/AndroidTest compile ve33 native/0skip XML geçti. Yeni owned gate iki gerçek frame/full-PCM yaşamı, Game touch/mouse→XI2, causal graceful stop, exact Sunshine daemon shutdown→connectionTerminated, zero redispatch ve exact local-clear ister; hosted sonucu henüz yok. Tablet-only kaldırma fence-first/generation/no-replay ve12 Client widget testiyle doğrulandı; Sunshine eşlemesi kalır. GET/unpair upstreamde yoktur; otomatik admin silme zorunlu ürün kapsamı değildir. Gerçek hosted yayın/girdi/gamepad ve geniş exact HEAD CI açık; F60 CI bekliyor/done yapılmaz. Fiziksel controller/gecikme MANUAL ayrı. Receipt featureAccepted=false/providerPairingRemoved=false kalır."
     },
     {
       "id": "G11",
@@ -5398,6 +5398,22 @@
           "state": "completed",
           "result": "failed",
           "label": "Xorg and both ABI APK builds passed; outer XI2 strict ASCII rejected unrelated UTF8 before terminal JUnit report; no Android baseline acceptance"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-rdp-client-capability-truth-2026-10-01.md",
+          "commit": "7fccce520ff8e1abcf45a16d6ffb4d16c8a72bb2",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root49 Flutter RDP/window and13 native Window XML cases, zero skipped/failures/errors; logical display lifecycle only, hosted channels unproven"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36797967344",
+          "commit": "7fccce520ff8e1abcf45a16d6ffb4d16c8a72bb2",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source bounded XI2 parser and observed display lifecycle; owned packaged Android baseline started, no receipt yet"
         }
       ],
       "completionCommit": null,
@@ -5513,7 +5529,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. 58 seçili özellik ve toplam67 iş odaklı yazılım kabulünden sonra geniş exact HEAD CI bekliyor. F60 normal Core/Client/native v2 yetki ve kalıcı cleanup entegrasyonu tamamlandı; gerçek owned Sunshine NSD/pairing/stream/frame/audio/input/stop/local retirement kabulü açık. F61 gerçek hosted native receipt geçti; F62 ACK/lifecycle düzeltmesi odaklı testi geçti; display identity yaşam döngüsü düzeltmesi sürüyor; gerçek packaged native receipt ve kanal kabulü açık. İkinci FINAL başlatılmaz."
+      "reason": "Tek aktif FINAL: gerçek kullanıcı/Core/provider envanteri ve kanıta dayalı durum uzlaşması yürütülüyor. 58 seçili özellik ve toplam67 iş odaklı yazılım kabulünden sonra geniş exact HEAD CI bekliyor. F60 normal Core/Client/native v2 yetki ve kalıcı cleanup entegrasyonu tamamlandı; gerçek owned Sunshine NSD/pairing/stream/frame/audio/input/stop/local retirement kabulü açık. F61 gerçek hosted native receipt geçti. F62 display lifecycle düzeltmesi13 native ve49 Flutter kontrolünü geçti; exact7fccce52 hosted RDP/channel receipt hâlâ bekleniyor. İkinci FINAL başlatılmaz."
     },
     {
       "id": "FINAL.UI",

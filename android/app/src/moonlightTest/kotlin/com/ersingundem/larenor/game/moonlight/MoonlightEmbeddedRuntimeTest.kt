@@ -665,8 +665,16 @@ class MoonlightEmbeddedRuntimeTest {
         reject("foreground_required") { MoonlightForegroundLeaseRegistry.resolveForLaunch(ids.getValue(10)) }
         assertEquals(MoonlightLeaseState.RETIRING,
             MoonlightForegroundLeaseRegistry.retire(spec.authority.authorityId, spec.authority.epoch)?.state)
+        assertEquals(null, MoonlightForegroundLeaseRegistry.terminalWitnessSnapshot(lease.token))
         assertEquals(MoonlightLeaseState.RETIRED,
             MoonlightForegroundLeaseRegistry.connectionTerminated(lease.token)?.state)
+        val terminal = requireNotNull(
+            MoonlightForegroundLeaseRegistry.terminalWitnessSnapshot(lease.token),
+        )
+        assertEquals(spec.sessionId, terminal.sessionId)
+        assertEquals(spec.epoch, terminal.epoch)
+        assertEquals(MoonlightLeaseState.RETIRED, terminal.state)
+        assertEquals("connectionTerminated", terminal.observationKind)
         assertEquals(null, MoonlightForegroundLeaseRegistry.ownedSnapshot(
             spec.authority.authorityId, spec.authority.epoch, spec.sessionId, spec.epoch,
         ))
@@ -684,6 +692,7 @@ class MoonlightEmbeddedRuntimeTest {
         val successor = MoonlightForegroundLeaseRegistry.issue(successorSpec)
         assertEquals(null, MoonlightForegroundLeaseRegistry.connectionStarted(first.token))
         assertEquals(null, MoonlightForegroundLeaseRegistry.connectionTerminated(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.terminalWitnessSnapshot(successor.token))
         assertEquals(MoonlightLeaseState.TRANSFER_PENDING,
             MoonlightForegroundLeaseRegistry.snapshot(successor.token).state)
     }

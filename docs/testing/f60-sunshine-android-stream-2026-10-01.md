@@ -40,11 +40,21 @@ One exact Android test must complete, without skips:
 6. Android sends one A-key press/release through the production game activity.
    A private XI2 listener on the owned Xvfb display must observe the exact
    software key event pair.
-7. Deliberate stop succeeds only after the production connection reports that
-   `NvConnection.stop()` returned. Native then retires the exact local
-   registration and binding. The host verifies that the exact private
+7. A separate nonce-bound phase channel tells the host to arm an XI2 pointer
+   listener before Android dispatches a real production touch down/move/up and
+   relative mouse motion/button sequence. Acceptance requires two distinct
+   X11 pointer positions plus an exact primary-button press/release pair.
+8. Deliberate stop of the first lifetime succeeds only after the production
+   connection reports that `NvConnection.stop()` returned. Native retires that
+   exact session and creates a fresh second session, which must independently
+   reach connection-started, rendered-frame, and full-PCM-write evidence.
+9. Immediately before forced disconnect, the host verifies the exact private
    Sunshine client UUID captured after pairing is still present and enabled;
-   a same-name replacement cannot satisfy this check.
+   a same-name replacement cannot satisfy this check. It then stops only the
+   exact registered owned Sunshine process group. Android accepts only the
+   exact second lease's real `connectionTerminated` callback, retires that
+   session, locally clears its binding, and proves the command was never
+   redispatched.
 
 An API success response, a delay, a process exit, or a connection-start callback
 alone is insufficient for output acceptance.
@@ -57,6 +67,23 @@ The PIN channel carries one JSON line of at most 256 bytes with exact keys
 the duration of the test with `adb reverse`. The nonce is a one-run 256-bit
 value. The bridge closes after its first message.
 
+A distinct `adb reverse` connection maps Android loopback port `49362` to an
+ephemeral host-only listener. It carries at most 512 bytes per canonical ASCII
+JSON line, uses the same one-run nonce, and accepts only the fixed ordered phase
+sequence `touch_ready`, `touch_sent`, and `disconnect_ready`. Host replies are
+limited to `touch_armed`, `touch_observed`, and
+`owned_sunshine_stopped`. Coordinates, process identifiers, and the paired
+client UUID remain process-private.
+
+The host does not acknowledge `touch_armed` merely because `xinput` started.
+The pinned `test-xi2` implementation prints its device list before it calls
+`XISelectEvents` and `XSync`, so that listing is not a readiness signal. The
+host sends a bounded owned X11 pointer-warp probe and acknowledges the phase only
+after the same byte-bounded XI2 listener observes that exact root coordinate.
+Probe events are cleared before Android input evidence is collected. Every XI2
+`EVENT` header, including unknown event kinds, resets the current parser state;
+truncated relevant events fail closed.
+
 The PIN is never written to a file, command argument, environment value, log,
 JUnit report, public receipt, or artifact. Sunshine credentials, provider
 addresses, TLS material, native binding identifiers, upstream app identifiers,
@@ -66,15 +93,18 @@ frames, and PCM bytes are also excluded from artifacts.
 
 The workflow may publish a receipt only after the exact named JUnit case passes,
 the PIN bridge observes the paired client, the owned tone injector succeeds,
-XI2 observes the key pair, deliberate stop completes, Native locally retires
-the binding, and Sunshine still reports the exact same private paired-client
-UUID. The UUID itself never enters the receipt. The receipt binds the
+XI2 observes the key and pointer/button effects, both stream lifetimes produce
+their required output, the exact owned Sunshine process stops, the second
+lifetime reports a real remote termination without redispatch, and Native
+locally retires the binding. The UUID itself never enters the receipt. The receipt binds the
 repository revision and Moonlight package hashes and exposes only bounded
 proof booleans.
 
 `streamAccepted: true` means only the named
-`streamAndLocalRetirement` scope: real pairing, catalog, launch, frame, PCM,
-software key effect, stop, and local binding retirement. The same receipt says
+`twoStreamInputDisconnectAndLocalRetirement` scope: real pairing, catalog,
+launch, two independent frame/PCM lifetimes, software key and mouse effects,
+graceful stop, provider-process disconnect, zero redispatch, and local binding
+retirement. The same receipt says
 `featureAccepted: false`, `localBindingCleared: true`,
 `providerPairingRemoved: false`, and records provider pairing removal as
 `unaccepted` as an out-of-scope/manual provider-admin boundary, not as a missing required tablet-removal feature. Source implementation and local unit tests are not streaming
@@ -82,7 +112,7 @@ acceptance, and this partial scope does not complete F60 functional acceptance.
 
 ## Current unpair compatibility boundary
 
-The supported product promise is tablet-only removal with `local_cleared|unknown`, as the Client explicitly explains. Automatic Sunshine administrator pairing deletion is an optional separate capability; it is not a mandatory F60 acceptance step. The partial stream gate still cannot close touch/gamepad, unexpected-disconnect, physical latency, or broad commit CI acceptance.
+The supported product promise is tablet-only removal with `local_cleared|unknown`, as the Client explicitly explains. Automatic Sunshine administrator pairing deletion is an optional separate capability; it is not a mandatory F60 acceptance step. The partial stream gate still cannot close gamepad, physical-device input, physical latency, or broad commit CI acceptance.
 
 The pinned Moonlight client implements `NvHTTP.unpair()` as an unauthenticated
 GameStream `GET /unpair`. The pinned Sunshine `nvhttp.cpp` does not register
@@ -96,8 +126,9 @@ test cleanup is not production revocation evidence.
 Sunshine's configuration API calls `proc::proc.terminate()` after the last
 client is removed. In the pinned source that object is the launched application
 manager, not the Sunshine host. The configuration and GameStream servers remain
-alive. This gate performs no administrative removal or restart; it proves the
-paired client remains present after local retirement.
+alive. This gate performs no administrative removal. It proves the paired
+client remains present immediately before the owned provider is stopped; the
+temporal readback is not a post-disconnect provider-removal claim.
 
 ## Limits
 
@@ -105,7 +136,8 @@ The visual proof is an actual MediaCodec rendered-frame callback, not a pixel
 comparison or a quality judgment. The audio proof is an accepted complete PCM
 write, not physical audibility. The key witness is software input delivered to
 the owned X11 server; it does not prove a physical keyboard. Physical display,
-speaker, controller, Wi-Fi, latency, HDR, HEVC, AV1, DRM, and household-host
+speaker, physical mouse/touchscreen, controller, Wi-Fi, latency, HDR, HEVC,
+AV1, DRM, and household-host
 behavior remain manual or separately named acceptance work.
 
 The Android emulator must reach Sunshine's real stream ports after production
@@ -147,6 +179,12 @@ required.
   <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/nvhttp.cpp>
 - Sunshine Linux PulseAudio sink implementation:
   <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/platform/linux/audio.cpp>
+- Sunshine mouse/button input gates and forwarding:
+  <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/input.cpp>
+- Sunshine launched-application and process-group lifecycle:
+  <https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/process.cpp>
+- Pinned xinput 1.6.4 XI2 subscription order:
+  <https://gitlab.freedesktop.org/xorg/app/xinput/-/blob/xinput-1.6.4/src/test_xi2.c>
 - Moonlight cryptographic pairing:
   <https://github.com/moonlight-stream/moonlight-android/blob/b48494cb96bff23d8886c4775cc4f39a1075495d/app/src/main/java/com/limelight/nvstream/http/PairingManager.java>
 - Moonlight NvHTTP catalog, launch, and unpair client:

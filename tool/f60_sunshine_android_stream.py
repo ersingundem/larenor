@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Run the named packaged-Android stream gate against an owned Sunshine host.
 
-The only private control wire carries the one-time Moonlight PIN from the
-instrumentation process to this owned host. Provider addresses, credentials,
-certificates, PINs, native identifiers, media, and raw provider output never
-enter the public receipt.
+One private wire carries the one-time Moonlight PIN and a distinct nonce-bound
+wire coordinates only fixed input/disconnect phases. Provider addresses,
+credentials, certificates, PINs, native identifiers, coordinates, media, and
+raw provider output never enter the public receipt.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ctypes
 import hashlib
 import json
 import math
@@ -48,10 +49,14 @@ TEST_CLASS = (
     "com.ersingundem.larenor.game.moonlight."
     "MoonlightOwnedSunshineStreamTest"
 )
-TEST_NAME = "productionNsdPairCatalogLaunchStreamWitnessStopAndLocalRetirement"
+TEST_NAME = (
+    "productionNsdPairCatalogTwoStreamLifetimesTouchStopDisconnectAndLocalRetirement"
+)
 RECEIPT_NAME = "f60-sunshine-android-stream-receipt.json"
 ANDROID_PIN_PORT = 49_361
+ANDROID_CONTROL_PORT = 49_362
 PIN_MESSAGE_BYTES = 256
+CONTROL_MESSAGE_BYTES = 512
 PAIRING_CLIENT_NAME = "roth"
 CONTROL_TIMEOUT_SECONDS = 300.0
 PROCESS_TIMEOUT_SECONDS = 1_800
@@ -59,10 +64,53 @@ PREBUILD_TIMEOUT_SECONDS = 1_200
 MAX_COMMAND_OUTPUT = 64 * 1024
 SUNSHINE_STEREO_SINK = "sink-sunshine-stereo"
 KEY_A_CODE = 38
+PRIMARY_BUTTON = 1
+XI2_LINE_BYTES = 4096
+XI2_READY_TIMEOUT_SECONDS = 5.0
+XI2_READY_POSITIONS = ((17, 19), (23, 29))
 
 
 class StreamAcceptanceFailure(RuntimeError):
     """A secret-free, fail-closed stream acceptance error."""
+
+
+def _probe_owned_x11_pointer(x: int, y: int) -> None:
+    """Warp the owned X pointer once to prove that the XI2 listener is active."""
+    try:
+        x11 = ctypes.CDLL("libX11.so.6")
+        x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        x11.XOpenDisplay.restype = ctypes.c_void_p
+        x11.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        x11.XDefaultRootWindow.restype = ctypes.c_ulong
+        x11.XWarpPointer.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_ulong,
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        x11.XWarpPointer.restype = ctypes.c_int
+        x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        x11.XSync.restype = ctypes.c_int
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        x11.XCloseDisplay.restype = ctypes.c_int
+        display = x11.XOpenDisplay(DISPLAY.encode("ascii"))
+        if not display:
+            raise StreamAcceptanceFailure("owned XI2 readiness probe is unavailable")
+        try:
+            root = x11.XDefaultRootWindow(display)
+            if root == 0:
+                raise StreamAcceptanceFailure("owned XI2 readiness probe failed")
+            x11.XWarpPointer(display, 0, root, 0, 0, 0, 0, x, y)
+            x11.XSync(display, 0)
+        finally:
+            x11.XCloseDisplay(display)
+    except (AttributeError, OSError) as error:
+        raise StreamAcceptanceFailure("owned XI2 readiness probe is unavailable") from error
 
 
 def _pairs(values: list[tuple[str, object]]) -> dict[str, object]:
@@ -110,6 +158,33 @@ def parse_pin_message(raw: bytes, *, expected_nonce: str) -> str:
     return pin
 
 
+def _control_message(*, nonce: str, phase: str) -> bytes:
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", nonce) is None
+        or phase
+        not in {
+            "touch_ready",
+            "touch_armed",
+            "touch_sent",
+            "touch_observed",
+            "disconnect_ready",
+            "owned_sunshine_stopped",
+        }
+    ):
+        raise StreamAcceptanceFailure("private phase control message is invalid")
+    return (
+        '{"schemaVersion":1,"nonce":"' + nonce + '","phase":"' + phase + '"}\n'
+    ).encode("ascii")
+
+
+def parse_control_message(raw: bytes, *, expected_nonce: str, expected_phase: str) -> None:
+    if not isinstance(raw, bytes) or not 1 <= len(raw) <= CONTROL_MESSAGE_BYTES:
+        raise StreamAcceptanceFailure("private phase control message is invalid")
+    expected = _control_message(nonce=expected_nonce, phase=expected_phase)
+    if not secrets.compare_digest(raw, expected):
+        raise StreamAcceptanceFailure("private phase control message is invalid")
+
+
 class OneShotPinBridge:
     """One-use loopback PIN receiver hidden behind an adb reverse mapping."""
 
@@ -138,6 +213,7 @@ class OneShotPinBridge:
         self._failure: Optional[BaseException] = None
         self._done = threading.Event()
         self._cancelled = threading.Event()
+        self._connection: Optional[socket.socket] = None
         self.pin_approved = False
         self.paired_client_observed = False
         self.paired_client_uuid: Optional[str] = None
@@ -166,6 +242,7 @@ class OneShotPinBridge:
     def _serve(self) -> None:
         try:
             connection, address = self._socket.accept()
+            self._connection = connection
             if address[0] != "127.0.0.1":
                 raise StreamAcceptanceFailure("private PIN peer identity is invalid")
             with connection:
@@ -202,6 +279,7 @@ class OneShotPinBridge:
                 self._socket.close()
             except OSError:
                 pass
+            self._connection = None
 
     def wait(self) -> None:
         if not self._done.wait(self._timeout + 1):
@@ -218,6 +296,16 @@ class OneShotPinBridge:
 
     def close(self) -> None:
         self._cancelled.set()
+        connection = self._connection
+        if connection is not None:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                connection.close()
+            except OSError:
+                pass
         try:
             self._socket.shutdown(socket.SHUT_RDWR)
         except OSError:
@@ -450,6 +538,308 @@ class Xi2KeyWitness:
             self._thread.join(timeout=1)
 
 
+class Xi2PointerWitness:
+    """Observe the exact owned X11 motion and primary-button effect."""
+
+    def __init__(
+        self,
+        owned: OwnedSunshineHost,
+        *,
+        readiness_probe: Callable[[int, int], None] = _probe_owned_x11_pointer,
+        readiness_timeout_seconds: float = XI2_READY_TIMEOUT_SECONDS,
+    ) -> None:
+        if not 0 < readiness_timeout_seconds <= XI2_READY_TIMEOUT_SECONDS:
+            raise StreamAcceptanceFailure("owned XI2 readiness timeout is invalid")
+        self._owned = owned
+        self._readiness_probe = readiness_probe
+        self._readiness_timeout = readiness_timeout_seconds
+        self._process: Optional[subprocess.Popen[bytes]] = None
+        self._ready = threading.Event()
+        self._done = threading.Event()
+        self._failure: Optional[BaseException] = None
+        self._thread: Optional[threading.Thread] = None
+        self._lock = threading.Lock()
+        self._readiness_target: Optional[tuple[bytes, bytes]] = None
+        self._collect_effects = False
+        self._event: Optional[bytes] = None
+        self._pressed = False
+        self._released = False
+        self._positions: set[tuple[bytes, bytes]] = set()
+        self.observed = False
+
+    def start(self) -> None:
+        environment = {
+            "DISPLAY": DISPLAY,
+            "HOME": str(self._owned.material.home),
+            "LANG": "C.UTF-8",
+            "PATH": "/usr/bin:/bin",
+            "XDG_RUNTIME_DIR": str(self._owned.material.runtime),
+        }
+        try:
+            self._process = subprocess.Popen(
+                ["/usr/bin/stdbuf", "-oL", "/usr/bin/xinput", "test-xi2", "--root"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                cwd=str(self._owned.material.root),
+                env=environment,
+                close_fds=True,
+                start_new_session=True,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise StreamAcceptanceFailure("owned XI2 pointer witness could not start") from error
+        self._thread = threading.Thread(
+            target=self._read, name="f60-xi2-pointer-witness", daemon=True
+        )
+        self._thread.start()
+        deadline = time.monotonic() + self._readiness_timeout
+        probe_index = 0
+        while not self._ready.is_set():
+            if self._done.is_set() or time.monotonic() >= deadline:
+                self.close()
+                raise StreamAcceptanceFailure("owned XI2 pointer listener is not ready")
+            x, y = XI2_READY_POSITIONS[probe_index % len(XI2_READY_POSITIONS)]
+            probe_index += 1
+            with self._lock:
+                self._readiness_target = (str(x).encode("ascii"), str(y).encode("ascii"))
+            try:
+                self._readiness_probe(x, y)
+            except BaseException as error:
+                self.close()
+                raise StreamAcceptanceFailure("owned XI2 pointer listener is not ready") from error
+            self._ready.wait(min(0.1, max(0.0, deadline - time.monotonic())))
+        with self._lock:
+            # Readiness probes are never Android input evidence.
+            self._event = None
+            self._pressed = False
+            self._released = False
+            self._positions.clear()
+            self._collect_effects = True
+
+    def _consume_line(self, line: bytes) -> None:
+        if not line.endswith(b"\n") or len(line) > XI2_LINE_BYTES:
+            raise StreamAcceptanceFailure("owned XI2 pointer observation is malformed")
+        if line.startswith(b"EVENT"):
+            # Any event boundary invalidates fields belonging to the prior event.
+            self._event = None
+            match = re.fullmatch(rb"EVENT type [0-9]+ \(([A-Za-z]+)\)\n", line)
+            if match is None:
+                raise StreamAcceptanceFailure("owned XI2 pointer observation is malformed")
+            self._event = match.group(1)
+            return
+        root = re.fullmatch(
+            rb"\s+root: (-?[0-9]+(?:\.[0-9]+)?)/(-?[0-9]+(?:\.[0-9]+)?)\n",
+            line,
+        )
+        if self._event == b"Motion" and root is not None:
+            position = (root.group(1), root.group(2))
+            if not self._collect_effects:
+                target = self._readiness_target
+                if target is not None and all(
+                    float(current) == float(expected)
+                    for current, expected in zip(position, target)
+                ):
+                    self._ready.set()
+            else:
+                self._positions.add(position)
+        detail = re.fullmatch(rb"\s+detail: ([0-9]+)\n", line)
+        if self._collect_effects and detail is not None and int(detail.group(1)) == PRIMARY_BUTTON:
+            if self._event == b"ButtonPress":
+                self._pressed = True
+            elif self._event == b"ButtonRelease" and self._pressed:
+                self._released = True
+        if (
+            self._collect_effects
+            and len(self._positions) >= 2
+            and self._pressed
+            and self._released
+        ):
+            self.observed = True
+
+    def _read(self) -> None:
+        try:
+            assert self._process is not None and self._process.stdout is not None
+            total = 0
+            while True:
+                line = self._process.stdout.readline(XI2_LINE_BYTES + 1)
+                if line == b"":
+                    break
+                total += len(line)
+                if total > MAX_COMMAND_OUTPUT:
+                    raise StreamAcceptanceFailure("owned XI2 pointer observation is too large")
+                with self._lock:
+                    self._consume_line(line)
+                if self.observed:
+                    return
+        except BaseException as error:
+            self._failure = error
+        finally:
+            self._done.set()
+
+    def wait(self, timeout_seconds: float = CONTROL_TIMEOUT_SECONDS) -> None:
+        if not self._done.wait(timeout_seconds):
+            raise StreamAcceptanceFailure("owned XI2 pointer effect was not observed")
+        if self._failure is not None or not self.observed:
+            raise StreamAcceptanceFailure("owned XI2 pointer effect was not observed")
+
+    def close(self) -> None:
+        process = self._process
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    _signal_owned_process_group(process, signal.SIGTERM)
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        _signal_owned_process_group(process, signal.SIGKILL)
+                        process.wait(timeout=5)
+            except (OSError, subprocess.SubprocessError) as error:
+                raise StreamAcceptanceFailure("owned XI2 pointer cleanup failed") from error
+            finally:
+                if process.stdout is not None:
+                    process.stdout.close()
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+
+
+class PhaseControlBridge:
+    """One authenticated private phase exchange for input and remote disconnect."""
+
+    def __init__(
+        self,
+        owned: OwnedSunshineHost,
+        *,
+        nonce: str,
+        paired_client_uuid: Callable[[], Optional[str]],
+        timeout_seconds: float = CONTROL_TIMEOUT_SECONDS,
+        witness_factory: Callable[[OwnedSunshineHost], Xi2PointerWitness] = Xi2PointerWitness,
+    ) -> None:
+        if re.fullmatch(r"[0-9a-f]{64}", nonce) is None or not 1 <= timeout_seconds <= 600:
+            raise StreamAcceptanceFailure("private phase bridge configuration is invalid")
+        self._owned = owned
+        self._nonce = nonce
+        self._paired_client_uuid = paired_client_uuid
+        self._timeout = timeout_seconds
+        self._witness_factory = witness_factory
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        self._socket.bind(("127.0.0.1", 0))
+        self._socket.listen(1)
+        self._socket.settimeout(timeout_seconds)
+        self.host_port = int(self._socket.getsockname()[1])
+        self._failure: Optional[BaseException] = None
+        self._done = threading.Event()
+        self._cancelled = threading.Event()
+        self._connection: Optional[socket.socket] = None
+        self._witness: Optional[Xi2PointerWitness] = None
+        self.touch_observed = False
+        self.provider_pairing_present_before_disconnect = False
+        self.sunshine_stopped = False
+        self._thread = threading.Thread(
+            target=self._serve, name="f60-phase-control", daemon=True
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _line(self, stream: Any) -> bytes:
+        raw = stream.readline(CONTROL_MESSAGE_BYTES + 1)
+        if not isinstance(raw, bytes) or not raw.endswith(b"\n") or len(raw) > CONTROL_MESSAGE_BYTES:
+            raise StreamAcceptanceFailure("private phase control message is invalid")
+        return raw
+
+    def _expect(self, stream: Any, phase: str) -> None:
+        parse_control_message(
+            self._line(stream), expected_nonce=self._nonce, expected_phase=phase
+        )
+
+    def _send(self, stream: Any, phase: str) -> None:
+        stream.write(_control_message(nonce=self._nonce, phase=phase))
+        stream.flush()
+
+    def _serve(self) -> None:
+        try:
+            connection, address = self._socket.accept()
+            self._connection = connection
+            if address[0] != "127.0.0.1":
+                raise StreamAcceptanceFailure("private phase peer identity is invalid")
+            connection.settimeout(self._timeout)
+            with connection, connection.makefile("rwb", buffering=0) as control:
+                self._expect(control, "touch_ready")
+                self._witness = self._witness_factory(self._owned)
+                self._witness.start()
+                self._send(control, "touch_armed")
+                self._expect(control, "touch_sent")
+                self._witness.wait(self._timeout)
+                self.touch_observed = True
+                self._send(control, "touch_observed")
+                self._expect(control, "disconnect_ready")
+                client_uuid = self._paired_client_uuid()
+                if client_uuid is None:
+                    raise StreamAcceptanceFailure("owned paired client proof is incomplete")
+                self._owned.api.require_owned_client_present(
+                    PAIRING_CLIENT_NAME, client_uuid
+                )
+                self.provider_pairing_present_before_disconnect = True
+                self._owned.processes.stop_sunshine()
+                self.sunshine_stopped = True
+                self._send(control, "owned_sunshine_stopped")
+                if control.read(1) != b"":
+                    raise StreamAcceptanceFailure("private phase control message is invalid")
+        except BaseException as error:
+            self._failure = error
+        finally:
+            if self._witness is not None:
+                try:
+                    self._witness.close()
+                except BaseException as error:
+                    self._failure = self._failure or error
+            self._done.set()
+            try:
+                self._socket.close()
+            except OSError:
+                pass
+            self._connection = None
+
+    def wait(self) -> None:
+        if not self._done.wait(self._timeout + 1):
+            raise StreamAcceptanceFailure("private phase bridge did not complete")
+        self._thread.join(timeout=1)
+        if self._failure is not None:
+            raise StreamAcceptanceFailure("private phase bridge failed") from self._failure
+        if not (
+            self.touch_observed
+            and self.provider_pairing_present_before_disconnect
+            and self.sunshine_stopped
+        ):
+            raise StreamAcceptanceFailure("private phase bridge proof is incomplete")
+
+    def close(self) -> None:
+        self._cancelled.set()
+        connection = self._connection
+        if connection is not None:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                connection.close()
+            except OSError:
+                pass
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            self._socket.close()
+        except OSError:
+            pass
+        if self._thread.is_alive():
+            self._thread.join(timeout=2)
+        if self._thread.is_alive():
+            raise StreamAcceptanceFailure("private phase bridge cleanup failed")
+
+
 def _signal_owned_process_group(process: Any, signal_number: int) -> None:
     pid = getattr(process, "pid", None)
     if (
@@ -471,12 +861,20 @@ def _signal_owned_process_group(process: Any, signal_number: int) -> None:
         raise StreamAcceptanceFailure("owned XI2 process group cleanup failed") from error
 
 
-def install_adb_reverse(host_port: int, *, runner: Callable[..., Any] = subprocess.run) -> None:
-    if not 1 <= host_port <= 65_535:
-        raise StreamAcceptanceFailure("private PIN bridge port is invalid")
+def install_adb_reverse(
+    host_port: int,
+    *,
+    android_port: int = ANDROID_PIN_PORT,
+    runner: Callable[..., Any] = subprocess.run,
+) -> None:
+    if not 1 <= host_port <= 65_535 or android_port not in {
+        ANDROID_PIN_PORT,
+        ANDROID_CONTROL_PORT,
+    }:
+        raise StreamAcceptanceFailure("private reverse transport port is invalid")
     try:
         completed = runner(
-            ["adb", "reverse", "tcp:" + str(ANDROID_PIN_PORT), "tcp:" + str(host_port)],
+            ["adb", "reverse", "tcp:" + str(android_port), "tcp:" + str(host_port)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -484,15 +882,21 @@ def install_adb_reverse(host_port: int, *, runner: Callable[..., Any] = subproce
             timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
-        raise StreamAcceptanceFailure("private PIN reverse transport is unavailable") from error
+        raise StreamAcceptanceFailure("private reverse transport is unavailable") from error
     if completed.returncode != 0:
-        raise StreamAcceptanceFailure("private PIN reverse transport is unavailable")
+        raise StreamAcceptanceFailure("private reverse transport is unavailable")
 
 
-def remove_adb_reverse(*, runner: Callable[..., Any] = subprocess.run) -> None:
+def remove_adb_reverse(
+    *,
+    android_port: int = ANDROID_PIN_PORT,
+    runner: Callable[..., Any] = subprocess.run,
+) -> None:
+    if android_port not in {ANDROID_PIN_PORT, ANDROID_CONTROL_PORT}:
+        raise StreamAcceptanceFailure("private reverse transport port is invalid")
     try:
         completed = runner(
-            ["adb", "reverse", "--remove", "tcp:" + str(ANDROID_PIN_PORT)],
+            ["adb", "reverse", "--remove", "tcp:" + str(android_port)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -500,9 +904,9 @@ def remove_adb_reverse(*, runner: Callable[..., Any] = subprocess.run) -> None:
             timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
-        raise StreamAcceptanceFailure("private PIN reverse transport cleanup failed") from error
+        raise StreamAcceptanceFailure("private reverse transport cleanup failed") from error
     if completed.returncode != 0:
-        raise StreamAcceptanceFailure("private PIN reverse transport cleanup failed")
+        raise StreamAcceptanceFailure("private reverse transport cleanup failed")
 
 
 def prebuild_android_test(
@@ -576,11 +980,19 @@ def write_receipt(
     version: str,
     report: Mapping[str, int | str],
     moonlight_package: Mapping[str, str],
+    host_proof: Mapping[str, bool],
 ) -> None:
+    expected_host_proof = {
+        "touchMouseEffect": True,
+        "providerPairingPresentBeforeDisconnect": True,
+        "ownedSunshineStopped": True,
+    }
+    if dict(host_proof) != expected_host_proof:
+        raise StreamAcceptanceFailure("owned stream host proof is incomplete")
     payload = {
         "schemaVersion": 1,
         "gate": "owned_sunshine_android_stream",
-        "scope": "streamAndLocalRetirement",
+        "scope": "twoStreamInputDisconnectAndLocalRetirement",
         "sourceRevision": source_revision(ROOT),
         "provider": "Sunshine",
         "providerTag": "v2026.914.233613",
@@ -597,6 +1009,15 @@ def write_receipt(
             "fullPcmWrite": True,
             "softwareKeyEffect": True,
             "connectionStopped": True,
+            "touchMouseEffect": True,
+            "secondConnectionStarted": True,
+            "secondRenderedFrame": True,
+            "secondFullPcmWrite": True,
+            "providerPairingPresentBeforeDisconnect": True,
+            "ownedSunshineStopped": True,
+            "connectionTerminated": True,
+            "remoteDisconnect": True,
+            "zeroRedispatch": True,
             "localBindingCleared": True,
             "providerPairingRemoved": False,
         },
@@ -606,6 +1027,7 @@ def write_receipt(
             "providerPairingRemoval": "unaccepted",
             "physicalDisplay": "manual",
             "physicalAudio": "manual",
+            "physicalPointerDevice": "manual",
             "physicalController": "manual",
         },
     }
@@ -647,8 +1069,10 @@ def _run() -> int:
     nonce = secrets.token_hex(32)
     expected_instance = _sunshine_mdns_instance_name()
     bridge: Optional[OneShotPinBridge] = None
+    phase_bridge: Optional[PhaseControlBridge] = None
     xi2: Optional[Xi2KeyWitness] = None
-    reverse_installed = False
+    pin_reverse_installed = False
+    control_reverse_installed = False
     with OwnedSunshineHost.start(stream_profile=True) as owned:
         readiness = owned.public_readiness()
         if readiness.get("state") != "host_ready" or readiness.get("streamAccepted") is not False:
@@ -657,6 +1081,11 @@ def _run() -> int:
         tone = owned.material.root / "owned-tone.wav"
         write_owned_tone(tone)
         bridge = OneShotPinBridge(owned, nonce=nonce)
+        phase_bridge = PhaseControlBridge(
+            owned,
+            nonce=nonce,
+            paired_client_uuid=lambda: bridge.paired_client_uuid,
+        )
         xi2 = Xi2KeyWitness(owned)
         tone_state: dict[str, object] = {}
         tone_cancelled = threading.Event()
@@ -667,7 +1096,12 @@ def _run() -> int:
         try:
             bridge.start()
             install_adb_reverse(bridge.host_port)
-            reverse_installed = True
+            pin_reverse_installed = True
+            phase_bridge.start()
+            install_adb_reverse(
+                phase_bridge.host_port, android_port=ANDROID_CONTROL_PORT
+            )
+            control_reverse_installed = True
             xi2.start()
             tone_thread.start()
             with tempfile.TemporaryDirectory(prefix="f60-stream-gradle-", dir=runner_temp) as temporary:
@@ -692,16 +1126,11 @@ def _run() -> int:
                 if result.returncode:
                     raise StreamAcceptanceFailure("owned Sunshine Android stream failed")
             bridge.wait()
+            phase_bridge.wait()
             tone_thread.join(timeout=CONTROL_TIMEOUT_SECONDS)
             if tone_thread.is_alive() or tone_state.get("injected") is not True:
                 raise StreamAcceptanceFailure("owned audio injection proof is incomplete") from tone_state.get("failure")
             xi2.wait()
-            if bridge.paired_client_uuid is None:
-                raise StreamAcceptanceFailure("owned paired client proof is incomplete")
-            owned.api.require_owned_client_present(
-                PAIRING_CLIENT_NAME, bridge.paired_client_uuid
-            )
-            owned.processes.require_alive()
         finally:
             cleanup_error: Optional[BaseException] = None
             tone_cancelled.set()
@@ -709,7 +1138,12 @@ def _run() -> int:
                 tone_thread.join(timeout=12)
             if tone_thread.is_alive():
                 cleanup_error = StreamAcceptanceFailure("owned audio injector cleanup failed")
-            if reverse_installed:
+            if control_reverse_installed:
+                try:
+                    remove_adb_reverse(android_port=ANDROID_CONTROL_PORT)
+                except BaseException as error:
+                    cleanup_error = error
+            if pin_reverse_installed:
                 try:
                     remove_adb_reverse()
                 except BaseException as error:
@@ -724,14 +1158,28 @@ def _run() -> int:
                     bridge.close()
                 except BaseException as error:
                     cleanup_error = cleanup_error or error
+            if phase_bridge is not None:
+                try:
+                    phase_bridge.close()
+                except BaseException as error:
+                    cleanup_error = cleanup_error or error
             if cleanup_error is not None:
                 raise cleanup_error
     report = verify_report()
+    if phase_bridge is None:
+        raise StreamAcceptanceFailure("private phase bridge proof is incomplete")
     write_receipt(
         runner_temp / RECEIPT_NAME,
         version=version,
         report=report,
         moonlight_package=moonlight_package,
+        host_proof={
+            "touchMouseEffect": phase_bridge.touch_observed,
+            "providerPairingPresentBeforeDisconnect": (
+                phase_bridge.provider_pairing_present_before_disconnect
+            ),
+            "ownedSunshineStopped": phase_bridge.sunshine_stopped,
+        },
     )
     return 0
 

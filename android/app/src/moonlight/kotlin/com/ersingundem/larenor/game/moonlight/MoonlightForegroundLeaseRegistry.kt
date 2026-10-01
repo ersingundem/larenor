@@ -88,6 +88,24 @@ data class MoonlightOutputWitnessSnapshot(
     override fun toString(): String = "MoonlightOutputWitnessSnapshot(<redacted>)"
 }
 
+internal data class MoonlightTerminalWitnessSnapshot(
+    val sessionId: String,
+    val epoch: Long,
+    val state: MoonlightLeaseState,
+    val observationKind: String,
+    val readbackRevision: Long,
+) {
+    init {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(epoch, "revision")
+        require(state in setOf(MoonlightLeaseState.RETIRED, MoonlightLeaseState.UNCERTAIN))
+        require(observationKind in setOf("connectionTerminated", "connectionStopped", "unknown"))
+        requireRevision(readbackRevision, "revision")
+    }
+
+    override fun toString(): String = "MoonlightTerminalWitnessSnapshot(<redacted>)"
+}
+
 /** Process-private ownership transfer between the Flutter and embedded Game activities. */
 object MoonlightForegroundLeaseRegistry {
     private data class Entry(
@@ -103,6 +121,7 @@ object MoonlightForegroundLeaseRegistry {
         var idleRunnable: Runnable? = null,
         var renderedFrameCount: Int = 0,
         var acceptedAudioWriteCount: Int = 0,
+        var terminalObservationKind: String? = null,
     )
 
     private val random = SecureRandom()
@@ -192,6 +211,10 @@ object MoonlightForegroundLeaseRegistry {
         exact(token).outputSnapshot()
 
     @Synchronized
+    internal fun terminalWitnessSnapshot(token: String): MoonlightTerminalWitnessSnapshot? =
+        exact(token).terminalSnapshot()
+
+    @Synchronized
     fun gameHidden(token: String, pictureInPicture: Boolean): MoonlightLeaseSnapshot? {
         val entry = current?.takeIf { it.token == token } ?: return null
         if (entry.state == MoonlightLeaseState.GAME_VISIBLE && !pictureInPicture) {
@@ -210,6 +233,7 @@ object MoonlightForegroundLeaseRegistry {
         entry.state = MoonlightLeaseState.RETIRED
         entry.activity = null
         entry.readbackRevision += 1
+        entry.terminalObservationKind = "connectionTerminated"
         notify(entry, "connectionTerminated", "stopped")
         return entry.snapshot()
     }
@@ -231,6 +255,7 @@ object MoonlightForegroundLeaseRegistry {
         entry.state = MoonlightLeaseState.RETIRED
         entry.activity = null
         entry.readbackRevision += 1
+        entry.terminalObservationKind = "connectionStopped"
         notify(entry, "connectionStopped", "stopped")
         return entry.snapshot()
     }
@@ -248,6 +273,7 @@ object MoonlightForegroundLeaseRegistry {
             entry.state = MoonlightLeaseState.UNCERTAIN
             entry.activity = null
             entry.readbackRevision += 1
+            entry.terminalObservationKind = "unknown"
             notify(entry, "unknown", "unknown")
         }
         return entry.snapshot()
@@ -355,6 +381,7 @@ object MoonlightForegroundLeaseRegistry {
         if (entry.token == token && entry.state == MoonlightLeaseState.TRANSFER_PENDING) {
             entry.state = MoonlightLeaseState.UNCERTAIN
             entry.readbackRevision += 1
+            entry.terminalObservationKind = "unknown"
             notify(entry, "unknown", "unknown")
         }
     }
@@ -390,6 +417,7 @@ object MoonlightForegroundLeaseRegistry {
         entry.state = MoonlightLeaseState.UNCERTAIN
         entry.activity = null
         entry.readbackRevision += 1
+        entry.terminalObservationKind = "unknown"
         notify(entry, "unknown", "unknown")
     }
 
@@ -459,6 +487,17 @@ object MoonlightForegroundLeaseRegistry {
         renderedFrameCount = renderedFrameCount,
         acceptedAudioWriteCount = acceptedAudioWriteCount,
     )
+
+    private fun Entry.terminalSnapshot(): MoonlightTerminalWitnessSnapshot? {
+        val observationKind = terminalObservationKind ?: return null
+        return MoonlightTerminalWitnessSnapshot(
+            sessionId = spec.sessionId,
+            epoch = spec.epoch,
+            state = state,
+            observationKind = observationKind,
+            readbackRevision = readbackRevision,
+        )
+    }
 
     private const val TRANSFER_TIMEOUT_MS = 5_000L
     private const val TERMINATION_TIMEOUT_MS = 5_000L

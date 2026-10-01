@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -102,10 +103,29 @@ def parse_emulator_version(output: str) -> str:
 
 
 def emulator_version() -> str:
+    sdk_home = os.environ.get("ANDROID_HOME")
+    sdk_root = os.environ.get("ANDROID_SDK_ROOT")
+    environment = {"PATH": os.environ.get("PATH", "")}
     try:
+        if sdk_home or sdk_root:
+            sdk = Path(sdk_home or sdk_root)
+            if not sdk.is_absolute() or (
+                sdk_home and sdk_root
+                and Path(sdk_home).resolve() != Path(sdk_root).resolve()
+            ):
+                raise DiscoveryAcceptanceFailure("Android emulator SDK identity is invalid")
+            executable = sdk / "emulator" / "emulator"
+            if not executable.is_file() or not os.access(executable, os.X_OK):
+                raise DiscoveryAcceptanceFailure("Android emulator identity is unavailable")
+            environment.update(ANDROID_HOME=str(sdk), ANDROID_SDK_ROOT=str(sdk))
+        else:
+            discovered = shutil.which("emulator", path=environment["PATH"])
+            if discovered is None:
+                raise DiscoveryAcceptanceFailure("Android emulator identity is unavailable")
+            executable = Path(discovered).resolve()
         result = subprocess.run(
-            ["emulator", "-version"], capture_output=True, text=True,
-            check=False, timeout=10, env={"PATH": os.environ.get("PATH", "")},
+            [str(executable), "-version"], capture_output=True, text=True,
+            check=False, timeout=10, env=environment,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise DiscoveryAcceptanceFailure("Android emulator identity is unavailable") from error

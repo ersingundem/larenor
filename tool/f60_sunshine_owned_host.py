@@ -263,7 +263,7 @@ class PrivateWorkspace:
                 "origin_web_ui_allowed = pc\n",
                 "sunshine_name = " + OWNED_MDNS_NAME + "\n",
                 "keyboard = " + ("enabled" if stream_profile else "disabled") + "\n",
-                "mouse = disabled\n",
+                "mouse = " + ("enabled" if stream_profile else "disabled") + "\n",
                 "controller = disabled\n",
                 "file_apps = " + str(apps) + "\n",
                 "credentials_file = " + str(credentials) + "\n",
@@ -927,6 +927,35 @@ class OwnedProcesses:
     def require_alive(self) -> None:
         if not self._items or any(process.poll() is not None for _, process, _ in self._items):
             raise HostFailure("owned host process exited before readiness")
+
+    def stop_sunshine(self) -> None:
+        """Stop only the exact Sunshine process group registered by this fixture."""
+
+        matches = [item for item in self._items if item[0] == "sunshine"]
+        if len(matches) != 1:
+            raise HostFailure("owned Sunshine process identity is invalid")
+        _, process, _ = matches[0]
+        pid = getattr(process, "pid", None)
+        if type(pid) is not int or pid <= 1 or process.poll() is not None:
+            raise HostFailure("owned Sunshine process identity is invalid")
+        try:
+            group = os.getpgid(pid)
+            if group != pid:
+                raise HostFailure("owned Sunshine process group identity is invalid")
+            os.killpg(group, signal.SIGTERM)
+            try:
+                process.wait(timeout=STOP_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                os.killpg(group, signal.SIGKILL)
+                process.wait(timeout=STOP_TIMEOUT_SECONDS)
+            if process.poll() is None:
+                raise HostFailure("owned Sunshine process did not stop")
+        except ProcessLookupError as error:
+            raise HostFailure("owned Sunshine process identity is invalid") from error
+        except HostFailure:
+            raise
+        except (OSError, subprocess.SubprocessError) as error:
+            raise HostFailure("owned Sunshine process cleanup failed") from error
 
     def close(self) -> None:
         if self._closed:

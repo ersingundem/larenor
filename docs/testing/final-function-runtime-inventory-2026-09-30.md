@@ -226,3 +226,15 @@ kontrolünü ve actionlinti doğruladı. Android frame/key/resize/close kabulü
 açık kalır. Bu düzeltmeler sayaçları veya F60/F62 durumunu artırmaz.
 
 The F62 logical-display slice passed root49 Flutter RDP/window cases and13 native Window XML cases without skips/failures/errors. Removed Display objects cannot supply a tuple (`Display.isValid()`), stream closure emits unknown before completion, and tuple changes dispose without automatic reconnect. Scope is observed logical lifecycle only; physical identity and real hosted channel acceptance remain open.
+
+F60 current input/disconnect gate requires two independent real frame/full-PCM
+lifetimes, actual Game touch/mouse effects on owned XI2, and termination of the
+exact owned Sunshine daemon followed by the second lease's real
+`connectionTerminated`. Readiness is observed by the same XI2 process before
+input, and its owned probe cannot count as Android input. Root verified
+production/AndroidTest compile plus33 native XML tests/zero skips and105
+combined tool/workflow/queue/progress checks. Exact1887 discovery36797303341
+and stream36797304940 failed the shared bare-emulator identity probe before
+provider workspace/NSD/instrumentation/receipt; the SDK-path regression is
+old-source RED/current GREEN. New hosted input/disconnect and gamepad evidence
+remain open, so F60 remains reworking and58/67 CI-waiting counts do not change.

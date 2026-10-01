@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -27,12 +28,27 @@ class _GroupProcess:
         self.pid = pid
 
 
+class _PointerProcess:
+    def __init__(self, stdout) -> None:
+        self.stdout = stdout
+
+    def poll(self):
+        return 0
+
+    def wait(self, timeout=None):
+        return 0
+
+
 class _Processes:
     def __init__(self) -> None:
         self.alive_checks = 0
+        self.sunshine_stopped = False
 
     def require_alive(self) -> None:
         self.alive_checks += 1
+
+    def stop_sunshine(self) -> None:
+        self.sunshine_stopped = True
 
 
 class _Api:
@@ -125,6 +141,163 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             with self.assertRaises(OSError):
                 socket.create_connection(("127.0.0.1", bridge.host_port), timeout=0.1)
 
+    def test_private_phase_bridge_requires_exact_touch_then_stops_owned_sunshine(self) -> None:
+        class Witness:
+            def __init__(self, _owned) -> None:
+                self.started = False
+                self.closed = False
+                self.observed = False
+
+            def start(self) -> None:
+                self.started = True
+
+            def wait(self, _timeout) -> None:
+                if not self.started:
+                    raise AssertionError("not armed")
+                self.observed = True
+
+            def close(self) -> None:
+                self.closed = True
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            nonce = "e" * 64
+            witnesses = []
+
+            def witness_factory(current):
+                witness = Witness(current)
+                witnesses.append(witness)
+                return witness
+
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce=nonce,
+                paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
+                timeout_seconds=2,
+                witness_factory=witness_factory,
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client, \
+                    client.makefile("rwb", buffering=0) as control:
+                for request, response in (
+                    ("touch_ready", "touch_armed"),
+                    ("touch_sent", "touch_observed"),
+                    ("disconnect_ready", "owned_sunshine_stopped"),
+                ):
+                    control.write(stream._control_message(nonce=nonce, phase=request))
+                    self.assertEqual(
+                        stream._control_message(nonce=nonce, phase=response),
+                        control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                    )
+            bridge.wait()
+            bridge.close()
+            self.assertTrue(bridge.touch_observed)
+            self.assertTrue(bridge.provider_pairing_present_before_disconnect)
+            self.assertTrue(bridge.sunshine_stopped)
+            self.assertTrue(owned.processes.sunshine_stopped)
+            self.assertTrue(witnesses[0].closed)
+
+    def test_pointer_witness_requires_movement_and_primary_button_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            witness = stream.Xi2PointerWitness(owned)
+            witness._collect_effects = True
+            witness._process = _PointerProcess(io.BytesIO(
+                b"\xffowned-device\n"
+                b"EVENT type 6 (Motion)\n    root: 10.00/20.00\n"
+                b"EVENT type 4 (ButtonPress)\n    detail: 1\n"
+                b"EVENT type 6 (Motion)\n    root: 40.00/60.00\n"
+                b"EVENT type 5 (ButtonRelease)\n    detail: 1\n"
+            ))
+            witness._read()
+            witness.wait(1)
+            self.assertTrue(witness.observed)
+
+            incomplete = stream.Xi2PointerWitness(owned)
+            incomplete._collect_effects = True
+            incomplete._process = _PointerProcess(io.BytesIO(
+                b"EVENT type 6 (Motion)\n    root: 10.00/20.00\n"
+                b"EVENT type 4 (ButtonPress)\n    detail: 1\n"
+                b"EVENT type 5 (ButtonRelease)\n    detail: 1\n"
+            ))
+            incomplete._read()
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                incomplete.wait(1)
+
+    def test_pointer_listener_arms_only_after_its_owned_probe_is_observed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            read_descriptor, write_descriptor = os.pipe()
+            reader = os.fdopen(read_descriptor, "rb", buffering=0)
+            writer = os.fdopen(write_descriptor, "wb", buffering=0)
+            process = _PointerProcess(reader)
+            probes = []
+
+            def probe(x, y):
+                probes.append((x, y))
+                writer.write(
+                    f"EVENT type 6 (Motion)\n    root: {x}.00/{y}.00\n".encode("ascii")
+                )
+
+            try:
+                with mock.patch.object(stream.subprocess, "Popen", return_value=process):
+                    witness = stream.Xi2PointerWitness(owned, readiness_probe=probe)
+                    witness.start()
+                self.assertGreaterEqual(len(probes), 1)
+                self.assertFalse(witness.observed)
+                writer.write(
+                    b"EVENT type 6 (Motion)\n    root: 40.00/60.00\n"
+                    b"EVENT type 4 (ButtonPress)\n    detail: 1\n"
+                    b"EVENT type 6 (Motion)\n    root: 80.00/90.00\n"
+                    b"EVENT type 5 (ButtonRelease)\n    detail: 1\n"
+                )
+                witness.wait(1)
+            finally:
+                writer.close()
+                reader.close()
+
+    def test_pointer_listener_fails_closed_when_probe_is_never_observed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            process = _PointerProcess(io.BytesIO(b"\xffowned-device\n"))
+            with mock.patch.object(stream.subprocess, "Popen", return_value=process):
+                witness = stream.Xi2PointerWitness(
+                    owned,
+                    readiness_probe=lambda _x, _y: None,
+                    readiness_timeout_seconds=0.05,
+                )
+                with self.assertRaisesRegex(
+                    stream.StreamAcceptanceFailure, "listener is not ready"
+                ):
+                    witness.start()
+
+    def test_pointer_parser_resets_on_unknown_event_and_rejects_truncation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            stale = stream.Xi2PointerWitness(owned)
+            stale._collect_effects = True
+            stale._process = _PointerProcess(io.BytesIO(
+                b"EVENT type 6 (Motion)\n    root: 10.00/20.00\n"
+                b"EVENT type 1 (DeviceChanged)\n    root: 40.00/60.00\n"
+                b"EVENT type 4 (ButtonPress)\n    detail: 1\n"
+                b"EVENT type 11 (HierarchyChanged)\n    detail: 1\n"
+                b"EVENT type 5 (ButtonRelease)\n    detail: 1\n"
+            ))
+            stale._read()
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                stale.wait(1)
+
+            malformed = stream.Xi2PointerWitness(owned)
+            malformed._collect_effects = True
+            malformed._process = _PointerProcess(io.BytesIO(
+                b"EVENT type 6 (Motion)\n    root: 10.00/20.00\n"
+                b"EVENT type 4 (ButtonPress)"
+            ))
+            malformed._read()
+            self.assertIsInstance(malformed._failure, stream.StreamAcceptanceFailure)
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                malformed.wait(1)
+
     def test_owned_tone_is_private_bounded_stereo_pcm(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             tone = Path(temporary) / "tone.wav"
@@ -177,16 +350,26 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
 
         stream.install_adb_reverse(35_001, runner=run)
         stream.remove_adb_reverse(runner=run)
+        stream.install_adb_reverse(
+            35_002, android_port=stream.ANDROID_CONTROL_PORT, runner=run
+        )
+        stream.remove_adb_reverse(
+            android_port=stream.ANDROID_CONTROL_PORT, runner=run
+        )
         self.assertEqual(
             [
                 ["adb", "reverse", "tcp:49361", "tcp:35001"],
                 ["adb", "reverse", "--remove", "tcp:49361"],
+                ["adb", "reverse", "tcp:49362", "tcp:35002"],
+                ["adb", "reverse", "--remove", "tcp:49362"],
             ],
             calls,
         )
         for invalid in (0, 65_536):
             with self.assertRaises(stream.StreamAcceptanceFailure):
                 stream.install_adb_reverse(invalid, runner=run)
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream.install_adb_reverse(35_003, android_port=49_363, runner=run)
 
     def test_prebuild_materializes_both_apks_before_provider_deadlines(self) -> None:
         calls = []
@@ -319,16 +502,29 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 moonlight_package={"aarSha256": "a" * 64, "classesSha256": "b" * 64,
                                    "engineRevision": "engine", "sourceCommit": "c" * 40,
                                    "sourceTree": "e" * 40},
+                host_proof={
+                    "touchMouseEffect": True,
+                    "providerPairingPresentBeforeDisconnect": True,
+                    "ownedSunshineStopped": True,
+                },
             )
             self.assertEqual(0o600, stat.S_IMODE(destination.stat().st_mode))
             raw = destination.read_text(encoding="utf-8")
             receipt = json.loads(raw)
             self.assertTrue(receipt["streamAccepted"])
             self.assertFalse(receipt["featureAccepted"])
-            self.assertEqual("streamAndLocalRetirement", receipt["scope"])
+            self.assertEqual(
+                "twoStreamInputDisconnectAndLocalRetirement", receipt["scope"]
+            )
             self.assertTrue(receipt["proof"]["renderedFrame"])
             self.assertTrue(receipt["proof"]["fullPcmWrite"])
             self.assertTrue(receipt["proof"]["softwareKeyEffect"])
+            self.assertTrue(receipt["proof"]["touchMouseEffect"])
+            self.assertTrue(receipt["proof"]["connectionTerminated"])
+            self.assertTrue(receipt["proof"]["zeroRedispatch"])
+            self.assertTrue(
+                receipt["proof"]["providerPairingPresentBeforeDisconnect"]
+            )
             self.assertTrue(receipt["proof"]["localBindingCleared"])
             self.assertFalse(receipt["proof"]["providerPairingRemoved"])
             self.assertEqual(
@@ -341,7 +537,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
     def test_stream_scope_never_claims_or_performs_provider_removal(self) -> None:
         source = Path(stream.__file__).read_text(encoding="utf-8")
         self.assertIn(
-            "productionNsdPairCatalogLaunchStreamWitnessStopAndLocalRetirement",
+            "productionNsdPairCatalogTwoStreamLifetimesTouchStopDisconnectAndLocalRetirement",
             source,
         )
         self.assertIn("require_owned_client_present", source)
