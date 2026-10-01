@@ -1,5 +1,6 @@
 package com.ersingundem.larenor.playbackquality
 
+import android.app.Activity
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
@@ -17,6 +18,9 @@ class AndroidPlaybackCapabilityBridge(
     messenger: BinaryMessenger,
 ) : MethodChannel.MethodCallHandler {
     private val appContext = context.applicationContext
+    private val localPlayback = (context as? Activity)?.let(
+        ::LocalPlaybackCapabilityObserver,
+    )
     private val channel = MethodChannel(messenger, CHANNEL)
     private var disposed = false
 
@@ -29,7 +33,9 @@ class AndroidPlaybackCapabilityBridge(
             result.error("bridgeDisposed", null, null)
             return
         }
-        if (call.method != METHOD_SNAPSHOT) {
+        if (call.method != METHOD_SNAPSHOT &&
+            call.method != METHOD_LOCAL_PLAYBACK_PROFILE
+        ) {
             result.notImplemented()
             return
         }
@@ -38,6 +44,15 @@ class AndroidPlaybackCapabilityBridge(
             return
         }
 
+        if (call.method == METHOD_LOCAL_PLAYBACK_PROFILE) {
+            val snapshot = localPlayback?.snapshot()
+            if (snapshot == null) {
+                result.error("capabilityUnavailable", null, null)
+            } else {
+                result.success(snapshot.toChannel())
+            }
+            return
+        }
         val decoders = decoderMimeTypes()
         val display = displayEvidence()
         val network = networkEvidence()
@@ -162,6 +177,8 @@ class AndroidPlaybackCapabilityBridge(
     companion object {
         const val CHANNEL = "com.ersingundem.larenor/playback-quality"
         private const val METHOD_SNAPSHOT = "snapshot"
+        private const val METHOD_LOCAL_PLAYBACK_PROFILE =
+            "localPlaybackProfileSnapshot"
         private val MIME_TYPE = Regex(
             "[a-z0-9][a-z0-9!#&^_.+-]{0,63}/[a-z0-9][a-z0-9!#&^_.+-]{0,127}",
         )
