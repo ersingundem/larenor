@@ -5222,6 +5222,30 @@
           "state": "completed",
           "result": "failed",
           "label": "Engine and KVM passed; bare emulator executable absent from PATH in shared identity probe; no provider workspace, terminal Android report or receipt"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-owned-input-disconnect-android-2026-10-01.md",
+          "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
+          "state": "completed",
+          "result": "passed",
+          "label": "Production/AndroidTest compile and33 native XML tests with zero failures/errors/skips; root105 tool/workflow/queue/progress checks; hosted input/disconnect still open"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36799033298",
+          "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source actual configured SDK discovery probe; no NSD acceptance yet"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36799039362",
+          "commit": "2af5e8cc48c7cf52aa98172f6d5369337a8fa822",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source two-stream owned input/disconnect/local-retirement gate; no receipt yet"
         }
       ],
       "completionCommit": null,
