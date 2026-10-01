@@ -157,6 +157,7 @@ def test_worker_restart_keeps_systemd_runtime_as_authoritative_state(tmp_path):
     finally:
         server.close()
         thread.join(timeout=2)
+        assert not thread.is_alive()
 
     replacement = AiWorkerServer(
         path, runtime, owner_uid=os.geteuid(), peer_uid=os.geteuid()
@@ -174,6 +175,7 @@ def test_worker_restart_keeps_systemd_runtime_as_authoritative_state(tmp_path):
     finally:
         replacement.close()
         thread.join(timeout=2)
+        assert not thread.is_alive()
         _cleanup(path)
 
 
@@ -182,6 +184,7 @@ def test_worker_restart_removes_only_its_verified_stale_socket(tmp_path):
     old, server._socket = server._socket, None
     old.close()
     thread.join(timeout=2)
+    assert not thread.is_alive()
     assert path.exists()
     replacement = AiWorkerServer(
         path, runtime, owner_uid=os.geteuid(), peer_uid=os.geteuid()
@@ -192,6 +195,79 @@ def test_worker_restart_removes_only_its_verified_stale_socket(tmp_path):
     finally:
         replacement.close()
         _cleanup(path)
+
+
+def test_listener_retirement_rejects_an_already_accepted_stream(tmp_path):
+    runtime = Runtime()
+    with tempfile.TemporaryDirectory(prefix="larenor-f08-", dir="/tmp") as directory:
+        server = AiWorkerServer(
+            Path(directory) / "ai.sock",
+            runtime,
+            owner_uid=os.geteuid(),
+            peer_uid=os.geteuid(),
+        )
+
+        class Stream:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        stream = Stream()
+
+        class Listener:
+            def accept(self):
+                server._socket = None
+                return stream, None
+
+        server._socket = Listener()
+        server._handle = lambda _stream: pytest.fail("retired_listener_dispatched")
+        server.serve_forever()
+
+        assert stream.closed is True
+        assert runtime.calls == []
+
+
+def test_retired_listener_timeout_never_adopts_replacement_listener():
+    runtime = Runtime()
+    with tempfile.TemporaryDirectory(prefix="larenor-f08-", dir="/tmp") as directory:
+        server = AiWorkerServer(
+            Path(directory) / "ai.sock",
+            runtime,
+            owner_uid=os.geteuid(),
+            peer_uid=os.geteuid(),
+        )
+
+        class Replacement:
+            accept_calls = 0
+            closed = False
+
+            def accept(self):
+                self.accept_calls += 1
+                pytest.fail("retired_thread_adopted_replacement_listener")
+
+            def close(self):
+                self.closed = True
+
+        replacement = Replacement()
+
+        class Original:
+            accept_calls = 0
+
+            def accept(self):
+                self.accept_calls += 1
+                server._socket = replacement
+                raise TimeoutError()
+
+        original = Original()
+        server._socket = original
+        server.serve_forever()
+
+        assert original.accept_calls == 1
+        assert replacement.accept_calls == 0
+        server.close()
+        assert replacement.closed is True
+        assert runtime.calls == []
 
 
 def test_normal_core_settings_require_complete_private_worker_socket(tmp_path):

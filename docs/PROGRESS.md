@@ -16,6 +16,8 @@
 
 ## Son doğrulanan düzeltmeler
 
+F08 AI worker listener kapanışı bounded accept polling ve exact listener sahipliğiyle düzeltildi; emekli thread yeni listenerı devralamaz veya kabul edilen eski stream’i işleme gönderemez. Root 12 passed/1 explicit Linux user-manager skip geçti. **CI bekliyor**; gerçek Linux kabulü yeni koşuda doğrulanacak. [Mekanizma ve sınırlar](testing/f08-worker-listener-close-2026-10-01.md).
+
 F30 medya arşivi artık elapsed EOF/parser hatasını aynı monotonic süre sınırında doğru şekilde sınıflandırır; erken EOF hâlâ protokol hatasıdır. Aynı yazma isteği tekrarlanmaz. Gerçek owned loopback RED→GREEN ve root 10/10 transport testi geçti; **CI bekliyor**. [Dar kanıt](testing/media-archive-deadline-eof-2026-10-01.md).
 
 Backup power-loss fixture’ının yalnız kesilmiş restore/recovery işlemlerindeki süre sınırı 8’den 30 saniyeye çıkarıldı. Hosted committed vaka 8,476 saniye sürdü; süre aşımı güçlü çıkarım, redacted asıl exception nedeniyle kesin kök neden değildir. Dört power-loss ve iki yetkisiz pause vakası root kabulünü geçti; production restore motoru değişmedi. [Dar kanıt ve sınırlar](testing/backup-committed-recovery-2026-10-01.md). Yeni Linux CI sonucu gerekli.

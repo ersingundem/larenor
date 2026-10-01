@@ -19,6 +19,7 @@ from .runtime import AiDispatch, AiRuntimeError, AiRuntimeObservation
 PROTOCOL_VERSION = 1
 MAX_FRAME_BYTES = 16 * 1024
 MAX_DEADLINE_MS = 12_000
+ACCEPT_POLL_SECONDS = 0.25
 _KINDS = frozenset({"assistant", "vision", "embedding", "automation"})
 
 
@@ -305,6 +306,7 @@ class AiWorkerServer:
             os.chown(self.path, self.owner_uid, self.socket_gid)
             os.chmod(self.path, 0o660)
             server.listen(16)
+            server.settimeout(ACCEPT_POLL_SECONDS)
             current = os.stat(self.path, follow_symlinks=False)
             self._identity = (current.st_dev, current.st_ino)
             self._socket = server
@@ -367,13 +369,21 @@ class AiWorkerServer:
     def serve_forever(self):
         if self._socket is None:
             self.bind()
-        while self._socket is not None:
+        server = self._socket
+        if server is None:
+            return
+        while self._socket is server:
             try:
-                stream, _address = self._socket.accept()
+                stream, _address = server.accept()
+            except TimeoutError:
+                continue
             except OSError:
-                if self._socket is None:
+                if self._socket is None or self._socket is not server:
                     return
                 raise
+            if self._socket is not server:
+                stream.close()
+                return
             with stream:
                 self._handle(stream)
 

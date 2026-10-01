@@ -3574,7 +3574,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux CI bekliyor. docs/testing/f08-worker-listener-close-2026-10-01.md."
     },
     {
       "id": "F04",
@@ -5504,10 +5504,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact362 embed-v3 canonical1test/0failure/0error/0skip,2fresh production NSD lifetimes; bounded receipt root verified;streamAccepted=false"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-pin-transport-observation-2026-10-01.md",
+          "commit": "e5e89192a396b5b3508692f6ffec817ed78b665d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root60stream/discovery+10workflow passed;fixed transport stages and exact owned child reaping;strict actual runtime acceptance separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36816571516",
+          "commit": "31f152c20cea3fde5b58b84b781be45564e90a54",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source strict owned Sunshine stream gate;exact31 includes e5 PIN observation and cleanup;no runtime acceptance yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact362/run36813869676 embed-v3 canonical 1 test/1 failure/0 error/0 skip, AssertionError pairingRegistration (owned lines680/99), PIN bridge listening. Android presenter kaynakta senkron socket connect/write sonrası döner; bu stage kabul/okuma/parse öncesi hataları ayırmadığından kesin provider nedeni bilinmiyor. Aynı exact discovery36813871246 iki fresh NSD yaşamı/1test/0skip ile geçti; streamAccepted=false. 40 native iptal/deadline, root165tool, actual iki-ABI product APK5verifier ve JVM343passed/2explicit opt-in skip/0failure geçti. Newline/EOF dar fixture RED→GREEN kabulü eski/yeni hosted pairing hatasının tek nedeni sayılmaz. Dar host transport gözlemi hazırlanıyor; kör aynıSHA rerun yok. Strict gerçek frame/PCM/input/stop/disconnect/two-lifetime kapıları açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Kanıt: docs/testing/f60-pairing-cancellation-2026-10-01.md. PIN bridge fixedenum ve owned process cleanup dar düzeltmesi root60stream/discovery+10workflow geçti; erken transport failure ayrı görünür, strict gerçek stream kabulü değişmedi. docs/testing/f60-pin-transport-observation-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact362/run36813869676 embed-v3 canonical 1 test/1 failure/0 error/0 skip, AssertionError pairingRegistration (owned lines680/99), PIN bridge listening. Android presenter kaynakta senkron socket connect/write sonrası döner; bu stage kabul/okuma/parse öncesi hataları ayırmadığından kesin provider nedeni bilinmiyor. Aynı exact discovery36813871246 iki fresh NSD yaşamı/1test/0skip ile geçti; streamAccepted=false. 40 native iptal/deadline, root165tool, actual iki-ABI product APK5verifier ve JVM343passed/2explicit opt-in skip/0failure geçti. Newline/EOF dar fixture RED→GREEN kabulü eski/yeni hosted pairing hatasının tek nedeni sayılmaz. Dar host transport gözlemi hazırlanıyor; kör aynıSHA rerun yok. Strict gerçek frame/PCM/input/stop/disconnect/two-lifetime kapıları açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Kanıt: docs/testing/f60-pairing-cancellation-2026-10-01.md. PIN bridge fixedenum ve owned process cleanup dar düzeltmesi root60stream/discovery+10workflow geçti; erken transport failure ayrı görünür, strict gerçek stream kabulü değişmedi. docs/testing/f60-pin-transport-observation-2026-10-01.md. Yeni exact31/run36816571516 strict stream koşusu başladı; runtime makbuzu henüz yok."
     },
     {
       "id": "G11",
@@ -5813,13 +5829,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36814807367",
           "commit": "70ab1058495957844edc79740abe46df4a50296a",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact70ab1058 changed-source strict two-lifetime RDP hosted gate; no runtime acceptance yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact70ab changed-source hosted gate failed packaged x86 runtime;arm64 package passed;bounded receipt triage in progress,no runtime acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 sürüyor, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Bounded makbuz incelemesi sürüyor, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
     },
     {
       "id": "F61",
