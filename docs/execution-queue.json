@@ -3872,7 +3872,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Süreli destek oturumu",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3895,9 +3895,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "review",
+          "ref": "docs/testing/f14-support-sessions-review-2026-10-01.md",
+          "commit": "e52b0708ab67b89f166745d7e2fbfb61b577de32",
+          "state": "completed",
+          "result": "failed",
+          "label": "Independent productionClient review found capturedtoken dialog drift/copy andlateaction commit gaps plus missing safe reconcile; actualnamedServer3passed doesnotproveClient/TCP gate"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Core/ev/oturum ailesi ve sabit destekçi kimliğine bağlı, en fazla 20 dakikalık tek gösterimli token; beş sabit salt okunur izin, HMAC bütünlüğü, bounded ve hassas içerik saklamayan etkinlik kaydı, süre/iptal/oturum-rol değişiminde fail-closed kapanış ve uzak kabuk içermeyen destek API’si 5380afa7 ile uygulandı. Client yönetim yüzeyi dar izin seçimi, tek seferlik token kopyalama, kalan süre, redaksiyon politikası, etkinlik görünümü ve açık bağlantı kesme akışıyla 155c61a5 üzerinde tamamlandı. Core smoke’u ve dar Flutter analizi temiz; özellik testleri, bağımsız inceleme ve exact-head CI final toplu doğrulama evresinde açık. 30 Eylül normal Core kabulü: 6 focused ve 44 admin yetki regresyonu geçti; token tek-görünüm/idempotency, fixed bounded reads, confirm/replay, restart, expiry, session/role/revoke ve HMAC tamper fail-closed sınandı. Exact HEAD geniş CI açık."
+      "reason": "Yeniden çalışılıyor: bağımsız gerçek Client/Core incelemesi destek tokenı dialogunun hesap/ev/rol değişiminde açık kalabildiğini, copy callback’inin current authority kontrolü yapmadığını ve action yanıtlarının invalidate sonrası eski state’i yazabildiğini buldu. Belirsiz create sonucunda görünür yeniden listeleme/uzlaşma akışı da eksik. Mevcut normal Core dosyası gerçekten 3 Server testidir ve 3/3 geçti; önceki 6+44 sayısı Client/TCP/widget kabulü değildir. Bu nedenle F14 CI bekleyenlerden çıkarıldı. Dialog sahipliği ve oturum çiti, yanıt sonrası commit kontrolü, tekrar create göndermeden refresh/reconcile ile gerçek Flutter→normal Core TCP ve restart kabulü hazırlanıyor. Server HMAC/tek gösterimli token/20 dakika/sabit salt okunur kapsamları mevcut; bunlar eksik Client kapısını kapatmaz. Kanıt: docs/testing/f14-support-sessions-review-2026-10-01.md."
     },
     {
       "id": "F19",
@@ -4732,7 +4741,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımı ayrıca tamamlanacak. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). 30 Eylül bağımsız provider incelemesi: gerçek Frigate semantic search doğrudan normal Core’a bağlı; F08 dependency sıra/kabul kapısı olarak korunuyor, runtime ingest eksikliği olarak gösterilmiyor. Native decode/UI ve exact HEAD geniş CI açık."
+      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate arama/kaynak ve yetkili klip görünümünü uygular. Klip Core üzerinden sabit native event clip.mp4 yolundan alınır; indirme öncesi/sonrası exact metadata, provider kamera izni, registry, ACL ve kaynak kontrol edilir; 64 MiB limit ve SHA-256 doğrulaması var. Flutter mevcut oturumda gerçek media_kit oynatıcı, EN/TR erişilebilir oynat/duraklat/seek/Space ve deterministik özel dosya/Blob temizliği kullanır. F41+transport 122 Server, 29 Flutter ve gerçek Client→normal Core→TCP Frigate MP4 kapısı geçti, analyze temiz. Native video decode/UI, geniş kabul, fiziksel kamera ve exact HEAD CI açık; F42 korumalı paylaşımının ayrı gerçek normal Core/Frigate/FFmpeg kapısı geçti; o iş de geniş CI bekliyor. F42 için yalnız gerçek arama sonucundan üretilen, restart/önbellek sonrasında yaşayan AES-GCM olay yetkisi ve güncel izinli klip okuması eklendi; 8 normal Core/TCP mühür testi, 40 odaklı regresyon geçti (docs/testing/f41-private-event-binding-2026-09-30.md). 30 Eylül bağımsız provider incelemesi: gerçek Frigate semantic search doğrudan normal Core’a bağlı; F08 dependency sıra/kabul kapısı olarak korunuyor, runtime ingest eksikliği olarak gösterilmiyor. Native decode/UI ve exact HEAD geniş CI açık."
     },
     {
       "id": "F44",
@@ -5301,11 +5310,11 @@
           "commit": "a703289d617380c768f5b50761609c0b2913ce24",
           "state": "in_progress",
           "result": null,
-          "label": "One missing-gate retry after pre-test external cancellation; exact SHA verified,hosted UHID passed andreceipted engine building;no stream receipt yet"
+          "label": "One missing-gate retry after pre-test external cancellation; exactSHA verified, hostedUHID and receiptedenginebuild/install passed; real stream/localretirement step running, no acceptance receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve tablet-only retirement odaklı kabulü geçti; UI Sunshine eşlemesinin kaldığını açıklar. Exact5fa91e43/run36802851003 gerçek Android NSD canonical source-bound1test/0skip/0failure/0error receipt verdi; iki fresh discovery lifetime ve engine/source/package binding doğrulandı. streamAccepted=false: keşif, yayın kabulü değildir. Same-source stream36802861944 emulator boot sonrası APK prebuild sırasında cancelled; instrumentation/provider failure code/receipt yok, cleanup geçti. Terminal backend ve stale GET farklı; eski live concurrency lease kalktı. Eksik gate için tek retry exacta703289d/run36804692946 çalışıyor; gerçek hostedUHID hazırlığı geçti ve engine derleniyor. Named gate iki frame/fullPCM yaşamı, touch/mouse→XI2, gamepad→UHID/evdev BTN_SOUTH etkisi, causal stop, exact daemon shutdown→connectionTerminated, no redispatch ve local-clear ister. Hosted stream ve geniş HEAD CI açık; F60 tamamlandı/CI bekliyor yapılmaz. Receipt featureAccepted=false/providerPairingRemoved=false; fiziksel controller/gecikme MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yolu ve tablet üzerinden yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run36802851003, tek test ve sıfır atlama ile iki yeni Android NSD keşif yaşamını doğruladı; streamAccepted=false. Exact a703289d / run36804692946, hosted UHID ve gerçek motor derleme/kurulumunu geçti; iki yayın yaşamının girdi, kopuş ve yerel temizleme adımı çalışıyor, kabul receipt’i yok. Gerçek frame/PCM, touch/mouse→XI2, gamepad→UHID/evdev BTN_SOUTH, normal stop, daemon kapanışı→connectionTerminated ve tekrar göndermeden yerel temizleme kanıtı olmadan F60 CI bekliyor yapılmaz. Eski 36802861944 erken APK prebuild sırasında cancelled; test/receipt yok, terminal backend ile stale GET farklı ve live lease kalktı. UI sağlayıcı eşlemesinin kaldığını açıklar; providerPairingRemoved=false. Fiziksel controller/gecikme MANUAL, geniş final HEAD CI ayrı. 57/66 CI bekliyor ve 37/127,3/63 kabul sayıları korunur."
     },
     {
       "id": "G11",
@@ -5531,9 +5540,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36804331620",
           "commit": "8d54993f8138a798bb3fa436dafd9f139b5feebb",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact8d x86 owned fixture CMake configure_failed before compile/Android/runtime; bounded native report absent because runner never ran;arm64 APK still building, overall metadata pending"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact8d completedFAILED: arm64 real AAR/APK packageSUCCESS; x86 ownedfixtureconfigure_failed beforeAndroid/runtime; originalprivateCMakecause unproved; old absent-native-report upload alsofailed"
         },
         {
           "kind": "test",
@@ -5549,11 +5558,11 @@
           "commit": "1d1ccf2e14e5814800417c32cbe45e8e1fceb24c",
           "state": "in_progress",
           "result": null,
-          "label": "Changed-source exact1d ownedSAM/NLA fixture auth/configure diagnostics and CLIPRDR/DISP two-lifetime gate started; exactSHA verified, no runtime receipt yet"
+          "label": "Exact1d ownedLinux CLIPRDR/DISP fixture actuallycompiledSUCCESS; Android ABI/app/runtime gate inprogress, no two-lifetime receipt; compilealone is notfeatureacceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano yazılım yolu45 Flutter/15 native ve analyze geçti. Exactd69 native koşusu resizedFrameWait/1failure/0skip ile failed. Exact8d54993f gerçek Unicode x86_64 AAR rebuild/receipt/verify-install, app+AndroidTest compile,24 RDP unit/0skip/0failure/0error ve105 Python kontrolünü geçti; JNI UTF16→standard UTF8/emoji/NUL/surrogate/64KiB/payload silme source/package identity ile bağlıdır. Aynı kaynak CI36804331620 x86 CMake configure_failed verdi; Android/runtime başlamadı, private CMake alt nedeni yok, arm64 APK sürüyor. Yeni fixture ayarı yalnız privateSAM/NLA/NTLM scopeunda Linux-default KRB5 REQUIRED bağımlılığını explicitOFF yapar; önceki exact hata nedeni henüz kanıtlanmaz. Bounded configure/build failure receipt gerçek Git SHA+source/patch/log hashes ve yalnız fatalblock fixedreason/location yayımlar; rawlogs gizlidir, skippedAndroid raporu yüklenmez. DirectCLI PYTHONPATHsiz farklıcwdde ve112 Python/policy/queue kontrolü, actionlint geçti. İki actual authenticated lifetime için CLIPRDR Unicode remote etkisi/DISP→resize→frame/ACK ve clipboardkapalı zero-transfer hosted gate açık. Geniş HEAD CI/fiziksel MANUAL ayrı; F62 tamamlandı/CI bekliyor değildir;58/67 ve37/127,3/63 korunur. Exact1d1ccf2e/run36805226494 değişen kaynak gate başladı; source-bound runtime sonucu bekleniyor."
+      "reason": "Yeniden çalışılıyor: gerçek Unicode x86_64 AAR, paket receipt’i ve kurulum doğrulaması, app+AndroidTest derlemesi ve 24 RDP unit testi sıfır atlama/hata ile geçti. Exact 1d1ccf2e / run36805226494, Linux CLIPRDR/DISP fixture derlemesini gerçekten geçti; iki authenticated Android yaşamının TLS/NLA/SPKI, DISP→resize→frame/ACK, Unicode uzak pano etkisi ve kapalı panoda sıfır transfer kabul receipt’i henüz yok. Gerçek runtime kapısı açık olduğundan F62 CI bekliyor değildir. Geçmiş exact 8d / run36804331620 terminal failed: arm64 AAR/APK passed, x86 configure_failed; exact d69 resizedFrameWait failed. Yeni SAM fixture Kerberos kapsamını kapatır; 112 yerel kontrolü ve güvenli hata tanısı geçti, eski hata nedeni kanıtlanmaz. Geniş final HEAD CI ile Windows/Huawei/DeX ve ileri kanallar için MANUAL ayrı; 57/66 CI bekliyor ve 37/127,3/63 kabul korunur."
     },
     {
       "id": "F61",
@@ -5665,7 +5674,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 hosted native receipt geçti. F60 exact5fa Android discovery1test/0skip/2-lifetime geçti; gerçek stream/input/gamepad/disconnect için exacta703/run36804692946 sürüyor. F62 exactd69 resizedFrameWait failed; exact8d Unicode AAR/compile/24unit geçti, Linux fixture configure_failed. Source-only KRB5 scope/strict build diagnostics/directCLI ve112 yerel kontrolü geçti; iki-lifetime Linux/Android gate ve MANUAL açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63. Exact1d1ccf2e/run36805226494 yeni ownedRDP gate sürüyor; receipt henüz yok."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 57 seçili/toplam 66 iş geniş final HEAD CI bekliyor. F14 bağımsız incelemede gerçek token dialogu, geç yanıt ve yeniden uzlaşma eksikleriyle yeniden açıldı; Client düzeltmesi ve normal Core TCP kapısı çalışılıyor. F60 gerçek Android NSD keşfi geçti; a703/run36804692946 yayın/girdi/kopuş receipt’i henüz yok. F62 1d/run36805226494 Linux fixture derlemesi geçti; iki Android yaşamının Unicode/DISP receipt’i henüz yok. F14/F60/F62 yeniden çalışılıyor; F61 hosted native kabulü geçti. İkinci FINAL başlamaz; tam kabul 37/127 ve 3/63 korunur."
     },
     {
       "id": "FINAL.UI",

@@ -1,40 +1,63 @@
 # FINAL.FUNCTION yazılım kabul kaydı — 30 Eylül 2026
 
-Bu kayıt `codex/project-completion-100` dalındaki tam fonksiyonellik,
-entegrasyon uyumu ve kullanılabilirlik geçişinin kapanış kanıtını tutar.
-Uygulama test tabanı `06f5551a242aca47ebcf0f2476881e2deec5d1da`,
-son workflow düzeltme tabanı `52b30612b19d0dba7e4e3fb41a1dfcddba38243c`
-commit'idir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı kanıtları ilgili
-`MANUAL.*` kapılarında kalır.
+Bu kayıt `codex/project-completion-100` dalındaki canlı yazılım kabul durumunu
+özetler. Şu anda yalnız `FINAL.FUNCTION` aktiftir. Yazılımı ve odaklı kanıtı
+tamamlanan 57 seçili özellik / toplam 66 iş `awaiting_ci` durumundadır; bu etiket
+tam kabul değildir. Kanıtla kabul edilen sayaçlar **37/127 iş** ve **3/63 seçili
+özellik** olarak değişmemiştir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı
+kanıtları ilgili `MANUAL.*` kapılarında kalır.
 
-## Yerel doğrulama
+## Güncel adlandırılmış kanıtlar
 
-- Server/Core tam paketi `server/.venv/bin/python -m pytest -q server/tests`
-  komutuyla yeniden koşuluyor; ayrıca exact-head CI dört izole shard ile aynı
-  kapsamı zorunlu olarak çalıştıracak.
-- Flutter tam paketi `flutter test --reporter compact` komutuyla uygulama test
-  tabanında 7.637 geçti, 4 platform testi atlandı.
-- `flutter analyze` kabul tabanında sıfır uyarı ve sıfır hatayla geçti.
-- F08–F11 için 4 Server ve 4 Flutter, F24–F27 için 16 Server, 8 Flutter ve 2
-  Android/JVM, F48–F51 için 8 Flutter ve 49 ilişkili Server kabul testi geçti.
-- F62'nin ilk exact koşusunda `xdpyinfo` aracını sağlayan `x11-utils` paketinin
-  eksikliği bulundu. Bağımlılık ile politika testi eklendi; yeni exact workflow
-  `52b30612` için sonucu bekliyor. Gerçek ev cihazında yazma işlemi yapılmadı.
-- Bütün platform politika paketi 442 geçti, 4 atlandı. Kuyruk aracı testleri
-  bunun içinde 25/25 geçti ve kuyruk doğrulaması 126 iş ile 63 seçili özelliği
-  kabul etti.
-- `python3 tool/check_commit_progress.py --base origin/main --head 52b30612`
-  workflow tabanına kadar 323 commit'i doğruladı.
+- F08 Linux bağımlılık kapısı exact `09a912b4`, run `36750577813` üzerinde
+  geçti. Bu nedenle F09 için eski “F08 Linux kabulü bekleniyor” kaydı artık
+  geçerli değildir; F09 `awaiting_ci` durumundadır.
+- F60 discovery exact `5fa91e438806decc81d24c4e8a28058bbd53cea3`, run
+  `36802851003`, bir canonical test / sıfır skip ve iki taze NSD yaşamıyla
+  geçti; makbuz `streamAccepted=false` der. Ayrı stream exact
+  `a703289d617380c768f5b50761609c0b2913ce24`, run `36804692946`, gerçek adımda
+  hâlâ aktiftir ve kabul makbuzu yoktur. F60 `reworking` kalır.
+- F62'nin önceki exact `8d` kaynağında Unicode AAR uygulama/test derlemesi ve
+  24 native unit geçti; hosted run `36804331620` ise arm64 paketlemesi başarılı
+  olmasına rağmen x86 fixture configure ve ikincil absent-report upload
+  hatalarıyla **failure** tamamlandı. Güncel exact
+  `1d1ccf2e14e5814800417c32cbe45e8e1fceb24c`, run `36805226494`, x86_64 owned
+  Linux fixture derlemesini geçti; arm64 fixture doğru olarak atlandı. Android APK ve gerçek
+  runtime kabul kapısı açıktır; kabul makbuzu yoktur. Bu sonuç eski exact-`8d`
+  configure hatasının nedenini kanıtlamaz. F62 `reworking` kalır.
+- Bu named koşular yalnız yazılan exact revision ve işi kanıtlar. Son dal HEAD'i
+  için Security run `36805382482` (`e52`) ve run `36805221988` (exact `1d`) geçti;
+  geniş Server ve Android kabul kapıları ise tamamlanmamıştır. Bu iki Security
+  sonucu tek başına geniş latest-HEAD CI kabulü değildir.
+
+## Tarihsel yerel kabul tabanı — 30 Eylül
+
+Aşağıdaki sonuçlar önceki `06f5551a242aca47ebcf0f2476881e2deec5d1da` uygulama
+tabanının kanıtını korur; güncel birleşik HEAD doğrulaması değildir.
+
+- Flutter tam paketi 7.637 geçti; 4 platform testi atlandı. `flutter analyze`
+  aynı kabul tabanında sıfır uyarı ve hatayla geçti.
+- F08–F11 için 4 Server ve 4 Flutter; F24–F27 için 16 Server, 8 Flutter ve
+  2 Android/JVM; F48–F51 için 8 Flutter ve 49 ilişkili Server testi geçti.
+- Platform politika paketi 442 geçti, 4 atlandı; içindeki 25 kuyruk testi
+  o tarihteki 126 iş ve 63 özellik şemasını doğruladı. Güncel kuyruk 127 iştir.
+- `tool/check_commit_progress.py` eski workflow düzeltme tabanı
+  `52b30612b19d0dba7e4e3fb41a1dfcddba38243c` için 323 commit’i doğruladı.
 
 ## İnceleme kapsamı
 
 Kapanış incelemesi Flutter kullanıcı akışları ve yaşam döngüsü, Server/Core
-sözleşme ve geri kazanma sınırları, kuyruk/kanıt tutarlılığı olarak yürütüldü.
-Bulunan gerçek yedekleme zaman bütçesi kararsızlığı dar testlerle düzeltildi;
-eski başarısız CI koşusu körlemesine yeniden başlatılmadı.
+sözleşme ve geri kazanma sınırları, kuyruk/kanıt tutarlılığı olarak yürütülür.
+Geçmiş kırmızı koşular yalnız tarihsel tanı kaydıdır; güncel durum yerine
+sunulmaz ve değişen kaynak kanıtı olmadan kabul verilmez.
+
+F14 bağımsız Client incelemesinde token penceresi/clipboard current-authority
+çiti, geç yanıt state commit’i ve belirsiz create sonrası görünür uzlaşma
+eksikleri bulundu. Adlandırılmış Server dosyası 3/3 geçti; bu Client/TCP kabulü
+değildir. F14 `reworking` olarak yeniden açıldı; [inceleme kaydı](f14-support-sessions-review-2026-10-01.md).
 
 ## Açık kapı
 
-Bu belge commit'i için Security, Server API & Storage ve Android Build
-exact-head CI koşuları başarılı olmadan `FINAL.FUNCTION` kanıtla
-tamamlandı sayılmaz ve `FINAL.UI` başlatılmaz.
+57 seçili özellik / 66 iş CI beklerken, F14, F60 ve F62 gerçek işlev kapıları
+`reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
+`FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.

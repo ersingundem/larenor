@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif. Yazılımı ve odaklı kabulü tamamlanan 58 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 67 iş CI bekliyor tablosunda. F60 normal Core/Client/native v2 entegrasyonu doğrulandı; gerçek Sunshine eşleme/yayın/girdi kabulü hâlâ açık ve yeniden çalışılıyor. Bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61 exactf83deee7 gerçek TigerVNC/1test/0skip receipt geçti; F62 ACK, capability/display sınıflandırması ve authenticated output düzeltmeleri odaklı kabulü geçti; gerçek packaged native ve exact display/clipboard kabulü açık, yeniden çalışılıyor. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`; 37/127 (%29,1) kuyruk işi ve 3/63 (%4,8) seçili özellik kanıtla kabul edildi. Yalnız FINAL.FUNCTION aktif; F14 gerçek Client yaşam döngüsü eksikleriyle yeniden açıldı. Yazılımı ve odaklı kabulü tamamlanan 57 seçili özellik ile K09/K10/K11/K12/K13 ve PRODUCT.HEALTH/PROVIDERS/APPLETV/CAMERA, toplam 66 iş CI bekliyor tablosunda. F60 normal Core/Client/native v2 entegrasyonu doğrulandı; gerçek Sunshine eşleme/yayın/girdi kabulü hâlâ açık ve yeniden çalışılıyor. Bunlar CI veya MANUAL cihaz kapısı sayılmaz. F61 exactf83deee7 gerçek TigerVNC/1test/0skip receipt geçti; F62 ACK, capability/display sınıflandırması ve authenticated output düzeltmeleri odaklı kabulü geçti; gerçek packaged native ve exact display/clipboard kabulü açık, yeniden çalışılıyor. F08 exact 09a912b4 Linux cgroup, host exact 888dfd46 kurulu Core/IPC/systemd ve SSH exact f5b382ce güçlü 7-test receipt ve gerçek Linux/normal Core/APK koşuları yeşil. Son dal HEADinin geniş CI kabulü henüz yok. Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında açık. Tüm FINAL maddelerinden sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -16,6 +16,27 @@ sonradan seçilen 63 özelliği içermez; genişletilmiş ürünün tamamlanma o
 olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
+
+## Güncel durum ayrımı — 1 Ekim
+
+| Durum | İşler | Kalan kapı |
+| --- | --- | --- |
+| **CI bekliyor** | Geliştirme ve adlandırılmış odaklı kabulü tamamlanan **57 seçili özellik / toplam 66 iş** | Birleşik son dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden çalışılıyor** | **F14** | Bağımsız incelemede token dialogu ve geç yanıtların oturum değişimine karşı çiti, görünür güvenli refresh/reconcile ve gerçek Client→normal Core TCP kabulü eksik bulundu. Düzeltme hazırlanıyor. |
+| **Yeniden çalışılıyor** | **F60** | Android NSD exact5fa91e43/run36802851003 geçti; exacta703289d/run36804692946 gerçek yayın/girdi/kopuş/yerel temizleme receipt’i henüz yok. |
+| **Yeniden çalışılıyor** | **F62** | Exact1d1ccf2e/run36805226494 Linux CLIPRDR/DISP fixture’ını derledi; iki authenticated Android yaşamının Unicode/DISP/frame/ACK receipt’i henüz yok. |
+| **Aktif final** | **FINAL.FUNCTION** | F14/F60/F62 işlev açıkları ve kabul kapıları, tam inceleme ve geniş final HEAD CI |
+
+F14 önceki CI bekliyor tablosundan gerçek bağımsız inceleme sonucu çıkarıldı.
+Mevcut adlandırılmış Server dosyası **3 testtir ve 3/3 geçti**; önceki 6+44 sayısı
+Client/TCP kabulü değildir. [Somut inceleme bulguları](testing/f14-support-sessions-review-2026-10-01.md).
+CI bekliyor etiketi kabul sayacını artırmaz: **37/127 iş ve 3/63 özellik** değişmedi.
+Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında kalır. Exact1d ve doc-head
+e52b0708 Security koşuları yalnız Security kanıtıdır; geniş HEAD CI değildir.
+
+## Tarihsel doğrulama kayıtları
+
+Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
 
 ### 1 Ekim F62 Linux fixture configure sınırı
 
