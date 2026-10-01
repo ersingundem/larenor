@@ -153,6 +153,7 @@ class ServerTestWorkflowTest(unittest.TestCase):
             "f60-host": "f60-sunshine-owned-host",
             "f60-discovery": "f60-sunshine-android-discovery",
             "f60-stream": "f60-sunshine-android-stream",
+            "f30-media": "media-archive-linux",
         }
         all_jobs = {
             "f08-linux-cgroup",

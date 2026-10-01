@@ -4313,7 +4313,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Archive read/action/authority socketları, UID1000 worker/Unmanic, private catalog/mount kökleri ve Core /run/larenor-workers bileşimi paketlenmiştir; exact888dfd46 run36762186381 production bundle/systemd load kapısı geçti. Pinned Unmanic/FFmpeg, provider/collector/engine/resolver/cleanup kanıtları korunur. Gerçek admin provisioning, Docker/mount/free-space/media ve archive encode MANUAL.INSTALL/MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim elapsed EOF yanlış protokol sınıflandırması aynı monotonic deadline ile düzeltildi; actual loopback no-repeat RED/GREEN ve root10transport geçti. Değişen kaynak CI bekliyor. docs/testing/media-archive-deadline-eof-2026-10-01.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Archive read/action/authority socketları, UID1000 worker/Unmanic, private catalog/mount kökleri ve Core /run/larenor-workers bileşimi paketlenmiştir; exact888dfd46 run36762186381 production bundle/systemd load kapısı geçti. Pinned Unmanic/FFmpeg, provider/collector/engine/resolver/cleanup kanıtları korunur. Gerçek admin provisioning, Docker/mount/free-space/media ve archive encode MANUAL.INSTALL/MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim elapsed EOF yanlış protokol sınıflandırması aynı monotonic deadline ile düzeltildi; actual loopback no-repeat RED/GREEN ve root10transport geçti. Değişen kaynak CI bekliyor. docs/testing/media-archive-deadline-eof-2026-10-01.md. Exact5325 geniş koşusunda7archive verifier/encoder/engine hatası görüldü. Positive fixture video range/colorspace açık tanımlandı; gerçekmetadata drift rejection korunur. Root37gerçekmedia testi/3workflow/11subtest/actionlint geçti; changed-sourceUbuntu ve genişCI bekliyor. docs/testing/f30-explicit-color-fixture-2026-10-01.md."
     },
     {
       "id": "G07",
@@ -5520,10 +5520,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact31 fixed readRejected after loopback accept/peer verification;instrumentation_report_missing from owned host retirement;precise transport cause unproved;no runtime acceptance"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36819571890",
+          "commit": "57f929459a22ab6082e400194e31e0162545f672",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact57f source changed PIN ACK fixture;strict owned Sunshine stream run started;not acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact31/run36816571516 strict owned stream failed; PIN bridge readRejected, instrumentation_report_missing, ownedframes[]. Bu yeni tanı kabul edilmiş loopback bağlantısı ve doğrulanmış peer sonrası canonical PIN/nonce parse öncesi bounded read hatasını ayırır; EOF/deadline/socket/framing alt nedeni kanıtlanmaz. Host terminal bridge failure sonrası exact Gradle childı kapattığı için missing report app crash kanıtı değildir. docs/testing/f60-pin-read-rejection-2026-10-01.md. Exact362 discovery iki fresh production NSD yaşamı/1test/0skip geçti, streamAccepted=false. Root60stream/discovery+10workflow,40native iptal/deadline,actual v3iki-ABI APK5verifier,JVM343passed/2explicit skip geçer; bunlar gerçek stream yerine sayılmaz. Parsed-peer ACK source incelemesi/dar fixture onarımı sürüyor; aynıSHA kör rerun yok. Gerçek frame/PCM/input/iki yaşam/stop/disconnect kabulü ve geniş finalHEAD CI açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Canonical PIN parse sonrası sabit ACK+EOF owned fixture düzeltmesi root56runner/workflow ve actual required-native AndroidTest derlemesini geçti; yeni hosted stream kabulü gerekli. docs/testing/f60-pin-peer-ack-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact31/run36816571516 strict owned stream failed; PIN bridge readRejected, instrumentation_report_missing, ownedframes[]. Bu yeni tanı kabul edilmiş loopback bağlantısı ve doğrulanmış peer sonrası canonical PIN/nonce parse öncesi bounded read hatasını ayırır; EOF/deadline/socket/framing alt nedeni kanıtlanmaz. Host terminal bridge failure sonrası exact Gradle childı kapattığı için missing report app crash kanıtı değildir. docs/testing/f60-pin-read-rejection-2026-10-01.md. Exact362 discovery iki fresh production NSD yaşamı/1test/0skip geçti, streamAccepted=false. Root60stream/discovery+10workflow,40native iptal/deadline,actual v3iki-ABI APK5verifier,JVM343passed/2explicit skip geçer; bunlar gerçek stream yerine sayılmaz. Parsed-peer ACK source incelemesi/dar fixture onarımı sürüyor; aynıSHA kör rerun yok. Gerçek frame/PCM/input/iki yaşam/stop/disconnect kabulü ve geniş finalHEAD CI açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Canonical PIN parse sonrası sabit ACK+EOF owned fixture düzeltmesi root56runner/workflow ve actual required-native AndroidTest derlemesini geçti; yeni hosted stream kabulü gerekli. docs/testing/f60-pin-peer-ack-2026-10-01.md. Yeni exact57f koşusu 36819571890 başladı; henüz runtime kabulü yok."
     },
     {
       "id": "G11",
@@ -5832,10 +5840,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact70ab original1test/1failure/0error/0skip;AssertionError ownedframes290/115 at initial1280x800frameWait;no lifecycle marker/serverResizeRequested=false;arm64package passed;precise cause unproved"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36819574142",
+          "commit": "57f929459a22ab6082e400194e31e0162545f672",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact57f source changed initial-frame diagnosis;strict packaged RDP run started;not acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Root bounded makbuz policy doğrulandı: canonical1/1/0/0, AssertionError ownedframes290/115 initial1280x800frameWait; lifecycle marker yok, ara yanlışboyut callback ihtimali açık; exactalt neden incelemede, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. İlk kare30sn sınırı korunarak terminal/no-callback/yanlış-boyut/stall fixed diagnostics hazırlandı; root43runner ve actual required-native AndroidTest derlemesi geçti. Yeni gerçek hosted runtime kabulü açık. docs/testing/f62-initial-frame-wait-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Root bounded makbuz policy doğrulandı: canonical1/1/0/0, AssertionError ownedframes290/115 initial1280x800frameWait; lifecycle marker yok, ara yanlışboyut callback ihtimali açık; exactalt neden incelemede, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md. İlk kare30sn sınırı korunarak terminal/no-callback/yanlış-boyut/stall fixed diagnostics hazırlandı; root43runner ve actual required-native AndroidTest derlemesi geçti. Yeni gerçek hosted runtime kabulü açık. docs/testing/f62-initial-frame-wait-diagnostics-2026-10-01.md. Yeni exact57f koşusu 36819574142 başladı; henüz runtime kabulü yok."
     },
     {
       "id": "F61",

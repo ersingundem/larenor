@@ -53,6 +53,10 @@ F60 owned PIN teslimi artık canonical parse sonrası nonsecret ACK ve EOF ister
 
 F62 ilk kare bekleyişi artık değişmeyen30sn sınırında bounded polling, exact throwable sınıfı ve optional nonce-bound private ölçülerle terminal/no-callback/yanlış-boyut/stall sınırlarını ayırır. Root43runner testi ve actual required-native AndroidTest derlemesi geçti; gerçek RDP runtime kabulü açık, yeniden çalışılıyor. [Dar sınır](testing/f62-initial-frame-wait-diagnostics-2026-10-01.md).
 
+F30 geniş CI’daki7archive verifier/encoder/engine hatası için positive gerçek media fixture range/colorspace açık tanımlandı; üretim equality/hash/decode/durable kabulü değiştirilmedi. Root37gerçek FFmpeg testi,3workflow/11subtest/actionlint geçti. Yeni Ubuntu dar scope ve geniş HEAD CI bekliyor. [Sınırlar](testing/f30-explicit-color-fixture-2026-10-01.md).
+
+F60/F62 yeni exact `57f929459a22ab6082e400194e31e0162545f672` [stream36819571890](https://github.com/ersingundem/larenor/actions/runs/36819571890) ve [RDP36819574142](https://github.com/ersingundem/larenor/actions/runs/36819574142) koşularına gönderildi. Sonuç henüz runtime kabulü değildir; ikisi yeniden çalışılıyor,64iş/53seçiliözellik CI bekliyor ve35/127,3/63 kabul sayaçları korunur.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.

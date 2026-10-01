@@ -29,7 +29,9 @@ def media(tmp_path_factory):
         "testsrc2=size=160x90:rate=24:duration=2", "-f", "lavfi", "-i",
         "sine=frequency=440:duration=2", "-i", str(subtitles),
         "-map", "0:v", "-map", "1:a", "-map", "2:s",
-        "-c:v", "libx264", "-crf", "0", "-c:a", "aac", "-c:s", "srt", str(source),
+        "-c:v", "libx264", "-crf", "0", "-pix_fmt", "yuv420p",
+        "-color_range", "tv", "-colorspace", "bt709",
+        "-c:a", "aac", "-c:s", "srt", str(source),
     ], check=True, capture_output=True, timeout=30)
     output = directory / "output.mkv"
     transcode(ffmpeg, source, output)
@@ -69,6 +71,25 @@ def test_real_smaller_hevc_decodes_and_preserves_copied_audio(media):
     assert result.byteLength == output.stat().st_size < media[2].stat().st_size
     assert (result.codec, result.width, result.height, result.audioStreams) == ("hevc", 160, 90, 1)
     assert result.subtitleStreams == 1
+
+
+def test_real_fixture_has_explicit_preserved_sdr_color_contract(media):
+    verifier, _ffmpeg, source, output, _command = media
+    expected = {"pix_fmt": "yuv420p", "color_range": "tv", "color_space": "bt709"}
+    for path in (source, output):
+        with verifier._opened(path) as (fd, _info):
+            observed = verifier._probe(fd, time.monotonic() + 30, lambda: False)
+        video = [stream for stream in observed["streams"]
+                 if stream.get("codec_type") == "video"]
+        assert len(video) == 1
+        assert {key: video[0].get(key) for key in expected} == expected
+
+
+def test_real_output_with_changed_color_range_is_rejected(media, tmp_path):
+    output = tmp_path / "changed-range.mkv"
+    transcode(media[1], media[2], output, extra=("-color_range", "pc"))
+    with pytest.raises(ArchiveVerificationError):
+        verify(media, output)
 
 
 def test_real_output_with_dropped_audio_is_rejected(media, tmp_path):
