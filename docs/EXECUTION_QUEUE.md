@@ -16,7 +16,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
-| G06 — Medya ve müzik | 10 | 0 | 0 | 4 | 6 | 0 |
+| G06 — Medya ve müzik | 10 | 0 | 0 | 5 | 5 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
 | G08 — Kamera ve olaylar | 5 | 0 | 0 | 0 | 5 | 0 |
 | G09 — Enerji, iklim ve bahçe | 5 | 0 | 0 | 0 | 5 | 0 |
@@ -32,6 +32,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | F24 | Akıllı altyazı ve dil tercihleri | Yeniden çalışılıyor | — |
 | F26 | Oynatma kalitesi danışmanı | Yeniden çalışılıyor | — |
 | F25 | Jenerik ve kapanış atlama | Yeniden çalışılıyor | — |
+| F21 | Birlikte senkron film izleme | Yeniden çalışılıyor | — |
 | F27 | Seyahat için çevrimdışı medya | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Yeniden çalışılıyor | — |
@@ -144,7 +145,6 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F12 | Yetkili MCP kapısı | CI bekliyor | — |
 | F14 | Süreli destek oturumu | CI bekliyor | — |
 | F19 | Birden fazla ev, bağımsız Core | CI bekliyor | — |
-| F21 | Birlikte senkron film izleme | CI bekliyor | — |
 | F22 | Kendi televizyon kanalların | CI bekliyor | — |
 | F23 | Canlı TV ve kayıt merkezi | CI bekliyor | — |
 | F28 | Sesli kitap ve podcast merkezi | CI bekliyor | — |

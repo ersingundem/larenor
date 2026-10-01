@@ -4090,7 +4090,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Birlikte senkron film izleme",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4114,7 +4114,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek iki production Flutter Client→normal Uvicorn Core→MediaArchiveReadCollector→owned authenticated Jellyfin/Sonarr/Radarr/qBit TCP read kapısı, room/invite/report/stale CAS/unsupported receiver ve ayrı fresh Core/Client restart lider devri/leave/logout geçti. Gerçek restartta bulunan eski leader_family_id yeni explicit invite rejoin içinde atomik yenilenir; eski family 404. Provider restart öncesi kapatıldı, fresh sealed source ile sıfır yeni I/O. 29 Python, fake-wire Flutter regression 1+runner-only skip, gerçek prepare/restart birer Flutter pass, analyze/py_compile temiz. Geniş exact HEAD CI ve fiziksel receiver timing/Wi-Fi/codec MANUAL açık. Kanıt: docs/testing/f21-normal-core-acceptance-2026-09-30.md."
+      "reason": "Yeniden çalışılıyor: iki Flutter süreç→normalCore oda/leader/restart kanıtı korunur fakat normal verifiedCore katalog gerçek localplayer açmaz; directLocal cold-start Core authority restore yoktur. Actualplayer callback/ölçülen directive bileşimi mevcut girişte yok. Exact Core-bound byte/player girişiyle kapanacak; directLocal-Core sessizhybrid yok. docs/testing/f24-f27-player-core-composition-gap-2026-10-01.md."
     },
     {
       "id": "F22",
@@ -5831,11 +5831,11 @@
           "commit": "70ab1058495957844edc79740abe46df4a50296a",
           "state": "completed",
           "result": "failed",
-          "label": "Exact70ab changed-source hosted gate failed packaged x86 runtime;arm64 package passed;bounded receipt triage in progress,no runtime acceptance"
+          "label": "Exact70ab original1test/1failure/0error/0skip;AssertionError ownedframes290/115 at initial1280x800frameWait;no lifecycle marker/serverResizeRequested=false;arm64package passed;precise cause unproved"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Bounded makbuz incelemesi sürüyor, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 x86 packaged runtime failure ile tamamlandı; arm64 package geçti. Root bounded makbuz policy doğrulandı: canonical1/1/0/0, AssertionError ownedframes290/115 initial1280x800frameWait; lifecycle marker yok, ara yanlışboyut callback ihtimali açık; exactalt neden incelemede, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -6001,10 +6001,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact70ab Security all3jobs passed;Server/Android/runtime final acceptance remains open"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36816909489",
+          "commit": "5325c083970096fc84da2daa63b6b2a2f208aed2",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source broad Android/allServer gate after ABI/media/listener/transport/backup fixes;not final acceptance"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36816859672",
+          "commit": "5325c083970096fc84da2daa63b6b2a2f208aed2",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact5325 Security passed;independent broad Android/allServer/runtime gates remain open"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. Şimdi54seçili özellik/63iş CI bekliyor; F24-F27 normal player/Core cold-start bileşimi açığı nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul37/127ve3/63 değişmedi. FullFlutter frozenb21 7919passed/57explicit skips/0failure; actualv3 ikiABI APK5verifier ve JVM343passed/2opt-in skip geçti. Hosted362 broad failed: native ABI contamination ve4Server shard. Ayrı-source ABI actual2AAR/product5tests; workerartifact umask3rootcases; F08 listener12passed/1Linuxskip; F30 elapsedEOF root10; backup dörtpowerloss+ikiunprovenpause; F42/F44 root31+3workflow/actionlint/71related gates düzeltmeleri geçti. Yeni broad CI gerekli. F60 exact31/run36816571516 sürüyor; F62exact70ab/run36814807367 canonical1test/1failure,initial1280x800frame wait failed, alt neden incelemede. Security81cd/70ab/cd4 all3passed. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. Şimdi53seçili özellik/62iş CI bekliyor; F21/F24-F27 normal player/Core cold-start bileşimi açığı nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul37/127ve3/63 değişmedi. FullFlutter frozenb21 7919passed/57explicit skips/0failure; actualv3 ikiABI APK5verifier ve JVM343passed/2opt-in skip geçti. Hosted362 broad failed: native ABI contamination ve4Server shard. Ayrı-source ABI actual2AAR/product5tests; workerartifact umask3rootcases; F08 listener12passed/1Linuxskip; F30 elapsedEOF root10; backup dörtpowerloss+ikiunprovenpause; F42/F44 root31+3workflow/actionlint/71related gates düzeltmeleri geçti. Yeni broad CI gerekli. F60 exact31/run36816571516 sürüyor; F62exact70ab/run36814807367 canonical1test/1failure,initial1280x800frame wait failed, alt neden incelemede. Security81cd/70ab/cd4 all3passed. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
     },
     {
       "id": "FINAL.UI",

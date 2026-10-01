@@ -97,3 +97,22 @@ now narrow that gap; no unchanged-source retry is used.
 
 These checks prove the diagnostic correction only. The real hosted RDP
 acceptance remains open and F62 stays **reworking**.
+
+## Exact early/live source result — 70ab1058
+
+[Run 36814807367](https://github.com/ersingundem/larenor/actions/runs/36814807367)
+at exact `70ab1058495957844edc79740abe46df4a50296a` failed the x86 packaged
+Android/NLA exercise after the owned display, fixture, APK, KVM and host setup
+passed. Arm64 packaging and owned host cleanup passed. Root independently
+validated the bounded failure receipt against the source policy.
+
+The canonical test reports 1 test, 1 failure, 0 errors and 0 skips, with
+`java.lang.AssertionError` and owned test frames at lines 290 and 115. Exact
+source maps those lines to the initial 1280×800 frame deadline. The receipt
+hash is `2459ad16ce9bfaf064fa00d7bc200c2dd8dc20a1e4ba5a8a1603c912ab13991e`.
+No lifecycle marker survived and `serverResizeRequested=false`. This proves
+the expected initial frame was not returned before the bounded wait; it does
+not prove zero callbacks, because intermediate frames of a different size may
+have been acknowledged. No resize, channel or second-lifetime acceptance can
+be inferred. The same source is not blindly rerun; the frame path is under
+narrow source review.

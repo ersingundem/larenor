@@ -1,21 +1,23 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 54 seçili özellik / toplam 63 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F24–F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 53 seçili özellik / toplam 62 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F21/F24–F27/F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **54 seçili özellik / toplam 63 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **CI bekliyor** | **53 seçili özellik / toplam 62 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Exact `36269cf0` discovery iki yaşam/1test/0skip geçti. [Stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36813869676) canonical 1 test/1 failure ile pairingRegistration aşamasında kaldı; PIN bridge listening kesin alt nedeni ayırmıyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact `70ab1058` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) 1 test/1 failure/0 error/0 skip ile başarısız. Owned source frame 1280×800 ilk kare bekleyişini gösterir; yanlış boyutlu ara callback ihtimali ve alt neden açık. Arm64 package geçti; strict runtime kabulü yok |
-| **Yeniden çalışılıyor** | **F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
+| **Yeniden çalışılıyor** | **F21/F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
 “CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. Sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak süre oranı değildir. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ## Son doğrulanan düzeltmeler
+
+Yeni geniş [Android/tüm Server koşusu](https://github.com/ersingundem/larenor/actions/runs/36816909489) exact `5325c083` üzerinde başladı; son kaynak [Security](https://github.com/ersingundem/larenor/actions/runs/36816859672) kabulünü geçti. Geniş sonuç henüz kabul değildir. [Pinned Sunshine/Moonlight sözleşme araştırması](testing/f60-upstream-pairing-contract-review-2026-10-01.md) provider API/name/PIN uyumunu doğruladı; runtime stream yerine sayılmaz.
 
 F42/F44 test bileşimi gerçek FFmpeg/FFprobe çiftini CI’da kurup doğrular; iki F42 fixture’ındaki Homebrew-only yollar kaldırıldı. Root 31/31 gerçek media decode/filter ve 3 workflow testi, actionlint ve 71 ilgili politika/kuyruk/progress kontrolü geçti. İkisi **CI bekliyor**; yeni Ubuntu kabulü gerekli, eski F44 503 tek nedeni kanıtlanmadı. [Dar kanıt](testing/f42-f44-linux-media-runtime-2026-10-01.md).
 

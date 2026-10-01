@@ -2,7 +2,7 @@
 
 ## Current state — 1 October 2026
 
-FINAL.FUNCTION is the only active final. Development and focused validation are complete for 54 selected features / 63 tasks, which await final-HEAD CI. Quiet-host F22/F35 acceptance passed without source changes; F24–F27 return to reworking for a normal player/Core cold-start composition gap; F60/F62 remain reworking. The local full Server run was interrupted by disk exhaustion and is not broad acceptance. Accepted counts stay 37/127 tasks and 3/63 selected features. Physical, household and account gates remain MANUAL; the next final starts only after this final completes.
+FINAL.FUNCTION is the only active final. Development and focused validation are complete for 53 selected features / 62 tasks, which await final-HEAD CI. Quiet-host F22/F35 acceptance passed without source changes; F24–F27 return to reworking for a normal player/Core cold-start composition gap; F60/F62 remain reworking. The local full Server run was interrupted by disk exhaustion and is not broad acceptance. Accepted counts stay 37/127 tasks and 3/63 selected features. Physical, household and account gates remain MANUAL; the next final starts only after this final completes.
 
 | Gate | Latest named evidence | Open boundary |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-54 seçili özellik / 63 iş CI beklerken, F24–F27/F60/F62 gerçek işlev kapıları
+53 seçili özellik / 62 iş CI beklerken, F21/F24–F27/F60/F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
 
