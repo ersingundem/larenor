@@ -395,7 +395,8 @@ def _production_inputs(server, tmp_path, *, checkpoint=None, system=None):
     plan = plan_component_restore(opened, restore_authority)
     state = {"paused": False}
     engine_context = engine_server(
-        effect_reply(running_inspect(binding, roots), receipt.volumes, state)
+        effect_reply(running_inspect(binding, roots), receipt.volumes, state),
+        request_timeout=POWER_LOSS_RECOVERY_DEADLINE_SECONDS,
     )
     endpoint, calls = engine_context.__enter__()
     controller = importlib.import_module(

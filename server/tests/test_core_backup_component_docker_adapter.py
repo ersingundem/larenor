@@ -288,7 +288,9 @@ def test_pause_and_unpause_use_one_effect_each_with_fresh_state_reconciliation(
         ]
 
 
-def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path):
+def test_timeout_after_effect_reconciles_by_get_without_replaying_post(
+    tmp_path, monkeypatch
+):
     with installed_authority(tmp_path) as (
         authority, receipt, binding, _volumes,
     ):
@@ -306,7 +308,7 @@ def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path)
             # released before the following two-second readback idle budget.
             delay_seconds=1.5,
         )
-        with engine_server(reply, request_timeout=1) as (endpoint, calls):
+        with engine_server(reply, request_timeout=11) as (endpoint, calls):
             adapter = api().UnixDockerComponentSnapshotAdapter(
                 endpoint,
                 authority,
@@ -314,10 +316,28 @@ def test_timeout_after_effect_reconciles_by_get_without_replaying_post(tmp_path)
                 effect_seconds=4.0,
             )
             adapter.sources(time.monotonic() + 20)
+            original_revalidate = authority.revalidate
+            revalidations = []
+
+            def delayed_revalidate(sources, deadline):
+                revalidations.append(len(calls))
+                # pause() performs two preflight authority reads before the
+                # literal pre-effect gate. Hold only that final gate beyond
+                # the old one-second fixture wait. The verified Unix stream
+                # must stay open and carry the one authorized POST.
+                if len(revalidations) == 3:
+                    time.sleep(1.1)
+                return original_revalidate(sources, deadline)
+
+            monkeypatch.setattr(authority, "revalidate", delayed_revalidate)
             assert adapter.pause(receipt.container_id, time.monotonic() + 30) is True
             assert adapter.unpause(receipt.container_id, time.monotonic() + 30) is True
 
         operations = effect_operations(calls)
+        assert calls[revalidations[2] - 1] == (
+            "GET /version HTTP/1.1",
+            b"",
+        )
         assert len(operations) == 2
         assert sum("/pause " in item for item in operations) == 1
     assert sum("/unpause " in item for item in operations) == 1

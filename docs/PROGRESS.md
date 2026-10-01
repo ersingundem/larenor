@@ -53,9 +53,13 @@ F60 owned PIN teslimi artık canonical parse sonrası nonsecret ACK ve EOF ister
 
 F62 ilk kare bekleyişi artık değişmeyen30sn sınırında bounded polling, exact throwable sınıfı ve optional nonce-bound private ölçülerle terminal/no-callback/yanlış-boyut/stall sınırlarını ayırır. Root43runner testi ve actual required-native AndroidTest derlemesi geçti; gerçek RDP runtime kabulü açık, yeniden çalışılıyor. [Dar sınır](testing/f62-initial-frame-wait-diagnostics-2026-10-01.md).
 
-F30 geniş CI’daki7archive verifier/encoder/engine hatası için positive gerçek media fixture range/colorspace açık tanımlandı; üretim equality/hash/decode/durable kabulü değiştirilmedi. Root37gerçek FFmpeg testi,3workflow/11subtest/actionlint geçti. Yeni Ubuntu dar scope ve geniş HEAD CI bekliyor. [Sınırlar](testing/f30-explicit-color-fixture-2026-10-01.md).
+F30 geniş CI’daki7archive verifier/encoder/engine hatası için positive gerçek media fixture range/colorspace açık tanımlandı; üretim equality/hash/decode/durable kabulü değiştirilmedi. Root37gerçek FFmpeg testi,3workflow/11subtest/actionlint geçti. Exact `0fef589b0228049a119821d4e97af8b7c080e888` [Ubuntu36819883119](https://github.com/ersingundem/larenor/actions/runs/36819883119) başarılı; root exactSHA ve JUnit37test/0failure/0error/0skip kaydını doğruladı. Geniş finalHEAD CI hâlâ gerekli; F30 CI bekliyor. [Sınırlar](testing/f30-explicit-color-fixture-2026-10-01.md).
 
 F60/F62 yeni exact `57f929459a22ab6082e400194e31e0162545f672` [stream36819571890](https://github.com/ersingundem/larenor/actions/runs/36819571890) ve [RDP36819574142](https://github.com/ersingundem/larenor/actions/runs/36819574142) koşularına gönderildi. Sonuç henüz runtime kabulü değildir; ikisi yeniden çalışılıyor,64iş/53seçiliözellik CI bekliyor ve35/127,3/63 kabul sayaçları korunur.
+
+Backup test sunucusunun verified stream bekleme sınırı son yetki kontrolünü kapsayacak şekilde ayrıldı; deliberate post-effect gecikmesi, freshGET ve tekPOST/no replay kabulü korunur. Eski1sfixture deterministicRED, root iki hosted failure node2/2GREEN; production sınırları değişmedi. Yeni Linux kabulü gerekli. [Dar kanıt](testing/backup-effect-timeout-fixture-2026-10-01.md).
+
+F26/F27 Core PlaybackInfo→single-use observation→original-byte lease backend bağlantısı root64provider/IPC/API testiyle geçti. Bildirilmemiş transcode decoderı, consuming-lock TTL yarışı ve kapasitede gözlem kaybı5RED→GREEN ile kapandı. Player kontrolleri/ortak izleme ownership ve offlinecold-start eksikleri açık olduğundan F21/F24–F27 yeniden çalışılıyor; tam kabul sayacı artmaz. [Backend kanıtı](testing/f26-core-playback-info-observation-2026-10-01.md).
 
 ## Tarihsel doğrulama kayıtları
 

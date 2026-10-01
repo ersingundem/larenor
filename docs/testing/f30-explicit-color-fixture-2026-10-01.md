@@ -30,5 +30,9 @@ on Ubuntu with the actual paired `/usr/bin/ffmpeg` and `/usr/bin/ffprobe`, the
 reviewed Server lock, and a JUnit gate requiring positive tests and zero
 failures/errors/skips. It leaves every broad reusable required gate intact.
 
-Changed-source Linux acceptance is pending. F30 remains `awaiting_ci`; this
-fixture repair is not a real provider, household archive or final-HEAD proof.
+Changed-source Ubuntu [run 36819883119](https://github.com/ersingundem/larenor/actions/runs/36819883119)
+completed successfully at exact `0fef589b0228049a119821d4e97af8b7c080e888`.
+Root independently checked the exact SHA and retained JUnit artifact:
+37 tests, zero failures, errors, or skips. F30 remains `awaiting_ci`; this
+scoped fixture acceptance is not a real provider, household archive or
+final-HEAD broad CI proof.

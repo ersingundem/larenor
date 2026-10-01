@@ -4311,9 +4311,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36819883119",
+          "commit": "0fef589b0228049a119821d4e97af8b7c080e888",
+          "state": "completed",
+          "result": "passed",
+          "label": "Changed-source Ubuntu actual FFmpeg archive gate:37tests,zero failures/errors/skips;not broad finalHEAD acceptance"
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Archive read/action/authority socketları, UID1000 worker/Unmanic, private catalog/mount kökleri ve Core /run/larenor-workers bileşimi paketlenmiştir; exact888dfd46 run36762186381 production bundle/systemd load kapısı geçti. Pinned Unmanic/FFmpeg, provider/collector/engine/resolver/cleanup kanıtları korunur. Gerçek admin provisioning, Docker/mount/free-space/media ve archive encode MANUAL.INSTALL/MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim elapsed EOF yanlış protokol sınıflandırması aynı monotonic deadline ile düzeltildi; actual loopback no-repeat RED/GREEN ve root10transport geçti. Değişen kaynak CI bekliyor. docs/testing/media-archive-deadline-eof-2026-10-01.md. Exact5325 geniş koşusunda7archive verifier/encoder/engine hatası görüldü. Positive fixture video range/colorspace açık tanımlandı; gerçekmetadata drift rejection korunur. Root37gerçekmedia testi/3workflow/11subtest/actionlint geçti; changed-sourceUbuntu ve genişCI bekliyor. docs/testing/f30-explicit-color-fixture-2026-10-01.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Archive read/action/authority socketları, UID1000 worker/Unmanic, private catalog/mount kökleri ve Core /run/larenor-workers bileşimi paketlenmiştir; exact888dfd46 run36762186381 production bundle/systemd load kapısı geçti. Pinned Unmanic/FFmpeg, provider/collector/engine/resolver/cleanup kanıtları korunur. Gerçek admin provisioning, Docker/mount/free-space/media ve archive encode MANUAL.INSTALL/MEDIA açık. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim elapsed EOF yanlış protokol sınıflandırması aynı monotonic deadline ile düzeltildi; actual loopback no-repeat RED/GREEN ve root10transport geçti. Değişen kaynak CI bekliyor. docs/testing/media-archive-deadline-eof-2026-10-01.md. Exact5325 geniş koşusunda7archive verifier/encoder/engine hatası görüldü. Positive fixture video range/colorspace açık tanımlandı; gerçekmetadata drift rejection korunur. Root37gerçekmedia testi/3workflow/11subtest/actionlint geçti; Exact0fef Ubuntu36819883119 rootSHA/JUnit37test/0failure/0error/0skip ile geçti; geniş finalHEAD CI bekliyor. docs/testing/f30-explicit-color-fixture-2026-10-01.md."
     },
     {
       "id": "G07",
@@ -6022,9 +6031,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36816909489",
           "commit": "5325c083970096fc84da2daa63b6b2a2f208aed2",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source broad Android/allServer gate after ABI/media/listener/transport/backup fixes;not final acceptance"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact5325 broad gate failed:K07,F08,F30 and2backup;focused changed-source repairs proceed,not final acceptance"
         },
         {
           "kind": "ci",
@@ -6036,7 +6045,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. Şimdi53seçili özellik/62iş CI bekliyor; F21/F24-F27 normal player/Core cold-start bileşimi açığı nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul37/127ve3/63 değişmedi. FullFlutter frozenb21 7919passed/57explicit skips/0failure; actualv3 ikiABI APK5verifier ve JVM343passed/2opt-in skip geçti. Hosted362 broad failed: native ABI contamination ve4Server shard. Ayrı-source ABI actual2AAR/product5tests; workerartifact umask3rootcases; F08 listener12passed/1Linuxskip; F30 elapsedEOF root10; backup dörtpowerloss+ikiunprovenpause; F42/F44 root31+3workflow/actionlint/71related gates düzeltmeleri geçti. Yeni broad CI gerekli. F60 exact31/run36816571516 sürüyor; F62exact70ab/run36814807367 canonical1test/1failure,initial1280x800frame wait failed, alt neden incelemede. Security81cd/70ab/cd4 all3passed. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik incelemesi. 53seçili özellik/64iş CI bekliyor; F21/F24–F27 normal player kontrolleri/watch-party ownership ve offline cold-start bileşimi eksikleri nedeniyle reworking, F60/F62 gerçek native runtime kabulü açık. Kabul35/127ve3/63. Frozenb21 fullFlutter7919passed/57explicit skips; actualv3 ikiABI APK5verifier/JVM343passed/2opt-in skip. Exact5325 broad failed: K07deadline yarışı,F08memory.events,7F30archive,2backup. K07root17 düzeltme ve F08exact0c/Linux36818355490,F30exact0fef/Linux36819883119/37JUnit geçti; production kabul gevşetilmedi. F60/F62 exact57f yeni strict CI sonuçları bekleniyor. Son birleşik HEAD genişCI gerekli. BaşkaFINAL başlamaz; fiziksel/hesapMANUAL ve COREWEBsonra."
     },
     {
       "id": "FINAL.UI",
