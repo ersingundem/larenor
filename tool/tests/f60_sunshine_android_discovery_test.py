@@ -30,6 +30,26 @@ _GUARD_STEP = WORKFLOW.split(
     "      - name: Require exact reviewed GitHub-hosted source\n", 1
 )[1].split("\n      - name:", 1)[0]
 GUARD_SCRIPT = textwrap.dedent(_GUARD_STEP.split("        run: |\n", 1)[1])
+_KVM_STEP = WORKFLOW.split(
+    "      - name: Enable hosted KVM for owned discovery\n", 1
+)[1].split("\n      - name:", 1)[0]
+KVM_SCRIPT = textwrap.dedent(_KVM_STEP.split("        run: |\n", 1)[1])
+KVM_HARNESS = r'''
+function [ {
+  case "$*" in
+    '! -c /dev/kvm ]') builtin test "$KVM_MODE" = absent ;;
+    '! -r /dev/kvm ]'|'! -w /dev/kvm ]') builtin test "$kvm_ready" != yes ;;
+    *) exit 97 ;;
+  esac
+}
+sudo() {
+  builtin test "$*" = 'chmod 0666 /dev/kvm' || exit 98
+  if builtin test "$KVM_MODE" != inaccessible; then kvm_ready=yes; fi
+  return 0
+}
+ls() { echo 'synthetic device metadata'; }
+kvm_ready=no
+'''
 
 
 class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
@@ -64,6 +84,15 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             f'<testcase classname="{TEST_CLASS}" name="{TEST_NAME}">{body}</testcase>'
             "</testsuite>",
             encoding="utf-8",
+        )
+
+    def _run_kvm(self, mode: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", "-e", "-o", "pipefail", "-c", KVM_HARNESS + KVM_SCRIPT],
+            env=dict(os.environ, KVM_MODE=mode),
+            text=True,
+            capture_output=True,
+            check=False,
         )
 
     def test_accepts_one_exact_completed_test(self) -> None:
@@ -165,6 +194,21 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
                 DiscoveryAcceptanceFailure
             ):
                 parse_emulator_version(output)
+
+    def test_workflow_uses_supported_software_renderer_for_modern_emulator(self) -> None:
+        self.assertIn("-gpu swiftshader", WORKFLOW)
+        self.assertNotIn("swiftshader_indirect", WORKFLOW)
+        self.assertIn("disable-linux-hw-accel: false", WORKFLOW)
+
+    def test_workflow_requires_accessible_host_kvm_without_software_fallback(self) -> None:
+        self.assertEqual(0, self._run_kvm("ready").returncode)
+        missing = self._run_kvm("absent")
+        self.assertNotEqual(0, missing.returncode)
+        self.assertIn("no KVM character device", missing.stdout)
+        inaccessible = self._run_kvm("inaccessible")
+        self.assertNotEqual(0, inaccessible.returncode)
+        self.assertIn("cannot access KVM", inaccessible.stdout)
+        self.assertNotIn("-accel off", WORKFLOW)
 
     def test_workflow_leaves_package_work_directory_absent_for_builder(self) -> None:
         self.assertIn(

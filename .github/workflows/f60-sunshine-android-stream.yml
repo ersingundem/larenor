@@ -1,4 +1,4 @@
-name: F60 Sunshine Android discovery
+name: F60 Sunshine Android stream
 
 on:
   workflow_call:
@@ -13,11 +13,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: f60-sunshine-discovery-${{ github.ref }}
+  group: f60-sunshine-stream-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  discovery:
+  stream:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -35,8 +35,8 @@ jobs:
           test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
           test "$RUNNER_ENVIRONMENT" = github-hosted
           case "$GITHUB_WORKFLOW_REF:$CALLER_CONTRACT" in
-            "ersingundem/larenor/.github/workflows/f60-sunshine-android-discovery.yml@$GITHUB_REF:") ;;
-            "ersingundem/larenor/.github/workflows/server-test.yml@$GITHUB_REF:f60-owned-discovery-v1") ;;
+            "ersingundem/larenor/.github/workflows/f60-sunshine-android-stream.yml@$GITHUB_REF:") ;;
+            "ersingundem/larenor/.github/workflows/server-test.yml@$GITHUB_REF:f60-owned-stream-v1") ;;
             *) exit 1 ;;
           esac
           test -n "$RUNNER_TEMP"
@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          packages=(avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-utils xvfb)
+          packages=(avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-apps x11-utils x11-xserver-utils xinput xvfb)
           for package in "${packages[@]}"; do
             candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
             case "$candidate" in ""|"(none)") exit 1;; esac
@@ -83,7 +83,7 @@ jobs:
 
       - name: Build and install exact receipted Moonlight engine
         env:
-          GRADLE_USER_HOME: ${{ runner.temp }}/f60-engine-gradle
+          GRADLE_USER_HOME: ${{ runner.temp }}/f60-stream-engine-gradle
         run: |
           set -euo pipefail
           git clone --no-checkout https://github.com/moonlight-stream/moonlight-android.git "$RUNNER_TEMP/moonlight-source"
@@ -102,7 +102,7 @@ jobs:
           flutter pub get
           dart run build_runner build --delete-conflicting-outputs
 
-      - name: Enable hosted KVM for owned discovery
+      - name: Enable hosted KVM for owned stream
         run: |
           set -euo pipefail
           if [ ! -c /dev/kvm ]; then
@@ -116,7 +116,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run production NSD against the owned Sunshine host
+      - name: Run real owned Sunshine stream and local retirement lifecycle
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
@@ -124,17 +124,28 @@ jobs:
           target: google_apis
           disable-animations: true
           disable-linux-hw-accel: false
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
-          script: python3 -B tool/f60_sunshine_android_discovery.py
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-boot-anim
+          script: python3 -B tool/f60_sunshine_android_stream.py
 
-      - name: Upload bounded discovery receipt
+      - name: Stop owned host support service before receipt
+        run: |
+          set -euo pipefail
+          sudo systemctl stop avahi-daemon
+          set +e
+          state="$(sudo systemctl is-active avahi-daemon)"
+          status=$?
+          set -e
+          test "$status" -eq 3
+          test "$state" = inactive
+
+      - name: Upload bounded stream receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: f60-sunshine-android-discovery-${{ github.sha }}
-          path: ${{ runner.temp }}/f60-sunshine-android-discovery-receipt.json
+          name: f60-sunshine-android-stream-${{ github.sha }}
+          path: ${{ runner.temp }}/f60-sunshine-android-stream-receipt.json
           if-no-files-found: error
           retention-days: 7
 
-      - name: Stop owned host support service
-        if: always()
+      - name: Best-effort stop owned host support service after failure
+        if: failure() || cancelled()
         run: sudo systemctl stop avahi-daemon || true

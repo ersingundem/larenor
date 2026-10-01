@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Run all Server gates, F08 cgroup, host worker proofs, or the F60 owned host smoke"
+        description: "Run all Server gates, F08 cgroup, host worker proofs, or one F60 owned-provider gate"
         required: true
         default: all
         type: choice
@@ -15,6 +15,7 @@ on:
           - host
           - f60-host
           - f60-discovery
+          - f60-stream
 
 permissions:
   contents: read
@@ -118,6 +119,15 @@ jobs:
     uses: ./.github/workflows/f60-sunshine-android-discovery.yml
     with:
       caller_contract: f60-owned-discovery-v1
+
+  f60-sunshine-android-stream:
+    name: f60-sunshine-android-stream
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-stream'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/f60-sunshine-android-stream.yml
+    with:
+      caller_contract: f60-owned-stream-v1
 
   server-test-shard:
     name: server-test-shard-${{ matrix.shard }}

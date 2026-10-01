@@ -221,7 +221,13 @@ class PrivateWorkspace:
         except OSError as error:
             raise HostFailure("private fixture workspace is unavailable") from error
 
-    def write_host_material(self, *, username: str, password: str) -> HostMaterial:
+    def write_host_material(
+        self,
+        *,
+        username: str,
+        password: str,
+        stream_profile: bool = False,
+    ) -> HostMaterial:
         _validate_client_name(username)
         if not isinstance(password, str) or not 16 <= len(password) <= 256:
             raise HostFailure("private web credential is invalid")
@@ -256,7 +262,7 @@ class PrivateWorkspace:
                 "upnp = disabled\n",
                 "origin_web_ui_allowed = pc\n",
                 "sunshine_name = " + OWNED_MDNS_NAME + "\n",
-                "keyboard = disabled\n",
+                "keyboard = " + ("enabled" if stream_profile else "disabled") + "\n",
                 "mouse = disabled\n",
                 "controller = disabled\n",
                 "file_apps = " + str(apps) + "\n",
@@ -641,6 +647,19 @@ class SunshineApi:
         if len(matches) != 1:
             raise HostFailure("owned paired client identity is unavailable")
         return matches[0]
+
+    def require_owned_client_present(self, expected_name: str, client_uuid: str) -> None:
+        _validate_client_name(expected_name)
+        _uuid(client_uuid)
+        matches = [
+            item
+            for item in self._clients()
+            if item["uuid"].lower() == client_uuid.lower()
+            and item["name"] == expected_name
+            and item["enabled"] is True
+        ]
+        if len(matches) != 1:
+            raise HostFailure("owned paired client identity changed")
 
     def unpair_owned(self, client_uuid: str) -> None:
         _uuid(client_uuid)
@@ -1073,7 +1092,12 @@ class OwnedSunshineHost:
     mdns: Mapping[str, Any]
 
     @classmethod
-    def start(cls, *, environment: Mapping[str, str] = os.environ) -> "OwnedSunshineHost":
+    def start(
+        cls,
+        *,
+        environment: Mapping[str, str] = os.environ,
+        stream_profile: bool = False,
+    ) -> "OwnedSunshineHost":
         require_owned_runner(environment)
         if os.geteuid() == 0:
             raise HostFailure("F60 Sunshine fixture must run as the hosted runner user")
@@ -1087,7 +1111,11 @@ class OwnedSunshineHost:
             install_release(package)
             username = "f60-" + secrets.token_hex(6)
             password = secrets.token_urlsafe(32)
-            material = workspace.write_host_material(username=username, password=password)
+            material = workspace.write_host_material(
+                username=username,
+                password=password,
+                stream_profile=stream_profile,
+            )
             tls_fingerprint = _generate_certificate(material)
             _configure_credentials(material, username, password)
             plans = process_plans(material)

@@ -277,12 +277,31 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                 self.assertIn("hevc_mode = 1\n", config)
                 self.assertIn("av1_mode = 1\n", config)
                 self.assertIn("max_bitrate = 2000\n", config)
+                self.assertIn("keyboard = disabled\n", config)
+                self.assertIn("mouse = disabled\n", config)
+                self.assertIn("controller = disabled\n", config)
                 self.assertNotIn("private-password", config)
                 apps = json.loads(material.apps.read_text(encoding="utf-8"))
                 self.assertEqual(apps, {"env": {}, "apps": [{"name": "Desktop"}]})
             finally:
                 workspace.close()
             self.assertFalse(workspace.root.exists())
+
+    def test_stream_profile_enables_only_owned_keyboard_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = host.PrivateWorkspace.create(Path(temporary))
+            try:
+                material = workspace.write_host_material(
+                    username="owned-user",
+                    password="private-password",
+                    stream_profile=True,
+                )
+                config = material.config.read_text(encoding="utf-8")
+                self.assertIn("keyboard = enabled\n", config)
+                self.assertIn("mouse = disabled\n", config)
+                self.assertIn("controller = disabled\n", config)
+            finally:
+                workspace.close()
 
     def test_release_download_is_bounded_redirect_allowlisted_and_digest_checked(self):
         body = b"owned release bytes"
@@ -378,6 +397,14 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
                     }],
                     "status": True,
                 }).encode()),
+                _HttpsResponse(json.dumps({
+                    "named_certs": [{
+                        "name": "Larenor F60",
+                        "uuid": owned_uuid,
+                        "enabled": True,
+                    }],
+                    "status": True,
+                }).encode()),
                 _HttpsResponse(b'{"status":true}'),
                 _HttpsResponse(b'{"named_certs":[],"status":true}'),
             ]
@@ -392,6 +419,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
         self.assertEqual(api.pending_pairing("Larenor F60"), pending_id)
         api.approve_pairing(pending_id, "1234", "Larenor F60")
         self.assertEqual(api.owned_client_uuid("Larenor F60"), owned_uuid)
+        api.require_owned_client_present("Larenor F60", owned_uuid)
         api.unpair_owned(owned_uuid)
         api.require_client_absent("Larenor F60")
         requests = [(method, path, body) for method, path, body, _ in connection.requests]
@@ -400,6 +428,7 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
             [
                 ("GET", "/api/pin", None),
                 ("POST", "/api/pin", b'{"name":"Larenor F60","pairing_id":"' + pending_id.encode() + b'","pin":"1234"}'),
+                ("GET", "/api/clients/list", None),
                 ("GET", "/api/clients/list", None),
                 ("POST", "/api/clients/unpair", b'{"uuid":"' + owned_uuid.encode() + b'"}'),
                 ("GET", "/api/clients/list", None),
@@ -410,6 +439,28 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
             self.assertNotIn("Origin", headers)
             self.assertNotIn("Referer", headers)
         self.assertNotIn("private-password", repr(api))
+
+    def test_present_readback_requires_exact_uuid_name_and_enabled_state(self):
+        owned_uuid = "0f5f1830-7253-4ce8-986f-0cb2c7946044"
+        changed_uuid = "dff42a53-dfde-4031-8c3e-c11fd2229d79"
+        for client in (
+            {"name": "roth", "uuid": changed_uuid, "enabled": True},
+            {"name": "replacement", "uuid": owned_uuid, "enabled": True},
+            {"name": "roth", "uuid": owned_uuid, "enabled": False},
+        ):
+            with self.subTest(client=client):
+                connection = _HttpsConnection([_HttpsResponse(json.dumps({
+                    "named_certs": [client], "status": True,
+                }).encode())])
+                api = host.SunshineApi(
+                    username="private-user",
+                    password="private-password",
+                    certificate=Path("/private/cert.pem"),
+                    connection_factory=lambda *_args, **_kwargs: connection,
+                    ssl_context_factory=lambda _path: object(),
+                )
+                with self.assertRaises(host.HostFailure):
+                    api.require_owned_client_present("roth", owned_uuid)
 
     def test_api_rejects_duplicate_extra_malformed_and_oversized_json_without_secret(self):
         responses = (

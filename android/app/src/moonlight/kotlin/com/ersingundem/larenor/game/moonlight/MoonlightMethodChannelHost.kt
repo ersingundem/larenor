@@ -670,9 +670,9 @@ private fun revokeReceipt(
     val revision = value.readbackRevision
     return linkedMapOf(
         "schemaVersion" to 2, "requestId" to value.requestId, "revocationId" to revocationId,
-        "state" to if (value.status == "revoked") "local_cleared" else "unknown",
+        "state" to value.status,
         "readbackRevision" to revision,
-        "nativeReceiptDigest" to if (value.status == "revoked" && revision != null) sha256(
+        "nativeReceiptDigest" to if (value.status == "local_cleared" && revision != null) sha256(
             "$revocationId\u0000${value.status}\u0000$revision".toByteArray(),
         ).hex() else null,
     )

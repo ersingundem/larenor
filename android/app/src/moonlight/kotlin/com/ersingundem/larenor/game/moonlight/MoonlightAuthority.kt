@@ -194,9 +194,9 @@ data class MoonlightRevokeReceipt(
 ) {
     init {
         requireIdentity(requestId, "request_id")
-        require(status in setOf("revoked", "unknown"))
+        require(status in setOf("local_cleared", "unknown"))
         if (readbackRevision != null) requireRevision(readbackRevision, "revision")
-        require((status == "revoked") == (readbackRevision != null))
+        require((status == "local_cleared") == (readbackRevision != null))
     }
 }
 

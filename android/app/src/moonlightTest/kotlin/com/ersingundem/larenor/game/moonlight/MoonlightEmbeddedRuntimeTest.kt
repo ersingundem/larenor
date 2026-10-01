@@ -14,7 +14,10 @@ import com.limelight.Game
 import com.limelight.binding.audio.AndroidAudioRenderer
 import com.limelight.binding.input.ControllerHandler
 import com.limelight.binding.video.MediaCodecDecoderRenderer
+import com.limelight.computers.ComputerDatabaseManager
+import com.limelight.computers.IdentityManager
 import com.limelight.nvstream.NvConnection
+import com.limelight.nvstream.http.ComputerDetails
 import com.limelight.nvstream.http.NvHTTP
 import com.limelight.nvstream.http.PairingManager
 import org.junit.After
@@ -36,7 +39,9 @@ import org.robolectric.annotation.Config
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 
 @RunWith(RobolectricTestRunner::class)
@@ -370,6 +375,195 @@ class MoonlightEmbeddedRuntimeTest {
         assertFalse(storeFile.readText().contains("pairingGrant"))
         reject("stale_pairing") { restarted.resolve(ids.getValue(7), 3, 11, 12, ids.getValue(8), 5) }
         reject("stale_candidate") { restarted.resolve(ids.getValue(7), 2, 11, 12, ids.getValue(8), 6) }
+    }
+
+    @Test fun localRetirementClearsOnlyExactScopedComputerAndRegistration() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
+        val expected = authorityWithClientInstance(
+            authority().copy(scope = uniqueScope("local-retirement")),
+            uniqueId("local-retirement-client"),
+        )
+        val runtime = MoonlightEmbeddedRuntime(activity)
+        runtime.bindAuthority(expected)
+        val scoped = MoonlightScopedContext.create(activity.applicationContext, expected.scope)
+        val store = MoonlightRegistrationStore(File(scoped.noBackupFilesDir, "registrations.json"))
+        val primary = uniquePairing("primary")
+        val secondary = uniquePairing("secondary")
+        val primaryHostId = uniqueId("primary-host")
+        val secondaryHostId = uniqueId("secondary-host")
+        seedRegistration(store, primary, primaryHostId, uniqueId("primary-app"))
+        seedRegistration(store, secondary, secondaryHostId, uniqueId("secondary-app"))
+        seedComputer(scoped, primary.upstreamHostUuid, "Primary")
+        seedComputer(scoped, secondary.upstreamHostUuid, "Secondary")
+
+        val otherScope = MoonlightScopedContext.create(
+            activity.applicationContext, uniqueScope("other-retirement-scope"),
+        )
+        val otherUuid = "other-scope-private-uuid"
+        seedComputer(otherScope, otherUuid, "Other scope")
+        val identityBefore = IdentityManager(scoped).uniqueId
+
+        val receipt = awaitRuntimeResult<MoonlightRevokeReceipt> { callback ->
+            runtime.revoke(
+                expected, uniqueId("revoke-request"), uniqueId("revocation"), primaryHostId,
+                1, primary.pairingRevision, primary.catalogRevision, callback,
+            )
+        }.getOrThrow()
+        assertEquals("local_cleared", receipt.status)
+        assertNotNull(receipt.readbackRevision)
+        assertEquals(null, readComputer(scoped, primary.upstreamHostUuid))
+        assertNotNull(readComputer(scoped, secondary.upstreamHostUuid))
+        assertNotNull(readComputer(otherScope, otherUuid))
+        assertEquals(null, store.pairing(primary.receiptId))
+        assertEquals(null, store.registration(primaryHostId))
+        assertNotNull(store.pairing(secondary.receiptId))
+        assertNotNull(store.registration(secondaryHostId))
+        assertEquals(identityBefore, IdentityManager(scoped).uniqueId)
+        runtime.close()
+    }
+
+    @Test fun failedLocalRetirementStaysUnknownAndExactReplayDoesNotRunCleanupAgain() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
+        val expected = authorityWithClientInstance(
+            authority().copy(scope = uniqueScope("failed-local-retirement")),
+            uniqueId("failed-local-retirement-client"),
+        )
+        val attempts = AtomicInteger()
+        val runtime = MoonlightEmbeddedRuntime(
+            activity,
+            localRetirementAfterRegistrationFence = {
+                attempts.incrementAndGet()
+                throw MoonlightRuntimeFailure("unknown_effect")
+            },
+        )
+        runtime.bindAuthority(expected)
+        val scoped = MoonlightScopedContext.create(activity.applicationContext, expected.scope)
+        val store = MoonlightRegistrationStore(File(scoped.noBackupFilesDir, "registrations.json"))
+        val pairing = uniquePairing("failed")
+        val hostId = uniqueId("failed-host")
+        seedRegistration(store, pairing, hostId, uniqueId("failed-app"))
+        seedComputer(scoped, pairing.upstreamHostUuid, "Failed")
+        val requestId = uniqueId("failed-request")
+        val revocationId = uniqueId("failed-revocation")
+
+        fun revoke() = awaitRuntimeResult<MoonlightRevokeReceipt> { callback ->
+            runtime.revoke(
+                expected, requestId, revocationId, hostId,
+                1, pairing.pairingRevision, pairing.catalogRevision, callback,
+            )
+        }.getOrThrow()
+
+        assertEquals("unknown", revoke().status)
+        assertEquals(1, attempts.get())
+        assertNotNull(readComputer(scoped, pairing.upstreamHostUuid))
+        assertEquals(null, store.pairing(pairing.receiptId))
+        assertEquals(null, store.registration(hostId))
+        reject("quarantined") {
+            runtime.resolveHostBinding(expected, hostId, 1, pairing.pairingRevision, pairing.catalogRevision)
+        }
+        assertEquals("unknown", revoke().status)
+        assertEquals(1, attempts.get())
+        assertEquals(
+            MoonlightOperationState.UNKNOWN,
+            MoonlightOperationJournal(File(scoped.noBackupFilesDir, "journal")).read(requestId)?.state,
+        )
+        runtime.close()
+    }
+
+    @Test fun localRetirementFencesConcurrentSuccessorRegistrationBeforeStorageCleanup() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
+        val expected = authorityWithClientInstance(
+            authority().copy(scope = uniqueScope("retirement-fence")),
+            uniqueId("retirement-fence-client"),
+        )
+        val scoped = MoonlightScopedContext.create(activity.applicationContext, expected.scope)
+        val store = MoonlightRegistrationStore(File(scoped.noBackupFilesDir, "registrations.json"))
+        val current = uniquePairing("retirement-current")
+        val successor = uniquePairing("retirement-successor")
+        val hostId = uniqueId("retirement-host")
+        seedRegistration(store, current, hostId, uniqueId("retirement-current-app"))
+        store.savePairing(successor)
+        seedComputer(scoped, current.upstreamHostUuid, "Retiring")
+        val successorRegistration = MoonlightCoreRegistration(
+            successor.receiptId, 2, hostId, 2,
+            successor.pairingRevision, successor.catalogRevision,
+            mapOf(0 to (uniqueId("retirement-successor-app") to 1L)),
+        )
+        val blocked = AtomicInteger()
+        lateinit var runtime: MoonlightEmbeddedRuntime
+        runtime = MoonlightEmbeddedRuntime(
+            activity,
+            localRetirementAfterRegistrationFence = {
+                reject("quarantined") { runtime.commitRegistration(expected, successorRegistration) }
+                blocked.incrementAndGet()
+            },
+        )
+        runtime.bindAuthority(expected)
+
+        val receipt = awaitRuntimeResult<MoonlightRevokeReceipt> { callback ->
+            runtime.revoke(
+                expected, uniqueId("retirement-fence-request"), uniqueId("retirement-fence-operation"),
+                hostId, 1, current.pairingRevision, current.catalogRevision, callback,
+            )
+        }.getOrThrow()
+
+        assertEquals("local_cleared", receipt.status)
+        assertEquals(1, blocked.get())
+        assertEquals(null, store.registration(hostId))
+        assertNotNull(store.pairing(successor.receiptId))
+        assertEquals(null, readComputer(scoped, current.upstreamHostUuid))
+        runtime.close()
+    }
+
+    @Test fun localRetirementReleasesVolatileFenceWhenDispatchCannotStart() {
+        fun runFailure(beforeSubmission: Boolean) {
+            val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
+            val expected = authorityWithClientInstance(
+                authority().copy(scope = uniqueScope(if (beforeSubmission) "submit-failure" else "dispatch-failure")),
+                uniqueId(if (beforeSubmission) "submit-failure-client" else "dispatch-failure-client"),
+            )
+            val scoped = MoonlightScopedContext.create(activity.applicationContext, expected.scope)
+            val store = MoonlightRegistrationStore(File(scoped.noBackupFilesDir, "registrations.json"))
+            val pairing = uniquePairing(if (beforeSubmission) "submit-failure" else "dispatch-failure")
+            val hostId = uniqueId(if (beforeSubmission) "submit-failure-host" else "dispatch-failure-host")
+            val requestId = uniqueId(if (beforeSubmission) "submit-failure-request" else "dispatch-failure-request")
+            seedRegistration(store, pairing, hostId, uniqueId("dispatch-failure-app"))
+            seedComputer(scoped, pairing.upstreamHostUuid, "Dispatch failure")
+            lateinit var runtime: MoonlightEmbeddedRuntime
+            val beforeDispatch: (() -> Unit)? = if (beforeSubmission) null else ({
+                throw MoonlightRuntimeFailure("unknown_effect")
+            })
+            val beforeSubmissionHook: (() -> Unit)? = if (!beforeSubmission) null else ({
+                val field = MoonlightEmbeddedRuntime::class.java.getDeclaredField("executor")
+                    .apply { isAccessible = true }
+                (field.get(runtime) as ExecutorService).shutdownNow()
+            })
+            runtime = MoonlightEmbeddedRuntime(
+                activity,
+                localRetirementBeforeDispatch = beforeDispatch,
+                localRetirementBeforeSubmission = beforeSubmissionHook,
+            )
+            runtime.bindAuthority(expected)
+
+            val failure = runCatching {
+                runtime.revoke(
+                    expected, requestId, uniqueId("dispatch-failure-operation"), hostId,
+                    1, pairing.pairingRevision, pairing.catalogRevision,
+                ) { fail("dispatch failure must not invoke callback") }
+            }.exceptionOrNull()
+            assertNotNull(failure)
+            val journal = MoonlightOperationJournal(File(scoped.noBackupFilesDir, "journal"))
+            assertEquals(
+                if (beforeSubmission) MoonlightOperationState.DISPATCHING else MoonlightOperationState.PREPARED,
+                journal.read(requestId)?.state,
+            )
+            val successor = expected.copy(routeRevision = expected.routeRevision + 1)
+            assertNotNull(runtime.bindAuthority(successor))
+            runtime.close()
+        }
+
+        runFailure(false)
+        runFailure(true)
     }
 
     @Test fun ownedGameUsesActualInputIdleAndHardSessionDeadlines() {
@@ -784,6 +978,34 @@ class MoonlightEmbeddedRuntimeTest {
         assertEquals(null, revokeReceipt["readbackRevision"])
         assertEquals(null, revokeReceipt["nativeReceiptDigest"])
 
+        val legacyRequest = uniqueId("legacy-revoked-request")
+        val legacyOperation = uniqueId("legacy-revoked-operation")
+        journal.reserve(MoonlightOperationRecord(
+            legacyRequest, legacyOperation, "revoke", uniqueId("legacy-revoked-host"),
+            "d".repeat(64), expected.fingerprint, MoonlightOperationState.PREPARED, 0, 0,
+        ))
+        journal.transition(
+            legacyRequest, MoonlightOperationState.PREPARED,
+            MoonlightOperationState.DISPATCHING, 0,
+        )
+        journal.transition(
+            legacyRequest, MoonlightOperationState.DISPATCHING,
+            MoonlightOperationState.REVOKED, 7,
+            org.json.JSONObject().put("requestId", legacyRequest).put("status", "revoked")
+                .put("readbackRevision", 7).toString(),
+        )
+        success.set(null)
+        error.set(null)
+        host.handle("reconcileV2", mapOf(
+            "schemaVersion" to 2, "requestId" to uniqueId("legacy-reconcile"), "authority" to wire,
+            "operationKind" to "revoke", "operationId" to legacyOperation,
+        ), Consumer(success::set), Consumer(error::set))
+        assertEquals(null, error.get())
+        val legacyReceipt = (success.get() as Map<*, *>)["receipt"] as Map<*, *>
+        assertEquals("local_cleared", legacyReceipt["state"])
+        assertEquals(7L, legacyReceipt["readbackRevision"])
+        assertNotNull(legacyReceipt["nativeReceiptDigest"])
+
         success.set(null)
         error.set(null)
         val foreign = wire.toMutableMap().apply { this["routeRevision"] = 99L }
@@ -947,6 +1169,64 @@ class MoonlightEmbeddedRuntimeTest {
         ByteArray(512) { 1 }, 0,
         60_000, 30_000,
     )
+
+    private fun uniqueId(label: String): String = sha256(
+        "${temporary.root.absolutePath}\u0000$label".toByteArray(),
+    ).hex().take(32)
+
+    private fun uniqueScope(label: String) = MoonlightScope(
+        uniqueId("$label-core"), uniqueId("$label-home"),
+        uniqueId("$label-account"), uniqueId("$label-family"),
+    )
+
+    private fun uniquePairing(label: String): MoonlightNativePairing = pairing().copy(
+        receiptId = uniqueId("$label-receipt"),
+        nativeBindingId = uniqueId("$label-binding"),
+        hostObservationId = uniqueId("$label-host-observation"),
+        upstreamHostUuid = "$label-private-uuid",
+        apps = listOf(pairing().apps.single().copy(observationId = uniqueId("$label-observation"))),
+    )
+
+    private fun seedRegistration(
+        store: MoonlightRegistrationStore,
+        pairing: MoonlightNativePairing,
+        hostId: String,
+        appId: String,
+    ) {
+        store.savePairing(pairing)
+        store.saveRegistration(MoonlightCoreRegistration(
+            pairing.receiptId, 1, hostId, 1, pairing.pairingRevision,
+            pairing.catalogRevision, mapOf(0 to (appId to 1L)),
+        ))
+    }
+
+    private fun seedComputer(context: Context, uuid: String, name: String) {
+        val details = ComputerDetails().apply {
+            this.uuid = uuid
+            this.name = name
+            localAddress = ComputerDetails.AddressTuple("192.0.2.10", NvHTTP.DEFAULT_HTTP_PORT)
+        }
+        ComputerDatabaseManager(context).let { database ->
+            try { assertTrue(database.updateComputer(details)) } finally { database.close() }
+        }
+    }
+
+    private fun readComputer(context: Context, uuid: String): ComputerDetails? =
+        ComputerDatabaseManager(context).let { database ->
+            try { database.getComputerByUUID(uuid) } finally { database.close() }
+        }
+
+    private fun <T> awaitRuntimeResult(begin: ((Result<T>) -> Unit) -> Unit): Result<T> {
+        val values = mutableListOf<Result<T>>()
+        begin { value -> synchronized(values) { if (values.isEmpty()) values += value } }
+        repeat(200) {
+            shadowOf(Looper.getMainLooper()).idle()
+            synchronized(values) { if (values.isNotEmpty()) return values.single() }
+            Thread.sleep(10)
+        }
+        fail("runtime operation did not complete")
+        throw AssertionError("unreachable")
+    }
 
     private fun reject(code: String, action: () -> Unit) {
         try {

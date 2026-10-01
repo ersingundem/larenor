@@ -636,6 +636,26 @@ class _GameStreamSettingsScreenState
     );
     if (accepted == true && _interactiveCurrent(_generation)) {
       await client.revoke(host);
+      if (!mounted ||
+          !_interactiveCurrent(_generation) ||
+          client.state.phase != GameStreamClientPhase.idle ||
+          client.state.hosts.any((candidate) => candidate.id == host.id)) {
+        return;
+      }
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(copy.localRetirementComplete),
+          content: Text(copy.localRetirementSuccess(host.name)),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(copy.done),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -1082,8 +1102,10 @@ final class _GameStreamCopy {
     required this.configurePolicy,
     required this.configurePolicyDetail,
     required this.cancel,
+    required this.done,
     required this.savePolicy,
     required this.forgetComputer,
+    required this.localRetirementComplete,
     required this.quality,
     required this.qualityBoundary,
     required this.startStream,
@@ -1094,6 +1116,7 @@ final class _GameStreamCopy {
     required this.appCatalogTemplate,
     required this.policyDetailsTemplate,
     required this.forgetComputerBodyTemplate,
+    required this.localRetirementSuccessTemplate,
     required this.qualityUnavailableTemplate,
     required this.operationErrorTemplate,
     required this.pinRequired,
@@ -1116,11 +1139,13 @@ final class _GameStreamCopy {
   final String addComputer, addComputerDetail, power, pairing, nativeObserved;
   final String noApps, catalogBoundary, refreshCatalog;
   final String refreshCatalogDetail, configurePolicy;
-  final String configurePolicyDetail, cancel, savePolicy, forgetComputer;
+  final String configurePolicyDetail, cancel, done, savePolicy, forgetComputer;
+  final String localRetirementComplete;
   final String quality, qualityBoundary, startStream, startBoundary;
   final String stopStream, stopBoundary, unknownNoReplay;
   final String appCatalogTemplate, policyDetailsTemplate;
-  final String forgetComputerBodyTemplate, qualityUnavailableTemplate;
+  final String forgetComputerBodyTemplate, localRetirementSuccessTemplate;
+  final String qualityUnavailableTemplate;
   final String operationErrorTemplate;
   final String pinRequired;
 
@@ -1134,6 +1159,8 @@ final class _GameStreamCopy {
           .replaceAll('{fps}', '$fps');
   String forgetComputerBody(String host) =>
       forgetComputerBodyTemplate.replaceAll('{host}', host);
+  String localRetirementSuccess(String host) =>
+      localRetirementSuccessTemplate.replaceAll('{host}', host);
   String qualityUnavailable(String reason) =>
       qualityUnavailableTemplate.replaceAll('{reason}', reason);
   String operationError(String code) => code == 'pin_required'
@@ -1180,8 +1207,10 @@ final class _GameStreamCopy {
     configurePolicyDetail:
         'Kalite sınırlarını ve izin verilen kodekleri açıkça kaydet.',
     cancel: 'Vazgeç',
+    done: 'Tamam',
     savePolicy: 'Politikayı kaydet',
-    forgetComputer: 'Bilgisayarı unut',
+    forgetComputer: 'Bu tabletten kaldır',
+    localRetirementComplete: 'Yerel erişim kaldırıldı',
     quality: 'Yayın kalitesi',
     qualityBoundary: 'Seçenekler ekran, ağ, çözücü, host ve açık politika kesişiminden gelir.',
     startStream: 'Yayını başlat',
@@ -1191,7 +1220,13 @@ final class _GameStreamCopy {
     unknownNoReplay: 'Sonuç bilinmiyor. Otomatik yeniden gönderim yapılmaz.',
     appCatalogTemplate: '{host} uygulamaları',
     policyDetailsTemplate: '{codecs} · yerel ekran/çözücü sınırı {width}×{height} · {fps} FPS · ölçülü ağ kapalı · 60 dakika sınırı.',
-    forgetComputerBodyTemplate: '{host} eşlemesini upstream ve yerel gizli depodan kaldır. Sonuç bilinmezse kayıt karantinada kalır.',
+    forgetComputerBodyTemplate:
+        '{host} bilgisayarına Larenor Core erişimini ve bu tabletin gizli kaydını kaldır. '
+        'Bilgisayar Sunshine içinde eşlenmiş olarak kalır. Bilgisayarın bu tablete verdiği güveni kaldırmak için '
+        'bu istemciyi Sunshine ayarlarından ayrıca sil. Yerel sonuç bilinmezse Larenor kaydı karantinada tutar ve otomatik yeniden denemez.',
+    localRetirementSuccessTemplate:
+        '{host}, Larenor ve bu tabletten kaldırıldı. Sunshine eşlemesi korunuyor. '
+        'Bilgisayarın güvenini kaldırmak için bu istemciyi Sunshine ayarlarından sil.',
     qualityUnavailableTemplate:
         'Gerçek kalite gözlemi kullanılamıyor: {reason}.',
     operationErrorTemplate: 'İşlem tamamlanamadı ({code}).',
@@ -1234,8 +1269,10 @@ final class _GameStreamCopy {
     configurePolicy: 'Configure streaming policy',
     configurePolicyDetail: 'Explicitly save quality limits and allowed codecs.',
     cancel: 'Cancel',
+    done: 'Done',
     savePolicy: 'Save policy',
-    forgetComputer: 'Forget computer',
+    forgetComputer: 'Remove from this tablet',
+    localRetirementComplete: 'Local access removed',
     quality: 'Streaming quality',
     qualityBoundary: 'Options are the intersection of the display, network, decoder, host and explicit policy.',
     startStream: 'Start stream',
@@ -1246,7 +1283,13 @@ final class _GameStreamCopy {
     unknownNoReplay: 'The outcome is unknown. The command will not be sent again automatically.',
     appCatalogTemplate: '{host} applications',
     policyDetailsTemplate: '{codecs} · local display/decoder ceiling {width}×{height} · {fps} FPS · metered network off · 60 minute limit.',
-    forgetComputerBodyTemplate: 'Remove the {host} pairing upstream and from private local storage. An uncertain result stays quarantined.',
+    forgetComputerBodyTemplate:
+        'Remove Larenor Core access to {host} and this tablet\'s private registration. '
+        'The computer remains paired in Sunshine. To revoke the computer\'s trust in this tablet, '
+        'remove this client separately in Sunshine settings. If the local outcome is uncertain, Larenor quarantines the record and does not retry automatically.',
+    localRetirementSuccessTemplate:
+        '{host} was removed from Larenor and this tablet. Its Sunshine pairing remains. '
+        'Remove this client in Sunshine settings to revoke the computer\'s trust.',
     qualityUnavailableTemplate:
         'A real quality observation is unavailable: {reason}.',
     operationErrorTemplate: 'The operation could not be completed ({code}).',

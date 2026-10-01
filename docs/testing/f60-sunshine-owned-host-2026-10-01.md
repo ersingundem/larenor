@@ -118,12 +118,19 @@ The request validators reproduce the official source limits before any I/O:
 
 `pending_pairing()` returns only the exact owned pairing ID; the observed
 source IP is validated and discarded. `owned_client_uuid()` requires one exact
-enabled owned name. There is no `unpair-all` helper. The separate Android
-orchestrator must start the real cryptographic Moonlight pairing first, capture
-the production PIN privately, approve only that pending pairing, and use the
-returned exact UUID for cleanup. Because Sunshine may exit after removing its
-last client, the full future gate must restart the same private instance before
-claiming an absence readback.
+enabled owned name, and `require_owned_client_present()` checks the exact UUID,
+name, and enabled state without publishing them. There is no `unpair-all`
+helper. The separate Android orchestrator starts real cryptographic Moonlight
+pairing, captures the production PIN privately, approves only that pending
+pairing, and retains the exact UUID only for private causal checks and bounded
+owned-fixture teardown.
+
+Sunshine's last-client removal path calls `proc::proc.terminate()` on the
+launched application manager, not the Sunshine host process. A claimed absence
+readback therefore never requires restarting Sunshine. The current combined
+gate intentionally proves local registration retirement while that exact
+provider pairing remains present; owned-workspace teardown is not production
+provider-revocation evidence.
 
 The mDNS helper reads the single up default interface from `/proc/net/route`
 and filters Avahi resolved records to that exact interface. It accepts only the pinned Sunshine algorithm's instance name derived from the owned runner hostname, `_nvstream._tcp` and

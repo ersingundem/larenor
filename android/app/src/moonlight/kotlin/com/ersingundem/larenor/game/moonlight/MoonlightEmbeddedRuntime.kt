@@ -68,6 +68,9 @@ class MoonlightEmbeddedRuntime internal constructor(
         { MoonlightAuthorityRetirementStore(it) },
     private val discoveryBeforeCommit: (() -> Unit)? = null,
     private val discoveryBeforeDelivery: (() -> Unit)? = null,
+    private val localRetirementAfterRegistrationFence: (() -> Unit)? = null,
+    private val localRetirementBeforeDispatch: (() -> Unit)? = null,
+    private val localRetirementBeforeSubmission: (() -> Unit)? = null,
 ) : AutoCloseable {
     private val main = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor { runnable ->
@@ -90,11 +93,13 @@ class MoonlightEmbeddedRuntime internal constructor(
     private var pairingDialog: AutoCloseable? = null
     private var pendingPairings = linkedMapOf<String, PendingPairing>()
     private val pendingRetirements = linkedMapOf<String, MoonlightAuthorityRetirementReceipt>()
+    private val retiringHosts = mutableSetOf<String>()
     private val candidates = linkedMapOf<String, ProbedCandidate>()
     private var closed = false
 
     fun bindAuthority(next: MoonlightAuthority): Pair<String, Long> = synchronized(lock) {
         ensureOpen()
+        if (retiringHosts.isNotEmpty()) throw MoonlightRuntimeFailure("authority_changed")
         if (authority?.fingerprint == next.fingerprint) {
             return@synchronized exactBinding()
         }
@@ -287,6 +292,7 @@ class MoonlightEmbeddedRuntime internal constructor(
         val captured = capture(expected)
         synchronized(lock) {
             currentLocked(captured)
+            ensureHostUsableLocked(captured, registration.hostId)
             requireRegistrations().saveRegistration(registration)
             pendingPairings.remove(registration.nativeReceiptId)
         }
@@ -305,6 +311,7 @@ class MoonlightEmbeddedRuntime internal constructor(
             return
         }
         val captured = capture(expected)
+        ensureHostUsable(captured, hostId)
         val operationJournal = captured.journal
         val registration = captured.registrations.registration(hostId)
             ?: throw MoonlightRuntimeFailure("stale_pairing")
@@ -371,6 +378,7 @@ class MoonlightEmbeddedRuntime internal constructor(
         appRevision: Long,
     ): Long {
         val captured = capture(expected)
+        ensureHostUsable(captured, hostId)
         requireRegistrations().resolve(
             hostId, hostRevision, pairingRevision, catalogRevision, appId, appRevision,
         )
@@ -388,6 +396,7 @@ class MoonlightEmbeddedRuntime internal constructor(
         catalogRevision: Long,
     ): Long {
         val captured = capture(expected)
+        ensureHostUsable(captured, hostId)
         val registration = requireRegistrations().registration(hostId)
             ?: throw MoonlightRuntimeFailure("stale_pairing")
         if (registration.hostRevision != hostRevision || registration.pairingRevision != pairingRevision) {
@@ -411,6 +420,17 @@ class MoonlightEmbeddedRuntime internal constructor(
         requireIdentity(requestId, "request_id")
         requireIdentity(revocationId, "candidate")
         val captured = capture(expected)
+        val fingerprint = sha256(listOf(
+            hostId, expectedHostRevision, expectedPairingRevision, expectedCatalogRevision,
+        ).joinToString("\u0000").toByteArray()).hex()
+        captured.journal.read(requestId)?.let { existing ->
+            if (existing.kind != "revoke" || existing.operationId != revocationId ||
+                existing.subject != hostId || existing.fingerprint != fingerprint ||
+                existing.authorityFingerprint != expected.fingerprint
+            ) throw MoonlightRuntimeFailure("invalid_receipt")
+            callback(Result.success(revokeReadback(existing)))
+            return
+        }
         val registration = captured.registrations.registration(hostId)
             ?: throw MoonlightRuntimeFailure("stale_pairing")
         if (registration.hostRevision != expectedHostRevision ||
@@ -419,38 +439,57 @@ class MoonlightEmbeddedRuntime internal constructor(
         ) throw MoonlightRuntimeFailure("stale_pairing")
         val pairing = captured.registrations.pairing(registration.nativeReceiptId)
             ?: throw MoonlightRuntimeFailure("invalid_receipt")
-        val fingerprint = sha256(listOf(
-            hostId, expectedHostRevision, expectedPairingRevision, expectedCatalogRevision,
-        ).joinToString("\u0000").toByteArray()).hex()
-        val record = captured.journal.reserve(MoonlightOperationRecord(
-            requestId, revocationId, "revoke", hostId, fingerprint, expected.fingerprint,
-            MoonlightOperationState.PREPARED, 0, 0,
-        ))
+        synchronized(lock) {
+            currentLocked(captured)
+            if (boundSession != null || activeLeaseToken != null ||
+                pendingPairings.containsKey(pairing.receiptId)
+            ) throw MoonlightRuntimeFailure("authority_changed")
+            if (!retiringHosts.add(hostId)) throw MoonlightRuntimeFailure("busy")
+        }
+        val record = try {
+            captured.journal.reserve(MoonlightOperationRecord(
+                requestId, revocationId, "revoke", hostId, fingerprint, expected.fingerprint,
+                MoonlightOperationState.PREPARED, 0, 0,
+            ))
+        } catch (failure: Throwable) {
+            synchronized(lock) { retiringHosts.remove(hostId) }
+            throw failure
+        }
         if (record.state != MoonlightOperationState.PREPARED) {
+            synchronized(lock) { retiringHosts.remove(hostId) }
             callback(Result.success(revokeReadback(record)))
             return
         }
-        captured.journal.transition(
-            requestId, MoonlightOperationState.PREPARED, MoonlightOperationState.DISPATCHING, 0,
-        )
-        executor.execute {
-            val receipt = try {
-                current(captured)
-                revokeBlocking(captured, pairing, requestId)
-            } catch (_: Throwable) {
-                val unknown = MoonlightRevokeReceipt(requestId, "unknown", null)
-                captured.journal.transition(
-                    requestId, MoonlightOperationState.DISPATCHING, MoonlightOperationState.UNKNOWN,
-                    0, revokeReceiptJson(unknown),
-                )
-                unknown
+        try {
+            localRetirementBeforeDispatch?.invoke()
+            captured.journal.transition(
+                requestId, MoonlightOperationState.PREPARED, MoonlightOperationState.DISPATCHING, 0,
+            )
+            localRetirementBeforeSubmission?.invoke()
+            executor.execute {
+                val receipt = try {
+                    current(captured)
+                    revokeBlocking(captured, pairing, registration, requestId)
+                } catch (_: Throwable) {
+                    val unknown = MoonlightRevokeReceipt(requestId, "unknown", null)
+                    captured.journal.transition(
+                        requestId, MoonlightOperationState.DISPATCHING, MoonlightOperationState.UNKNOWN,
+                        0, revokeReceiptJson(unknown),
+                    )
+                    unknown
+                } finally {
+                    synchronized(lock) { retiringHosts.remove(hostId) }
+                }
+                main.post {
+                    runCatching { current(captured) }.fold(
+                        onSuccess = { callback(Result.success(receipt)) },
+                        onFailure = { callback(Result.failure(publicFailure(it))) },
+                    )
+                }
             }
-            main.post {
-                runCatching { current(captured) }.fold(
-                    onSuccess = { callback(Result.success(receipt)) },
-                    onFailure = { callback(Result.failure(publicFailure(it))) },
-                )
-            }
+        } catch (failure: Throwable) {
+            synchronized(lock) { retiringHosts.remove(hostId) }
+            throw failure
         }
     }
 
@@ -470,6 +509,7 @@ class MoonlightEmbeddedRuntime internal constructor(
         current(captured)
         synchronized(lock) {
             current(captured)
+            ensureHostUsableLocked(captured, session.hostId)
             boundSession = session
         }
     }
@@ -737,6 +777,41 @@ class MoonlightEmbeddedRuntime internal constructor(
         )
         current(captured)
         return binding to snapshot
+    }
+
+    /**
+     * Process-private acceptance evidence for the exact currently bound Core
+     * session. No launch token, pixels, PCM, provider identifier, or endpoint
+     * crosses this boundary.
+     */
+    internal fun outputWitness(
+        expected: MoonlightAuthority,
+        sessionId: String,
+        expectedSessionRevision: Long,
+    ): MoonlightOutputWitnessSnapshot {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(expectedSessionRevision, "revision")
+        val captured = capture(expected)
+        val token = synchronized(lock) {
+            currentLocked(captured)
+            val session = boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            activeLeaseToken ?: throw MoonlightRuntimeFailure("authority_changed")
+        }
+        // Registry notifications acquire the runtime lock through their
+        // observer. Never hold the runtime lock while reading the lease.
+        val witness = MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(token)
+        synchronized(lock) {
+            currentLocked(captured)
+            val session = boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            if (activeLeaseToken != token || witness.sessionId != session.sessionId ||
+                witness.epoch != session.sessionRevision
+            ) throw MoonlightRuntimeFailure("authority_changed")
+        }
+        return witness
     }
 
     fun retireCurrentAuthority() {
@@ -1385,32 +1460,49 @@ class MoonlightEmbeddedRuntime internal constructor(
     private fun revokeBlocking(
         captured: Captured,
         pairing: MoonlightNativePairing,
+        registration: MoonlightCoreRegistration,
         requestId: String,
-    ): MoonlightRevokeReceipt {
+    ): MoonlightRevokeReceipt = synchronized(lock) {
+        currentLocked(captured)
+        if (registration.hostId !in retiringHosts ||
+            captured.registrations.registration(registration.hostId) != registration ||
+            captured.registrations.pairing(pairing.receiptId) != pairing
+        ) throw MoonlightRuntimeFailure("authority_changed")
+
+        // Fence the Core-resolvable mapping first. All registration commits and authority changes
+        // share this lock, so an obsolete generation can never delete a successor registration.
+        captured.registrations.deletePairing(pairing.receiptId)
+        if (captured.registrations.pairing(pairing.receiptId) != null ||
+            captured.registrations.registration(registration.hostId) != null
+        ) throw MoonlightRuntimeFailure("unknown_effect")
+        localRetirementAfterRegistrationFence?.invoke()
+        currentLocked(captured)
+
         val context = captured.scoped
         val database = ComputerDatabaseManager(context)
-        val details = try { database.getComputerByUUID(pairing.upstreamHostUuid) } finally { database.close() }
-            ?: throw MoonlightRuntimeFailure("stale_pairing")
-        val address = details.activeAddress ?: details.localAddress ?: details.ipv6Address
-            ?: throw MoonlightRuntimeFailure("provider_unavailable")
-        val certificate = details.serverCert ?: throw MoonlightRuntimeFailure("stale_pairing")
-        val http = NvHTTP(address, details.httpsPort, IdentityManager(context).uniqueId,
-            certificate, AndroidCryptoProvider(context))
-        current(captured)
-        http.unpair()
-        if (http.pairState == PairingManager.PairState.PAIRED) throw MoonlightRuntimeFailure("unknown_effect")
-        current(captured)
-        ComputerDatabaseManager(context).let { database ->
-            try { database.deleteComputer(details) } finally { database.close() }
+        val details = try {
+            database.getComputerByUUID(pairing.upstreamHostUuid)
+                ?: throw MoonlightRuntimeFailure("stale_pairing")
+        } finally {
+            database.close()
         }
-        captured.registrations.deletePairing(pairing.receiptId)
+        ComputerDatabaseManager(context).let { next ->
+            try { next.deleteComputer(details) } finally { next.close() }
+        }
+        val computerCleared = ComputerDatabaseManager(context).let { next ->
+            try { next.getComputerByUUID(pairing.upstreamHostUuid) == null } finally { next.close() }
+        }
+        if (!computerCleared) throw MoonlightRuntimeFailure("unknown_effect")
+        currentLocked(captured)
         val revision = captured.journal.nextReadbackRevision()
-        val receipt = MoonlightRevokeReceipt(requestId, "revoked", revision)
+        // Sunshine has no client-certificate-authorized NvHTTP unpair route.
+        // This receipt proves only exact scoped native storage retirement.
+        val receipt = MoonlightRevokeReceipt(requestId, "local_cleared", revision)
         captured.journal.transition(
             requestId, MoonlightOperationState.DISPATCHING, MoonlightOperationState.REVOKED,
             revision, revokeReceiptJson(receipt),
         )
-        return receipt
+        receipt
     }
 
     private fun refreshCatalogBlocking(
@@ -1637,8 +1729,10 @@ class MoonlightEmbeddedRuntime internal constructor(
 
     private fun decodeRevokeReceipt(raw: String): MoonlightRevokeReceipt {
         val value = JSONObject(raw)
+        val persistedStatus = value.getString("status")
+        val status = if (persistedStatus == "revoked") "local_cleared" else persistedStatus
         return MoonlightRevokeReceipt(
-            value.getString("requestId"), value.getString("status"),
+            value.getString("requestId"), status,
             if (value.isNull("readbackRevision")) null else value.getLong("readbackRevision"),
         )
     }
@@ -1721,6 +1815,23 @@ class MoonlightEmbeddedRuntime internal constructor(
         if (closed || generation != captured.generation || authority?.fingerprint != captured.fingerprint) {
             throw MoonlightRuntimeFailure("authority_changed")
         }
+    }
+
+    private fun ensureHostUsable(captured: Captured, hostId: String) = synchronized(lock) {
+        currentLocked(captured)
+        ensureHostUsableLocked(captured, hostId)
+    }
+
+    private fun ensureHostUsableLocked(captured: Captured, hostId: String) {
+        if (hostId in retiringHosts || captured.journal.list().any {
+                it.kind == "revoke" && it.subject == hostId &&
+                    it.state in setOf(
+                        MoonlightOperationState.PREPARED,
+                        MoonlightOperationState.DISPATCHING,
+                        MoonlightOperationState.UNKNOWN,
+                    )
+            }
+        ) throw MoonlightRuntimeFailure("quarantined")
     }
 
     private fun discardPendingPairingsLocked() {
