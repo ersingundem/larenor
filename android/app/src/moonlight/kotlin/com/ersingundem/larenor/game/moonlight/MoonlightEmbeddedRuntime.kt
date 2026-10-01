@@ -149,6 +149,7 @@ class MoonlightEmbeddedRuntime internal constructor(
     private var authority: MoonlightAuthority? = null
     private var bindingId: String? = null
     private var bindingRevision = 0L
+    private val streamDispatchTraces = MoonlightStreamDispatchTraceStore()
     private var scoped: MoonlightScopedContext? = null
     private var journal: MoonlightOperationJournal? = null
     private var registrations: MoonlightRegistrationStore? = null
@@ -961,6 +962,37 @@ class MoonlightEmbeddedRuntime internal constructor(
         return witness
     }
 
+    internal fun streamDispatchTrace(
+        expected: MoonlightAuthority,
+        requestId: String,
+        sessionId: String,
+        expectedSessionRevision: Long,
+        commandId: String,
+    ): MoonlightStreamDispatchDiagnostic? {
+        requireIdentity(requestId, "request_id")
+        requireIdentity(sessionId, "session_id")
+        requireRevision(expectedSessionRevision, "revision")
+        requireIdentity(commandId, "candidate")
+        val captured = capture(expected)
+        val record = requireJournal().read(requestId)
+            ?.takeIf {
+                it.kind == "command" && it.operationId == commandId && it.subject == sessionId &&
+                    it.authorityFingerprint == expected.fingerprint
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+        synchronized(lock) {
+            currentLocked(captured)
+            val session = boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            if (record.subject != session.sessionId) throw MoonlightRuntimeFailure("authority_changed")
+        }
+        val owner = MoonlightStreamDispatchOwner(
+            expected.fingerprint, requestId, sessionId, expectedSessionRevision,
+            commandId, record.fingerprint,
+        )
+        return streamDispatchTraces.read(owner).also { current(captured) }
+    }
+
     fun retireCurrentAuthority() {
         val (previous, prompt, flight) = synchronized(lock) {
             generation += 1
@@ -1111,9 +1143,22 @@ class MoonlightEmbeddedRuntime internal constructor(
         fingerprint: String,
         callback: (Result<MoonlightCommandReceipt>) -> Unit,
     ) {
+        val traceOwner = MoonlightStreamDispatchOwner(
+            expected.fingerprint, requestId, session.sessionId, session.sessionRevision,
+            commandId, fingerprint,
+        )
+        streamDispatchTraces.start(traceOwner)
         val delivered = AtomicBoolean(false)
-        fun finish(observation: MoonlightLeaseObservation) {
+        fun finish(
+            observation: MoonlightLeaseObservation,
+            stage: MoonlightStreamDispatchStage,
+            causalFailure: Throwable? = null,
+            recordStage: Boolean = true,
+        ) {
             if (!delivered.compareAndSet(false, true)) return
+            if (recordStage && causalFailure != null) {
+                streamDispatchTraces.advance(traceOwner, stage, causalFailure)
+            }
             val receipt = try {
                 if (observation.observationKind != "connectionStarted") {
                     throw MoonlightRuntimeFailure("unknown_effect")
@@ -1125,8 +1170,14 @@ class MoonlightEmbeddedRuntime internal constructor(
                     requestId, session.sessionId, commandId, "native_observed", "streaming",
                     "connectionStarted", revision,
                 )
-            } catch (_: Throwable) {
+            } catch (failure: Throwable) {
+                if (recordStage && causalFailure == null) {
+                    streamDispatchTraces.advance(traceOwner, stage, failure)
+                }
                 commandReceipt(requestId, session.sessionId, commandId, "unknown", "unknown", "unknown", null)
+            }
+            if (recordStage && receipt.state == "native_observed") {
+                streamDispatchTraces.advance(traceOwner, stage)
             }
             val terminal = if (receipt.state == "native_observed") {
                 MoonlightOperationState.CONFIRMED
@@ -1163,27 +1214,34 @@ class MoonlightEmbeddedRuntime internal constructor(
                 session.hostId, session.hostRevision, session.pairingRevision,
                 session.catalogRevision, session.appId, session.appRevision,
                 session.selectedQuality.displayId, maximumLifetimeMillis,
-                policy.maximumIdleSeconds * 1_000L, ::finish,
+                policy.maximumIdleSeconds * 1_000L,
+                { observation -> finish(observation, MoonlightStreamDispatchStage.CALLBACK) },
             )
+            streamDispatchTraces.advance(traceOwner, MoonlightStreamDispatchStage.POST_ISSUED)
             synchronized(lock) { activeLeaseToken = lease.token }
             main.post {
                 try {
                     current(captured)
                     launchStream(lease)
+                    streamDispatchTraces.advance(
+                        traceOwner, MoonlightStreamDispatchStage.LAUNCH_RETURNED,
+                    )
                     main.postDelayed({
                         finish(MoonlightLeaseObservation(
                             runCatching { MoonlightForegroundLeaseRegistry.snapshot(lease.token) }
                                 .getOrElse { lease.copy(state = MoonlightLeaseState.UNCERTAIN) },
                             "unknown", "unknown",
-                        ))
+                        ), MoonlightStreamDispatchStage.TIMEOUT)
                     }, COMMAND_TIMEOUT_MS)
-                } catch (_: Throwable) {
+                } catch (failure: Throwable) {
+                    streamDispatchTraces.fail(traceOwner, failure)
                     finish(MoonlightLeaseObservation(
                         lease.copy(state = MoonlightLeaseState.UNCERTAIN), "unknown", "unknown",
-                    ))
+                    ), MoonlightStreamDispatchStage.POST_ISSUED, failure, recordStage = false)
                 }
             }
-        } catch (_: Throwable) {
+        } catch (failure: Throwable) {
+            streamDispatchTraces.fail(traceOwner, failure)
             val unknown = commandReceipt(
                 requestId, session.sessionId, commandId, "unknown", "unknown", "unknown", null,
             )

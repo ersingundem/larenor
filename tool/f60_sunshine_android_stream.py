@@ -126,6 +126,41 @@ _STREAM_COMMAND_MARKER = re.compile(
     r"classification=(leaseTransferPending|leaseGameVisible|leaseUncertain|"
     r"leaseRetired|leaseAbsentOrUnreadable)"
 )
+_STREAM_DISPATCH_STAGES = frozenset({
+    "beforeIssue", "postIssued", "launchReturned", "callback", "timeout",
+})
+_STREAM_DISPATCH_FAILURE_CLASSES = frozenset({
+    "none",
+    "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure",
+    "android.content.ActivityNotFoundException",
+    "java.lang.SecurityException",
+    "java.lang.IllegalArgumentException",
+    "java.lang.IllegalStateException",
+    "unclassified",
+})
+_STREAM_RUNTIME_FAILURES = frozenset({
+    "none", "authority_changed", "busy", "cancelled", "engine_unavailable",
+    "foreground_required", "invalid_account_id", "invalid_authority_id",
+    "invalid_candidate", "invalid_candidate_revision", "invalid_core_id",
+    "invalid_family_id", "invalid_home_id", "invalid_pairing_revision",
+    "invalid_request_id", "invalid_revision", "invalid_session_id",
+    "invalid_timeout", "invalid_receipt", "provider_unavailable", "pin_required",
+    "quarantined", "stale_candidate", "stale_pairing", "unknown_effect",
+})
+_STREAM_DISPATCH_MARKER = re.compile(
+    r"F60_STREAM_DISPATCH_V1\|"
+    r"stage=(beforeIssue|postIssued|launchReturned|callback|timeout)\|"
+    r"failureClass=(none|com\.ersingundem\.larenor\.game\.moonlight\."
+    r"MoonlightRuntimeFailure|android\.content\.ActivityNotFoundException|"
+    r"java\.lang\.SecurityException|java\.lang\.IllegalArgumentException|"
+    r"java\.lang\.IllegalStateException|unclassified)\|"
+    r"runtimeFailure=(none|authority_changed|busy|cancelled|engine_unavailable|"
+    r"foreground_required|invalid_account_id|invalid_authority_id|invalid_candidate|"
+    r"invalid_candidate_revision|invalid_core_id|invalid_family_id|invalid_home_id|"
+    r"invalid_pairing_revision|invalid_request_id|invalid_revision|invalid_session_id|"
+    r"invalid_timeout|invalid_receipt|provider_unavailable|pin_required|quarantined|"
+    r"stale_candidate|stale_pairing|unknown_effect)"
+)
 _OWNED_SOURCE_FILES = frozenset({
     "LarenorMoonlightGame.kt",
     "MoonlightAuthority.kt",
@@ -143,7 +178,7 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "bda887056886c53c147651a35473cf1120284009367481131dd41469490327ea"
+_STAGE_SOURCE_SHA256 = "755a9a41109317484677f62103ed0ab4578ff769637b84ddd919a5183ff5243b"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
@@ -1381,6 +1416,29 @@ def _failure_details(
                 "outcome": marker.group(5),
                 "classification": classification,
             }
+    dispatch_markers = [
+        match for line in lines
+        if (match := _STREAM_DISPATCH_MARKER.fullmatch(line.strip()))
+    ]
+    if (
+        stage == "firstStreamOutput"
+        and exception_type == "java.lang.AssertionError"
+        and len(markers) == 1
+        and len(dispatch_markers) == 1
+        and "streamCommand" in diagnostic
+    ):
+        dispatch = dispatch_markers[0]
+        failure_class = dispatch.group(2)
+        runtime_failure = dispatch.group(3)
+        runtime_class = (
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure"
+        )
+        if (failure_class == runtime_class) == (runtime_failure != "none"):
+            diagnostic["streamDispatch"] = {
+                "stage": dispatch.group(1),
+                "failureClass": failure_class,
+                "runtimeFailure": runtime_failure,
+            }
     return diagnostic
 
 
@@ -1509,7 +1567,7 @@ def failure_diagnostic(root: Optional[Path] = None) -> dict[str, object]:
 def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
-        "acceptanceStage", "pinBridgeStage", "streamCommand",
+        "acceptanceStage", "pinBridgeStage", "streamCommand", "streamDispatch",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1610,6 +1668,22 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
             or command["leaseClaim"] not in classifications
             or command["outcome"] != "strictFailure"
             or command["classification"] != classifications.get(command["leaseClaim"])
+        ):
+            raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    dispatch = diagnostic.get("streamDispatch")
+    if dispatch is not None:
+        runtime_class = (
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure"
+        )
+        if (
+            command is None
+            or type(dispatch) is not dict
+            or set(dispatch) != {"stage", "failureClass", "runtimeFailure"}
+            or dispatch["stage"] not in _STREAM_DISPATCH_STAGES
+            or dispatch["failureClass"] not in _STREAM_DISPATCH_FAILURE_CLASSES
+            or dispatch["runtimeFailure"] not in _STREAM_RUNTIME_FAILURES
+            or (dispatch["failureClass"] == runtime_class)
+            != (dispatch["runtimeFailure"] != "none")
         ):
             raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
 

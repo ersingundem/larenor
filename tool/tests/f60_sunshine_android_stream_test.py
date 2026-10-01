@@ -1045,6 +1045,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         )
         body = (
             "java.lang.AssertionError: " + marker + "\n"
+            "F60_STREAM_DISPATCH_V1|stage=beforeIssue|failureClass="
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure|"
+            "runtimeFailure=stale_candidate\n"
             " at com.ersingundem.larenor.game.moonlight."
             "MoonlightOwnedSunshineStreamTest."
             f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)\n"
@@ -1063,6 +1066,13 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             "outcome": "strictFailure",
             "classification": "leaseGameVisible",
         }, diagnostic["streamCommand"])
+        self.assertEqual({
+            "stage": "beforeIssue",
+            "failureClass": (
+                "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure"
+            ),
+            "runtimeFailure": "stale_candidate",
+        }, diagnostic["streamDispatch"])
         stream._validate_failure_diagnostic(diagnostic)
 
     def test_stream_command_marker_rejects_private_extra_wrong_identity_and_stale_source(self) -> None:
@@ -1101,6 +1111,40 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             with mock.patch.object(stream, "_STAGE_SOURCE", changed):
                 self.assertNotIn("streamCommand", stream.failure_diagnostic(root))
 
+    def test_stream_dispatch_marker_rejects_private_extra_and_mismatched_failure(self) -> None:
+        command = (
+            "F60_STREAM_COMMAND_V1|state=unknown|result=unknown|kind=unknown|"
+            "leaseClaim=absentOrUnreadable|outcome=strictFailure|"
+            "classification=leaseAbsentOrUnreadable"
+        )
+        invalid = (
+            "F60_STREAM_DISPATCH_V1|stage=beforeIssue|failureClass="
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure|"
+            "runtimeFailure=none",
+            "F60_STREAM_DISPATCH_V1|stage=beforeIssue|failureClass=unclassified|"
+            "runtimeFailure=unknown_effect",
+            "F60_STREAM_DISPATCH_V1|stage=beforeIssue|failureClass=unclassified|"
+            "runtimeFailure=none|private=value",
+            "F60_STREAM_DISPATCH_V1|stage=timeout|failureClass="
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure|"
+            "runtimeFailure=unknown_effect\n"
+            "F60_STREAM_DISPATCH_V1|stage=timeout|failureClass="
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure|"
+            "runtimeFailure=unknown_effect",
+        )
+        for dispatch in invalid:
+            with self.subTest(dispatch=dispatch), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self._failed_report(root, body=(
+                    "java.lang.AssertionError: " + command + "\n" + dispatch + "\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)\n"
+                ))
+                diagnostic = stream.failure_diagnostic(root)
+                self.assertIn("streamCommand", diagnostic)
+                self.assertNotIn("streamDispatch", diagnostic)
+
     def test_stream_command_diagnostic_requires_exact_classification_and_non_skipped_failure(self) -> None:
         diagnostic = {
             "code": "instrumentation_test_failure",
@@ -1117,6 +1161,16 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 "outcome": "strictFailure",
                 "classification": "leaseUncertain",
             },
+        }
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(diagnostic)
+        diagnostic["counts"] = {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+        diagnostic["streamDispatch"] = {
+            "stage": "timeout",
+            "failureClass": (
+                "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure"
+            ),
+            "runtimeFailure": "none",
         }
         with self.assertRaises(stream.StreamAcceptanceFailure):
             stream._validate_failure_diagnostic(diagnostic)

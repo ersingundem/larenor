@@ -401,9 +401,23 @@ class MoonlightOwnedSunshineStreamTest {
         val kind = receipt.observationKind.takeIf {
             it in setOf("connectionStarted", "unknown")
         } ?: "invalid"
+        val dispatch = runCatching {
+            runtime.streamDispatchTrace(
+                authority,
+                id("stream-request"),
+                session.sessionId,
+                session.sessionRevision,
+                id("stream-command"),
+            )
+        }.getOrNull()
+        val dispatchMarker = dispatch?.let {
+            "\nF60_STREAM_DISPATCH_V1|stage=${it.stage}|failureClass=${it.failureClass}|" +
+                "runtimeFailure=${it.runtimeFailure}"
+        }.orEmpty()
         throw AssertionError(
             "F60_STREAM_COMMAND_V1|state=$state|result=$result|kind=$kind|" +
-                "leaseClaim=$leaseClaim|outcome=strictFailure|classification=$classification",
+                "leaseClaim=$leaseClaim|outcome=strictFailure|classification=$classification" +
+                dispatchMarker,
         )
     }
 

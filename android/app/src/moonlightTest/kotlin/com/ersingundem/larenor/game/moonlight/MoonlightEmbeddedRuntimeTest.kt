@@ -300,6 +300,93 @@ class MoonlightEmbeddedRuntimeTest {
             MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(successor.token))
     }
 
+    @Test fun streamDispatchTraceRecordsEveryFixedStageAndClosedFailureCategory() {
+        val store = MoonlightStreamDispatchTraceStore()
+        val before = dispatchOwner(1)
+        store.start(before)
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic("beforeIssue", "none", "none"),
+            store.read(before),
+        )
+        store.fail(before, MoonlightRuntimeFailure("stale_candidate"))
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic(
+                "beforeIssue",
+                MoonlightStreamDispatchDiagnostic.RUNTIME_FAILURE_CLASS,
+                "stale_candidate",
+            ),
+            store.read(before),
+        )
+
+        val callback = dispatchOwner(2)
+        store.start(callback)
+        store.advance(callback, MoonlightStreamDispatchStage.POST_ISSUED)
+        assertEquals("postIssued", store.read(callback)?.stage)
+        store.advance(callback, MoonlightStreamDispatchStage.LAUNCH_RETURNED)
+        assertEquals("launchReturned", store.read(callback)?.stage)
+        store.advance(callback, MoonlightStreamDispatchStage.CALLBACK)
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic("callback", "none", "none"),
+            store.read(callback),
+        )
+        store.advance(callback, MoonlightStreamDispatchStage.TIMEOUT)
+        assertEquals("callback", store.read(callback)?.stage)
+
+        val timeout = dispatchOwner(3)
+        store.start(timeout)
+        store.advance(timeout, MoonlightStreamDispatchStage.POST_ISSUED)
+        store.advance(timeout, MoonlightStreamDispatchStage.LAUNCH_RETURNED)
+        store.advance(
+            timeout,
+            MoonlightStreamDispatchStage.TIMEOUT,
+            MoonlightRuntimeFailure("unknown_effect"),
+        )
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic(
+                "timeout",
+                MoonlightStreamDispatchDiagnostic.RUNTIME_FAILURE_CLASS,
+                "unknown_effect",
+            ),
+            store.read(timeout),
+        )
+
+        val launchFailure = dispatchOwner(4)
+        store.start(launchFailure)
+        store.advance(launchFailure, MoonlightStreamDispatchStage.POST_ISSUED)
+        store.fail(launchFailure, IllegalStateException("private"))
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic(
+                "postIssued", "java.lang.IllegalStateException", "none",
+            ),
+            store.read(launchFailure),
+        )
+        val privateFailure = dispatchOwner(5)
+        store.start(privateFailure)
+        store.fail(privateFailure, java.io.IOException("private-provider-value"))
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic("beforeIssue", "unclassified", "none"),
+            store.read(privateFailure),
+        )
+    }
+
+    @Test fun staleStreamDispatchCallbacksCannotOverwriteSuccessorTrace() {
+        val store = MoonlightStreamDispatchTraceStore()
+        val old = dispatchOwner(6)
+        val successor = dispatchOwner(7)
+        store.start(old)
+        store.advance(old, MoonlightStreamDispatchStage.POST_ISSUED)
+        store.start(successor)
+
+        store.advance(old, MoonlightStreamDispatchStage.CALLBACK)
+        store.fail(old, MoonlightRuntimeFailure("unknown_effect"))
+
+        assertEquals(null, store.read(old))
+        assertEquals(
+            MoonlightStreamDispatchDiagnostic("beforeIssue", "none", "none"),
+            store.read(successor),
+        )
+    }
+
     @Test fun catalogDigestMatchesCoreCanonicalJsonIncludingEmptyCatalog() {
         assertEquals(
             "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -314,6 +401,15 @@ class MoonlightEmbeddedRuntimeTest {
         assertEquals(256, requireBoundedCatalog((0 until 256).toList(), 256).size)
         reject("provider_unavailable") { requireBoundedCatalog((0..256).toList(), 256) }
     }
+
+    private fun dispatchOwner(offset: Int) = MoonlightStreamDispatchOwner(
+        authorityFingerprint = offset.toString(16).padStart(64, '0'),
+        requestId = ids.getValue(offset),
+        sessionId = ids.getValue(8),
+        sessionRevision = 1,
+        commandId = ids.getValue(9),
+        commandFingerprint = (offset + 20).toString(16).padStart(64, '0'),
+    )
 
     @Test fun pairedHostObservationContainsOnlyUpstreamReportedCodecFacts() {
         val observation = org.json.JSONObject(pairing().observationJson)

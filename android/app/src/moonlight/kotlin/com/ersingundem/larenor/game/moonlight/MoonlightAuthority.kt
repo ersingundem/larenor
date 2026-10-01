@@ -22,20 +22,134 @@ internal fun publicRevision(vararg values: String): Long {
     return hex.take(13).toLong(16) + 1L
 }
 
+internal val MOONLIGHT_RUNTIME_FAILURE_CODES = setOf(
+    "authority_changed", "busy", "cancelled", "engine_unavailable",
+    "foreground_required", "invalid_account_id", "invalid_authority_id",
+    "invalid_candidate", "invalid_candidate_revision", "invalid_core_id",
+    "invalid_family_id", "invalid_home_id", "invalid_pairing_revision",
+    "invalid_request_id", "invalid_revision", "invalid_session_id",
+    "invalid_timeout", "invalid_receipt", "provider_unavailable",
+    "pin_required", "quarantined", "stale_candidate", "stale_pairing", "unknown_effect",
+)
+
 class MoonlightRuntimeFailure(val code: String) : RuntimeException(code) {
     init {
-        require(code in setOf(
-            "authority_changed", "busy", "cancelled", "engine_unavailable",
-            "foreground_required", "invalid_account_id", "invalid_authority_id",
-            "invalid_candidate", "invalid_candidate_revision", "invalid_core_id",
-            "invalid_family_id", "invalid_home_id", "invalid_pairing_revision",
-            "invalid_request_id", "invalid_revision", "invalid_session_id",
-            "invalid_timeout", "invalid_receipt", "provider_unavailable",
-            "pin_required", "quarantined", "stale_candidate", "stale_pairing", "unknown_effect",
-        ))
+        require(code in MOONLIGHT_RUNTIME_FAILURE_CODES)
     }
 
     override fun toString(): String = "MoonlightRuntimeFailure($code)"
+}
+
+internal enum class MoonlightStreamDispatchStage(val wireName: String) {
+    BEFORE_ISSUE("beforeIssue"),
+    POST_ISSUED("postIssued"),
+    LAUNCH_RETURNED("launchReturned"),
+    CALLBACK("callback"),
+    TIMEOUT("timeout"),
+}
+
+internal data class MoonlightStreamDispatchOwner(
+    val authorityFingerprint: String,
+    val requestId: String,
+    val sessionId: String,
+    val sessionRevision: Long,
+    val commandId: String,
+    val commandFingerprint: String,
+) {
+    init {
+        require(DIGEST.matches(authorityFingerprint))
+        requireIdentity(requestId, "request_id")
+        requireIdentity(sessionId, "session_id")
+        requireRevision(sessionRevision, "revision")
+        requireIdentity(commandId, "candidate")
+        require(DIGEST.matches(commandFingerprint))
+    }
+
+    override fun toString(): String = "MoonlightStreamDispatchOwner(<redacted>)"
+}
+
+internal data class MoonlightStreamDispatchDiagnostic(
+    val stage: String,
+    val failureClass: String,
+    val runtimeFailure: String,
+) {
+    init {
+        require(stage in MoonlightStreamDispatchStage.entries.map { it.wireName })
+        require(failureClass in FAILURE_CLASSES)
+        require(runtimeFailure == "none" || runtimeFailure in MOONLIGHT_RUNTIME_FAILURE_CODES)
+        require((failureClass == RUNTIME_FAILURE_CLASS) == (runtimeFailure != "none"))
+    }
+
+    companion object {
+        const val RUNTIME_FAILURE_CLASS =
+            "com.ersingundem.larenor.game.moonlight.MoonlightRuntimeFailure"
+        val FAILURE_CLASSES = setOf(
+            "none",
+            RUNTIME_FAILURE_CLASS,
+            "android.content.ActivityNotFoundException",
+            "java.lang.SecurityException",
+            "java.lang.IllegalArgumentException",
+            "java.lang.IllegalStateException",
+            "unclassified",
+        )
+    }
+}
+
+/** Process-private, exact-command diagnostic state. It never stores Throwable messages. */
+internal class MoonlightStreamDispatchTraceStore {
+    private var owner: MoonlightStreamDispatchOwner? = null
+    private var diagnostic: MoonlightStreamDispatchDiagnostic? = null
+
+    @Synchronized
+    fun start(next: MoonlightStreamDispatchOwner) {
+        owner = next
+        diagnostic = diagnostic(MoonlightStreamDispatchStage.BEFORE_ISSUE, null)
+    }
+
+    @Synchronized
+    fun advance(
+        expected: MoonlightStreamDispatchOwner,
+        stage: MoonlightStreamDispatchStage,
+        failure: Throwable? = null,
+    ) {
+        if (owner != expected) return
+        val current = diagnostic ?: return
+        if (current.stage in TERMINAL_STAGES) return
+        diagnostic = diagnostic(stage, failure)
+    }
+
+    @Synchronized
+    fun fail(expected: MoonlightStreamDispatchOwner, failure: Throwable) {
+        if (owner != expected) return
+        val current = diagnostic ?: return
+        if (current.stage in TERMINAL_STAGES) return
+        val stage = MoonlightStreamDispatchStage.entries.single {
+            it.wireName == current.stage
+        }
+        diagnostic = diagnostic(stage, failure)
+    }
+
+    @Synchronized
+    fun read(expected: MoonlightStreamDispatchOwner): MoonlightStreamDispatchDiagnostic? =
+        diagnostic?.takeIf { owner == expected }
+
+    private fun diagnostic(
+        stage: MoonlightStreamDispatchStage,
+        failure: Throwable?,
+    ): MoonlightStreamDispatchDiagnostic {
+        val failureClass = failure?.javaClass?.name
+            ?.takeIf(MoonlightStreamDispatchDiagnostic.FAILURE_CLASSES::contains)
+            ?: if (failure == null) "none" else "unclassified"
+        val runtimeFailure = (failure as? MoonlightRuntimeFailure)?.code ?: "none"
+        return MoonlightStreamDispatchDiagnostic(stage.wireName, failureClass, runtimeFailure)
+    }
+
+    private companion object {
+        val TERMINAL_STAGES = setOf(
+            MoonlightStreamDispatchStage.CALLBACK.wireName,
+            MoonlightStreamDispatchStage.TIMEOUT.wireName,
+        )
+    }
 }
 
 data class MoonlightScope(
