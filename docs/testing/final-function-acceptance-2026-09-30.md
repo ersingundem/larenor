@@ -30,6 +30,29 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
   geniş Server ve Android kabul kapıları ise tamamlanmamıştır. Bu iki Security
   sonucu tek başına geniş latest-HEAD CI kabulü değildir.
 
+## Güncel dağıtım ve birleşik CI açıkları — 1 Ekim
+
+- Exact `fecc51c812aedb00fda8e4a976fb04b2df11fe8f`, Security run
+  [36808202647](https://github.com/ersingundem/larenor/actions/runs/36808202647)
+  başarıyla tamamlandı. Birleşik Android run
+  [36808321597](https://github.com/ersingundem/larenor/actions/runs/36808321597)
+  aynı SHA’da başladı. Server işleri nested manuel çağrıda eksik scope nedeniyle
+  atlandığı için bu koşu geniş Server kabulü olarak kullanılamaz; çağrı
+  düzeltmesi ve değişmiş kaynaklı gerçek Server koşusu gerekir. Reusable scope
+  düzeltmesi root 10/10 workflow/scope testi ve actionlint ile doğrulandı.
+  Aynı eski runın format kapısı iki Dart test dosyasında başarısızdı;
+  biçim düzeltmesi root exact no-write kontrolünü geçti. Yeni kaynak kapısı gerekir.
+- Normal debug/signed product APK buildi iki optional native AAR/receipt çiftini
+  hazırlamıyor. Temiz checkout bu nedenle gerçek Moonlight/FreeRDP motorlarını
+  içermeyen APK üretir. Tek-motor native lane başarısı bu birleşik dağıtım
+  açığını kapatmaz. Ürün derlemesi her iki immutable paketi hazırlayıp doğrulamalı,
+  eksik pakette durmalı ve **aynı APK** iki package verifierından geçmelidir.
+  Bu gerçek F60/F62 dağıtım açığı kapatılmadan FINAL.FUNCTION kapanmaz.
+- Salt okunur bağımsız F01–F20/PRODUCT/K09–K13 ve F21–F59 üretim yolu örneklemesi
+  yeni dummy/bağlantısız yol bulmadı; bu örnekleme bütün davranışlar için test
+  veya gerçek hosted kabul iddiası değildir. Eksik altı product/kiosk dependency
+  satırı özellik matrisine named kanıt ve açık fiziksel sınırlarıyla eklendi.
+
 ## Tarihsel yerel kabul tabanı — 30 Eylül
 
 Aşağıdaki sonuçlar önceki `06f5551a242aca47ebcf0f2476881e2deec5d1da` uygulama

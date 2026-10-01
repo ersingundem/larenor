@@ -2,6 +2,12 @@ name: Server API & Storage Tests
 
 on:
   workflow_call:
+    inputs:
+      scope:
+        description: "Server gate scope; omitted reusable calls run every required gate"
+        required: false
+        default: all
+        type: string
   workflow_dispatch:
     inputs:
       scope:

@@ -115,7 +115,10 @@ void main() {
         'hold_last_safe_limit',
       );
       routeCurrent = false;
-      await expectLater(routed.confirm(routedSnapshot), _serverCode('cancelled'));
+      await expectLater(
+        routed.confirm(routedSnapshot),
+        _serverCode('cancelled'),
+      );
 
       final sessionBound = _api(account, current: () => true);
       final sessionSnapshot = await sessionBound.load();

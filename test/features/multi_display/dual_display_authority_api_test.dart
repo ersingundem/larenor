@@ -141,9 +141,7 @@ void main() {
             'allowedSecondaryRoutes': ['admin.secrets'],
           },
         ),
-        envelope(
-          authorityValue: {...authority(), 'routePolicyRevision': 1},
-        ),
+        envelope(authorityValue: {...authority(), 'routePolicyRevision': 1}),
         envelope(snapshotValue: {...snapshot(), 'dataDiskFreeBytes': 1001}),
       ]) {
         final api = DualDisplayAuthorityApi(

@@ -31,6 +31,16 @@ CI bekliyor etiketi kabul sayacını artırmaz: **37/127 iş ve 3/63 özellik** 
 Fiziksel cihaz/hesap kapıları MANUAL kayıtlarında kalır. Exact1d ve doc-head
 e52b0708 Security koşuları yalnız Security kanıtıdır; geniş HEAD CI değildir.
 
+Dağıtım incelemesi yeni bir birleşik paket açığı buldu: normal product APK buildi
+Moonlight/FreeRDP AAR çiftlerini hazırlamıyor. İki gerçek motorun aynı APKda
+source/receipt bağlı doğrulanması geliştiriliyor; F60/F62 yeniden çalışılıyor
+kalır. Exact fecc Security run 36808202647 geçti. Android run 36808321597 başladı,
+ancak nested manuel çağrıda Server işleri atlandığından geniş Server kabulü
+sayılmaz. Reusable scope varsayılanı düzeltildi; root 10/10 workflow/scope testi
+ve actionlint geçti. Değişmiş kaynaklı tam koşu gerekli. Aynı eski Android
+koşusunun format hatası iki adlandırılmış Dart test dosyasında düzeltildi;
+root exact no-write format kontrolünü doğruladı. Test davranışı değiştirilmedi.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
