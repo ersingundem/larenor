@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import math
 import sqlite3
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
@@ -20,6 +21,7 @@ MAX_TRIALS = 128
 MAX_EVENTS = 4096
 MAX_EVENTS_PER_TRIAL = 512
 MAX_EVENT_FUTURE_MS = 30_000
+TERMINAL_REPLAY_MS = 24 * 60 * 60 * 1000
 
 
 def _json(value):
@@ -90,10 +92,63 @@ class AutomationTrialService:
                 "localStartDate": row["local_start_date"],
                 "rules": json.loads(row["rules_json"]),
             })
+            _, starts_at, ends_at = self._period(row["timezone"], row["local_start_date"])
+            if (
+                (row["starts_at_ms"], row["ends_at_ms"]) != (starts_at, ends_at)
+                or type(row["created_at_ms"]) is not int
+                or row["created_at_ms"] < 0
+            ):
+                raise StartupError("automation_trial_storage_invalid")
+        parents = {row["id"]: row for row in trials}
+        event_counts = {}
         for row in events:
             self._verified(row, self._event_tag(row))
-            if not isinstance(json.loads(row["result_json"]), dict):
-                raise ValueError("invalid_trial_event")
+            parent = parents.get(row["trial_id"])
+            result = json.loads(row["result_json"])
+            if (
+                parent is None
+                or (row["account_id"], row["family_id"]) != (parent["account_id"], parent["family_id"])
+                or type(row["created_at_ms"]) is not int
+                or row["created_at_ms"] < parent["created_at_ms"]
+                or not isinstance(result, dict)
+                or result.get("source") != row["source"]
+                or result.get("eventKey") != row["event_key"]
+                or result.get("occurredAtMs") != row["occurred_at_ms"]
+                or not isinstance(result.get("decisions"), list)
+                or result.get("adapterWriteCount") != 0
+            ):
+                raise StartupError("automation_trial_storage_invalid")
+            event_counts[row["trial_id"]] = event_counts.get(row["trial_id"], 0) + 1
+            if event_counts[row["trial_id"]] > MAX_EVENTS_PER_TRIAL:
+                raise StartupError("automation_trial_storage_invalid")
+        return trials, events
+
+    def _now_ms(self):
+        now = float(self.settings.clock())
+        if not math.isfinite(now) or now < 0:
+            raise ApiError("automation_trial_clock_invalid", 503)
+        return round(now * 1000)
+
+    def _ensure_capacity(self, connection, now_ms, *, event=False, protected_trial=None):
+        trials, events = self._validate(connection)
+        if any(row["created_at_ms"] > now_ms for row in (*trials, *events)):
+            raise ApiError("automation_trial_clock_invalid", 503)
+        if (len(events) < MAX_EVENTS if event else len(trials) < MAX_TRIALS):
+            return
+        cutoff = now_ms - TERMINAL_REPLAY_MS
+        latest = {row["id"]: max(row["ends_at_ms"], row["created_at_ms"]) for row in trials}
+        for row in events:
+            latest[row["trial_id"]] = max(latest[row["trial_id"]], row["created_at_ms"])
+        for trial in trials:
+            if trial["id"] != protected_trial and latest[trial["id"]] < cutoff:
+                connection.execute("DELETE FROM automation_trials WHERE id=?", (trial["id"],))
+        table, maximum, code = (
+            ("automation_trial_events", MAX_EVENTS, "automation_trial_event_limit_reached")
+            if event else ("automation_trials", MAX_TRIALS, "automation_trial_limit_reached")
+        )
+        if connection.execute("SELECT COUNT(*) FROM " + table).fetchone()[0] >= maximum:
+            # The transaction rolls back all pruning when protected history fills it.
+            raise ApiError(code, 429)
 
     def validate_storage(self):
         try:
@@ -177,7 +232,7 @@ class AutomationTrialService:
         self._scope(core_id, home_id)
         body = CreateTrial.model_validate(body)
         _, starts_at, ends_at = self._period(body.timezone, body.localStartDate)
-        now_ms = round(float(self.settings.clock()) * 1000)
+        now_ms = self._now_ms()
         rules_json = _json([rule.model_dump(mode="json") for rule in body.rules])
         with self.db.transaction() as connection:
             self._actor(connection, actor)
@@ -193,8 +248,7 @@ class AutomationTrialService:
                 ):
                     raise ApiError("idempotency_conflict", 409)
                 return {"trial": self._public_trial(existing, self._events(connection, existing["id"]))}
-            if connection.execute("SELECT COUNT(*) FROM automation_trials").fetchone()[0] >= MAX_TRIALS:
-                raise ApiError("automation_trial_limit_reached", 429)
+            self._ensure_capacity(connection, now_ms)
             row = {
                 "id": uuid.uuid4().hex, "account_id": actor.id,
                 "family_id": actor.family_id, "request_key": body.requestKey,
@@ -272,7 +326,7 @@ class AutomationTrialService:
         body = EvaluateTrialEvent.model_validate(body)
         if body.source != "synthetic":
             raise ApiError("automation_trial_real_source_required", 409)
-        now_ms = round(float(self.settings.clock()) * 1000)
+        now_ms = self._now_ms()
         if body.occurredAtMs > now_ms + MAX_EVENT_FUTURE_MS:
             raise ApiError("automation_trial_event_future", 409)
         with self.db.transaction() as connection:
@@ -289,8 +343,7 @@ class AutomationTrialService:
                 if json.loads(existing["result_json"]) != result or existing["trial_id"] != trial_id:
                     raise ApiError("idempotency_conflict", 409)
                 return {"trial": self._public_trial(trial, self._events(connection, trial_id))}
-            if connection.execute("SELECT COUNT(*) FROM automation_trial_events").fetchone()[0] >= MAX_EVENTS:
-                raise ApiError("automation_trial_event_limit_reached", 429)
+            self._ensure_capacity(connection, now_ms, event=True, protected_trial=trial_id)
             if len(self._events(connection, trial_id)) >= MAX_EVENTS_PER_TRIAL:
                 raise ApiError("automation_trial_event_limit_reached", 429)
             row = {
@@ -340,7 +393,7 @@ class AutomationTrialService:
             occurredAtMs=observed.occurred_at_ms,
         )
         evidence = observed.evidence()
-        now_ms = round(float(self.settings.clock()) * 1000)
+        now_ms = self._now_ms()
         result = self._evaluate(trial, event, evidence=evidence)
         with self.db.transaction() as connection:
             self._actor(connection, actor)
@@ -373,11 +426,8 @@ class AutomationTrialService:
                     return {"trial": self._public_trial(
                         trial, self._events(connection, trial_id)
                     )}
-            if connection.execute(
-                "SELECT COUNT(*) FROM automation_trial_events"
-            ).fetchone()[0] >= MAX_EVENTS or len(
-                self._events(connection, trial_id)
-            ) >= MAX_EVENTS_PER_TRIAL:
+            self._ensure_capacity(connection, now_ms, event=True, protected_trial=trial_id)
+            if len(self._events(connection, trial_id)) >= MAX_EVENTS_PER_TRIAL:
                 raise ApiError("automation_trial_event_limit_reached", 429)
             row = {
                 "id": uuid.uuid4().hex, "trial_id": trial_id,

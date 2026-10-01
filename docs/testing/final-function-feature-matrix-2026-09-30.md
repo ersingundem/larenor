@@ -28,10 +28,11 @@ The earlier focused evidence below does not cover long-running storage
 capacity. Source review found no pruning path for expired/terminal durable
 history in F01, F02/F03, F14, F57, F58 and F59. Their fixed capacities eventually
 block new operations across restart. F14 retention is now closed by root live-source 9/9 normal Core/retention
-tests; the other six history features remain **reworking**. Safe authenticated retention and capacity/replay/restart
+tests; F01/F02/F03 also passed22/22 live-source retention gates. Only
+F57/F58/F59 remain **reworking** for history retention. Safe authenticated retention and capacity/replay/restart
 acceptance must close these concrete gaps. See the
 [bounded retention review](final-function-retention-review-2026-10-01.md).
-Current implementation-complete totals are **52 selected features / 61 tasks**;
+Current implementation-complete totals are **55 selected features / 64 tasks**;
 accepted totals stay **3/63 features and 37/127 tasks**. F60/F62 remain reworking
 for their separate real native runtime and combined delivery gates.
 
@@ -219,3 +220,5 @@ started at exact `36c3e015d27c3ff4b21b0e7d834075b7107bb479`; source SHA was
 independently verified. Pending execution is not acceptance.
 
 F14 durable-history correction: root live-source **9/9** normal Core/retention tests passed. Exact64-session same-DB restart and full1024-event recovery preserve live/recent24h replay and token single issuance; HMAC tamper fails before deletion. F14 is awaiting_ci again; final-HEAD CI/manual gates remain. [Evidence](f14-support-session-retention-2026-10-01.md).
+
+F01/F02/F03 authenticated-history correction: root live-source **22/22** tests passed; default256/128 restart and signed4096-event recovery preserve live/current trials, inclusive24h replay and encrypted activated rules. Tamper, signed mismatched child and rejected append cannot partially prune. These features await final-HEAD CI. [Evidence](f01-f03-automation-retention-2026-10-01.md).

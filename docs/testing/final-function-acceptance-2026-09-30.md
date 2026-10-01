@@ -58,9 +58,9 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
 Kaynak incelemesi F01/F02/F03/F14/F57/F58/F59 kalıcı geçmiş sınırlarının
 terminal/süresi dolmuş kayıtlardan sonra da yeni kullanımı engellediğini
 buldu. Önceki focused testler bu kapasite/restart davranışını kapsamıyor.
-F14 retention root live-source 9/9 normal Core/retention kabulüyle kapandı ve yeniden CI bekliyora geçti. Diğer altı geçmiş açığı yalnız CI eksiği değildir.
+F14 retention root live-source 9/9 normal Core/retention kabulüyle kapandı ve yeniden CI bekliyora geçti. F01/F02/F03 retention da root22/22 kabulüyle kapandı; F57/F58/F59 geçmiş açıkları yalnız CI eksiği değildir.
 [İnceleme ve düzeltme kapısı](final-function-retention-review-2026-10-01.md).
-Güncel CI bekleyen toplam 52 seçili özellik / 61 iş; 8 özellik yeniden
+Güncel CI bekleyen toplam 55 seçili özellik / 64 iş; 5 özellik yeniden
 çalışılıyor. Kabul sayaçları 37/127 ve 3/63 değişmedi.
 
 ## Tarihsel yerel kabul tabanı — 30 Eylül

@@ -3613,7 +3613,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Otomasyonun deneme haftası",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3637,14 +3637,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: 128 kalıcı trial ve 4096 olay sınırında bitmiş eski trial/geçmiş temizlenmediğinden yeni kullanım restart sonrasında da kalıcı 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
     {
       "id": "F03",
       "kind": "task",
       "parent": "G04",
       "title": "Geçmişte otomasyon sınaması",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3668,14 +3668,14 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: 128 kalıcı trial ve 4096 olay sınırında bitmiş eski trial/geçmiş temizlenmediğinden yeni kullanım restart sonrasında da kalıcı 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek yetkili HA otomasyon registry + trace/list/get gözlemi normal Core ve Client yoluna bağlandı. Client gerçek olay iddiası reddedilir; raw trace kaydedilmez, service/run dedupe ve işlem içi güncel yetki kontrolü var. 8 Server + 2 Flutter loopback + 1 gerçek Client→normal Core→HA WS kabulü geçti; docs/testing/f02-f03-ha-trace-observer-2026-09-30.md. Tam exact HEAD CI ve geniş kabul bekliyor."
+      "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
     {
       "id": "F01",
       "kind": "task",
       "parent": "G04",
       "title": "Konuşarak otomasyon taslağı",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3701,7 +3701,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: 256 kalıcı taslak/activated kayıt limiti dolunca süresi dolmuş geçmiş temizlenmediğinden sonraki create restart sonrasında da 429 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek Android on-device EN/TR STT ve kurulu offline TTS, izin sonrası ayrı gesture, foreground/route/account iptali ve 30sn deadline bağlandı. Client açık güncel HA hedefi seçer; düzenleme eski draftı kaldırır, empty/retry durumu görünür; activation yalnız inert kural saklar. 10 native, 11 Flutter, 3 Server ve 1 gerçek Flutter→normal Core→TCP HA kabulü geçti; scoped analyze temiz. Model/cihaz ve geniş exact HEAD CI kapıları açık. docs/testing/f01-local-speech-drafts-2026-09-30.md; sayaç artmadı."
+      "reason": "CI bekliyor: HMAC doğrulamalı bounded terminal geçmiş retention uzun kullanım/restart açığını kapattı. Root live-source 22/22 test; gerçek HTTP 256 taslak/128 deneme sonrası aynı DB restart ve signed4096-olay fixture kapasitesi toparlanır. Canlı dönem/current trial, inclusive24h replay, exact tekrar, encrypted activated rule, tamper/mismatchedchild reddi ve transaction rollback korunur. Limit artışı/HA cihaz komutu yok. Final HEAD geniş CI ve MANUAL ayrı; tam kabul sayacı değişmedi. Kanıt: docs/testing/f01-f03-automation-retention-2026-10-01.md."
     },
     {
       "id": "F09",
@@ -3911,6 +3911,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Root11Client/widget andactual normalCoreTCPtwo independentClientprocesses/DBrestart1+1passed; scopedanalyzeclean; namedServer3passed separately"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f14-support-session-retention-2026-10-01.md",
+          "commit": "8957e4e284a8f9f6f615b67ab8ab881fba5fdd51",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source9/9 normalCore/retention;actual64-session restart,1024events,live/recent replay,oldtoken401,tamper503/no deletion"
         }
       ],
       "completionCommit": null,

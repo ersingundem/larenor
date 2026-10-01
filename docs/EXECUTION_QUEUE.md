@@ -14,7 +14,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
 | G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
-| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 3 | 5 | 0 |
+| G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
 | G06 — Medya ve müzik | 10 | 0 | 0 | 0 | 10 | 0 |
 | G07 — Aile ve ev yaşamı | 10 | 2 | 0 | 0 | 8 | 0 |
@@ -29,9 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F02 | Otomasyonun deneme haftası | Yeniden çalışılıyor | — |
-| F03 | Geçmişte otomasyon sınaması | Yeniden çalışılıyor | — |
-| F01 | Konuşarak otomasyon taslağı | Yeniden çalışılıyor | — |
 | F57 | Oda düzeyinde yerel varlık algısı | Yeniden çalışılıyor | — |
 | F58 | E-paper mini ev ekranları | Yeniden çalışılıyor | — |
 | F59 | 3D yazıcı ve atölye merkezi | Yeniden çalışılıyor | — |
@@ -136,6 +133,9 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F52 | DeX'te iki ekrana farklı görev | CI bekliyor | — |
 | F08 | Yapay zekâ kaynak yöneticisi | CI bekliyor | — |
 | F04 | Çakışan kurallar hakemi | CI bekliyor | — |
+| F02 | Otomasyonun deneme haftası | CI bekliyor | — |
+| F03 | Geçmişte otomasyon sınaması | CI bekliyor | — |
+| F01 | Konuşarak otomasyon taslağı | CI bekliyor | — |
 | F09 | Görülebilir, süreli AI hafızası | CI bekliyor | — |
 | F07 | Evin alışılmış düzeninden sapmalar | CI bekliyor | — |
 | F10 | Kanıta dayalı arıza yardımcısı | CI bekliyor | — |

@@ -25,8 +25,11 @@ F14 is now `awaiting_ci`: root live-source 9/9 normal Core/retention tests
 passed, including actual 64-session restart and 1024-event capacity recovery,
 live/recent replay, old-token rejection and tamper/no-deletion gates. See
 [f14-support-session-retention-2026-10-01.md](f14-support-session-retention-2026-10-01.md).
-The other six history features remain `reworking` until their specific repair
-acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
-Current totals: **61 tasks / 52 selected features awaiting CI**, **8 features
+F01/F02/F03 now also await CI: root live-source22/22 tests passed, including
+default256/128 creation and restart and signed4096-event recovery. Current/live
+history, inclusive24h replay, activated encrypted rules, tamper/child authority
+and rollback are protected. See [automation retention evidence](f01-f03-automation-retention-2026-10-01.md).
+F57/F58/F59 remain `reworking` until their repair acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
+Current totals: **64 tasks / 55 selected features awaiting CI**, **5 features
 reworking**, **37/127 tasks and 3/63 selected features accepted**. No acceptance
 counter was advanced by this review.

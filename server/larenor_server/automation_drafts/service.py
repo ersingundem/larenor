@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import math
 import sqlite3
 import uuid
 
@@ -11,6 +12,7 @@ from .models import ActivateAutomationDraft, CreateAutomationDraft
 
 MAX_DRAFTS = 256
 DRAFT_TTL_SECONDS = 15 * 60
+TERMINAL_REPLAY_SECONDS = 24 * 60 * 60
 CATALOG_VERSION = "ha-switch-actions-v1"
 PHRASES = {
     "aç": "turn_on",
@@ -60,6 +62,30 @@ class AutomationDraftService:
             raise StartupError("automation_draft_storage_invalid")
         for row in rows:
             self._verified(row)
+            if (
+                not math.isfinite(row["created_at"])
+                or not math.isfinite(row["expires_at"])
+                or row["created_at"] < 0
+                or row["expires_at"] != row["created_at"] + DRAFT_TTL_SECONDS
+                or (row["state"] == "activated") != (row["rule_id"] is not None)
+            ):
+                raise StartupError("automation_draft_storage_invalid")
+        return rows
+
+    def _ensure_capacity(self, connection, now):
+        # Authenticate the complete bounded history before the first deletion.
+        # Activated drafts are receipts; their separately stored rules survive.
+        rows = self._validate(connection)
+        if any(row["created_at"] > now for row in rows):
+            raise ApiError("automation_draft_clock_invalid", 503)
+        if len(rows) < MAX_DRAFTS:
+            return
+        cutoff = now - TERMINAL_REPLAY_SECONDS
+        for row in rows:
+            if row["expires_at"] < cutoff:
+                connection.execute("DELETE FROM automation_drafts WHERE id=?", (row["id"],))
+        if connection.execute("SELECT COUNT(*) FROM automation_drafts").fetchone()[0] >= MAX_DRAFTS:
+            raise ApiError("automation_draft_limit_reached", 429)
 
     def validate_storage(self):
         try:
@@ -100,6 +126,8 @@ class AutomationDraftService:
         action = self._action(body.transcript)
         digest = hashlib.sha256(body.transcript.encode("utf-8")).hexdigest()
         now = float(self.settings.clock())
+        if not math.isfinite(now) or now < 0:
+            raise ApiError("automation_draft_clock_invalid", 503)
         with self.rules.adapter._tx(actor, core, home, admin=True) as (connection, facts):
             self._validate(connection)
             existing = connection.execute(
@@ -120,8 +148,7 @@ class AutomationDraftService:
                 if actual != expected:
                     raise ApiError("idempotency_conflict", 409)
                 return {"draft": self._public(existing, now)}
-            if connection.execute("SELECT COUNT(*) FROM automation_drafts").fetchone()[0] >= MAX_DRAFTS:
-                raise ApiError("automation_draft_limit_reached", 429)
+            self._ensure_capacity(connection, now)
             target, ref, data, binding = self.rules._current_target(connection, facts, body.resourceId)
             self.rules.adapter.resources._require(
                 facts, target, ref, data, "write",

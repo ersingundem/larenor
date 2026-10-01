@@ -1,6 +1,6 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi. Yalnız FINAL.FUNCTION aktif. Geliştirme ve odaklı doğrulaması tamamlanan 52 seçili özellik / toplam 61 iş CI bekliyor tablosunda; F01/F02/F03/F57/F58/F59/F60/F62 yeniden çalışılıyor. F14 gerçek Client/Core restart kabulü, F50 kapasite/restart ve F57/F58 sahipli onay penceresi düzeltmeleri tamamlandı. Altı özellikte kalıcı geçmiş kapasitesi/restart açığı, F60 gerçek stream ve F62 gerçek RDP frame/kanal kabulü açık. Son dal HEAD’inin geniş CI kabulü henüz yok. Fiziksel cihaz ve hesap kapıları MANUAL kayıtlarında; bütün FINAL adımlarından sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi. Yalnız FINAL.FUNCTION aktif. Geliştirme ve odaklı doğrulaması tamamlanan 55 seçili özellik / toplam 64 iş CI bekliyor tablosunda; F57/F58/F59/F60/F62 yeniden çalışılıyor. F14 gerçek Client/Core restart kabulü, F50 kapasite/restart ve F57/F58 sahipli onay penceresi düzeltmeleri tamamlandı. Üç özellikte kalıcı geçmiş kapasitesi/restart açığı, F60 gerçek stream ve F62 gerçek RDP frame/kanal kabulü açık. Son dal HEAD’inin geniş CI kabulü henüz yok. Fiziksel cihaz ve hesap kapıları MANUAL kayıtlarında; bütün FINAL adımlarından sonra CORE.WEB geliştirilecek.** [Güncel kuyruk](EXECUTION_QUEUE.md), [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ```text
 Kuyruk kabulü       ██████░░░░░░░░░░░░░░  37/127 iş (%29,1; eşit ağırlıklı sayaç)
@@ -21,10 +21,10 @@ ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | Geliştirme ve adlandırılmış odaklı kabulü tamamlanan **52 seçili özellik / toplam 61 iş** | Birleşik son dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **CI bekliyor** | Geliştirme ve adlandırılmış odaklı kabulü tamamlanan **55 seçili özellik / toplam 64 iş** | Birleşik son dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Android NSD exact 5fa91e43 / run 36802851003 geçti. Stream exact a703289d / run 36804692946 gerçek Android testinde başarısız. Kaynak/paket bağlı sınırlı tanı 42/42 testten geçti. Yeni exact 3feb723c / [run 36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) başladı; kabul sonucu henüz yok. |
 | **Yeniden çalışılıyor** | **F62** | Exact 1d1ccf2e / run 36805226494 Linux fixture ve arm64 APK geçti; gerçek Android testi beklenen ilk 1280x800 frame bekleyişinde başarısız: 1 test, 1 failure, 0 skip. Subscriber sonrası refresh sırası kaynakta düzeltildi; fresh exact kaynak/hash, 18/18 kontrol ve bağımsız inceleme geçti. Yeni exact 36c3e015 / [run 36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) başladı. Gerçek runtime, DISP/Unicode/iki yaşam kabulü açık. |
-| **Yeniden çalışılıyor** | **F01/F02/F03/F57/F58/F59** | Kaynakta doğrulanmış kalıcı geçmiş kapasitesi açığı. Eski terminal/expired kayıtlar kapasiteyi ömür boyu tüketiyor; HMAC doğrulamalı güvenli retention ve restart/replay kabulü gerekli. |
+| **Yeniden çalışılıyor** | **F57/F58/F59** | Kaynakta doğrulanmış kalıcı geçmiş kapasitesi açığı. Eski terminal/expired kayıtlar kapasiteyi ömür boyu tüketiyor; HMAC doğrulamalı güvenli retention ve restart/replay kabulü gerekli. |
 | **Aktif final** | **FINAL.FUNCTION** | F60/F62 işlev açıkları ve kabul kapıları, tam inceleme ve geniş final HEAD CI |
 
 F14 önceki inceleme açıkları kapatıldı: root **11/11 Client/widget**, temiz scoped analyze ve gerçek Flutter→normal Core TCP runnerının iki ayrı süreç/aynı DB restart yaşamında **1+1** kabulünü doğruladı. Named Server **3/3** geçti. [Yeni kabul](testing/f14-normal-core-acceptance-2026-10-01.md); [tarihsel failedreview](testing/f14-support-sessions-review-2026-10-01.md) korunur. F50 kapasite açığı root 33/33 regresyon ve normal Core kabulüyle kapandı ve CI bekliyora geçti. F57/F58 production-route RED’i sahipli exact dialog çitiyle kapandı. Root **21/21** management/route testi ve scoped analyze geçti; iki özellik CI bekliyora taşındı. [Route kabulü](testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md).
@@ -45,12 +45,15 @@ root exact no-write format kontrolünü doğruladı. Test davranışı değişti
 
 Yeni [retention incelemesi](testing/final-function-retention-review-2026-10-01.md)
 önceki odaklı kabulün kapsamadığı gerçek uzun kullanım açıklarını kaydeder.
-Bu altı açık kayıt yalnız CI beklemiyor; düzeltme/kabul bitene kadar yeniden çalışılıyor.
-CI bekleyen güncel toplam **52 seçili özellik / 61 iş**, kabul sayaçları
+Bu üç açık kayıt yalnız CI beklemiyor; düzeltme/kabul bitene kadar yeniden çalışılıyor.
+CI bekleyen güncel toplam **55 seçili özellik / 64 iş**, kabul sayaçları
 **37/127 ve 3/63** olarak korunur.
 
 
 F14 kalıcı geçmiş kapasitesi düzeltmesi root live-source **9/9** testle doğrulandı: gerçek 64 oturum sonrası aynı DB restart ve 1024 olay kapasitesi toparlanır; canlı/yakın terminal kayıt, exact token issuance ve HMAC tamper reddi korunur. [Retention kabulü](testing/f14-support-session-retention-2026-10-01.md). F14 yeniden **CI bekliyor**; kabul sayacı değişmedi.
+
+
+F01/F02/F03 kapasite açığı root live-source **22/22** testle kapandı; 256 taslak/128 deneme ve signed4096-olay geçmişi aynı DB restart sonrası toparlanır. Canlı/current trial, inclusive24h replay ve encrypted rule korunur; tamper ve kapasite reddi transaction rollback yapar. [Kabul ve fixture sınırı](testing/f01-f03-automation-retention-2026-10-01.md). Üç özellik **CI bekliyor**, sayaç değişmedi.
 
 ## Tarihsel doğrulama kayıtları
 
