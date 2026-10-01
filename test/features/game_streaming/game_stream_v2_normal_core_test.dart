@@ -47,7 +47,7 @@ void main() {
   tearDown(() => messenger.setMockMethodCallHandler(_channel, null));
 
   test(
-    'real Client uses normal Core for pair stream stop and revoke',
+    'real Client uses normal Core for pair launch stream stop and revoke',
     () async {
       final sessionStore = _SessionStore();
       final account = ServerAccountController(store: sessionStore);
@@ -63,6 +63,7 @@ void main() {
       final context = session.context!;
       final familyId = session.sessionFamilyId!;
       var nativeDispatches = 0;
+      final nativeIntents = <String>[];
       var catalogDispatches = 0;
       var catalogReconcileTerminal = false;
       var registrationRevision = 1;
@@ -276,7 +277,9 @@ void main() {
           case 'executeV2':
             nativeDispatches += 1;
             final command = Map<Object?, Object?>.from(args['command']! as Map);
-            final stop = command['intent'] == 'stop';
+            final intent = command['intent']! as String;
+            nativeIntents.add(intent);
+            final stop = intent == 'stop';
             if (stop) {
               expect(args['safetyClosure'], {
                 'nativeBindingId': '4' * 32,
@@ -291,10 +294,18 @@ void main() {
               'sessionId': args['sessionId'],
               'commandId': command['id'],
               'state': 'native_observed',
-              'result': stop ? 'stopped' : 'streaming',
-              'observationKind': stop
-                  ? 'connectionStopped'
-                  : 'connectionStarted',
+              'result': switch (intent) {
+                'launch' => 'appRunning',
+                'stream' => 'streaming',
+                'stop' => 'stopped',
+                _ => throw StateError('unexpected command intent $intent'),
+              },
+              'observationKind': switch (intent) {
+                'launch' => 'currentGameMatched',
+                'stream' => 'connectionStarted',
+                'stop' => 'connectionStopped',
+                _ => throw StateError('unexpected command intent $intent'),
+              },
               'readbackRevision': nativeDispatches,
               'nativeReceiptDigest': stop ? '2' * 64 : '1' * 64,
             };
@@ -315,7 +326,7 @@ void main() {
               'requestId': requestId,
               'revocationId': args['revocationId'],
               'state': 'local_cleared',
-              'readbackRevision': 3,
+              'readbackRevision': 4,
               'nativeReceiptDigest': 'f' * 64,
             };
           case 'retire':
@@ -416,8 +427,14 @@ void main() {
       await controller.stop();
       expect(controller.state.phase, GameStreamClientPhase.ready);
       await controller.revoke(controller.state.selectedHost!);
+      expect(
+        controller.state.phase,
+        GameStreamClientPhase.idle,
+        reason: controller.state.errorCode,
+      );
       expect(controller.state.hosts, isEmpty);
-      expect(nativeDispatches, 2);
+      expect(nativeDispatches, 3);
+      expect(nativeIntents, ['launch', 'stream', 'stop']);
     },
     skip: coreUrl.isEmpty
         ? 'Run with server/tests/support/f60_flutter_acceptance.py'

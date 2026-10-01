@@ -641,16 +641,15 @@ final class GameStreamClientController extends ChangeNotifier {
     _set(_state.copyWith(selectedQuality: option, clearError: true));
   }
 
-  Future<void> start() => _dispatch('stream');
+  Future<void> start() => _dispatchStart();
 
-  Future<void> stop() => _dispatch('stop');
-
-  Future<void> _dispatch(String intent) async {
+  Future<void> stop() {
     _assertEffectAvailable();
-    if (intent == 'stop') {
-      await _dispatchStop();
-      return;
-    }
+    return _dispatchStop();
+  }
+
+  Future<void> _dispatchStart() async {
+    _assertEffectAvailable();
     final host = _state.selectedHost;
     final app = _state.selectedApp;
     final accountRevision = _state.accountRevision;
@@ -666,6 +665,7 @@ final class GameStreamClientController extends ChangeNotifier {
     final generation = _begin(GameStreamClientPhase.dispatching);
     GameStreamSessionBindRecovery? pendingBind;
     CoreGameStreamSession? openedSession;
+    var bound = false;
     try {
       final authority = _authority(accountRevision);
       _requirePin(authority, _state.capabilities?.policy?.requirePin == true);
@@ -744,125 +744,33 @@ final class GameStreamClientController extends ChangeNotifier {
       _foregroundBinding = binding;
       _foregroundSession = session;
       _set(_state.copyWith(activeSession: session));
-      final authorization = await _core.authorize(
-        session,
-        requestKey: '$intent-${_id()}',
-        intent: intent,
-      );
-      _assertCurrent(generation);
-      if (authorization.dispatchGrant == null) {
-        final current = await _core.readCommand(
-          session,
-          authorization.command.id,
-        );
-        _assertCurrent(generation);
-        await _recoveryStore.clearAny(pendingBind);
-        pendingBind = null;
-        _set(
-          _state.copyWith(
-            phase: current.state == 'native_observed'
-                ? (current.result == 'streaming'
-                      ? GameStreamClientPhase.streaming
-                      : GameStreamClientPhase.ready)
-                : GameStreamClientPhase.outcomeUnknown,
-            activeSession: session,
-            lastCommand: current,
-            errorCode: current.state == 'native_observed'
-                ? null
-                : 'command_reconcile_required',
-            clearError: current.state == 'native_observed',
-          ),
-        );
-        return;
-      }
-      final recovery = GameStreamRecoveryRecord(
-        scope: _recoveryScope(currentAuthority),
-        sessionId: session.id,
-        sessionRevision: session.revision,
-        commandId: authorization.command.id,
-        intent: authorization.command.intent,
-        dispatchGrant: authorization.dispatchGrant!,
-      );
-      await _recoveryStore.write(recovery);
+      bound = true;
+      final cleanup = pendingBind;
       pendingBind = null;
-      _assertCurrent(generation);
-      AndroidGameStreamCommandReceiptV2 native;
-      try {
-        native = await _native.executeV2(
-          requestId: _id(),
-          authority: currentAuthority,
-          session: session,
-          authorization: authorization,
-        );
-      } catch (_) {
-        _assertCurrent(generation);
-        CoreGameStreamCommand? terminal;
-        try {
-          terminal = await _core.complete(
-            session,
-            authorization,
-            state: 'unknown',
-            result: 'unknown',
-            observationKind: 'unknown',
-          );
-          _assertCurrent(generation);
-          await _recoveryStore.clearExact(recovery);
-        } catch (_) {
-          // Keep the encrypted recovery grant. Restart reconciliation reads the
-          // durable native receipt and never invokes execute again.
-        }
-        _set(
-          _state.copyWith(
-            phase: GameStreamClientPhase.outcomeUnknown,
-            activeSession: session,
-            lastCommand: terminal ?? authorization.command,
-            errorCode: 'command_outcome_unknown',
-          ),
-        );
-        return;
-      }
-      _assertCurrent(generation);
-      CoreGameStreamCommand completed;
-      try {
-        completed = await _core.complete(
-          session,
-          authorization,
-          state: native.state,
-          result: native.result,
-          observationKind: native.observationKind,
-          readbackRevision: native.readbackRevision,
-          nativeReceiptDigest: native.nativeReceiptDigest,
-        );
-        _assertCurrent(generation);
-        await _recoveryStore.clearExact(recovery);
-      } catch (_) {
-        _assertCurrent(generation);
-        _set(
-          _state.copyWith(
-            phase: GameStreamClientPhase.outcomeUnknown,
-            activeSession: session,
-            lastCommand: authorization.command,
-            errorCode: 'core_completion_unknown',
-          ),
-        );
-        return;
-      }
-      final observed = completed.state == 'native_observed';
-      _set(
-        _state.copyWith(
-          phase: observed
-              ? (completed.result == 'streaming'
-                    ? GameStreamClientPhase.streaming
-                    : GameStreamClientPhase.ready)
-              : GameStreamClientPhase.outcomeUnknown,
-          activeSession: session,
-          lastCommand: completed,
-          errorCode: observed ? null : 'command_outcome_unknown',
-          clearError: observed,
-        ),
+      final launched = await _dispatchBoundStartCommand(
+        generation: generation,
+        authority: currentAuthority,
+        session: session,
+        cleanup: cleanup,
+        intent: 'launch',
+        expectedResult: 'appRunning',
+        expectedObservationKind: 'currentGameMatched',
+        terminalPhase: GameStreamClientPhase.dispatching,
+      );
+      if (!launched) return;
+      await _dispatchBoundStartCommand(
+        generation: generation,
+        authority: currentAuthority,
+        session: session,
+        cleanup: cleanup,
+        intent: 'stream',
+        expectedResult: 'streaming',
+        expectedObservationKind: 'connectionStarted',
+        terminalPhase: GameStreamClientPhase.streaming,
+        finalStage: true,
       );
     } catch (error) {
-      if (pendingBind != null && openedSession != null) {
+      if (!bound && pendingBind != null && openedSession != null) {
         final cleaned = await _retirePendingBind(pendingBind, openedSession);
         if (!cleaned && !_disposed && generation == _generation) {
           _set(
@@ -875,7 +783,187 @@ final class GameStreamClientController extends ChangeNotifier {
           return;
         }
       }
+      if (bound && !_disposed && generation == _generation) {
+        _set(
+          _state.copyWith(
+            phase: GameStreamClientPhase.outcomeUnknown,
+            activeSession: openedSession,
+            errorCode: 'command_outcome_unknown',
+          ),
+        );
+        return;
+      }
       _fail(generation, error);
+    }
+  }
+
+  Future<bool> _dispatchBoundStartCommand({
+    required int generation,
+    required AndroidGameStreamAuthorityV2 authority,
+    required CoreGameStreamSession session,
+    required GameStreamSessionBindRecovery cleanup,
+    required String intent,
+    required String expectedResult,
+    required String expectedObservationKind,
+    required GameStreamClientPhase terminalPhase,
+    bool finalStage = false,
+  }) async {
+    _assertStartAuthorityCurrent(generation, authority);
+    final authorization = await _core.authorize(
+      session,
+      requestKey: '$intent-${_id()}',
+      intent: intent,
+    );
+    if (authorization.dispatchGrant == null) {
+      _assertStartAuthorityCurrent(generation, authority);
+      final current = await _core.readCommand(
+        session,
+        authorization.command.id,
+      );
+      _assertStartAuthorityCurrent(generation, authority);
+      if (!_exactObservedCommand(
+        current,
+        commandId: authorization.command.id,
+        intent: intent,
+        result: expectedResult,
+        observationKind: expectedObservationKind,
+      )) {
+        _set(
+          _state.copyWith(
+            phase: GameStreamClientPhase.outcomeUnknown,
+            activeSession: session,
+            lastCommand: current,
+            errorCode: 'command_reconcile_required',
+          ),
+        );
+        return false;
+      }
+      if (finalStage) await _recoveryStore.clearAny(cleanup);
+      _assertStartAuthorityCurrent(generation, authority);
+      _set(
+        _state.copyWith(
+          phase: terminalPhase,
+          activeSession: session,
+          lastCommand: current,
+          clearError: true,
+        ),
+      );
+      return true;
+    }
+    final recovery = GameStreamRecoveryRecord(
+      scope: _recoveryScope(authority),
+      sessionId: session.id,
+      sessionRevision: session.revision,
+      commandId: authorization.command.id,
+      intent: authorization.command.intent,
+      dispatchGrant: authorization.dispatchGrant!,
+    );
+    await _recoveryStore.write(recovery);
+    _assertStartAuthorityCurrent(generation, authority);
+    AndroidGameStreamCommandReceiptV2 native;
+    try {
+      native = await _native.executeV2(
+        requestId: _id(),
+        authority: authority,
+        session: session,
+        authorization: authorization,
+      );
+    } catch (_) {
+      _assertStartAuthorityCurrent(generation, authority);
+      CoreGameStreamCommand? terminal;
+      try {
+        final candidate = await _core.complete(
+          session,
+          authorization,
+          state: 'unknown',
+          result: 'unknown',
+          observationKind: 'unknown',
+        );
+        _assertStartAuthorityCurrent(generation, authority);
+        if (candidate.id != authorization.command.id ||
+            candidate.intent != intent) {
+          throw const GameStreamException('invalid_command_receipt');
+        }
+        terminal = candidate;
+        await _recoveryStore.writeAny(cleanup);
+      } catch (_) {
+        // Keep the encrypted one-use grant when Core completion is uncertain.
+        // Restart reconciliation never invokes the native effect again.
+      }
+      _set(
+        _state.copyWith(
+          phase: GameStreamClientPhase.outcomeUnknown,
+          activeSession: session,
+          lastCommand: terminal ?? authorization.command,
+          errorCode: 'command_outcome_unknown',
+        ),
+      );
+      return false;
+    }
+    _assertStartAuthorityCurrent(generation, authority);
+    CoreGameStreamCommand completed;
+    try {
+      completed = await _core.complete(
+        session,
+        authorization,
+        state: native.state,
+        result: native.result,
+        observationKind: native.observationKind,
+        readbackRevision: native.readbackRevision,
+        nativeReceiptDigest: native.nativeReceiptDigest,
+      );
+      _assertStartAuthorityCurrent(generation, authority);
+      if (completed.id != authorization.command.id ||
+          completed.intent != intent) {
+        throw const GameStreamException('invalid_command_receipt');
+      }
+      final observed = _exactObservedCommand(
+        completed,
+        commandId: authorization.command.id,
+        intent: intent,
+        result: expectedResult,
+        observationKind: expectedObservationKind,
+      );
+      if (!observed || !finalStage) {
+        await _recoveryStore.writeAny(cleanup);
+      } else {
+        await _recoveryStore.clearExact(recovery);
+      }
+      _assertStartAuthorityCurrent(generation, authority);
+      _set(
+        _state.copyWith(
+          phase: observed
+              ? terminalPhase
+              : GameStreamClientPhase.outcomeUnknown,
+          activeSession: session,
+          lastCommand: completed,
+          errorCode: observed ? null : 'command_outcome_unknown',
+          clearError: observed,
+        ),
+      );
+      return observed;
+    } catch (_) {
+      _assertStartAuthorityCurrent(generation, authority);
+      _set(
+        _state.copyWith(
+          phase: GameStreamClientPhase.outcomeUnknown,
+          activeSession: session,
+          lastCommand: authorization.command,
+          errorCode: 'core_completion_unknown',
+        ),
+      );
+      return false;
+    }
+  }
+
+  void _assertStartAuthorityCurrent(
+    int generation,
+    AndroidGameStreamAuthorityV2 captured,
+  ) {
+    _assertCurrent(generation);
+    final current = _authority(captured.accountRevision);
+    if (!mapEquals(current.toJson(), captured.toJson())) {
+      throw const GameStreamException('stale_client_authority');
     }
   }
 
@@ -2506,6 +2594,20 @@ bool _recoveryCoversSession(
     value.sessionId == session.id && value.sessionRevision == session.revision,
   _ => false,
 };
+
+bool _exactObservedCommand(
+  CoreGameStreamCommand value, {
+  required String commandId,
+  required String intent,
+  required String result,
+  required String observationKind,
+}) =>
+    value.id == commandId &&
+    value.intent == intent &&
+    value.state == 'native_observed' &&
+    value.result == result &&
+    value.observationKind == observationKind &&
+    value.readbackRevision != null;
 
 bool _nativeRetired(GameStreamPendingOperation? value) => switch (value) {
   GameStreamRecoveryRecord() => value.nativeRetired,

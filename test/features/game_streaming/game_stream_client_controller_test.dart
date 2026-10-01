@@ -9,6 +9,7 @@ import 'package:larenor/features/game_streaming/data/android_game_stream_v2_port
 import 'package:larenor/features/game_streaming/data/core_game_stream_api.dart';
 import 'package:larenor/features/game_streaming/data/game_stream_client_controller.dart';
 import 'package:larenor/features/game_streaming/data/game_stream_recovery_store.dart';
+import 'package:larenor/features/game_streaming/domain/game_stream_session.dart';
 import 'package:larenor/features/server/data/larenor_server_api.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
@@ -191,17 +192,40 @@ Map<String, Object?> _coreCommand(
   'sessionId': '7' * 32,
   'intent': intent,
   'state': state,
-  'result': state == 'native_observed'
-      ? (intent == 'stop' ? 'stopped' : 'streaming')
-      : null,
-  'observationKind': state == 'native_observed'
-      ? (intent == 'stop' ? 'connectionStopped' : 'connectionStarted')
-      : null,
+  'result': switch (state) {
+    'native_observed' => switch (intent) {
+      'launch' => 'appRunning',
+      'stream' => 'streaming',
+      'stop' => 'stopped',
+      _ => throw StateError('unsupported command intent $intent'),
+    },
+    'unknown' => 'unknown',
+    'rejected' => 'rejected',
+    _ => null,
+  },
+  'observationKind': switch (state) {
+    'native_observed' => switch (intent) {
+      'launch' => 'currentGameMatched',
+      'stream' => 'connectionStarted',
+      'stop' => 'connectionStopped',
+      _ => throw StateError('unsupported command intent $intent'),
+    },
+    'unknown' => 'unknown',
+    'rejected' => 'nativeRejected',
+    _ => null,
+  },
   'readbackRevision': state == 'native_observed'
-      ? (intent == 'stop' ? 2 : 1)
+      ? switch (intent) {
+          'launch' => 1,
+          'stream' => 2,
+          'stop' => 3,
+          _ => throw StateError('unsupported command intent $intent'),
+        }
+      : state == 'rejected'
+      ? 1
       : null,
   'createdAt': 1790000000.0,
-  'completedAt': state == 'native_observed' ? 1790000001.0 : null,
+  'completedAt': state == 'authorized' ? null : 1790000001.0,
 };
 
 Map<String, Object?> _availableCapabilities(String requestId) => {
@@ -969,7 +993,7 @@ void main() {
   );
 
   test(
-    'stop uses the stored native lease after client capability drift',
+    'start launches then streams one lease and preserves cleanup fencing',
     () async {
       var drifted = false;
       var hostReads = 0;
@@ -985,6 +1009,14 @@ void main() {
       var coreSessionRetired = false;
       var coreRetireCalls = 0;
       var nativeStopDispatches = 0;
+      var coreSessionCreates = 0;
+      final nativeEffectIntents = <String>[];
+      Completer<void>? launchBarrier;
+      Completer<void>? launchEntered;
+      Completer<void>? streamAuthorizationBarrier;
+      Completer<void>? streamAuthorizationEntered;
+      var wrongLaunchReceipt = false;
+      var loseLaunchCallback = false;
       final recoveryBackend = _MemoryRecoveryBackend();
       messenger.setMockMethodCallHandler(_channel, (call) async {
         final args = Map<Object?, Object?>.from(call.arguments as Map);
@@ -1009,6 +1041,11 @@ void main() {
           case 'executeV2':
             final command = Map<Object?, Object?>.from(args['command']! as Map);
             final intent = command['intent'];
+            nativeEffectIntents.add(intent! as String);
+            if (intent == 'launch' && launchBarrier != null) {
+              launchEntered?.complete();
+              await launchBarrier.future;
+            }
             if (intent == 'stop') {
               nativeStopDispatches += 1;
               expect(args['authority'], containsPair('routeRevision', 1));
@@ -1019,18 +1056,52 @@ void main() {
             } else {
               expect(args.keys, isNot(contains('safetyClosure')));
             }
+            if (intent == 'launch' && loseLaunchCallback) {
+              throw PlatformException(code: 'callback_lost');
+            }
+            if (intent == 'launch' && wrongLaunchReceipt) {
+              return {
+                'schemaVersion': 2,
+                'requestId': requestId,
+                'sessionId': '7' * 32,
+                'commandId': command['id'],
+                'state': 'native_observed',
+                'result': 'streaming',
+                'observationKind': 'connectionStarted',
+                'readbackRevision': 1,
+                'nativeReceiptDigest': '1' * 64,
+              };
+            }
             return {
               'schemaVersion': 2,
               'requestId': requestId,
               'sessionId': '7' * 32,
               'commandId': command['id'],
               'state': 'native_observed',
-              'result': intent == 'stop' ? 'stopped' : 'streaming',
-              'observationKind': intent == 'stop'
-                  ? 'connectionStopped'
-                  : 'connectionStarted',
-              'readbackRevision': intent == 'stop' ? 2 : 1,
-              'nativeReceiptDigest': intent == 'stop' ? '2' * 64 : '1' * 64,
+              'result': switch (intent) {
+                'launch' => 'appRunning',
+                'stream' => 'streaming',
+                'stop' => 'stopped',
+                _ => throw StateError('unexpected command intent $intent'),
+              },
+              'observationKind': switch (intent) {
+                'launch' => 'currentGameMatched',
+                'stream' => 'connectionStarted',
+                'stop' => 'connectionStopped',
+                _ => throw StateError('unexpected command intent $intent'),
+              },
+              'readbackRevision': switch (intent) {
+                'launch' => 1,
+                'stream' => 2,
+                'stop' => 3,
+                _ => throw StateError('unexpected command intent $intent'),
+              },
+              'nativeReceiptDigest': switch (intent) {
+                'launch' => '1' * 64,
+                'stream' => '2' * 64,
+                'stop' => '3' * 64,
+                _ => throw StateError('unexpected command intent $intent'),
+              },
             };
           case 'retire':
             retiredEpochs.add(args['epoch']! as int);
@@ -1076,6 +1147,7 @@ void main() {
             });
           }
           if (request.method == 'POST' && path.endsWith('/sessions')) {
+            coreSessionCreates += 1;
             coreSessionRetired = false;
             return _response(_coreSession(), 201);
           }
@@ -1089,6 +1161,10 @@ void main() {
           if (request.method == 'POST' && path.endsWith('/commands')) {
             final body = jsonDecode(request.body) as Map<String, dynamic>;
             final intent = body['intent']! as String;
+            if (intent == 'stream' && streamAuthorizationBarrier != null) {
+              streamAuthorizationEntered?.complete();
+              await streamAuthorizationBarrier.future;
+            }
             commandSequence += 1;
             final id = commandSequence.toRadixString(16).padLeft(32, '0');
             commandIntents[id] = intent;
@@ -1101,8 +1177,9 @@ void main() {
           if (request.method == 'POST' && path.endsWith('/complete')) {
             final id = path.split('/').reversed.elementAt(1);
             final intent = commandIntents[id]!;
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
             return _response(
-              _coreCommand(id, intent, state: 'native_observed'),
+              _coreCommand(id, intent, state: body['state']! as String),
             );
           }
           if (request.method == 'GET' && path.contains('/commands/')) {
@@ -1179,6 +1256,8 @@ void main() {
       await controller.selectApp(controller.state.apps.single);
       await controller.start();
       expect(controller.state.phase, GameStreamClientPhase.streaming);
+      expect(coreSessionCreates, 1);
+      expect(nativeEffectIntents, ['launch', 'stream']);
       drifted = true;
 
       await controller.stop();
@@ -1331,6 +1410,125 @@ void main() {
       expect(recoveryBackend.value, isNull);
       expect(nativeStopDispatches, stopsBeforeRecovery);
       expect(retiredEpochs, hasLength(nativeRetiresBeforeRecovery));
+
+      final doubleStart = buildController();
+      addTearDown(doubleStart.dispose);
+      await doubleStart.initialize();
+      await doubleStart.selectHost(doubleStart.state.hosts.single);
+      await doubleStart.selectApp(doubleStart.state.apps.single);
+      launchBarrier = Completer<void>();
+      launchEntered = Completer<void>();
+      final firstStart = doubleStart.start();
+      await launchEntered.future;
+      await expectLater(
+        doubleStart.start(),
+        throwsA(
+          isA<GameStreamException>().having(
+            (failure) => failure.code,
+            'code',
+            'operation_busy',
+          ),
+        ),
+      );
+      launchBarrier.complete();
+      await firstStart;
+      expect(doubleStart.state.phase, GameStreamClientPhase.streaming);
+      launchBarrier = null;
+      launchEntered = null;
+      await doubleStart.retire();
+
+      final wrongReceipt = buildController();
+      addTearDown(wrongReceipt.dispose);
+      await wrongReceipt.initialize();
+      await wrongReceipt.selectHost(wrongReceipt.state.hosts.single);
+      await wrongReceipt.selectApp(wrongReceipt.state.apps.single);
+      wrongLaunchReceipt = true;
+      final effectsBeforeWrongReceipt = nativeEffectIntents.length;
+      await wrongReceipt.start();
+      expect(wrongReceipt.state.phase, GameStreamClientPhase.outcomeUnknown);
+      expect(
+        wrongReceipt.stop,
+        throwsA(
+          isA<GameStreamException>().having(
+            (failure) => failure.code,
+            'code',
+            'outcome_unknown_requires_reentry',
+          ),
+        ),
+      );
+      expect(nativeEffectIntents.sublist(effectsBeforeWrongReceipt), [
+        'launch',
+      ]);
+      expect(recoveryBackend.value, contains('session_bind'));
+      wrongLaunchReceipt = false;
+      await wrongReceipt.closeLocalSession();
+      expect(wrongReceipt.state.phase, GameStreamClientPhase.idle);
+
+      final lostLaunch = buildController();
+      addTearDown(lostLaunch.dispose);
+      await lostLaunch.initialize();
+      await lostLaunch.selectHost(lostLaunch.state.hosts.single);
+      await lostLaunch.selectApp(lostLaunch.state.apps.single);
+      loseLaunchCallback = true;
+      final effectsBeforeLostLaunch = nativeEffectIntents.length;
+      await lostLaunch.start();
+      expect(lostLaunch.state.phase, GameStreamClientPhase.outcomeUnknown);
+      expect(nativeEffectIntents.sublist(effectsBeforeLostLaunch), ['launch']);
+      expect(recoveryBackend.value, contains('session_bind'));
+      loseLaunchCallback = false;
+      await lostLaunch.closeLocalSession();
+      expect(lostLaunch.state.phase, GameStreamClientPhase.idle);
+
+      final authorityChanged = buildController();
+      addTearDown(authorityChanged.dispose);
+      await authorityChanged.initialize();
+      await authorityChanged.selectHost(authorityChanged.state.hosts.single);
+      await authorityChanged.selectApp(authorityChanged.state.apps.single);
+      streamAuthorizationBarrier = Completer<void>();
+      streamAuthorizationEntered = Completer<void>();
+      final effectsBeforeAuthorityChange = nativeEffectIntents.length;
+      final changedStart = authorityChanged.start();
+      await streamAuthorizationEntered.future;
+      drifted = true;
+      streamAuthorizationBarrier.complete();
+      await changedStart;
+      expect(
+        authorityChanged.state.phase,
+        GameStreamClientPhase.outcomeUnknown,
+      );
+      expect(nativeEffectIntents.sublist(effectsBeforeAuthorityChange), [
+        'launch',
+      ]);
+      expect(recoveryBackend.value, isNotNull);
+      drifted = false;
+      streamAuthorizationBarrier = null;
+      streamAuthorizationEntered = null;
+      await authorityChanged.closeLocalSession();
+      expect(authorityChanged.state.phase, GameStreamClientPhase.idle);
+
+      final interrupted = buildController();
+      await interrupted.initialize();
+      await interrupted.selectHost(interrupted.state.hosts.single);
+      await interrupted.selectApp(interrupted.state.apps.single);
+      streamAuthorizationBarrier = Completer<void>();
+      streamAuthorizationEntered = Completer<void>();
+      final effectsBeforeRestart = nativeEffectIntents.length;
+      final interruptedStart = interrupted.start();
+      await streamAuthorizationEntered.future;
+      expect(nativeEffectIntents.sublist(effectsBeforeRestart), ['launch']);
+      expect(recoveryBackend.value, contains('session_bind'));
+      interrupted.dispose();
+      streamAuthorizationBarrier.complete();
+      await interruptedStart;
+      streamAuthorizationBarrier = null;
+      streamAuthorizationEntered = null;
+
+      final restarted = buildController();
+      addTearDown(restarted.dispose);
+      await restarted.initialize();
+      expect(restarted.state.phase, GameStreamClientPhase.idle);
+      expect(nativeEffectIntents.sublist(effectsBeforeRestart), ['launch']);
+      expect(recoveryBackend.value, isNull);
     },
   );
 
