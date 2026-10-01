@@ -306,12 +306,15 @@ class PlaybackInfoProviderObservation(FrozenModel):
         return self
 
 
-class PlaybackInfoObservationResponse(FrozenModel):
+class PlaybackInfoAssessmentResponse(FrozenModel):
     schemaVersion: Literal[1]
     requestId: Identity
-    observationId: Identity
     authority: PlaybackInfoObservationAuthority
     observation: PlaybackInfoProviderObservation
+
+
+class PlaybackInfoObservationResponse(PlaybackInfoAssessmentResponse):
+    observationId: Identity
 
 
 class PlaybackQualityEvidenceStates(FrozenModel):

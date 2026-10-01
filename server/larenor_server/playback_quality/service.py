@@ -7,6 +7,7 @@ from ..plugins.media_playback_models import (
     local_playback_profile_digest,
 )
 from .models import (
+    PlaybackInfoAssessmentResponse,
     PlaybackInfoObservationRequest,
     PlaybackInfoObservationResponse,
     PlaybackQualityAdviceRequest,
@@ -212,44 +213,8 @@ class PlaybackQualityService:
         self._scope(core_id, home_id)
         self.auth.rate_limit([("playback_info_observe", actor.id, 120)])
         try:
-            with self.db.connection() as connection:
-                before = self._current_actor(connection, actor)["revision"]
-            provider = self.media_playback() if callable(
-                self.media_playback) else self.media_playback
-            if provider is None:
-                raise ValueError()
-            request = PlaybackInfoRequest(
-                schemaVersion=1,
-                requestId=body.requestId,
-                installationId=body.installationId,
-                expectedInstallationRevision=(
-                    body.expectedInstallationRevision),
-                expectedSnapshotRevision=body.expectedSnapshotRevision,
-                expectedJellyfinServiceRevision=(
-                    body.expectedJellyfinServiceRevision),
-                itemId=body.itemId,
-                mediaKey=body.mediaKey,
-                profile=body.localProfile,
-            )
-            account_revision, private, readback = provider.playback_info(
-                actor, request)
-            with self.db.connection() as connection:
-                after = self._current_actor(connection, actor)["revision"]
-            if before != account_revision or after != before:
-                raise ApiError("playback_quality_authority_changed", 409)
-            if (private.installationId != body.installationId
-                    or private.installationRevision
-                    != body.expectedInstallationRevision
-                    or private.snapshotRevision
-                    != body.expectedSnapshotRevision
-                    or private.jellyfinServiceRevision
-                    != body.expectedJellyfinServiceRevision
-                    or private.itemId != body.itemId
-                    or private.mediaKey != body.mediaKey
-                    or readback.itemId != body.itemId
-                    or readback.profileDigest
-                    != local_playback_profile_digest(body.localProfile)):
-                raise ApiError("playback_quality_authority_changed", 409)
+            before, provider, private, readback = self._playback_info(
+                actor, body)
             recorder = getattr(
                 provider, "record_playback_info_observation", None)
             if not callable(recorder):
@@ -260,53 +225,121 @@ class PlaybackQualityService:
                 schemaVersion=1,
                 requestId=body.requestId,
                 observationId=observation_id,
-                authority={
-                    **self._authority(actor, {"revision": before}),
-                    "installationId": private.installationId,
-                    "installationRevision": private.installationRevision,
-                    "snapshotRevision": private.snapshotRevision,
-                    "jellyfinServiceRevision": (
-                        private.jellyfinServiceRevision),
-                    "itemId": private.itemId,
-                    "mediaKey": private.mediaKey,
-                    "profileId": body.localProfile.profileId,
-                    "profileRevision": body.localProfile.profileRevision,
-                    "displayRevision": body.localProfile.displayRevision,
-                    "decoderRevision": body.localProfile.decoderRevision,
-                    "networkRevision": body.localProfile.networkRevision,
-                    "policyRevision": body.localProfile.policyRevision,
-                    "profileDigest": readback.profileDigest,
-                },
-                observation={
-                    "schemaVersion": 1,
-                    "assurance": readback.assurance,
-                    "originalByteOutcome": readback.originalByteOutcome,
-                    "playMethod": readback.playMethod,
-                    "source": (
-                        None if readback.source is None else {
-                            "container": readback.source.container,
-                            "bitrateBps": readback.source.bitrate,
-                            "videoCodecs": readback.source.videoCodecs,
-                            "audioCodecs": readback.source.audioCodecs,
-                            "videoRanges": readback.source.videoRanges,
-                        }),
-                    "transcoding": (
-                        None if readback.transcoding is None else {
-                            "container": readback.transcoding.container,
-                            "videoCodec": readback.transcoding.videoCodec,
-                            "audioCodec": readback.transcoding.audioCodec,
-                            "bitrateBps": readback.transcoding.bitrate,
-                            "reasons": readback.transcoding.reasons,
-                        }),
-                    "reason": readback.reason,
-                    "advisoryOnly": True,
-                    "physicalAcceptance": "manual",
-                    "observedAt": observed_at,
-                    "expiresAt": expires_at,
-                },
+                **self._playback_info_public(
+                    actor, before, private, body, readback,
+                    observed_at, expires_at),
             )
             return response.model_dump(mode="python")
         except ApiError:
             raise
         except (ValueError, TypeError, sqlite3.Error, OverflowError):
             raise ApiError("server_unavailable", 503) from None
+
+    def assess_item(self, actor, core_id, home_id, value):
+        body = PlaybackInfoObservationRequest.model_validate(value)
+        self._scope(core_id, home_id)
+        self.auth.rate_limit([("playback_info_assess", actor.id, 120)])
+        try:
+            before, _provider, private, readback = self._playback_info(
+                actor, body)
+            observed_at = int(self.settings.clock())
+            response = PlaybackInfoAssessmentResponse(
+                schemaVersion=1,
+                requestId=body.requestId,
+                **self._playback_info_public(
+                    actor, before, private, body, readback,
+                    observed_at, observed_at + 30),
+            )
+            return response.model_dump(mode="python")
+        except ApiError:
+            raise
+        except (ValueError, TypeError, sqlite3.Error, OverflowError):
+            raise ApiError("server_unavailable", 503) from None
+
+    def _playback_info(self, actor, body):
+        with self.db.connection() as connection:
+            before = self._current_actor(connection, actor)["revision"]
+        provider = self.media_playback() if callable(
+            self.media_playback) else self.media_playback
+        if provider is None:
+            raise ValueError()
+        request = PlaybackInfoRequest(
+            schemaVersion=1,
+            requestId=body.requestId,
+            installationId=body.installationId,
+            expectedInstallationRevision=body.expectedInstallationRevision,
+            expectedSnapshotRevision=body.expectedSnapshotRevision,
+            expectedJellyfinServiceRevision=(
+                body.expectedJellyfinServiceRevision),
+            itemId=body.itemId,
+            mediaKey=body.mediaKey,
+            profile=body.localProfile,
+        )
+        account_revision, private, readback = provider.playback_info(
+            actor, request)
+        with self.db.connection() as connection:
+            after = self._current_actor(connection, actor)["revision"]
+        if before != account_revision or after != before:
+            raise ApiError("playback_quality_authority_changed", 409)
+        if (private.installationId != body.installationId
+                or private.installationRevision
+                != body.expectedInstallationRevision
+                or private.snapshotRevision
+                != body.expectedSnapshotRevision
+                or private.jellyfinServiceRevision
+                != body.expectedJellyfinServiceRevision
+                or private.itemId != body.itemId
+                or private.mediaKey != body.mediaKey
+                or readback.itemId != body.itemId
+                or readback.profileDigest
+                != local_playback_profile_digest(body.localProfile)):
+            raise ApiError("playback_quality_authority_changed", 409)
+        return before, provider, private, readback
+
+    def _playback_info_public(self, actor, revision, private, body, readback,
+                              observed_at, expires_at):
+        return {
+            "authority": {
+                **self._authority(actor, {"revision": revision}),
+                "installationId": private.installationId,
+                "installationRevision": private.installationRevision,
+                "snapshotRevision": private.snapshotRevision,
+                "jellyfinServiceRevision": private.jellyfinServiceRevision,
+                "itemId": private.itemId,
+                "mediaKey": private.mediaKey,
+                "profileId": body.localProfile.profileId,
+                "profileRevision": body.localProfile.profileRevision,
+                "displayRevision": body.localProfile.displayRevision,
+                "decoderRevision": body.localProfile.decoderRevision,
+                "networkRevision": body.localProfile.networkRevision,
+                "policyRevision": body.localProfile.policyRevision,
+                "profileDigest": readback.profileDigest,
+            },
+            "observation": {
+                "schemaVersion": 1,
+                "assurance": readback.assurance,
+                "originalByteOutcome": readback.originalByteOutcome,
+                "playMethod": readback.playMethod,
+                "source": (
+                    None if readback.source is None else {
+                        "container": readback.source.container,
+                        "bitrateBps": readback.source.bitrate,
+                        "videoCodecs": readback.source.videoCodecs,
+                        "audioCodecs": readback.source.audioCodecs,
+                        "videoRanges": readback.source.videoRanges,
+                    }),
+                "transcoding": (
+                    None if readback.transcoding is None else {
+                        "container": readback.transcoding.container,
+                        "videoCodec": readback.transcoding.videoCodec,
+                        "audioCodec": readback.transcoding.audioCodec,
+                        "bitrateBps": readback.transcoding.bitrate,
+                        "reasons": readback.transcoding.reasons,
+                    }),
+                "reason": readback.reason,
+                "advisoryOnly": True,
+                "physicalAcceptance": "manual",
+                "observedAt": observed_at,
+                "expiresAt": expires_at,
+            },
+        }
