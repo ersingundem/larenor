@@ -29,7 +29,11 @@ F01/F02/F03 now also await CI: root live-source22/22 tests passed, including
 default256/128 creation and restart and signed4096-event recovery. Current/live
 history, inclusive24h replay, activated encrypted rules, tamper/child authority
 and rollback are protected. See [automation retention evidence](f01-f03-automation-retention-2026-10-01.md).
-F57/F58/F59 remain `reworking` until their repair acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
-Current totals: **64 tasks / 55 selected features awaiting CI**, **5 features
+F58 also awaits CI after root live-source18/18 retention/normal Core tests,
+including default2000 signed preparation history and same-DB restart with
+real owned HA/OEPL HTTP. Pending/unknown effects and current render ACK remain
+protected; no physical display delivery is claimed.
+F57/F59 remain `reworking` until their repair acceptance is complete. F60/F62 have separate runtime/distribution gaps and remain reworking.
+Current totals: **65 tasks / 56 selected features awaiting CI**, **4 features
 reworking**, **37/127 tasks and 3/63 selected features accepted**. No acceptance
 counter was advanced by this review.

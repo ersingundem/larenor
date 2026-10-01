@@ -5108,7 +5108,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "E-paper mini ev ekranları",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5142,7 +5142,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: Preview/provider-command/poll geçmişi temizlenmiyor; 2000 sınırı dolunca yeni kullanım restart sonrasında da kalıcı 409 veriyor. HMAC doğrulamalı güvenli retention, canlı/belirsiz işlemler ve sınırlı replay korunarak kapatılacak. Önceki odaklı kanıt geçerli, bu yeni uzun kullanım açığını kapsamaz. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
+      "reason": "CI bekliyor: signed parent/child/artifact doğrulamalı retention eski prepared/terminal preview ve poll geçmişiyle kapasite açığını kapattı. Root live-source18/18 test; gerçek normalCore/ownedHA-OEPL HTTP, sameDB restart ve2000 signed hazırlık fixture kapasitesi toparlanır. En yeni32terminal receipt/poll, tüm pending/dispatching/uncertain etkiler ve güncel render ACK korunur. Tamper/mismatchedchild sıfır silme, atomic rollback/no orphan/no resend geçti. Son dal HEAD geniş CI ve fiziksel e-paper teslimi ayrı; kabul sayacı değişmedi. Kanıt: docs/testing/f58-authenticated-retention-2026-10-01.md."
     },
     {
       "id": "F59",

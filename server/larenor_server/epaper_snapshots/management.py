@@ -23,6 +23,12 @@ from .open_epaper_link import OpenEpaperLinkProvider
 MAX_DEVICES = 100
 MAX_POLLS = 2_000
 PREVIEW_TTL_SECONDS = 60
+RETAINED_TERMINAL_RECEIPTS = 32
+STORAGE_SCAN_LIMIT = MAX_POLLS
+
+_PROVIDER_TERMINAL_STATES = {
+    "accepted", "rejected", "readback_observed", "cancelled",
+}
 
 
 class EpaperManagement:
@@ -138,6 +144,178 @@ class EpaperManagement:
             row["render_digest"], row["byte_length"], row["frame_count"],
             row["status"], row["received_frames"],
         ])
+
+    def _retention_state(self, connection):
+        """Validate the complete signed receipt graph before pruning any row."""
+        devices = connection.execute(
+            "SELECT * FROM epaper_devices LIMIT ?", (MAX_DEVICES + 1,)
+        ).fetchall()
+        if len(devices) > MAX_DEVICES:
+            raise StartupError("epaper_snapshot_storage_invalid")
+        device_configurations = {}
+        for row in devices:
+            device_configurations[row["device_id"]] = self._configuration(row)
+
+        previews = connection.execute(
+            "SELECT rowid AS retention_rowid,* FROM epaper_previews "
+            "ORDER BY rowid LIMIT ?", (STORAGE_SCAN_LIMIT + 1,),
+        ).fetchall()
+        polls = connection.execute(
+            "SELECT rowid AS retention_rowid,* FROM epaper_polls "
+            "ORDER BY rowid LIMIT ?", (STORAGE_SCAN_LIMIT + 1,),
+        ).fetchall()
+        providers = connection.execute(
+            "SELECT rowid AS retention_rowid,* FROM epaper_provider_commands "
+            "ORDER BY rowid LIMIT ?", (STORAGE_SCAN_LIMIT + 1,),
+        ).fetchall()
+        if any(len(rows) > STORAGE_SCAN_LIMIT for rows in (previews, polls, providers)):
+            raise StartupError("epaper_snapshot_storage_invalid")
+
+        preview_by_id = {}
+        for row in previews:
+            if (
+                row["device_id"] not in device_configurations
+                or not hmac.compare_digest(
+                    row["authentication_tag"], self._preview_tag(row)
+                )
+            ):
+                raise StartupError("epaper_snapshot_storage_invalid")
+            preview_by_id[row["request_id"]] = row
+
+        provider_by_id = {}
+        for row in providers:
+            if (
+                not hmac.compare_digest(
+                    row["authentication_tag"], self._provider_tag(row)
+                )
+                or not hmac.compare_digest(
+                    hashlib.sha256(row["artifact"]).hexdigest(),
+                    row["artifact_digest"],
+                )
+            ):
+                raise StartupError("epaper_snapshot_storage_invalid")
+            preview = preview_by_id.get(row["request_id"])
+            try:
+                command = json.loads(row["command_json"])
+            except (TypeError, json.JSONDecodeError):
+                raise StartupError("epaper_snapshot_storage_invalid") from None
+            expected_preview_state = (
+                "pending" if row["state"] == "prepared"
+                else "cancelled" if row["state"] == "cancelled"
+                else "published"
+            )
+            if (
+                preview is None
+                or row["device_id"] not in device_configurations
+                or row["device_id"] != preview["device_id"]
+                or preview["state"] != expected_preview_state
+                or type(command) is not dict
+                or command.get("deviceId") != row["device_id"]
+                or command.get("deviceRevision") != preview["device_revision"]
+                or command.get("layoutRevision") != preview["layout_revision"]
+                or not hmac.compare_digest(
+                    preview["command_digest"],
+                    hashlib.sha256(
+                        b"larenor-epaper-oepl-command-v1\0"
+                        + row["command_json"].encode()
+                    ).hexdigest(),
+                )
+            ):
+                raise StartupError("epaper_snapshot_storage_invalid")
+            provider_by_id[row["request_id"]] = row
+
+        for row in polls:
+            if (
+                row["device_id"] not in device_configurations
+                or not hmac.compare_digest(
+                    row["authentication_tag"], self._poll_tag(row)
+                )
+            ):
+                raise StartupError("epaper_snapshot_storage_invalid")
+        return device_configurations, previews, provider_by_id, polls
+
+    def _preview_prune_ids(self, connection):
+        _, previews, providers, _ = self._retention_state(connection)
+        now = self.settings.clock()
+        terminal = sorted(
+            (
+                preview for preview in previews
+                if preview["request_id"] in providers
+                and providers[preview["request_id"]]["state"]
+                in _PROVIDER_TERMINAL_STATES
+            ),
+            key=lambda row: row["retention_rowid"],
+            reverse=True,
+        )
+        retained = {
+            row["request_id"] for row in terminal[:RETAINED_TERMINAL_RECEIPTS]
+        }
+        candidates = []
+        for preview in previews:
+            if preview["expires_at"] > now:
+                continue
+            provider = providers.get(preview["request_id"])
+            if provider is None or provider["state"] == "prepared":
+                candidates.append(preview["request_id"])
+            elif (
+                provider["state"] in _PROVIDER_TERMINAL_STATES
+                and preview["request_id"] not in retained
+            ):
+                candidates.append(preview["request_id"])
+            # Dispatching and uncertain effects are deliberately never candidates.
+        return previews, providers, candidates
+
+    def _ensure_preview_capacity(self, connection, *, provider, prune):
+        previews, providers, candidates = self._preview_prune_ids(connection)
+        remaining_previews = len(previews) - len(candidates)
+        remaining_providers = len(providers) - sum(
+            request_id in providers for request_id in candidates
+        )
+        if prune and candidates:
+            connection.executemany(
+                "DELETE FROM epaper_previews WHERE request_id=?",
+                ((request_id,) for request_id in candidates),
+            )
+        if remaining_previews >= MAX_POLLS or (
+            provider and remaining_providers >= MAX_POLLS
+        ):
+            raise ApiError("epaper_poll_limit", 409)
+
+    def _poll_prune_ids(self, connection):
+        configurations, _, _, polls = self._retention_state(connection)
+        protected = {row["request_id"] for row in polls if row["status"] == "pending"}
+        for device_id, configuration in configurations.items():
+            snapshot = configuration.get("snapshot")
+            if snapshot is None:
+                continue
+            latest = next((
+                row for row in reversed(polls)
+                if row["device_id"] == device_id
+                and row["render_digest"] == snapshot.renderDigest
+            ), None)
+            if latest is not None:
+                protected.add(latest["request_id"])
+        terminal = sorted(
+            (row for row in polls if row["status"] in {"partial", "verified"}),
+            key=lambda row: row["retention_rowid"], reverse=True,
+        )
+        protected.update(
+            row["request_id"] for row in terminal[:RETAINED_TERMINAL_RECEIPTS]
+        )
+        return polls, [
+            row["request_id"] for row in terminal
+            if row["request_id"] not in protected
+        ]
+
+    def _ensure_poll_capacity(self, connection, *, prune):
+        polls, candidates = self._poll_prune_ids(connection)
+        if prune and candidates:
+            connection.executemany(
+                "DELETE FROM epaper_polls WHERE request_id=?",
+                ((request_id,) for request_id in candidates),
+            )
+        if len(polls) - len(candidates) >= MAX_POLLS:
+            raise ApiError("epaper_poll_limit", 409)
 
     def _configuration(self, row):
         if row is None or not hmac.compare_digest(
@@ -559,6 +737,7 @@ class EpaperManagement:
         now = self.settings.clock()
         with self.db.transaction() as connection:
             self._facts(connection, actor)
+            self._ensure_preview_capacity(connection, provider=False, prune=True)
             device_row = self._row(connection, device_id)
             config = self._configuration(device_row)
             device, layout = config["device"], config["layout"]
@@ -608,12 +787,7 @@ class EpaperManagement:
 
     def _provider_preview(self, actor, authority, body, row, configuration):
         with self.db.connection() as connection:
-            if (connection.execute(
-                    "SELECT COUNT(*) FROM epaper_provider_commands"
-                ).fetchone()[0] >= MAX_POLLS or connection.execute(
-                    "SELECT COUNT(*) FROM epaper_previews"
-                ).fetchone()[0] >= MAX_POLLS):
-                raise ApiError("epaper_poll_limit", 409)
+            self._ensure_preview_capacity(connection, provider=True, prune=False)
         device, layout = configuration["device"], configuration["layout"]
         if body.expectedDeviceRevision != str(device.revision):
             raise ApiError("revision_conflict", 409)
@@ -670,12 +844,7 @@ class EpaperManagement:
             current = self._row(connection, row["device_id"])
             if current["revision"] != row["revision"]:
                 raise ApiError("revision_conflict", 409)
-            if connection.execute(
-                "SELECT COUNT(*) FROM epaper_provider_commands"
-            ).fetchone()[0] >= MAX_POLLS or connection.execute(
-                "SELECT COUNT(*) FROM epaper_previews"
-            ).fetchone()[0] >= MAX_POLLS:
-                raise ApiError("epaper_poll_limit", 409)
+            self._ensure_preview_capacity(connection, provider=True, prune=True)
             connection.execute(
                 "INSERT INTO epaper_previews VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 tuple(preview.values()),
@@ -984,8 +1153,7 @@ class EpaperManagement:
                 if any(prior[key] != row[key] for key in row):
                     raise ApiError("revision_conflict", 409)
             else:
-                if connection.execute("SELECT COUNT(*) FROM epaper_polls").fetchone()[0] >= MAX_POLLS:
-                    raise ApiError("epaper_poll_limit", 409)
+                self._ensure_poll_capacity(connection, prune=True)
                 connection.execute(
                     "INSERT INTO epaper_polls VALUES(?,?,?,?,?,?,?,?,?)", tuple(row.values())
                 )
@@ -1054,29 +1222,10 @@ class EpaperManagement:
     def validate_storage(self):
         try:
             with self.db.connection() as connection:
-                devices = connection.execute(
-                    "SELECT * FROM epaper_devices LIMIT ?", (MAX_DEVICES + 1,)
-                ).fetchall()
-                if len(devices) > MAX_DEVICES:
-                    raise ValueError("device_limit")
-                for row in devices:
-                    self._configuration(row)
-                for table, tagger, limit in (
-                    ("epaper_previews", self._preview_tag, MAX_POLLS),
-                    ("epaper_polls", self._poll_tag, MAX_POLLS),
-                ):
-                    rows = connection.execute(f"SELECT * FROM {table} LIMIT ?", (limit + 1,)).fetchall()
-                    if len(rows) > limit or any(
-                        not hmac.compare_digest(row["authentication_tag"], tagger(row))
-                        for row in rows
-                    ):
-                        raise ValueError("invalid_epaper_records")
-                provider_rows = connection.execute(
-                    "SELECT * FROM epaper_provider_commands LIMIT ?", (MAX_POLLS + 1,)
-                ).fetchall()
-                if len(provider_rows) > MAX_POLLS:
+                _, previews, providers, polls = self._retention_state(connection)
+                if any(len(rows) > MAX_POLLS for rows in (
+                    previews, providers, polls,
+                )):
                     raise ValueError("invalid_epaper_records")
-                for row in provider_rows:
-                    self._provider_row(connection, row["request_id"])
         except (ValueError, TypeError, json.JSONDecodeError, OverflowError):
             raise StartupError("epaper_snapshot_storage_invalid") from None
