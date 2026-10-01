@@ -125,6 +125,16 @@
  	shadow_encoder_free(client->encoder);
  
  	/* Clear queued messages and free resource */
+@@ -2671,0 +2675,9 @@
++
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	/*
++	 * Activate may publish the full refresh before this subscriber exists.
++	 * Publish is edge-triggered, so request it again after registration.
++	 */
++	if (client->activated && !shadow_client_refresh_request(client))
++		goto fail;
++#endif
 --- a/server/shadow/shadow_larenor_channels.c
 +++ b/server/shadow/shadow_larenor_channels.c
 @@ -0,0 +1,408 @@

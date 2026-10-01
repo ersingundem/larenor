@@ -85,3 +85,14 @@ F60 güvenli hata tanısı root **42/42** runner/workflow kontrolü ve actionlin
 kabulünü geçti. Kaynak hash değiştiğinde satır haritasından aşama çıkarılmaz;
 ham XML veya özel mesaj yayımlanmaz. Yeni hosted stream sonucu gerekir.
 [tanı ve sınırlar](f60-owned-stream-failure-diagnostics-2026-10-01.md).
+
+F62 fixture-only subscriber repair is locally source-verified: root fresh exact
+archive preparation, patch/source hashes and actual subscriber/event/refresh
+ordering passed; 18/18 focused checks and independent review passed. The old
+initial-frame failure cause remains an inference and the unchanged strict
+hosted frame/channel gate must still pass. F62 remains `reworking`.
+[Source repair evidence](f62-initial-frame-subscriber-2026-10-01.md).
+
+F60 changed-source diagnostic run [36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320)
+started at exact `3feb723c28aa745445edcc770b27d9794b7e5b11`; source SHA was
+independently verified. Pending execution is not acceptance.

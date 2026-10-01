@@ -47,11 +47,11 @@ PATCHED_FILES = {
     "include/freerdp/server/shadow.h": "3116527f6af974912e1dafefca7833f7ee9f071edbd6e559213207de277a007d",
     "server/shadow/CMakeLists.txt": "bcdf84b177a33598c62f2f1ed7eccbba56a7da8171e42452dfc1b66e8cf3bde5",
     "server/shadow/shadow_channels.c": "339bf9aaad03e7d7207ae71345f3a519159a73133621fabf7029d1ce9a8b537c",
-    "server/shadow/shadow_client.c": "5003278a1bfda0f6ee8111e3fc154d7b5dfa2de5ffe4d9f9d8a7d7becdf2469a",
+    "server/shadow/shadow_client.c": "a07adfae3ef11288f05d72fd5c32899522a4b7ab21a6387f3679a3f5c62ac797",
     "server/shadow/shadow_larenor_channels.c": "d05ba7600fbfa1899d546d077c3592ecfc8e150ee6cf407a472c828b794485da",
     "server/shadow/shadow_larenor_channels.h": "af7fcfca177f3eb3c5db7bbb910cd74c3fd0a3470c4b68c86eebaeeb805e0b56",
 }
-PATCH_SHA256 = "370c9c2f51c3bcf99c726534b60d22a8b695b303d1658cdedd8e5c3c2ac5d3e1"
+PATCH_SHA256 = "b94f68932544e793f1a413c87ba6cbb84db20c9e316dbcce878decd19a110baa"
 WITNESS_MAGIC = b"LRNF62C1"
 WITNESS_SIZE = 64
 MAX_ARCHIVE_SIZE = 32 * 1024 * 1024

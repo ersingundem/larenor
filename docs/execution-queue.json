@@ -5082,7 +5082,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md",
+          "commit": "5571d1a3565f64f59751ad22364346e429a309c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root 21/21 management and production-route regressions; six-file scoped analysis clean; exact confirmation/readback, foreign navigation and parent removal"
+        }
+      ],
       "completionCommit": null,
       "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
@@ -5114,7 +5123,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md",
+          "commit": "5571d1a3565f64f59751ad22364346e429a309c7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root 21/21 management and production-route regressions; six-file scoped analysis clean; exact confirmation/readback, foreign navigation and parent removal"
+        }
+      ],
       "completionCommit": null,
       "reason": "Geliştirme ve odaklı doğrulama tamamlandı; geniş son dal HEAD CI bekleniyor. Gerçek production route onay penceresinin runtimeı emekli etmesi düzeltildi. Çit yalnız exact sahipli CupertinoDialogRoute için geçerli; yabancı route, hesap/ev/source değişimi veya görünürlük kaybı runtimeı kapatır. Confirm/Cancel yalnız kendi current dialogunu kaldırır; yabancı routea dokunmaz. Gecikmiş release exact dialog kimliği taşır; yeni leasei temizleyemez. Root 21/21 management ve gerçek production route testi ile 6 dosya scoped analyze geçti: confirm/readback, foreign route altında inert callback, pending temizliği ve parent kapanışı doğrulandı. Önceki normal Core/provider/restart kanıtı korunur. Fiziksel cihaz/radyo veya etiket teslimi MANUAL kayıtlarında, geniş CI ayrı. Kanıt: docs/testing/f57-f58-owned-confirmation-lifecycle-2026-10-01.md."
     },
@@ -5336,10 +5354,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Root 42/42 diagnostic/workflow checks and actionlint; source-hash stage map and descriptor-bound bounded XML; no hosted stream acceptance"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36808021320",
+          "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source exact diagnostic gate dispatched via registered Server scope f60-stream; source SHA independently verified; acceptance pending"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run 36802851003 gerçek Android NSD keşfini tek test, sıfır atlama ve iki yaşam ile doğruladı; streamAccepted=false. Exact a703289d / run 36804692946 motor derleme ve kurulumundan sonra gerçek connectedDebugAndroidTest adımında başarısız oldu; kesin assertion/aşaması eldeki makbuzla bilinmiyor. Yeni tanı yalnız kaynak/paket bağlı sabit neden, doğrulanmış test kimliği ve sınırlı kaynak satırları yayımlar. Kaynak hash değişirse aşama tahmin edilmez; XML okuması descriptor ve boyut sınırına bağlıdır. Root 42/42 tanı/workflow testi ve actionlint geçti. Değişmiş kaynakla yeni hosted sonuç gerekli; aynı kaynak körlemesine rerun edilmez. Frame/PCM, XI2/gamepad etkisi, stop, kopuş ve replay olmadan yerel temizleme kabulü açık. Fiziksel host/GPU/controller ve sağlayıcı eşlemesi MANUAL, geniş son HEAD CI ayrı. Kanıt: docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor. Normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run 36802851003 gerçek Android NSD keşfini tek test, sıfır atlama ve iki yaşam ile doğruladı; streamAccepted=false. Exact a703289d / run 36804692946 motor derleme ve kurulumundan sonra gerçek connectedDebugAndroidTest adımında başarısız oldu; kesin assertion/aşaması eldeki makbuzla bilinmiyor. Yeni tanı yalnız kaynak/paket bağlı sabit neden, doğrulanmış test kimliği ve sınırlı kaynak satırları yayımlar. Kaynak hash değişirse aşama tahmin edilmez; XML okuması descriptor ve boyut sınırına bağlıdır. Root 42/42 tanı/workflow testi ve actionlint geçti. Değişmiş kaynakla yeni hosted sonuç gerekli; aynı kaynak körlemesine rerun edilmez. Frame/PCM, XI2/gamepad etkisi, stop, kopuş ve replay olmadan yerel temizleme kabulü açık. Fiziksel host/GPU/controller ve sağlayıcı eşlemesi MANUAL, geniş son HEAD CI ayrı. Kanıt: docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md. Yeni exact 3feb723c / run 36808021320 başladı; sonuç bekleniyor, kabul henüz yok."
     },
     {
       "id": "G11",
@@ -5587,7 +5613,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Exact 1d1ccf2e / run 36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 APK paketlemesini geçti; gerçek Android testi başarısız oldu. Root canonical source/class/method/package/fixture kimliğini doğruladı: 1 test, 1 failure, 0 error, 0 skip; owned kaynak satırları 255 ve 98, güvenlik callbackinden sonra beklenen ilk 1280x800 frame bekleyişini gösterir. serverResizeRequested=false. Bu sonuç hiç callback olmadığını veya hatanın kesin alt nedenini kanıtlamaz. DISP, Unicode pano ve iki authenticated yaşam kabulü açık. Önceki resize/configure hataları tarihsel korunur. Yerel derleme ve unit kanıtları runtime kabulü değildir. Geniş son HEAD CI ve fiziksel Windows/Huawei/DeX kabulü ayrı."
+      "reason": "Yeniden çalışılıyor. Exact 1d1ccf2e / run 36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 APK paketlemesini geçti; gerçek Android testi başarısız oldu. Root canonical source/class/method/package/fixture kimliğini doğruladı: 1 test, 1 failure, 0 error, 0 skip; owned kaynak satırları 255 ve 98, güvenlik callbackinden sonra beklenen ilk 1280x800 frame bekleyişini gösterir. serverResizeRequested=false. Bu sonuç hiç callback olmadığını veya hatanın kesin alt nedenini kanıtlamaz. DISP, Unicode pano ve iki authenticated yaşam kabulü açık. Önceki resize/configure hataları tarihsel korunur. Yerel derleme ve unit kanıtları runtime kabulü değildir. Geniş son HEAD CI ve fiziksel Windows/Huawei/DeX kabulü ayrı. Pinned kaynakta subscriber oluşmadan Activate refreshinin kaybolabileceği sıra doğrulandı. Fixture-only düzeltme subscriber/event kaydından sonra normal full refreshi yeniden ister; dispatch hatası bağlantıyı kapatır. Root exact archive fresh prepare/hash/sıra, 18/18 odaklı kontrol ve bağımsız kaynak incelemesini doğruladı. Bu eski hosted hatanın kesin nedeni iddiası değildir; aynı strict Android gate değişmiş kaynakla geçmelidir. Kanıt: docs/testing/f62-initial-frame-subscriber-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -5699,7 +5725,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 58 seçili özellik / toplam 67 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; dar kaynak düzeltmesi inceleniyor. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 58 seçili özellik / toplam 67 iş geniş son HEAD CI bekliyor. F14 Client/normal Core restart, F50 kapasite/restart ve F57/F58 exact sahipli onay penceresi düzeltmeleri odaklı kabulü geçti. F57/F58 root 21/21 management/production route ve scoped analyze ile CI bekliyora geçti. F60 gerçek Android stream hatasının kesin aşaması açık; güvenli kaynak/paket bağlı tanı 42/42 testten geçti, değişmiş kaynakla hosted sonuç gerekli. F62 gerçek Android beklenen ilk 1280x800 frame kabulünde başarısız; subscriber sonrası fixture refresh düzeltmesi fresh exact kaynak ve bağımsız incelemeyle doğrulandı; yeni hosted runtime sonucu gerekli. F60/F62 yeniden çalışılıyor. İkinci FINAL başlamaz; 37/127 iş ve 3/63 özellik kabul sayaçları korunur."
     },
     {
       "id": "FINAL.UI",

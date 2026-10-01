@@ -89,7 +89,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
         self.assertIn("source_digest_mismatch", verify_result.stderr)
         self.assertNotIn("ModuleNotFoundError", verify_result.stderr)
 
-    def test_patch_binds_context_cleanup_before_shadow_resources(self):
+    def test_patch_binds_cleanup_and_replays_activation_after_subscriber_registration(self):
         relative = "server/shadow/shadow_client.c"
         self.assertEqual(
             subject.SOURCE_FILES[relative],
@@ -97,7 +97,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
         )
         self.assertEqual(
             subject.PATCHED_FILES[relative],
-            "5003278a1bfda0f6ee8111e3fc154d7b5dfa2de5ffe4d9f9d8a7d7becdf2469a",
+            "a07adfae3ef11288f05d72fd5c32899522a4b7ab21a6387f3679a3f5c62ac797",
         )
         patch = subject.PATCH_PATH.read_text(encoding="utf-8")
         section = patch.split("--- a/server/shadow/shadow_client.c", 1)[1].split(
@@ -107,6 +107,11 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
         self.assertLess(
             section.index("shadow_larenor_channels_free(client);"),
             section.index("shadow_encoder_free(client->encoder);"),
+        )
+        self.assertIn("@@ -2671,0 +2675,9 @@", section)
+        self.assertIn(
+            "client->activated && !shadow_client_refresh_request(client)",
+            section,
         )
 
     def test_archive_rejects_links_and_parent_traversal(self):
