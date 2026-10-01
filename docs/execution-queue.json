@@ -4121,7 +4121,7 @@
       "kind": "task",
       "parent": "G06",
       "title": "Kendi televizyon kanalların",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4145,7 +4145,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Kalıcı occurrence dispatcher ve gerçek Flutter Client→normal Core→owned Jellyfin iki yaşamı root tarafından tekrar geçti; tek occurrence reservation, programme boundary devamı, restart/cancel ve toplam iki playback POST doğrulandı. Bearer saklamadan durable family/user revision scope kullanılır; >900sn access expiry, same-family token rotation, logout/revoke, exact v1 migration ve final receipt transaction cancellation dahil F22 35 test/ortak F22-F28 46 test geçti; scoped analyze temiz. IPC öncesi iptal sıfır I/O; handoff sonrası pending/effect_unknown tekrar gönderilmez. Geniş exact HEAD CI bekliyor; fiziksel receiver MANUAL ayrı. Kanıt: docs/testing/f22-personal-channels-normal-core-2026-09-30.md."
+      "reason": "Yerel tam Server regresyonunda access-expiry continuous execution testi başarısız; tekil ve dar sıralı tekrar geçti, kesin full-run neden henüz bilinmiyor. Sessiz hostta dar kabul ve kaynak incelemesi tamamlanmadan yalnız CI bekliyor sayılmaz. Önceki named kabul: Kalıcı occurrence dispatcher ve gerçek Flutter Client→normal Core→owned Jellyfin iki yaşamı root tarafından tekrar geçti; tek occurrence reservation, programme boundary devamı, restart/cancel ve toplam iki playback POST doğrulandı. Bearer saklamadan durable family/user revision scope kullanılır; >900sn access expiry, same-family token rotation, logout/revoke, exact v1 migration ve final receipt transaction cancellation dahil F22 35 test/ortak F22-F28 46 test geçti; scoped analyze temiz. IPC öncesi iptal sıfır I/O; handoff sonrası pending/effect_unknown tekrar gönderilmez. Geniş exact HEAD CI bekliyor; fiziksel receiver MANUAL ayrı. Kanıt: docs/testing/f22-personal-channels-normal-core-2026-09-30.md."
     },
     {
       "id": "F23",
@@ -4504,7 +4504,7 @@
       "kind": "task",
       "parent": "G07",
       "title": "Ev belgeleri ve garanti hatırlatmaları",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4529,7 +4529,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek encrypted blob→bounded Poppler/Tesseract OCR, confidence/source binding, tekrar çıkarım ve ayrı kullanıcı garanti onayı bağlandı. 24 Server, 14 Flutter, 1 gerçek Flutter→normal Core→actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. docs/testing/f35-home-document-ocr-2026-09-30.md. Image build/geniş exact HEAD CI ve fiziksel belge/platform kabulü açık; sayaç artmadı."
+      "reason": "Yerel tam Server regresyonunda iki gerçek PDF/OCR kabulü 200 yerine 503 server_unavailable verdi. Dar iki-test tekrarında candidate başarısız, no-label geçti. Aynı public synthetic PDF için üretim OCR.extract() doğrudan 5,871 saniyede geçti; TSV ve strict candidate modeli geçerli. HTTP hata kaynağı henüz kanıtlanmadı; dar inceleme sürüyor ve bu iş yalnız CI bekliyor sayılmaz. Önceki named kabul: gerçek encrypted blob → bounded Poppler/Tesseract OCR, confidence/source binding, tekrar çıkarım ve ayrı kullanıcı garanti onayı bağlandı. 24 Server, 14 Flutter, 1 gerçek Flutter → normal Core → actual OCR kabulü ve 21 container policy testi geçti; analyze temiz. Kanıt: docs/testing/f35-home-document-ocr-2026-09-30.md. Image build, geniş exact HEAD CI ve fiziksel belge/platform kabulü açık; sayaç artmadı."
     },
     {
       "id": "F36",
@@ -5774,10 +5774,34 @@
           "state": "completed",
           "result": "failed",
           "label": "Exactc829 original1test/1failure/0error/0skip,unclassified/no owned frames/testLifecycleStage absent/serverResizeRequested=false; arm64 actual package passed; precise cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+          "commit": "70ab1058495957844edc79740abe46df4a50296a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root51 runner/workflow/dependency checks,4subtests; actual required-native AndroidTest compile278tasks; before-teardown race RED/GREEN; runtime acceptance separate"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+          "commit": "70ab1058495957844edc79740abe46df4a50296a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent review: fixed enum cached before stop/tuple,background bounded adb outside channel deadlines,exact nonce cleanup,strict original acceptance unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36814807367",
+          "commit": "70ab1058495957844edc79740abe46df4a50296a",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact70ab1058 changed-source strict two-lifetime RDP hosted gate; no runtime acceptance yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; kaynak değişimiyle erken init ve çalışma sırasında bounded capture hazırlanıyor. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exactc8291061/run36811909218 original1test/1failure/0error/0skip; bounded receipt unclassified,ownedframes[],testLifecycleStage yok,serverResizeRequested=false. Arm64 actual package geçti. Bu makbuz eski initial-frame/resize nedenini veya app crash nedenini kanıtlamaz. Root34/34 parser/runner ve actual required-native AndroidTest Kotlin compile278tasks last-entered tanısı için geçti; stage üretim kabulü değildir. Marker yalnız Gradle bittikten sonra okunduğundan yazma/okuma/package teardown sınırları ayırt edilemiyor; Erken init ve çalışma sırasında bounded capture exact70ab1058 ile pushlandı: root51runner/workflow/dependency ve actual AndroidTest278tasks geçti; bağımsız review kapanış yarışı RED→GREEN kapandı. Yeni exact70ab/run36814807367 sürüyor, kabul yok. AynıSHA kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Exact362 v3 iki-ABI product APK tüm5rootverifier ve345JVM=343passed/2explicit opt-in skip/0failure geçti; paket/derleme runtime yerine sayılmaz. Geniş sonHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. Kanıt: docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -5919,10 +5943,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact362 Security completed failure; new failure investigation active, no acceptance"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/security-exact-history-fingerprints-2026-10-01.md",
+          "commit": "81cd4172ea48e703b738ff55e619651919f60b32",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root full-all-history Gitleaks0findings,new synthetic candidate blocking exit17,23security tests55subtests;only15exact historical fingerprints"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36814632423",
+          "commit": "81cd4172ea48e703b738ff55e619651919f60b32",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact81cd Security all3jobs passed; no broad current-HEAD Server/Android/runtime acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream/F62RDP yeniden çalışılıyor. Kabul37/127iş ve3/63özellik korunur. Tam Flutter frozenb21 Darttree7919passed/57explicit opt-in skip/0failure; analyze temiz,1981Dart0format değişikliği. Exact362 v3 actual iki-ABI product APK tüm5rootverifier ile doğrulandı; geniş required-package JVM343passed/2explicit opt-in skip/0failure ve root165tool geçti. Exact362 Android/allServer36813872693 ve Sunshine stream/discovery36813869676/36813871246 sürüyor; Security36813874099 yeni failure inceleniyor. Tam Server yerel regresyonu sürüyor; erken F22/F35 hatalarının nedeni ve dar tekrar kanıtı çıkarılıyor. F62exactc829 canonical1failure/no stage/no ownedframes nedeni bilinmiyor; çalışma sırasında bounded tanı hazırlanıyor. F01/F02/F03root22,F14root9,F58root18,F59root28,F57root30 retention/restart kapıları geçti. İkinciFINAL başlamaz; fiziksel/hesap kapıları MANUAL,CORE.WEB bütün FINALlardan sonra. Hiçbir paket/yerel/test tanısı gerçek stream/RDP veya geniş sonHEAD CI kabulü yerine sayılmaz."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan56seçili özellik/65iş CI bekliyor; F22continuous expiry ve F35actualOCR yeni yerel geniş-regresyon hataları nedeniyle yeniden incelemede; F60stream/F62RDP yeniden çalışılıyor. Kabul37/127iş ve3/63özellik korunur. Tam Flutter frozenb21 Darttree7919passed/57explicit opt-in skip/0failure; analyze temiz,1981Dart0format değişikliği. Exact362 v3 actual iki-ABI product APK tüm5rootverifier; required-package JVM343passed/2explicit opt-in skip/0failure ve root165tool geçti. Exact362 Android/allServer36813872693 sürüyor; iki-ABI native paket işi yeni failure verdi ve dar düzeltme hazırlanıyor. Sunshine stream/discovery36813869676/36813871246 sürüyor. Security15exact historical false-positive düzeltmesi root23policy/allhistory0/newcandidateexit17 ve exact81cd/run36814632423 üçjob passed; bütün CI değildir. F62early/live diagnostic exact70ab1058 root51/AndroidTest278tasks/independentreview geçti; yeni native36814807367 sürüyor. Fiziksel/hesap kapıları MANUAL; ikinciFINAL başlamaz,CORE.WEB sonra. Paket/yerel/tanı kanıtı gerçek runtime veya geniş sonHEAD CI yerine sayılmaz."
     },
     {
       "id": "FINAL.UI",

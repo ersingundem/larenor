@@ -1,14 +1,15 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 67 iş CI bekliyor. F60/F62 yeniden çalışılıyor; yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 56 seçili özellik / toplam 65 iş CI bekliyor. F22/F35 yeni yerel regresyon hataları için incelemede; F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **58 seçili özellik / toplam 67 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **CI bekliyor** | **56 seçili özellik / toplam 65 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden inceleniyor** | **F22, F35** | Tam Server regresyonunda continuous execution/access-expiry ve gerçek PDF/OCR hataları görüldü; kesin neden ve dar kabul tekrarları çıkarılıyor. Önceki odaklı kanıtlar tek başına yeni hataları kapatmaz |
 | **Yeniden çalışılıyor** | **F60** | Embed-v3 iptal/deadline 40 native test, root165 tool, actual iki-ABI APK 5 verifier ve JVM343/345 geçti. Exact `36269cf0` üzerinde [stream](https://github.com/ersingundem/larenor/actions/runs/36813869676) ve [discovery](https://github.com/ersingundem/larenor/actions/runs/36813871246) çalışıyor; gerçek frame/PCM/input/iki yaşam kabulü henüz yok |
-| **Yeniden çalışılıyor** | **F62** | Exact `c8291061` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36811909218) 1 test/1 failure/0 error/0 skip ile başarısız. Owned frame ve lifecycle stage yok; serverResizeRequested=false. Arm64 package geçti. Kesin neden bilinmiyor; erken başlangıç ve Gradle bitmeden tanı toplama hazırlanıyor. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
+| **Yeniden çalışılıyor** | **F62** | Exact `c8291061` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36811909218) 1 test/1 failure/0 error/0 skip ile başarısız. Owned frame/lifecycle stage yok; kesin neden bilinmiyor. Erken/live tanı düzeltmesi root51 ve AndroidTest compile geçti; exact `70ab1058` [yeni koşu](https://github.com/ersingundem/larenor/actions/runs/36814807367) sürüyor. Strict runtime kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
@@ -39,6 +40,8 @@ Exact `36269cf05091156ae960106eaec27810ff35fc78` üzerinde [Android ve tüm Serv
 Security failure kaynağı doğrulandı: 15 tam geçmiş fingerprint için yanlış pozitif istisnası hazırlandı; genel dosya/kural/commit istisnası yok. Root tam geçmiş taramasında 0 bulgu, yeni sentetik adayda engelleyici exit17 ve 23 politika testi geçti. [Kaynak ve kapsam](testing/security-exact-history-fingerprints-2026-10-01.md). Yeni hosted Security kabulü henüz yok.
 
 F62 erken başlangıç ve Gradle kapanmadan enum toplama düzeltmesi root51 runner/workflow/dependency testinden ve actual required-native AndroidTest Kotlin derlemesinden geçti. Bağımsız incelemede bulunan in-flight okuma/kapanış yarışı RED→GREEN ile kapandı; orijinal strict RDP kabul kapıları korunur. Yeni kaynaklı hosted kabul gerekli. Geniş exact362 Android CI’ında FreeRDP iki-ABI paket adımı yeni failure verdi; dar inceleme sürüyor. Security düzeltmesi `81cd4172` pushlandı, [yeni koşu](https://github.com/ersingundem/larenor/actions/runs/36814632423) sürüyor. Bunlar tamamlanma sayaçlarını artırmaz.
+
+Yeni kaynak `81cd4172` [Security koşusu](https://github.com/ersingundem/larenor/actions/runs/36814632423) secret/dependency/platform-policy üç işini de geçti. F22/F35 yeni yerel hataları nedeniyle CI bekleyen tablodan incelemeye geri alındı: **65 iş / 56 seçili özellik CI bekliyor**, tam kabul 37/127 ve 3/63 değişmedi. Aynı kaynak körlemesine yeniden çalıştırılmıyor.
 
 ## Tarihsel doğrulama kayıtları
 

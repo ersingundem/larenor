@@ -2,7 +2,7 @@
 
 ## Current state — 1 October 2026
 
-FINAL.FUNCTION is the only active final.58selected features/67tasks are implementation-complete and awaiting final-HEAD CI; F60/F62 remain reworking. Accepted counts stay37/127tasks and3/63selected features. Physical/household/account gates remain MANUAL; no second final starts before this final completes.
+FINAL.FUNCTION is the only active final. Development and focused validation are complete for 56 selected features / 65 tasks, which await final-HEAD CI. F22/F35 have new local regression failures under investigation; F60/F62 remain reworking. Accepted counts stay 37/127 tasks and 3/63 selected features. Physical, household and account gates remain MANUAL; the next final starts only after this final completes.
 
 | Gate | Latest named evidence | Open boundary |
 | --- | --- | --- |
@@ -11,11 +11,12 @@ FINAL.FUNCTION is the only active final.58selected features/67tasks are implemen
 | F58 e-paper retention | Root18/18, signed2000history/restart, owned HA/OEPL HTTP | Actual physical label/display delivery MANUAL; broadCI |
 | F59 workshop retention | Root28/28normal Core/owned HTTP/default10000signedhistory/restart; current/replay/unknown/tamper/rollback | Physical printer/sensors MANUAL; broadCI |
 | F57 calibration retention | Root30/30normal Core/owned HA/fusion/retention; true256capacity/restart; conservative v1migration/current/replay/uncertain/newest32terminal/tamper/rollback | Broad finalHEAD CI; calibration is advisory/local, no physical mmWave reconfiguration claim |
-| F60 NSD | Exact5fa91e43/run36802851003 canonical1test/0skip, two fresh discovery lifetimes; streamAccepted=false | Does not prove streaming |
-| F60 streaming | Exact3feb723c/[run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320), original1test/1failure/0error/0skip, pairingRegistration wait owned99/680 | PIN/admin substage unproved; changed-source bounded delivery+bridge-stage root33/33+15subtest/Kotlincompile passes. Strict real frame/PCM/input/two-life/stop/disconnect gate remains open |
-| F62 native RDP | Exact36c3e015/[run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011), original1test/1failure/0error/0skip;unclassified/frames[]/serverResizeRequested=false;arm64package passed | Current cause unproved. Prior initial-frame/subscriber evidence is historical; strict frame/ACK/key/DISP/Unicode/disabledclipboard/two-life gate remains open |
-| Product native composition | Root24/24package, actual required-mode installed+same two-ABI APK verifier, native69/69 | Root broadJVM338total=336passed/2explicit opt-in skips/0failure/0error after wellbeing manifest fixture repair; full runtime/hosted CI not established |
-| Broad Android/Server | Old exactfecc run36808321597 found nested Server scope skip, format, MQTT fixture and legacylabel failures | Changed-source fixes are focused green; fresh finalHEAD broad run still required. OldSecurity success does not replace broadCI |
+| F60 NSD | Exact `5fa91e43` / run `36802851003`: canonical 1 test / 0 skips, two fresh discovery lifetimes; streamAccepted=false | Embed-v3 discovery at exact `36269cf0`, run `36813871246`, awaits acceptance; discovery does not prove streaming |
+| F60 streaming | Embed-v3 cancellation/deadline: 40 native tests, root 165 tool checks, real open-socket PIN newline RED→GREEN | Exact `36269cf0`, [run 36813869676](https://github.com/ersingundem/larenor/actions/runs/36813869676), awaits strict frame/PCM/input/two-lifetime/stop/disconnect acceptance. Previous pairing timeout cause remains unproved |
+| F62 native RDP | Exact `c8291061` / run `36811909218`: canonical 1 test / 1 failure / 0 errors / 0 skips; no owned frames or lifecycle stage; serverResizeRequested=false. Early/live diagnostics at `70ab1058` passed root 51 checks, AndroidTest compilation and independent review | [Run 36814807367](https://github.com/ersingundem/larenor/actions/runs/36814807367) awaits strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/disabled clipboard/two-lifetime acceptance. Diagnostic stages do not prove feature acceptance |
+| Product native composition | Embed-v3 actual two-ABI APK passed all 5 root verifiers. Required-package JVM: 345 total / 343 passed / 2 explicit opt-in skips / 0 failures / 0 errors | Hosted exact `36269cf0` dual-native package step failed and is under repair; local packaging does not prove hosted runtime acceptance |
+| Broad Android/Server | Exact `36269cf0`, run `36813872693`, is still running; its dual-native package step failed. Local full Server regression has new F22/F35 and plugin-artifact failures under investigation | Broad final-HEAD acceptance remains open; passing Security alone does not close it |
+| Security | Exact `81cd4172`, [run 36814632423](https://github.com/ersingundem/larenor/actions/runs/36814632423): all 3 jobs passed after 15 exact historical false-positive fingerprints were classified; new synthetic candidate still blocks | This is named Security evidence, not complete Server/Android/final-HEAD acceptance |
 
 [Retention evidence](final-function-retention-review-2026-10-01.md), [actual product build](product-android-dual-native-actual-build-2026-10-01.md), [F60 source/diagnostic proof](f60-pin-delivery-pairing-stage-2026-10-01.md), [complete production feature matrix](final-function-feature-matrix-2026-09-30.md).
 
@@ -52,7 +53,7 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-58 seçili özellik / 67 iş CI beklerken, F60 ve F62 gerçek işlev kapıları
+56 seçili özellik / 65 iş CI beklerken, F22/F35 yerel regresyon ve F60/F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
 
