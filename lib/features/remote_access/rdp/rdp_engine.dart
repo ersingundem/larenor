@@ -37,7 +37,7 @@ abstract interface class RdpFrameChannel implements RdpChannel {
 
 abstract interface class RdpEngine {
   Future<RdpCapabilities> capabilities({required bool Function() isCurrent});
-  Future<RdpPeerSecurity> inspect(
+  Future<RdpCertificateProbe> inspect(
     RemoteProfile profile, {
     required bool Function() isCurrent,
   });
@@ -75,7 +75,7 @@ class UnsupportedRdpEngine implements RdpEngine {
   }
 
   @override
-  Future<RdpPeerSecurity> inspect(
+  Future<RdpCertificateProbe> inspect(
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) => throw const RdpFailure('engine_unavailable');
@@ -136,7 +136,7 @@ class RdpMethodChannelEngine implements RdpEngine {
   }
 
   @override
-  Future<RdpPeerSecurity> inspect(
+  Future<RdpCertificateProbe> inspect(
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) async {
@@ -161,9 +161,12 @@ class RdpMethodChannelEngine implements RdpEngine {
           value['certificateFingerprint'] is! String) {
         throw const RdpFailure('invalid_response');
       }
-      return RdpPeerSecurity(
-        tls: value['tls'] as bool,
-        requiresNla: value['requiresNla'] as bool,
+      return RdpCertificateProbe(
+        // Exact v1 wire keys are retained for compatibility. They describe
+        // the certificate probe and fixed Client policy, not an authenticated
+        // peer-selected security mode.
+        tlsCertificateObserved: value['tls'] as bool,
+        clientRequiresNla: value['requiresNla'] as bool,
         certificate: RdpCertificatePin(
           algorithm: 'spki-sha256',
           fingerprint: value['certificateFingerprint'] as String,

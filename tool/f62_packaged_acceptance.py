@@ -8,10 +8,13 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 
 if __package__:
@@ -36,9 +39,21 @@ else:
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_CLASS = "com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest"
-TEST_NAME = "nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose"
+TEST_NAME = "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose"
 REPORTS = ROOT / "build/app/outputs/androidTest-results/connected/debug"
 PACKAGE_RECEIPT = ROOT / "android/app/freerdp/receipt.json"
+_DISPLAY = ":99"
+_XINPUT_A_KEYCODE = 38
+_SOURCE_DIMENSIONS = (1280, 800)
+_TARGET_DIMENSIONS = (1024, 768)
+_XI2_EVENT = re.compile(r"^EVENT type \d+ \((RawKeyPress|RawKeyRelease)\)$")
+_XI2_DETAIL = re.compile(r"^\s*detail:\s*(\d+)\s*$")
+_XDPI_DIMENSIONS = re.compile(r"^\s*dimensions:\s*(\d+)x(\d+) pixels")
+_XRANDR_ACTIVE_OUTPUT = re.compile(
+    rb"^([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})\s+connected(?:\s+primary)?\s+"
+    rb"(\d+)x(\d+)\+\d+\+\d+(?:\s|$)"
+)
+_OUTPUT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _MAX_REPORT_BYTES = 1024 * 1024
 _MAX_FRAMES = 8
@@ -65,6 +80,8 @@ _FAILURE_CODES = frozenset({
     "instrumentation_report_identity_mismatch",
     "instrumentation_test_failure",
     "instrumentation_test_error",
+    "host_keyboard_witness_missing",
+    "host_resize_unavailable",
 })
 _KNOWN_EXCEPTION_TYPES = frozenset({
     "com.ersingundem.larenor.rdp.RdpNativeFailure",
@@ -104,12 +121,65 @@ class AcceptanceFailure(RuntimeError):
     pass
 
 
+class BaselineFailure(AcceptanceFailure):
+    def __init__(self, code: str, message: str):
+        if code not in {
+            "host_keyboard_witness_missing", "host_resize_unavailable",
+        }:
+            raise ValueError("invalid owned baseline failure code")
+        super().__init__(message)
+        self.code = code
+
+
+class Xi2KeyWitness:
+    """Recognize one exact software HID A effect without retaining raw XI2."""
+
+    def __init__(self) -> None:
+        self._event: str | None = None
+        self._pressed = False
+        self.complete = False
+
+    def feed(self, line: str) -> None:
+        event = _XI2_EVENT.fullmatch(line.rstrip("\r\n"))
+        if event is not None:
+            self._event = event.group(1)
+            return
+        detail = _XI2_DETAIL.fullmatch(line.rstrip("\r\n"))
+        if detail is None or self._event is None:
+            return
+        event_name = self._event
+        self._event = None
+        if int(detail.group(1)) != _XINPUT_A_KEYCODE:
+            return
+        if event_name == "RawKeyPress":
+            if self._pressed or self.complete:
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness was ambiguous",
+                )
+            self._pressed = True
+        elif event_name == "RawKeyRelease":
+            if not self._pressed or self.complete:
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness was incomplete",
+                )
+            self.complete = True
+
+
 def fixture_package_versions() -> dict[str, str]:
     values = {
         "freerdp3-shadow-x11": os.environ.get(
             "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION", ""
         ),
         "winpr3-utils": os.environ.get("RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION", ""),
+        "xinput": os.environ.get("RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION", ""),
+        "xserver-xorg-core": os.environ.get(
+            "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION", ""
+        ),
+        "xserver-xorg-video-dummy": os.environ.get(
+            "RDP_ACCEPTANCE_XORG_DUMMY_PACKAGE_VERSION", ""
+        ),
     }
     if any(
         re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+:~_-]{0,127}", value) is None
@@ -153,6 +223,22 @@ def acceptance_receipt(
         "testClass": TEST_CLASS,
         "testName": TEST_NAME,
         "ownedHostPackages": package_versions,
+        "scope": "ownedShadowBaseline",
+        "evidence": {
+            "tlsNlaSpki": True,
+            "initialFramebuffer": {"width": 1280, "height": 800, "nonzero": True},
+            "rdpKeyEffect": {
+                "usbHidUsage": "KeyA", "xi2PressRelease": True,
+            },
+            "hostDrivenFramebufferResize": {
+                "width": 1024, "height": 768, "nonzero": True,
+            },
+            "frameAcknowledgementsAtLeast": 2,
+            "cleanClose": True,
+        },
+        "unsupportedOrUnproven": [
+            "clientDynamicResolution", "clientToRemoteClipboard", "ime",
+        ],
         "result": "passed",
         "tests": 1,
         "skipped": 0,
@@ -511,6 +597,236 @@ def _publish_failed_run(
     publish_public_failure(diagnostic, runner_temp, package_versions)
 
 
+def _stop_owned_process(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def _display_dimensions() -> tuple[int, int]:
+    environment = {**os.environ, "DISPLAY": _DISPLAY}
+    try:
+        result = subprocess.run(
+            ["/usr/bin/xdpyinfo"],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg dimension readback was unavailable",
+        ) from error
+    if result.returncode != 0 or len(result.stdout) > 128 * 1024:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg dimension readback failed",
+        )
+    dimensions = []
+    for raw_line in result.stdout.splitlines():
+        try:
+            line = raw_line.decode("ascii", errors="strict")
+        except UnicodeDecodeError:
+            continue
+        match = _XDPI_DIMENSIONS.match(line)
+        if match is not None:
+            dimensions.append((int(match.group(1)), int(match.group(2))))
+    if len(dimensions) != 1:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg dimension readback was ambiguous",
+        )
+    return dimensions[0]
+
+
+def _active_owned_output(dimensions: tuple[int, int]) -> str:
+    expected = os.environ.get("RDP_ACCEPTANCE_XORG_OUTPUT", "")
+    if _OUTPUT_NAME.fullmatch(expected) is None:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg output identity was unavailable",
+        )
+    environment = {**os.environ, "DISPLAY": _DISPLAY}
+    try:
+        result = subprocess.run(
+            ["/usr/bin/xrandr", "--query"],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg output readback was unavailable",
+        ) from error
+    if result.returncode != 0 or len(result.stdout) > 128 * 1024:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg output readback failed",
+        )
+    active: list[tuple[str, int, int]] = []
+    for line in result.stdout.splitlines():
+        match = _XRANDR_ACTIVE_OUTPUT.match(line)
+        if match is not None:
+            active.append((
+                match.group(1).decode("ascii", errors="strict"),
+                int(match.group(2)),
+                int(match.group(3)),
+            ))
+    if active != [(expected, *dimensions)]:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg active output was ambiguous",
+        )
+    return expected
+
+
+def _resize_owned_display() -> None:
+    environment = {**os.environ, "DISPLAY": _DISPLAY}
+    output = _active_owned_output(_SOURCE_DIMENSIONS)
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/xrandr",
+                "--output",
+                output,
+                "--mode",
+                "1024x768",
+                "--fb",
+                "1024x768",
+            ],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg resize was unavailable",
+        ) from error
+    if result.returncode != 0:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg resize was not observed",
+        )
+    _active_owned_output(_TARGET_DIMENSIONS)
+    if _display_dimensions() != _TARGET_DIMENSIONS:
+        raise BaselineFailure(
+            "host_resize_unavailable",
+            "owned Xorg resize was not observed",
+        )
+
+
+def _run_owned_shadow_baseline(command: list[str], *, timeout: float = 1200) -> int:
+    """Run instrumentation while witnessing XI2 and controlling owned Xorg."""
+    environment = {**os.environ, "DISPLAY": _DISPLAY}
+    xinput: subprocess.Popen[bytes] | None = None
+    gradle: subprocess.Popen[bytes] | None = None
+    selector = selectors.DefaultSelector()
+    deadline = time.monotonic() + timeout
+    try:
+        xinput = subprocess.Popen(
+            ["/usr/bin/stdbuf", "-oL", "/usr/bin/xinput", "test-xi2", "--root"],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            bufsize=0,
+        )
+        if xinput.stdout is None or xinput.poll() is not None:
+            raise BaselineFailure(
+                "host_keyboard_witness_missing",
+                "owned XI2 key witness could not start",
+            )
+        selector.register(xinput.stdout, selectors.EVENT_READ)
+        gradle = subprocess.Popen(
+            command,
+            cwd=ROOT / "android",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        witness = Xi2KeyWitness()
+        buffered = b""
+        observed_bytes = 0
+        while not witness.complete:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, timeout)
+            gradle_status = gradle.poll()
+            if gradle_status is not None:
+                if gradle_status != 0:
+                    return gradle_status
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness was not observed",
+                )
+            if xinput.poll() is not None:
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness stopped early",
+                )
+            for key, _ in selector.select(timeout=min(0.25, remaining)):
+                chunk = os.read(key.fd, 4096)
+                if not chunk:
+                    raise BaselineFailure(
+                        "host_keyboard_witness_missing",
+                        "owned XI2 key witness closed early",
+                    )
+                observed_bytes += len(chunk)
+                if observed_bytes > 1024 * 1024:
+                    raise BaselineFailure(
+                        "host_keyboard_witness_missing",
+                        "owned XI2 key witness exceeded its bound",
+                    )
+                buffered += chunk
+                while b"\n" in buffered:
+                    raw_line, buffered = buffered.split(b"\n", 1)
+                    try:
+                        witness.feed(raw_line.decode("ascii", errors="strict"))
+                    except UnicodeDecodeError as error:
+                        raise BaselineFailure(
+                            "host_keyboard_witness_missing",
+                            "owned XI2 key witness was malformed",
+                        ) from error
+        _resize_owned_display()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(command, timeout)
+        try:
+            return gradle.wait(timeout=remaining)
+        except subprocess.TimeoutExpired:
+            raise subprocess.TimeoutExpired(command, timeout) from None
+    finally:
+        selector.close()
+        if gradle is not None and gradle.poll() is None:
+            _stop_owned_process(gradle)
+        if xinput is not None:
+            _stop_owned_process(xinput)
+
+
 def main() -> int:
     password = os.environ.get("RDP_ACCEPTANCE_PASSWORD", "")
     if not password or len(password) > 128 or "\x00" in password:
@@ -528,7 +844,7 @@ def main() -> int:
                 Path(temporary) / "launcher",
                 project_android=ROOT / "android",
             )
-            result = subprocess.run(
+            returncode = _run_owned_shadow_baseline(
                 [
                     *gradle, "--no-daemon",
                     ":app:connectedDebugAndroidTest",
@@ -539,9 +855,11 @@ def main() -> int:
                     "-Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR",
                     f"-Pandroid.testInstrumentationRunnerArguments.rdpPassword={password}",
                 ],
-                cwd=ROOT / "android", check=False, timeout=1200,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=1200,
             )
+    except BaselineFailure as error:
+        _publish_failed_run(runner_temp, package_versions, code=error.code)
+        raise AcceptanceFailure(str(error)) from None
     except subprocess.TimeoutExpired:
         # TimeoutExpired includes argv, including the disposable credential.
         _publish_failed_run(
@@ -554,7 +872,7 @@ def main() -> int:
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None
-    if result.returncode:
+    if returncode:
         _publish_failed_run(runner_temp, package_versions)
         raise AcceptanceFailure(
             "packaged RDP instrumentation failed; public diagnostics written")

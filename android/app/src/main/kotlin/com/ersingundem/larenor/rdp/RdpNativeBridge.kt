@@ -128,8 +128,10 @@ class RdpNativeBridge(
                     main.post {
                         networkBusy = false
                         if (!foreground()) error(result, "staleSession") else result.success(mapOf(
-                            "tls" to (evidence.minimumTlsProtocol == "TLSv1.2"),
-                            "requiresNla" to evidence.nla,
+                            // Preserve v1 keys: these are certificate-probe/client-policy facts,
+                            // not an authenticated peer/session receipt.
+                            "tls" to (evidence.minimumTlsPolicy == RdpFreeRdpPackage.TLS_PROTOCOL),
+                            "requiresNla" to evidence.clientRequiresNla,
                             "certificateFingerprint" to evidence.certificateFingerprint,
                         ))
                     }
@@ -344,7 +346,7 @@ class RdpNativeBridge(
     }
 }
 
-private fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
+internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
     "schemaVersion" to 1,
     "availability" to availability.name.lowercase(),
     "engineRevision" to engineRevision,
@@ -356,6 +358,13 @@ private fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
     "input" to mapOf("touchpad" to pointer, "keyboard" to keyboard, "ime" to ime),
     "channels" to mapOf(
         "clipboard" to clipboardModes.any { it != RdpClipboardMode.DISABLED },
+        "clipboardModes" to RdpClipboardMode.entries.filter { it in clipboardModes }.map {
+            when (it) {
+                RdpClipboardMode.DISABLED -> "disabled"
+                RdpClipboardMode.CLIENT_TO_REMOTE -> "clientToRemote"
+                RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
+            }
+        },
         "audio" to audio, "files" to files,
     ),
 )

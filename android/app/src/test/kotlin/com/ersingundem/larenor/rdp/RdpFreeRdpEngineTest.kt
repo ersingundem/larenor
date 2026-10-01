@@ -5,9 +5,55 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class RdpFreeRdpEngineTest {
+    @Test
+    fun matchingCertificateAloneCannotPublishAnAuthenticatedSessionOrFrame() {
+        val gate = RdpAuthenticatedOutputGate(PIN)
+        assertTrue(gate.certificate(PIN))
+        assertFalse(gate.canDeliverFrames())
+        assertFalse(gate.securityDelivered())
+        // Wrong credentials fail after certificate verification; no success
+        // callback means the engine never sees security or a framebuffer.
+        gate.close()
+        assertNull(gate.connectionSucceeded())
+        assertFalse(gate.canDeliverFrames())
+    }
+
+    @Test
+    fun exactNativeSuccessPublishesSecurityOnceBeforeFramesAndRetirementIsFinal() {
+        val rejected = RdpAuthenticatedOutputGate(PIN)
+        assertFalse(rejected.certificate(OTHER_PIN))
+        assertNull(rejected.connectionSucceeded())
+        assertFalse(rejected.certificate(PIN))
+        val gate = RdpAuthenticatedOutputGate(PIN)
+        assertNull(gate.connectionSucceeded())
+        assertTrue(gate.certificate(PIN))
+        val evidence = requireNotNull(gate.connectionSucceeded())
+        assertEquals(RdpJniSecurity("TLSv1.2", true, PIN), evidence)
+        assertFalse(gate.canDeliverFrames())
+        assertTrue(gate.securityDelivered())
+        assertTrue(gate.canDeliverFrames())
+        assertNull(gate.connectionSucceeded())
+        assertFalse(gate.securityDelivered())
+        gate.close()
+        assertFalse(gate.canDeliverFrames())
+        assertFalse(gate.certificate(PIN))
+        assertNull(gate.connectionSucceeded())
+    }
+
+    @Test
+    fun retirementDuringSecurityDeliveryNeverReleasesAnEarlyFrame() {
+        val gate = RdpAuthenticatedOutputGate(PIN)
+        assertTrue(gate.certificate(PIN))
+        assertTrue(gate.connectionSucceeded() != null)
+        gate.close()
+        assertFalse(gate.securityDelivered())
+        assertFalse(gate.canDeliverFrames())
+    }
+
     @Test
     fun tlsNlaAndExactCertificateGateTheActiveSession() {
         for ((evidence, expected) in listOf(
@@ -179,8 +225,41 @@ class RdpFreeRdpEngineTest {
         assertEquals(0, fixture.operation.inputs)
     }
 
+    @Test
+    fun reviewedPackageRejectsUnprovedImeBeforeNativeInput() {
+        val fixture = Fixture(capabilityMap = RdpFreeRdpPackage.capabilities())
+        val session = fixture.active()
+        assertTrue(session.key(1, 0x70004, true))
+        assertFalse(session.ime(2, "İstanbul"))
+        assertEquals("inputUnavailable", session.failureCode)
+        assertEquals(1, fixture.operation.inputs)
+        assertEquals(1, fixture.operation.closes)
+    }
+
+    @Test
+    fun reviewedPackagePreservesExactClipboardModesAcrossChannelAndNegotiation() {
+        val capabilities = RdpNativeCapabilities.parse(RdpFreeRdpPackage.capabilities())
+        val channels = capabilities.toChannel()["channels"] as Map<*, *>
+        assertEquals(listOf("disabled", "clientToRemote"), channels["clipboardModes"])
+        assertEquals(true, channels["clipboard"])
+        assertFalse(capabilities.ime)
+        try {
+            Fixture(
+                clipboard = RdpClipboardMode.BIDIRECTIONAL,
+                capabilityMap = RdpFreeRdpPackage.capabilities(),
+            ).open()
+            fail("Unimplemented remote clipboard must not open a native session")
+        } catch (failure: RdpNativeFailure) {
+            assertEquals("clipboardUnavailable", failure.code)
+        }
+        val unavailable = UnavailableRdpNativeBackend().capabilities().toChannel()["channels"] as Map<*, *>
+        assertEquals(emptyList<String>(), unavailable["clipboardModes"])
+        assertEquals(false, unavailable["clipboard"])
+    }
+
     private class Fixture(
         private val clipboard: RdpClipboardMode = RdpClipboardMode.DISABLED,
+        private val capabilityMap: Map<String, Any?> = availableCapabilities(),
     ) {
         lateinit var operation: Operation
         private val runtime = object : RdpJniRuntime {
@@ -192,7 +271,7 @@ class RdpFreeRdpEngineTest {
                 1,
                 emptySet(),
             )
-            override fun capabilities() = availableCapabilities()
+            override fun capabilities() = capabilityMap
             override fun create(
                 request: RdpNativeRequest,
                 plan: RdpNativeNegotiated,

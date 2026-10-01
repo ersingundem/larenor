@@ -57,9 +57,10 @@ void main() {
     );
     final capabilities = await engine.capabilities(isCurrent: () => true);
     expect(capabilities.canConnect, isTrue);
-    final security = await engine.inspect(profile, isCurrent: () => true);
-    expect(security.requiresNla, isTrue);
-    expect(security.certificate.algorithm, 'spki-sha256');
+    final probe = await engine.inspect(profile, isCurrent: () => true);
+    expect(probe.tlsCertificateObserved, isTrue);
+    expect(probe.clientRequiresNla, isTrue);
+    expect(probe.certificate.algorithm, 'spki-sha256');
     expect(calls[1].arguments, {
       'targetHost': profile.host,
       'targetPort': profile.port,

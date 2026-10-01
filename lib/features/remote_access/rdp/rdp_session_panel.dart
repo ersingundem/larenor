@@ -65,6 +65,12 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   String? _settingsNotice;
   bool _resumed = true, _focused = true, _retired = false;
 
+  bool? _loadedExternalDisplay() {
+    final state = ref.read(windowPolicySnapshotProvider);
+    if (!state.hasValue || state.isLoading || state.hasError) return null;
+    return state.requireValue.isExternalDisplay;
+  }
+
   bool _current() {
     try {
       if (_retired ||
@@ -121,7 +127,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _factory ??= ref.read(rdpEngineFactoryProvider);
     _trust ??= widget.securityStore ?? ref.read(rdpTrustStoreProvider);
     _security ??= widget.securityStore ?? ref.read(rdpSecurityStoreProvider);
-    _controller ??= _newController()..addListener(_changed);
+    _controller ??= _newController(
+      externalDisplay: _loadedExternalDisplay() ?? false,
+    )..addListener(_changed);
     if (!_settingsStarted) {
       _settingsStarted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
@@ -138,7 +146,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     }
   }
 
-  RdpSessionController _newController() {
+  RdpSessionController _newController({required bool externalDisplay}) {
     final media = MediaQuery.of(context), size = media.size;
     var width = (size.width * media.devicePixelRatio).round().clamp(640, 8192),
         height = (size.height * media.devicePixelRatio).round().clamp(
@@ -149,27 +157,37 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       width = (width * .9).round();
       height = (height * .9).round();
     }
-    final window = ref.read(windowPolicySnapshotProvider).value;
     return RdpSessionController(
       profile: widget.profile,
       trust: _trust!,
       credentialVault: _security,
       engineFactory: _factory!,
-      isCurrent: _current,
+      isCurrent: () =>
+          _current() && _loadedExternalDisplay() == externalDisplay,
       display: RdpDisplaySpec(
         width: width,
         height: height,
         dpi: (160 * media.devicePixelRatio).round().clamp(72, 640),
-        externalDisplay: window?.isExternalDisplay == true,
+        externalDisplay: externalDisplay,
       ),
       settings: _settings,
     );
   }
 
-  void _replaceController() {
+  void _replaceController({bool? externalDisplay}) {
+    final nextExternal =
+        externalDisplay ??
+        _loadedExternalDisplay() ??
+        _controller?.display.externalDisplay ??
+        false;
+    if (_controller?.display.externalDisplay == nextExternal &&
+        externalDisplay != null) {
+      return;
+    }
     _controller?.removeListener(_changed);
     _controller?.dispose();
-    _controller = _newController()..addListener(_changed);
+    _controller = _newController(externalDisplay: nextExternal)
+      ..addListener(_changed);
   }
 
   void _fillSettings(RdpProfileSettings value) {
@@ -203,12 +221,35 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }
 
   Future<void> _connect() async {
+    final before = _loadedExternalDisplay();
+    if (before == null) return;
+    if (_controller?.display.externalDisplay != before) {
+      _replaceController(externalDisplay: before);
+    }
     if (!_settingsLoaded) await _loadSettings();
-    if (_current() && _settingsLoaded) await _controller!.connect();
+    final after = _loadedExternalDisplay();
+    if (after == null || after != before) {
+      if (after != null) _replaceController(externalDisplay: after);
+      return;
+    }
+    if (_current() &&
+        _settingsLoaded &&
+        _controller?.display.externalDisplay == after) {
+      await _controller!.connect();
+    }
   }
 
   Future<void> _saveSettings() async {
     if (!_current() || !_settingsLoaded || _settingsBusy) return;
+    final capabilities = _controller?.capabilities;
+    if (_settings.clipboardMode != RdpClipboardMode.disabled &&
+        capabilities != null &&
+        !capabilities.supportedClipboardModes.contains(
+          _settings.clipboardMode,
+        )) {
+      setState(() => _settingsNotice = 'failed');
+      return;
+    }
     setState(() {
       _settingsBusy = true;
       _settingsNotice = null;
@@ -336,6 +377,12 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                   !value.hasWindowFocus ||
                   value.isPictureInPicture)) {
         _retire();
+      } else if (_controller?.display.externalDisplay !=
+          value.isExternalDisplay) {
+        _replaceController(externalDisplay: value.isExternalDisplay);
+        if (mounted) setState(() {});
+      } else if (!_settingsLoaded && !_settingsBusy) {
+        unawaited(_loadSettings());
       }
     });
     ref.watch(windowPolicySnapshotProvider);
@@ -450,7 +497,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               ),
                             ),
                           ),
-                        for (final value in RdpClipboardMode.values)
+                        for (final value in RdpClipboardMode.values.where(
+                          (value) =>
+                              value == RdpClipboardMode.disabled ||
+                              c.capabilities?.supportedClipboardModes.contains(
+                                    value,
+                                  ) ==
+                                  true ||
+                              value == _settings.clipboardMode,
+                        ))
                           action(
                             'rdp-clipboard-${value.name}',
                             '${switch (value) {
@@ -458,10 +513,34 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               RdpClipboardMode.clientToRemote => l.rdpClipboardClientToRemote,
                               RdpClipboardMode.bidirectional => l.rdpClipboardBidirectional,
                             }}${_settings.clipboardMode == value ? ' ✓' : ''}',
-                            () => setState(
-                              () => _settings = _settings.copyWith(
-                                clipboardMode: value,
-                              ),
+                            value != RdpClipboardMode.disabled &&
+                                    c.capabilities?.supportedClipboardModes
+                                            .contains(value) !=
+                                        true
+                                ? null
+                                : () => setState(
+                                    () => _settings = _settings.copyWith(
+                                      clipboardMode: value,
+                                    ),
+                                  ),
+                          ),
+                        if (_settings.clipboardMode !=
+                                RdpClipboardMode.disabled &&
+                            c.capabilities != null &&
+                            c.capabilities?.supportedClipboardModes.contains(
+                                  _settings.clipboardMode,
+                                ) !=
+                                true)
+                          Padding(
+                            key: const ValueKey(
+                              'rdp-clipboard-correction-required',
+                            ),
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              Localizations.localeOf(context).languageCode ==
+                                      'tr'
+                                  ? 'Kayıtlı pano modu bu aygıtta kullanılamıyor. Kapalı veya desteklenen tek yönlü modu seçip kaydedin.'
+                                  : 'The saved clipboard mode is unavailable on this device. Choose Off or a supported one-way mode and save.',
                             ),
                           ),
                         action(

@@ -67,29 +67,43 @@ class Channel implements RdpChannel {
 }
 
 class Engine implements RdpEngine {
-  Engine({this.available = true, this.requiresNla = true});
-  final bool available, requiresNla;
+  Engine({
+    this.available = true,
+    this.supportsNla = true,
+    this.clientRequiresNla = true,
+  });
+  final bool available, supportsNla, clientRequiresNla;
   final channel = Channel();
   int inspections = 0, opens = 0, closes = 0;
   String? passwordSeen;
-  Completer<RdpPeerSecurity>? delayed;
+  Completer<RdpCertificateProbe>? delayed;
   @override
   Future<RdpCapabilities> capabilities({
     required bool Function() isCurrent,
-  }) async => RdpCapabilities.fromJson(
-    fixture()[available ? 'availableCapabilities' : 'unavailableCapabilities'],
-  );
+  }) async {
+    final raw =
+        fixture()[available
+                ? 'availableCapabilities'
+                : 'unavailableCapabilities']
+            as Map<String, dynamic>;
+    return RdpCapabilities.fromJson({
+      ...raw,
+      if (available)
+        'security': {...raw['security'] as Map, 'nla': supportsNla},
+    });
+  }
+
   @override
-  Future<RdpPeerSecurity> inspect(
+  Future<RdpCertificateProbe> inspect(
     RemoteProfile profile, {
     required bool Function() isCurrent,
   }) {
     inspections++;
     return delayed?.future ??
         Future.value(
-          RdpPeerSecurity(
-            tls: true,
-            requiresNla: requiresNla,
+          RdpCertificateProbe(
+            tlsCertificateObserved: true,
+            clientRequiresNla: clientRequiresNla,
             certificate: RdpCertificatePin.fromJson(fixture()['certificate']),
           ),
         );
@@ -101,8 +115,9 @@ class Engine implements RdpEngine {
     required RdpCredential? credential,
     required bool Function() isCurrent,
   }) async {
+    if (credential == null) throw const RdpFailure('invalid_credential');
     opens++;
-    passwordSeen = credential?.password;
+    passwordSeen = credential.password;
     return channel;
   }
 
@@ -131,6 +146,14 @@ Future<void> flush() async {
   for (var i = 0; i < 20; i++) {
     await Future<void>.delayed(Duration.zero);
   }
+}
+
+Future<void> connectWithPassword(RdpSessionController controller) async {
+  final opening = controller.connect();
+  await flush();
+  expect(controller.phase, RdpSessionPhase.nlaRequired);
+  await controller.authenticate('one-time-password');
+  await opening;
 }
 
 class Vault implements RdpCredentialVault {
@@ -211,6 +234,47 @@ void main() {
     c.dispose();
   });
 
+  test(
+    'certificate probe alone never opens an authenticated session',
+    () async {
+      final engine = Engine(), trust = Trust();
+      final c = controller(engine, trust, () => true);
+      final opening = c.connect();
+      await flush();
+      expect(c.phase, RdpSessionPhase.certificate);
+      expect(engine.inspections, 1);
+      expect(engine.opens, 0);
+      c.retire();
+      await opening;
+      c.dispose();
+    },
+  );
+
+  test(
+    'missing mandatory NLA capability refuses before certificate probe',
+    () async {
+      final engine = Engine(supportsNla: false);
+      final c = controller(engine, Trust(), () => true);
+      await c.connect();
+      expect(c.phase, RdpSessionPhase.failed);
+      expect(c.error, 'nla_unsupported');
+      expect(engine.inspections, 0);
+      expect(engine.opens, 0);
+      c.dispose();
+    },
+  );
+
+  test('probe cannot weaken the fixed Client NLA policy', () async {
+    final engine = Engine(clientRequiresNla: false);
+    final c = controller(engine, Trust(), () => true);
+    await c.connect();
+    expect(c.phase, RdpSessionPhase.failed);
+    expect(c.error, 'invalid_response');
+    expect(engine.inspections, 1);
+    expect(engine.opens, 0);
+    c.dispose();
+  });
+
   test('changed certificate closes without retry or replay', () async {
     final trust = Trust()
       ..pin = const RdpCertificatePin(
@@ -231,9 +295,8 @@ void main() {
     var current = true;
     final trust = Trust()
       ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
-    final engine = Engine(requiresNla: false),
-        c = controller(engine, trust, () => current);
-    await c.connect();
+    final engine = Engine(), c = controller(engine, trust, () => current);
+    await connectWithPassword(c);
     expect(c.phase, RdpSessionPhase.connected);
     c.pointer(const RdpPointerEvent(x: .5, y: .5, buttons: 0));
     c.key(const RdpKeyEvent(physicalKey: 42, down: true));
@@ -257,9 +320,9 @@ void main() {
     current = false;
     c.synchronize();
     engine.delayed!.complete(
-      RdpPeerSecurity(
-        tls: true,
-        requiresNla: false,
+      RdpCertificateProbe(
+        tlsCertificateObserved: true,
+        clientRequiresNla: true,
         certificate: RdpCertificatePin.fromJson(fixture()['certificate']),
       ),
     );
@@ -323,7 +386,7 @@ void main() {
   test('resize and text input reject stale or over-bounded input', () async {
     final trust = Trust()
       ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
-    final engine = Engine(requiresNla: false);
+    final engine = Engine();
     final c = RdpSessionController(
       profile: profile,
       trust: trust,
@@ -334,7 +397,7 @@ void main() {
         clipboardMode: RdpClipboardMode.disabled,
       ),
     );
-    await c.connect();
+    await connectWithPassword(c);
     c.resize(
       const RdpDisplaySpec(
         width: 2560,

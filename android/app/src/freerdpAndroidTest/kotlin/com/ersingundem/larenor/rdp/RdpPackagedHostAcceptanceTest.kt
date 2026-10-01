@@ -8,6 +8,7 @@ import com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime
 import com.ersingundem.larenor.rdp.packaged.packagedConnectionUri
 import com.freerdp.freerdpcore.application.GlobalApp
 import com.freerdp.freerdpcore.services.LibFreeRDP
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
@@ -25,7 +26,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RdpPackagedHostAcceptanceTest {
     @Test
-    fun nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose() {
+    fun nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose() {
         val arguments = InstrumentationRegistry.getArguments()
         val host = arguments.required("rdpHost")
         val port = arguments.required("rdpPort").toInt()
@@ -48,13 +49,13 @@ class RdpPackagedHostAcceptanceTest {
         val capabilities = RdpNativeCapabilities.parse(runtime.capabilities())
         assertTrue(capabilities.canConnect)
         assertTrue(capabilities.nla)
-        assertTrue(capabilities.dynamicResolution)
+        assertTrue(!capabilities.ime)
         assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
         assertTrue(!capabilities.audio && !capabilities.files)
 
         val inspected = runtime.inspect(host, port, username)
-        assertTrue(inspected.nla)
-        assertEquals("TLSv1.2", inspected.minimumTlsProtocol)
+        assertTrue(inspected.clientRequiresNla)
+        assertEquals("TLSv1.2", inspected.minimumTlsPolicy)
         assertEquals(50, inspected.certificateFingerprint.length)
         assertTrue(Regex("SHA256:[A-Za-z0-9+/]{43}").matches(inspected.certificateFingerprint))
 
@@ -74,20 +75,24 @@ class RdpPackagedHostAcceptanceTest {
                     "height" to 800,
                     "dpi" to 180,
                     "externalDisplay" to false,
+                    // Required for accepting a server-originated DesktopResize.
+                    // This baseline never invokes session.resize/client DISP.
                     "dynamicResize" to true,
                 ),
                 "keyboardLayout" to "us",
-                "clipboardMode" to "clientToRemote",
+                "clipboardMode" to "disabled",
                 "audio" to false,
                 "files" to false,
             ),
         )
         val security = CountDownLatch(1)
-        val frameReady = CountDownLatch(1)
+        val frameReady = ArrayBlockingQueue<Unit>(8)
         val closed = CountDownLatch(1)
         val observer = object : RdpNativeSessionObserver {
             override fun onSecurity() = security.countDown()
-            override fun onFrame() = frameReady.countDown()
+            override fun onFrame() {
+                frameReady.offer(Unit)
+            }
             override fun onClosed(code: String?) = closed.countDown()
         }
         val session = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
@@ -103,41 +108,56 @@ class RdpPackagedHostAcceptanceTest {
                 session.phase == RdpJniPhase.ACTIVE ||
                     session.phase == RdpJniPhase.AWAITING_FRAME_ACK,
             )
-            assertTrue("first remote frame", frameReady.await(30, TimeUnit.SECONDS))
-            val frame = requireNotNull(session.pendingFrame)
-            assertEquals(1280, frame.width)
-            assertEquals(800, frame.height)
-            assertEquals(180, frame.dpi)
-            val pixels = frame.pixels.duplicate()
-            var observedPixel = false
-            while (pixels.hasRemaining()) {
-                if (pixels.get().toInt() != 0) {
-                    observedPixel = true
-                    break
-                }
-            }
-            assertTrue("remote framebuffer contains rendered pixels", observedPixel)
-            assertTrue(session.acknowledgeFrame(frame.sequence))
+            val initial = awaitFrame(session, frameReady, 1280, 800, 30)
+            assertEquals(180, initial.dpi)
+            assertTrue(session.acknowledgeFrame(initial.sequence))
 
-            assertTrue(session.pointer(1, 0.5, 0.5, 0))
-            assertTrue(session.key(2, 0x70004, true))
-            assertTrue(session.key(3, 0x70004, false))
-            assertTrue(session.ime(4, "Larenor"))
-            val clipboard = "Larenor RDP acceptance".toByteArray()
-            assertTrue(session.channel(5, RdpJniChannel.CLIPBOARD, clipboard))
-            assertTrue("clipboard payload is zeroized", clipboard.all { it == 0.toByte() })
-            assertTrue(
-                session.resize(
-                    6,
-                    RdpNativeDisplay(1024, 768, 220, true, true),
-                ),
-            )
+            // The host runner observes this exact software HID key pair through XI2,
+            // then changes the owned Xvfb root to 1024x768. No clipboard, IME or
+            // client DISP claim is part of this shadow-server baseline.
+            assertTrue(session.key(1, 0x70004, true))
+            assertTrue(session.key(2, 0x70004, false))
+
+            val resized = awaitFrame(session, frameReady, 1024, 768, 30)
+            assertEquals(180, resized.dpi)
+            assertTrue(session.acknowledgeFrame(resized.sequence))
         } finally {
             session.close()
         }
         assertEquals(RdpJniPhase.CANCELLED, session.phase)
         assertTrue("session close callback", closed.await(5, TimeUnit.SECONDS))
         assertTrue(password.all { it == '\u0000' })
+    }
+
+    private fun awaitFrame(
+        session: RdpFreeRdpSession,
+        ready: ArrayBlockingQueue<Unit>,
+        width: Int,
+        height: Int,
+        timeoutSeconds: Long,
+    ): RdpNativeFrame {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        while (true) {
+            val remaining = deadline - System.nanoTime()
+            assertTrue(
+                "remote ${width}x$height frame callback",
+                remaining > 0 && ready.poll(remaining, TimeUnit.NANOSECONDS) != null,
+            )
+            val frame = requireNotNull(session.pendingFrame)
+            if (frame.width == width && frame.height == height) {
+                val pixels = frame.pixels.duplicate()
+                var observedPixel = false
+                while (pixels.hasRemaining()) {
+                    if (pixels.get().toInt() != 0) {
+                        observedPixel = true
+                        break
+                    }
+                }
+                assertTrue("remote ${width}x$height framebuffer contains rendered pixels", observedPixel)
+                return frame
+            }
+            assertTrue("intermediate frame acknowledgement", session.acknowledgeFrame(frame.sequence))
+        }
     }
 
     private fun android.os.Bundle.required(key: String): String =

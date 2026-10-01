@@ -9,6 +9,23 @@ Map<String, dynamic> fixture() =>
     jsonDecode(File('contracts/rdp-client.v1.json').readAsStringSync())
         as Map<String, dynamic>;
 
+Map<String, dynamic> packagedCapabilities({
+  bool ime = false,
+  List<String> clipboardModes = const ['disabled', 'clientToRemote'],
+}) {
+  final value = jsonDecode(
+    jsonEncode(fixture()['availableCapabilities']),
+  ) as Map<String, dynamic>;
+  (value['input'] as Map<String, dynamic>)['ime'] = ime;
+  value['channels'] = <String, Object?>{
+    'clipboard': clipboardModes.any((value) => value != 'disabled'),
+    'clipboardModes': clipboardModes,
+    'audio': false,
+    'files': false,
+  };
+  return value;
+}
+
 const profile = RemoteProfile(
   id: 'a0000000000000000000000000000001',
   name: 'Office PC',
@@ -57,6 +74,54 @@ void main() {
     expect(request.display.pixelCount, 4096000);
     request.validate(
       RdpCapabilities.fromJson(fixture()['availableCapabilities']),
+    );
+  });
+
+  test('clipboard modes are exact and legacy boolean is one-way only', () {
+    final packaged = RdpCapabilities.fromJson(packagedCapabilities());
+    expect(packaged.supportsIme, isFalse);
+    expect(packaged.supportsClipboard, isTrue);
+    expect(packaged.supportedClipboardModes, {
+      RdpClipboardMode.disabled,
+      RdpClipboardMode.clientToRemote,
+    });
+    expect(
+      () => RdpCapabilities.fromJson(
+        packagedCapabilities(
+          clipboardModes: const ['clientToRemote', 'disabled'],
+        ),
+      ),
+      throwsA(isA<RdpFailure>()),
+    );
+
+    final legacy = jsonDecode(
+      jsonEncode(fixture()['availableCapabilities']),
+    ) as Map<String, dynamic>;
+    (legacy['channels'] as Map<String, dynamic>)['clipboard'] = true;
+    final compatible = RdpCapabilities.fromJson(legacy);
+    expect(compatible.supportedClipboardModes, {
+      RdpClipboardMode.clientToRemote,
+    });
+    expect(
+      compatible.supportedClipboardModes,
+      isNot(contains(RdpClipboardMode.bidirectional)),
+    );
+  });
+
+  test('unsupported clipboard selection fails closed without relabelling', () {
+    final capabilities = RdpCapabilities.fromJson(packagedCapabilities());
+    RdpSessionRequest request(RdpClipboardMode mode) => RdpSessionRequest(
+      profile: profile,
+      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 220),
+      certificateFingerprint:
+          'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      settings: RdpProfileSettings(clipboardMode: mode),
+      channels: RdpChannelPolicy(clipboard: mode != RdpClipboardMode.disabled),
+    );
+    request(RdpClipboardMode.clientToRemote).validate(capabilities);
+    expect(
+      () => request(RdpClipboardMode.bidirectional).validate(capabilities),
+      throwsA(isA<RdpFailure>()),
     );
   });
 

@@ -19,7 +19,39 @@ object RdpFreeRdpPackage {
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
     const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca"
+    // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
+    internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
+    internal const val TLS_PROTOCOL = "TLSv1.2"
     val SUPPORTED_ABIS = setOf("arm64-v8a", "x86_64")
+
+    internal fun capabilities(): Map<String, Any?> = mapOf(
+        "schemaVersion" to 1,
+        "availability" to "available",
+        "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
+        "security" to mapOf(
+            "tls" to true,
+            "certificatePinning" to true,
+            "nla" to true,
+            // A separate gateway SPKI is not yet represented by the Client contract.
+            "rdGateway" to false,
+        ),
+        "display" to mapOf(
+            "dynamicResolution" to true,
+            "externalDisplay" to true,
+            "maxWidth" to 8192,
+            "maxHeight" to 8192,
+            "maxDpi" to 640,
+        ),
+        // Unicode local setting alone does not prove the server input flag.
+        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to false),
+        // No remote clipboard callback is exposed to the Client yet.
+        "channels" to mapOf(
+            "clipboardModes" to listOf("disabled", "clientToRemote"),
+            "audio" to false,
+            "files" to false,
+        ),
+    )
+
 
     fun verify(identity: RdpFreeRdpIdentity): Boolean =
         identity.version == VERSION &&
@@ -38,6 +70,51 @@ data class RdpJniSecurity(
     val nla: Boolean,
     val certificateFingerprint: String,
 )
+
+/** An aborted certificate probe records policy and a presented pin, never login success. */
+data class RdpJniCertificateProbe(
+    val minimumTlsPolicy: String,
+    val clientRequiresNla: Boolean,
+    val certificateFingerprint: String,
+)
+
+/** A certificate match alone never authorizes input or framebuffer publication. */
+internal class RdpAuthenticatedOutputGate(private val expectedPin: String) {
+    private var pin: String? = null
+    private var authenticated = false
+    private var delivered = false
+    private var closed = false
+
+    @Synchronized fun certificate(candidate: String?): Boolean {
+        if (closed) return false
+        if (authenticated || candidate != expectedPin) {
+            close()
+            return false
+        }
+        pin = candidate
+        return true
+    }
+
+    /** Called only by the native successful-connection callback after NLA. */
+    @Synchronized fun connectionSucceeded(): RdpJniSecurity? {
+        if (closed || authenticated || pin == null) return null
+        authenticated = true
+        return RdpJniSecurity(RdpFreeRdpPackage.TLS_PROTOCOL, true, requireNotNull(pin))
+    }
+
+    @Synchronized fun securityDelivered(): Boolean {
+        if (closed || !authenticated || delivered) return false
+        delivered = true
+        return true
+    }
+
+    @Synchronized fun canDeliverFrames(): Boolean = !closed && authenticated && delivered
+
+    @Synchronized fun close() {
+        closed = true
+        pin = null
+    }
+}
 
 sealed interface RdpJniInput {
     data class Pointer(val x: Double, val y: Double, val buttons: Int) : RdpJniInput
@@ -122,7 +199,7 @@ interface RdpJniOperation {
 interface RdpJniRuntime {
     fun identity(): RdpFreeRdpIdentity
     fun capabilities(): Map<String, Any?>
-    fun inspect(host: String, port: Int, username: String): RdpJniSecurity =
+    fun inspect(host: String, port: Int, username: String): RdpJniCertificateProbe =
         failRdp("engineUnavailable")
     fun create(
         request: RdpNativeRequest,

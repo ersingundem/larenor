@@ -31,6 +31,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         values = {
             "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
             "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+            "RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION": "1.6.4-1build1",
+            "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION": "2:21.1.12-1ubuntu1.6",
+            "RDP_ACCEPTANCE_XORG_DUMMY_PACKAGE_VERSION": "1:0.4.0-1build1",
         }
         with mock.patch.dict(os.environ, values, clear=False):
             versions = runner.fixture_package_versions()
@@ -39,6 +42,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             {
                 "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
+                "xinput": "1.6.4-1build1",
+                "xserver-xorg-core": "2:21.1.12-1ubuntu1.6",
+                "xserver-xorg-video-dummy": "1:0.4.0-1build1",
             },
         )
         receipt = runner.acceptance_receipt(
@@ -49,6 +55,17 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["ownedHostPackages"], versions)
         self.assertEqual(receipt["sourceRevision"], "a" * 40)
         self.assertEqual(receipt["packageReceiptSha256"], "b" * 64)
+        self.assertEqual(receipt["scope"], "ownedShadowBaseline")
+        self.assertEqual(receipt["evidence"]["rdpKeyEffect"], {
+            "usbHidUsage": "KeyA", "xi2PressRelease": True,
+        })
+        self.assertEqual(receipt["evidence"]["frameAcknowledgementsAtLeast"], 2)
+        self.assertEqual(receipt["evidence"]["hostDrivenFramebufferResize"], {
+            "width": 1024, "height": 768, "nonzero": True,
+        })
+        self.assertEqual(receipt["unsupportedOrUnproven"], [
+            "clientDynamicResolution", "clientToRemoteClipboard", "ime",
+        ])
         self.assertEqual(
             {key: receipt[key] for key in ("tests", "skipped", "failures", "errors")},
             {"tests": 1, "skipped": 0, "failures": 0, "errors": 0},
@@ -70,6 +87,127 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     revision=revision,
                     package_digest=digest,
                 )
+
+    def test_xi2_witness_requires_one_exact_a_press_release_pair(self):
+        witness = runner.Xi2KeyWitness()
+        for line in (
+            "EVENT type 17 (RawMotion)",
+            "    detail: 38",
+            "EVENT type 13 (RawKeyPress)",
+            "    detail: 39",
+            "EVENT type 13 (RawKeyPress)",
+            "    detail: 38",
+        ):
+            witness.feed(line)
+        self.assertFalse(witness.complete)
+        witness.feed("EVENT type 14 (RawKeyRelease)")
+        witness.feed("    detail: 38")
+        self.assertTrue(witness.complete)
+
+        for lines in (
+            ("EVENT type 14 (RawKeyRelease)", "    detail: 38"),
+            (
+                "EVENT type 13 (RawKeyPress)", "    detail: 38",
+                "EVENT type 13 (RawKeyPress)", "    detail: 38",
+            ),
+        ):
+            invalid = runner.Xi2KeyWitness()
+            with self.assertRaisesRegex(
+                runner.BaselineFailure, "owned XI2 key witness",
+            ):
+                for line in lines:
+                    invalid.feed(line)
+
+    def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
+        completed = [
+            SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    b"Screen 0: minimum 64 x 64, current 1280 x 800\n"
+                    b"DUMMY0 connected primary 1280x800+0+0 0mm x 0mm\n"
+                ),
+            ),
+            SimpleNamespace(returncode=0, stdout=b""),
+            SimpleNamespace(
+                returncode=0,
+                stdout=b"DUMMY0 connected primary 1024x768+0+0 0mm x 0mm\n",
+            ),
+            SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    b"name of display: :99\n"
+                    b"  dimensions:    1024x768 pixels (271x203 millimeters)\n"
+                ),
+            ),
+        ]
+        with (
+            mock.patch.dict(
+                os.environ, {"RDP_ACCEPTANCE_XORG_OUTPUT": "DUMMY0"}, clear=False,
+            ),
+            mock.patch.object(
+                runner.subprocess, "run", side_effect=completed,
+            ) as process,
+        ):
+            runner._resize_owned_display()
+        self.assertEqual(
+            process.call_args_list[0].args[0],
+            ["/usr/bin/xrandr", "--query"],
+        )
+        self.assertEqual(
+            process.call_args_list[1].args[0],
+            [
+                "/usr/bin/xrandr", "--output", "DUMMY0",
+                "--mode", "1024x768", "--fb", "1024x768",
+            ],
+        )
+        self.assertEqual(
+            process.call_args_list[2].args[0], ["/usr/bin/xrandr", "--query"],
+        )
+        self.assertEqual(process.call_args_list[3].args[0], ["/usr/bin/xdpyinfo"])
+        self.assertEqual(process.call_args_list[0].kwargs["env"]["DISPLAY"], ":99")
+
+        with (
+            mock.patch.dict(
+                os.environ, {"RDP_ACCEPTANCE_XORG_OUTPUT": "DUMMY0"}, clear=False,
+            ),
+            mock.patch.object(
+                runner.subprocess,
+                "run",
+                side_effect=[
+                    completed[0],
+                    SimpleNamespace(returncode=0, stdout=b""),
+                    completed[2],
+                    SimpleNamespace(
+                        returncode=0,
+                        stdout=b"  dimensions:    1280x800 pixels\n",
+                    ),
+                ],
+            ),
+        ):
+            with self.assertRaisesRegex(
+                runner.BaselineFailure, "resize was not observed",
+            ):
+                runner._resize_owned_display()
+
+    def test_owned_resize_rejects_ambiguous_or_replaced_xorg_output(self):
+        query = SimpleNamespace(
+            returncode=0,
+            stdout=(
+                b"DUMMY0 connected 1280x800+0+0 0mm x 0mm\n"
+                b"DUMMY1 connected 1024x768+0+0 0mm x 0mm\n"
+            ),
+        )
+        with (
+            mock.patch.dict(
+                os.environ, {"RDP_ACCEPTANCE_XORG_OUTPUT": "DUMMY0"}, clear=False,
+            ),
+            mock.patch.object(runner.subprocess, "run", return_value=query) as process,
+            self.assertRaisesRegex(
+                runner.BaselineFailure, "active output was ambiguous",
+            ),
+        ):
+            runner._resize_owned_display()
+        process.assert_called_once()
 
     def test_only_the_exact_executed_class_and_method_can_receipt(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -156,6 +294,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 {
                     "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                     "winpr3-utils": "3.8.0+dfsg-3build3",
+                    "xinput": "1.6.4-1build1",
                 },
                 revision="a" * 40,
                 package_digest="b" * 64,
@@ -182,6 +321,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             versions = {
                 "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
+                "xinput": "1.6.4-1build1",
             }
             with (
                 mock.patch.object(runner, "source_revision", return_value="a" * 40),
@@ -209,7 +349,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             report.write_text(self._failure_xml(body=(
                 "java.lang.AssertionError: " + secret + "\n"
                 " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
-                "nlaHostDeliversPinnedFrameInputResizeClipboardAndCleanClose("
+                "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
                 "RdpPackagedHostAcceptanceTest.kt:92)\n"
                 " at unowned.example.Client.run(/home/runner/Secret.kt:44)\n"
                 " at com.ersingundem.larenor.rdp.Forged.run(Forged.kt:7)\n"
@@ -499,6 +639,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             versions = {
                 "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
+                "xinput": "1.6.4-1build1",
             }
             with (
                 mock.patch.object(runner, "source_revision", return_value="a" * 40),
@@ -583,6 +724,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 "RDP_ACCEPTANCE_PASSWORD": "disposable-password",
                 "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
                 "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
+                "RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION": "1.6.4-1build1",
+                "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION": "2:21.1.12-1ubuntu1.6",
+                "RDP_ACCEPTANCE_XORG_DUMMY_PACKAGE_VERSION": "1:0.4.0-1build1",
             }
             with (
                 mock.patch.dict(os.environ, environment, clear=False),
@@ -591,7 +735,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner, "materialized_gradle_command", return_value=["java"],
                 ),
                 mock.patch.object(
-                    runner.subprocess, "run",
+                    runner, "_run_owned_shadow_baseline",
                     side_effect=failed_process,
                 ) as process,
                 mock.patch.object(
@@ -602,9 +746,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner.AcceptanceFailure, "public diagnostics written",
                 ):
                     runner.main()
-            kwargs = process.call_args.kwargs
-            self.assertIs(kwargs["stdout"], runner.subprocess.DEVNULL)
-            self.assertIs(kwargs["stderr"], runner.subprocess.DEVNULL)
+            command = process.call_args.args[0]
+            self.assertIn(":app:connectedDebugAndroidTest", command)
+            self.assertEqual(process.call_args.kwargs["timeout"], 1200)
             self.assertFalse(report.exists())
             failure = root / "freerdp-public-acceptance/failure.json"
             payload = failure.read_text()

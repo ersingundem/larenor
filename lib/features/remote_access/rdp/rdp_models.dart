@@ -78,6 +78,7 @@ class RdpCapabilities {
     required this.supportsKeyboard,
     required this.supportsIme,
     required this.supportsClipboard,
+    required this.supportedClipboardModes,
     required this.supportsAudio,
     required this.supportsFiles,
   });
@@ -89,6 +90,7 @@ class RdpCapabilities {
   final int maxWidth, maxHeight, maxDpi;
   final bool supportsTouchpad, supportsKeyboard, supportsIme;
   final bool supportsClipboard, supportsAudio, supportsFiles;
+  final Set<RdpClipboardMode> supportedClipboardModes;
 
   bool get canConnect =>
       availability == RdpEngineAvailability.available &&
@@ -132,8 +134,47 @@ class RdpCapabilities {
           'maxHeight',
           'maxDpi',
         }),
-        input = _object(value['input'], {'touchpad', 'keyboard', 'ime'}),
-        channels = _object(value['channels'], {'clipboard', 'audio', 'files'});
+        input = _object(value['input'], {'touchpad', 'keyboard', 'ime'});
+    final rawChannels = value['channels'];
+    if (rawChannels is! Map) _invalid();
+    final legacyChannels =
+        rawChannels.length == 3 &&
+        const {'clipboard', 'audio', 'files'}.every(rawChannels.containsKey);
+    final channels = legacyChannels
+        ? rawChannels
+        : _object(rawChannels, {
+            'clipboard',
+            'clipboardModes',
+            'audio',
+            'files',
+          });
+    final clipboard = _bool(channels, 'clipboard');
+    final clipboardModes = <RdpClipboardMode>{};
+    if (legacyChannels) {
+      // v1 engines originally exposed only a boolean. Conservatively preserve
+      // device-to-remote behavior; never infer a remote-to-device backchannel.
+      if (clipboard) clipboardModes.add(RdpClipboardMode.clientToRemote);
+    } else {
+      final rawModes = channels['clipboardModes'];
+      if (rawModes is! List ||
+          rawModes.length > RdpClipboardMode.values.length) {
+        _invalid();
+      }
+      var previous = -1;
+      for (final rawMode in rawModes) {
+        if (rawMode is! String) _invalid();
+        final mode = RdpClipboardMode.values
+            .where((value) => value.name == rawMode)
+            .firstOrNull;
+        if (mode == null || mode.index <= previous) _invalid();
+        previous = mode.index;
+        clipboardModes.add(mode);
+      }
+      if (clipboard !=
+          clipboardModes.any((mode) => mode != RdpClipboardMode.disabled)) {
+        _invalid();
+      }
+    }
     final result = RdpCapabilities._(
       availability: availability,
       engineRevision: revision as String?,
@@ -148,7 +189,8 @@ class RdpCapabilities {
       supportsTouchpad: _bool(input, 'touchpad'),
       supportsKeyboard: _bool(input, 'keyboard'),
       supportsIme: _bool(input, 'ime'),
-      supportsClipboard: _bool(channels, 'clipboard'),
+      supportsClipboard: clipboard,
+      supportedClipboardModes: Set.unmodifiable(clipboardModes),
       supportsAudio: _bool(channels, 'audio'),
       supportsFiles: _bool(channels, 'files'),
     );
@@ -166,6 +208,7 @@ class RdpCapabilities {
             result.supportsKeyboard ||
             result.supportsIme ||
             result.supportsClipboard ||
+            result.supportedClipboardModes.isNotEmpty ||
             result.supportsAudio ||
             result.supportsFiles)) {
       _invalid();
@@ -213,13 +256,19 @@ class RdpCertificatePin {
   int get hashCode => Object.hash(algorithm, fingerprint);
 }
 
-class RdpPeerSecurity {
-  const RdpPeerSecurity({
-    required this.tls,
-    required this.requiresNla,
+/// Certificate-only discovery performed before credentials are supplied.
+///
+/// [tlsCertificateObserved] means the native probe received a certificate on
+/// its locally enforced TLS path. [clientRequiresNla] is the fixed Client
+/// connection policy; neither field claims that the probe authenticated the
+/// peer or discovered a server-selected authentication mode.
+class RdpCertificateProbe {
+  const RdpCertificateProbe({
+    required this.tlsCertificateObserved,
+    required this.clientRequiresNla,
     required this.certificate,
   });
-  final bool tls, requiresNla;
+  final bool tlsCertificateObserved, clientRequiresNla;
   final RdpCertificatePin certificate;
 }
 
@@ -451,7 +500,13 @@ class RdpSessionRequest {
         (display.externalDisplay && !capabilities.supportsExternalDisplay) ||
         !RegExp(r'^SHA256:[A-Za-z0-9+/]{43}$')
             .hasMatch(certificateFingerprint) ||
-        (channels.clipboard && !capabilities.supportsClipboard) ||
+        channels.clipboard !=
+            (settings.clipboardMode != RdpClipboardMode.disabled) ||
+        (settings.clipboardMode != RdpClipboardMode.disabled &&
+            (!channels.clipboard ||
+                !capabilities.supportedClipboardModes.contains(
+                  settings.clipboardMode,
+                ))) ||
         (channels.audio && !capabilities.supportsAudio) ||
         (channels.files && !capabilities.supportsFiles)) {
       _invalid('unsupported_request');

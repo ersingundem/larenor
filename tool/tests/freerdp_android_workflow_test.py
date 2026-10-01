@@ -1,6 +1,8 @@
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -78,6 +80,50 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn("freerdp_android_package.py\" verify-patch", patch)
         self.assertIn("<manifest", patch)
 
+    def test_xorg_preflight_directory_precedes_idempotent_package_copy(self):
+        steps = self.workflow["jobs"]["package"]["steps"]
+        preflight = next(
+            step for step in steps
+            if step.get("name") == "Preflight an owned resizable Xorg display"
+        )
+        receipt = next(
+            step for step in steps
+            if step.get("name") == "Create exact package receipt"
+        )
+        self.assertLess(steps.index(preflight), steps.index(receipt))
+        preflight_mkdir = next(
+            line for line in preflight["run"].splitlines()
+            if line == 'mkdir -p "$RUNNER_TEMP/freerdp-package/acceptance"'
+        )
+        receipt_tail = receipt["run"].splitlines()[-3:]
+        self.assertEqual(
+            receipt_tail[0], 'mkdir -p "$RUNNER_TEMP/freerdp-package"',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            aar = root / "source.aar"
+            receipt_json = root / "source.json"
+            aar.write_bytes(b"aar")
+            receipt_json.write_bytes(b"receipt")
+            script = "\n".join((
+                preflight_mkdir,
+                f'aar="{aar}"',
+                f'out="{receipt_json}"',
+                *receipt_tail,
+            ))
+            subprocess.run(
+                ["bash", "-ceu", script],
+                env={**os.environ, "RUNNER_TEMP": temporary, "ABI": "x86_64"},
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            package = root / "freerdp-package"
+            self.assertEqual(
+                (package / "freeRDPCore-x86_64.aar").read_bytes(), b"aar",
+            )
+            self.assertEqual((package / "receipt.json").read_bytes(), b"receipt")
+
     def test_exact_reviewed_source_guard_runs_before_checkout_and_build(self):
         steps = self.workflow["jobs"]["package"]["steps"]
         guard = steps[0]["run"]
@@ -99,6 +145,10 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
 
     def test_x86_package_runs_real_owned_nla_host_acceptance(self):
         steps = self.workflow["jobs"]["package"]["steps"]
+        preflight = next(
+            step for step in steps
+            if step.get("name") == "Preflight an owned resizable Xorg display"
+        )
         host = next(step for step in steps if step.get("name") ==
                     "Start an owned NLA FreeRDP shadow host")
         kvm = next(step for step in steps if step.get("name") ==
@@ -109,6 +159,27 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
                        "Stop the owned RDP host")
         self.assertEqual(kvm["if"], "matrix.abi == 'x86_64'")
         self.assertLess(steps.index(kvm), steps.index(client))
+        native_build = next(
+            step for step in steps if "assembleRelease" in step.get("run", "")
+        )
+        self.assertEqual(preflight["if"], "matrix.abi == 'x86_64'")
+        self.assertLess(steps.index(preflight), steps.index(native_build))
+        for required in (
+            "apt-cache policy", "xserver-xorg-core",
+            "xserver-xorg-video-dummy", 'xserver-xorg-core=$xorg_core_version',
+            'xserver-xorg-video-dummy=$xorg_dummy_version', "dpkg-query",
+            "/usr/lib/xorg/Xorg :99", "-nolisten tcp", 'Driver "dummy"',
+            'Modeline "1280x800"', 'Modeline "1024x768"',
+            "mapfile -t active_outputs", '${#active_outputs[@]}',
+            'xrandr --output "$output" --mode 1024x768 --fb 1024x768',
+            '/1024x768\\+0\\+0/',
+            'xrandr --fb 1280x800 --output "$output" --mode 1280x800',
+            "RDP_ACCEPTANCE_XORG_OUTPUT",
+            "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION",
+            "RDP_ACCEPTANCE_XORG_DUMMY_PACKAGE_VERSION",
+        ):
+            self.assertIn(required, preflight["run"])
+        self.assertNotIn("Xvfb", preflight["run"])
         for required in (
             "set -euo pipefail", "[ ! -c /dev/kvm ]",
             "sudo chmod 0666 /dev/kvm", "[ ! -r /dev/kvm ]",
@@ -116,17 +187,12 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         ):
             self.assertIn(required, kvm["run"])
         self.assertEqual(host["if"], "matrix.abi == 'x86_64'")
-        self.assertIn("x11-utils", host["run"])
         for required in (
-            "apt-cache policy freerdp3-shadow-x11",
-            "apt-cache policy winpr3-utils",
-            'freerdp3-shadow-x11=$shadow_version',
-            'winpr3-utils=$winpr_version',
-            "dpkg-query",
-            "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION",
-            "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION",
+            'kill -0 "$(cat "$RUNNER_TEMP/xorg.pid")"',
+            "RDP_ACCEPTANCE_XORG_OUTPUT",
             "openssl rand", "::add-mask::", "winpr-hash3", "/sec:nla",
-            "/sam-file:", "freerdp-shadow-cli3", "Xvfb",
+            "/sam-file:", "freerdp-shadow-cli3",
+            "xdpyinfo", "xmodmap -pke", '$2 == "38"',
         ):
             self.assertIn(required, host["run"])
         self.assertEqual(client["if"], "matrix.abi == 'x86_64'")
@@ -142,6 +208,13 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertNotIn('"./gradlew"', runner)
         self.assertIn(":app:connectedDebugAndroidTest", runner)
         self.assertIn("RdpPackagedHostAcceptanceTest", runner)
+        self.assertIn("Xi2KeyWitness", runner)
+        self.assertIn('"/usr/bin/xinput", "test-xi2", "--root"', runner)
+        self.assertIn('"RDP_ACCEPTANCE_XORG_OUTPUT"', runner)
+        self.assertIn('"--output",', runner)
+        self.assertIn('"--mode",', runner)
+        self.assertIn('"ownedShadowBaseline"', runner)
+        self.assertIn('"clientDynamicResolution", "clientToRemoteClipboard", "ime"', runner)
         self.assertIn("rdpHost=10.0.2.2", runner)
         self.assertIn("rdpPassword={password}", runner)
         self.assertIn('"ownedHostPackages": package_versions', runner)
@@ -156,6 +229,8 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
             runner.index("publish_public_receipt(report"),
         )
         self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
+        self.assertIn("shadow xmessage xorg", cleanup["run"])
+        self.assertNotIn("xvfb", cleanup["run"].lower())
         self.assertIn("rm -f \"$RUNNER_TEMP/larenor-rdp.sam\"", cleanup["run"])
 
     def test_shared_launcher_materializes_pinned_flutter_wrapper_and_fails_closed(self):

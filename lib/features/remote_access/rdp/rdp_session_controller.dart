@@ -176,28 +176,31 @@ class RdpSessionController extends ChangeNotifier {
       _publish();
       return;
     }
+    if (!found.supportsNla) {
+      throw const RdpFailure('nla_unsupported');
+    }
     await trust.checkProfile(profile, isCurrent: () => _current(generation));
-    final peer = await engine.inspect(
+    final probe = await engine.inspect(
       profile,
       isCurrent: () => _current(generation),
     );
     _check(generation);
-    peer.certificate.validate();
-    if (!peer.tls) throw const RdpFailure('tls_required');
-    if (peer.requiresNla && !found.supportsNla) {
-      throw const RdpFailure('nla_unsupported');
+    probe.certificate.validate();
+    if (!probe.tlsCertificateObserved) {
+      throw const RdpFailure('tls_required');
     }
+    if (!probe.clientRequiresNla) throw const RdpFailure('invalid_response');
     final pinned = await trust.readPin(
       profile,
       isCurrent: () => _current(generation),
     );
     _check(generation);
-    if (pinned != null && pinned != peer.certificate) {
+    if (pinned != null && pinned != probe.certificate) {
       throw const RdpFailure('certificate_changed');
     }
     if (pinned == null) {
       final decision = _certificateDecision = Completer<bool>();
-      pendingCertificate = peer.certificate;
+      pendingCertificate = probe.certificate;
       phase = RdpSessionPhase.certificate;
       _publish();
       if (!await decision.future) {
@@ -207,15 +210,12 @@ class RdpSessionController extends ChangeNotifier {
       _certificateDecision = null;
       pendingCertificate = null;
     }
-    RdpCredential? credential;
-    if (peer.requiresNla || settings.gatewayHost != null) {
-      credential = await credentialVault?.readCredential(
-        profile,
-        isCurrent: () => _current(generation),
-      );
-      _check(generation);
-    }
-    if (peer.requiresNla && credential == null) {
+    var credential = await credentialVault?.readCredential(
+      profile,
+      isCurrent: () => _current(generation),
+    );
+    _check(generation);
+    if (credential == null) {
       final decision = _passwordDecision = Completer<RdpCredential?>();
       phase = RdpSessionPhase.nlaRequired;
       _publish();
@@ -229,7 +229,7 @@ class RdpSessionController extends ChangeNotifier {
     final request = RdpSessionRequest(
       profile: profile,
       display: display,
-      certificateFingerprint: peer.certificate.fingerprint,
+      certificateFingerprint: probe.certificate.fingerprint,
       settings: settings,
       channels: RdpChannelPolicy(
         clipboard: settings.clipboardMode != RdpClipboardMode.disabled,
