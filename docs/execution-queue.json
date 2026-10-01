@@ -5534,10 +5534,26 @@
           "state": "in_progress",
           "result": null,
           "label": "Exact8d x86 owned fixture CMake configure_failed before compile/Android/runtime; bounded native report absent because runner never ran;arm64 APK still building, overall metadata pending"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
+          "commit": "1d1ccf2e14e5814800417c32cbe45e8e1fceb24c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root112 package/runner/fixture/workflow/queue/progress checks; directCLI withoutPYTHONPATH exactsource passed; actionlint; originalfailure preserved and optionalwarning/fatal causality guarded"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36805226494",
+          "commit": "1d1ccf2e14e5814800417c32cbe45e8e1fceb24c",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source exact1d ownedSAM/NLA fixture auth/configure diagnostics and CLIPRDR/DISP two-lifetime gate started; exactSHA verified, no runtime receipt yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano yazılım yolu45 Flutter/15 native ve analyze geçti. Exactd69 native koşusu resizedFrameWait/1failure/0skip ile failed. Exact8d54993f gerçek Unicode x86_64 AAR rebuild/receipt/verify-install, app+AndroidTest compile,24 RDP unit/0skip/0failure/0error ve105 Python kontrolünü geçti; JNI UTF16→standard UTF8/emoji/NUL/surrogate/64KiB/payload silme source/package identity ile bağlıdır. Aynı kaynak CI36804331620 x86 CMake configure_failed verdi; Android/runtime başlamadı, private CMake alt nedeni yok, arm64 APK sürüyor. Yeni fixture ayarı yalnız privateSAM/NLA/NTLM scopeunda Linux-default KRB5 REQUIRED bağımlılığını explicitOFF yapar; önceki exact hata nedeni henüz kanıtlanmaz. Bounded configure/build failure receipt gerçek Git SHA+source/patch/log hashes ve yalnız fatalblock fixedreason/location yayımlar; rawlogs gizlidir, skippedAndroid raporu yüklenmez. DirectCLI PYTHONPATHsiz farklıcwdde ve112 Python/policy/queue kontrolü, actionlint geçti. İki actual authenticated lifetime için CLIPRDR Unicode remote etkisi/DISP→resize→frame/ACK ve clipboardkapalı zero-transfer hosted gate açık. Geniş HEAD CI/fiziksel MANUAL ayrı; F62 tamamlandı/CI bekliyor değildir;58/67 ve37/127,3/63 korunur."
+      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano yazılım yolu45 Flutter/15 native ve analyze geçti. Exactd69 native koşusu resizedFrameWait/1failure/0skip ile failed. Exact8d54993f gerçek Unicode x86_64 AAR rebuild/receipt/verify-install, app+AndroidTest compile,24 RDP unit/0skip/0failure/0error ve105 Python kontrolünü geçti; JNI UTF16→standard UTF8/emoji/NUL/surrogate/64KiB/payload silme source/package identity ile bağlıdır. Aynı kaynak CI36804331620 x86 CMake configure_failed verdi; Android/runtime başlamadı, private CMake alt nedeni yok, arm64 APK sürüyor. Yeni fixture ayarı yalnız privateSAM/NLA/NTLM scopeunda Linux-default KRB5 REQUIRED bağımlılığını explicitOFF yapar; önceki exact hata nedeni henüz kanıtlanmaz. Bounded configure/build failure receipt gerçek Git SHA+source/patch/log hashes ve yalnız fatalblock fixedreason/location yayımlar; rawlogs gizlidir, skippedAndroid raporu yüklenmez. DirectCLI PYTHONPATHsiz farklıcwdde ve112 Python/policy/queue kontrolü, actionlint geçti. İki actual authenticated lifetime için CLIPRDR Unicode remote etkisi/DISP→resize→frame/ACK ve clipboardkapalı zero-transfer hosted gate açık. Geniş HEAD CI/fiziksel MANUAL ayrı; F62 tamamlandı/CI bekliyor değildir;58/67 ve37/127,3/63 korunur. Exact1d1ccf2e/run36805226494 değişen kaynak gate başladı; source-bound runtime sonucu bekleniyor."
     },
     {
       "id": "F61",
@@ -5649,7 +5665,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 hosted native receipt geçti. F60 exact5fa Android discovery1test/0skip/2-lifetime geçti; gerçek stream/input/gamepad/disconnect için exacta703/run36804692946 sürüyor. F62 exactd69 resizedFrameWait failed; exact8d Unicode AAR/compile/24unit geçti, Linux fixture configure_failed. Source-only KRB5 scope/strict build diagnostics/directCLI ve112 yerel kontrolü geçti; iki-lifetime Linux/Android gate ve MANUAL açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 hosted native receipt geçti. F60 exact5fa Android discovery1test/0skip/2-lifetime geçti; gerçek stream/input/gamepad/disconnect için exacta703/run36804692946 sürüyor. F62 exactd69 resizedFrameWait failed; exact8d Unicode AAR/compile/24unit geçti, Linux fixture configure_failed. Source-only KRB5 scope/strict build diagnostics/directCLI ve112 yerel kontrolü geçti; iki-lifetime Linux/Android gate ve MANUAL açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63. Exact1d1ccf2e/run36805226494 yeni ownedRDP gate sürüyor; receipt henüz yok."
     },
     {
       "id": "FINAL.UI",
