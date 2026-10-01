@@ -5990,10 +5990,34 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact5aa arm64 passed;x86 original1/1/0/0 unclassified/no owned frames or lifecycle marker/resize=false; exact native cause unproved"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
+          "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root57 runner/workflow+40subtests, actual required-native AndroidTest compile277; fixed body-stage/class only, runtime acceptance separate"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
+          "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent source SHA/named-test/count/owned-frame/privacy review; original strict success and TLS/NLA/frame/input/DISP/clipboard assertions unchanged"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36826438225",
+          "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact6bbe changed test-body classification source; owned FreeRDP host runtime CI running, no accepted runtime receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact5aa/run36822994907 arm64 package geçti; x86 original1test/1failure/0error/0skip unclassified, owned frame/lifecycle/initial-terminal marker yok, resize=false. Önceki57f initial-frame nedeni yeni başarısızlığın nedeni sayılmaz; kesin native alt neden kanıtlanmadı. Root bounded source/test receiptini doğruladı; erken test-body/report tanı ayrımı hazırlanıyor. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime korunur; aynıSHA kör rerun yok. FinalHEAD genişCI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact5aa/run36822994907 arm64 package geçti; x86 original1test/1failure/0error/0skip unclassified, owned frame/lifecycle/initial-terminal marker yok, resize=false. Kesin native alt neden kanıtlanmadı. Exact6bbe source-locked test-body aşama/sınıf tanısı root57 runner/workflow+40subtest, actual AndroidTest compile277 ve bağımsız inceleme geçti; yeni36826438225 owned-host CI sürüyor. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime korunur; aynıSHA kör rerun yok. FinalHEAD genişCI ve fiziksel Windows/Huawei/DeX MANUAL ayrı. docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md."
     },
     {
       "id": "F61",
@@ -6210,7 +6234,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi. F21/F24–F27 normal player/quality/offline bileşimi sonroot110 Client+46 Server ve plan/kaynak incelemesiyle kapandı;58 seçili/69iş CI bekliyor. F60/F62 strict runtime reworking; kabul35/127ve3/63. Frozen fullFlutter7919/57explicit skip, actualv3 ikiABI/JVM343/2opt-in skip tarihsel kanıt. Exact0659 allServer shard0 F44bind503/1823passed1failed; ownedclose fixturea51root18+31geçti, yeni36823315743 all4shards/host/F08passed. F60c9 failed; exact691/36825268673 yeni tanılı strictCI sürüyor. F625aa unclassified/no marker failed, alt neden açık. Exacte09 Security36825781068 üçişpassed; son birleşikHEAD Android/Server genişCI gerekli. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi. F21/F24–F27 normal player/quality/offline bileşimi sonroot110 Client+46 Server ve plan/kaynak incelemesiyle kapandı;58 seçili/69iş CI bekliyor. F60/F62 strict runtime reworking; kabul35/127ve3/63. Frozen fullFlutter7919/57explicit skip, actualv3 ikiABI/JVM343/2opt-in skip tarihsel kanıt. Exact0659 allServer shard0 F44bind503/1823passed1failed; ownedclose fixturea51root18+31geçti, yeni36823315743 all4shards/host/F08passed. F60c9 failed; exact691/36825268673 yeni tanılı strictCI sürüyor. F625aa unclassified/no marker failed; root57/40subtest+compile277 yeni6bbe body tanısı ve36826438225 strictCI sürüyor, alt neden açık. Exacte09 Security36825781068 üçişpassed; son birleşikHEAD Android/Server genişCI gerekli. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",

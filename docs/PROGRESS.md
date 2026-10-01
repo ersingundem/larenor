@@ -8,13 +8,15 @@
 | --- | --- | --- |
 | **CI bekliyor** | **58 seçili özellik / toplam 69 iş; F21/F24–F27 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Exact `c9fee6d7` [36822674910](https://github.com/ersingundem/larenor/actions/runs/36822674910) strict stream başarısız: unknown ve izin kaydı absentOrUnreadable. Yeni closed dispatch-stage tanısı root42 JVM/60 araç kontrolü/actual AndroidTest compile277 geçti; exact `691b54c4` [36825268673](https://github.com/ersingundem/larenor/actions/runs/36825268673) sürüyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
-| **Yeniden çalışılıyor** | **F62** | Exact `5aa76fe8` [36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) arm64 package geçti; x86 original1/1/0/0 başarısız, unclassified ve lifecycle/frame markerı yok. Kesin alt neden açık; test-gövdesi/report ayrımı hazırlanıyor |
+| **Yeniden çalışılıyor** | **F62** | Exact `5aa76fe8` [36822994907](https://github.com/ersingundem/larenor/actions/runs/36822994907) arm64 package geçti; x86 original1/1/0/0 başarısız, unclassified ve lifecycle/frame markerı yok. Kesin alt neden açık. Root57/40subtest/AndroidTest compile277 geçti; exact `6bbe8b03` [36826438225](https://github.com/ersingundem/larenor/actions/runs/36826438225) kaynakla sabit test-gövdesi tanısı koşuyor |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
 “CI bekliyor” geliştirme ve odaklı doğrulamanın bittiğini gösterir; tam kabul sayacını artırmaz. Fiziksel cihaz, gerçek ev servisi/hesabı ve donanım kapıları MANUAL kayıtlarında kalır. Sayaçlar test kapsamı, cihaz uyumluluğu veya harcanacak süre oranı değildir. [Core web UI teslim sırası](core-web-ui-delivery-plan-2026-09-30.md).
 
 ## Son doğrulanan düzeltmeler
+
+F62 test gövdesinin ilk satırından başlayan source-locked tanı, sabit lifecycle aşaması ve allowlist hata sınıfı dışında provider/credential/message saklamaz. Root **57 kontrol ve40subtest**, actual required-native AndroidTest **277 task** derlemesi ve bağımsız inceleme geçti. Exact `6bbe8b03` [yeni owned RDP koşusu](https://github.com/ersingundem/larenor/actions/runs/36826438225) başladı; TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/iki yaşam/kapanış kabulü gevşetilmedi. F62 yeniden çalışılıyor; gerçek runtime kabulü henüz yok. [Tanı sınırları](testing/f62-test-body-failure-diagnostics-2026-10-01.md).
 
 F21/F24–F27 normal verified-Core katalogdan açık “Bu cihazda oynat” girişine, gerçek player kontrollerine ve Core kapalıyken tamamlanmış şifreli indirmelere bağlandı. Kalite danışmanı izin kotasını tüketmeyen `assess-item` kullanır; explicit Play için consumable `observe-item` korunur. Root son birleşik **110 Client** ve **46 Server** testini geçti; plan/kaynak incelemesinde yazılım bileşimi açığı kalmadı. Bu beş iş **CI bekliyor** tablosuna taşındı, kabul sayacı artırılmadı. [Kaynak, test ve sınırlar](testing/media-core-composition-closure-2026-10-01.md).
 
