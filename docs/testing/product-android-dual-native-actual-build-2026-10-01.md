@@ -72,3 +72,5 @@ Private mode-`0600` logs and receipts are under
 `/private/tmp/larenor-product-native-prep`. The debug APK is not a signed
 release, and this build alone does not prove Moonlight or FreeRDP behavior
 against a physical client, display, input device, Sunshine host, or RDP host.
+
+The old broad JVM failure is now historical: the product-compatible unsupported-SDK wellbeing fixture was corrected. Root independently passed the broad required-package JVM gate:338total,336passed,2explicit opt-in skips,0failure/0error. [Manifest regression and exact command](wellbeing-product-manifest-regression-2026-10-01.md). This does not claim latest-HEAD hosted CI, a new APK build, or F60/F62 runtime acceptance.

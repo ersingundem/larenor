@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
@@ -25,6 +26,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
@@ -248,9 +250,40 @@ class WellbeingBridgeTest {
         } finally { bridge.dispose(); activity.pause().stop().destroy() }
     }
 
-    @Test @Config(sdk = [26]) fun api26IsExplicitlyUnavailableWithoutAnyClientOrPermissionUi() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup()
-        try { assertEquals("unavailableOnDevice", HealthConnectBackend(activity.get()).availability()) }
-        finally { activity.pause().stop().destroy() }
+    @Test
+    fun api26IsExplicitlyUnavailableWithoutAnyClientOrPermissionUi() {
+        val originalSdk = Build.VERSION.SDK_INT
+        // The installed dual-engine product has minSdk 29. Keep Robolectric's
+        // product-compatible API 35 harness and exercise only the unsupported-SDK
+        // eligibility branch; this is not an installed API 26 APK acceptance.
+        val activity = Robolectric.buildActivity(Activity::class.java)
+            .setup().visible().windowFocusChanged(true)
+        var bridge: WellbeingBridge? = null
+        try {
+            ReflectionHelpers.setStaticField(Build.VERSION::class.java, "SDK_INT", 26)
+            val backend = HealthConnectBackend(activity.get())
+            val activeBridge = WellbeingBridge(activity.get(), Messenger(), backend)
+            bridge = activeBridge
+            assertEquals("unavailableOnDevice", backend.availability())
+            val probe = Result()
+            activeBridge.onMethodCall(MethodCall("probe", null), probe); pump()
+            assertEquals("unavailableOnDevice", (probe.value as Map<*, *>)["availability"])
+
+            activeBridge.setResumed(true)
+            activeBridge.onMethodCall(MethodCall("setPrivateView", true), Result())
+            val permission = Result()
+            activeBridge.onMethodCall(MethodCall("requestReadPermissions",
+                mapOf("metrics" to listOf("steps"))), permission); pump()
+            assertEquals("unavailableOnDevice",
+                (permission.value as Map<*, *>)["availability"])
+            val settings = Result()
+            activeBridge.onMethodCall(MethodCall("openPermissionSettings", null), settings)
+            assertEquals("unavailable", settings.error)
+            assertNull(Shadows.shadowOf(activity.get()).nextStartedActivity)
+        } finally {
+            bridge?.dispose()
+            ReflectionHelpers.setStaticField(Build.VERSION::class.java, "SDK_INT", originalSdk)
+            activity.pause().stop().destroy()
+        }
     }
 }

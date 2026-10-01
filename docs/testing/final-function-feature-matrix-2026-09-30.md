@@ -26,7 +26,7 @@ establish.
 
 The durable-history capacity gaps in F01/F02/F03/F14/F57/F58/F59 are now closed by named live-source retention/restart gates: root22/22automation,9/9support,30/30calibration,18/18e-paper and28/28workshop. Current/live/recent replay, uncertain operations, authenticated parent/child relationships and rollback are protected. Synthetic signed capacity fixtures are distinguished from actual provider operations in each evidence document. F57 calibration is advisory/local state, not a physical device write. See the [bounded retention review](final-function-retention-review-2026-10-01.md).
 
-Current implementation-complete totals are **58selected features/67tasks**; accepted totals stay **3/63features and37/127tasks**. Only F60/F62 remain reworking for their real native runtime gates. Source-bound combined two-ABI product APK composition passes local package/native gates; broadJVM has one manifest fixture failure under repair. Local packaging does not establish hosted stream/RDP acceptance.
+Current implementation-complete totals are **58selected features/67tasks**; accepted totals stay **3/63features and37/127tasks**. Only F60/F62 remain reworking for their real native runtime gates. Source-bound combined two-ABI product APK composition passes local package/native gates; root broadJVM338total=336passed/2explicit opt-in skips/0failure/0error after wellbeing manifest fixture repair. Local packaging does not establish hosted stream/RDP acceptance.
 
 ## F01–F21
 

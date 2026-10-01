@@ -22,12 +22,14 @@
 - **F59 root28/28:** default10000 signed geçmiş sonrası restart/new confirm kapasitesi toparlanır. Current/inclusive24h/replay/unknown effects, tamper ve rollback korunur. Owned OctoPrint/Moonraker HTTP kabulü geçti;10000 fiziksel yazıcı komutu iddiası yok. **CI bekliyor**. [Kanıt](testing/f59-workshop-intent-retention-2026-10-01.md).
 - **F57 root30/30:** gerçek256kapasite/restart, v1migration-time inclusive24h, current/recent replay, newest32terminal ve uncertain koruması geçti. Parent/cipher tamper ve write rollback reddi korunur. Advisory/localcalibration; fiziksel mmWave reconfiguration iddiası yok. **CI bekliyor**. [Kanıt](testing/f57-calibration-retention-2026-10-01.md).
 - F50root33/33 kapasite/restart; F57/F58root21/21 sahipli confirmation dialog production-route kabulü önceki kanıttır. F57’nin yeni retention açığı ayrıca root30/30 ile kapandı; eski route kanıtı tek başına retention kabulü değildir.
-- Normal product APK artık source/receipt/API bağlı gerçek Moonlight+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Actual required-mode debug APK SHA256ea17fc26…; root24/24package, installed/APK verifier ve focused69/69native geçti. GenişJVM338toplam=335passed/2skip/1manifest failure; tam yeşil değildir. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
+- Normal product APK artık source/receipt/API bağlı gerçek Moonlight+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Actual required-mode debug APK SHA256ea17fc26…; root24/24package, installed/APK verifier ve focused69/69native geçti. Eski manifest fixture hatası kapandı; root genişJVM338total=336passed/2explicit opt-in skip/0failure/0error. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
 - Eski fecc Android koşusunda Server nested scope atlandı; defaultall düzeltmesi10/10 ve actionlint geçti. Format hatası iki Dart testinde düzeltildi. MQTT fixture TLS teardown ve legacy qualifiedlabel regresyonları root7passed+1explicit runner-onlyskip/scoped analyze/format geçti. [Flutter düzeltmeleri](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekir; eski fecc Security başarısı bütün CI yerine sayılmaz.
 
 F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kaynakta kanıtlanan swallow/dispatch yolu kapatıldı. [Kaynak ve tanı kabulü](testing/f60-pin-delivery-pairing-stage-2026-10-01.md).
 
 F60 changed-source exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) gerçek hosted stream kapısında sürüyor; runhead remoteSHA ile doğrulandı. Henüz kabul sonucu yok.
+
+[Wellbeing manifest düzeltmesi](testing/wellbeing-product-manifest-regression-2026-10-01.md) root geniş JVM ile doğrulandı. F60 üretim iptal yolunda no-read-timeout ağ çağrısının single-executorı bloke etmesi kaynakta doğrulandı; gerçek active-call cancel/deadline ve owned-stall kabulü üzerinde çalışılıyor.
 
 ## Tarihsel doğrulama kayıtları
 

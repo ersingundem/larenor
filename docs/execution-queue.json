@@ -5125,6 +5125,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Root 21/21 management and production-route regressions; six-file scoped analysis clean; exact confirmation/readback, foreign navigation and parent removal"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f57-calibration-retention-2026-10-01.md",
+          "commit": "25171e14beae203b1f9a2c725d105449d0a53521",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source30/30 normal Core/owned HA/fusion/retention; default256 capacity and restart, conservativev1 migration, mixed uncertain/terminal, replay/current/tamper/rollback; advisory only"
         }
       ],
       "completionCommit": null,
@@ -5441,7 +5449,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar bounded PIN teslim ve sabit bridge-stage düzeltmesi root33/33 +15subtest ve actual AndroidTest Kotlin derlemesiyle doğrulandı; değişmiş kaynaklı hosted koşu gerekli; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVMde1 manifest hatası açık. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı. Kanıt: docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar bounded PIN teslim ve sabit bridge-stage düzeltmesi root33/33 +15subtest ve actual AndroidTest Kotlin derlemesiyle doğrulandı; değişmiş kaynaklı hosted koşu gerekli; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı. Kanıt: docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md. Kaynak incelemesi iptal/expiry/retirementin active NvHTTP no-read-timeout çağrısını kapatmadığını ve single-executorı süresiz bloke edebildiğini kanıtladı; gerçek Call.cancel/flight deadline düzeltmesi ve owned-stall kabulü sürüyor."
     },
     {
       "id": "G11",
@@ -5713,7 +5721,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar güvenli stage/cause tanısı geliştiriliyor; unchanged-source kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM1manifest hatası açık. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor: exact36c3e015/run36808149011 original1test/1failure/0error/0skip; bounded receipt unclassified, ownedframes[],serverResizeRequested=false. Arm64 paket geçti. Bu makbuz ilk frame veya eski failure alt nedenini kanıtlamaz. Önceki exact1d initialframe timeout ve subscriber sonrası refresh düzeltmesi tarihsel kanıttır; current runtime kabulü yok. Dar güvenli stage/cause tanısı geliştiriliyor; unchanged-source kör rerun yok. Strict TLS/NLA/SPKI/frame/ACK/key/DISP/Unicode/clipboard-disabled/close/two-lifetime kapıları korunur. Aynı iki-ABI product APKda gerçek Moonlight/FreeRDP source/receipt/API/native doğrulaması root24package/69focusednative testle yerelde geçti (55fb5f7c); geniş JVM manifest fixture hatası kapandı; root336passed/2explicit opt-in skip/0failure. Paket/yerel derleme runtime yerine sayılmaz; geniş finalHEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı."
     },
     {
       "id": "F61",
@@ -5825,7 +5833,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28,F57root30/30 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM335passed/2skip/1manifest failure açık. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra. F57v1migration/recent replay ve newest32terminal bağımsız incelemede düzeltildi; advisory calibration physicaldevicewrite değildir. F60exact36cbe3a1/run36811116354 changed-source stream sürüyor; henüz kabul yok."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev, uyum ve kullanılabilirlik incelemesi. Geliştirme/odaklı doğrulaması tamamlanan58seçili özellik/67iş CI bekliyor; F60stream ve F62RDP yeniden çalışılıyor. F01/F02/F03root22/22, F14root9/9,F58root18/18,F59root28/28,F57root30/30 authenticated bounded retention/restart kabulü geçti. Kabul sayaçları37/127 ve3/63 korunur. İki gerçek native motor aynı actual source-bound iki-ABI product APKda doğrulandı; root24package ve69focusednative geçti. GenişJVM manifest fixture hatası kapandı; root338total/336passed/2explicit opt-in skip/0failure/0error. Exact3feb F60pairingRegistration timeout; exact36c F62unclassified canonical1failure runtime kabulü değildir; kaynak değişimi ve dar tanı ile ilerleniyor. Eski fecc Android scope/format/MQTT/label hataları kaynakta düzeltildi; değişmiş son HEAD geniş Server/Android/Security CI gerekli. İkinci FINAL başlamaz. Fiziksel/hesap kapıları MANUAL; CORE.WEB bütün FINALlardan sonra. F57v1migration/recent replay ve newest32terminal bağımsız incelemede düzeltildi; advisory calibration physicaldevicewrite değildir. F60exact36cbe3a1/run36811116354 changed-source stream sürüyor; henüz kabul yok."
     },
     {
       "id": "FINAL.UI",
