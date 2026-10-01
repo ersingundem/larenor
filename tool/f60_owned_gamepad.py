@@ -48,7 +48,7 @@ def _owned_runner(environment: Mapping[str, str]) -> None:
     try:
         require_owned_runner(environment)
     except HostFailure as error:
-        raise GamepadHostFailure("gamepadHostUnavailable") from error
+        raise GamepadHostFailure("gamepadRunnerUnavailable") from error
 
 
 def _read_regular_nofollow(path: Path, maximum: int) -> bytes:
@@ -112,19 +112,25 @@ def preflight(
     try:
         exists = uhid.exists()
     except OSError as error:
-        raise GamepadHostFailure("gamepadHostUnavailable") from error
+        raise GamepadHostFailure("gamepadDeviceUnavailable") from error
     if not exists:
-        completed = runner(
-            ["/usr/bin/sudo", "-n", "--", "/usr/sbin/modprobe", "uhid"],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=10,
-        )
+        try:
+            completed = runner(
+                ["/usr/bin/sudo", "-n", "--", "/usr/sbin/modprobe", "uhid"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise GamepadHostFailure("gamepadKernelModuleUnavailable") from error
         if completed.returncode != 0:
-            raise GamepadHostFailure("gamepadHostUnavailable")
-    _char_identity(uhid, sysfs_dev)
+            raise GamepadHostFailure("gamepadKernelModuleUnavailable")
+    try:
+        _char_identity(uhid, sysfs_dev)
+    except GamepadHostFailure as error:
+        raise GamepadHostFailure("gamepadDeviceIdentityUnavailable") from error
 
 
 def _acl_snapshot(path: Path, runner: Callable[..., Any]) -> bytes:

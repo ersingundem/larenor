@@ -55,7 +55,7 @@ def _granted_acl_bytes(*, permissions: str, mask: str, group: str = "---") -> by
 class F60OwnedGamepadTest(unittest.TestCase):
     def test_self_hosted_preflight_stops_before_device_or_privilege_calls(self) -> None:
         runner = mock.Mock()
-        with self.assertRaises(gamepad.GamepadHostFailure):
+        with self.assertRaisesRegex(gamepad.GamepadHostFailure, "gamepadRunnerUnavailable"):
             gamepad.preflight(
                 {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "self-hosted"},
                 runner=runner,
@@ -73,6 +73,54 @@ class F60OwnedGamepadTest(unittest.TestCase):
             runner.call_args.args[0],
         )
         identity.assert_called_once_with(gamepad.UHID_NODE, gamepad.UHID_SYSFS_DEV)
+
+    def test_preflight_distinguishes_module_load_failure_without_output(self) -> None:
+        runner = mock.Mock(return_value=_Completed(returncode=1))
+        with mock.patch.object(gamepad, "require_owned_runner"), \
+                mock.patch.object(gamepad.Path, "exists", return_value=False):
+            with self.assertRaisesRegex(
+                gamepad.GamepadHostFailure, "gamepadKernelModuleUnavailable"
+            ):
+                gamepad.preflight({}, runner=runner)
+        self.assertEqual(subprocess.DEVNULL, runner.call_args.kwargs["stderr"])
+
+    def test_module_spawn_and_timeout_cannot_leak_private_command_data(self) -> None:
+        for failure in (
+            OSError("private spawn details"),
+            subprocess.TimeoutExpired(["private", "credential"], 10),
+        ):
+            with self.subTest(failure=type(failure).__name__), \
+                    mock.patch.object(gamepad, "require_owned_runner"), \
+                    mock.patch.object(gamepad.Path, "exists", return_value=False), \
+                    mock.patch.object(gamepad, "_char_identity") as identity:
+                with self.assertRaises(gamepad.GamepadHostFailure) as caught:
+                    gamepad.preflight({}, runner=mock.Mock(side_effect=failure))
+                self.assertEqual("gamepadKernelModuleUnavailable", str(caught.exception))
+                identity.assert_not_called()
+
+    def test_preflight_distinguishes_missing_or_mismatched_device_identity(self) -> None:
+        runner = mock.Mock(return_value=_Completed())
+        with mock.patch.object(gamepad, "require_owned_runner"), \
+                mock.patch.object(gamepad.Path, "exists", return_value=False), \
+                mock.patch.object(
+                    gamepad,
+                    "_char_identity",
+                    side_effect=gamepad.GamepadHostFailure("gamepadHostUnavailable"),
+                ):
+            with self.assertRaisesRegex(
+                gamepad.GamepadHostFailure, "gamepadDeviceIdentityUnavailable"
+            ):
+                gamepad.preflight({}, runner=runner)
+
+    def test_preflight_distinguishes_device_query_failure_before_module_load(self) -> None:
+        runner = mock.Mock()
+        with mock.patch.object(gamepad, "require_owned_runner"), \
+                mock.patch.object(gamepad.Path, "exists", side_effect=OSError("private")):
+            with self.assertRaisesRegex(
+                gamepad.GamepadHostFailure, "gamepadDeviceUnavailable"
+            ):
+                gamepad.preflight({}, runner=runner)
+        runner.assert_not_called()
 
     def test_acl_grants_are_exact_uid_scoped_and_restore_original_bytes(self) -> None:
         identity = (1, 2, os.makedev(10, 239))
