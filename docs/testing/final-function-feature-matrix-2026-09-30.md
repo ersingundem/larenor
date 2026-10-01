@@ -194,3 +194,7 @@ hosted frame/channel gate must still pass. F62 remains `reworking`.
 F60 changed-source diagnostic run [36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320)
 started at exact `3feb723c28aa745445edcc770b27d9794b7e5b11`; source SHA was
 independently verified. Pending execution is not acceptance.
+
+F62 changed-source strict native run [36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011)
+started at exact `36c3e015d27c3ff4b21b0e7d834075b7107bb479`; source SHA was
+independently verified. Pending execution is not acceptance.

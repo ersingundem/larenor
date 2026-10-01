@@ -5610,10 +5610,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact1d canonical originaltest1failure0error0skip:initial1280x800framewait ownedframes255+98; Linuxfixturecompile/arm64APKpassed; noDISP/clipboard/runtimeacceptance"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-initial-frame-subscriber-2026-10-01.md",
+          "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root fresh exact release extraction/patch/manifest and actual thread ordering;18/18 focused checks; independent review; hosted runtime remains open"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36808149011",
+          "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source strict packaged Android/native gate; exact source SHA independently verified; no accepted runtime receipt yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Exact 1d1ccf2e / run 36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 APK paketlemesini geçti; gerçek Android testi başarısız oldu. Root canonical source/class/method/package/fixture kimliğini doğruladı: 1 test, 1 failure, 0 error, 0 skip; owned kaynak satırları 255 ve 98, güvenlik callbackinden sonra beklenen ilk 1280x800 frame bekleyişini gösterir. serverResizeRequested=false. Bu sonuç hiç callback olmadığını veya hatanın kesin alt nedenini kanıtlamaz. DISP, Unicode pano ve iki authenticated yaşam kabulü açık. Önceki resize/configure hataları tarihsel korunur. Yerel derleme ve unit kanıtları runtime kabulü değildir. Geniş son HEAD CI ve fiziksel Windows/Huawei/DeX kabulü ayrı. Pinned kaynakta subscriber oluşmadan Activate refreshinin kaybolabileceği sıra doğrulandı. Fixture-only düzeltme subscriber/event kaydından sonra normal full refreshi yeniden ister; dispatch hatası bağlantıyı kapatır. Root exact archive fresh prepare/hash/sıra, 18/18 odaklı kontrol ve bağımsız kaynak incelemesini doğruladı. Bu eski hosted hatanın kesin nedeni iddiası değildir; aynı strict Android gate değişmiş kaynakla geçmelidir. Kanıt: docs/testing/f62-initial-frame-subscriber-2026-10-01.md."
+      "reason": "Yeniden çalışılıyor. Exact 1d1ccf2e / run 36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 APK paketlemesini geçti; gerçek Android testi başarısız oldu. Root canonical source/class/method/package/fixture kimliğini doğruladı: 1 test, 1 failure, 0 error, 0 skip; owned kaynak satırları 255 ve 98, güvenlik callbackinden sonra beklenen ilk 1280x800 frame bekleyişini gösterir. serverResizeRequested=false. Bu sonuç hiç callback olmadığını veya hatanın kesin alt nedenini kanıtlamaz. DISP, Unicode pano ve iki authenticated yaşam kabulü açık. Önceki resize/configure hataları tarihsel korunur. Yerel derleme ve unit kanıtları runtime kabulü değildir. Geniş son HEAD CI ve fiziksel Windows/Huawei/DeX kabulü ayrı. Pinned kaynakta subscriber oluşmadan Activate refreshinin kaybolabileceği sıra doğrulandı. Fixture-only düzeltme subscriber/event kaydından sonra normal full refreshi yeniden ister; dispatch hatası bağlantıyı kapatır. Root exact archive fresh prepare/hash/sıra, 18/18 odaklı kontrol ve bağımsız kaynak incelemesini doğruladı. Bu eski hosted hatanın kesin nedeni iddiası değildir; aynı strict Android gate değişmiş kaynakla geçmelidir. Kanıt: docs/testing/f62-initial-frame-subscriber-2026-10-01.md. Yeni exact 36c3e015 / run 36808149011 başladı; sonuç bekleniyor, kabul henüz yok."
     },
     {
       "id": "F61",
