@@ -12,7 +12,7 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 | PRODUCT — Önceki ürün planının kalan yazılım işleri | 13 | 2 | 0 | 0 | 11 | 0 |
 | POC — Erken donanım/motor fizibilite kayıtları | 5 | 0 | 0 | 0 | 0 | 5 |
 | G01 — Güvenilir Core ve izlenebilir işlemler | 5 | 1 | 0 | 0 | 4 | 0 |
-| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 1 | 2 | 0 |
+| G02 — Kurtarma, yedek koruması ve güç | 3 | 0 | 0 | 0 | 3 | 0 |
 | G03 — Erken bildirim, tablet ve ev görünümü | 4 | 0 | 0 | 0 | 4 | 0 |
 | G04 — AI ve denetlenebilir otomasyon | 8 | 0 | 0 | 0 | 8 | 0 |
 | G05 — Genişletilebilirlik, destek ve birden fazla ev | 4 | 0 | 0 | 0 | 4 | 0 |
@@ -29,7 +29,6 @@ Gruplar ve önceki kabul checkpoint’leri iş sayısına dahil değildir.
 
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
-| F18 | Elektrik kesintisinde düzenli kapanış | Yeniden çalışılıyor | — |
 | F60 | Tablette ev bilgisayarından oyun yayını | Yeniden çalışılıyor | — |
 | F62 | Bağımsız RDP uzak masaüstü | Yeniden çalışılıyor | — |
 | FINAL.FUNCTION | Tam fonksiyonellik, entegrasyon uyumu ve kullanılabilirlik geçişi | Çalışılıyor | — |
@@ -124,6 +123,7 @@ CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin 
 | F05 | Uzun süren ev iş akışları | CI bekliyor | — |
 | F16 | Otomatik kurtarma tatbikatı | CI bekliyor | — |
 | F17 | Yedekleri silmeye kapalı kurtarma hedefi | CI bekliyor | — |
+| F18 | Elektrik kesintisinde düzenli kapanış | CI bekliyor | — |
 | F54 | Google servislerinden bağımsız bildirim | CI bekliyor | — |
 | F53 | Evdeki tabletleri tek yerden yönetme | CI bekliyor | — |
 | F51 | Etkileşimli ev kat planı | CI bekliyor | — |

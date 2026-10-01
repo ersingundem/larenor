@@ -80,3 +80,13 @@ physical radio/training/provider performance remains separately tracked.
 Accepted counters remain35/127 tasks and3/63 selected features. F18 leaves
 CI-waiting until the new composition closes:68 tasks/57 selected features
 await CI; F18/F60/F62 rework and only FINAL.FUNCTION is active.
+
+## Changed-source closure checkpoint
+
+F18 shared offline admission/hold and durable/in-flight drain are implemented at `edffbc9a`; root9 focused tests passed. The independent NUT notification publication race is closed at `5ca1d212`; root28 passed/1 existing Linux-only skip, Ruff and review passed. F18 is now awaiting CI.
+
+F60 normal verified launch→stream is implemented at `07a80382` (root11+1 Core TCP), and the actual packaged spinner ownership cycle is fixed at `b2eb56fa` (root48 native/0skip, AndroidTest compile). Strict exacta8 stream run36835162847 is still running; F60 remains reworking until actual native effects are accepted.
+
+F62 basic keyboard/Turkish layout/Unicode negotiation is implemented at `413007f7` (root49 Flutter/analysis, author21 actual-AAR JVM). The other required display, pointer, audio/microphone/SAF and Gateway software gaps remain open. Exact03f run36831825081 failed initialFrameWait/connectionFailed; canonical1613B receipt verified, underlying provider cause unproved. F62 stays reworking.
+
+Strict live-leaf PID proof at `a8dda895` passed root21 portable tests and the named actual Linux/CoreUID IPC cgroup run36835138089. This scoped result is distinct from the failed older721 broad F08 observer. Current totals:69 tasks/58 selected features awaiting CI; accepted35/127 and3/63 unchanged. Only FINAL.FUNCTION is active.
