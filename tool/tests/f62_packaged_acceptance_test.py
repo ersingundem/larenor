@@ -942,6 +942,143 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertNotIn("private fixture", serialized)
         self.assertNotIn("private host", serialized)
 
+    def test_body_failure_marker_exposes_only_fixed_stage_and_throwable(self):
+        stage_type = (
+            "com.ersingundem.larenor.rdp.RdpOwnedTestBodyFailure"
+        )
+        body = (
+            stage_type
+            + ": stage=providerInspection;throwable=java.lang.IllegalStateException\n"
+            " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+            "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+            "RdpPackagedHostAcceptanceTest.kt:36)\n"
+            " at private.injected.Client.run(Secret.kt:1)\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "TEST-device.xml").write_text(
+                self._failure_xml(exception_type=None, body=body),
+            )
+            with mock.patch.object(
+                runner, "_classification_source_matches", return_value=True,
+            ):
+                diagnostic = runner.failure_diagnostic(directory)
+
+        self.assertEqual(diagnostic["exceptionType"], stage_type)
+        self.assertEqual(diagnostic["acceptanceStage"], "testBody")
+        self.assertEqual(diagnostic["testBodyFailure"], {
+            "lifecycleStage": "providerInspection",
+            "throwableClass": "java.lang.IllegalStateException",
+        })
+        self.assertEqual(diagnostic["frames"], [{
+            "file": "RdpPackagedHostAcceptanceTest.kt", "line": 36,
+        }])
+        self.assertNotIn("Secret.kt", json.dumps(diagnostic))
+        receipt = runner.failure_receipt(
+            {}, revision="a" * 40, package_digest="b" * 64,
+            diagnostic=diagnostic,
+        )
+        self.assertEqual(
+            receipt["diagnostic"]["testBodyFailure"],
+            diagnostic["testBodyFailure"],
+        )
+
+    def test_body_failure_marker_rejects_forged_or_unbound_shapes(self):
+        stage_type = (
+            "com.ersingundem.larenor.rdp.RdpOwnedTestBodyFailure"
+        )
+        valid_frame = (
+            " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+            "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+            "RdpPackagedHostAcceptanceTest.kt:36)\n"
+        )
+        cases = (
+            # Arbitrary stage, throwable class or suffix cannot become public.
+            (None, stage_type + ": stage=private;throwable=java.lang.AssertionError\n" + valid_frame),
+            (None, stage_type + ": stage=runtimeValidation;throwable=private.Secret\n" + valid_frame),
+            (None, stage_type + ": stage=runtimeValidation;throwable=java.lang.AssertionError;secret=x\n" + valid_frame),
+            # A known marker embedded in another declared throwable is untrusted text.
+            ("java.lang.AssertionError", stage_type + ": stage=runtimeValidation;throwable=java.lang.AssertionError\n" + valid_frame),
+            # Missing exact owned test-method frame cannot bind the marker.
+            (None, stage_type + ": stage=runtimeValidation;throwable=java.lang.AssertionError\n"),
+        )
+        for exception_type, body in cases:
+            with self.subTest(exception_type=exception_type, body=body), \
+                    tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                (directory / "TEST-device.xml").write_text(
+                    self._failure_xml(exception_type=exception_type, body=body),
+                )
+                with mock.patch.object(
+                    runner, "_classification_source_matches", return_value=True,
+                ):
+                    diagnostic = runner.failure_diagnostic(directory)
+            self.assertEqual(
+                diagnostic["exceptionType"],
+                "java.lang.AssertionError"
+                if exception_type == "java.lang.AssertionError"
+                else "unclassified",
+            )
+            self.assertNotIn("acceptanceStage", diagnostic)
+            self.assertNotIn("testBodyFailure", diagnostic)
+
+        valid_body = (
+            stage_type
+            + ": stage=runtimeValidation;throwable=unclassified\n"
+            + valid_frame
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "TEST-device.xml").write_text(
+                self._failure_xml(exception_type=None, body=valid_body),
+            )
+            with mock.patch.object(
+                runner, "_classification_source_matches", return_value=False,
+            ):
+                diagnostic = runner.failure_diagnostic(directory)
+        self.assertEqual(diagnostic["exceptionType"], "unclassified")
+        self.assertNotIn("testBodyFailure", diagnostic)
+
+        forged_receipt = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": stage_type,
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 36,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+            "acceptanceStage": "testBody",
+            "testBodyFailure": {
+                "lifecycleStage": "private",
+                "throwableClass": "java.lang.AssertionError",
+            },
+        }
+        with self.assertRaises(runner.AcceptanceFailure):
+            runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64,
+                diagnostic=forged_receipt,
+            )
+
+        valid_receipt = {
+            **forged_receipt,
+            "testBodyFailure": {
+                "lifecycleStage": "runtimeValidation",
+                "throwableClass": "java.lang.AssertionError",
+            },
+        }
+        for invalid_counts in (
+            {"tests": 0, "skipped": 0, "failures": 1, "errors": 0},
+            {"tests": 1, "skipped": 1, "failures": 1, "errors": 0},
+            {"tests": 1, "skipped": 0, "failures": 0, "errors": 1},
+        ):
+            with self.subTest(invalid_counts=invalid_counts), \
+                    self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic={**valid_receipt, "counts": invalid_counts},
+                )
+
     def test_initial_frame_failure_variants_share_only_the_fixed_wait_stage(self):
         variants = (
             "RdpOwnedInitialFrameTerminalFailure",

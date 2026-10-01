@@ -32,221 +32,223 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RdpPackagedHostAcceptanceTest {
     @Test
-    fun nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose() {
-        val arguments = InstrumentationRegistry.getArguments()
-        val diagnosticNonce = arguments.required("rdpDiagnosticNonce")
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val diagnostic = OwnedLifecycleDiagnostic(
-            AtomicLifecycleStorage(context, diagnosticNonce),
-        )
-        diagnostic.enter("testInitialization")
-
-        val host = arguments.required("rdpHost")
-        val port = arguments.required("rdpPort").toInt()
-        val username = arguments.required("rdpUsername")
-        val domain = arguments.required("rdpDomain")
-        val passwordValue = arguments.required("rdpPassword")
-        assertDiagnosticFailuresAreSecondary()
-        val runtime = RdpPackagedRuntime(context)
-
-        diagnostic.enter("connectionValidation")
-        assertConnectionInfoParses(
-            context,
-            packagedConnectionUri(host, port, username, 1280, 800, true),
-        )
-        assertConnectionInfoParses(
-            context,
-            packagedConnectionUri(host, port, username, 1280, 800, false),
-        )
-
-        diagnostic.enter("runtimeValidation")
-        assertTrue(RdpFreeRdpPackage.verify(runtime.identity()))
-        val capabilities = RdpNativeCapabilities.parse(runtime.capabilities())
-        assertTrue(capabilities.canConnect)
-        assertTrue(capabilities.nla)
-        assertTrue(!capabilities.ime)
-        assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
-        assertTrue(!capabilities.audio && !capabilities.files)
-
-        diagnostic.enter("providerInspection")
-        val inspected = runtime.inspect(host, port, username)
-        assertTrue(inspected.clientRequiresNla)
-        assertEquals("TLSv1.2", inspected.minimumTlsPolicy)
-        assertEquals(50, inspected.certificateFingerprint.length)
-        assertTrue(Regex("SHA256:[A-Za-z0-9+/]{43}").matches(inspected.certificateFingerprint))
-
-        val request = request(
-            requestId = "62726270-0000-4000-8000-000000000001",
-            host = host,
-            port = port,
-            username = username,
-            domain = domain,
-            fingerprint = inspected.certificateFingerprint,
-            width = 1280,
-            height = 800,
-            clipboardMode = "clientToRemote",
-        )
-        val security = CountDownLatch(1)
-        val frameReady = ArrayBlockingQueue<Unit>(8)
-        val frameCallbacks = BoundedFrameCallbacks()
-        val closed = CountDownLatch(1)
-        val observer = object : RdpNativeSessionObserver {
-            override fun onSecurity() = security.countDown()
-            override fun onFrame() {
-                frameCallbacks.observed()
-                frameReady.offer(Unit)
-            }
-            override fun onClosed(code: String?) = closed.countDown()
-        }
-        val password = passwordValue.toCharArray()
-        diagnostic.enter("firstSessionOpen")
-        val session = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
-            request,
-            RdpNativeSecrets.take(password, null),
-            observer,
-        ) as RdpFreeRdpSession
-
-        var firstBodyCompleted = false
-        try {
-            diagnostic.enter("firstSecurityWait")
-            assertTrue("native security callback", security.await(10, TimeUnit.SECONDS))
-            assertTrue(
-                "session entered the active frame lifecycle",
-                session.phase == RdpJniPhase.ACTIVE ||
-                    session.phase == RdpJniPhase.AWAITING_FRAME_ACK,
+    fun nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose() =
+        diagnoseOwnedTestBody { entered ->
+            val arguments = InstrumentationRegistry.getArguments()
+            val diagnosticNonce = arguments.required("rdpDiagnosticNonce")
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val diagnostic = OwnedLifecycleDiagnostic(
+                AtomicLifecycleStorage(context, diagnosticNonce),
+                entered,
             )
-            diagnostic.enter("initialFrameWait")
-            val initial = awaitInitialFrame(
-                session, frameReady, frameCallbacks, diagnostic, 1280, 800, 30,
+            diagnostic.enter("testInitialization")
+
+            val host = arguments.required("rdpHost")
+            val port = arguments.required("rdpPort").toInt()
+            val username = arguments.required("rdpUsername")
+            val domain = arguments.required("rdpDomain")
+            val passwordValue = arguments.required("rdpPassword")
+            assertDiagnosticFailuresAreSecondary()
+            val runtime = RdpPackagedRuntime(context)
+
+            diagnostic.enter("connectionValidation")
+            assertConnectionInfoParses(
+                context,
+                packagedConnectionUri(host, port, username, 1280, 800, true),
             )
-            assertRenderedPixels(initial, 1280, 800)
-            assertEquals(180, initial.dpi)
-            assertTrue(session.acknowledgeFrame(initial.sequence))
+            assertConnectionInfoParses(
+                context,
+                packagedConnectionUri(host, port, username, 1280, 800, false),
+            )
 
-            // The host runner observes this exact software HID key pair through XI2.
-            // It changes the owned Xorg output only after the patched server observes
-            // this session's exact DISP monitor layout.
-            diagnostic.enter("keySubmission")
-            assertTrue(session.key(1, 0x70004, true))
-            assertTrue(session.key(2, 0x70004, false))
+            diagnostic.enter("runtimeValidation")
+            assertTrue(RdpFreeRdpPackage.verify(runtime.identity()))
+            val capabilities = RdpNativeCapabilities.parse(runtime.capabilities())
+            assertTrue(capabilities.canConnect)
+            assertTrue(capabilities.nla)
+            assertTrue(!capabilities.ime)
+            assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
+            assertTrue(!capabilities.audio && !capabilities.files)
 
-            diagnostic.enter("resizeSubmission")
-            diagnoseStage(::RdpOwnedClientDispSubmissionFailure) {
+            diagnostic.enter("providerInspection")
+            val inspected = runtime.inspect(host, port, username)
+            assertTrue(inspected.clientRequiresNla)
+            assertEquals("TLSv1.2", inspected.minimumTlsPolicy)
+            assertEquals(50, inspected.certificateFingerprint.length)
+            assertTrue(Regex("SHA256:[A-Za-z0-9+/]{43}").matches(inspected.certificateFingerprint))
+
+            val request = request(
+                requestId = "62726270-0000-4000-8000-000000000001",
+                host = host,
+                port = port,
+                username = username,
+                domain = domain,
+                fingerprint = inspected.certificateFingerprint,
+                width = 1280,
+                height = 800,
+                clipboardMode = "clientToRemote",
+            )
+            val security = CountDownLatch(1)
+            val frameReady = ArrayBlockingQueue<Unit>(8)
+            val frameCallbacks = BoundedFrameCallbacks()
+            val closed = CountDownLatch(1)
+            val observer = object : RdpNativeSessionObserver {
+                override fun onSecurity() = security.countDown()
+                override fun onFrame() {
+                    frameCallbacks.observed()
+                    frameReady.offer(Unit)
+                }
+                override fun onClosed(code: String?) = closed.countDown()
+            }
+            val password = passwordValue.toCharArray()
+            diagnostic.enter("firstSessionOpen")
+            val session = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
+                request,
+                RdpNativeSecrets.take(password, null),
+                observer,
+            ) as RdpFreeRdpSession
+
+            var firstBodyCompleted = false
+            try {
+                diagnostic.enter("firstSecurityWait")
+                assertTrue("native security callback", security.await(10, TimeUnit.SECONDS))
                 assertTrue(
-                    "client DISP monitor layout was submitted",
-                    session.resize(3, RdpNativeDisplay(1024, 768, 180, false, true)),
+                    "session entered the active frame lifecycle",
+                    session.phase == RdpJniPhase.ACTIVE ||
+                        session.phase == RdpJniPhase.AWAITING_FRAME_ACK,
                 )
-            }
+                diagnostic.enter("initialFrameWait")
+                val initial = awaitInitialFrame(
+                    session, frameReady, frameCallbacks, diagnostic, 1280, 800, 30,
+                )
+                assertRenderedPixels(initial, 1280, 800)
+                assertEquals(180, initial.dpi)
+                assertTrue(session.acknowledgeFrame(initial.sequence))
 
-            diagnostic.enter("resizedFrameWait")
-            val resized = diagnoseStage(::RdpOwnedResizedFrameWaitFailure) {
-                awaitFrame(session, frameReady, 1024, 768, 30)
-            }
-            diagnoseStage(::RdpOwnedResizedFramePixelsFailure) {
-                assertRenderedPixels(resized, 1024, 768)
-                assertEquals(180, resized.dpi)
-            }
-            val priorBackground = firstPixel(resized)
-            diagnoseStage(::RdpOwnedResizedFrameAckFailure) {
-                assertTrue(session.acknowledgeFrame(resized.sequence))
-            }
+                // The host runner observes this exact software HID key pair through XI2.
+                // It changes the owned Xorg output only after the patched server observes
+                // this session's exact DISP monitor layout.
+                diagnostic.enter("keySubmission")
+                assertTrue(session.key(1, 0x70004, true))
+                assertTrue(session.key(2, 0x70004, false))
 
-            diagnostic.enter("clipboardSubmission")
-            val clipboard = "Larenor-F62-İş-😀\n\tv1".encodeToByteArray()
-            diagnoseStage(::RdpOwnedClipboardSubmissionFailure) {
-                assertTrue(
-                    "client-to-remote clipboard submission was accepted",
-                    session.channel(4, RdpJniChannel.CLIPBOARD, clipboard),
-                )
-                assertTrue("clipboard caller bytes were wiped", clipboard.all { it == 0.toByte() })
+                diagnostic.enter("resizeSubmission")
+                diagnoseStage(::RdpOwnedClientDispSubmissionFailure) {
+                    assertTrue(
+                        "client DISP monitor layout was submitted",
+                        session.resize(3, RdpNativeDisplay(1024, 768, 180, false, true)),
+                    )
+                }
+
+                diagnostic.enter("resizedFrameWait")
+                val resized = diagnoseStage(::RdpOwnedResizedFrameWaitFailure) {
+                    awaitFrame(session, frameReady, 1024, 768, 30)
+                }
+                diagnoseStage(::RdpOwnedResizedFramePixelsFailure) {
+                    assertRenderedPixels(resized, 1024, 768)
+                    assertEquals(180, resized.dpi)
+                }
+                val priorBackground = firstPixel(resized)
+                diagnoseStage(::RdpOwnedResizedFrameAckFailure) {
+                    assertTrue(session.acknowledgeFrame(resized.sequence))
+                }
+
+                diagnostic.enter("clipboardSubmission")
+                val clipboard = "Larenor-F62-İş-😀\n\tv1".encodeToByteArray()
+                diagnoseStage(::RdpOwnedClipboardSubmissionFailure) {
+                    assertTrue(
+                        "client-to-remote clipboard submission was accepted",
+                        session.channel(4, RdpJniChannel.CLIPBOARD, clipboard),
+                    )
+                    assertTrue("clipboard caller bytes were wiped", clipboard.all { it == 0.toByte() })
+                }
+                diagnostic.enter("clipboardEffectWait")
+                val clipboardFrame = diagnoseStage(::RdpOwnedClipboardEffectWaitFailure) {
+                    awaitChangedPixelFrame(
+                        session, frameReady, 1024, 768, priorBackground, 30,
+                    )
+                }
+                assertRenderedPixels(clipboardFrame, 1024, 768)
+                assertTrue(session.acknowledgeFrame(clipboardFrame.sequence))
+                firstBodyCompleted = true
+            } finally {
+                if (firstBodyCompleted) diagnostic.enter("firstClose")
+                diagnoseStage(::RdpOwnedCleanCloseFailure) {
+                    session.close()
+                }
             }
-            diagnostic.enter("clipboardEffectWait")
-            val clipboardFrame = diagnoseStage(::RdpOwnedClipboardEffectWaitFailure) {
-                awaitChangedPixelFrame(
-                    session, frameReady, 1024, 768, priorBackground, 30,
-                )
-            }
-            assertRenderedPixels(clipboardFrame, 1024, 768)
-            assertTrue(session.acknowledgeFrame(clipboardFrame.sequence))
-            firstBodyCompleted = true
-        } finally {
-            if (firstBodyCompleted) diagnostic.enter("firstClose")
+            diagnostic.enter("firstClosedValidation")
             diagnoseStage(::RdpOwnedCleanCloseFailure) {
-                session.close()
+                assertEquals(RdpJniPhase.CANCELLED, session.phase)
+                assertTrue("session close callback", closed.await(5, TimeUnit.SECONDS))
             }
-        }
-        diagnostic.enter("firstClosedValidation")
-        diagnoseStage(::RdpOwnedCleanCloseFailure) {
-            assertEquals(RdpJniPhase.CANCELLED, session.phase)
-            assertTrue("session close callback", closed.await(5, TimeUnit.SECONDS))
-        }
-        diagnoseStage(::RdpOwnedCredentialClearFailure) {
-            assertTrue(password.all { it == '\u0000' })
-        }
+            diagnoseStage(::RdpOwnedCredentialClearFailure) {
+                assertTrue(password.all { it == '\u0000' })
+            }
 
-        val disabledRequest = request(
-            requestId = "62726270-0000-4000-8000-000000000002",
-            host = host,
-            port = port,
-            username = username,
-            domain = domain,
-            fingerprint = inspected.certificateFingerprint,
-            width = 1024,
-            height = 768,
-            clipboardMode = "disabled",
-        )
-        val disabledSecurity = CountDownLatch(1)
-        val disabledFrames = ArrayBlockingQueue<Unit>(8)
-        val disabledClosed = CountDownLatch(1)
-        val disabledObserver = object : RdpNativeSessionObserver {
-            override fun onSecurity() = disabledSecurity.countDown()
-            override fun onFrame() {
-                disabledFrames.offer(Unit)
-            }
-            override fun onClosed(code: String?) = disabledClosed.countDown()
-        }
-        val disabledPassword = passwordValue.toCharArray()
-        diagnostic.enter("secondSessionOpen")
-        val disabled = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
-            disabledRequest,
-            RdpNativeSecrets.take(disabledPassword, null),
-            disabledObserver,
-        ) as RdpFreeRdpSession
-        var secondBodyCompleted = false
-        try {
-            diagnostic.enter("secondSecurityWait")
-            assertTrue(
-                "disabled lifetime native security callback",
-                disabledSecurity.await(10, TimeUnit.SECONDS),
+            val disabledRequest = request(
+                requestId = "62726270-0000-4000-8000-000000000002",
+                host = host,
+                port = port,
+                username = username,
+                domain = domain,
+                fingerprint = inspected.certificateFingerprint,
+                width = 1024,
+                height = 768,
+                clipboardMode = "disabled",
             )
-            diagnostic.enter("secondFrameWait")
-            val frame = awaitFrame(disabled, disabledFrames, 1024, 768, 30)
-            assertRenderedPixels(frame, 1024, 768)
-            assertTrue(disabled.acknowledgeFrame(frame.sequence))
-            diagnostic.enter("disabledClipboardCheck")
-            val rejected = "must-not-cross-disabled-channel".encodeToByteArray()
-            diagnoseStage(::RdpOwnedDisabledClipboardFailure) {
-                assertFalse(
-                    "disabled clipboard is rejected before provider I/O",
-                    disabled.channel(1, RdpJniChannel.CLIPBOARD, rejected),
-                )
-                assertTrue("disabled clipboard caller bytes were wiped", rejected.all { it == 0.toByte() })
-                assertTrue("disabled lifetime close callback", disabledClosed.await(5, TimeUnit.SECONDS))
-                assertEquals(RdpJniPhase.FAILED, disabled.phase)
-                assertEquals("channelUnavailable", disabled.failureCode)
+            val disabledSecurity = CountDownLatch(1)
+            val disabledFrames = ArrayBlockingQueue<Unit>(8)
+            val disabledClosed = CountDownLatch(1)
+            val disabledObserver = object : RdpNativeSessionObserver {
+                override fun onSecurity() = disabledSecurity.countDown()
+                override fun onFrame() {
+                    disabledFrames.offer(Unit)
+                }
+                override fun onClosed(code: String?) = disabledClosed.countDown()
             }
-            secondBodyCompleted = true
-        } finally {
-            if (secondBodyCompleted) diagnostic.enter("secondClose")
-            disabled.close()
+            val disabledPassword = passwordValue.toCharArray()
+            diagnostic.enter("secondSessionOpen")
+            val disabled = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
+                disabledRequest,
+                RdpNativeSecrets.take(disabledPassword, null),
+                disabledObserver,
+            ) as RdpFreeRdpSession
+            var secondBodyCompleted = false
+            try {
+                diagnostic.enter("secondSecurityWait")
+                assertTrue(
+                    "disabled lifetime native security callback",
+                    disabledSecurity.await(10, TimeUnit.SECONDS),
+                )
+                diagnostic.enter("secondFrameWait")
+                val frame = awaitFrame(disabled, disabledFrames, 1024, 768, 30)
+                assertRenderedPixels(frame, 1024, 768)
+                assertTrue(disabled.acknowledgeFrame(frame.sequence))
+                diagnostic.enter("disabledClipboardCheck")
+                val rejected = "must-not-cross-disabled-channel".encodeToByteArray()
+                diagnoseStage(::RdpOwnedDisabledClipboardFailure) {
+                    assertFalse(
+                        "disabled clipboard is rejected before provider I/O",
+                        disabled.channel(1, RdpJniChannel.CLIPBOARD, rejected),
+                    )
+                    assertTrue("disabled clipboard caller bytes were wiped", rejected.all { it == 0.toByte() })
+                    assertTrue("disabled lifetime close callback", disabledClosed.await(5, TimeUnit.SECONDS))
+                    assertEquals(RdpJniPhase.FAILED, disabled.phase)
+                    assertEquals("channelUnavailable", disabled.failureCode)
+                }
+                secondBodyCompleted = true
+            } finally {
+                if (secondBodyCompleted) diagnostic.enter("secondClose")
+                disabled.close()
+            }
+            diagnostic.enter("credentialValidation")
+            diagnoseStage(::RdpOwnedCredentialClearFailure) {
+                assertTrue(disabledPassword.all { it == '\u0000' })
+            }
+            diagnostic.enter("complete")
+            diagnostic.remove()
         }
-        diagnostic.enter("credentialValidation")
-        diagnoseStage(::RdpOwnedCredentialClearFailure) {
-            assertTrue(disabledPassword.all { it == '\u0000' })
-        }
-        diagnostic.enter("complete")
-        diagnostic.remove()
-    }
 
     private fun request(
         requestId: String,
@@ -526,9 +528,13 @@ internal class AtomicLifecycleStorage(context: Context, nonce: String) : Lifecyc
     override fun remove() = file.delete()
 }
 
-internal class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
+internal class OwnedLifecycleDiagnostic(
+    private val storage: LifecycleStorage,
+    private val entered: (String) -> Unit = {},
+) {
     fun enter(stage: String) {
-        require(stage in STAGES)
+        require(stage in OWNED_LIFECYCLE_STAGES)
+        entered(stage)
         runCatching { storage.write(stage) }
     }
 
@@ -579,31 +585,92 @@ internal class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
         if (marker.length <= 128) runCatching { storage.write(marker) }
     }
 
-    private companion object {
-        val STAGES = setOf(
-            "testInitialization",
-            "connectionValidation",
-            "runtimeValidation",
-            "providerInspection",
-            "firstSessionOpen",
-            "firstSecurityWait",
-            "initialFrameWait",
-            "keySubmission",
-            "resizeSubmission",
-            "resizedFrameWait",
-            "clipboardSubmission",
-            "clipboardEffectWait",
-            "firstClose",
-            "firstClosedValidation",
-            "secondSessionOpen",
-            "secondSecurityWait",
-            "secondFrameWait",
-            "disabledClipboardCheck",
-            "secondClose",
-            "credentialValidation",
-            "complete",
-        )
+}
+
+private val OWNED_LIFECYCLE_STAGES = setOf(
+    "testInitialization",
+    "connectionValidation",
+    "runtimeValidation",
+    "providerInspection",
+    "firstSessionOpen",
+    "firstSecurityWait",
+    "initialFrameWait",
+    "keySubmission",
+    "resizeSubmission",
+    "resizedFrameWait",
+    "clipboardSubmission",
+    "clipboardEffectWait",
+    "firstClose",
+    "firstClosedValidation",
+    "secondSessionOpen",
+    "secondSecurityWait",
+    "secondFrameWait",
+    "disabledClipboardCheck",
+    "secondClose",
+    "credentialValidation",
+    "complete",
+)
+
+private val OWNED_BODY_THROWABLE_CLASSES = setOf(
+    "com.ersingundem.larenor.rdp.RdpNativeFailure",
+    "java.lang.AssertionError",
+    "java.lang.ClassNotFoundException",
+    "java.lang.ExceptionInInitializerError",
+    "java.lang.IllegalStateException",
+    "java.lang.InterruptedException",
+    "java.lang.NoClassDefFoundError",
+    "java.lang.NullPointerException",
+    "java.lang.RuntimeException",
+    "java.lang.SecurityException",
+    "java.lang.UnsupportedOperationException",
+    "java.lang.UnsatisfiedLinkError",
+    "java.util.concurrent.TimeoutException",
+    "kotlin.KotlinNullPointerException",
+    "org.junit.ComparisonFailure",
+    "org.junit.runners.model.TestTimedOutException",
+    "unclassified",
+)
+
+internal class RdpOwnedTestBodyFailure(
+    val lifecycleStage: String,
+    val throwableClass: String,
+) : AssertionError("stage=$lifecycleStage;throwable=$throwableClass") {
+    init {
+        require(lifecycleStage in OWNED_LIFECYCLE_STAGES)
+        require(throwableClass in OWNED_BODY_THROWABLE_CLASSES)
     }
+}
+
+internal fun diagnoseOwnedTestBody(body: ((String) -> Unit) -> Unit) {
+    var lifecycleStage = "testInitialization"
+    val entered: (String) -> Unit = { stage ->
+        require(stage in OWNED_LIFECYCLE_STAGES)
+        lifecycleStage = stage
+    }
+    try {
+        body(entered)
+    } catch (cause: RdpOwnedClassifiedFailure) {
+        throw cause
+    } catch (cause: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw ownedTestBodyFailure(lifecycleStage, cause)
+    } catch (cause: AssertionError) {
+        throw ownedTestBodyFailure(lifecycleStage, cause)
+    } catch (cause: Exception) {
+        throw ownedTestBodyFailure(lifecycleStage, cause)
+    } catch (cause: LinkageError) {
+        throw ownedTestBodyFailure(lifecycleStage, cause)
+    }
+}
+
+private fun ownedTestBodyFailure(
+    lifecycleStage: String,
+    cause: Throwable,
+): RdpOwnedTestBodyFailure {
+    val exactClass = cause::class.java.name.takeIf {
+        it in OWNED_BODY_THROWABLE_CLASSES
+    } ?: "unclassified"
+    return RdpOwnedTestBodyFailure(lifecycleStage, exactClass)
 }
 
 internal enum class InitialFrameFailureKind(val wire: String) {
@@ -657,24 +724,26 @@ private inline fun <T> diagnoseStage(
     throw failure(cause)
 }
 
-private class RdpOwnedResizedFrameWaitFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameTerminalFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameConnectionFailed(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameBackpressureFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFramebufferUnavailable(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameStaleSession(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameCancelled(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameNoCallbackFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameSizeMismatchFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedInitialFrameStalledAfterCallbackFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedResizedFramePixelsFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedResizedFrameAckFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedCleanCloseFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedCredentialClearFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedClientDispSubmissionFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedClipboardSubmissionFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedClipboardEffectWaitFailure(cause: Throwable) : AssertionError(cause)
-private class RdpOwnedDisabledClipboardFailure(cause: Throwable) : AssertionError(cause)
+private open class RdpOwnedClassifiedFailure(cause: Throwable) : AssertionError(cause)
+
+private class RdpOwnedResizedFrameWaitFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameTerminalFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameConnectionFailed(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameBackpressureFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFramebufferUnavailable(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameStaleSession(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameCancelled(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameNoCallbackFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameSizeMismatchFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedInitialFrameStalledAfterCallbackFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedResizedFramePixelsFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedResizedFrameAckFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedCleanCloseFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedCredentialClearFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedClientDispSubmissionFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedClipboardSubmissionFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedClipboardEffectWaitFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
+private class RdpOwnedDisabledClipboardFailure(cause: Throwable) : RdpOwnedClassifiedFailure(cause)
 
 internal fun initialFrameTerminalFailure(
     phase: RdpJniPhase,

@@ -6,11 +6,108 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class RdpPackagedLifecycleDiagnosticTest {
+    @Test
+    fun bodyFailureMarkerIsClosedStageAndExactThrowableWithoutPrivateMessage() {
+        val secret = "private-provider-and-credential-detail"
+        val failure = try {
+            diagnoseOwnedTestBody { entered ->
+                entered("providerInspection")
+                throw IllegalStateException(secret)
+            }
+            fail("body failure must be classified")
+            error("unreachable")
+        } catch (caught: RdpOwnedTestBodyFailure) {
+            caught
+        }
+
+        assertEquals("providerInspection", failure.lifecycleStage)
+        assertEquals("java.lang.IllegalStateException", failure.throwableClass)
+        assertEquals(
+            "stage=providerInspection;throwable=java.lang.IllegalStateException",
+            failure.message,
+        )
+        assertFalse(failure.stackTraceToString().contains(secret))
+
+        class PrivateFailure : RuntimeException(secret)
+        val unclassified = try {
+            diagnoseOwnedTestBody { entered ->
+                entered("runtimeValidation")
+                throw PrivateFailure()
+            }
+            fail("body failure must be classified")
+            error("unreachable")
+        } catch (caught: RdpOwnedTestBodyFailure) {
+            caught
+        }
+        assertEquals("runtimeValidation", unclassified.lifecycleStage)
+        assertEquals("unclassified", unclassified.throwableClass)
+        assertFalse(unclassified.stackTraceToString().contains(secret))
+        assertFalse(unclassified.stackTraceToString().contains(PrivateFailure::class.java.name))
+    }
+
+    @Test
+    fun bodyGuardPreservesTypedStageFailuresInterruptAndFatalThrowables() {
+        val typed = initialFrameTerminalFailure(
+            RdpJniPhase.FAILED,
+            "connectionFailed",
+            AssertionError("private"),
+        )
+        val observedTyped = try {
+            diagnoseOwnedTestBody { throw typed }
+            fail("typed failure must escape")
+            error("unreachable")
+        } catch (caught: AssertionError) {
+            caught
+        }
+        assertSame(typed, observedTyped)
+
+        Thread.interrupted()
+        try {
+            val interrupted = try {
+                diagnoseOwnedTestBody { entered ->
+                    entered("firstSecurityWait")
+                    throw InterruptedException("private")
+                }
+                fail("interrupt must be classified")
+                error("unreachable")
+            } catch (caught: RdpOwnedTestBodyFailure) {
+                caught
+            }
+            assertEquals("java.lang.InterruptedException", interrupted.throwableClass)
+            assertTrue(Thread.currentThread().isInterrupted)
+        } finally {
+            Thread.interrupted()
+        }
+
+        val fatal = object : VirtualMachineError("private") {}
+        val observedFatal = try {
+            diagnoseOwnedTestBody { throw fatal }
+            fail("fatal error must escape")
+            error("unreachable")
+        } catch (caught: VirtualMachineError) {
+            caught
+        }
+        assertSame(fatal, observedFatal)
+
+        val death = ThreadDeath()
+        val observedDeath = try {
+            diagnoseOwnedTestBody { throw death }
+            fail("thread death must escape")
+            error("unreachable")
+        } catch (caught: ThreadDeath) {
+            caught
+        }
+        assertSame(death, observedDeath)
+    }
+
     @Test
     fun terminalFailureClassificationUsesOnlyFixedPhaseAndCodeTuples() {
         val cause = AssertionError("owned")

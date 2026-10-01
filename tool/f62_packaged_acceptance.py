@@ -173,12 +173,41 @@ _INITIAL_FRAME_FAILURE_KINDS = {
     "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameStalledAfterCallbackFailure":
         "stalledAfterCallback",
 }
-_TERMINAL_CLASSIFICATION_SOURCE_SHA256 = (
-    "0fe62ccf3b3520e5bdc133dd5c8b8c4ca466446a483b8f7990fcc2aedf7ec6bd"
+_TEST_BODY_FAILURE_TYPE = (
+    "com.ersingundem.larenor.rdp.RdpOwnedTestBodyFailure"
+)
+_TEST_BODY_THROWABLE_TYPES = frozenset({
+    "com.ersingundem.larenor.rdp.RdpNativeFailure",
+    "java.lang.AssertionError",
+    "java.lang.ClassNotFoundException",
+    "java.lang.ExceptionInInitializerError",
+    "java.lang.IllegalStateException",
+    "java.lang.InterruptedException",
+    "java.lang.NoClassDefFoundError",
+    "java.lang.NullPointerException",
+    "java.lang.RuntimeException",
+    "java.lang.SecurityException",
+    "java.lang.UnsupportedOperationException",
+    "java.lang.UnsatisfiedLinkError",
+    "java.util.concurrent.TimeoutException",
+    "kotlin.KotlinNullPointerException",
+    "org.junit.ComparisonFailure",
+    "org.junit.runners.model.TestTimedOutException",
+    "unclassified",
+})
+_TEST_BODY_MARKER = re.compile(
+    r"^" + re.escape(_TEST_BODY_FAILURE_TYPE)
+    + r": stage=(" + "|".join(map(re.escape, _TEST_LIFECYCLE_STAGES)) + r")"
+    + r";throwable=(" + "|".join(map(re.escape, sorted(_TEST_BODY_THROWABLE_TYPES)))
+    + r")$"
+)
+_CLASSIFICATION_SOURCE_SHA256 = (
+    "d684fb5f972105531f5811515481756893f096a518a99d11c2d1f2bbfd9df479"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
        for exception_type in _INITIAL_FRAME_FAILURE_KINDS},
+    _TEST_BODY_FAILURE_TYPE: "testBody",
     "com.ersingundem.larenor.rdp.RdpOwnedResizedFrameWaitFailure":
         "resizedFrameWait",
     "com.ersingundem.larenor.rdp.RdpOwnedResizedFramePixelsFailure":
@@ -235,24 +264,28 @@ _OWNED_SOURCE_FILES = frozenset(
     for path in source_root.rglob("*")
     if path.suffix in {".kt", ".java"} and path.is_file()
 )
-_TERMINAL_CLASSIFICATION_SOURCE = (
+_CLASSIFICATION_SOURCE = (
     ROOT
     / "android/app/src/freerdpAndroidTest/kotlin/com/ersingundem/larenor/rdp"
     / "RdpPackagedHostAcceptanceTest.kt"
 )
 
 
-def _terminal_classification_source_matches() -> bool:
+def _classification_source_matches() -> bool:
     try:
-        metadata = _TERMINAL_CLASSIFICATION_SOURCE.lstat()
+        metadata = _CLASSIFICATION_SOURCE.lstat()
         if not stat.S_ISREG(metadata.st_mode) or not 1 <= metadata.st_size <= 256 * 1024:
             return False
         digest = hashlib.sha256(
-            _TERMINAL_CLASSIFICATION_SOURCE.read_bytes(),
+            _CLASSIFICATION_SOURCE.read_bytes(),
         ).hexdigest()
     except OSError:
         return False
-    return digest == _TERMINAL_CLASSIFICATION_SOURCE_SHA256
+    return digest == _CLASSIFICATION_SOURCE_SHA256
+
+
+def _terminal_classification_source_matches() -> bool:
+    return _classification_source_matches()
 
 
 class AcceptanceFailure(RuntimeError):
@@ -470,6 +503,7 @@ def _failure_element_diagnostic(
         else None
     )
     acceptance_stage = _ACCEPTANCE_STAGES.get(stage_type)
+    test_body_failure: dict[str, str] | None = None
     if acceptance_stage is not None and not (
             code == "instrumentation_test_failure"
             and _ACCEPTANCE_STAGE_FRAME.search(text) is not None):
@@ -480,6 +514,16 @@ def _failure_element_diagnostic(
         acceptance_stage = None
     elif acceptance_stage is not None:
         raw_type = stage_type
+        if stage_type == _TEST_BODY_FAILURE_TYPE:
+            marker = _TEST_BODY_MARKER.fullmatch(first)
+            if marker is None or not _classification_source_matches():
+                raw_type = "unclassified"
+                acceptance_stage = None
+            else:
+                test_body_failure = {
+                    "lifecycleStage": marker.group(1),
+                    "throwableClass": marker.group(2),
+                }
     elif raw_type in _ACCEPTANCE_STAGES:
         # A stage class found outside the actual connected-test shapes (an
         # exact declared type, or an absent type plus first throwable header)
@@ -493,6 +537,8 @@ def _failure_element_diagnostic(
     }
     if acceptance_stage is not None:
         diagnostic["acceptanceStage"] = acceptance_stage
+    if test_body_failure is not None:
+        diagnostic["testBodyFailure"] = test_body_failure
     outcomes = _PROBE_OUTCOME.findall(text)
     if (len(outcomes) == 1
             and any(frame["file"] == "RdpPackagedRuntime.kt" for frame in frames)):
@@ -612,9 +658,11 @@ def failure_receipt(
     initial_frame_observation = diagnostic.get("initialFrameObservation")
     has_initial_frame_terminal = "initialFrameTerminal" in diagnostic
     initial_frame_terminal = diagnostic.get("initialFrameTerminal")
+    has_test_body_failure = "testBodyFailure" in diagnostic
+    test_body_failure = diagnostic.get("testBodyFailure")
     diagnostic_shape = set(diagnostic) - {
         "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
-        "initialFrameTerminal",
+        "initialFrameTerminal", "testBodyFailure",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
@@ -654,6 +702,21 @@ def failure_receipt(
                     frame["file"] == "RdpPackagedHostAcceptanceTest.kt"
                     for frame in frames
                 ))):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    if has_test_body_failure:
+        if (exception_type != _TEST_BODY_FAILURE_TYPE
+                or acceptance_stage != "testBody"
+                or not _classification_source_matches()
+                or type(test_body_failure) is not dict
+                or set(test_body_failure) != {
+                    "lifecycleStage", "throwableClass",
+                }
+                or test_body_failure["lifecycleStage"]
+                not in _TEST_LIFECYCLE_STAGE_SET
+                or test_body_failure["throwableClass"]
+                not in _TEST_BODY_THROWABLE_TYPES):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    elif exception_type == _TEST_BODY_FAILURE_TYPE:
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     initial_kind = _INITIAL_FRAME_FAILURE_KINDS.get(exception_type)
     if has_initial_frame_observation and (
