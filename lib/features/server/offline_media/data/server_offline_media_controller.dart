@@ -47,12 +47,20 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   final ServerLocalMediaScope? _localMediaScope;
   int _epoch = 0;
   bool _disposed = false;
-  bool _localAuthorityRetired = false;
+  bool _authorityRetirementCompleted = false;
+  Future<void>? _authorityRetirement;
+  ServerOfflineMediaManifest? _retirementManifest;
+  ServerOfflineMediaScope? _retirementScope;
   ServerOfflineMediaPlaybackLease? _playbackLease;
 
   bool busy = false;
   String? failure;
   ServerOfflineMediaManifest? manifest;
+
+  bool get _authorityRetirementRequested =>
+      _authorityRetirementCompleted ||
+      _authorityRetirement != null ||
+      _retirementScope != null;
 
   static ServerOfflineMediaScope? _scopeFrom(ServerSession? session) {
     if (session?.context == null || session?.sessionFamilyId == null) {
@@ -84,6 +92,14 @@ final class ServerOfflineMediaController extends ChangeNotifier {
       account.session?.user.mustChangePassword == false;
 
   void _accountChanged() {
+    if (_disposed) {
+      if (_authorityRetirementRequested &&
+          !_authorityRetirementCompleted &&
+          _authorityRetirement == null) {
+        _requestAuthorityRetirement(retireState: false);
+      }
+      return;
+    }
     final local = _localMediaScope;
     if (local != null) {
       final current = account.localMediaScope;
@@ -92,8 +108,6 @@ final class ServerOfflineMediaController extends ChangeNotifier {
           !account.working &&
           !account.hasPendingContext &&
           (current != null || account.initialized);
-      if (authoritativeRetirement && _localAuthorityRetired) return;
-      if (authoritativeRetirement) _localAuthorityRetired = true;
       retire(purge: authoritativeRetirement);
       return;
     }
@@ -132,6 +146,44 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   ) async {
     if (retained != null) await vault.purge(retained.grantId);
     if (scope != null) await vault.purgeScope(scope);
+  }
+
+  Future<void> _runAuthorityRetirement(Completer<void> reservation) async {
+    try {
+      await _purgeRetired(_retirementManifest, _retirementScope);
+      _authorityRetirementCompleted = true;
+      _retirementManifest = null;
+      _retirementScope = null;
+      _authorityRetirement = null;
+      reservation.complete();
+      if (_disposed) account.removeListener(_accountChanged);
+    } catch (_) {
+      _authorityRetirement = null;
+      reservation.complete();
+      if (!_disposed) {
+        failure = 'offline_media_cleanup_failed';
+        notifyListeners();
+      }
+    }
+  }
+
+  void _retireState() {
+    _epoch++;
+    unawaited(closePlayback());
+    busy = false;
+    failure = null;
+    manifest = null;
+    notifyListeners();
+  }
+
+  void _requestAuthorityRetirement({bool retireState = true}) {
+    if (_authorityRetirementCompleted || _authorityRetirement != null) return;
+    _retirementManifest ??= manifest;
+    _retirementScope ??= _scope;
+    final reservation = Completer<void>();
+    _authorityRetirement = reservation.future;
+    if (retireState) _retireState();
+    unawaited(_runAuthorityRetirement(reservation));
   }
 
   Future<Uri?> openPlayback({required bool Function() current}) async {
@@ -209,7 +261,7 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   ) {
     try {
       return !_disposed &&
-          !_localAuthorityRetired &&
+          !_authorityRetirementRequested &&
           _localMediaScope == scope &&
           account.localMediaScope == scope &&
           current();
@@ -270,17 +322,11 @@ final class ServerOfflineMediaController extends ChangeNotifier {
 
   void retire({bool purge = false}) {
     if (_disposed) return;
-    _epoch++;
-    unawaited(closePlayback());
-    final retained = manifest;
-    busy = false;
-    failure = null;
-    manifest = null;
     if (purge) {
-      final scope = _scope;
-      unawaited(_purgeRetired(retained, scope));
+      _requestAuthorityRetirement();
+      return;
     }
-    notifyListeners();
+    _retireState();
   }
 
   Future<void> downloadCurrentItem(
@@ -398,7 +444,9 @@ final class ServerOfflineMediaController extends ChangeNotifier {
     _disposed = true;
     _epoch++;
     unawaited(closePlayback());
-    account.removeListener(_accountChanged);
+    if (!_authorityRetirementRequested || _authorityRetirementCompleted) {
+      account.removeListener(_accountChanged);
+    }
     super.dispose();
   }
 }

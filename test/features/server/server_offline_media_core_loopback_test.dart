@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -286,6 +287,25 @@ void main() {
       final root = await Directory.systemTemp.createTemp(
         'larenor-offline-controller-',
       );
+      var retirementStarted = false;
+      var retirementRootCalls = 0;
+      final firstRetirementRootCall = Completer<void>();
+      final releaseRetirementRootCalls = Completer<void>();
+      var failRetirement = true;
+      Future<Directory> vaultRoot() async {
+        if (retirementStarted) {
+          retirementRootCalls++;
+          if (!firstRetirementRootCall.isCompleted) {
+            firstRetirementRootCall.complete();
+          }
+          await releaseRetirementRootCalls.future;
+          if (failRetirement) {
+            throw const FileSystemException('owned retirement failure');
+          }
+        }
+        return root;
+      }
+
       final core = await _OfflineCore.start();
       addTearDown(() async {
         await core.close();
@@ -299,7 +319,7 @@ void main() {
 
       final first = ServerOfflineMediaController(
         account,
-        vault: ServerOfflineMediaVault(root: () async => root),
+        vault: ServerOfflineMediaVault(root: vaultRoot),
       );
       await first.downloadCurrentItem(_itemId, current: () => true);
       expect(first.failure, isNull);
@@ -319,7 +339,7 @@ void main() {
       await core.close();
       final second = ServerOfflineMediaController(
         account,
-        vault: ServerOfflineMediaVault(root: () async => root),
+        vault: ServerOfflineMediaVault(root: vaultRoot),
       );
       addTearDown(second.dispose);
       expect(
@@ -340,6 +360,37 @@ void main() {
       expect(restored, _content);
       expect(core.paths, requestsBeforeOffline);
 
+      var synchronousRetireCalls = 0;
+      second.addListener(() {
+        if (retirementStarted && second.failure == null) {
+          synchronousRetireCalls++;
+          second.retire(purge: true);
+        }
+      });
+      retirementStarted = true;
+      final signOut = account.signOut();
+      await firstRetirementRootCall.future;
+      await signOut;
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        retirementRootCalls,
+        1,
+        reason: 'the second authoritative account emission must not repurge',
+      );
+      expect(synchronousRetireCalls, 1);
+      releaseRetirementRootCalls.complete();
+      for (
+        var index = 0;
+        index < 100 && second.failure != 'offline_media_cleanup_failed';
+        index++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(second.failure, 'offline_media_cleanup_failed');
+      expect(Directory('${root.path}/$_grantId').existsSync(), isTrue);
+      second.dispose();
+
+      failRetirement = false;
       await account.signOut();
       final retained = Directory('${root.path}/$_grantId');
       for (var index = 0; index < 100 && await retained.exists(); index++) {
@@ -352,6 +403,8 @@ void main() {
         ),
         isNull,
       );
+      await Future<void>.delayed(Duration.zero);
+      expect(retirementRootCalls, 3);
     },
   );
 }
