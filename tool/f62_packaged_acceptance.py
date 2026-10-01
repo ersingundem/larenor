@@ -144,9 +144,28 @@ _FAILURE_CODES = frozenset({
     "host_channel_fixture_unavailable",
     "host_channel_witness_invalid",
 })
+_INITIAL_FRAME_TERMINAL_EXCEPTIONS = {
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameConnectionFailed": {
+        "sessionPhase": "failed", "failureCode": "connectionFailed",
+    },
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameBackpressureFailure": {
+        "sessionPhase": "failed", "failureCode": "frameBackpressure",
+    },
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFramebufferUnavailable": {
+        "sessionPhase": "failed", "failureCode": "framebufferUnavailable",
+    },
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameStaleSession": {
+        "sessionPhase": "failed", "failureCode": "staleSession",
+    },
+    "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameCancelled": {
+        "sessionPhase": "cancelled", "failureCode": None,
+    },
+}
 _INITIAL_FRAME_FAILURE_KINDS = {
     "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameTerminalFailure":
         "terminal",
+    **{exception_type: "terminal"
+       for exception_type in _INITIAL_FRAME_TERMINAL_EXCEPTIONS},
     "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameNoCallbackFailure":
         "noCallback",
     "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameSizeMismatchFailure":
@@ -154,6 +173,9 @@ _INITIAL_FRAME_FAILURE_KINDS = {
     "com.ersingundem.larenor.rdp.RdpOwnedInitialFrameStalledAfterCallbackFailure":
         "stalledAfterCallback",
 }
+_TERMINAL_CLASSIFICATION_SOURCE_SHA256 = (
+    "0fe62ccf3b3520e5bdc133dd5c8b8c4ca466446a483b8f7990fcc2aedf7ec6bd"
+)
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
        for exception_type in _INITIAL_FRAME_FAILURE_KINDS},
@@ -213,6 +235,24 @@ _OWNED_SOURCE_FILES = frozenset(
     for path in source_root.rglob("*")
     if path.suffix in {".kt", ".java"} and path.is_file()
 )
+_TERMINAL_CLASSIFICATION_SOURCE = (
+    ROOT
+    / "android/app/src/freerdpAndroidTest/kotlin/com/ersingundem/larenor/rdp"
+    / "RdpPackagedHostAcceptanceTest.kt"
+)
+
+
+def _terminal_classification_source_matches() -> bool:
+    try:
+        metadata = _TERMINAL_CLASSIFICATION_SOURCE.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or not 1 <= metadata.st_size <= 256 * 1024:
+            return False
+        digest = hashlib.sha256(
+            _TERMINAL_CLASSIFICATION_SOURCE.read_bytes(),
+        ).hexdigest()
+    except OSError:
+        return False
+    return digest == _TERMINAL_CLASSIFICATION_SOURCE_SHA256
 
 
 class AcceptanceFailure(RuntimeError):
@@ -570,8 +610,11 @@ def failure_receipt(
     test_lifecycle_stage = diagnostic.get("testLifecycleStage")
     has_initial_frame_observation = "initialFrameObservation" in diagnostic
     initial_frame_observation = diagnostic.get("initialFrameObservation")
+    has_initial_frame_terminal = "initialFrameTerminal" in diagnostic
+    initial_frame_terminal = diagnostic.get("initialFrameTerminal")
     diagnostic_shape = set(diagnostic) - {
         "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
+        "initialFrameTerminal",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
@@ -619,6 +662,20 @@ def failure_receipt(
             or not _valid_initial_frame_observation(
                 initial_kind, initial_frame_observation,
             )):
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    expected_terminal = _INITIAL_FRAME_TERMINAL_EXCEPTIONS.get(exception_type)
+    if expected_terminal is not None:
+        if (not _terminal_classification_source_matches()
+                or not has_initial_frame_terminal
+                or initial_frame_terminal != expected_terminal):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+        if has_initial_frame_observation and (
+                initial_frame_observation["sessionPhase"]
+                != expected_terminal["sessionPhase"]
+                or initial_frame_observation["failureCode"]
+                != expected_terminal["failureCode"]):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    elif has_initial_frame_terminal:
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     if probe_outcome is not None and (
             probe_outcome not in _PROBE_OUTCOMES
@@ -800,6 +857,14 @@ def _publish_failed_run(
 ) -> None:
     diagnostic = (failure_diagnostic() if code is None
                   else _static_diagnostic(code))
+    exception_type = diagnostic.get("exceptionType")
+    terminal = _INITIAL_FRAME_TERMINAL_EXCEPTIONS.get(exception_type)
+    if terminal is not None:
+        if _terminal_classification_source_matches():
+            diagnostic["initialFrameTerminal"] = dict(terminal)
+        else:
+            diagnostic["exceptionType"] = "unclassified"
+            diagnostic.pop("acceptanceStage", None)
     if server_resize_requested is not None:
         diagnostic["serverResizeRequested"] = server_resize_requested
     if test_lifecycle_stage is not None:

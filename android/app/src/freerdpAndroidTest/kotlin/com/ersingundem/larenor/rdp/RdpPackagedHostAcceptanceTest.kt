@@ -392,17 +392,23 @@ class RdpPackagedHostAcceptanceTest {
         diagnostic: OwnedLifecycleDiagnostic,
     ): Nothing {
         val callbackSnapshot = callbacks.snapshot()
+        val terminalPhase = session.phase
+        val terminalCode = session.failureCode
         diagnostic.initialFrameFailure(
             kind,
             callbackSnapshot.first,
             callbackSnapshot.second,
             lastDimensions,
-            session.phase,
-            session.failureCode,
+            terminalPhase,
+            terminalCode,
         )
         val cause = AssertionError("owned initial frame wait did not complete")
         throw when (kind) {
-            InitialFrameFailureKind.TERMINAL -> RdpOwnedInitialFrameTerminalFailure(cause)
+            InitialFrameFailureKind.TERMINAL -> initialFrameTerminalFailure(
+                terminalPhase,
+                terminalCode,
+                cause,
+            )
             InitialFrameFailureKind.NO_CALLBACK -> RdpOwnedInitialFrameNoCallbackFailure(cause)
             InitialFrameFailureKind.SIZE_MISMATCH -> RdpOwnedInitialFrameSizeMismatchFailure(cause)
             InitialFrameFailureKind.STALLED_AFTER_CALLBACK ->
@@ -653,6 +659,11 @@ private inline fun <T> diagnoseStage(
 
 private class RdpOwnedResizedFrameWaitFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedInitialFrameTerminalFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameConnectionFailed(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameBackpressureFailure(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFramebufferUnavailable(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameStaleSession(cause: Throwable) : AssertionError(cause)
+private class RdpOwnedInitialFrameCancelled(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedInitialFrameNoCallbackFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedInitialFrameSizeMismatchFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedInitialFrameStalledAfterCallbackFailure(cause: Throwable) : AssertionError(cause)
@@ -664,3 +675,20 @@ private class RdpOwnedClientDispSubmissionFailure(cause: Throwable) : AssertionE
 private class RdpOwnedClipboardSubmissionFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedClipboardEffectWaitFailure(cause: Throwable) : AssertionError(cause)
 private class RdpOwnedDisabledClipboardFailure(cause: Throwable) : AssertionError(cause)
+
+internal fun initialFrameTerminalFailure(
+    phase: RdpJniPhase,
+    failureCode: String?,
+    cause: Throwable,
+): AssertionError = when (phase to failureCode) {
+    RdpJniPhase.FAILED to "connectionFailed" ->
+        RdpOwnedInitialFrameConnectionFailed(cause)
+    RdpJniPhase.FAILED to "frameBackpressure" ->
+        RdpOwnedInitialFrameBackpressureFailure(cause)
+    RdpJniPhase.FAILED to "framebufferUnavailable" ->
+        RdpOwnedInitialFramebufferUnavailable(cause)
+    RdpJniPhase.FAILED to "staleSession" ->
+        RdpOwnedInitialFrameStaleSession(cause)
+    RdpJniPhase.CANCELLED to null -> RdpOwnedInitialFrameCancelled(cause)
+    else -> RdpOwnedInitialFrameTerminalFailure(cause)
+}

@@ -12,6 +12,36 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class RdpPackagedLifecycleDiagnosticTest {
     @Test
+    fun terminalFailureClassificationUsesOnlyFixedPhaseAndCodeTuples() {
+        val cause = AssertionError("owned")
+        val cases = listOf(
+            Triple(RdpJniPhase.FAILED, "connectionFailed", "RdpOwnedInitialFrameConnectionFailed"),
+            Triple(RdpJniPhase.FAILED, "frameBackpressure", "RdpOwnedInitialFrameBackpressureFailure"),
+            Triple(RdpJniPhase.FAILED, "framebufferUnavailable", "RdpOwnedInitialFramebufferUnavailable"),
+            Triple(RdpJniPhase.FAILED, "staleSession", "RdpOwnedInitialFrameStaleSession"),
+            Triple(RdpJniPhase.CANCELLED, null, "RdpOwnedInitialFrameCancelled"),
+        )
+        cases.forEach { (phase, code, expected) ->
+            assertEquals(
+                expected,
+                initialFrameTerminalFailure(phase, code, cause)::class.java.simpleName,
+            )
+        }
+        assertEquals(
+            "RdpOwnedInitialFrameTerminalFailure",
+            initialFrameTerminalFailure(
+                RdpJniPhase.CANCELLED,
+                "connectionFailed",
+                cause,
+            )::class.java.simpleName,
+        )
+        assertEquals(
+            "RdpOwnedInitialFrameTerminalFailure",
+            initialFrameTerminalFailure(RdpJniPhase.ACTIVE, null, cause)::class.java.simpleName,
+        )
+    }
+
+    @Test
     fun atomicMarkerRetainsLatestFixedStageAndRemovesOnlyItsOwnedFile() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val nonce = "e".repeat(64)

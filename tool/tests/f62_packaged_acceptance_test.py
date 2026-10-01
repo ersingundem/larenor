@@ -974,6 +974,98 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 "initialFrameObservation", receipt["diagnostic"],
             )
 
+    def test_fixed_terminal_throwables_bind_exact_source_test_and_tuple(self):
+        self.assertTrue(runner._terminal_classification_source_matches())
+        for exception_type, expected in runner._INITIAL_FRAME_TERMINAL_EXCEPTIONS.items():
+            with self.subTest(exception_type=exception_type), tempfile.TemporaryDirectory() as temporary:
+                body = (
+                    exception_type + ": private native detail\n"
+                    " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                    "nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose("
+                    "RdpPackagedHostAcceptanceTest.kt:405)\n"
+                )
+                directory = Path(temporary)
+                (directory / "TEST-device.xml").write_text(
+                    self._failure_xml(exception_type=None, body=body),
+                )
+                diagnostic = runner.failure_diagnostic(directory)
+                with (
+                    mock.patch.object(
+                        runner, "failure_diagnostic", return_value=diagnostic,
+                    ),
+                    mock.patch.object(runner, "publish_public_failure") as publish,
+                ):
+                    runner._publish_failed_run(directory, {})
+                published = publish.call_args.args[0]
+                self.assertEqual(published["initialFrameTerminal"], expected)
+                receipt = runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=published,
+                )
+                self.assertEqual(
+                    receipt["diagnostic"]["initialFrameTerminal"], expected,
+                )
+
+                conflicting = {
+                    **published,
+                    "testLifecycleStage": "initialFrameWait",
+                    "initialFrameObservation": {
+                        "callbackCount": 0,
+                        "callbackCountCapped": False,
+                        "lastFrame": None,
+                        "sessionPhase": "cancelled"
+                        if expected["sessionPhase"] == "failed" else "failed",
+                        "failureCode": None
+                        if expected["sessionPhase"] == "failed" else "connectionFailed",
+                    },
+                }
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.failure_receipt(
+                        {}, revision="a" * 40, package_digest="b" * 64,
+                        diagnostic=conflicting,
+                    )
+
+        exact_type = next(iter(runner._INITIAL_FRAME_TERMINAL_EXCEPTIONS))
+        exact = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": exact_type,
+            "frames": [{
+                "file": "RdpPackagedHostAcceptanceTest.kt", "line": 405,
+            }],
+            "counts": {
+                "tests": 1, "skipped": 0, "failures": 1, "errors": 0,
+            },
+            "acceptanceStage": "initialFrameWait",
+        }
+        with (
+            mock.patch.object(runner, "failure_diagnostic", return_value=exact),
+            mock.patch.object(
+                runner, "_terminal_classification_source_matches",
+                return_value=False,
+            ),
+            mock.patch.object(runner, "publish_public_failure") as publish,
+        ):
+            runner._publish_failed_run(Path("/private/tmp/owned"), {})
+        downgraded = publish.call_args.args[0]
+        self.assertEqual(downgraded["exceptionType"], "unclassified")
+        self.assertNotIn("acceptanceStage", downgraded)
+        self.assertNotIn("initialFrameTerminal", downgraded)
+
+        forged = self._failure_xml(
+            exception_type=None,
+            body=(
+                exact_type + ": private\n"
+                " at com.ersingundem.larenor.rdp.RdpPackagedHostAcceptanceTest."
+                "differentMethod(RdpPackagedHostAcceptanceTest.kt:405)\n"
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            (Path(temporary) / "TEST-device.xml").write_text(forged)
+            diagnostic = runner.failure_diagnostic(Path(temporary))
+        self.assertEqual(diagnostic["exceptionType"], "unclassified")
+        self.assertNotIn("initialFrameTerminal", diagnostic)
+        self.assertNotIn("acceptanceStage", diagnostic)
+
     def test_initial_frame_observation_is_bounded_and_matches_throwable_kind(self):
         prefix = "com.ersingundem.larenor.rdp."
         base = {
