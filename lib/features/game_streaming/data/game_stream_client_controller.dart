@@ -20,6 +20,7 @@ enum GameStreamClientPhase {
   dispatching,
   streaming,
   stopping,
+  closing,
   revoking,
   outcomeUnknown,
   unavailable,
@@ -62,6 +63,7 @@ final class GameStreamClientSnapshot {
     GameStreamClientPhase.configuring,
     GameStreamClientPhase.dispatching,
     GameStreamClientPhase.stopping,
+    GameStreamClientPhase.closing,
     GameStreamClientPhase.revoking,
   }.contains(phase);
 
@@ -2183,7 +2185,9 @@ final class GameStreamClientController extends ChangeNotifier {
     }
   }
 
-  Future<void> retire() async {
+  Future<void> retire() => _retire(clearState: true);
+
+  Future<void> _retire({required bool clearState}) async {
     _generation += 1;
     final session = _state.activeSession;
     final leaseSession = _foregroundSession ?? session;
@@ -2341,7 +2345,7 @@ final class GameStreamClientController extends ChangeNotifier {
               ? 'retire-session-${leaseSession!.id}'
               : _retireRequestKey(recovery),
         );
-        coreRetired = retired.state == 'retired';
+        coreRetired = retired.id == session.id && retired.state == 'retired';
       } catch (_) {}
     }
     if (nativeRetired &&
@@ -2351,9 +2355,58 @@ final class GameStreamClientController extends ChangeNotifier {
         recovery is! GameStreamCatalogRecovery) {
       if (storageFailure == null) await _recoveryStore.clearAny(recovery);
     }
-    _set(const GameStreamClientSnapshot());
+    if (clearState) _set(const GameStreamClientSnapshot());
     if (nativeFailure != null) throw nativeFailure;
     if (storageFailure != null) throw storageFailure;
+  }
+
+  /// Retires only the exact locally owned native/Core session after an
+  /// uncertain outcome. This never authorizes or redispatches a stop command,
+  /// and it does not claim that the provider stream stopped.
+  Future<void> closeLocalSession() async {
+    _assertRoute();
+    final uncertain = _state;
+    if (uncertain.phase != GameStreamClientPhase.outcomeUnknown ||
+        uncertain.activeSession == null) {
+      throw const GameStreamException('local_session_cleanup_unavailable');
+    }
+    final closingGeneration = _begin(GameStreamClientPhase.closing);
+    // `_retire` advances the controller generation once before its first
+    // await. No completion from this close attempt may overwrite a successor.
+    final retirementGeneration = closingGeneration + 1;
+
+    Object? cleanupFailure;
+    try {
+      await _retire(clearState: false);
+    } catch (error) {
+      cleanupFailure = error;
+    }
+    GameStreamPendingOperation? remaining;
+    try {
+      remaining = await _recoveryStore.readStored();
+    } catch (error) {
+      cleanupFailure ??= error;
+    }
+    bool routeCurrent() {
+      try {
+        return !_disposed && _current();
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (_generation != retirementGeneration || !routeCurrent()) return;
+    if (cleanupFailure != null || remaining != null) {
+      _set(
+        uncertain.copyWith(
+          phase: GameStreamClientPhase.outcomeUnknown,
+          errorCode: 'local_session_cleanup_unknown',
+        ),
+      );
+      return;
+    }
+    _set(const GameStreamClientSnapshot());
+    await refresh();
   }
 
   void _clearAuthorityRetirementLease() {

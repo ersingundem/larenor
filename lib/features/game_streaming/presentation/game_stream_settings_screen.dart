@@ -32,6 +32,15 @@ final class GameStreamGateAuthority {
   final bool pinConfigured, pinUnlocked;
 }
 
+@visibleForTesting
+typedef GameStreamClientFactory = GameStreamClientController Function({
+  required CoreGameStreamApi core,
+  required GameStreamNativeV2Port native,
+  required AndroidGameStreamAuthorityV2 Function(int accountRevision) authority,
+  required bool Function() isCurrent,
+  required bool Function() isCoverageCurrent,
+});
+
 /// Shares one strict native ownership query between the settings gate and the
 /// game route when Android covers Flutter with an owned prompt or Game task.
 final class GameStreamForegroundCoverageGuard {
@@ -82,6 +91,7 @@ class GameStreamSettingsScreen extends ConsumerStatefulWidget {
     this.gateAuthority,
     this.coverageGateCurrent,
     this.foregroundCoverageGuard,
+    this.clientFactory,
   });
 
   final GameStreamCapabilityPort? port;
@@ -90,6 +100,8 @@ class GameStreamSettingsScreen extends ConsumerStatefulWidget {
   final GameStreamGateAuthority? Function()? gateAuthority;
   final bool Function()? coverageGateCurrent;
   final GameStreamForegroundCoverageGuard? foregroundCoverageGuard;
+  @visibleForTesting
+  final GameStreamClientFactory? clientFactory;
 
   @override
   ConsumerState<GameStreamSettingsScreen> createState() =>
@@ -105,6 +117,8 @@ class _GameStreamSettingsScreenState
 
   @visibleForTesting
   String get clientInstanceIdForTesting => _clientInstanceId;
+  @visibleForTesting
+  GameStreamClientSnapshot? get clientStateForTesting => _client?.state;
   AppInteractionController? _interaction;
   ModalRoute<dynamic>? _route;
   int _generation = 0;
@@ -130,6 +144,7 @@ class _GameStreamSettingsScreenState
   GameStreamClientController? _client;
   LarenorServerApi? _clientTransport;
   ServerSession? _sessionOwner;
+  Future<void>? _clientRetirement;
   late final ServerAccountController _serverAccount;
 
   @override
@@ -343,7 +358,20 @@ class _GameStreamSettingsScreenState
     );
   }
 
-  Future<void> _retireClient() async {
+  Future<void> _retireClient() {
+    final existing = _clientRetirement;
+    if (existing != null) return existing;
+    late final Future<void> retirement;
+    retirement = _retireClientOwned().whenComplete(() {
+      if (identical(_clientRetirement, retirement)) {
+        _clientRetirement = null;
+      }
+    });
+    _clientRetirement = retirement;
+    return retirement;
+  }
+
+  Future<void> _retireClientOwned() async {
     final client = _client;
     final transport = _clientTransport;
     _client = null;
@@ -442,8 +470,9 @@ class _GameStreamSettingsScreenState
         !account.working &&
         session?.context != null &&
         !session!.user.mustChangePassword) {
-      if (_sessionOwner != null && !identical(_sessionOwner, session)) {
+      if (_client != null || _clientRetirement != null) {
         await _retireClient();
+        if (!_interactiveCurrent(generation)) return;
       }
       final transport = LarenorServerApi(endpoint: session.endpoint);
       final api = CoreGameStreamApi(
@@ -460,16 +489,26 @@ class _GameStreamSettingsScreenState
             session.sessionFamilyId != null &&
             widget.gateAuthority?.call() != null) {
           _sessionOwner = session;
-          final client = GameStreamClientController(
-            core: api,
-            native: _v2Port,
-            authority: _nativeAuthority,
-            isCurrent: () =>
-                _current(generation) &&
-                identical(ref.read(serverAccountControllerProvider), account) &&
-                identical(account.session, session),
-            isCoverageCurrent: () => _coverageCurrent(generation, session),
-          );
+          bool current() =>
+              _current(generation) &&
+              identical(ref.read(serverAccountControllerProvider), account) &&
+              identical(account.session, session);
+          bool coverageCurrent() => _coverageCurrent(generation, session);
+          final client =
+              widget.clientFactory?.call(
+                core: api,
+                native: _v2Port,
+                authority: _nativeAuthority,
+                isCurrent: current,
+                isCoverageCurrent: coverageCurrent,
+              ) ??
+              GameStreamClientController(
+                core: api,
+                native: _v2Port,
+                authority: _nativeAuthority,
+                isCurrent: current,
+                isCoverageCurrent: coverageCurrent,
+              );
           _client = client;
           _clientTransport = transport;
           client.addListener(_clientChanged);
@@ -762,7 +801,9 @@ class _GameStreamSettingsScreenState
                 color: CupertinoColors.systemBlue,
               ),
               title: Text(l10n.gameStreamingCheckAgain),
-              onTap: current && !_loading ? () => unawaited(_refresh()) : null,
+              onTap: current && !_loading && clientState?.busy != true
+                  ? () => unawaited(_refresh())
+                  : null,
             ),
             if (capabilities?.handoffOnly == true)
               SettingsActionTile(
@@ -1002,24 +1043,6 @@ class _GameStreamSettingsScreenState
                       ? () => unawaited(_client!.start())
                       : null,
                 ),
-              if (clientState.phase == GameStreamClientPhase.streaming ||
-                  clientState.phase == GameStreamClientPhase.outcomeUnknown)
-                SettingsActionTile(
-                  buttonKey: const ValueKey('game-stream-stop'),
-                  leading: const IconBadge(
-                    icon: CupertinoIcons.stop_fill,
-                    color: CupertinoColors.systemRed,
-                  ),
-                  title: Text(copy.stopStream),
-                  additionalInfo: Text(
-                    clientState.phase == GameStreamClientPhase.outcomeUnknown
-                        ? copy.unknownNoReplay
-                        : copy.stopBoundary,
-                  ),
-                  onTap: clientReadyForEffect
-                      ? () => unawaited(_client!.stop())
-                      : null,
-                ),
               if (clientState.errorCode != null)
                 Semantics(
                   liveRegion: true,
@@ -1044,6 +1067,22 @@ class _GameStreamSettingsScreenState
               ),
             ],
           ),
+        if (clientState != null &&
+            (clientState.phase == GameStreamClientPhase.streaming ||
+                (clientState.phase == GameStreamClientPhase.outcomeUnknown &&
+                    clientState.activeSession != null)))
+          SettingsSection(
+            children: [
+              GameStreamSessionLifecycleAction(
+                phase: clientState.phase,
+                hasActiveSession: clientState.activeSession != null,
+                enabled: current && clientState.busy != true,
+                onStop: () => unawaited(_client!.stop()),
+                onCloseLocalSession: () =>
+                    unawaited(_client!.closeLocalSession()),
+              ),
+            ],
+          ),
         SettingsSection(
           header: Semantics(
             key: const ValueKey('game-stream-boundary-header'),
@@ -1063,6 +1102,54 @@ class _GameStreamSettingsScreenState
         ),
       ],
     );
+  }
+}
+
+@visibleForTesting
+final class GameStreamSessionLifecycleAction extends StatelessWidget {
+  const GameStreamSessionLifecycleAction({
+    super.key,
+    required this.phase,
+    required this.hasActiveSession,
+    required this.enabled,
+    required this.onStop,
+    required this.onCloseLocalSession,
+  });
+
+  final GameStreamClientPhase phase;
+  final bool hasActiveSession;
+  final bool enabled;
+  final VoidCallback onStop;
+  final VoidCallback onCloseLocalSession;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = _GameStreamCopy.of(context);
+    if (phase == GameStreamClientPhase.streaming) {
+      return SettingsActionTile(
+        buttonKey: const ValueKey('game-stream-stop'),
+        leading: const IconBadge(
+          icon: CupertinoIcons.stop_fill,
+          color: CupertinoColors.systemRed,
+        ),
+        title: Text(copy.stopStream),
+        additionalInfo: Text(copy.stopBoundary),
+        onTap: enabled ? onStop : null,
+      );
+    }
+    if (phase == GameStreamClientPhase.outcomeUnknown && hasActiveSession) {
+      return SettingsActionTile(
+        buttonKey: const ValueKey('game-stream-close-local-session'),
+        leading: const IconBadge(
+          icon: CupertinoIcons.clear_circled_solid,
+          color: CupertinoColors.systemOrange,
+        ),
+        title: Text(copy.closeLocalSession),
+        additionalInfo: Text(copy.closeLocalSessionBoundary),
+        onTap: enabled ? onCloseLocalSession : null,
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -1113,6 +1200,8 @@ final class _GameStreamCopy {
     required this.stopStream,
     required this.stopBoundary,
     required this.unknownNoReplay,
+    required this.closeLocalSession,
+    required this.closeLocalSessionBoundary,
     required this.appCatalogTemplate,
     required this.policyDetailsTemplate,
     required this.forgetComputerBodyTemplate,
@@ -1143,6 +1232,7 @@ final class _GameStreamCopy {
   final String localRetirementComplete;
   final String quality, qualityBoundary, startStream, startBoundary;
   final String stopStream, stopBoundary, unknownNoReplay;
+  final String closeLocalSession, closeLocalSessionBoundary;
   final String appCatalogTemplate, policyDetailsTemplate;
   final String forgetComputerBodyTemplate, localRetirementSuccessTemplate;
   final String qualityUnavailableTemplate;
@@ -1218,6 +1308,8 @@ final class _GameStreamCopy {
     stopStream: 'Yayını durdur',
     stopBoundary: 'Mevcut Core oturumu için açık durdurma komutu gönderilir.',
     unknownNoReplay: 'Sonuç bilinmiyor. Otomatik yeniden gönderim yapılmaz.',
+    closeLocalSession: 'Yerel oturumu kapat',
+    closeLocalSessionBoundary: 'Yeni bir durdurma komutu göndermeden yalnız bu tabletteki yerel oturumu ve Core kiralamasını kapatmayı dener. Sağlayıcının durduğu veya eşlemenin kaldırıldığı iddia edilmez.',
     appCatalogTemplate: '{host} uygulamaları',
     policyDetailsTemplate: '{codecs} · yerel ekran/çözücü sınırı {width}×{height} · {fps} FPS · ölçülü ağ kapalı · 60 dakika sınırı.',
     forgetComputerBodyTemplate:
@@ -1281,6 +1373,8 @@ final class _GameStreamCopy {
     stopBoundary:
         'Sends an explicit stop command for the current Core session.',
     unknownNoReplay: 'The outcome is unknown. The command will not be sent again automatically.',
+    closeLocalSession: 'Close local session',
+    closeLocalSessionBoundary: 'Attempts to retire only this tablet\'s local session and Core lease without sending another stop command. This does not claim that the provider stopped or that pairing was removed.',
     appCatalogTemplate: '{host} applications',
     policyDetailsTemplate: '{codecs} · local display/decoder ceiling {width}×{height} · {fps} FPS · metered network off · 60 minute limit.',
     forgetComputerBodyTemplate:

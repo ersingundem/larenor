@@ -1,18 +1,130 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:larenor/core/app_interaction_scope.dart';
 import 'package:larenor/core/theme.dart';
 import 'package:larenor/features/game_streaming/data/android_game_stream_port.dart';
 import 'package:larenor/features/game_streaming/data/android_game_stream_v2_port.dart';
+import 'package:larenor/features/game_streaming/data/core_game_stream_api.dart';
+import 'package:larenor/features/game_streaming/data/game_stream_client_controller.dart';
+import 'package:larenor/features/game_streaming/data/game_stream_recovery_store.dart';
 import 'package:larenor/features/game_streaming/domain/game_stream_session.dart';
 import 'package:larenor/features/game_streaming/presentation/game_stream_settings_screen.dart';
 import 'package:larenor/features/settings/presentation/settings_split_screen.dart';
+import 'package:larenor/features/server/data/larenor_server_api.dart';
+import 'package:larenor/features/server/domain/server_models.dart';
+import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
+
+import '../server/server_admin_test_support.dart';
+
+const _screenSessionId = '7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c';
+const _screenHostId = '8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c';
+const _screenAppId = '9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c9c';
+
+final class _EmbeddedCapabilitiesPort implements GameStreamCapabilityPort {
+  int calls = 0;
+
+  @override
+  Future<AndroidGameStreamCapabilities> capabilities() async {
+    calls += 1;
+    return const AndroidGameStreamCapabilities(
+      available: true,
+      engineRevision: 'moonlight-android-12.2-larenor-embed-v3',
+      intents: {GameStreamIntent.stream},
+      provider: 'moonlight',
+    );
+  }
+}
+
+final class _MemoryRecoveryBackend implements GameStreamRecoveryBackend {
+  String? value;
+  int reads = 0;
+  int? blockRead;
+  Completer<void>? blocked;
+
+  @override
+  Future<String?> read() async {
+    reads += 1;
+    if (blockRead == reads) {
+      blocked = Completer<void>();
+      await blocked!.future;
+    }
+    return value;
+  }
+
+  @override
+  Future<void> write(String value) async => this.value = value;
+
+  @override
+  Future<void> delete() async => value = null;
+}
+
+http.Response _screenJson(Object? value, [int status = 200]) => http.Response(
+  jsonEncode(value),
+  status,
+  headers: const {'content-type': 'application/json'},
+);
+
+Map<String, Object> _screenQuality() => {
+  'codec': 'h264',
+  'codecId': '1' * 32,
+  'codecRevision': 1,
+  'displayId': 0,
+  'displayRevision': 1,
+  'networkId': '2' * 32,
+  'networkRevision': 1,
+  'policyId': '3' * 32,
+  'policyRevision': 1,
+  'widthPixels': 1280,
+  'heightPixels': 720,
+  'framesPerSecond': 60,
+  'bitrateKbps': 10000,
+  'frameQueueDepth': 2,
+  'inputQueueDepth': 1,
+  'secureSurface': true,
+};
+
+Map<String, Object?> _screenCoreSession({String state = 'unknown'}) => {
+  'schemaVersion': 2,
+  'id': _screenSessionId,
+  'hostId': _screenHostId,
+  'appId': _screenAppId,
+  'revision': 1,
+  'state': state,
+  'expiresAt': 1800000000.0,
+  'coreAuthority': {
+    'accountRevision': 7,
+    'hostRevision': 1,
+    'pairingRevision': 1,
+    'catalogRevision': 1,
+    'appRevision': 1,
+    'selectedQuality': _screenQuality(),
+  },
+  'selectedQuality': _screenQuality(),
+  'clientAuthority': {
+    'routeRevision': 1,
+    'lifecycleRevision': 1,
+    'displayRevision': 1,
+    'networkRevision': 1,
+    'policyRevision': 1,
+  },
+};
+
+Map<String, Object?> _screenHosts() => {
+  'schemaVersion': 2,
+  'scope': {'schemaVersion': 1, 'coreId': 'a' * 32, 'homeId': 'b' * 32},
+  'accountRevision': 7,
+  'hosts': <Object>[],
+};
 
 final class _CapabilitiesPort implements GameStreamCapabilityPort {
   _CapabilitiesPort({this.pending});
@@ -79,6 +191,7 @@ Future<AppInteractionController> _mount(
   required String language,
   required double width,
   AppInteractionController? interaction,
+  List<Override> overrides = const [],
   bool settle = true,
 }) async {
   tester.view.physicalSize = Size(width, 1000);
@@ -88,6 +201,7 @@ Future<AppInteractionController> _mount(
   if (interaction == null) addTearDown(controller.dispose);
   await tester.pumpWidget(
     ProviderScope(
+      overrides: overrides,
       child: AppInteractionScope(
         controller: controller,
         child: CupertinoApp(
@@ -111,6 +225,60 @@ Future<AppInteractionController> _mount(
     await tester.pump();
   }
   return controller;
+}
+
+Future<AdminFixture> _screenAccount() async {
+  final fixture = AdminFixture(role: ServerRole.member);
+  await fixture.account.initialize();
+  expect(fixture.account.session?.context?.coreId, 'a' * 32);
+  return fixture;
+}
+
+GameStreamClientFactory _screenClientFactory({
+  required AdminFixture account,
+  required _MemoryRecoveryBackend recovery,
+  required List<LarenorServerApi> transports,
+  bool unknownSession = false,
+  void Function()? created,
+}) {
+  return ({
+    required core,
+    required native,
+    required authority,
+    required isCurrent,
+    required isCoverageCurrent,
+  }) {
+    created?.call();
+    final transport = LarenorServerApi(
+      endpoint: account.account.session!.endpoint,
+      client: MockClient((request) async {
+        if (request.method == 'GET' && request.url.path.endsWith('/hosts')) {
+          return _screenJson(_screenHosts());
+        }
+        if (unknownSession &&
+            request.method == 'GET' &&
+            request.url.path.endsWith('/sessions/$_screenSessionId')) {
+          return _screenJson(_screenCoreSession());
+        }
+        fail(
+          'unexpected screen Core request ${request.method} ${request.url.path}',
+        );
+      }),
+    );
+    transports.add(transport);
+    return GameStreamClientController(
+      core: CoreGameStreamApi(
+        transport,
+        account.account.session!,
+        isCurrent: isCurrent,
+      ),
+      native: native,
+      authority: authority,
+      isCurrent: isCurrent,
+      isCoverageCurrent: isCoverageCurrent,
+      recoveryStore: GameStreamRecoveryStore(backend: recovery),
+    );
+  };
 }
 
 void main() {
@@ -477,4 +645,215 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'cold recovered unknown session exposes local close without selected app',
+    (tester) async {
+      final account = await _screenAccount();
+      addTearDown(account.account.dispose);
+      final backend = _MemoryRecoveryBackend();
+      await GameStreamRecoveryStore(backend: backend).writeAny(
+        GameStreamStopCleanupRecovery(
+          scope: GameStreamRecoveryScope(
+            coreId: 'a' * 32,
+            homeId: 'b' * 32,
+            accountId: adminId,
+            familyId: sessionFamilyId,
+          ),
+          accountRevision: 7,
+          sessionId: _screenSessionId,
+          sessionRevision: 1,
+          commandId: '5' * 32,
+          retireRequestKey: 'retire-cold-recovery',
+          nativeRetired: true,
+        ),
+      );
+      final transports = <LarenorServerApi>[];
+      addTearDown(() {
+        for (final transport in transports) {
+          transport.close();
+        }
+      });
+
+      await _mount(
+        tester,
+        language: 'en',
+        width: 600,
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(account.account),
+        ],
+        child: GameStreamSettingsScreen(
+          port: _EmbeddedCapabilitiesPort(),
+          gateCurrent: () => true,
+          coverageGateCurrent: () => true,
+          gateAuthority: () => const GameStreamGateAuthority(
+            pinRevision: 1,
+            pinConfigured: true,
+            pinUnlocked: true,
+          ),
+          clientFactory: _screenClientFactory(
+            account: account,
+            recovery: backend,
+            transports: transports,
+            unknownSession: true,
+          ),
+        ),
+      );
+
+      expect(find.byType(GameStreamSettingsScreen), findsOneWidget);
+      final screenState =
+          tester.state(find.byType(GameStreamSettingsScreen)) as dynamic;
+      expect(
+        (screenState.clientStateForTesting as GameStreamClientSnapshot?)?.phase,
+        GameStreamClientPhase.outcomeUnknown,
+      );
+      expect(
+        (screenState.clientStateForTesting as GameStreamClientSnapshot?)
+            ?.activeSession,
+        isNotNull,
+      );
+      final localClose = find.byKey(
+        const ValueKey('game-stream-close-local-session'),
+      );
+      await tester.scrollUntilVisible(
+        localClose,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(localClose, findsOneWidget);
+      expect(find.byKey(const ValueKey('game-stream-start')), findsNothing);
+      expect(find.byKey(const ValueKey('game-stream-stop')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'refresh waits exact prior controller cleanup and stays disabled meanwhile',
+    (tester) async {
+      final account = await _screenAccount();
+      addTearDown(account.account.dispose);
+      final backend = _MemoryRecoveryBackend()..blockRead = 2;
+      final transports = <LarenorServerApi>[];
+      addTearDown(() {
+        for (final transport in transports) {
+          transport.close();
+        }
+      });
+      final port = _EmbeddedCapabilitiesPort();
+      var created = 0;
+
+      await _mount(
+        tester,
+        language: 'en',
+        width: 600,
+        overrides: [
+          serverAccountControllerProvider.overrideWithValue(account.account),
+        ],
+        child: GameStreamSettingsScreen(
+          port: port,
+          gateCurrent: () => true,
+          coverageGateCurrent: () => true,
+          gateAuthority: () => const GameStreamGateAuthority(
+            pinRevision: 1,
+            pinConfigured: true,
+            pinUnlocked: true,
+          ),
+          clientFactory: _screenClientFactory(
+            account: account,
+            recovery: backend,
+            transports: transports,
+            created: () => created += 1,
+          ),
+        ),
+      );
+      expect(created, 1);
+      expect(port.calls, 1);
+
+      final refresh = find.byKey(const ValueKey('game-stream-refresh'));
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await tester.pump();
+      expect(backend.blocked, isNotNull);
+      expect(created, 1);
+      expect(port.calls, 2);
+      expect(
+        tester
+            .getSemantics(refresh)
+            .getSemanticsData()
+            .hasAction(ui.SemanticsAction.tap),
+        isFalse,
+      );
+
+      await tester.tap(refresh, warnIfMissed: false);
+      await tester.pump();
+      expect(created, 1);
+      expect(port.calls, 2);
+
+      backend.blocked!.complete();
+      await tester.pumpAndSettle();
+      expect(created, 2);
+      expect(port.calls, 2);
+    },
+  );
+
+  for (final language in ['en', 'tr']) {
+    testWidgets(
+      'unknown stream offers only exact local session close $language',
+      (tester) async {
+        var stopCalls = 0;
+        var localCloseCalls = 0;
+        await _mount(
+          tester,
+          language: language,
+          width: 600,
+          child: GameStreamSessionLifecycleAction(
+            phase: GameStreamClientPhase.outcomeUnknown,
+            hasActiveSession: true,
+            enabled: true,
+            onStop: () => stopCalls += 1,
+            onCloseLocalSession: () => localCloseCalls += 1,
+          ),
+        );
+
+        expect(
+          find.byKey(const ValueKey('game-stream-close-local-session')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('game-stream-stop')), findsNothing);
+        expect(
+          find.textContaining(
+            language == 'tr' ? 'yerel oturumu' : 'local session',
+          ),
+          findsWidgets,
+        );
+
+        await tester.tap(
+          find.byKey(const ValueKey('game-stream-close-local-session')),
+        );
+        await tester.pump();
+        expect(localCloseCalls, 1);
+        expect(stopCalls, 0);
+      },
+    );
+  }
+
+  testWidgets('unknown non-session outcome does not offer local close', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      language: 'en',
+      width: 600,
+      child: GameStreamSessionLifecycleAction(
+        phase: GameStreamClientPhase.outcomeUnknown,
+        hasActiveSession: false,
+        enabled: false,
+        onStop: () {},
+        onCloseLocalSession: () {},
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('game-stream-close-local-session')),
+      findsNothing,
+    );
+  });
 }

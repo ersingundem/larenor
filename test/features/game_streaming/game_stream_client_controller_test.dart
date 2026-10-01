@@ -980,6 +980,7 @@ void main() {
       final retiredEpochs = <int>[];
       var failNativeRetire = false;
       var failCoreRetire = false;
+      var wrongCoreRetireId = false;
       var scopeChanged = false;
       var coreSessionRetired = false;
       var coreRetireCalls = 0;
@@ -1117,7 +1118,9 @@ void main() {
               return _response({'error': 'server_unavailable'}, 503);
             }
             coreSessionRetired = true;
-            return _response(_coreSession(state: 'retired', revision: 2));
+            final retired = _coreSession(state: 'retired', revision: 2);
+            if (wrongCoreRetireId) retired['id'] = '6' * 32;
+            return _response(retired);
           }
           fail('unexpected Core request ${request.method} $path');
         }),
@@ -1284,14 +1287,47 @@ void main() {
       expect(recoveryBackend.value, contains('"nativeRetired":true'));
       final stopsBeforeRecovery = nativeStopDispatches;
       final nativeRetiresBeforeRecovery = retiredEpochs.length;
-      uncertainCleanup.dispose();
+
+      final coreRetiresBeforeLocalClose = coreRetireCalls;
+      await uncertainCleanup.closeLocalSession();
+      expect(
+        uncertainCleanup.state.phase,
+        GameStreamClientPhase.outcomeUnknown,
+      );
+      expect(uncertainCleanup.state.errorCode, 'local_session_cleanup_unknown');
+      expect(uncertainCleanup.state.activeSession, isNotNull);
+      expect(recoveryBackend.value, isNotNull);
+      expect(nativeStopDispatches, stopsBeforeRecovery);
+      expect(retiredEpochs, hasLength(nativeRetiresBeforeRecovery));
+      expect(coreRetireCalls, coreRetiresBeforeLocalClose + 1);
 
       failCoreRetire = false;
+      wrongCoreRetireId = true;
+      await uncertainCleanup.closeLocalSession();
+      expect(
+        uncertainCleanup.state.phase,
+        GameStreamClientPhase.outcomeUnknown,
+      );
+      expect(uncertainCleanup.state.errorCode, 'local_session_cleanup_unknown');
+      expect(uncertainCleanup.state.activeSession?.id, '7' * 32);
+      expect(recoveryBackend.value, isNotNull);
+      expect(nativeStopDispatches, stopsBeforeRecovery);
+      expect(retiredEpochs, hasLength(nativeRetiresBeforeRecovery));
+
+      wrongCoreRetireId = false;
+      await uncertainCleanup.closeLocalSession();
+      expect(uncertainCleanup.state.phase, GameStreamClientPhase.idle);
+      expect(uncertainCleanup.state.activeSession, isNull);
+      expect(recoveryBackend.value, isNull);
+      expect(nativeStopDispatches, stopsBeforeRecovery);
+      expect(retiredEpochs, hasLength(nativeRetiresBeforeRecovery));
+      uncertainCleanup.dispose();
+
       final recoveredCleanup = buildController();
       addTearDown(recoveredCleanup.dispose);
       await recoveredCleanup.initialize();
       expect(recoveredCleanup.state.phase, GameStreamClientPhase.idle);
-      expect(recoveredCleanup.state.lastCommand?.state, 'native_observed');
+      expect(recoveredCleanup.state.lastCommand, isNull);
       expect(recoveryBackend.value, isNull);
       expect(nativeStopDispatches, stopsBeforeRecovery);
       expect(retiredEpochs, hasLength(nativeRetiresBeforeRecovery));
