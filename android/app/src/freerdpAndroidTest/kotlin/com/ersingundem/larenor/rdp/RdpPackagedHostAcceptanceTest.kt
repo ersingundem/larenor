@@ -67,7 +67,7 @@ class RdpPackagedHostAcceptanceTest {
             val capabilities = RdpNativeCapabilities.parse(runtime.capabilities())
             assertTrue(capabilities.canConnect)
             assertTrue(capabilities.nla)
-            assertTrue(!capabilities.ime)
+            assertTrue(capabilities.ime)
             assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
             assertTrue(!capabilities.audio && !capabilities.files)
 
@@ -113,6 +113,10 @@ class RdpPackagedHostAcceptanceTest {
             try {
                 diagnostic.enter("firstSecurityWait")
                 assertTrue("native security callback", security.await(10, TimeUnit.SECONDS))
+                assertTrue(
+                    "first lifetime negotiated Unicode text input",
+                    session.unicodeInputSupported,
+                )
                 assertTrue(
                     "session entered the active frame lifecycle",
                     session.phase == RdpJniPhase.ACTIVE ||
@@ -221,6 +225,10 @@ class RdpPackagedHostAcceptanceTest {
                 assertTrue(
                     "disabled lifetime native security callback",
                     disabledSecurity.await(10, TimeUnit.SECONDS),
+                )
+                assertTrue(
+                    "disabled lifetime negotiated Unicode text input",
+                    disabled.unicodeInputSupported,
                 )
                 diagnostic.enter("secondFrameWait")
                 val frame = awaitFrame(disabled, disabledFrames, 1024, 768, 30)

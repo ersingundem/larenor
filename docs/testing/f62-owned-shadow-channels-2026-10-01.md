@@ -138,3 +138,42 @@ clipboard response, causally applies the observed DISP layout and obtains a
 new frame, and validates the second context's zero-transfer clipboard policy.
 No real text, layout, credentials, frame bytes or provider logs may enter the
 public receipt.
+
+## Failure-only shadow process observation
+
+When Android instrumentation fails, the runner now samples the owned shadow
+process with `poll()` before cleanup. The failure receipt may contain one
+closed `ownedShadowProcess` map whose state is limited to `live`, `exited`,
+`signalled`, `timedOut`, or `unknown`. An exit code is present only as a
+bounded integer for `exited` or `signalled`; a negative code proves only that
+the process ended by a signal, not who sent it or why. `timedOut` means the
+enclosing owned baseline deadline expired before a terminal process
+observation.
+
+This observation reads no provider log, exception message, credential, pixel,
+clipboard value, or process output. It stays bound to the receipt's exact
+source revision, package receipt and pinned shadow source/patch identity. A
+live process does not prove correct provider behavior, and an exited process
+does not identify why it exited. Missing or out-of-range data remains
+`unknown`. The original named JUnit result remains primary; this field cannot
+upgrade failure to acceptance.
+
+Root independently passed all 69 runner/workflow checks and pinned Ruff.
+The updated actual required-native AndroidTest compilation passed 277 tasks;
+independent review confirmed neutral signal classification and unchanged
+strict success criteria. These are local source checks, not owned-host effects.
+
+## Unicode capability and session negotiation
+
+The packaged engine now advertises Unicode IME support because the production
+bridge can use the pinned FreeRDP Unicode input API. The owned Android test
+also requires each of its two authenticated sessions to report negotiated
+Unicode input support immediately after its security callback. This separates
+an engine-level capability from a current peer/session result and fails closed
+when either lifetime does not negotiate the feature.
+
+These assertions do not send Unicode text and do not prove remote operating
+system text insertion, Turkish layout effects, or shortcut handling. Those
+effects require the separately planned source-locked owned-host witness; the
+current one-test receipt continues to prove only its existing frame, key,
+resize, clipboard, close, and credential-clear boundaries.

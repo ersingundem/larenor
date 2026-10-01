@@ -203,7 +203,7 @@ _TEST_BODY_MARKER = re.compile(
     + r")$"
 )
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "a8f38129c28931722263b6158e8328aabace4f158ffdf90933ea32ddbdd65c46"
+    "6a1a13eb938e8c28efbff0f3b40edc2bec3a91661206fcfbd52b8c0a113ead05"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -303,6 +303,36 @@ class BaselineFailure(AcceptanceFailure):
         super().__init__(message)
         self.code = code
         self.server_resize_requested: bool | None = None
+
+
+def _owned_shadow_process_status(
+    process: subprocess.Popen[bytes] | None,
+    *,
+    timed_out: bool = False,
+) -> dict[str, object]:
+    """Return one closed, non-payload process observation.
+
+    This deliberately does not inspect stdout/stderr or infer why the process
+    stopped. Negative return codes prove only signal termination; the sender
+    and cause remain unknown. Missing and out-of-range observations stay
+    unknown.
+    """
+    if process is None:
+        return {"state": "unknown", "exitCode": None}
+    try:
+        status = process.poll()
+    except (OSError, RuntimeError):
+        return {"state": "unknown", "exitCode": None}
+    if status is None:
+        return {
+            "state": "timedOut" if timed_out else "live",
+            "exitCode": None,
+        }
+    if type(status) is not int or not -255 <= status <= 255:
+        return {"state": "unknown", "exitCode": None}
+    if status < 0:
+        return {"state": "signalled", "exitCode": status}
+    return {"state": "exited", "exitCode": status}
 
 
 class Xi2KeyWitness:
@@ -665,10 +695,12 @@ def failure_receipt(
     owned_body_failure = diagnostic.get("ownedBodyFailure")
     has_marker_availability = "ownedMarkerAvailability" in diagnostic
     marker_availability = diagnostic.get("ownedMarkerAvailability")
+    has_shadow_process = "ownedShadowProcess" in diagnostic
+    shadow_process = diagnostic.get("ownedShadowProcess")
     diagnostic_shape = set(diagnostic) - {
         "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
         "initialFrameTerminal", "testBodyFailure", "ownedBodyFailure",
-        "ownedMarkerAvailability",
+        "ownedMarkerAvailability", "ownedShadowProcess",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
@@ -692,6 +724,22 @@ def failure_receipt(
                 or marker_availability["writer"] not in {"observed", "unknown"}
                 or (marker_availability["writer"] == "observed")
                 != (marker_availability["record"] == "observed")):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    if has_shadow_process:
+        if (not _classification_source_matches()
+                or type(shadow_process) is not dict
+                or set(shadow_process) != {"state", "exitCode"}):
+            raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+        shadow_state = shadow_process["state"]
+        shadow_code = shadow_process["exitCode"]
+        if (shadow_state not in {
+                "live", "exited", "timedOut", "signalled", "unknown",
+        } or (shadow_state == "exited" and (
+                type(shadow_code) is not int or not 0 <= shadow_code <= 255
+        )) or (shadow_state == "signalled" and (
+                type(shadow_code) is not int or not -255 <= shadow_code < 0
+        )) or (shadow_state in {"live", "timedOut", "unknown"}
+               and shadow_code is not None)):
             raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
     exception_type = diagnostic.get("exceptionType")
@@ -955,6 +1003,7 @@ def _publish_failed_run(
     server_resize_requested: bool | None = None,
     test_lifecycle_stage: str | None = None,
     owned_marker_evidence: _OwnedMarkerEvidence | None = None,
+    owned_shadow_process: dict[str, object] | None = None,
 ) -> None:
     diagnostic = (failure_diagnostic() if code is None
                   else _static_diagnostic(code))
@@ -962,6 +1011,8 @@ def _publish_failed_run(
         diagnostic = _apply_owned_marker_evidence(
             diagnostic, owned_marker_evidence,
         )
+    if owned_shadow_process is not None:
+        diagnostic["ownedShadowProcess"] = owned_shadow_process
     exception_type = diagnostic.get("exceptionType")
     terminal = _INITIAL_FRAME_TERMINAL_EXCEPTIONS.get(exception_type)
     if terminal is not None:
@@ -1969,7 +2020,7 @@ def _run_owned_shadow_baseline(
     timeout: float = 1200,
 ) -> tuple[
     int, dict[str, object] | None, bool | None, str | None,
-    _OwnedMarkerEvidence,
+    _OwnedMarkerEvidence, dict[str, object] | None,
 ]:
     """Run two authenticated lifetimes against one owned patched shadow host."""
     _test_lifecycle_filename(diagnostic_nonce)
@@ -2065,6 +2116,7 @@ def _run_owned_shadow_baseline(
                             _server_resize_requested(shadow_log_path),
                             final_stage,
                             final_evidence,
+                            _owned_shadow_process_status(shadow),
                         )
                     if (
                         key_witness.complete
@@ -2082,6 +2134,7 @@ def _run_owned_shadow_baseline(
                         return (
                             0, evidence, None, None,
                             final_evidence,
+                            None,
                         )
                     if gradle_finished_at is None:
                         gradle_finished_at = time.monotonic()
@@ -2163,6 +2216,7 @@ def _run_owned_shadow_baseline(
                     clip_marked = True
         except BaselineFailure as error:
             pending_error = error
+            error.owned_shadow_process = _owned_shadow_process_status(shadow)
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -2178,6 +2232,9 @@ def _run_owned_shadow_baseline(
             raise
         except subprocess.TimeoutExpired as error:
             pending_error = error
+            error.owned_shadow_process = _owned_shadow_process_status(
+                shadow, timed_out=True,
+            )
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -2193,6 +2250,7 @@ def _run_owned_shadow_baseline(
             raise
         except OSError as error:
             pending_error = error
+            error.owned_shadow_process = _owned_shadow_process_status(shadow)
             raise
         finally:
             selector.close()
@@ -2245,6 +2303,7 @@ def main() -> int:
                 server_resize_requested,
                 test_lifecycle_stage,
                 owned_marker_evidence,
+                owned_shadow_process,
             ) = _run_owned_shadow_baseline(
                 [
                     *gradle, "--no-daemon",
@@ -2270,6 +2329,7 @@ def main() -> int:
             server_resize_requested=error.server_resize_requested,
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
             owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
+            owned_shadow_process=getattr(error, "owned_shadow_process", None),
         )
         raise AcceptanceFailure(str(error)) from None
     except subprocess.TimeoutExpired as error:
@@ -2283,6 +2343,7 @@ def main() -> int:
             ),
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
             owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
+            owned_shadow_process=getattr(error, "owned_shadow_process", None),
         )
         raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
     except (AndroidAcceptanceGradleError, OSError) as error:
@@ -2291,6 +2352,7 @@ def main() -> int:
             code="instrumentation_launch_unavailable",
             test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
             owned_marker_evidence=getattr(error, "owned_marker_evidence", None),
+            owned_shadow_process=getattr(error, "owned_shadow_process", None),
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None
@@ -2301,6 +2363,7 @@ def main() -> int:
             server_resize_requested=server_resize_requested,
             test_lifecycle_stage=test_lifecycle_stage,
             owned_marker_evidence=owned_marker_evidence,
+            owned_shadow_process=owned_shadow_process,
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation failed; public diagnostics written")

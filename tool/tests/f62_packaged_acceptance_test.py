@@ -257,7 +257,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                         ["owned-gradle"], runner_temp=Path(temporary),
                         diagnostic_nonce="d" * 64,
                     ),
-                    (0, evidence, None, None, marker_evidence),
+                    (0, evidence, None, None, marker_evidence, None),
                 )
         resize.assert_called_once_with()
         marker.assert_called_once_with()
@@ -424,6 +424,91 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 runner.failure_receipt(
                     {}, revision="a" * 40, package_digest="b" * 64,
                     diagnostic=diagnostic,
+                )
+
+    def test_failure_receipt_accepts_only_bounded_owned_shadow_status(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "java.lang.AssertionError",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+        }
+        accepted = (
+            {"state": "live", "exitCode": None},
+            {"state": "exited", "exitCode": 0},
+            {"state": "exited", "exitCode": 255},
+            {"state": "signalled", "exitCode": -15},
+            {"state": "timedOut", "exitCode": None},
+            {"state": "unknown", "exitCode": None},
+        )
+        for status in accepted:
+            with self.subTest(status=status):
+                receipt = runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic={**base, "ownedShadowProcess": status},
+                )
+                self.assertEqual(receipt["diagnostic"]["ownedShadowProcess"], status)
+        rejected = (
+            {"state": "live", "exitCode": 0},
+            {"state": "exited", "exitCode": -1},
+            {"state": "exited", "exitCode": 256},
+            {"state": "signalled", "exitCode": 0},
+            {"state": "signalled", "exitCode": -256},
+            {"state": "cancelled", "exitCode": -15},
+            {"state": "private", "exitCode": None},
+            {"state": "unknown", "exitCode": "private"},
+            {"state": "live"},
+        )
+        for status in rejected:
+            with self.subTest(status=status):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.failure_receipt(
+                        {}, revision="a" * 40, package_digest="b" * 64,
+                        diagnostic={**base, "ownedShadowProcess": status},
+                    )
+        with mock.patch.object(
+            runner, "_classification_source_matches", return_value=False,
+        ):
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic={
+                        **base,
+                        "ownedShadowProcess": {
+                            "state": "live", "exitCode": None,
+                        },
+                    },
+                )
+
+    def test_owned_shadow_process_status_is_closed_and_never_uses_output(self):
+        class Process:
+            def __init__(self, result):
+                self.result = result
+
+            def poll(self):
+                if isinstance(self.result, BaseException):
+                    raise self.result
+                return self.result
+
+        cases = (
+            (Process(None), False, {"state": "live", "exitCode": None}),
+            (Process(0), False, {"state": "exited", "exitCode": 0}),
+            (Process(125), False, {"state": "exited", "exitCode": 125}),
+            (Process(-15), False, {"state": "signalled", "exitCode": -15}),
+            (Process(-11), True, {"state": "signalled", "exitCode": -11}),
+            (Process(999), False, {"state": "unknown", "exitCode": None}),
+            (Process(OSError("private")), False, {"state": "unknown", "exitCode": None}),
+            (Process(None), True, {"state": "timedOut", "exitCode": None}),
+            (Process(17), True, {"state": "exited", "exitCode": 17}),
+            (None, False, {"state": "unknown", "exitCode": None}),
+        )
+        for process, timed_out, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    runner._owned_shadow_process_status(
+                        process, timed_out=timed_out,
+                    ),
+                    expected,
                 )
 
     def test_failure_receipt_accepts_only_fixed_private_test_lifecycle_stage(self):
@@ -876,6 +961,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                                 "throwableClass": "java.lang.IllegalStateException",
                             },
                         ),
+                        {"state": "live", "exitCode": None},
                     ),
                 )
         cleanup.assert_not_called()
@@ -967,11 +1053,15 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(runner.os, "fsync"),
                 mock.patch.object(runner.os, "close"),
             ):
-                with self.assertRaises(runner.BaselineFailure):
+                with self.assertRaises(runner.BaselineFailure) as caught:
                     runner._run_owned_shadow_baseline(
                         ["owned-gradle"], runner_temp=Path(temporary),
                         diagnostic_nonce="d" * 64, timeout=5,
                     )
+        self.assertEqual(
+            caught.exception.owned_shadow_process,
+            {"state": "live", "exitCode": None},
+        )
         self.assertLess(order.index("gradleStopped"), order.index("observerStopped"))
         self.assertNotIn("markerFinalized", order)
 
@@ -2335,6 +2425,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                         "available", "observed", "observed",
                         stage="initialFrameWait",
                     ),
+                    {"state": "exited", "exitCode": 23},
                 )
             environment = {
                 "RUNNER_TEMP": str(root),
@@ -2379,6 +2470,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertIn("RdpPackagedHostAcceptanceTest.kt", payload)
             self.assertIn('"serverResizeRequested":true', payload)
             self.assertIn('"testLifecycleStage":"initialFrameWait"', payload)
+            self.assertIn(
+                '"ownedShadowProcess":{"exitCode":23,"state":"exited"}',
+                payload,
+            )
             self.assertNotIn("d" * 64, payload)
             self.assertNotIn("disposable-password", payload)
 
