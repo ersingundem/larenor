@@ -1,14 +1,13 @@
 # Larenor — güncel ilerleme ve iş kuyruğu
 
-**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 56 seçili özellik / toplam 65 iş CI bekliyor. F22/F35 yeni yerel regresyon hataları için incelemede; F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
+**Son durum: 1 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 67 iş CI bekliyor. F22/F35 disk ve CPU toparlandıktan sonra dar kabulü geçti; F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 37/127 iş (%29,1) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
-| **CI bekliyor** | **56 seçili özellik / toplam 65 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden inceleniyor** | **F22, F35** | Tam Server regresyonunda continuous execution/access-expiry ve gerçek PDF/OCR hataları görüldü; kesin neden ve dar kabul tekrarları çıkarılıyor. Önceki odaklı kanıtlar tek başına yeni hataları kapatmaz |
-| **Yeniden çalışılıyor** | **F60** | Embed-v3 iptal/deadline 40 native test, root165 tool, actual iki-ABI APK 5 verifier ve JVM343/345 geçti. Exact `36269cf0` üzerinde [stream](https://github.com/ersingundem/larenor/actions/runs/36813869676) ve [discovery](https://github.com/ersingundem/larenor/actions/runs/36813871246) çalışıyor; gerçek frame/PCM/input/iki yaşam kabulü henüz yok |
+| **CI bekliyor** | **58 seçili özellik / toplam 67 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
+| **Yeniden çalışılıyor** | **F60** | Exact `36269cf0` discovery iki yaşam/1test/0skip geçti. [Stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36813869676) canonical 1 test/1 failure ile pairingRegistration aşamasında kaldı; PIN bridge listening kesin alt nedeni ayırmıyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact `c8291061` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36811909218) 1 test/1 failure/0 error/0 skip ile başarısız. Owned frame/lifecycle stage yok; kesin neden bilinmiyor. Erken/live tanı düzeltmesi root51 ve AndroidTest compile geçti; exact `70ab1058` [yeni koşu](https://github.com/ersingundem/larenor/actions/runs/36814807367) sürüyor. Strict runtime kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
@@ -27,6 +26,20 @@
 - Normal product APK source/receipt/API bağlı gerçek Moonlight embed-v3+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Güncel actual required-mode debug APK SHA256 `0294d421…`; tüm 5 root verifier ve geniş JVM **343 passed/2 explicit opt-in skip/0 failure/0 error** geçti. Önceki v2 paket ve 338 JVM kaydı tarihsel kanıttır. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
 - Eski fecc Android koşusunda Server nested scope atlandı; defaultall düzeltmesi10/10 ve actionlint geçti. Format hatası iki Dart testinde düzeltildi. MQTT fixture TLS teardown ve legacy qualifiedlabel regresyonları root7passed+1explicit runner-onlyskip/scoped analyze/format geçti. [Flutter düzeltmeleri](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekir; eski fecc Security başarısı bütün CI yerine sayılmaz.
 
+F22/F35 için sessiz hostta exact continuous-execution/access-expiry testi ve iki gerçek PDF/OCR HTTP testi geçti. Kaynak veya süre sınırı değiştirilmedi; işler yeniden **CI bekliyor** tablosunda. Yerel geniş Server koşusu disk dolunca yaklaşık %80’te durduruldu, dolayısıyla geniş kabul kanıtı değildir. Eski hataların tek nedeni kesinleşmedi. [Sınıflandırma ve dar kanıt](testing/server-quiet-regression-classification-2026-10-01.md).
+
+FreeRDP iki-ABI CI paketleme kusuru ayrı kaynak ağaçlarıyla kapatıldı. Root iki gerçek AAR’ın yalnız kendi ABI’sini içerdiğini, ortak classes.jar karmasını ve birleşik product verifier sonucunu doğruladı; 5 workflow/package testi ve actionlint geçti. [Dar paket kanıtı](testing/product-freerdp-abi-isolation-2026-10-01.md). Worker callback/encoder ZIP paketlerinin umask077 altında yanlış modda üretilmesi de dar gerçek paket testleriyle düzeltildi. [İzin kanıtı](testing/host-worker-plugin-artifact-mode-2026-10-01.md). Değişen kaynak için hosted kabul gerekli.
+
+Security `81cd4172` ve `70ab1058` kaynaklarında üç işi de geçti. F62 erken/live tanı düzeltmesi `70ab1058` root51, AndroidTest derlemesi ve bağımsız inceleme geçti; [strict native koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) sürüyor. Tanı ve paket kanıtı gerçek RDP/stream kabulü yerine sayılmaz.
+
+## Tarihsel doğrulama kayıtları
+
+Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
+
+### 1 Ekim önceki koşu gözlemleri
+
+Aşağıdaki sıralı gözlemler tarihsel durumu korur; güncel sınıflandırma üstteki tablodur.
+
 F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kaynakta kanıtlanan swallow/dispatch yolu kapatıldı. [Kaynak ve tanı kabulü](testing/f60-pin-delivery-pairing-stage-2026-10-01.md).
 
 F60 exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) **başarısız tamamlandı**: embed-v2 original1test/1failure/0error/0skip, pairingRegistration90s timeout; PIN bridge `listening` parse öncesi sınırdır, reverse/EOF alt nedenini kanıtlamaz. Gerçek stream receipt yok. Bu eski motor koşusu yeni embed-v3 düzeltmesinin kabulü değildir.
@@ -42,10 +55,6 @@ Security failure kaynağı doğrulandı: 15 tam geçmiş fingerprint için yanl�
 F62 erken başlangıç ve Gradle kapanmadan enum toplama düzeltmesi root51 runner/workflow/dependency testinden ve actual required-native AndroidTest Kotlin derlemesinden geçti. Bağımsız incelemede bulunan in-flight okuma/kapanış yarışı RED→GREEN ile kapandı; orijinal strict RDP kabul kapıları korunur. Yeni kaynaklı hosted kabul gerekli. Geniş exact362 Android CI’ında FreeRDP iki-ABI paket adımı yeni failure verdi; dar inceleme sürüyor. Security düzeltmesi `81cd4172` pushlandı, [yeni koşu](https://github.com/ersingundem/larenor/actions/runs/36814632423) sürüyor. Bunlar tamamlanma sayaçlarını artırmaz.
 
 Yeni kaynak `81cd4172` [Security koşusu](https://github.com/ersingundem/larenor/actions/runs/36814632423) secret/dependency/platform-policy üç işini de geçti. F22/F35 yeni yerel hataları nedeniyle CI bekleyen tablodan incelemeye geri alındı: **65 iş / 56 seçili özellik CI bekliyor**, tam kabul 37/127 ve 3/63 değişmedi. Aynı kaynak körlemesine yeniden çalıştırılmıyor.
-
-## Tarihsel doğrulama kayıtları
-
-Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
 
 ### 1 Ekim F62 Linux fixture configure sınırı
 

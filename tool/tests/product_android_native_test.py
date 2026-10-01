@@ -220,6 +220,14 @@ class ProductAndroidNativeTest(unittest.TestCase):
             "build-debug-apk:\n    needs: build-product-native-engines",
             workflow,
         )
+        freerdp_build = workflow.split(
+            "      - name: Build and receipt both source-locked FreeRDP ABIs\n", 1
+        )[1].split("      - name: Compose and reverify", 1)[0]
+        self.assertIn("for abi in arm64-v8a x86_64; do", freerdp_build)
+        self.assertIn('source="$RUNNER_TEMP/freerdp-source-$abi"', freerdp_build)
+        self.assertIn('--directory "$source"', freerdp_build)
+        self.assertIn('studio="$source/client/Android/Studio"', freerdp_build)
+        self.assertNotIn('$RUNNER_TEMP/freerdp-source/client/Android/Studio', freerdp_build)
         gradle = (
             Path(__file__).resolve().parents[2] / "android/app/build.gradle.kts"
         ).read_text()

@@ -111,25 +111,25 @@ jobs:
             --output "$archive" \
             https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz
           python3 tool/freerdp_android_package.py verify-source "$archive"
-          mkdir "$RUNNER_TEMP/freerdp-source"
-          tar --extract --gzip --file "$archive" \
-            --directory "$RUNNER_TEMP/freerdp-source" \
-            --strip-components=1 --no-same-owner
-          cd "$RUNNER_TEMP/freerdp-source"
-          git apply --check "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
-          git apply "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
-          git apply --check "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
-          git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
-          python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" verify-patch \
-            client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
-          cat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'
+          mkdir -p "$RUNNER_TEMP/product-native-inputs/freerdp"
+          for abi in arm64-v8a x86_64; do
+            source="$RUNNER_TEMP/freerdp-source-$abi"
+            mkdir "$source"
+            tar --extract --gzip --file "$archive" \
+              --directory "$source" \
+              --strip-components=1 --no-same-owner
+            cd "$source"
+            git apply --check "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
+            git apply "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"
+            git apply --check "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
+            git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
+            python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" verify-patch \
+              client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+            cat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
           EOF
-          studio="$RUNNER_TEMP/freerdp-source/client/Android/Studio"
-          mkdir -p "$RUNNER_TEMP/product-native-inputs/freerdp"
-          for abi in arm64-v8a x86_64; do
-            rm -rf "$studio/freeRDPCore/.cxx" "$studio/.cxx"
+            studio="$source/client/Android/Studio"
             cat > "$studio/release.properties" <<EOF
           COMPILE_API=37
           TARGET_API=37

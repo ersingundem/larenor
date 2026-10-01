@@ -238,9 +238,13 @@ def test_installer_plugin_artifact_check_uses_real_package_and_fixed_phase(
     tmp_path, kind,
 ):
     callback = tmp_path / (kind + ".zip")
-    assert plugin_package.main([
-        "--kind", kind, "--output", str(callback),
-    ]) == 0
+    previous_umask = os.umask(0o077)
+    try:
+        assert plugin_package.main([
+            "--kind", kind, "--output", str(callback),
+        ]) == 0
+    finally:
+        os.umask(previous_umask)
     assert callback.stat().st_mode & 0o777 == 0o644
     installer._validate_plugin_artifact(
         callback, phase=kind + "_artifact", owner=callback.stat().st_uid,
@@ -251,6 +255,20 @@ def test_installer_plugin_artifact_check_uses_real_package_and_fixed_phase(
             callback, phase=kind + "_artifact", owner=callback.stat().st_uid,
         )
     assert captured.value.safe_message == "release_invalid:" + kind + "_artifact"
+
+
+def test_plugin_artifact_packager_rejects_symlink_without_touching_target(
+    tmp_path,
+):
+    target = tmp_path / "existing.zip"
+    target.write_bytes(b"existing-private-artifact")
+    alias = tmp_path / "callback.zip"
+    alias.symlink_to(target)
+
+    assert plugin_package.main([
+        "--kind", "callback", "--output", str(alias),
+    ]) == 2
+    assert target.read_bytes() == b"existing-private-artifact"
 
 
 def test_installer_release_root_check_has_one_safe_fixed_phase(tmp_path):

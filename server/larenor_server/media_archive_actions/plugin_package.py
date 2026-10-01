@@ -86,11 +86,20 @@ def main(argv=None):
         if args.output.is_symlink():
             raise ValueError()
         package = callback_plugin_package() if args.kind == "callback" else encoder_plugin_package()
-        descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+        descriptor = os.open(
+            args.output,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+        )
         with os.fdopen(descriptor, "wb") as stream:
             descriptor = None
             stream.write(package)
             stream.flush()
+            os.fsync(stream.fileno())
+            # The installer requires a shareable exact 0644 artifact.  Apply
+            # that mode only after the complete private write, independent of
+            # the caller's process umask.
+            os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
         print("archive_" + args.kind + "_package_sha256=" + hashlib.sha256(package).hexdigest())
         return 0
