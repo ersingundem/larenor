@@ -95,6 +95,27 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def test_actual_ddmlib_aggregate_keeps_stream_identity_and_zero_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._report(root)
+            path = root / "TEST-owned.xml"
+            child = path.read_text()
+            wrapper = '<testsuites tests="1" failures="0" errors="0" skipped="0">'
+            path.write_text(wrapper + child + '</testsuites>')
+            self.assertEqual(1, stream.verify_report(root)["tests"])
+            for body in (
+                child.replace('tests="1"', 'tests="2"'),
+                child.replace('skipped="0"', 'skipped="1"'),
+                child + child,
+                child.replace(stream.TEST_NAME, "unrelatedTest"),
+                child.replace('</testcase>', '<failure/></testcase>'),
+            ):
+                with self.subTest(body=body):
+                    path.write_text(wrapper + body + '</testsuites>')
+                    with self.assertRaises(stream.StreamAcceptanceFailure):
+                        stream.verify_report(root)
+
     def test_pin_message_is_canonical_nonce_bound_and_secret_free_on_failure(self) -> None:
         nonce = "a" * 64
         body = (

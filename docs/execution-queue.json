@@ -5259,9 +5259,9 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36801358423",
           "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source actual owned Sunshine production NSD discovery; exact SHA verified, no receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Full real app/test APK400tasks and instrumentation Gradle returned success, but public receipt rejected unsupported ddmlib testsuites aggregate; named exact1/0skip receipt remains unproven"
         },
         {
           "kind": "ci",
@@ -5281,7 +5281,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki, kalıcı eşleme/katalog ve tablet-only retirement yolu odaklı kabulü geçti; Sunshine eşlemesi kalır ve bu UI açıklar. Exact768a5111/run36791861104 gerçek host_ready receiptini üretti, streamAccepted=false. Canonical source-locked400-task app/test APK build/verifier ve33 native/0skip geçti; APK prebuild artık provider öncesinde yapılır. Named owned gate iki gerçek frame/full-PCM yaşamı, Game touch/mouse→XI2, OSC→UHID/evdev BTN_SOUTH etkisi, causal graceful stop, exact Sunshine daemon shutdown→connectionTerminated, zero redispatch ve exact local-clear ister; henüz yeşil hosted receipt yok. Exactd69cb0bd/stream36801361054 generic UHID preflight; exact10cfb138/run36802066869 gamepadKernelModuleUnavailable olarak modül yüklemesine kadar daraltıldı. Yeni CI hazırlığı yalnız çalışan Azure kernel releaseine bağlı exact-candidate extra-modules paketini gerektiğinde kurup package/version+vermagic readback ister; gerçek cihaz/etkili ACL/input kapıları korunur. Root29 workflow/gamepad testi ve actionlint geçti; değişen kaynak hosted sonucu açık. Geniş exact HEAD CI ve fiziksel controller/gecikme MANUAL ayrı; F60 CI bekliyor/done yapılmaz. Receipt featureAccepted=false/providerPairingRemoved=false kalır."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yetki, kalıcı eşleme/katalog ve tablet-only retirement yolu odaklı kabulü geçti; Sunshine eşlemesi kalır ve bu UI açıklar. Exact768a5111/run36791861104 gerçek host_ready receiptini üretti, streamAccepted=false. Canonical source-locked400-task app/test APK build/verifier ve33 native/0skip geçti; APK prebuild artık provider öncesinde yapılır. Named owned gate iki gerçek frame/full-PCM yaşamı, Game touch/mouse→XI2, OSC→UHID/evdev BTN_SOUTH etkisi, causal graceful stop, exact Sunshine daemon shutdown→connectionTerminated, zero redispatch ve exact local-clear ister; henüz yeşil hosted receipt yok. Exactd69cb0bd/stream36801361054 generic UHID preflight; exact10cfb138/run36802066869 gamepadKernelModuleUnavailable olarak modül yüklemesine kadar daraltıldı. Yeni CI hazırlığı yalnız çalışan Azure kernel releaseine bağlı exact-candidate extra-modules paketini gerektiğinde kurup package/version+vermagic readback ister; gerçek cihaz/etkili ACL/input kapıları korunur. Root29 workflow/gamepad testi ve actionlint geçti; değişen kaynak hosted sonucu açık. Geniş exact HEAD CI ve fiziksel controller/gecikme MANUAL ayrı; F60 CI bekliyor/done yapılmaz. Receipt featureAccepted=false/providerPairingRemoved=false kalır. Exactd69cb0bd/discovery36801358423 gerçek400-task APK buildi ve instrumentation Gradle başarıyla döndü, fakat ddmlib testsuites wrapperı kabul parserınca reddedildi; exact named1test/0skip receipt kurulmadı. Shared discovery/stream parser, outer+child count ve exact identity çitlerini koruyarak gerçek wrapperı destekler;107 yerel test geçti, yeni hosted sonuç açık."
     },
     {
       "id": "G11",

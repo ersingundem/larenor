@@ -36,6 +36,7 @@ from tool.f60_sunshine_android_discovery import (
     emulator_version,
     package_identity,
     prebuild_android_test as prebuild_owned_android_test,
+    single_success_suite,
 )
 from tool.f60_owned_gamepad import OwnedGamepadAccess
 from tool.f60_sunshine_owned_host import (
@@ -978,11 +979,10 @@ def verify_report(root: Path = REPORTS) -> dict[str, int | str]:
         suite = ET.parse(report).getroot()
     except (OSError, ET.ParseError) as error:
         raise StreamAcceptanceFailure("Android stream report is malformed") from error
-    if suite.tag != "testsuite" or any(
-        suite.attrib.get(key) != value
-        for key, value in {"tests": "1", "failures": "0", "errors": "0", "skipped": "0"}.items()
-    ) or len(list(suite.iter("testsuite"))) != 1:
-        raise StreamAcceptanceFailure("Android stream report aggregate is invalid")
+    try:
+        suite = single_success_suite(suite)
+    except DiscoveryAcceptanceFailure:
+        raise StreamAcceptanceFailure("Android stream report aggregate is invalid") from None
     cases = list(suite.iter("testcase"))
     if len(cases) != 1:
         raise StreamAcceptanceFailure("Android stream report is missing or ambiguous")

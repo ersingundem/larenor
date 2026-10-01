@@ -136,6 +136,23 @@ def emulator_version() -> str:
     return parse_emulator_version(result.stdout + result.stderr)
 
 
+def single_success_suite(root: ET.Element) -> ET.Element:
+    """Accept ddmlib's one-suite wrapper without dropping any count proof."""
+    expected = {"tests": "1", "failures": "0", "errors": "0", "skipped": "0"}
+    if any(root.attrib.get(key) != value for key, value in expected.items()):
+        raise DiscoveryAcceptanceFailure("Android acceptance report aggregate is invalid")
+    suite = root
+    if root.tag == "testsuites":
+        children = list(root)
+        if len(children) != 1 or children[0].tag != "testsuite":
+            raise DiscoveryAcceptanceFailure("Android acceptance report aggregate is invalid")
+        suite = children[0]
+    if (suite.tag != "testsuite" or len(list(root.iter("testsuite"))) != 1
+            or any(suite.attrib.get(key) != value for key, value in expected.items())):
+        raise DiscoveryAcceptanceFailure("Android acceptance report aggregate is invalid")
+    return suite
+
+
 def verify_report(root: Path = REPORTS) -> dict[str, int | str]:
     try:
         root_info = root.lstat()
@@ -157,15 +174,7 @@ def verify_report(root: Path = REPORTS) -> dict[str, int | str]:
         suite = ET.parse(report).getroot()
     except (OSError, ET.ParseError) as error:
         raise DiscoveryAcceptanceFailure("Android discovery report is malformed") from error
-    if suite.tag != "testsuite" or any(
-        suite.attrib.get(key) != value
-        for key, value in {
-            "tests": "1", "failures": "0", "errors": "0", "skipped": "0",
-        }.items()
-    ):
-        raise DiscoveryAcceptanceFailure("Android discovery report aggregate is invalid")
-    if len(list(suite.iter("testsuite"))) != 1:
-        raise DiscoveryAcceptanceFailure("Android discovery report is ambiguous")
+    suite = single_success_suite(suite)
     cases = list(suite.iter("testcase"))
     if len(cases) != 1:
         raise DiscoveryAcceptanceFailure("Android discovery report is missing or ambiguous")

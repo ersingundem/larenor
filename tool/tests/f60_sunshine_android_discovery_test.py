@@ -139,6 +139,27 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             self._report(root)
             self.assertEqual(1, verify_report(root)["tests"])
 
+    def test_actual_ddmlib_aggregate_preserves_exact_single_test_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._report(root)
+            report = root / "TEST-owned.xml"
+            child = report.read_text()
+            wrapper = '<testsuites tests="1" failures="0" errors="0" skipped="0">'
+            report.write_text(wrapper + child + '</testsuites>')
+            self.assertEqual(1, verify_report(root)["tests"])
+            for outer, body in (
+                (wrapper.replace('tests="1"', 'tests="2"'), child),
+                (wrapper, child.replace('skipped="0"', 'skipped="1"')),
+                (wrapper, child + child),
+                (wrapper, child + '<testcase classname="other" name="other"/>'),
+                (wrapper, child.replace('</testcase>', '<error/></testcase>')),
+            ):
+                with self.subTest(outer=outer, body=body):
+                    report.write_text(outer + body + '</testsuites>')
+                    with self.assertRaises(DiscoveryAcceptanceFailure):
+                        verify_report(root)
+
     def test_rejects_skip_failure_and_duplicate(self) -> None:
         for body in ('<skipped message="opt-in absent"/>', '<failure message="missing"/>'):
             with self.subTest(body=body), tempfile.TemporaryDirectory() as temporary:
