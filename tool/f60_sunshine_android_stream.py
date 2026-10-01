@@ -41,7 +41,6 @@ from tool.f60_sunshine_android_discovery import (
 from tool.f60_owned_gamepad import OwnedGamepadAccess
 from tool.f60_sunshine_owned_host import (
     DISPLAY,
-    OWNED_MDNS_NAME,
     HostFailure,
     OwnedSunshineHost,
     ProcessPlan,
@@ -117,6 +116,16 @@ _OWNED_FRAME = re.compile(
 _THROWABLE_HEADER = re.compile(
     r"(java\.(?:lang|util\.concurrent)\.[A-Za-z0-9_.$]+)(?::|$)"
 )
+_STREAM_COMMAND_MARKER = re.compile(
+    r"java\.lang\.AssertionError: F60_STREAM_COMMAND_V1\|"
+    r"state=(native_observed|unknown|invalid)\|"
+    r"result=(streaming|unknown|invalid)\|"
+    r"kind=(connectionStarted|unknown|invalid)\|"
+    r"leaseClaim=(transferPending|gameVisible|uncertain|retired|absentOrUnreadable)\|"
+    r"outcome=(strictFailure)\|"
+    r"classification=(leaseTransferPending|leaseGameVisible|leaseUncertain|"
+    r"leaseRetired|leaseAbsentOrUnreadable)"
+)
 _OWNED_SOURCE_FILES = frozenset({
     "LarenorMoonlightGame.kt",
     "MoonlightAuthority.kt",
@@ -134,20 +143,20 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "4e0034961544dd96de401fee2a7d50dcc370ac07dcdc1b96f992eacd689f9100"
+_STAGE_SOURCE_SHA256 = "bda887056886c53c147651a35473cf1120284009367481131dd41469490327ea"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
     (104, 128, "pairingRegistration"),
     (129, 155, "catalog"),
     (156, 216, "capabilityAndSession"),
-    (217, 230, "firstStreamOutput"),
-    (231, 239, "ownedInputEffects"),
-    (240, 246, "deliberateStop"),
-    (247, 268, "secondStreamOutput"),
-    (269, 290, "remoteDisconnect"),
-    (291, 320, "localRetirement"),
-    (321, 333, "cleanup"),
+    (217, 228, "firstStreamOutput"),
+    (229, 237, "ownedInputEffects"),
+    (238, 244, "deliberateStop"),
+    (245, 266, "secondStreamOutput"),
+    (267, 288, "remoteDisconnect"),
+    (289, 318, "localRetirement"),
+    (319, 331, "cleanup"),
 )
 
 
@@ -1351,6 +1360,27 @@ def _failure_details(
     }
     if stage is not None:
         diagnostic["acceptanceStage"] = stage
+    markers = [match for line in lines if (match := _STREAM_COMMAND_MARKER.fullmatch(line.strip()))]
+    if stage == "firstStreamOutput" and exception_type == "java.lang.AssertionError" and len(markers) == 1:
+        marker = markers[0]
+        lease_claim = marker.group(4)
+        classification = marker.group(6)
+        expected_classification = {
+            "transferPending": "leaseTransferPending",
+            "gameVisible": "leaseGameVisible",
+            "uncertain": "leaseUncertain",
+            "retired": "leaseRetired",
+            "absentOrUnreadable": "leaseAbsentOrUnreadable",
+        }[lease_claim]
+        if classification == expected_classification:
+            diagnostic["streamCommand"] = {
+                "state": marker.group(1),
+                "result": marker.group(2),
+                "observationKind": marker.group(3),
+                "leaseClaim": lease_claim,
+                "outcome": marker.group(5),
+                "classification": classification,
+            }
     return diagnostic
 
 
@@ -1479,7 +1509,7 @@ def failure_diagnostic(root: Optional[Path] = None) -> dict[str, object]:
 def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
-        "acceptanceStage", "pinBridgeStage",
+        "acceptanceStage", "pinBridgeStage", "streamCommand",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1556,6 +1586,32 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
         or stage not in frame_stages
     ):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    command = diagnostic.get("streamCommand")
+    if command is not None:
+        expected_keys = {
+            "state", "result", "observationKind", "leaseClaim", "outcome", "classification",
+        }
+        classifications = {
+            "transferPending": "leaseTransferPending",
+            "gameVisible": "leaseGameVisible",
+            "uncertain": "leaseUncertain",
+            "retired": "leaseRetired",
+            "absentOrUnreadable": "leaseAbsentOrUnreadable",
+        }
+        if (
+            not exact
+            or stage != "firstStreamOutput"
+            or exception_type != "java.lang.AssertionError"
+            or type(command) is not dict
+            or set(command) != expected_keys
+            or command["state"] not in {"native_observed", "unknown", "invalid"}
+            or command["result"] not in {"streaming", "unknown", "invalid"}
+            or command["observationKind"] not in {"connectionStarted", "unknown", "invalid"}
+            or command["leaseClaim"] not in classifications
+            or command["outcome"] != "strictFailure"
+            or command["classification"] != classifications.get(command["leaseClaim"])
+        ):
+            raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
 
 
 def write_failure_receipt(

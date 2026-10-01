@@ -88,7 +88,7 @@ class MoonlightOwnedSunshineStreamTest {
             )
             try {
                 oscFixture.enable()
-                value.bindAuthority(authority)
+                val nativeBinding = value.bindAuthority(authority)
                 val endpoints = discoverEndpoints(currentActivity)
                 assertEquals(1, endpoints.size)
                 assertEquals(expectedInstance, endpoints.single().name)
@@ -220,9 +220,7 @@ class MoonlightOwnedSunshineStreamTest {
                 assertEquals("currentGameMatched", launched.observationKind)
 
                 val streaming = command(value, authority, session, "stream", "stream")
-                assertEquals("native_observed", streaming.state)
-                assertEquals("streaming", streaming.result)
-                assertEquals("connectionStarted", streaming.observationKind)
+                assertStreamCommandObserved(value, authority, nativeBinding, session, streaming)
 
                 val witness = awaitWitness(value, authority, session)
                 assertEquals(1, witness.renderedFrameCount)
@@ -353,6 +351,59 @@ class MoonlightOwnedSunshineStreamTest {
             intent = intent,
             dispatchGrant = id("$suffix-grant"),
             callback = callback,
+        )
+    }
+
+    /**
+     * Preserve the strict stream result while exposing only process-private,
+     * fixed-enum state if the provider callback was collapsed to unknown.
+     * No launch token, provider identity, endpoint, or native payload enters
+     * the assertion consumed by the owned-host diagnostic parser.
+     */
+    private fun assertStreamCommandObserved(
+        runtime: MoonlightEmbeddedRuntime,
+        authority: MoonlightAuthority,
+        nativeBinding: Pair<String, Long>,
+        session: MoonlightBoundSession,
+        receipt: MoonlightCommandReceipt,
+    ) {
+        if (receipt.state == "native_observed" && receipt.result == "streaming" &&
+            receipt.observationKind == "connectionStarted"
+        ) return
+        val active = runCatching {
+            runtime.foregroundLease(
+                authority,
+                nativeBinding.first,
+                nativeBinding.second,
+                session.sessionId,
+                session.sessionRevision,
+            ).second
+        }.getOrNull()
+        val terminal = if (active == null) runCatching {
+            runtime.terminalWitness(authority, session.sessionId, session.sessionRevision)
+        }.getOrNull() else null
+        val leaseClaim = when (active?.state ?: terminal?.state) {
+            MoonlightLeaseState.TRANSFER_PENDING -> "transferPending"
+            MoonlightLeaseState.GAME_VISIBLE -> "gameVisible"
+            MoonlightLeaseState.UNCERTAIN -> "uncertain"
+            MoonlightLeaseState.RETIRED -> "retired"
+            else -> "absentOrUnreadable"
+        }
+        val classification = when (leaseClaim) {
+            "transferPending" -> "leaseTransferPending"
+            "gameVisible" -> "leaseGameVisible"
+            "uncertain" -> "leaseUncertain"
+            "retired" -> "leaseRetired"
+            else -> "leaseAbsentOrUnreadable"
+        }
+        val state = receipt.state.takeIf { it in setOf("native_observed", "unknown") } ?: "invalid"
+        val result = receipt.result.takeIf { it in setOf("streaming", "unknown") } ?: "invalid"
+        val kind = receipt.observationKind.takeIf {
+            it in setOf("connectionStarted", "unknown")
+        } ?: "invalid"
+        throw AssertionError(
+            "F60_STREAM_COMMAND_V1|state=$state|result=$result|kind=$kind|" +
+                "leaseClaim=$leaseClaim|outcome=strictFailure|classification=$classification",
         )
     }
 

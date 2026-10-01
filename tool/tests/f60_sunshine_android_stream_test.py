@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import os
@@ -11,7 +10,6 @@ import stat
 import subprocess
 import sys
 import tempfile
-import threading
 import unittest
 from unittest import mock
 import wave
@@ -1039,6 +1037,93 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         serialized = json.dumps(diagnostic)
         self.assertNotIn(private, serialized)
         self.assertNotIn("/home/runner", serialized)
+
+    def test_stream_command_failure_exposes_only_source_bound_fixed_enums(self) -> None:
+        marker = (
+            "F60_STREAM_COMMAND_V1|state=unknown|result=unknown|kind=unknown|"
+            "leaseClaim=gameVisible|outcome=strictFailure|classification=leaseGameVisible"
+        )
+        body = (
+            "java.lang.AssertionError: " + marker + "\n"
+            " at com.ersingundem.larenor.game.moonlight."
+            "MoonlightOwnedSunshineStreamTest."
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=body)
+            diagnostic = stream.failure_diagnostic(root)
+
+        self.assertEqual("firstStreamOutput", diagnostic["acceptanceStage"])
+        self.assertEqual({
+            "state": "unknown",
+            "result": "unknown",
+            "observationKind": "unknown",
+            "leaseClaim": "gameVisible",
+            "outcome": "strictFailure",
+            "classification": "leaseGameVisible",
+        }, diagnostic["streamCommand"])
+        stream._validate_failure_diagnostic(diagnostic)
+
+    def test_stream_command_marker_rejects_private_extra_wrong_identity_and_stale_source(self) -> None:
+        marker = (
+            "F60_STREAM_COMMAND_V1|state=unknown|result=unknown|kind=unknown|"
+            "leaseClaim=uncertain|outcome=strictFailure|classification=leaseUncertain"
+        )
+        def body(value: str) -> str:
+            return (
+                "java.lang.AssertionError: " + value + "\n"
+                " at com.ersingundem.larenor.game.moonlight."
+                "MoonlightOwnedSunshineStreamTest."
+                f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)\n"
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=body(marker + "|private=secret"))
+            self.assertNotIn("streamCommand", stream.failure_diagnostic(root))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(
+                root,
+                body=body(marker),
+                class_name="synthetic.InitializationError",
+                test_name="initializationError",
+            )
+            self.assertNotIn("streamCommand", stream.failure_diagnostic(root))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            changed = root / "changed.kt"
+            changed.write_bytes(b"\n" + stream._STAGE_SOURCE.read_bytes())
+            self._failed_report(root, body=body(marker))
+            with mock.patch.object(stream, "_STAGE_SOURCE", changed):
+                self.assertNotIn("streamCommand", stream.failure_diagnostic(root))
+
+    def test_stream_command_diagnostic_requires_exact_classification_and_non_skipped_failure(self) -> None:
+        diagnostic = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "java.lang.AssertionError",
+            "frames": [{"file": "MoonlightOwnedSunshineStreamTest.kt", "line": 223}],
+            "counts": {"tests": 1, "failures": 1, "errors": 0, "skipped": 0},
+            "namedTest": {"className": stream.TEST_CLASS, "testName": stream.TEST_NAME},
+            "acceptanceStage": "firstStreamOutput",
+            "streamCommand": {
+                "state": "unknown",
+                "result": "unknown",
+                "observationKind": "unknown",
+                "leaseClaim": "gameVisible",
+                "outcome": "strictFailure",
+                "classification": "leaseUncertain",
+            },
+        }
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(diagnostic)
+        diagnostic["streamCommand"]["classification"] = "leaseGameVisible"
+        diagnostic["counts"] = {"tests": 1, "failures": 0, "errors": 0, "skipped": 1}
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(diagnostic)
 
     def test_wrong_or_premethod_identity_never_claims_named_test_or_stage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
