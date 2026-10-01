@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | **CI bekliyor** | **58 seçili özellik / toplam 67 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN/admin alt aşaması bu receiptte kanıtlanmadı; bounded teslim ve sabit bridge-stage düzeltmesi root33/33+15subtest/Kotlin compile geçti, değişmiş kaynaklı gerçek stream kabulü gerekli. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
-| **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
+| **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Güvenli last-entered stage tanısı root34/34 ve actual AndroidTest compile geçti; yeni hosted kabul gerekli. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
 
@@ -30,6 +30,8 @@ F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kay
 F60 changed-source exact36cbe3a1 / [run36811116354](https://github.com/ersingundem/larenor/actions/runs/36811116354) gerçek hosted stream kapısında sürüyor; runhead remoteSHA ile doğrulandı. Henüz kabul sonucu yok.
 
 [Wellbeing manifest düzeltmesi](testing/wellbeing-product-manifest-regression-2026-10-01.md) root geniş JVM ile doğrulandı. F60 üretim iptal yolunda no-read-timeout ağ çağrısının single-executorı bloke etmesi kaynakta doğrulandı; gerçek active-call cancel/deadline ve owned-stall kabulü üzerinde çalışılıyor.
+
+[F62 yaşam döngüsü tanısı](testing/f62-owned-lifecycle-diagnostics-2026-10-01.md) root34/34 ve actual required-package AndroidTest derlemesiyle doğrulandı. Bu yalnız sonraki değişmiş kaynaklı koşunun hata sınırını belirler; gerçek RDP kabulü henüz açık.
 
 ## Tarihsel doğrulama kayıtları
 

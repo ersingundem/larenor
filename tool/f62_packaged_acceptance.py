@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import selectors
 import signal
 import socket
@@ -87,6 +88,33 @@ _OUTPUT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _MAX_REPORT_BYTES = 1024 * 1024
 _MAX_FRAMES = 8
+_TEST_PACKAGE = "com.ersingundem.larenor"
+_TEST_LIFECYCLE_STAGES = (
+    "testInitialization",
+    "connectionValidation",
+    "runtimeValidation",
+    "providerInspection",
+    "firstSessionOpen",
+    "firstSecurityWait",
+    "initialFrameWait",
+    "keySubmission",
+    "resizeSubmission",
+    "resizedFrameWait",
+    "clipboardSubmission",
+    "clipboardEffectWait",
+    "firstClose",
+    "firstClosedValidation",
+    "secondSessionOpen",
+    "secondSecurityWait",
+    "secondFrameWait",
+    "disabledClipboardCheck",
+    "secondClose",
+    "credentialValidation",
+    "complete",
+)
+_TEST_LIFECYCLE_STAGE_SET = frozenset(_TEST_LIFECYCLE_STAGES)
+_DIAGNOSTIC_NONCE = re.compile(r"[0-9a-f]{64}")
+_ADB_SERIAL = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 _PROBE_OUTCOMES = frozenset({
     "timeout",
     "connectionFailureBeforeCertificate",
@@ -525,13 +553,20 @@ def failure_receipt(
         raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
     has_resize_requested = "serverResizeRequested" in diagnostic
     resize_requested = diagnostic.get("serverResizeRequested")
-    diagnostic_shape = set(diagnostic) - {"serverResizeRequested"}
-    if (has_resize_requested and type(resize_requested) is not bool) or diagnostic_shape not in ({"code", "exceptionType", "frames"}, {
+    has_test_lifecycle_stage = "testLifecycleStage" in diagnostic
+    test_lifecycle_stage = diagnostic.get("testLifecycleStage")
+    diagnostic_shape = set(diagnostic) - {
+        "serverResizeRequested", "testLifecycleStage",
+    }
+    if ((has_resize_requested and type(resize_requested) is not bool)
+            or (has_test_lifecycle_stage
+                and test_lifecycle_stage not in _TEST_LIFECYCLE_STAGE_SET)
+            or diagnostic_shape not in ({"code", "exceptionType", "frames"}, {
             "code", "exceptionType", "frames", "counts"}, {
             "code", "exceptionType", "frames", "counts", "identity"}, {
             "code", "exceptionType", "frames", "counts", "probeOutcome"}, {
             "code", "exceptionType", "frames", "counts", "acceptanceStage"}, {
-            "code", "exceptionType", "frames", "reportShape", "childSuiteCount"}):
+            "code", "exceptionType", "frames", "reportShape", "childSuiteCount"})):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     code = diagnostic.get("code")
     exception_type = diagnostic.get("exceptionType")
@@ -736,12 +771,104 @@ def _publish_failed_run(
     *,
     code: str | None = None,
     server_resize_requested: bool | None = None,
+    test_lifecycle_stage: str | None = None,
 ) -> None:
     diagnostic = (failure_diagnostic() if code is None
                   else _static_diagnostic(code))
     if server_resize_requested is not None:
         diagnostic["serverResizeRequested"] = server_resize_requested
+    if test_lifecycle_stage is not None:
+        diagnostic["testLifecycleStage"] = test_lifecycle_stage
     publish_public_failure(diagnostic, runner_temp, package_versions)
+
+
+def _adb_path() -> Path | None:
+    root_value = os.environ.get("ANDROID_SDK_ROOT") or os.environ.get("ANDROID_HOME")
+    if not root_value:
+        return None
+    root = Path(root_value)
+    adb = root / "platform-tools/adb"
+    try:
+        root_metadata = root.lstat()
+        adb_metadata = adb.lstat()
+        resolved_root = root.resolve(strict=True)
+        resolved_adb = adb.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if (not stat.S_ISDIR(root_metadata.st_mode)
+            or not stat.S_ISREG(adb_metadata.st_mode)
+            or resolved_adb.parent != resolved_root / "platform-tools"
+            or not os.access(resolved_adb, os.X_OK)):
+        return None
+    return resolved_adb
+
+
+def _test_lifecycle_filename(nonce: str) -> str:
+    if _DIAGNOSTIC_NONCE.fullmatch(nonce) is None:
+        raise ValueError("invalid packaged RDP diagnostic nonce")
+    return f"files/f62-owned-stage-{nonce}"
+
+
+def _test_lifecycle_adb_prefix(adb: Path) -> list[str] | None:
+    serial = os.environ.get("ANDROID_SERIAL")
+    if serial is None:
+        return [str(adb)]
+    if _ADB_SERIAL.fullmatch(serial) is None:
+        return None
+    return [str(adb), "-s", serial]
+
+
+def _read_test_lifecycle_stage(nonce: str) -> str | None:
+    """Read one private fixed stage; never retain or publish Android output."""
+    try:
+        filename = _test_lifecycle_filename(nonce)
+    except ValueError:
+        return None
+    adb = _adb_path()
+    if adb is None:
+        return None
+    prefix = _test_lifecycle_adb_prefix(adb)
+    if prefix is None:
+        return None
+    result: subprocess.CompletedProcess[bytes] | None = None
+    try:
+        result = subprocess.run(
+            [
+                *prefix, "exec-out", "run-as", _TEST_PACKAGE,
+                "dd", f"if={filename}", "bs=128", "count=1",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    finally:
+        try:
+            subprocess.run(
+                [
+                    *prefix, "shell", "run-as", _TEST_PACKAGE,
+                    "rm", "-f", filename, f"{filename}.new", f"{filename}.bak",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    if result is None:
+        return None
+    if result.returncode != 0 or len(result.stdout) > 128:
+        return None
+    try:
+        stage = result.stdout.decode("ascii").strip()
+    except UnicodeDecodeError:
+        return None
+    return stage if stage in _TEST_LIFECYCLE_STAGE_SET else None
 
 
 def _stop_owned_process(process: subprocess.Popen[bytes]) -> None:
@@ -1269,9 +1396,11 @@ def _run_owned_shadow_baseline(
     command: list[str],
     *,
     runner_temp: Path,
+    diagnostic_nonce: str,
     timeout: float = 1200,
-) -> tuple[int, dict[str, object] | None, bool | None]:
+) -> tuple[int, dict[str, object] | None, bool | None, str | None]:
     """Run two authenticated lifetimes against one owned patched shadow host."""
+    _test_lifecycle_filename(diagnostic_nonce)
     environment = {**os.environ, "DISPLAY": _DISPLAY}
     xinput: subprocess.Popen[bytes] | None = None
     gradle: subprocess.Popen[bytes] | None = None
@@ -1350,6 +1479,7 @@ def _run_owned_shadow_baseline(
                             gradle_status,
                             None,
                             _server_resize_requested(shadow_log_path),
+                            _read_test_lifecycle_stage(diagnostic_nonce),
                         )
                     if (
                         key_witness.complete
@@ -1360,7 +1490,7 @@ def _run_owned_shadow_baseline(
                     ):
                         evidence = _channel_evidence(witness_base)
                         evidence["shadowBinarySha256"] = shadow_binary_digest
-                        return 0, evidence, None
+                        return 0, evidence, None, None
                     if gradle_finished_at is None:
                         gradle_finished_at = time.monotonic()
                     elif time.monotonic() - gradle_finished_at >= 5:
@@ -1490,6 +1620,7 @@ def main() -> int:
     for report in REPORTS.rglob("TEST-*.xml"):
         report.unlink()
     runner_temp = Path(os.environ["RUNNER_TEMP"])
+    diagnostic_nonce = secrets.token_hex(32)
     try:
         with tempfile.TemporaryDirectory(
             prefix="larenor-f62-gradle-", dir=runner_temp
@@ -1502,6 +1633,7 @@ def main() -> int:
                 returncode,
                 channel_evidence,
                 server_resize_requested,
+                test_lifecycle_stage,
             ) = _run_owned_shadow_baseline(
                 [
                     *gradle, "--no-daemon",
@@ -1512,8 +1644,11 @@ def main() -> int:
                     "-Pandroid.testInstrumentationRunnerArguments.rdpUsername=larenor",
                     "-Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR",
                     f"-Pandroid.testInstrumentationRunnerArguments.rdpPassword={password}",
+                    "-Pandroid.testInstrumentationRunnerArguments."
+                    f"rdpDiagnosticNonce={diagnostic_nonce}",
                 ],
                 runner_temp=runner_temp,
+                diagnostic_nonce=diagnostic_nonce,
                 timeout=1200,
             )
     except BaselineFailure as error:
@@ -1522,6 +1657,7 @@ def main() -> int:
             package_versions,
             code=error.code,
             server_resize_requested=error.server_resize_requested,
+            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
         )
         raise AcceptanceFailure(str(error)) from None
     except subprocess.TimeoutExpired as error:
@@ -1533,12 +1669,14 @@ def main() -> int:
             server_resize_requested=getattr(
                 error, "server_resize_requested", None,
             ),
+            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
         )
         raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
     except (AndroidAcceptanceGradleError, OSError):
         _publish_failed_run(
             runner_temp, package_versions,
             code="instrumentation_launch_unavailable",
+            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None
@@ -1547,6 +1685,7 @@ def main() -> int:
             runner_temp,
             package_versions,
             server_resize_requested=server_resize_requested,
+            test_lifecycle_stage=test_lifecycle_stage,
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation failed; public diagnostics written")

@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -239,8 +240,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 self.assertEqual(
                     runner._run_owned_shadow_baseline(
                         ["owned-gradle"], runner_temp=Path(temporary),
+                        diagnostic_nonce="d" * 64,
                     ),
-                    (0, evidence, None),
+                    (0, evidence, None, None),
                 )
         resize.assert_called_once_with()
         marker.assert_called_once_with()
@@ -292,6 +294,14 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                         runner._channel_evidence(base)
 
     def test_owned_shadow_process_uses_exact_binary_sam_pipe_and_two_witness_base(self):
+        def portable_owned_pipe2(flags):
+            self.assertEqual(flags, os.O_CLOEXEC | os.O_NONBLOCK)
+            read_fd, write_fd = os.pipe()
+            for descriptor in (read_fd, write_fd):
+                os.set_inheritable(descriptor, False)
+                os.set_blocking(descriptor, False)
+            return read_fd, write_fd
+
         process = SimpleNamespace(
             poll=lambda: None,
             stdout=SimpleNamespace(fileno=lambda: 123),
@@ -325,6 +335,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(runner, "verify_patched_source") as verify_source,
                 mock.patch.object(runner.subprocess, "Popen", return_value=process) as popen,
                 mock.patch.object(runner.os, "set_blocking"),
+                mock.patch.object(
+                    runner.os, "pipe2", side_effect=portable_owned_pipe2, create=True,
+                ) as pipe2,
             ):
                 (
                     returned, read_fd, digest, log_fd, log_path, log_size,
@@ -351,6 +364,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 )
                 ready.assert_called_once_with(process, log_fd)
                 verify_source.assert_called_once_with(source)
+                pipe2.assert_called_once_with(os.O_CLOEXEC | os.O_NONBLOCK)
             finally:
                 os.close(read_fd)
                 os.close(log_fd)
@@ -396,6 +410,102 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     {}, revision="a" * 40, package_digest="b" * 64,
                     diagnostic=diagnostic,
                 )
+
+    def test_failure_receipt_accepts_only_fixed_private_test_lifecycle_stage(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "unclassified",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+        }
+        receipt = runner.failure_receipt(
+            {}, revision="a" * 40, package_digest="b" * 64,
+            diagnostic={**base, "testLifecycleStage": "initialFrameWait"},
+        )
+        self.assertEqual(
+            receipt["diagnostic"]["testLifecycleStage"], "initialFrameWait",
+        )
+        for invalid in ("", "private-host", 1, None):
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic={**base, "testLifecycleStage": invalid},
+                )
+
+    def test_private_test_lifecycle_stage_is_bounded_allowlisted_and_removed(self):
+        nonce = "d" * 64
+        completed = [
+            SimpleNamespace(returncode=0, stdout=b"resizedFrameWait"),
+            SimpleNamespace(returncode=0, stdout=b""),
+        ]
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+            mock.patch.object(runner.subprocess, "run", side_effect=completed) as run,
+        ):
+            self.assertEqual(
+                runner._read_test_lifecycle_stage(nonce), "resizedFrameWait",
+            )
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(
+            run.call_args_list[0].args[0],
+            [
+                "/sdk/adb", "exec-out", "run-as", runner._TEST_PACKAGE,
+                "dd", f"if=files/f62-owned-stage-{nonce}", "bs=128", "count=1",
+            ],
+        )
+        self.assertEqual(
+            run.call_args_list[1].args[0],
+            [
+                "/sdk/adb", "shell", "run-as", runner._TEST_PACKAGE,
+                "rm", "-f", f"files/f62-owned-stage-{nonce}",
+                f"files/f62-owned-stage-{nonce}.new",
+                f"files/f62-owned-stage-{nonce}.bak",
+            ],
+        )
+        for raw in (b"private-host", b"resizedFrameWait\nsecret", b"\xff"):
+            with (
+                mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+                mock.patch.object(
+                    runner.subprocess, "run",
+                    side_effect=[
+                        SimpleNamespace(returncode=0, stdout=raw),
+                        SimpleNamespace(returncode=0, stdout=b""),
+                    ],
+                ),
+            ):
+                self.assertIsNone(runner._read_test_lifecycle_stage(nonce))
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+            mock.patch.object(
+                runner.subprocess, "run",
+                side_effect=[
+                    runner.subprocess.TimeoutExpired(["adb"], 5),
+                    SimpleNamespace(returncode=0, stdout=b""),
+                ],
+            ) as timed_out,
+        ):
+            self.assertIsNone(runner._read_test_lifecycle_stage(nonce))
+        self.assertEqual(timed_out.call_count, 2)
+        self.assertIs(timed_out.call_args_list[0].kwargs["stderr"], runner.subprocess.DEVNULL)
+        self.assertIs(timed_out.call_args_list[1].kwargs["stdout"], runner.subprocess.DEVNULL)
+        self.assertIsNone(runner._read_test_lifecycle_stage("not-a-nonce"))
+
+    def test_android_test_lifecycle_markers_match_the_public_fixed_enum(self):
+        source = (
+            runner.ROOT
+            / "android/app/src/freerdpAndroidTest/kotlin/com/ersingundem/larenor/rdp"
+            / "RdpPackagedHostAcceptanceTest.kt"
+        ).read_text()
+        test_body = source.split(
+            "private fun assertDiagnosticFailuresAreSecondary", 1,
+        )[0]
+        observed = re.findall(r'diagnostic\.enter\("([A-Za-z]+)"\)', test_body)
+        self.assertEqual(observed, list(runner._TEST_LIFECYCLE_STAGES))
+        self.assertIn('Regex("[0-9a-f]{64}")', source)
+        self.assertIn('AtomicFile(File(context.filesDir, "f62-owned-stage-$nonce"))', source)
+        self.assertIn("file.failWrite(stream)", source)
+        self.assertIn("runCatching { storage.write(stage) }", source)
+        self.assertIn("runCatching { storage.remove() }", source)
 
     def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
         completed = [
@@ -1116,7 +1226,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
             def failed_process(*_args, **_kwargs):
                 report.write_text(failure_xml)
-                return 1, None, True
+                return 1, None, True, "initialFrameWait"
             environment = {
                 "RUNNER_TEMP": str(root),
                 "RDP_ACCEPTANCE_PASSWORD": "disposable-password",
@@ -1138,6 +1248,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(
                     runner, "_provenance", return_value=("a" * 40, "b" * 64),
                 ),
+                mock.patch.object(runner.secrets, "token_hex", return_value="d" * 64),
             ):
                 with self.assertRaisesRegex(
                     runner.AcceptanceFailure, "public diagnostics written",
@@ -1147,11 +1258,19 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertIn(":app:connectedDebugAndroidTest", command)
             self.assertEqual(process.call_args.kwargs["timeout"], 1200)
             self.assertEqual(process.call_args.kwargs["runner_temp"], root)
+            self.assertEqual(process.call_args.kwargs["diagnostic_nonce"], "d" * 64)
+            self.assertIn(
+                "-Pandroid.testInstrumentationRunnerArguments."
+                f"rdpDiagnosticNonce={'d' * 64}",
+                command,
+            )
             self.assertFalse(report.exists())
             failure = root / "freerdp-public-acceptance/failure.json"
             payload = failure.read_text()
             self.assertIn("RdpPackagedHostAcceptanceTest.kt", payload)
             self.assertIn('"serverResizeRequested":true', payload)
+            self.assertIn('"testLifecycleStage":"initialFrameWait"', payload)
+            self.assertNotIn("d" * 64, payload)
             self.assertNotIn("disposable-password", payload)
 
 
