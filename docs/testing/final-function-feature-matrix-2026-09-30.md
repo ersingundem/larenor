@@ -176,3 +176,9 @@ source/package/fixture/originalmethod kimliğini doğruladı:1test/1failure/0err
 ownedframe255+98 ilk1280x800framewaiti gösterir. Linuxfixturebuild/arm64APKpassed
 kalır; resizeRequested=false ve iki yaşam/DISP/Clipboard kabulü yok. Alt neden
 kanıtlanmadı; aynı kaynak yeniden başlatılmaz.
+
+F60 diagnostic repair: root independently passed **42/42** focused runner and
+workflow checks plus actionlint. Exact source-hash gating prevents a stale
+line map from claiming an acceptance stage. A changed-source hosted stream
+result is required; F60 remains `reworking`.
+[Bounded diagnostic evidence](f60-owned-stream-failure-diagnostics-2026-10-01.md).

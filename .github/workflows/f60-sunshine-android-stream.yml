@@ -133,6 +133,7 @@ jobs:
           fi
 
       - name: Run real owned Sunshine stream and local retirement lifecycle
+        id: stream_step
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
@@ -159,6 +160,41 @@ jobs:
         with:
           name: f60-sunshine-android-stream-${{ github.sha }}
           path: ${{ runner.temp }}/f60-sunshine-android-stream-receipt.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Detect bounded stream failure diagnostics
+        id: stream_failure_diagnostic
+        if: failure() && steps.stream_step.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          diagnostic="$RUNNER_TEMP/f60-sunshine-android-stream-failure.json"
+          present=false
+          if DIAGNOSTIC="$diagnostic" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import stat
+
+          try:
+              metadata = Path(os.environ["DIAGNOSTIC"]).lstat()
+          except OSError:
+              raise SystemExit(1)
+          if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+              raise SystemExit(1)
+          PY
+          then
+            present=true
+          fi
+          echo "present=$present" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded stream failure diagnostics
+        if: >-
+          failure() && steps.stream_step.outcome == 'failure' &&
+          steps.stream_failure_diagnostic.outputs.present == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: f60-sunshine-android-stream-${{ github.sha }}-failure-diagnostics
+          path: ${{ runner.temp }}/f60-sunshine-android-stream-failure.json
           if-no-files-found: error
           retention-days: 7
 

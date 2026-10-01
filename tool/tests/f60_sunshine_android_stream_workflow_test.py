@@ -27,6 +27,12 @@ _UHID_STEP = WORKFLOW.split(
     "      - name: Require exact hosted UHID capability\n", 1
 )[1].split("\n      - name:", 1)[0]
 UHID_SCRIPT = textwrap.dedent(_UHID_STEP.split("        run: |\n", 1)[1])
+_FAILURE_CHECK_STEP = WORKFLOW.split(
+    "      - name: Detect bounded stream failure diagnostics\n", 1
+)[1].split("\n      - name:", 1)[0]
+FAILURE_CHECK_SCRIPT = textwrap.dedent(
+    _FAILURE_CHECK_STEP.split("        run: |\n", 1)[1]
+)
 UHID_HARNESS = r'''
 uname() { builtin test "$*" = -r || exit 96; echo "$KERNEL_RELEASE"; }
 modinfo() {
@@ -238,6 +244,70 @@ class F60SunshineAndroidStreamWorkflowTest(unittest.TestCase):
             "web-credentials",
         ):
             self.assertNotIn(forbidden, upload)
+
+    def test_failure_artifact_is_exact_stream_failure_only_and_requires_private_file(self) -> None:
+        run_name = "      - name: Run real owned Sunshine stream and local retirement lifecycle\n"
+        run_step = WORKFLOW.split(run_name, 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("        id: stream_step", run_step)
+        check = WORKFLOW.split(
+            "      - name: Detect bounded stream failure diagnostics\n", 1
+        )[1].split("\n      - name:", 1)[0]
+        upload = WORKFLOW.split(
+            "      - name: Upload bounded stream failure diagnostics\n", 1
+        )[1].split("\n      - name:", 1)[0]
+        condition = "failure() && steps.stream_step.outcome == 'failure'"
+        self.assertIn(condition, check)
+        self.assertIn(condition, upload)
+        self.assertIn(
+            "steps.stream_failure_diagnostic.outputs.present == 'true'", upload,
+        )
+        self.assertIn(
+            "${{ runner.temp }}/f60-sunshine-android-stream-failure.json", upload,
+        )
+        self.assertIn("if-no-files-found: error", upload)
+        for forbidden in (
+            "androidTest-results", "TEST-", "sunshine.log", "certificate",
+            "password", "nonce", "pixels",
+        ):
+            self.assertNotIn(forbidden, upload)
+
+    def test_failure_presence_guard_rejects_missing_symlink_or_nonprivate_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "output"
+            environment = dict(
+                os.environ,
+                RUNNER_TEMP=str(root),
+                GITHUB_OUTPUT=str(output),
+            )
+
+            def run() -> str:
+                output.unlink(missing_ok=True)
+                completed = subprocess.run(
+                    ["bash", "-e", "-o", "pipefail", "-c", FAILURE_CHECK_SCRIPT],
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(0, completed.returncode, completed.stderr)
+                return output.read_text(encoding="utf-8")
+
+            self.assertEqual("present=false\n", run())
+            diagnostic = root / "f60-sunshine-android-stream-failure.json"
+            diagnostic.write_text("{}\n", encoding="utf-8")
+            diagnostic.chmod(0o644)
+            self.assertEqual("present=false\n", run())
+            diagnostic.unlink()
+            target = root / "private.json"
+            target.write_text("{}\n", encoding="utf-8")
+            target.chmod(0o600)
+            diagnostic.symlink_to(target)
+            self.assertEqual("present=false\n", run())
+            diagnostic.unlink()
+            diagnostic.write_text("{}\n", encoding="utf-8")
+            diagnostic.chmod(0o600)
+            self.assertEqual("present=true\n", run())
 
     def test_strict_support_cleanup_precedes_receipt_and_fallback_is_failure_only(self) -> None:
         strict_name = "      - name: Stop owned host support service before receipt\n"

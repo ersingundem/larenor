@@ -18,14 +18,13 @@ kanıtları ilgili `MANUAL.*` kapılarında kalır.
   `a703289d617380c768f5b50761609c0b2913ce24`, run `36804692946`, gerçek connected Android test adımında
   başarısız tamamlandı. Sabit dış neden kesin assertion/aşamasını kanıtlamaz;
   kabul makbuzu yoktur. F60 `reworking` kalır.
-- F62'nin önceki exact `8d` kaynağında Unicode AAR uygulama/test derlemesi ve
-  24 native unit geçti; hosted run `36804331620` ise arm64 paketlemesi başarılı
-  olmasına rağmen x86 fixture configure ve ikincil absent-report upload
-  hatalarıyla **failure** tamamlandı. Güncel exact
-  `1d1ccf2e14e5814800417c32cbe45e8e1fceb24c`, run `36805226494`, x86_64 owned
-  Linux fixture derlemesini geçti; arm64 fixture doğru olarak atlandı. Android APK ve gerçek
-  runtime kabul kapısı açıktır; kabul makbuzu yoktur. Bu sonuç eski exact-`8d`
-  configure hatasının nedenini kanıtlamaz. F62 `reworking` kalır.
+- F62 güncel exact `1d1ccf2e14e5814800417c32cbe45e8e1fceb24c`, run
+  `36805226494`, owned Linux fixture ve arm64 paket derlemesini geçti; gerçek
+  Android testi beklenen ilk 1280x800 frame bekleyişinde başarısız oldu:
+  original 1 test / 1 failure / 0 error / 0 skip. Root kaynak, test, paket ve
+  fixture kimliğini canonical makbuzla doğruladı. Bu sonuç sıfır callback veya
+  kesin hata nedeni iddiası değildir. DISP/Unicode/iki yaşam kabulü açık;
+  F62 `reworking` kalır. Eski configure/resize hataları tarihsel kayıtlardır.
 - Bu named koşular yalnız yazılan exact revision ve işi kanıtlar. Son dal HEAD'i
   için Security run `36805382482` (`e52`) ve run `36805221988` (exact `1d`) geçti;
   geniş Server ve Android kabul kapıları ise tamamlanmamıştır. Bu iki Security
@@ -80,3 +79,8 @@ source/package/fixture/originalmethod kimliğini doğruladı:1test/1failure/0err
 ownedframe255+98 ilk1280x800framewaiti gösterir. Linuxfixturebuild/arm64APKpassed
 kalır; resizeRequested=false ve iki yaşam/DISP/Clipboard kabulü yok. Alt neden
 kanıtlanmadı; aynı kaynak yeniden başlatılmaz.
+
+F60 güvenli hata tanısı root **42/42** runner/workflow kontrolü ve actionlint
+kabulünü geçti. Kaynak hash değiştiğinde satır haritasından aşama çıkarılmaz;
+ham XML veya özel mesaj yayımlanmaz. Yeni hosted stream sonucu gerekir.
+[tanı ve sınırlar](f60-owned-stream-failure-diagnostics-2026-10-01.md).

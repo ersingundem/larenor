@@ -95,6 +95,35 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _failed_report(
+        self,
+        root: Path,
+        *,
+        body: str,
+        kind: str = "failure",
+        exception_type: str | None = None,
+        class_name: str = stream.TEST_CLASS,
+        test_name: str = stream.TEST_NAME,
+        aggregate: bool = False,
+    ) -> Path:
+        counts = (
+            'tests="1" failures="1" errors="0" skipped="0"'
+            if kind == "failure"
+            else 'tests="1" failures="0" errors="1" skipped="0"'
+        )
+        type_attribute = (
+            "" if exception_type is None else f' type="{exception_type}"'
+        )
+        suite = (
+            f"<testsuite {counts}><testcase classname=\"{class_name}\" "
+            f"name=\"{test_name}\"><{kind}{type_attribute}><![CDATA[{body}]]>"
+            f"</{kind}></testcase></testsuite>"
+        )
+        xml = f"<testsuites {counts}>{suite}</testsuites>" if aggregate else suite
+        path = root / "TEST-owned.xml"
+        path.write_text(xml, encoding="utf-8")
+        return path
+
     def test_actual_ddmlib_aggregate_keeps_stream_identity_and_zero_skip(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -623,6 +652,344 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertEqual("manual", receipt["limits"]["controllerRumble"])
             for forbidden in ("pin", "nonce", "address", "certificate", "uuid", "password"):
                 self.assertNotIn(forbidden, raw.lower())
+
+    def test_failed_named_test_exposes_only_fixed_type_owned_frames_and_stage(self) -> None:
+        private = "private-pin-host-certificate-and-pixels"
+        body = (
+            "java.lang.AssertionError: " + private + "\n"
+            " at com.ersingundem.larenor.game.moonlight."
+            "MoonlightOwnedSunshineStreamTest."
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)\n"
+            " at private.host.Client.run(/home/runner/Secret.kt:44)\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=body, aggregate=True)
+            diagnostic = stream.failure_diagnostic(root)
+
+        self.assertEqual("instrumentation_test_failure", diagnostic["code"])
+        self.assertEqual("java.lang.AssertionError", diagnostic["exceptionType"])
+        self.assertEqual("firstStreamOutput", diagnostic["acceptanceStage"])
+        self.assertEqual(
+            [{"file": "MoonlightOwnedSunshineStreamTest.kt", "line": 223}],
+            diagnostic["frames"],
+        )
+        self.assertEqual(
+            {"className": stream.TEST_CLASS, "testName": stream.TEST_NAME},
+            diagnostic["namedTest"],
+        )
+        serialized = json.dumps(diagnostic)
+        self.assertNotIn(private, serialized)
+        self.assertNotIn("/home/runner", serialized)
+
+    def test_wrong_or_premethod_identity_never_claims_named_test_or_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(
+                root,
+                body=(
+                    "java.lang.AssertionError: private\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)"
+                ),
+                class_name="synthetic.InitializationError",
+                test_name="initializationError",
+            )
+            diagnostic = stream.failure_diagnostic(root)
+
+        self.assertEqual("instrumentation_report_identity_mismatch", diagnostic["code"])
+        self.assertEqual([], diagnostic["frames"])
+        self.assertEqual("unclassified", diagnostic["exceptionType"])
+        self.assertNotIn("namedTest", diagnostic)
+        self.assertNotIn("acceptanceStage", diagnostic)
+        self.assertFalse(diagnostic["identity"]["classExpected"])
+        self.assertFalse(diagnostic["identity"]["methodExpected"])
+
+    def test_static_diagnostic_rejects_an_injected_named_test(self) -> None:
+        diagnostic = stream._static_failure("instrumentation_report_missing")
+        diagnostic["namedTest"] = {"className": "private-provider-value"}
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(diagnostic)
+
+    def test_changed_owned_source_never_reuses_stale_line_stage_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "changed-test.kt"
+            source.write_bytes(b"\n" + stream._STAGE_SOURCE.read_bytes())
+            self._failed_report(
+                root,
+                body=(
+                    "java.lang.AssertionError: private\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)"
+                ),
+            )
+            with mock.patch.object(stream, "_STAGE_SOURCE", source):
+                diagnostic = stream.failure_diagnostic(root)
+                self.assertNotIn("acceptanceStage", diagnostic)
+                self.assertEqual("instrumentation_test_failure", diagnostic["code"])
+                self.assertEqual(stream.TEST_NAME, diagnostic["namedTest"]["testName"])
+                stream._validate_failure_diagnostic(diagnostic)
+
+    def test_failure_diagnostic_rejects_missing_ambiguous_malformed_and_injected_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertEqual(
+                "instrumentation_report_missing",
+                stream.failure_diagnostic(root)["code"],
+            )
+            first = self._failed_report(
+                root,
+                body="private.CustomException: secret\n at unowned.Client.run(Secret.kt:7)",
+            )
+            diagnostic = stream.failure_diagnostic(root)
+            self.assertEqual("unclassified", diagnostic["exceptionType"])
+            self.assertEqual([], diagnostic["frames"])
+            nested = root / "nested"
+            nested.mkdir()
+            (nested / first.name).write_bytes(first.read_bytes())
+            self.assertEqual(
+                "instrumentation_report_ambiguous",
+                stream.failure_diagnostic(root)["code"],
+            )
+            (nested / first.name).unlink()
+            first.write_text('<!DOCTYPE x [<!ENTITY private "secret">]><testsuite/>')
+            self.assertEqual(
+                "instrumentation_report_malformed",
+                stream.failure_diagnostic(root)["code"],
+            )
+
+    def test_failure_diagnostic_reads_opened_inode_when_report_path_is_swapped(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = self._failed_report(
+                root,
+                body=(
+                    "java.lang.AssertionError: private\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)"
+                ),
+            )
+            replacement = root / "replacement.xml"
+            replacement.write_bytes(b"private replacement must never be read")
+            real_open = os.open
+            swapped = False
+
+            def open_and_swap(path, flags, mode=0o777):
+                nonlocal swapped
+                descriptor = real_open(path, flags, mode)
+                if Path(path) == report and not swapped:
+                    report.unlink()
+                    report.symlink_to(replacement)
+                    swapped = True
+                return descriptor
+
+            with mock.patch.object(stream.os, "open", side_effect=open_and_swap):
+                diagnostic = stream.failure_diagnostic(root)
+
+            self.assertTrue(swapped)
+            self.assertTrue(report.is_symlink())
+            self.assertEqual("instrumentation_report_malformed", diagnostic["code"])
+            self.assertNotIn("acceptanceStage", diagnostic)
+
+    def test_failure_diagnostic_rejects_report_growth_during_bounded_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = self._failed_report(
+                root,
+                body=(
+                    "java.lang.AssertionError: private\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)"
+                ),
+            )
+            real_read = os.read
+            grew = False
+
+            def read_after_growth(descriptor: int, size: int) -> bytes:
+                nonlocal grew
+                if not grew:
+                    with report.open("ab") as output:
+                        output.write(b"x" * (stream.MAX_REPORT_BYTES + 1))
+                    grew = True
+                return real_read(descriptor, size)
+
+            with mock.patch.object(stream.os, "read", side_effect=read_after_growth):
+                diagnostic = stream.failure_diagnostic(root)
+
+            self.assertTrue(grew)
+            self.assertEqual("instrumentation_report_malformed", diagnostic["code"])
+
+    def test_failure_diagnostic_rejects_symlink_report_without_reading_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "private-target.xml"
+            target.write_bytes(b"private provider material")
+            (root / "TEST-owned.xml").symlink_to(target)
+            with mock.patch.object(
+                stream.os, "read", side_effect=AssertionError("target was read")
+            ):
+                diagnostic = stream.failure_diagnostic(root)
+            self.assertEqual("instrumentation_report_malformed", diagnostic["code"])
+
+    def test_failure_receipt_is_source_package_bound_private_and_removes_raw_xml(self) -> None:
+        package = {
+            "aarSha256": "a" * 64,
+            "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "sourceCommit": "c" * 40,
+            "sourceTree": "d" * 40,
+        }
+        body = (
+            "java.lang.IllegalStateException: private-provider-material\n"
+            " at com.ersingundem.larenor.game.moonlight."
+            "MoonlightOwnedSunshineStreamTest."
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:268)"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reports = root / "reports"
+            reports.mkdir()
+            report = self._failed_report(
+                reports, body=body, kind="error", exception_type="java.lang.IllegalStateException"
+            )
+            with mock.patch.object(stream, "REPORTS", reports), mock.patch.object(
+                stream, "source_revision", return_value="e" * 40,
+            ):
+                stream._publish_failed_test(
+                    root, version="36.5.10.0", moonlight_package=package,
+                )
+            destination = root / stream.FAILURE_RECEIPT_NAME
+            receipt = json.loads(destination.read_text(encoding="utf-8"))
+            self.assertEqual(0o600, stat.S_IMODE(destination.stat().st_mode))
+            self.assertEqual("e" * 40, receipt["sourceRevision"])
+            self.assertEqual(package, receipt["moonlightPackage"])
+            self.assertEqual("failed", receipt["result"])
+            self.assertEqual("remoteDisconnect", receipt["diagnostic"]["acceptanceStage"])
+            self.assertFalse(report.exists())
+            self.assertNotIn("private-provider-material", destination.read_text())
+
+    def test_diagnostic_write_failure_cannot_replace_test_failure_and_raw_xml_is_removed(self) -> None:
+        package = {
+            "aarSha256": "a" * 64,
+            "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "sourceCommit": "c" * 40,
+            "sourceTree": "d" * 40,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reports = root / "reports"
+            reports.mkdir()
+            report = self._failed_report(
+                reports,
+                body=(
+                    "java.lang.AssertionError: private\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:223)"
+                ),
+            )
+            with mock.patch.object(stream, "REPORTS", reports), mock.patch.object(
+                stream,
+                "write_failure_receipt",
+                side_effect=OSError("private write failure"),
+            ):
+                self.assertIsNone(stream._capture_failed_test(
+                    root, version="36.5.10.0", moonlight_package=package,
+                ))
+            self.assertFalse(report.exists())
+            self.assertFalse((root / stream.FAILURE_RECEIPT_NAME).exists())
+
+    def test_failure_receipt_retries_short_writes_and_removes_partial_output_on_error(self) -> None:
+        package = {
+            "aarSha256": "a" * 64,
+            "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "sourceCommit": "c" * 40,
+            "sourceTree": "d" * 40,
+        }
+        diagnostic = stream._static_failure("instrumentation_report_missing")
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            stream, "source_revision", return_value="e" * 40,
+        ):
+            destination = Path(temporary) / stream.FAILURE_RECEIPT_NAME
+            real_write = os.write
+            writes = 0
+
+            def short_write_then_fail(descriptor: int, payload: bytes) -> int:
+                nonlocal writes
+                writes += 1
+                if writes == 1:
+                    return real_write(descriptor, payload[:7])
+                raise OSError("private storage failure")
+
+            with mock.patch.object(
+                stream.os, "write", side_effect=short_write_then_fail
+            ), self.assertRaises(OSError):
+                stream.write_failure_receipt(
+                    destination,
+                    version="36.5.10.0",
+                    moonlight_package=package,
+                    diagnostic=diagnostic,
+                )
+            self.assertEqual(2, writes)
+            self.assertFalse(destination.exists())
+
+            writes = 0
+
+            def short_write_all(descriptor: int, payload: bytes) -> int:
+                nonlocal writes
+                writes += 1
+                return real_write(descriptor, payload[: max(1, len(payload) // 3)])
+
+            with mock.patch.object(stream.os, "write", side_effect=short_write_all):
+                stream.write_failure_receipt(
+                    destination,
+                    version="36.5.10.0",
+                    moonlight_package=package,
+                    diagnostic=diagnostic,
+                )
+            self.assertGreater(writes, 1)
+            self.assertEqual(
+                "instrumentation_report_missing",
+                json.loads(destination.read_text())["diagnostic"]["code"],
+            )
+
+    def test_failure_receipt_cleanup_never_unlinks_replacement_inode(self) -> None:
+        package = {
+            "aarSha256": "a" * 64,
+            "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v2",
+            "sourceCommit": "c" * 40,
+            "sourceTree": "d" * 40,
+        }
+        diagnostic = stream._static_failure("instrumentation_report_missing")
+        replacement = b"replacement owned by a later writer"
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            stream, "source_revision", return_value="e" * 40,
+        ):
+            destination = Path(temporary) / stream.FAILURE_RECEIPT_NAME
+
+            def replace_then_fail(_descriptor: int, _payload: bytes) -> int:
+                destination.unlink()
+                destination.write_bytes(replacement)
+                raise OSError("private storage failure")
+
+            with mock.patch.object(
+                stream.os, "write", side_effect=replace_then_fail
+            ), self.assertRaises(OSError):
+                stream.write_failure_receipt(
+                    destination,
+                    version="36.5.10.0",
+                    moonlight_package=package,
+                    diagnostic=diagnostic,
+                )
+            self.assertEqual(replacement, destination.read_bytes())
 
     def test_stream_scope_never_claims_or_performs_provider_removal(self) -> None:
         source = Path(stream.__file__).read_text(encoding="utf-8")

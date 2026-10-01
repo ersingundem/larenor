@@ -60,6 +60,7 @@ TEST_NAME = (
     "productionNsdPairCatalogTwoStreamLifetimesTouchStopDisconnectAndLocalRetirement"
 )
 RECEIPT_NAME = "f60-sunshine-android-stream-receipt.json"
+FAILURE_RECEIPT_NAME = "f60-sunshine-android-stream-failure.json"
 ANDROID_PIN_PORT = 49_361
 ANDROID_CONTROL_PORT = 49_362
 PIN_MESSAGE_BYTES = 256
@@ -75,6 +76,63 @@ PRIMARY_BUTTON = 1
 XI2_LINE_BYTES = 4096
 XI2_READY_TIMEOUT_SECONDS = 5.0
 XI2_READY_POSITIONS = ((17, 19), (23, 29))
+MAX_REPORT_BYTES = 1024 * 1024
+MAX_PUBLIC_FRAMES = 8
+_FAILURE_CODES = frozenset({
+    "instrumentation_report_missing",
+    "instrumentation_report_ambiguous",
+    "instrumentation_report_malformed",
+    "instrumentation_report_identity_mismatch",
+    "instrumentation_test_failure",
+    "instrumentation_test_error",
+})
+_KNOWN_EXCEPTION_TYPES = frozenset({
+    "java.lang.AssertionError",
+    "java.lang.IllegalArgumentException",
+    "java.lang.IllegalStateException",
+    "java.lang.NullPointerException",
+    "java.util.concurrent.TimeoutException",
+})
+_OWNED_FRAME = re.compile(
+    r"\s*at (com\.ersingundem\.larenor\.game\.moonlight\."
+    r"[A-Za-z0-9_.$]+)\.([A-Za-z0-9_.$<>]+)"
+    r"\(([A-Za-z][A-Za-z0-9_]{0,127}\.(?:kt|java)):(\d{1,6})\)\s*"
+)
+_THROWABLE_HEADER = re.compile(
+    r"(java\.(?:lang|util\.concurrent)\.[A-Za-z0-9_.$]+)(?::|$)"
+)
+_OWNED_SOURCE_FILES = frozenset({
+    "LarenorMoonlightGame.kt",
+    "MoonlightAuthority.kt",
+    "MoonlightDiscovery.kt",
+    "MoonlightEmbeddedRuntime.kt",
+    "MoonlightForegroundLeaseRegistry.kt",
+    "MoonlightMethodChannelHost.kt",
+    "MoonlightOperationJournal.kt",
+    "MoonlightOwnedSunshineStreamTest.kt",
+    "MoonlightRegistrationStore.kt",
+    "MoonlightScopedContext.kt",
+    "MoonlightSessionCapabilities.kt",
+})
+_STAGE_SOURCE = ROOT / (
+    "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
+    "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
+)
+_STAGE_SOURCE_SHA256 = "be50b4eabe648a7c39d0ad379038a6b107f670e5d6264e5d522df4f906485422"
+_STAGE_LINES = (
+    (49, 64, "fixtureInputs"),
+    (65, 98, "discovery"),
+    (99, 123, "pairingRegistration"),
+    (124, 150, "catalog"),
+    (151, 211, "capabilityAndSession"),
+    (212, 224, "firstStreamOutput"),
+    (225, 234, "ownedInputEffects"),
+    (235, 241, "deliberateStop"),
+    (242, 263, "secondStreamOutput"),
+    (264, 285, "remoteDisconnect"),
+    (286, 315, "localRetirement"),
+    (316, 327, "cleanup"),
+)
 
 
 class StreamAcceptanceFailure(RuntimeError):
@@ -995,6 +1053,426 @@ def verify_report(root: Path = REPORTS) -> dict[str, int | str]:
             "failures": 0, "errors": 0, "skipped": 0}
 
 
+def _static_failure(code: str) -> dict[str, object]:
+    if code not in _FAILURE_CODES:
+        raise StreamAcceptanceFailure("Android stream failure code is invalid")
+    return {"code": code, "exceptionType": "unclassified", "frames": []}
+
+
+def _counts(element: ET.Element) -> dict[str, int]:
+    values = {
+        key: int(element.attrib[key])
+        for key in ("tests", "failures", "errors", "skipped")
+    }
+    if any(value < 0 or value > 1024 for value in values.values()):
+        raise ValueError()
+    return values
+
+
+def _failure_suite(root: ET.Element) -> tuple[ET.Element, dict[str, int]]:
+    if root.tag == "testsuite":
+        return root, _counts(root)
+    if root.tag != "testsuites":
+        raise ValueError()
+    children = list(root)
+    suites = [child for child in children if child.tag == "testsuite"]
+    if len(children) != 1 or len(suites) != 1:
+        raise ValueError()
+    aggregate = _counts(root)
+    if _counts(suites[0]) != aggregate:
+        raise ValueError()
+    return suites[0], aggregate
+
+
+def _acceptance_stage(line: int) -> Optional[str]:
+    try:
+        if hashlib.sha256(_STAGE_SOURCE.read_bytes()).hexdigest() != _STAGE_SOURCE_SHA256:
+            return None
+    except OSError:
+        return None
+    for first, last, stage in _STAGE_LINES:
+        if first <= line <= last:
+            return stage
+    return None
+
+
+def _failure_details(
+    element: ET.Element,
+    *,
+    code: str,
+    counts: Mapping[str, int],
+) -> dict[str, object]:
+    text = "".join(element.itertext())
+    lines = text.splitlines()
+    declared = element.attrib.get("type", "")
+    header = _THROWABLE_HEADER.match(lines[0].strip()) if lines else None
+    exception_type = declared if declared in _KNOWN_EXCEPTION_TYPES else (
+        header.group(1) if header is not None and header.group(1) in _KNOWN_EXCEPTION_TYPES
+        else "unclassified"
+    )
+    frames: list[dict[str, object]] = []
+    seen: set[tuple[str, int]] = set()
+    stage: Optional[str] = None
+    for line in lines:
+        match = _OWNED_FRAME.fullmatch(line)
+        if match is None:
+            continue
+        class_name, method_name, filename, raw_line = match.groups()
+        source_line = int(raw_line)
+        source_class = filename.rsplit(".", 1)[0]
+        outer_class = class_name.rsplit(".", 1)[-1].split("$", 1)[0]
+        key = (filename, source_line)
+        if (
+            filename not in _OWNED_SOURCE_FILES
+            or outer_class not in {source_class, source_class + "Kt"}
+            or key in seen
+        ):
+            continue
+        seen.add(key)
+        frames.append({"file": filename, "line": source_line})
+        if (
+            class_name == TEST_CLASS
+            and method_name == TEST_NAME
+            and filename == "MoonlightOwnedSunshineStreamTest.kt"
+        ):
+            stage = _acceptance_stage(source_line)
+        if len(frames) == MAX_PUBLIC_FRAMES:
+            break
+    if not frames:
+        exception_type = "unclassified"
+    diagnostic: dict[str, object] = {
+        "code": code,
+        "exceptionType": exception_type,
+        "frames": frames,
+        "counts": dict(counts),
+        "namedTest": {"className": TEST_CLASS, "testName": TEST_NAME},
+    }
+    if stage is not None:
+        diagnostic["acceptanceStage"] = stage
+    return diagnostic
+
+
+def _read_bounded_report(report: Path, expected: os.stat_result) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(report, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_uid != os.getuid()
+            or (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino)
+            or opened.st_size != expected.st_size
+            or not 1 <= opened.st_size <= MAX_REPORT_BYTES
+        ):
+            raise ValueError()
+        chunks: list[bytes] = []
+        total = 0
+        while total <= MAX_REPORT_BYTES:
+            chunk = os.read(descriptor, min(64 * 1024, MAX_REPORT_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        finished = os.fstat(descriptor)
+        if (
+            total == 0
+            or total > MAX_REPORT_BYTES
+            or finished.st_nlink != 1
+            or finished.st_uid != opened.st_uid
+            or (finished.st_dev, finished.st_ino) != (opened.st_dev, opened.st_ino)
+            or finished.st_size != opened.st_size
+            or finished.st_size != total
+        ):
+            raise ValueError()
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def failure_diagnostic(root: Optional[Path] = None) -> dict[str, object]:
+    root = REPORTS if root is None else root
+    try:
+        info = root.lstat()
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            return _static_failure("instrumentation_report_malformed")
+        reports = list(root.rglob("TEST-*.xml"))
+    except OSError:
+        return _static_failure("instrumentation_report_missing")
+    if not reports:
+        return _static_failure("instrumentation_report_missing")
+    if len(reports) != 1:
+        return _static_failure("instrumentation_report_ambiguous")
+    report = reports[0]
+    try:
+        relative = report.relative_to(root)
+        cursor = root
+        for part in relative.parts[:-1]:
+            cursor /= part
+            if cursor.is_symlink():
+                raise ValueError()
+        metadata = report.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_uid != os.getuid()
+            or not 1 <= metadata.st_size <= MAX_REPORT_BYTES
+        ):
+            raise ValueError()
+        raw = _read_bounded_report(report, metadata)
+        if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+            raise ValueError()
+        suite, counts = _failure_suite(ET.fromstring(raw))
+        if suite.findall(".//testsuite"):
+            raise ValueError()
+        cases = list(suite.iter("testcase"))
+        if len(cases) != 1 or counts["tests"] != 1 or counts["skipped"] != 0:
+            diagnostic = _static_failure("instrumentation_report_identity_mismatch")
+            diagnostic["counts"] = counts
+            diagnostic["identity"] = {
+                "caseCount": min(len(cases), 1024),
+                "classExpected": len(cases) == 1
+                and cases[0].attrib.get("classname") == TEST_CLASS,
+                "methodExpected": len(cases) == 1
+                and cases[0].attrib.get("name") == TEST_NAME,
+            }
+            return diagnostic
+        case = cases[0]
+        if (
+            case.attrib.get("classname") != TEST_CLASS
+            or case.attrib.get("name") != TEST_NAME
+        ):
+            diagnostic = _static_failure("instrumentation_report_identity_mismatch")
+            diagnostic["counts"] = counts
+            diagnostic["identity"] = {
+                "caseCount": 1,
+                "classExpected": case.attrib.get("classname") == TEST_CLASS,
+                "methodExpected": case.attrib.get("name") == TEST_NAME,
+            }
+            return diagnostic
+        failures = list(case.findall("failure"))
+        errors = list(case.findall("error"))
+        if (
+            counts == {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+            and len(failures) == 1
+            and not errors
+        ):
+            return _failure_details(
+                failures[0], code="instrumentation_test_failure", counts=counts
+            )
+        if (
+            counts == {"tests": 1, "failures": 0, "errors": 1, "skipped": 0}
+            and len(errors) == 1
+            and not failures
+        ):
+            return _failure_details(
+                errors[0], code="instrumentation_test_error", counts=counts
+            )
+    except (OSError, ET.ParseError, KeyError, TypeError, ValueError):
+        pass
+    return _static_failure("instrumentation_report_malformed")
+
+
+def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
+    allowed = {
+        "code", "exceptionType", "frames", "counts", "identity", "namedTest",
+        "acceptanceStage",
+    }
+    if not set(diagnostic).issubset(allowed):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    code = diagnostic.get("code")
+    exception_type = diagnostic.get("exceptionType")
+    frames = diagnostic.get("frames")
+    if (
+        code not in _FAILURE_CODES
+        or exception_type not in {*_KNOWN_EXCEPTION_TYPES, "unclassified"}
+        or type(frames) is not list
+        or len(frames) > MAX_PUBLIC_FRAMES
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    for frame in frames:
+        if (
+            type(frame) is not dict
+            or set(frame) != {"file", "line"}
+            or frame["file"] not in _OWNED_SOURCE_FILES
+            or type(frame["line"]) is not int
+            or not 1 <= frame["line"] <= 1_000_000
+        ):
+            raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    counts = diagnostic.get("counts")
+    if counts is not None and (
+        type(counts) is not dict
+        or set(counts) != {"tests", "failures", "errors", "skipped"}
+        or any(type(value) is not int or not 0 <= value <= 1024 for value in counts.values())
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    exact = code in {"instrumentation_test_failure", "instrumentation_test_error"}
+    expected_counts = {
+        "instrumentation_test_failure": {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        },
+        "instrumentation_test_error": {
+            "tests": 1, "failures": 0, "errors": 1, "skipped": 0,
+        },
+    }
+    if exact and counts != expected_counts[code]:
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    if not exact and (
+        exception_type != "unclassified" or frames or diagnostic.get("acceptanceStage") is not None
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    named = diagnostic.get("namedTest")
+    if (exact and named != {"className": TEST_CLASS, "testName": TEST_NAME}) or (
+        not exact and named is not None
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    identity = diagnostic.get("identity")
+    if (code == "instrumentation_report_identity_mismatch") != (identity is not None):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    if identity is not None and (
+        type(identity) is not dict
+        or set(identity) != {"caseCount", "classExpected", "methodExpected"}
+        or type(identity["caseCount"]) is not int
+        or not 0 <= identity["caseCount"] <= 1024
+        or type(identity["classExpected"]) is not bool
+        or type(identity["methodExpected"]) is not bool
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    stage = diagnostic.get("acceptanceStage")
+    frame_stages = {
+        _acceptance_stage(frame["line"])
+        for frame in frames
+        if frame["file"] == "MoonlightOwnedSunshineStreamTest.kt"
+    }
+    if stage is not None and (
+        not exact
+        or stage not in {value[2] for value in _STAGE_LINES}
+        or stage not in frame_stages
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+
+
+def write_failure_receipt(
+    destination: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+    diagnostic: Mapping[str, object],
+) -> None:
+    _validate_failure_diagnostic(diagnostic)
+    package = dict(moonlight_package)
+    if (
+        set(package) != {
+            "aarSha256", "classesSha256", "engineRevision", "sourceCommit",
+            "sourceTree",
+        }
+        or any(type(value) is not str for value in package.values())
+        or re.fullmatch(r"[0-9a-f]{64}", package["aarSha256"]) is None
+        or re.fullmatch(r"[0-9a-f]{64}", package["classesSha256"]) is None
+        or re.fullmatch(r"[0-9a-f]{40}", package["sourceCommit"]) is None
+        or re.fullmatch(r"[0-9a-f]{40}", package["sourceTree"]) is None
+        or re.fullmatch(r"[A-Za-z0-9._-]{1,128}", package["engineRevision"]) is None
+        or re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,3}", version) is None
+    ):
+        raise StreamAcceptanceFailure("Android stream failure provenance is invalid")
+    payload = {
+        "schemaVersion": 1,
+        "gate": "owned_sunshine_android_stream",
+        "sourceRevision": source_revision(ROOT),
+        "emulatorVersion": version,
+        "moonlightPackage": package,
+        "result": "failed",
+        "diagnostic": dict(diagnostic),
+    }
+    encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
+    if len(encoded) > 8192:
+        raise StreamAcceptanceFailure("Android stream failure receipt exceeds its bound")
+    descriptor = os.open(
+        destination,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0),
+        0o600,
+    )
+    created = os.fstat(descriptor)
+    try:
+        if (
+            not stat.S_ISREG(created.st_mode)
+            or created.st_nlink != 1
+            or created.st_uid != os.getuid()
+            or stat.S_IMODE(created.st_mode) != 0o600
+        ):
+            raise OSError("Android stream failure receipt identity is invalid")
+        offset = 0
+        while offset < len(encoded):
+            written = os.write(descriptor, encoded[offset:])
+            if type(written) is not int or written <= 0 or written > len(encoded) - offset:
+                raise OSError("Android stream failure receipt write failed")
+            offset += written
+        os.fsync(descriptor)
+    except BaseException:
+        try:
+            current = destination.lstat()
+            if (
+                stat.S_ISREG(current.st_mode)
+                and (current.st_dev, current.st_ino) == (created.st_dev, created.st_ino)
+            ):
+                destination.unlink()
+        except OSError:
+            pass
+        raise
+    finally:
+        os.close(descriptor)
+
+
+def _remove_raw_reports(root: Optional[Path] = None) -> None:
+    root = REPORTS if root is None else root
+    try:
+        for report in root.rglob("TEST-*.xml"):
+            if report.is_symlink() or not report.is_file():
+                continue
+            report.unlink()
+    except OSError:
+        # The disposable runner is never allowed to turn cleanup trouble into
+        # a different public diagnosis or mask the original test failure.
+        return
+
+
+def _publish_failed_test(
+    runner_temp: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+) -> None:
+    try:
+        diagnostic = failure_diagnostic()
+        write_failure_receipt(
+            runner_temp / FAILURE_RECEIPT_NAME,
+            version=version,
+            moonlight_package=moonlight_package,
+            diagnostic=diagnostic,
+        )
+    finally:
+        _remove_raw_reports()
+
+
+def _capture_failed_test(
+    runner_temp: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+) -> None:
+    try:
+        _publish_failed_test(
+            runner_temp,
+            version=version,
+            moonlight_package=moonlight_package,
+        )
+    except Exception:
+        # Diagnostics are secondary evidence. Their failure must never replace
+        # the connected-test result or change its exit status.
+        return
+
+
 def write_receipt(
     destination: Path,
     *,
@@ -1138,22 +1616,38 @@ def _run() -> int:
                 gradle = materialized_gradle_command(
                     Path(temporary) / "launcher", project_android=ROOT / "android",
                 )
-                result = subprocess.run(
-                    [
-                        *gradle, "--no-daemon", ":app:connectedDebugAndroidTest",
-                        f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
-                        "-Pandroid.testInstrumentationRunnerArguments.larenorF60OwnedStream=required",
-                        "-Pandroid.testInstrumentationRunnerArguments."
-                        f"larenorF60OwnedMdnsInstance={expected_instance}",
-                        "-Pandroid.testInstrumentationRunnerArguments."
-                        f"larenorF60PinNonce={nonce}",
-                        "-Pandroid.testInstrumentationRunnerArguments."
-                        f"larenorF60PinPort={ANDROID_PIN_PORT}",
-                        "-x", ":app:compileFlutterBuildDebug",
-                    ],
-                    cwd=ROOT / "android", check=False, timeout=PROCESS_TIMEOUT_SECONDS,
-                )
+                try:
+                    result = subprocess.run(
+                        [
+                            *gradle, "--no-daemon", ":app:connectedDebugAndroidTest",
+                            f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
+                            "-Pandroid.testInstrumentationRunnerArguments.larenorF60OwnedStream=required",
+                            "-Pandroid.testInstrumentationRunnerArguments."
+                            f"larenorF60OwnedMdnsInstance={expected_instance}",
+                            "-Pandroid.testInstrumentationRunnerArguments."
+                            f"larenorF60PinNonce={nonce}",
+                            "-Pandroid.testInstrumentationRunnerArguments."
+                            f"larenorF60PinPort={ANDROID_PIN_PORT}",
+                            "-x", ":app:compileFlutterBuildDebug",
+                        ],
+                        cwd=ROOT / "android", check=False,
+                        timeout=PROCESS_TIMEOUT_SECONDS,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    _capture_failed_test(
+                        runner_temp,
+                        version=version,
+                        moonlight_package=moonlight_package,
+                    )
+                    raise StreamAcceptanceFailure(
+                        "owned Sunshine Android stream failed"
+                    ) from None
                 if result.returncode:
+                    _capture_failed_test(
+                        runner_temp,
+                        version=version,
+                        moonlight_package=moonlight_package,
+                    )
                     raise StreamAcceptanceFailure("owned Sunshine Android stream failed")
             bridge.wait()
             phase_bridge.wait()
