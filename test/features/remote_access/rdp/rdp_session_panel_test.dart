@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_display_geometry.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
@@ -50,7 +51,8 @@ class UiTrust implements RdpTrustStore {
   }) async {}
 }
 
-class UiChannel implements RdpChannel, RdpNegotiatedInputChannel {
+class UiChannel
+    implements RdpChannel, RdpFrameChannel, RdpNegotiatedInputChannel {
   UiChannel({required this.supportsUnicodeInput});
   @override
   final bool supportsUnicodeInput;
@@ -60,13 +62,37 @@ class UiChannel implements RdpChannel, RdpNegotiatedInputChannel {
   final displays = <RdpDisplaySpec>[];
   final texts = <String>[];
   final clipboards = <String>[];
+  final acknowledgements = <int>[];
+  final _frames = StreamController<RdpFrame>.broadcast();
   bool clipboardAccepted = true;
   Completer<bool>? clipboardReply;
   @override
   Future<void> get done => doneCompleter.future;
   @override
+  Stream<RdpFrame> get frames => _frames.stream;
+  bool get hasFrameListener => _frames.hasListener;
+  @override
   void close() {
     if (!doneCompleter.isCompleted) doneCompleter.complete();
+    if (!_frames.isClosed) unawaited(_frames.close());
+  }
+
+  @override
+  Future<void> acknowledgeFrame(int sequence) async {
+    acknowledgements.add(sequence);
+  }
+
+  void frame({int sequence = 1, int width = 160, int height = 90}) {
+    _frames.add(
+      RdpFrame(
+        sequence: sequence,
+        width: width,
+        height: height,
+        dpi: 160,
+        stride: width * 4,
+        bgra: Uint8List(width * height * 4),
+      ),
+    );
   }
 
   @override
@@ -158,6 +184,34 @@ Future<void> enableClipboard(WidgetTester tester) async {
   await press(tester, 'rdp-clipboard-clientToRemote');
   await press(tester, 'rdp-settings-save');
   await connectRdp(tester);
+}
+
+Future<void> selectDisplayMode(WidgetTester tester, RdpDisplayMode mode) async {
+  await press(tester, 'rdp-display-${mode.name}');
+  await press(tester, 'rdp-settings-save');
+}
+
+Future<void> showFrame(
+  WidgetTester tester,
+  UiChannel channel, {
+  int sequence = 1,
+  int width = 160,
+  int height = 90,
+}) async {
+  expect(channel.hasFrameListener, isTrue);
+  channel.frame(sequence: sequence, width: width, height: height);
+  await tester.pump();
+  await tester.runAsync(() async {
+    for (
+      var attempt = 0;
+      attempt < 100 && !channel.acknowledgements.contains(sequence);
+      attempt++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+  });
+  await tester.pump();
+  expect(channel.acknowledgements, contains(sequence));
 }
 
 void main() {
@@ -495,10 +549,12 @@ void main() {
     );
     await openRdp(tester, ui);
     await connectRdp(tester);
+    await showFrame(tester, engine.channel);
     expect(key('rdp-surface'), findsOneWidget);
     await tester.ensureVisible(key('rdp-surface'));
     await tester.pumpAndSettle();
-    await tester.tap(key('rdp-surface'));
+    expect(key('rdp-frame-image'), findsOneWidget);
+    await tester.tapAt(tester.getCenter(key('rdp-frame-image')));
     tester.widget<Focus>(key('rdp-surface')).focusNode!.requestFocus();
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
@@ -519,6 +575,165 @@ void main() {
     await tester.pumpAndSettle();
     expect(engine.channel.displays, isNotEmpty);
   });
+
+  testWidgets('fit letterboxes actual frame and rejects hidden coordinates', (
+    tester,
+  ) async {
+    final engine = UiEngine(), ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () => engine,
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, ui);
+    await connectRdp(tester);
+    await showFrame(tester, engine.channel);
+    await tester.ensureVisible(key('rdp-surface'));
+    await tester.pumpAndSettle();
+    final surface = tester.getRect(key('rdp-surface'));
+    final frame = tester.getRect(key('rdp-frame-image'));
+    expect(frame.width / frame.height, closeTo(16 / 9, .001));
+    expect(frame.width, lessThanOrEqualTo(surface.width));
+    expect(frame.height, lessThanOrEqualTo(surface.height));
+
+    final hidden = frame.left > surface.left
+        ? Offset(surface.left + 1, surface.center.dy)
+        : Offset(surface.center.dx, surface.top + 1);
+    await tester.tapAt(hidden);
+    expect(engine.channel.pointers, isEmpty);
+    await tester.tapAt(frame.center);
+    expect(engine.channel.pointers.last.x, closeTo(.5, .01));
+    expect(engine.channel.pointers.last.y, closeTo(.5, .01));
+
+    for (final cancel in [false, true]) {
+      engine.channel.pointers.clear();
+      final gesture = await tester.startGesture(
+        frame.center,
+        pointer: cancel ? 42 : 41,
+      );
+      await gesture.moveTo(hidden);
+      final lastValid = engine.channel.pointers.last;
+      final beforeRelease = engine.channel.pointers.length;
+      if (cancel) {
+        await gesture.cancel();
+      } else {
+        await gesture.up();
+      }
+      expect(engine.channel.pointers, hasLength(beforeRelease + 1));
+      expect(engine.channel.pointers.last.buttons, 0);
+      expect(engine.channel.pointers.last.x, lastValid.x);
+      expect(engine.channel.pointers.last.y, lastValid.y);
+    }
+  });
+
+  testWidgets(
+    'fill crops actual frame and inversely maps visible coordinates',
+    (tester) async {
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      await selectDisplayMode(tester, RdpDisplayMode.fillWindow);
+      await connectRdp(tester);
+      expect(
+        engine.requests.single.settings.displayMode,
+        RdpDisplayMode.fillWindow,
+      );
+      await showFrame(tester, engine.channel);
+      await tester.ensureVisible(key('rdp-surface'));
+      await tester.pumpAndSettle();
+      final surface = tester.getRect(key('rdp-surface'));
+      final frame = tester.getRect(key('rdp-frame-image'));
+      expect(frame.width / frame.height, closeTo(16 / 9, .001));
+      expect(frame.width, greaterThanOrEqualTo(surface.width));
+      expect(frame.height, greaterThanOrEqualTo(surface.height));
+      final local = Offset(surface.width / 2, 1);
+      final expected = RdpDisplayGeometry.calculate(
+        mode: RdpDisplayMode.fillWindow,
+        frameSize: const Size(160, 90),
+        viewportSize: surface.size,
+        devicePixelRatio: 1,
+      ).normalize(local)!;
+      await tester.tapAt(surface.topLeft + local);
+      expect(engine.channel.pointers.last.x, closeTo(expected.dx, .01));
+      expect(engine.channel.pointers.last.y, closeTo(expected.dy, .01));
+      expect(expected.dy, greaterThan(0));
+    },
+  );
+
+  testWidgets(
+    'native is one-to-one, explicitly pannable, and never requests DISP resize',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      await selectDisplayMode(tester, RdpDisplayMode.native);
+      await connectRdp(tester);
+      await showFrame(tester, engine.channel, width: 1600, height: 900);
+      await tester.ensureVisible(key('rdp-surface'));
+      await tester.pumpAndSettle();
+      expect(
+        engine.requests.single.settings.displayMode,
+        RdpDisplayMode.native,
+      );
+      expect(tester.getSize(key('rdp-frame-image')), const Size(1600, 900));
+      expect(engine.channel.displays, isEmpty);
+      expect(
+        tester.getSemantics(key('rdp-native-pan')).label,
+        contains('Pan native canvas'),
+      );
+
+      final surface = tester.getRect(key('rdp-surface'));
+      final before = tester.getTopLeft(key('rdp-frame-image'));
+      final remoteDrag = await tester.startGesture(surface.center, pointer: 43);
+      await tester.pump();
+      expect(engine.channel.pointers.last.buttons, greaterThan(0));
+      await tester.tap(key('rdp-native-pan'));
+      await tester.pump();
+      expect(
+        tester.getSemantics(key('rdp-native-pan')).label,
+        contains('Resume remote pointer'),
+      );
+      expect(engine.channel.pointers.last.buttons, 0);
+      final releasedCount = engine.channel.pointers.length;
+      await remoteDrag.moveBy(const Offset(-40, 0));
+      await remoteDrag.up();
+      expect(engine.channel.pointers, hasLength(releasedCount));
+      engine.channel.pointers.clear();
+      await tester.timedDragFrom(
+        surface.center,
+        const Offset(-120, 0),
+        const Duration(milliseconds: 300),
+      );
+      await tester.pumpAndSettle();
+      expect(engine.channel.pointers, isEmpty);
+      final after = tester.getTopLeft(key('rdp-frame-image'));
+      expect(after.dx, lessThan(before.dx));
+      expect(after.dy, before.dy);
+
+      await tester.tap(key('rdp-native-pan'));
+      await tester.pump();
+      await tester.tapAt(surface.center);
+      expect(engine.channel.pointers, isNotEmpty);
+      expect(engine.channel.pointers.last.x, greaterThan(surface.width / 3200));
+      tester.view.physicalSize = const Size(1000, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpAndSettle();
+      expect(engine.channel.displays, isEmpty);
+      semantics.dispose();
+    },
+  );
 
   testWidgets('packaged capabilities hide unavailable IME and clipboard mode', (
     tester,

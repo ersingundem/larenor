@@ -296,7 +296,7 @@ class RdpDisplaySpec {
       pixelCount <= 33554432;
 }
 
-enum RdpDisplayMode { fitWindow, native, fixed }
+enum RdpDisplayMode { fitWindow, fillWindow, native }
 
 enum RdpKeyboardLayout { automatic, turkishQ, us }
 
@@ -405,12 +405,20 @@ class RdpProfileSettings {
           _invalid('invalid_settings');
     }
 
+    RdpDisplayMode parseDisplayMode(Object? raw) {
+      // `fixed` was persisted before a real fixed-resolution renderer existed.
+      // Migrate it to the truthful contain behavior instead of advertising a
+      // mode the product never implemented.
+      if (raw == 'fixed') return RdpDisplayMode.fitWindow;
+      return parse(raw, RdpDisplayMode.values);
+    }
+
     final result = RdpProfileSettings(
       domain: value['domain'] as String,
       gatewayHost: value['gatewayHost'] as String?,
       gatewayPort: value['gatewayPort'] as int,
       gatewayUsername: value['gatewayUsername'] as String,
-      displayMode: parse(value['displayMode'], RdpDisplayMode.values),
+      displayMode: parseDisplayMode(value['displayMode']),
       keyboardLayout: parse(value['keyboardLayout'], RdpKeyboardLayout.values),
       clipboardMode: parse(value['clipboardMode'], RdpClipboardMode.values),
     );

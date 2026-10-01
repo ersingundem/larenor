@@ -50,6 +50,28 @@ void main() {
     },
   );
 
+  test('legacy unimplemented fixed display migrates to truthful fit', () {
+    final legacy = RdpProfileSettings.fromJson(const {
+      'version': 1,
+      'domain': '',
+      'gatewayHost': null,
+      'gatewayPort': 443,
+      'gatewayUsername': '',
+      'displayMode': 'fixed',
+      'keyboardLayout': 'automatic',
+      'clipboardMode': 'disabled',
+    });
+    expect(legacy.displayMode, RdpDisplayMode.fitWindow);
+    expect(legacy.toJson()['displayMode'], 'fitWindow');
+
+    final fill = RdpProfileSettings.fromJson({
+      ...legacy.toJson(),
+      'displayMode': 'fillWindow',
+    });
+    expect(fill.displayMode, RdpDisplayMode.fillWindow);
+    expect(fill.toJson()['displayMode'], 'fillWindow');
+  });
+
   test('settings and credentials are profile-bound secure records', () async {
     FlutterSecureStorage.setMockInitialValues({});
     const storage = FlutterSecureStorage();

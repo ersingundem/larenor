@@ -14,6 +14,7 @@ import '../../../shared/widgets/app_page_scaffold.dart';
 import '../../../shared/widgets/settings_action_tile.dart';
 import '../../../shared/widgets/settings_section.dart';
 import '../data/remote_profiles.dart';
+import 'rdp_display_geometry.dart';
 import 'rdp_engine.dart';
 import 'rdp_models.dart';
 import 'rdp_security_store.dart';
@@ -511,8 +512,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                             'rdp-display-${value.name}',
                             '${switch (value) {
                               RdpDisplayMode.fitWindow => l.rdpDisplayFitWindow,
+                              RdpDisplayMode.fillWindow => l.rdpDisplayFillWindow,
                               RdpDisplayMode.native => l.rdpDisplayNative,
-                              RdpDisplayMode.fixed => l.rdpDisplayFixed,
                             }}${_settings.displayMode == value ? ' ✓' : ''}',
                             () => setState(
                               () => _settings = _settings.copyWith(
@@ -722,6 +723,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           _RdpInputSurface(
                             controller: c,
                             label: l.rdpInputReady,
+                            mode: _settings.displayMode,
+                            panEnableLabel: l.rdpNativePanEnable,
+                            panDisableLabel: l.rdpNativePanDisable,
                           ),
                           if (c.canSendClipboard) ...[
                             action(
@@ -805,9 +809,18 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
 }
 
 class _RdpInputSurface extends StatefulWidget {
-  const _RdpInputSurface({required this.controller, required this.label});
+  const _RdpInputSurface({
+    required this.controller,
+    required this.label,
+    required this.mode,
+    required this.panEnableLabel,
+    required this.panDisableLabel,
+  });
   final RdpSessionController controller;
   final String label;
+  final RdpDisplayMode mode;
+  final String panEnableLabel;
+  final String panDisableLabel;
 
   @override
   State<_RdpInputSurface> createState() => _RdpInputSurfaceState();
@@ -819,6 +832,11 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   StreamSubscription<RdpFrame>? _frames;
   ui.Image? _image;
   int _frameGeneration = 0;
+  Offset _nativePan = Offset.zero;
+  bool _nativePanEnabled = false;
+  int? _activeRemotePointer;
+  Offset? _lastRemotePointer;
+  final _rejectedRemotePointers = <int>{};
 
   @override
   void initState() {
@@ -835,6 +853,15 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
       _image?.dispose();
       _image = null;
       _frameGeneration++;
+    }
+    if (!identical(oldWidget.controller, widget.controller) ||
+        oldWidget.mode != widget.mode) {
+      _lastSize = null;
+      _nativePan = Offset.zero;
+      _nativePanEnabled = false;
+      _activeRemotePointer = null;
+      _lastRemotePointer = null;
+      _rejectedRemotePointers.clear();
     }
   }
 
@@ -876,15 +903,26 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   }
 
   void _resize(Size size) {
-    if (size.isEmpty || size == _lastSize) return;
+    if (widget.mode == RdpDisplayMode.native ||
+        size.isEmpty ||
+        size == _lastSize) {
+      return;
+    }
     _lastSize = size;
     final ratio = MediaQuery.devicePixelRatioOf(context);
     final width = (size.width * ratio).round().clamp(640, 8192);
     final height = (size.height * ratio).round().clamp(480, 8192);
     final current = widget.controller.display;
+    final controller = widget.controller;
+    final mode = widget.mode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      widget.controller.resize(
+      if (!mounted ||
+          mode == RdpDisplayMode.native ||
+          widget.mode != mode ||
+          !identical(widget.controller, controller)) {
+        return;
+      }
+      controller.resize(
         RdpDisplaySpec(
           width: width,
           height: height,
@@ -895,15 +933,87 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
     });
   }
 
+  RdpDisplayGeometry? _geometry(Size size) {
+    final image = _image;
+    if (image == null || size.isEmpty) return null;
+    return RdpDisplayGeometry.calculate(
+      mode: widget.mode,
+      frameSize: Size(image.width.toDouble(), image.height.toDouble()),
+      viewportSize: size,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      nativePan: _nativePan,
+    );
+  }
+
   void _pointer(PointerEvent event, Size size) {
-    if (size.isEmpty) return;
+    final normalized = _geometry(size)?.normalize(event.localPosition);
+    if (event is PointerDownEvent) {
+      if ((widget.mode == RdpDisplayMode.native && _nativePanEnabled) ||
+          normalized == null ||
+          _activeRemotePointer != null) {
+        _rejectedRemotePointers.add(event.pointer);
+        return;
+      }
+      _activeRemotePointer = event.pointer;
+      _lastRemotePointer = normalized;
+      _sendPointer(normalized, event.buttons);
+      return;
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      if (_rejectedRemotePointers.remove(event.pointer)) return;
+      if (_activeRemotePointer != event.pointer) return;
+      final releaseAt = normalized ?? _lastRemotePointer;
+      _activeRemotePointer = null;
+      _lastRemotePointer = null;
+      if (releaseAt != null) _sendPointer(releaseAt, 0);
+      return;
+    }
+    if (_rejectedRemotePointers.contains(event.pointer) ||
+        (widget.mode == RdpDisplayMode.native && _nativePanEnabled)) {
+      return;
+    }
+    if (_activeRemotePointer != null && _activeRemotePointer != event.pointer) {
+      return;
+    }
+    if (normalized == null) return;
+    if (_activeRemotePointer == event.pointer) {
+      _lastRemotePointer = normalized;
+    }
+    _sendPointer(normalized, event.buttons);
+  }
+
+  void _sendPointer(Offset normalized, int buttons) {
     widget.controller.pointer(
       RdpPointerEvent(
-        x: (event.localPosition.dx / size.width).clamp(0, 1),
-        y: (event.localPosition.dy / size.height).clamp(0, 1),
-        buttons: event.buttons.clamp(0, 31),
+        x: normalized.dx,
+        y: normalized.dy,
+        buttons: buttons.clamp(0, 31),
       ),
     );
+  }
+
+  void _releaseRemotePointerForPan() {
+    final pointer = _activeRemotePointer;
+    final releaseAt = _lastRemotePointer;
+    if (pointer == null || releaseAt == null) return;
+    _rejectedRemotePointers.add(pointer);
+    _activeRemotePointer = null;
+    _lastRemotePointer = null;
+    _sendPointer(releaseAt, 0);
+  }
+
+  void _panFrame(DragUpdateDetails details, Size size) {
+    if (widget.mode != RdpDisplayMode.native || !_nativePanEnabled) return;
+    final geometry = _geometry(size);
+    if (geometry == null) return;
+    final next = geometry.panAfterDrag(details.delta);
+    if (next != _nativePan) setState(() => _nativePan = next);
+  }
+
+  void _toggleNativePan() {
+    if (widget.mode != RdpDisplayMode.native) return;
+    if (!_nativePanEnabled) _releaseRemotePointerForPan();
+    setState(() => _nativePanEnabled = !_nativePanEnabled);
   }
 
   @override
@@ -922,6 +1032,7 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, 480);
         _resize(size);
+        final geometry = _geometry(size);
         return Focus(
           key: const ValueKey('rdp-surface'),
           focusNode: _focus,
@@ -932,31 +1043,92 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
             focusable: true,
             child: MouseRegion(
               cursor: SystemMouseCursors.basic,
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (event) {
-                  _focus.requestFocus();
-                  _pointer(event, size);
-                },
-                onPointerMove: (event) => _pointer(event, size),
-                onPointerUp: (event) => _pointer(event, size),
-                child: Container(
-                  height: size.height,
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.black,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: ExcludeSemantics(
-                    child: _image == null
-                        ? Icon(
-                            CupertinoIcons.desktopcomputer,
-                            size: 64,
-                            color: CupertinoColors.systemGrey.resolveFrom(
-                              context,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: ColoredBox(
+                  color: CupertinoColors.black,
+                  child: SizedBox(
+                    height: size.height,
+                    child: Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onPanUpdate: widget.mode == RdpDisplayMode.native
+                                ? (details) => _panFrame(details, size)
+                                : null,
+                            child: Listener(
+                              behavior: HitTestBehavior.opaque,
+                              onPointerDown: (event) {
+                                _focus.requestFocus();
+                                _pointer(event, size);
+                              },
+                              onPointerMove: (event) => _pointer(event, size),
+                              onPointerUp: (event) => _pointer(event, size),
+                              onPointerCancel: (event) => _pointer(event, size),
+                              child: Stack(
+                                clipBehavior: Clip.hardEdge,
+                                children: [
+                                  if (geometry == null)
+                                    Center(
+                                      child: Icon(
+                                        CupertinoIcons.desktopcomputer,
+                                        size: 64,
+                                        color: CupertinoColors.systemGrey
+                                            .resolveFrom(context),
+                                      ),
+                                    )
+                                  else
+                                    Positioned.fromRect(
+                                      rect: geometry.destination,
+                                      child: ExcludeSemantics(
+                                        child: RawImage(
+                                          key: const ValueKey(
+                                            'rdp-frame-image',
+                                          ),
+                                          image: _image,
+                                          fit: BoxFit.fill,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          )
-                        : RawImage(image: _image, fit: BoxFit.contain),
+                          ),
+                        ),
+                        if (widget.mode == RdpDisplayMode.native &&
+                            geometry != null)
+                          PositionedDirectional(
+                            top: 8,
+                            end: 8,
+                            child: Semantics(
+                              button: true,
+                              toggled: _nativePanEnabled,
+                              label: _nativePanEnabled
+                                  ? widget.panDisableLabel
+                                  : widget.panEnableLabel,
+                              child: SizedBox.square(
+                                dimension: 48,
+                                child: CupertinoButton(
+                                  key: const ValueKey('rdp-native-pan'),
+                                  padding: EdgeInsets.zero,
+                                  color: CupertinoColors.systemGrey
+                                      .resolveFrom(context)
+                                      .withValues(alpha: .75),
+                                  onPressed: _toggleNativePan,
+                                  child: Icon(
+                                    _nativePanEnabled
+                                        ? CupertinoIcons.cursor_rays
+                                        : CupertinoIcons.move,
+                                    color: CupertinoColors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
