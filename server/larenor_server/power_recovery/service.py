@@ -28,6 +28,7 @@ from .models import (
 
 _ACTIVE_WORK = (
     ("bounded_transfer_receipts", "state='accepted'"),
+    ("offline_media_grants", "state='transferring' AND expires_at>:now"),
     ("plugin_jobs", "state IN ('queued','running')"),
     ("media_inspections", "state IN ('queued','running')"),
     ("media_installations", "state IN ('queued','running','container_started')"),
@@ -50,6 +51,7 @@ _HEAVY_MUTATION_PREFIXES = (
 )
 _EVENT_SKEW_SECONDS = 300
 _DRAIN_SECONDS = 30
+_MAX_ACTIVE_WORK_PROVIDERS = 16
 
 
 class UnavailablePowerRecoveryExecutor:
@@ -71,8 +73,20 @@ class PowerRecoveryService:
         self._key = key
         self._executor = executor or UnavailablePowerRecoveryExecutor()
         self._lock = threading.RLock()
+        self._active_work_lock = threading.Lock()
+        self._active_work_providers = []
         self.validate_storage()
         self._recover_incomplete()
+
+    def register_active_work(self, provider):
+        if not callable(provider):
+            raise StartupError("power_recovery_provider_invalid")
+        with self._active_work_lock:
+            if provider in self._active_work_providers:
+                return
+            if len(self._active_work_providers) >= _MAX_ACTIVE_WORK_PROVIDERS:
+                raise StartupError("power_recovery_provider_invalid")
+            self._active_work_providers.append(provider)
 
     @staticmethod
     def _aad(revision):
@@ -735,6 +749,17 @@ class PowerRecoveryService:
         for table, where in _ACTIVE_WORK:
             sql = f"SELECT 1 FROM {table} WHERE {where} LIMIT 1"
             if connection.execute(sql, {"now": now}).fetchone() is not None:
+                return True
+        with self._active_work_lock:
+            providers = tuple(self._active_work_providers)
+        for provider in providers:
+            try:
+                observed = provider()
+                if type(observed) is not bool or observed:
+                    return True
+            except Exception:
+                # Losing an activity observer must never permit checkpoint and
+                # shutdown while the real effect may still be running.
                 return True
         return False
 

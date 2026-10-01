@@ -49,6 +49,22 @@ class OfflineMediaService:
         self._playback_leases = {}
         self._playback_lock = threading.RLock()
         self._playback_create_lock = threading.Lock()
+        self._power_inflight_lock = threading.Lock()
+        self._power_inflight = 0
+
+    def power_recovery_active(self):
+        with self._power_inflight_lock:
+            return self._power_inflight > 0
+
+    def _power_inflight_begin(self):
+        with self._power_inflight_lock:
+            self._power_inflight += 1
+
+    def _power_inflight_end(self):
+        with self._power_inflight_lock:
+            if self._power_inflight < 1:
+                raise RuntimeError("offline_media_inflight_invalid")
+            self._power_inflight -= 1
 
     @staticmethod
     def _json(value):
@@ -136,12 +152,47 @@ class OfflineMediaService:
             raise ApiError("offline_media_authority_changed", 409)
         return row
 
+    @staticmethod
+    def _power_hold(connection):
+        row = connection.execute(
+            "SELECT gate_state FROM power_recovery_state WHERE id=1"
+        ).fetchone()
+        if row is None or row["gate_state"] not in {"open", "held"}:
+            raise StartupError("power_recovery_storage_invalid")
+        return row["gate_state"] == "held"
+
+    def _existing_create(self, connection, actor, body, request_hash):
+        existing = connection.execute(
+            "SELECT * FROM offline_media_grants WHERE id=?",
+            (body.requestId,),
+        ).fetchone()
+        if existing is None:
+            return None
+        existing = self._row(existing)
+        if (existing["actor_id"] != actor.id
+                or existing["request_hash"] != request_hash):
+            raise ApiError("offline_media_request_conflict", 409)
+        return {"manifest": self._manifest(existing)}
+
     def create(self, actor, body):
         if type(body) is not CreateOfflineMediaRequest:
             raise ApiError("invalid_request")
         now = int(self.settings.clock())
         if not now < body.expiresAt <= now + MAX_TTL:
             raise ApiError("invalid_request")
+        request_hash = hashlib.sha256(
+            body.model_dump_json().encode()).hexdigest()
+        # The first check prevents new provider work after the hold. The second
+        # check below serializes the actual grant admission with the UPS gate.
+        # Exact replay of an already admitted request remains read-only.
+        with self.db.transaction() as connection:
+            self._actor_revision(connection, actor)
+            existing = self._existing_create(
+                connection, actor, body, request_hash)
+            if existing is not None:
+                return existing
+            if self._power_hold(connection):
+                raise ApiError("power_recovery_held", 503)
         _authority, observation = self.media_playback.archive._collect(
             actor, body, member=True)
         private = self.media_playback._catalog(actor, body)
@@ -153,19 +204,14 @@ class OfflineMediaService:
                 or item.sizeBytes > body.storageQuotaBytes
                 or item.sizeBytes > body.storageAvailableBytes):
             raise ApiError("offline_media_unavailable", 409)
-        request_hash = hashlib.sha256(
-            body.model_dump_json().encode()).hexdigest()
         with self.db.transaction() as connection:
             actor_revision = self._actor_revision(connection, actor)
-            existing = connection.execute(
-                "SELECT * FROM offline_media_grants WHERE id=?",
-                (body.requestId,)).fetchone()
+            existing = self._existing_create(
+                connection, actor, body, request_hash)
             if existing is not None:
-                existing = self._row(existing)
-                if (existing["actor_id"] != actor.id
-                        or existing["request_hash"] != request_hash):
-                    raise ApiError("offline_media_request_conflict", 409)
-                return {"manifest": self._manifest(existing)}
+                return existing
+            if self._power_hold(connection):
+                raise ApiError("power_recovery_held", 503)
             active = connection.execute(
                 "SELECT COUNT(*) AS count FROM offline_media_grants "
                 "WHERE actor_id=? AND state!='revoked' AND expires_at>?",
@@ -201,29 +247,52 @@ class OfflineMediaService:
     def chunk(self, actor, grant_id, body):
         if type(body) is not ReadOfflineMediaChunkRequest:
             raise ApiError("invalid_request")
-        with self.db.connection() as connection:
-            row = self._owned(
-                connection, actor, grant_id, body.expectedRevision)
-            if (row["state"] == "complete"
-                    or body.offset != row["downloaded_bytes"]
-                    or body.offset >= row["content_length"]):
-                raise ApiError("offline_media_authority_changed", 409)
-            actor_revision = row["actor_revision"]
-            private = PrivateMediaPlaybackAuthority.model_validate_json(
-                row["authority_json"])
-            length = min(
-                row["chunk_bytes"], row["content_length"] - body.offset)
-        backend = self.media_playback.backend
-        reader = getattr(backend, "read_offline_media_chunk", None)
-        if not callable(reader):
-            raise ApiError("media_playback_worker_unavailable", 503)
-        deadline = time.monotonic() + 5
-
-        def gate():
-            return (time.monotonic() < deadline
-                    and self.media_playback._gate(
-                        actor, private, actor_revision))
+        inflight = False
         try:
+            with self.db.transaction() as connection:
+                row = dict(self._owned(
+                    connection, actor, grant_id, body.expectedRevision)
+                )
+                if (row["state"] == "complete"
+                        or body.offset != row["downloaded_bytes"]
+                        or body.offset >= row["content_length"]):
+                    raise ApiError("offline_media_authority_changed", 409)
+                if row["state"] == "granted":
+                    if self._power_hold(connection):
+                        raise ApiError("power_recovery_held", 503)
+                    # This durable admission marker does not advance the public
+                    # CAS revision: the client has not acknowledged bytes yet.
+                    row.update(state="transferring",
+                               updated_at=int(self.settings.clock()))
+                    row["envelope_tag"] = self._tag(row)
+                    connection.execute(
+                        "UPDATE offline_media_grants SET state=?,updated_at=?,"
+                        "envelope_tag=? WHERE id=? AND revision=? "
+                        "AND state='granted'",
+                        (row["state"], row["updated_at"], row["envelope_tag"],
+                         row["id"], row["revision"]),
+                    )
+                actor_revision = row["actor_revision"]
+                private = PrivateMediaPlaybackAuthority.model_validate_json(
+                    row["authority_json"])
+                length = min(
+                    row["chunk_bytes"], row["content_length"] - body.offset)
+                # Increment before the admission transaction commits. A hold
+                # that wins the SQLite writer race therefore sees either no
+                # worker effect or one exact registered in-flight effect.
+                self._power_inflight_begin()
+                inflight = True
+            backend = self.media_playback.backend
+            reader = getattr(backend, "read_offline_media_chunk", None)
+            if not callable(reader):
+                raise ApiError("media_playback_worker_unavailable", 503)
+            deadline = time.monotonic() + 5
+
+            def gate():
+                return (time.monotonic() < deadline
+                        and self.media_playback._gate(
+                            actor, private, actor_revision))
+
             result = reader(
                 private, request_id=body.requestId, offset=body.offset,
                 length=length, deadline=deadline, gate=gate)
@@ -238,6 +307,9 @@ class OfflineMediaService:
             raise
         except (ValueError, TypeError, binascii.Error):
             raise ApiError("media_playback_worker_unavailable", 503) from None
+        finally:
+            if inflight:
+                self._power_inflight_end()
         return content, result.contentType, row["content_sha256"]
 
     def progress(self, actor, grant_id, body):
@@ -246,6 +318,10 @@ class OfflineMediaService:
         with self.db.transaction() as connection:
             row = dict(self._owned(
                 connection, actor, grant_id, body.expectedRevision))
+            if row["state"] == "granted" and self._power_hold(connection):
+                # Progress cannot turn a never-admitted grant into an active
+                # transfer while the UPS gate is held.
+                raise ApiError("power_recovery_held", 503)
             if (body.downloadedBytes < row["downloaded_bytes"]
                     or body.downloadedBytes > row["content_length"]
                     or body.downloadedBytes == row["content_length"]

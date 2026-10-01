@@ -1575,6 +1575,8 @@ class CoreServices:
                 self.media_playback,
             )
             self.offline_media.validate_storage()
+            self.power_recovery.register_active_work(
+                self.offline_media.power_recovery_active)
             self.longform_sessions = LongformSessionService(
                 self.db, self.auth, settings, key, self.context,
                 self.music_playback,
