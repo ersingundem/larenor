@@ -25,3 +25,35 @@ Two regressions reproduced the old parser rejection before the fix. Root then
 passed107 discovery/stream/gamepad/queue/progress tests and scoped actionlint for
 both workflows. These are parser checks, not a native or provider receipt. A new
 changed-source hosted run is required before discovery acceptance.
+
+## Exact changed-source Android discovery acceptance
+
+[Run 36802851003](https://github.com/ersingundem/larenor/actions/runs/36802851003)
+completed successfully at exact source
+`5fa91e438806decc81d24c4e8a28058bbd53cea3`. Artifact `11136711855` has the
+exact expected discovery name, is unexpired, and is bound to that run and SHA.
+Root and an independent agent verified the canonical public receipt:
+
+- SHA-256: `d19770971cfcca4069b031e9a61564a65b4ea829a29179f70c3ce448ad81d619`
+- Gate: `owned_sunshine_android_discovery`
+- Exact production class: `com.ersingundem.larenor.game.moonlight.MoonlightOwnedSunshineDiscoveryTest`
+- Exact method: `discoversTheExactOwnedSunshineServiceAcrossFreshDiscoveryLifetimes`
+- Tests: **1**, failures/errors/skipped: **0** each
+- Fresh discovery lifetimes: **2**
+- Pinned Sunshine tag: `v2026.914.233613`, service `_nvstream._tcp`
+- `streamAccepted=false`
+
+The receipt's source revision, embedded Moonlight engine revision, upstream
+commit/tree and bounded AAR/classes digests match the reviewed package contract.
+GitHub metadata independently shows successful engine build/install, real
+Android NSD execution and receipt upload. This is discovery acceptance only;
+stream/frame/PCM/input/gamepad/disconnect acceptance remains open.
+
+The same-source [stream run 36802861944](https://github.com/ersingundem/larenor/actions/runs/36802861944)
+has a cancelled stream step after emulator boot, during early APK prebuild.
+No named instrumentation test, build/test failure, provider failure code or
+receipt was observed; exact owned cleanup succeeded. GitHub initially retained
+an `in_progress` run/job with no conclusion although all steps were terminal.
+The four-minute step did not exhaust the job or subprocess timeout. The
+external cancellation cause is unproved, so it neither establishes a product
+failure nor satisfies the stream gate.

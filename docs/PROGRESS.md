@@ -17,6 +17,12 @@ olarak kullanılmaz. İlk 60 adayın tamamı ve VNC/RDP/SSH seçildi.
 [Bağımlılıklara göre özellik sırası](feature-expansion-plan-2026-09-05.md)
 ve [uzak erişim kapsamı](remote-access-plan-2026-09-05.md) korunuyor.
 
+### 1 Ekim F60 gerçek Android keşif kabulü
+
+Exact5fa91e43 [discovery36802851003](https://github.com/ersingundem/larenor/actions/runs/36802851003) yeşil tamamlandı. Root ve bağımsız ajan canonical public receiptin exact source/class/method, **1test/0skip/0failure/0error**, iki fresh discovery lifetime ve receipted Moonlight engine/source/package binding eşitliğini doğruladı. **streamAccepted=false**; bu gerçek NSD keşif kanıtıdır, yayın/girdi kabulü değildir. [Receipt ve sınırları](testing/f60-android-junit-aggregate-2026-10-01.md).
+
+Same-source stream36802861944, emulator boot sonrası erken APK prebuild adımında cancelled oldu; named instrumentation/test/receipt veya provider failure code yok, cleanup geçti. GitHub terminal run conclusion henüz vermediği için kuyruk bu metadata sınırını açıkça kaydeder; cancellationın external nedeni kanıtsızdır. F60 yeniden çalışılıyor kalır. F62 yeni gerçek Unicode/CLIPRDR/DISP kaynak commit'i **8d54993f** pushlandı ve [native gate36804331620](https://github.com/ersingundem/larenor/actions/runs/36804331620) exact SHA ile başladı. x86 fixture build hazırlığı Android/runtime öncesinde başarısız oldu; arm64 paket işi sürüyor ve dar neden inceleniyor. Tamamlanan **58 seçili/toplam67 iş CI bekliyor**; tam kabul **37/127** ve **3/63** değişmedi.
+
 ### 1 Ekim F62 gerçek Unicode paketi ve owned kanal kabulü
 
 Exactd69cb0bd [native koşusu36801363639](https://github.com/ersingundem/larenor/actions/runs/36801363639), original1test/1failure/0error/0skip ile **resizedFrameWait** aşamasında başarısız tamamlandı; arm64 paket işi geçti. Yeni gerçek post-resize frame/ACK/close kabulü gerekir. JNI modified UTF8 sınırındaki emoji hatası pinned FreeRDP/Android kaynaklarıyla doğrulandı; UTF16→standard UTF8 düzeltmesi, NUL/surrogate/64KiB sınırları ve payload silme yeni engine identity/receipt ile bağlıdır. Root exact source ve iki reviewed patch ile gerçek x86_64 AARı yeniden derledi, receipt/verify-install geçti; yeni paketle app ve AndroidTest Kotlin derlemesi ile **24 RDP unit/0skip/0failure/0error** geçti. **105 Python kontrolü**, workflow actionlint ve diff kontrolü de yeşil. [Paket ve derleme kanıtı](testing/f62-native-clipboard-unicode-2026-10-01.md).
