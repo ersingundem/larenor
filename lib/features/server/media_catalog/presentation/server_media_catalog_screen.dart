@@ -15,6 +15,7 @@ import '../data/server_media_catalog_controller.dart';
 import '../domain/server_media_catalog_models.dart';
 import '../../media_flow/data/server_media_flow_cache.dart';
 import '../../media_flow/presentation/server_media_flow_screen.dart';
+import '../../local_media_player/presentation/core_catalog_player_screen.dart';
 import '../../media_rows/data/server_media_rows_controller.dart';
 import '../../media_rows/presentation/server_media_rows_section.dart';
 import '../../media_rows/domain/server_media_rows_models.dart';
@@ -216,6 +217,17 @@ final class _ServerMediaCatalogScreenState
     );
   }
 
+  void _openLocal(ServerMediaCatalogPage page, ServerMediaCatalogItem item) {
+    if (!_active || !page.items.any((value) => identical(value, item))) return;
+    unawaited(
+      Navigator.of(context).push(
+        CupertinoPageRoute<void>(
+          builder: (_) => CoreCatalogPlayerScreen(page: page, item: item),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openRow(ServerMediaRowItem item) async {
     final rows = _rowsController;
     final current = _capture();
@@ -329,41 +341,69 @@ final class _ServerMediaCatalogScreenState
           ),
         ),
       for (final item in page.items)
-        Semantics(
-          key: ValueKey('server-media-catalog-item-${item.itemId}'),
-          button: true,
-          label: '${item.title}, ${_kind(l, item.kind)}',
-          child: ExcludeSemantics(
-            child: CupertinoButton(
-              padding: EdgeInsets.zero,
-              minimumSize: const Size(48, 48),
-              onPressed: _active ? () => _open(item) : null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(CupertinoIcons.film, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.title, style: AppText.headline),
-                          const SizedBox(height: 4),
-                          Text(_kind(l, item.kind), style: AppText.footnote),
-                        ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  key: ValueKey('server-media-catalog-item-${item.itemId}'),
+                  button: true,
+                  label: '${item.title}, ${_kind(l, item.kind)}',
+                  child: ExcludeSemantics(
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(48, 48),
+                      onPressed: _active ? () => _open(item) : null,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(CupertinoIcons.film, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.title, style: AppText.headline),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _kind(l, item.kind),
+                                    style: AppText.footnote,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              CupertinoIcons.chevron_forward,
+                              size: 18,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(CupertinoIcons.chevron_forward, size: 18),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              Semantics(
+                button: true,
+                label: '${l.jellyfinOfflineMediaDownload}: ${item.title}',
+                child: CupertinoButton(
+                  key: ValueKey(
+                    'server-media-catalog-local-player-${item.itemId}',
+                  ),
+                  minimumSize: const Size(48, 48),
+                  padding: const EdgeInsets.all(12),
+                  onPressed: _active ? () => _openLocal(page, item) : null,
+                  child: const Icon(CupertinoIcons.arrow_down_circle),
+                ),
+              ),
+            ],
           ),
         ),
       if (page.nextOffset case final offset?)

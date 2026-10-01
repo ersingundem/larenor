@@ -90,10 +90,10 @@ void main() {
       };
       final store = JellyfinTrackPreferencesStore(account: fixture.account);
 
-      expect(await store.read(_direct, isCurrent: () => true), isNull);
-      await store.saveAudio(_direct, language: 'tr-TR', isCurrent: () => true);
-      await store.saveSubtitle(_direct, language: 'off', isCurrent: () => true);
-      final saved = await store.read(_direct, isCurrent: () => true);
+      expect(await store.readCurrent(isCurrent: () => true), isNull);
+      await store.saveAudioCurrent(language: 'tr-TR', isCurrent: () => true);
+      await store.saveSubtitleCurrent(language: 'off', isCurrent: () => true);
+      final saved = await store.readCurrent(isCurrent: () => true);
 
       expect(saved?.audioLanguage, 'tr-tr');
       expect(saved?.subtitleLanguage, 'off');

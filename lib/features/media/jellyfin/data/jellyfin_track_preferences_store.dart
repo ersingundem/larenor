@@ -83,6 +83,10 @@ class JellyfinTrackPreferencesStore {
   Future<JellyfinTrackPreferenceRecord?> read(
     JellyfinConfig config, {
     required bool Function() isCurrent,
+  }) => readCurrent(isCurrent: isCurrent);
+
+  Future<JellyfinTrackPreferenceRecord?> readCurrent({
+    required bool Function() isCurrent,
   }) async {
     _check(isCurrent);
     final result = await _requiredAccount.withSession((api, session) async {
@@ -99,8 +103,12 @@ class JellyfinTrackPreferencesStore {
     JellyfinConfig config, {
     required String language,
     required bool Function() isCurrent,
+  }) => saveAudioCurrent(language: language, isCurrent: isCurrent);
+
+  Future<JellyfinTrackPreferenceRecord> saveAudioCurrent({
+    required String language,
+    required bool Function() isCurrent,
   }) => _save(
-    config,
     audioLanguage: JellyfinTrackPreferences.normalize(language),
     isCurrent: isCurrent,
   );
@@ -109,8 +117,12 @@ class JellyfinTrackPreferencesStore {
     JellyfinConfig config, {
     required String language,
     required bool Function() isCurrent,
+  }) => saveSubtitleCurrent(language: language, isCurrent: isCurrent);
+
+  Future<JellyfinTrackPreferenceRecord> saveSubtitleCurrent({
+    required String language,
+    required bool Function() isCurrent,
   }) => _save(
-    config,
     subtitleLanguage: JellyfinTrackPreferences.normalize(
       language,
       allowOff: true,
@@ -138,7 +150,6 @@ class JellyfinTrackPreferencesStore {
       throw const FormatException('At least one preference is required');
     }
     return _merge(
-      config,
       audioLanguage: audio,
       subtitleLanguage: subtitle,
       skipUnchanged: true,
@@ -146,8 +157,7 @@ class JellyfinTrackPreferencesStore {
     );
   }
 
-  Future<JellyfinTrackPreferenceRecord> _save(
-    JellyfinConfig config, {
+  Future<JellyfinTrackPreferenceRecord> _save({
     String? audioLanguage,
     String? subtitleLanguage,
     required bool Function() isCurrent,
@@ -156,7 +166,6 @@ class JellyfinTrackPreferencesStore {
       throw const FormatException('Exactly one preference is required');
     }
     return _merge(
-      config,
       audioLanguage: audioLanguage,
       subtitleLanguage: subtitleLanguage,
       skipUnchanged: false,
@@ -164,8 +173,7 @@ class JellyfinTrackPreferencesStore {
     );
   }
 
-  Future<JellyfinTrackPreferenceRecord> _merge(
-    JellyfinConfig config, {
+  Future<JellyfinTrackPreferenceRecord> _merge({
     String? audioLanguage,
     String? subtitleLanguage,
     required bool skipUnchanged,

@@ -439,6 +439,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('The Matrix'), findsOneWidget);
+    expect(
+      find.byKey(
+        const ValueKey(
+          'server-media-catalog-local-player-99999999999999999999999999999999',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(fixture.browseCalls, 1);
     expect(fixture.catalogCalls, 0);
     expect(
