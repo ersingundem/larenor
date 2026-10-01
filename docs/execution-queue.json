@@ -3574,7 +3574,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux CI bekliyor. docs/testing/f08-worker-listener-close-2026-10-01.md."
+      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Normal Core→UID10003 AI worker→systemd user-manager cgroup yolu paketlenmiştir. 42 Server ve 6 package yanında exact09a912b4 run36750577813 ayrı UID, gerçek OOM, TasksMax, CPU throttling ve unit/cgroup release geçti. Gerçek model workload MANUAL.FEATURES açık; dar Linux koşusu geniş güncel HEAD CI yerine geçmez. docs/testing/unified-host-workers-2026-09-30.md. 1 Ekim listener kapanışı bounded250ms polling/exact listener çitiyle düzeltildi; successor thread adoption ve accepted-stream retirement root12passed/1explicitLinux skip. Yeni Linux CI bekliyor. docs/testing/f08-worker-listener-close-2026-10-01.md. Exact5325/run36816909489 gerçek UID IPC geçti; stress memory.events errno2 ile düştü. Üretim limitlerini değiştirmeyen dispatch-bound observer koordinasyonu root31passed/2explicitLinux skip ile doğrulandı; yeni Linux kabul gerekli. docs/testing/f08-cgroup-observer-coordination-2026-10-01.md."
     },
     {
       "id": "F04",
@@ -5517,13 +5517,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36816571516",
           "commit": "31f152c20cea3fde5b58b84b781be45564e90a54",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source strict owned Sunshine stream gate;exact31 includes e5 PIN observation and cleanup;no runtime acceptance yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact31 fixed readRejected after loopback accept/peer verification;instrumentation_report_missing from owned host retirement;precise transport cause unproved;no runtime acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact362/run36813869676 embed-v3 canonical 1 test/1 failure/0 error/0 skip, AssertionError pairingRegistration (owned lines680/99), PIN bridge listening. Android presenter kaynakta senkron socket connect/write sonrası döner; bu stage kabul/okuma/parse öncesi hataları ayırmadığından kesin provider nedeni bilinmiyor. Aynı exact discovery36813871246 iki fresh NSD yaşamı/1test/0skip ile geçti; streamAccepted=false. 40 native iptal/deadline, root165tool, actual iki-ABI product APK5verifier ve JVM343passed/2explicit opt-in skip/0failure geçti. Newline/EOF dar fixture RED→GREEN kabulü eski/yeni hosted pairing hatasının tek nedeni sayılmaz. Dar host transport gözlemi hazırlanıyor; kör aynıSHA rerun yok. Strict gerçek frame/PCM/input/stop/disconnect/two-lifetime kapıları açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı. Kanıt: docs/testing/f60-pairing-cancellation-2026-10-01.md. PIN bridge fixedenum ve owned process cleanup dar düzeltmesi root60stream/discovery+10workflow geçti; erken transport failure ayrı görünür, strict gerçek stream kabulü değişmedi. docs/testing/f60-pin-transport-observation-2026-10-01.md. Yeni exact31/run36816571516 strict stream koşusu başladı; runtime makbuzu henüz yok."
+      "reason": "Yeniden çalışılıyor: exact31/run36816571516 strict owned stream failed; PIN bridge readRejected, instrumentation_report_missing, ownedframes[]. Bu yeni tanı kabul edilmiş loopback bağlantısı ve doğrulanmış peer sonrası canonical PIN/nonce parse öncesi bounded read hatasını ayırır; EOF/deadline/socket/framing alt nedeni kanıtlanmaz. Host terminal bridge failure sonrası exact Gradle childı kapattığı için missing report app crash kanıtı değildir. docs/testing/f60-pin-read-rejection-2026-10-01.md. Exact362 discovery iki fresh production NSD yaşamı/1test/0skip geçti, streamAccepted=false. Root60stream/discovery+10workflow,40native iptal/deadline,actual v3iki-ABI APK5verifier,JVM343passed/2explicit skip geçer; bunlar gerçek stream yerine sayılmaz. Parsed-peer ACK source incelemesi/dar fixture onarımı sürüyor; aynıSHA kör rerun yok. Gerçek frame/PCM/input/iki yaşam/stop/disconnect kabulü ve geniş finalHEAD CI açık; fiziksel GPU/codec/gamepad/network MANUAL ayrı."
     },
     {
       "id": "G11",

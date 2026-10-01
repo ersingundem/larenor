@@ -7,12 +7,43 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import stat
 import time
 
 
 PROVIDER_ID = "f08-cgroup-stress-v1"
+OBSERVATION_TIMEOUT_SECONDS = 8
+
+
+def _wait_observation(root, dispatch_id, stage):
+    """Wait for the owned observer without extending a production deadline."""
+    if (
+        not isinstance(dispatch_id, str)
+        or re.fullmatch(r"[a-f0-9]{32}", dispatch_id) is None
+        or stage not in {"start", "observed"}
+    ):
+        raise ValueError("invalid observation binding")
+    info = root.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid != os.geteuid()
+        or info.st_mode & 0o077
+    ):
+        raise ValueError("invalid observation root")
+    path = root / f"{dispatch_id}.{stage}"
+    deadline = time.monotonic() + OBSERVATION_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            value = _read_private(path, 16)
+        except FileNotFoundError:
+            time.sleep(0.02)
+            continue
+        if value != b"observed\n":
+            raise ValueError("invalid observation acknowledgement")
+        return
+    raise TimeoutError("owned observation deadline expired")
 
 
 def _read_private(path, maximum):
@@ -74,9 +105,9 @@ def _descriptor(path):
     return value
 
 
-def _memory_limit():
-    # Keep a small parent alive long enough for the test to read memory.events
-    # from the real cgroup.  The child raises its own OOM preference and is the
+def _memory_limit(observation_root, dispatch_id):
+    # The observer snapshots hierarchical memory.events before allocation.
+    # Normal systemd OOM retirement may terminate this parent too. The child is the
     # only process that allocates beyond MemoryMax; the parent never turns a
     # killed allocation into a successful provider receipt.
     child = os.fork()
@@ -89,11 +120,11 @@ def _memory_limit():
     _pid, status = os.waitpid(child, 0)
     if not os.WIFSIGNALED(status) or os.WTERMSIG(status) != signal.SIGKILL:
         raise AssertionError(status)
-    time.sleep(2)
+    _wait_observation(observation_root, dispatch_id, "observed")
     raise SystemExit(73)
 
 
-def _task_limit():
+def _task_limit(observation_root, dispatch_id):
     children = []
     limited = False
     try:
@@ -122,9 +153,8 @@ def _task_limit():
                 pass
     if not limited:
         raise AssertionError("pids limit was not enforced")
-    # Preserve the cgroup briefly after the EAGAIN so the kernel pids.events
-    # counter is observed before the unit reaches its terminal state.
-    time.sleep(2)
+    # Preserve the cgroup until the observer reads the real pids.events counter.
+    _wait_observation(observation_root, dispatch_id, "observed")
     raise SystemExit(73)
 
 
@@ -177,14 +207,19 @@ def _succeed(descriptor, evidence):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("memory", "tasks", "cpu"), required=True)
+    parser.add_argument("--observation-root", type=Path, required=True)
     parser.add_argument("--larenor-job-descriptor", required=True)
     options = parser.parse_args()
     descriptor = _descriptor(options.larenor_job_descriptor)
+    dispatch_id = descriptor["dispatchId"]
+    _wait_observation(options.observation_root, dispatch_id, "start")
     if options.mode == "memory":
-        _memory_limit()
+        _memory_limit(options.observation_root, dispatch_id)
     if options.mode == "tasks":
-        _task_limit()
-    _succeed(descriptor, _cpu_limit())
+        _task_limit(options.observation_root, dispatch_id)
+    evidence = _cpu_limit()
+    _wait_observation(options.observation_root, dispatch_id, "observed")
+    _succeed(descriptor, evidence)
 
 
 if __name__ == "__main__":

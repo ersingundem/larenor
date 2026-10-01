@@ -68,7 +68,7 @@ dispatch=AiDispatch(
 value=client.start(dispatch) if sys.argv[5] == 'start' else client.observe(dispatch)
 if sys.argv[5] == 'observe':
     deadline=time.monotonic()+10
-    while value.phase in {'starting','running'} and time.monotonic()<deadline:
+    while value.phase in {'starting','running','cancel_requested'} and time.monotonic()<deadline:
         time.sleep(.05); value=client.observe(dispatch)
 print(json.dumps(dataclasses.asdict(value),sort_keys=True,separators=(',',':')))
 """
@@ -91,14 +91,46 @@ print(json.dumps(dataclasses.asdict(value),sort_keys=True,separators=(',',':')))
     return json.loads(result.stdout)
 
 
-def _wait_counter(path, key):
+def _wait_counter(path, key, *, baseline=None):
+    baseline = {} if baseline is None else baseline
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
         values = _flat_keyed(path)
-        if values.get(key, 0) > 0:
-            return values
+        assert all(values.get(name, -1) >= value for name, value in baseline.items())
+        deltas = {name: value - baseline.get(name, 0) for name, value in values.items()}
+        if deltas.get(key, 0) > 0:
+            return deltas
         time.sleep(0.02)
     pytest.fail(f"cgroup counter did not advance: {path}:{key}")
+
+
+def _acknowledge(setpriv, environment, observation_root, dispatch_id, stage):
+    assert stage in {"start", "observed"}
+    assert len(dispatch_id) == 32 and set(dispatch_id) <= set("abcdef0123456789")
+    source = """
+import os,sys
+descriptor=os.open(sys.argv[1],os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+try:
+    assert os.write(descriptor,b'observed\\n') == 9
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+"""
+    result = _run_as(
+        setpriv,
+        AI_UID,
+        [sys.executable, "-c", source, str(observation_root / f"{dispatch_id}.{stage}")],
+        environment=environment,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def _sibling_memory_events(parent, owned):
+    return {
+        path.name: (path.stat().st_ino, _flat_keyed(path / "memory.events"))
+        for path in parent.iterdir()
+        if path.is_dir() and path != owned
+    }
 
 
 def _release(setpriv, python, socket_path, kind, dispatch_id, cpu):
@@ -186,6 +218,8 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
     try:
         state = root / "state"
         state.mkdir(mode=0o700)
+        observation_root = root / "counter-observation"
+        observation_root.mkdir(mode=0o700)
         provider = root / "provider"
         shutil.copyfile(
             Path(__file__).parent / "support" / "f08_cgroup_stress_provider.py",
@@ -211,7 +245,9 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
                             "executionMode": "standalone",
                             "executable": str(provider),
                             "executableSha256": digest,
-                            "arguments": ["--mode", mode],
+                            "arguments": [
+                                "--mode", mode, "--observation-root", str(observation_root),
+                            ],
                             "artifacts": [],
                         }
                         for kind, mode in (
@@ -225,7 +261,7 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
             encoding="utf-8",
         )
         config.chmod(0o600)
-        for path in (root, state, provider, config):
+        for path in (root, state, observation_root, provider, config):
             os.chown(path, AI_UID, AI_UID)
         os.chown(socket_parent, CORE_UID, IPC_GID)
         socket_parent.chmod(0o770)
@@ -292,14 +328,32 @@ def test_actual_user_manager_enforces_memory_pids_and_cpu_throttle_over_ipc():
             cgroup = _control_group(setpriv, systemctl, environment, unit)
             cgroups.append((unit, cgroup))
             if kind == "vision":
-                stats[kind] = _wait_counter(cgroup / "memory.events", "oom_kill")
+                # OOMPolicy=stop may retire the entire unit and remove its
+                # cgroup before userspace can read the leaf counter. Preserve
+                # the normal policy; measure a delta in its surviving parent
+                # and require the exact unit's resource_limit observation too.
+                assert (cgroup / "memory.max").read_text().strip() == str(64 * 1024 * 1024)
+                assert (cgroup / "memory.swap.max").read_text().strip() == "0"
+                parent = cgroup.parent
+                parent_identity = parent.stat().st_ino
+                baseline = _flat_keyed(parent / "memory.events")
+                local_baseline = _flat_keyed(parent / "memory.events.local")
+                siblings = _sibling_memory_events(parent, cgroup)
+                _acknowledge(setpriv, environment, observation_root, dispatch_id, "start")
+                stats[kind] = _wait_counter(parent / "memory.events", "oom_kill", baseline=baseline)
+                assert parent.stat().st_ino == parent_identity
+                assert _flat_keyed(parent / "memory.events.local") == local_baseline
+                assert _sibling_memory_events(parent, cgroup) == siblings
             elif kind == "assistant":
+                _acknowledge(setpriv, environment, observation_root, dispatch_id, "start")
                 stats[kind] = _wait_counter(cgroup / "pids.events", "max")
             else:
                 assert (
                     cgroup / "cpu.max"
                 ).read_text(encoding="ascii").strip() == "20000 100000"
+                _acknowledge(setpriv, environment, observation_root, dispatch_id, "start")
                 stats[kind] = _wait_counter(cgroup / "cpu.stat", "nr_throttled")
+            _acknowledge(setpriv, environment, observation_root, dispatch_id, "observed")
             observations[kind] = _client_call(
                 setpriv,
                 sys.executable,

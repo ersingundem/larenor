@@ -7,7 +7,7 @@
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
 | **CI bekliyor** | **53 seçili özellik / toplam 62 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
-| **Yeniden çalışılıyor** | **F60** | Exact `36269cf0` discovery iki yaşam/1test/0skip geçti. [Stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36813869676) canonical 1 test/1 failure ile pairingRegistration aşamasında kaldı; PIN bridge listening kesin alt nedeni ayırmıyor. Gerçek frame/PCM/input/iki yaşam kabulü açık |
+| **Yeniden çalışılıyor** | **F60** | Exact `31f152c2` [stream koşusu](https://github.com/ersingundem/larenor/actions/runs/36816571516) `readRejected` ile başarısız; loopback accept/peer sonrası parse öncesi okuma hatası, kesin alt neden açık. Discovery iki yaşam/1test/0skip geçti. Gerçek frame/PCM/input/iki yaşam kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact `70ab1058` [koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) 1 test/1 failure/0 error/0 skip ile başarısız. Owned source frame 1280×800 ilk kare bekleyişini gösterir; yanlış boyutlu ara callback ihtimali ve alt neden açık. Arm64 package geçti; strict runtime kabulü yok |
 | **Yeniden çalışılıyor** | **F21/F24–F27** | Normal katalog/player ve soğuk başlangıç Core yetki bileşimi açığı. [Kaynak incelemesi](testing/f24-f27-player-core-composition-gap-2026-10-01.md) |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
@@ -44,6 +44,8 @@ F22/F35 için sessiz hostta exact continuous-execution/access-expiry testi ve ik
 FreeRDP iki-ABI CI paketleme kusuru ayrı kaynak ağaçlarıyla kapatıldı. Root iki gerçek AAR’ın yalnız kendi ABI’sini içerdiğini, ortak classes.jar karmasını ve birleşik product verifier sonucunu doğruladı; 5 workflow/package testi ve actionlint geçti. [Dar paket kanıtı](testing/product-freerdp-abi-isolation-2026-10-01.md). Worker callback/encoder ZIP paketlerinin umask077 altında yanlış modda üretilmesi de dar gerçek paket testleriyle düzeltildi. [İzin kanıtı](testing/host-worker-plugin-artifact-mode-2026-10-01.md). Değişen kaynak için hosted kabul gerekli.
 
 Security `81cd4172` ve `70ab1058` kaynaklarında üç işi de geçti. F62 erken/live tanı düzeltmesi `70ab1058` root51, AndroidTest derlemesi ve bağımsız inceleme geçti; [strict native koşusu](https://github.com/ersingundem/larenor/actions/runs/36814807367) ilk kare bekleyişinde başarısız tamamlandı; kaynak incelemesi sürüyor. Tanı ve paket kanıtı gerçek RDP/stream kabulü yerine sayılmaz.
+
+F08 exact `5325c083` geniş CI’da UID IPC testini geçti; stress testi `memory.events` errno2 ile başarısız. Üretim limitlerini değiştirmeyen [observer koordinasyonu](testing/f08-cgroup-observer-coordination-2026-10-01.md) root31passed/2explicitLinux skip ile doğrulandı; değişen kaynak için yeni gerçek Linux kabulü gerekli. F60 yeni [okuma aşaması tanısı](testing/f60-pin-read-rejection-2026-10-01.md) kesin EOF/deadline nedenini henüz ayırmıyor; yeniden çalışılıyor. Aynı geniş CI’ın Flutter shard0’ı native tablet komut deadline testinde expected failed/actual denied verdi; çift timer/retirement sınırı dar incelemede.
 
 ## Tarihsel doğrulama kayıtları
 

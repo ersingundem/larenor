@@ -16,7 +16,7 @@ but it is not a usable cold-start composition or a safe authority contract.
 
 The existing store/API and injected player-controller gates do not establish
 this normal navigation/startup path. F24 track preferences, F25 segments, F26
-offline media and F27 quality therefore return to `reworking`. Their earlier
+quality and F27 offline media therefore return to `reworking`. Their earlier
 narrow evidence remains historical; they cannot await only CI while this
 production entry is incomplete. F21 watch-party also returns to `reworking`: the existing two-process Core room/leader/restart gate passes explicit targets and positions into its controller; it does not open the normal player and measure the applied directive there.
 
@@ -24,4 +24,4 @@ The repair must provide an explicit normal player entry with exact current
 Core/home/provider authority. It must not silently combine unrelated direct
 Jellyfin and Core homes or export private provider credentials as a shortcut.
 Cold startup, restart, authority replacement and route retirement must be
-covered before the four features return to `awaiting_ci`.
+covered before these features return to `awaiting_ci`.
