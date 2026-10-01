@@ -16,6 +16,8 @@ class FrigateFixture:
         self.on_clip = None
         self.calls = []
         self.errors = []
+        self.websocket_close_count = 0
+        self.websocket_close_event = threading.Event()
         self.semantic = True
         self.events = [self.event('1788609600.123-front', 'front'),
                        self.event('1788609601.124-back', 'back', start=1788609601)]
@@ -129,6 +131,26 @@ class FrigateFixture:
                      'config_entry_id': 'b' * 32, 'device_id': owner.device,
                      'unique_id': 'b' * 32 + ':camera:' + name, 'disabled_by': None}
                     for name in ['front', 'back']]})
+                # Keep the owned peer alive until the real Client closes. An
+                # immediate TCP close races its post-read authority guard and
+                # masked close frame, turning a successful registry read into
+                # a source-unavailable error. Cancellation may abort without
+                # a WebSocket close and is not counted as a clean lifetime.
+                self.connection.settimeout(5)
+                header = self.rfile.read(2)
+                if header == b'':
+                    self.close_connection = True
+                    return
+                assert len(header) == 2 and header[0] == 0x88
+                assert header[1] & 0x80 and header[1] & 0x7f <= 125
+                mask = self.rfile.read(4)
+                payload = self.rfile.read(header[1] & 0x7f)
+                assert len(mask) == 4 and len(payload) == header[1] & 0x7f
+                payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+                self.wfile.write(bytes([0x88, len(payload)]) + payload)
+                self.wfile.flush()
+                owner.websocket_close_count += 1
+                owner.websocket_close_event.set()
                 self.close_connection = True
 
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
