@@ -3903,6 +3903,14 @@
           "state": "completed",
           "result": "failed",
           "label": "Independent productionClient review found capturedtoken dialog drift/copy andlateaction commit gaps plus missing safe reconcile; actualnamedServer3passed doesnotproveClient/TCP gate"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f14-normal-core-acceptance-2026-10-01.md",
+          "commit": "0d1612a1cb937c39bd0e1982666b86074e1e16d7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root11Client/widget andactual normalCoreTCPtwo independentClientprocesses/DBrestart1+1passed; scopedanalyzeclean; namedServer3passed separately"
         }
       ],
       "completionCommit": null,
@@ -4817,7 +4825,7 @@
       "kind": "task",
       "parent": "G09",
       "title": "Oda konforu ve havalandırma planı",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4841,7 +4849,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core gerçek HTTP kabulünde 64 distinct plan yenilemesinden ve aynı DB ile restarttan sonra 65inci PUT beklenen 200 yerine kalıcı 429 comfort_limit_reached verdi. MAX_PLANS64 ve MAX_PREVIEWS128 kapasitesi güvenli retention olmadan tükeniyor. HMAC doğrulanmış transaction içinde current plan, unexpired preview, dispatching/unknown effect parentları ve replay penceresini koruyan bounded retention hazırlanıyor; cap artırımı veya kör kayıt silme yok. Önceki climate/cover tek gönderimli lostACK/readback odaklı kabulü korunur, bu gerçek limit açığını kapatmaz. Düzeltme ve regression kabulü gelmeden F50 CI bekliyor değildir. Fiziksel iklim/perde MANUAL ve geniş final HEAD CI ayrı."
+      "reason": "Uygulama ve gerçek Core odaklı kabul tamamlandı; geniş final HEAD CI bekleniyor. Normal HTTP64plan+restart→65inciyenileme429 açığı transaction içinde bounded retention ile kapandı. Root33/33 F50 testi (16retention dahil) geçti. Önce her HMAC/receipt/dispatch/parent doğrulanır; current plan, live preview, dispatching/unknown/finalize edilmemiş effects ve24saat replay korunur. Yalnız expired unconfirmed/proven terminal histories child-first silinir; indispensable capacity doluysa tüm silme rollback+429. Currentpointer signed newest unique plan sırasıyla doğrulanır; equal-ms distinct plan/clockrollback/ambiguouslegacy failclosed. Caps yükseltilmedi, worker replay yok. Önceki tek gönderimli HA/readback kanıtı korunur; fiziksel iklim/perde MANUAL ve geniş CI açık. Kanıt: docs/testing/f50-room-comfort-retention-2026-10-01.md."
     },
     {
       "id": "F48",
@@ -5314,7 +5322,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run36802851003 tek test/sıfır atlama/iki yaşam ile gerçek Android NSD keşfini doğruladı; streamAccepted=false. Exact a703289d / run36804692946 hosted UHID ve motor derleme/kurulumundan sonra gerçek connectedDebugAndroidTest adımında failed tamamlandı. Sabit outerreason yalnız owned Sunshine Android stream failed; adlandırılmış test sayısı, owned source frame veya aşama receipt’i tutulmadı. Precise assertion nedeni kanıtlanamadığından aynı kaynak körlemesine yeniden çalıştırılmaz; yalnız güvenli kaynak/paket bağlı failure tanısı ekleniyor. Frame/PCM, gerçek XI2/gamepad etkisi, normal stop, daemon kapanışı ve tekrar göndermeden yerel temizleme kabulü hâlâ açık; F60 CI bekliyor değildir. Sağlayıcı eşlemesini kaldırma fiziksel/controller/gecikme MANUAL, geniş final HEAD CI ayrı. 55/64 CI bekliyor ve 37/127,3/63 kabul korunur."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 ve yerel temizleme odaklı kabulü geçti. Exact 5fa91e43 / run36802851003 tek test/sıfır atlama/iki yaşam ile gerçek Android NSD keşfini doğruladı; streamAccepted=false. Exact a703289d / run36804692946 hosted UHID ve motor derleme/kurulumundan sonra gerçek connectedDebugAndroidTest adımında failed tamamlandı. Sabit outerreason yalnız owned Sunshine Android stream failed; adlandırılmış test sayısı, owned source frame veya aşama receipt’i tutulmadı. Precise assertion nedeni kanıtlanamadığından aynı kaynak körlemesine yeniden çalıştırılmaz; yalnız güvenli kaynak/paket bağlı failure tanısı ekleniyor. Frame/PCM, gerçek XI2/gamepad etkisi, normal stop, daemon kapanışı ve tekrar göndermeden yerel temizleme kabulü hâlâ açık; F60 CI bekliyor değildir. Sağlayıcı eşlemesini kaldırma fiziksel/controller/gecikme MANUAL, geniş final HEAD CI ayrı. 56/65 CI bekliyor ve 37/127,3/63 kabul korunur."
     },
     {
       "id": "G11",
@@ -5556,13 +5564,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36805226494",
           "commit": "1d1ccf2e14e5814800417c32cbe45e8e1fceb24c",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact1d ownedLinux CLIPRDR/DISP fixture actuallycompiledSUCCESS; Android ABI/app/runtime gate inprogress, no two-lifetime receipt; compilealone is notfeatureacceptance"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact1d canonical originaltest1failure0error0skip:initial1280x800framewait ownedframes255+98; Linuxfixturecompile/arm64APKpassed; noDISP/clipboard/runtimeacceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: gerçek Unicode x86_64 AAR, paket receipt’i ve kurulum doğrulaması, app+AndroidTest derlemesi ve 24 RDP unit testi sıfır atlama/hata ile geçti. Exact 1d1ccf2e / run36805226494, Linux CLIPRDR/DISP fixture derlemesini gerçekten geçti; iki authenticated Android yaşamının TLS/NLA/SPKI, DISP→resize→frame/ACK, Unicode uzak pano etkisi ve kapalı panoda sıfır transfer kabul receipt’i henüz yok. Gerçek runtime kapısı açık olduğundan F62 CI bekliyor değildir. Geçmiş exact 8d / run36804331620 terminal failed: arm64 AAR/APK passed, x86 configure_failed; exact d69 resizedFrameWait failed. Yeni SAM fixture Kerberos kapsamını kapatır; 112 yerel kontrolü ve güvenli hata tanısı geçti, eski hata nedeni kanıtlanmaz. Geniş final HEAD CI ile Windows/Huawei/DeX ve ileri kanallar için MANUAL ayrı; 55/64 CI bekliyor ve 37/127,3/63 kabul korunur."
+      "reason": "Yeniden çalışılıyor: exact1d1ccf2e/run36805226494 Linux CLIPRDR/DISP fixture derlemesi ve arm64 AAR/APK paketlemesini geçti, ancak gerçek Android testinde terminal failed. Root artifact11137802839 canonical source/class/originalmethod/package/fixture kimliğini doğruladı:1test/1failure/0error/0skip, RdpPackagedHostAcceptanceTest.kt255+98 ilk1280x800framewait aşamasıdır; securitycallback öncesi assertion geçti. serverResizeRequested=false; DISP/resize/UnicodeClipboard/iki authenticatedyaşam kabulü yok. Alt neden henüz kanıtlanmadı; aynı kaynak kör rerun edilmez. Önceki d69resize/8dconfigure failed tarihsel korunur. Yerel AAR/24unit/112kontrol derleme kanıtıdır, runtimekabulü değildir. Geniş final HEAD CI ve fiziksel Windows/Huawei/DeX/ileri kanallar MANUAL ayrı;56/65CIbekliyor,37/127ve3/63 kabul korunur."
     },
     {
       "id": "F61",
@@ -5674,7 +5682,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 55 seçili/toplam64 iş geniş final HEAD CI bekliyor. F14 root11Client/widget ve gerçek normal Core TCP iki süreç/restart kabulüyle CI bekliyora geçti. F50 normal HTTP64distinctplan+restart ardından65inciyenileme429 ile yeniden açıldı; güvenli bounded retention hazırlanıyor. F60 a703/run36804692946 gerçek Android testinde failed; kesin assertion receipt olmadan bilinmiyor. Kaynak/paket bağlı güvenli dar tanı ekleniyor, kör rerun yok. F62 1d/run36805226494 Linux fixture derlemesi ve arm64paket geçti; iki Android yaşamının Unicode/DISP receipt’i henüz yok. F57/F58 production route own confirmation dialogu runtimeı emekli etti ve confirm0 kaldı; sahipli modal çiti düzeltiliyor. F50/F57/F58/F60/F62 yeniden çalışılıyor; F61 hosted native kabulü geçti. İkinci FINAL başlamaz; tam kabul37/127 ve3/63 korunur."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Geliştirme ve odaklı kabulü tamamlanan 56 seçili/toplam65 iş geniş final HEAD CI bekliyor. F14 root11Client/widget ve gerçek normal Core TCP iki süreç/restart kabulüyle CI bekliyora geçti. F50 actual64plan/restart limit açığı signed bounded retention ile kapandı; root33/33 kabulüyle CI bekliyor. F60 a703/run36804692946 gerçek Android testinde failed; kesin assertion receipt olmadan bilinmiyor. Kaynak/paket bağlı güvenli dar tanı ekleniyor, kör rerun yok. F62 1d/run36805226494 Linuxfixture/arm64paket geçti ama Android ilk1280x800framewait1test/1failure ile düştü; alt neden daraltılıyor, kör rerun yok. F57/F58 production route own confirmation dialogu runtimeı emekli etti ve confirm0 kaldı; sahipli modal çiti düzeltiliyor. F57/F58/F60/F62 yeniden çalışılıyor; F61 hosted native kabulü geçti. İkinci FINAL başlamaz; tam kabul37/127 ve3/63 korunur."
     },
     {
       "id": "FINAL.UI",

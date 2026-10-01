@@ -24,6 +24,7 @@ from .planner import ComfortPlanner
 MAX_PLANS = 64
 MAX_PREVIEWS = 128
 MAX_DISPATCHES = MAX_PREVIEWS * 64
+RECEIPT_REPLAY_RETENTION_SECONDS = 24 * 60 * 60
 
 
 def _canonical(value) -> str:
@@ -200,46 +201,221 @@ class RoomComfortService:
             raise ApiError("comfort_storage_unavailable", 503)
         return row, command, result
 
+    def _current_plan_id(self, connection):
+        state = connection.execute(
+            "SELECT plan_id FROM room_comfort_state WHERE singleton=1"
+        ).fetchall()
+        if len(state) != 1:
+            raise ApiError("comfort_storage_unavailable", 503)
+        newest = connection.execute(
+            "SELECT * FROM room_comfort_plans "
+            "ORDER BY created_at DESC,id DESC LIMIT 2"
+        ).fetchall()
+        if not newest:
+            if state[0]["plan_id"] is not None:
+                raise ApiError("comfort_storage_unavailable", 503)
+            return None
+        if len(newest) > 1 and newest[0]["created_at"] == newest[1]["created_at"]:
+            raise ApiError("comfort_storage_unavailable", 503)
+        self._plan_row(connection, newest[0]["id"])
+        if state[0]["plan_id"] != newest[0]["id"]:
+            raise ApiError("comfort_storage_unavailable", 503)
+        return newest[0]["id"]
+
+    def _storage_snapshot(self, connection):
+        state = connection.execute(
+            "SELECT plan_id FROM room_comfort_state WHERE singleton=1"
+        ).fetchall()
+        if len(state) != 1:
+            raise ApiError("comfort_storage_unavailable", 503)
+        plans = connection.execute(
+            "SELECT * FROM room_comfort_plans ORDER BY created_at,id LIMIT ?",
+            (MAX_PLANS + 1,),
+        ).fetchall()
+        previews = connection.execute(
+            "SELECT * FROM room_comfort_previews ORDER BY expires_at,id LIMIT ?",
+            (MAX_PREVIEWS + 1,),
+        ).fetchall()
+        dispatches = connection.execute(
+            "SELECT * FROM room_comfort_dispatches "
+            "ORDER BY reserved_at,command_id LIMIT ?",
+            (MAX_DISPATCHES + 1,),
+        ).fetchall()
+        if (
+            len(plans) > MAX_PLANS
+            or len(previews) > MAX_PREVIEWS
+            or len(dispatches) > MAX_DISPATCHES
+        ):
+            raise ApiError("comfort_storage_unavailable", 503)
+        plan_ids = {row["id"] for row in plans}
+        current_plan_id = state[0]["plan_id"]
+        for row in plans:
+            self._plan_row(connection, row["id"])
+        if not plans:
+            if current_plan_id is not None:
+                raise ApiError("comfort_storage_unavailable", 503)
+        elif (
+            current_plan_id != plans[-1]["id"]
+            or (
+                len(plans) > 1
+                and plans[-1]["created_at"] == plans[-2]["created_at"]
+            )
+        ):
+            raise ApiError("comfort_storage_unavailable", 503)
+
+        receipts = {}
+        for row in previews:
+            if row["plan_id"] not in plan_ids:
+                raise ApiError("comfort_storage_unavailable", 503)
+            self._preview_row(connection, row["id"])
+            if row["receipt_json"] is not None:
+                try:
+                    receipt = ComfortReceipt.model_validate_json(
+                        row["receipt_json"]
+                    )
+                except ValueError:
+                    raise ApiError("comfort_storage_unavailable", 503) from None
+                if (
+                    receipt.requestId != row["request_id"]
+                    or receipt.planId != row["plan_id"]
+                ):
+                    raise ApiError("comfort_storage_unavailable", 503)
+                receipts[row["id"]] = receipt
+
+        preview_ids = {row["id"] for row in previews}
+        dispatches_by_preview = {preview_id: [] for preview_id in preview_ids}
+        for row in dispatches:
+            if row["preview_id"] not in preview_ids:
+                raise ApiError("comfort_storage_unavailable", 503)
+            stored_row, command, result = self._dispatch_row(
+                connection, row["command_id"]
+            )
+            dispatches_by_preview[row["preview_id"]].append(
+                (stored_row, command, result)
+            )
+        for preview_id, receipt in receipts.items():
+            stored = dispatches_by_preview[preview_id]
+            if any(row["state"] != "completed" for row, _command, _result in stored):
+                raise ApiError("comfort_storage_unavailable", 503)
+            results = {result.commandId: result for result in receipt.results}
+            if len(results) != len(receipt.results) or results != {
+                result.commandId: result
+                for _row, _command, result in stored
+                if result is not None
+            }:
+                raise ApiError("comfort_storage_unavailable", 503)
+        return (
+            current_plan_id,
+            plans,
+            previews,
+            dispatches,
+            receipts,
+            dispatches_by_preview,
+        )
+
+    def _ensure_capacity(
+        self,
+        connection,
+        now,
+        *,
+        plans=0,
+        previews=0,
+        dispatches=0,
+        protect_preview_ids=(),
+    ):
+        counts = (
+            connection.execute("SELECT COUNT(*) FROM room_comfort_plans").fetchone()[0],
+            connection.execute("SELECT COUNT(*) FROM room_comfort_previews").fetchone()[0],
+            connection.execute(
+                "SELECT COUNT(*) FROM room_comfort_dispatches"
+            ).fetchone()[0],
+        )
+        if (
+            counts[0] + plans <= MAX_PLANS
+            and counts[1] + previews <= MAX_PREVIEWS
+            and counts[2] + dispatches <= MAX_DISPATCHES
+        ):
+            return
+        (
+            current_plan_id,
+            _plans,
+            stored_previews,
+            _dispatches,
+            receipts,
+            dispatches_by_preview,
+        ) = self._storage_snapshot(connection)
+        protected = set(protect_preview_ids)
+        for preview in stored_previews:
+            preview_id = preview["id"]
+            receipt = receipts.get(preview_id)
+            stored_dispatches = dispatches_by_preview[preview_id]
+            if (
+                preview["expires_at"] >= now
+                or any(row["state"] == "dispatching" for row, _, _ in stored_dispatches)
+                or any(
+                    result is not None and result.status == "unknown"
+                    for _row, _command, result in stored_dispatches
+                )
+                or (stored_dispatches and receipt is None)
+                or (
+                    receipt is not None
+                    and receipt.completedAtMs / 1000
+                    >= now - RECEIPT_REPLAY_RETENTION_SECONDS
+                )
+            ):
+                protected.add(preview_id)
+
+        removable = [
+            row["id"] for row in stored_previews if row["id"] not in protected
+        ]
+        if removable:
+            placeholders = ",".join("?" for _ in removable)
+            connection.execute(
+                f"DELETE FROM room_comfort_dispatches "
+                f"WHERE preview_id IN ({placeholders})",
+                removable,
+            )
+            connection.execute(
+                f"DELETE FROM room_comfort_previews WHERE id IN ({placeholders})",
+                removable,
+            )
+
+        referenced_plans = {
+            row["plan_id"]
+            for row in connection.execute(
+                "SELECT plan_id FROM room_comfort_previews"
+            )
+        }
+        if current_plan_id is not None:
+            referenced_plans.add(current_plan_id)
+        removable_plans = [
+            row["id"] for row in _plans if row["id"] not in referenced_plans
+        ]
+        if removable_plans:
+            placeholders = ",".join("?" for _ in removable_plans)
+            connection.execute(
+                f"DELETE FROM room_comfort_plans WHERE id IN ({placeholders})",
+                removable_plans,
+            )
+
+        remaining = (
+            connection.execute("SELECT COUNT(*) FROM room_comfort_plans").fetchone()[0],
+            connection.execute("SELECT COUNT(*) FROM room_comfort_previews").fetchone()[0],
+            connection.execute(
+                "SELECT COUNT(*) FROM room_comfort_dispatches"
+            ).fetchone()[0],
+        )
+        if (
+            remaining[0] + plans > MAX_PLANS
+            or remaining[1] + previews > MAX_PREVIEWS
+            or remaining[2] + dispatches > MAX_DISPATCHES
+        ):
+            raise ApiError("comfort_limit_reached", 429)
+
     def validate_storage(self):
         try:
             with self.db.connection() as connection:
-                state = connection.execute(
-                    "SELECT plan_id FROM room_comfort_state WHERE singleton=1"
-                ).fetchall()
-                if len(state) != 1:
-                    raise ValueError
-                rows = connection.execute(
-                    "SELECT * FROM room_comfort_plans ORDER BY created_at,id LIMIT ?",
-                    (MAX_PLANS + 1,),
-                ).fetchall()
-                previews = connection.execute(
-                    "SELECT * FROM room_comfort_previews ORDER BY expires_at,id LIMIT ?",
-                    (MAX_PREVIEWS + 1,),
-                ).fetchall()
-                dispatches = connection.execute(
-                    "SELECT * FROM room_comfort_dispatches "
-                    "ORDER BY reserved_at,command_id LIMIT ?",
-                    (MAX_DISPATCHES + 1,),
-                ).fetchall()
-                if (
-                    len(rows) > MAX_PLANS or len(previews) > MAX_PREVIEWS
-                    or len(dispatches) > MAX_DISPATCHES
-                ):
-                    raise ValueError
-                plan_ids = {row["id"] for row in rows}
-                if state[0]["plan_id"] is not None and state[0]["plan_id"] not in plan_ids:
-                    raise ValueError
-                for row in rows:
-                    self._plan_row(connection, row["id"])
-                for row in previews:
-                    if row["plan_id"] not in plan_ids:
-                        raise ValueError
-                    self._preview_row(connection, row["id"])
-                preview_ids = {row["id"] for row in previews}
-                for row in dispatches:
-                    if row["preview_id"] not in preview_ids:
-                        raise ValueError
-                    self._dispatch_row(connection, row["command_id"])
+                self._storage_snapshot(connection)
         except (sqlite3.Error, ValueError, ApiError):
             raise StartupError("invalid_room_comfort_storage") from None
 
@@ -275,6 +451,13 @@ class RoomComfortService:
         try:
             with self.db.transaction() as connection:
                 revision = self._actor(connection, actor)
+                current_plan_id = self._current_plan_id(connection)
+                current_created_at = None
+                if current_plan_id is not None:
+                    current_created_at = connection.execute(
+                        "SELECT created_at FROM room_comfort_plans WHERE id=?",
+                        (current_plan_id,),
+                    ).fetchone()["created_at"]
                 if source_configured:
                     self.source_store.assert_policy(
                         connection, home_revision, policy
@@ -314,13 +497,23 @@ class RoomComfortService:
                           actor.id, actor.family_id, plan.generatedAtMs / 1000]
                 tag = self._tag("plan", values)
                 if old is None:
-                    if connection.execute("SELECT COUNT(*) FROM room_comfort_plans").fetchone()[0] >= MAX_PLANS:
-                        raise ApiError("comfort_limit_reached", 429)
+                    if (
+                        current_created_at is not None
+                        and values[6] <= current_created_at
+                    ):
+                        raise ApiError("revision_conflict", 409)
+                    self._ensure_capacity(
+                        connection, now / 1000, plans=1
+                    )
                     connection.execute(
                         "INSERT INTO room_comfort_plans VALUES(?,?,?,?,?,?,?,?)",
                         (*values, tag),
                     )
-                elif self._plan_values(old) != values or not hmac.compare_digest(old["envelope_tag"], tag):
+                elif (
+                    old["id"] != current_plan_id
+                    or self._plan_values(old) != values
+                    or not hmac.compare_digest(old["envelope_tag"], tag)
+                ):
                     raise ApiError("idempotency_conflict", 409)
                 connection.execute(
                     "UPDATE room_comfort_state SET plan_id=? WHERE singleton=1",
@@ -338,12 +531,12 @@ class RoomComfortService:
             with self.db.connection() as connection:
                 connection.execute("BEGIN")
                 self._actor(connection, actor)
-                state = connection.execute(
-                    "SELECT plan_id FROM room_comfort_state WHERE singleton=1"
-                ).fetchone()
-                if state is None or state["plan_id"] is None:
+                plan_id = self._current_plan_id(connection)
+                if plan_id is None:
                     raise ApiError("not_found", 404)
-                _row, _policy, plan, _readbacks = self._plan_row(connection, state["plan_id"])
+                _row, _policy, plan, _readbacks = self._plan_row(
+                    connection, plan_id
+                )
                 if plan.actorAccountId != actor.id or plan.sessionFamilyId != actor.family_id:
                     raise ApiError("revision_conflict", 409)
                 return {"schemaVersion": 1, "plan": plan}
@@ -374,8 +567,7 @@ class RoomComfortService:
         try:
             with self.db.transaction() as connection:
                 revision = self._actor(connection, actor)
-                state = connection.execute("SELECT plan_id FROM room_comfort_state WHERE singleton=1").fetchone()
-                if state is None or state["plan_id"] != body.expectedPlanId:
+                if self._current_plan_id(connection) != body.expectedPlanId:
                     raise ApiError("revision_conflict", 409)
                 _row, policy, plan, readbacks = self._plan_row(connection, body.expectedPlanId)
                 if (body.expectedHomeRevision, body.expectedPolicyRevision) != (plan.homeRevision, plan.policyRevision):
@@ -391,8 +583,7 @@ class RoomComfortService:
                     if (old["plan_id"], old["actor_id"], old["family_id"]) != (plan.planId, actor.id, actor.family_id):
                         raise ApiError("idempotency_conflict", 409)
                     raise ApiError("preview_already_created", 409)
-                if connection.execute("SELECT COUNT(*) FROM room_comfort_previews").fetchone()[0] >= MAX_PREVIEWS:
-                    raise ApiError("comfort_limit_reached", 429)
+                self._ensure_capacity(connection, now, previews=1)
                 preview_id, token = secrets.token_hex(16), secrets.token_urlsafe(32)
                 expires = now + policy.previewTtlMs / 1000
                 token_hash = hashlib.sha256(token.encode("ascii")).hexdigest()
@@ -491,12 +682,8 @@ class RoomComfortService:
                 _stored, _policy, plan, readbacks = self._plan_row(
                     connection, row["plan_id"]
                 )
-                state = connection.execute(
-                    "SELECT plan_id FROM room_comfort_state WHERE singleton=1"
-                ).fetchone()
                 if (
-                    state is None
-                    or state["plan_id"] != plan.planId
+                    self._current_plan_id(connection) != plan.planId
                     or plan.policyRevision != body.expectedPolicyRevision
                     or (plan.accountRevision, plan.sessionFamilyId)
                     != (revision, actor.family_id)
@@ -508,9 +695,8 @@ class RoomComfortService:
                 if reserved_at > row["expires_at"]:
                     raise ApiError("preview_expired", 409)
                 raw_commands = self._commands(plan, readbacks)
-                existing_count = connection.execute(
-                    "SELECT COUNT(*) FROM room_comfort_dispatches"
-                ).fetchone()[0]
+                prepared = []
+                missing_count = 0
                 for (room_id, kind), (device, desired), before in raw_commands:
                     command = self._worker_command(
                         row, plan, actor, room_id, kind, device, desired, before
@@ -520,6 +706,29 @@ class RoomComfortService:
                         "SELECT * FROM room_comfort_dispatches WHERE command_id=?",
                         (command.commandId,),
                     ).fetchone()
+                    if old is None:
+                        missing_count += 1
+                    else:
+                        old, stored_command, _result = self._dispatch_row(
+                            connection, command.commandId
+                        )
+                        if (
+                            old["preview_id"] != preview_id
+                            or stored_command != command
+                            or old["command_json"] != command_json
+                        ):
+                            raise ApiError("comfort_storage_unavailable", 503)
+                    prepared.append((command, before, command_json, old))
+                self._ensure_capacity(
+                    connection,
+                    reserved_at,
+                    dispatches=missing_count,
+                    protect_preview_ids=(preview_id,),
+                )
+                existing_count = connection.execute(
+                    "SELECT COUNT(*) FROM room_comfort_dispatches"
+                ).fetchone()[0]
+                for command, before, command_json, old in prepared:
                     if old is None:
                         if existing_count >= MAX_DISPATCHES:
                             raise ApiError("comfort_limit_reached", 429)
@@ -534,16 +743,6 @@ class RoomComfortService:
                         )
                         inserted.add(command.commandId)
                         existing_count += 1
-                    else:
-                        old, stored_command, _result = self._dispatch_row(
-                            connection, command.commandId
-                        )
-                        if (
-                            old["preview_id"] != preview_id
-                            or stored_command != command
-                            or old["command_json"] != command_json
-                        ):
-                            raise ApiError("comfort_storage_unavailable", 503)
                     commands.append((command, before))
                 preview = {
                     "id": row["id"], "request_id": row["request_id"],

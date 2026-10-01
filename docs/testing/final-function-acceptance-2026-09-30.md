@@ -2,7 +2,7 @@
 
 Bu kayıt `codex/project-completion-100` dalındaki canlı yazılım kabul durumunu
 özetler. Şu anda yalnız `FINAL.FUNCTION` aktiftir. Yazılımı ve odaklı kanıtı
-tamamlanan 55 seçili özellik / toplam 64 iş `awaiting_ci` durumundadır; bu etiket
+tamamlanan 56 seçili özellik / toplam 65 iş `awaiting_ci` durumundadır; bu etiket
 tam kabul değildir. Kanıtla kabul edilen sayaçlar **37/127 iş** ve **3/63 seçili
 özellik** olarak değişmemiştir. Fiziksel cihaz, gerçek servis hesabı ve ev ağı
 kanıtları ilgili `MANUAL.*` kapılarında kalır.
@@ -57,13 +57,14 @@ F14 tarihsel failedreview korunur; bulunan Client açıkları şimdi kapatıldı
 gerçek normal Core TCP iki ayrı Client süreci/DB restart kabulünü 1+1 geçti.
 Named Server 3/3 kanıtı ayrı korunur. F14 `awaiting_ci`; [yeni kabul](f14-normal-core-acceptance-2026-10-01.md).
 
-F50 normal Core HTTP64distinctplan+aynı DB restart sonrası65inciPUT
-200 yerine429 comfort_limit_reached verdi. Güvenli bounded retention ve
-regression kabulü hazırlanıyor; F50 `reworking`, CI bekliyor değildir.
+F50 normal Core HTTP64distinctplan+DBrestart sonrası65inciPUT429 RED’i
+signed bounded retention ile kapandı. Root16retention dahil33/33F50 testi
+geçti; current/live/dispatching/unknown/replay parentları ve silme rollback
+korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-10-01.md).
 
 ## Açık kapı
 
-55 seçili özellik / 64 iş CI beklerken, F50, F57, F58, F60 ve F62 gerçek işlev kapıları
+56 seçili özellik / 65 iş CI beklerken, F57, F58, F60 ve F62 gerçek işlev kapıları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz; `FINAL.UI` başlatılmaz.
 
@@ -72,3 +73,10 @@ parent route dependency değişiminde runtimeı emekli ettiğini doğruladı; co
 Core isteği0 kaldı. Navigator.pop sonrası parentcurrent varsayımı değildir.
 Sahipli modal lease ve foreign route/authority emekliliği düzeltiliyor; bu iki
 özellik named route regressionı geçene kadar `reworking` durumundadır.
+
+F62 güncel exact1d/run36805226494 terminal **failure**. Root canonical
+artifact11137802839 (SHA25611f0923dc134ac0ac4e6775189a19fb380bd7140b710cb62c0c27dc37f6c8cef)
+source/package/fixture/originalmethod kimliğini doğruladı:1test/1failure/0error/0skip;
+ownedframe255+98 ilk1280x800framewaiti gösterir. Linuxfixturebuild/arm64APKpassed
+kalır; resizeRequested=false ve iki yaşam/DISP/Clipboard kabulü yok. Alt neden
+kanıtlanmadı; aynı kaynak yeniden başlatılmaz.
