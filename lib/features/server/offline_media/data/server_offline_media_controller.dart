@@ -319,7 +319,7 @@ final class ServerOfflineMediaController extends ChangeNotifier {
         final sink = _DigestSink();
         final digest = sha256.startChunkedConversion(sink);
         var retainedBytes = 0;
-        for (final chunk in await vault.readChunks(currentManifest.grantId)) {
+        await for (final chunk in vault.streamChunks(currentManifest.grantId)) {
           digest.add(chunk);
           retainedBytes += chunk.length;
         }

@@ -246,4 +246,57 @@ void main() {
     );
     expect(await foreign.exists(), isTrue);
   });
+
+  test('chunk reads never create a missing grant or key', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final root = await Directory.systemTemp.createTemp('larenor-vault-read-');
+    addTearDown(() => root.delete(recursive: true));
+    final vault = ServerOfflineMediaVault(root: () async => root);
+    expect(await vault.readChunks(_grantId), isEmpty);
+    expect(await root.list().toList(), isEmpty);
+    expect(await const FlutterSecureStorage().readAll(), isEmpty);
+  });
+
+  test('a symlinked vault root cannot read or purge its target', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final parent = await Directory.systemTemp.createTemp('larenor-vault-link-');
+    final foreign = Directory('${parent.path}/foreign');
+    await foreign.create();
+    addTearDown(() => parent.delete(recursive: true));
+    final original = ServerOfflineMediaVault(root: () async => foreign);
+    await original.writeChunk(_grantId, 0, _clear);
+    await original.storeCompletedManifest(_manifest());
+    final link = Link('${parent.path}/linked');
+    await link.create(foreign.path);
+    final linked = ServerOfflineMediaVault(
+      root: () async => Directory(link.path),
+    );
+    await expectLater(
+      linked.completed(ServerOfflineMediaScope.fromSession(_session())),
+      throwsFormatException,
+    );
+    await expectLater(linked.purge(_grantId), throwsFormatException);
+    expect(await Directory('${foreign.path}/$_grantId').exists(), isTrue);
+    expect(await const FlutterSecureStorage().readAll(), isNotEmpty);
+  });
+
+  test('an active loopback read cannot replace a deleted secure key', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final root = await Directory.systemTemp.createTemp('larenor-vault-key-');
+    addTearDown(() => root.delete(recursive: true));
+    final vault = ServerOfflineMediaVault(root: () async => root);
+    await vault.writeChunk(_grantId, 0, _clear);
+    await vault.storeCompletedManifest(_manifest());
+    final lease = await vault.openPlayback(_manifest());
+    addTearDown(lease.close);
+    await const FlutterSecureStorage().delete(
+      key: 'larenor.offline-media.v1.$_grantId',
+    );
+    final client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final response = await (await client.getUrl(lease.uri)).close();
+    await response.drain<void>();
+    expect(response.statusCode, HttpStatus.internalServerError);
+    expect(await const FlutterSecureStorage().readAll(), isEmpty);
+  });
 }

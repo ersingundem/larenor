@@ -99,14 +99,38 @@ final class ServerOfflineMediaVault {
   Future<Directory> _directory(String grantId) async {
     _grant(grantId);
     final root = await _root();
+    final rootType = await FileSystemEntity.type(root.path, followLinks: false);
+    if (rootType != FileSystemEntityType.notFound &&
+        rootType != FileSystemEntityType.directory) {
+      throw const FormatException('Invalid offline root');
+    }
     final directory = Directory('${root.path}/$grantId');
+    final type = await FileSystemEntity.type(
+      directory.path,
+      followLinks: false,
+    );
+    if (type != FileSystemEntityType.notFound &&
+        type != FileSystemEntityType.directory) {
+      throw const FormatException('Invalid offline directory');
+    }
     await directory.create(recursive: true);
     return directory;
   }
 
+  Future<Directory?> _existingRoot() async {
+    final root = await _root();
+    final type = await FileSystemEntity.type(root.path, followLinks: false);
+    if (type == FileSystemEntityType.notFound) return null;
+    if (type != FileSystemEntityType.directory) {
+      throw const FormatException('Invalid offline root');
+    }
+    return root;
+  }
+
   Future<Directory> _existingDirectory(String grantId) async {
     _grant(grantId);
-    final root = await _root();
+    final root = await _existingRoot();
+    if (root == null) throw const FormatException('Missing offline root');
     final directory = Directory('${root.path}/$grantId');
     if (await FileSystemEntity.type(directory.path, followLinks: false) !=
         FileSystemEntityType.directory) {
@@ -116,14 +140,13 @@ final class ServerOfflineMediaVault {
   }
 
   Future<List<Directory>> _grantDirectories() async {
-    final root = await _root();
-    if (!await root.exists()) return const [];
-    final entries = await root.list(followLinks: false).toList();
-    if (entries.length > maximumRecords) {
-      throw const FormatException('Offline record limit exceeded');
-    }
+    final root = await _existingRoot();
+    if (root == null) return const [];
     final result = <Directory>[];
-    for (final entry in entries) {
+    await for (final entry in root.list(followLinks: false)) {
+      if (result.length >= maximumRecords) {
+        throw const FormatException('Offline record limit exceeded');
+      }
       final name = entry.path.split(Platform.pathSeparator).last;
       if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(name) || entry is! Directory) {
         throw const FormatException('Invalid offline record');
@@ -139,8 +162,8 @@ final class ServerOfflineMediaVault {
   }
 
   Future<int> usedBytes() async {
-    final root = await _root();
-    if (!await root.exists()) return 0;
+    final root = await _existingRoot();
+    if (root == null) return 0;
     var total = 0;
     await for (final entity in root.list(recursive: true, followLinks: false)) {
       if (entity is File) total += await entity.length();
@@ -174,34 +197,79 @@ final class ServerOfflineMediaVault {
     await temporary.rename(target.path);
   }
 
-  Future<List<Uint8List>> readChunks(String grantId) async {
-    final directory = await _directory(grantId);
-    final files = await directory
-        .list(followLinks: false)
-        .where((entity) => entity is File && entity.path.endsWith('.chunk'))
-        .cast<File>()
-        .toList();
-    files.sort((left, right) => left.path.compareTo(right.path));
-    final result = <Uint8List>[];
-    var offset = 0;
-    final key = await _key(grantId);
-    for (final file in files) {
-      final raw = await file.readAsBytes();
-      if (raw.length <= 28) {
+  /// Existing-only resumable read. Production hashing consumes one chunk at a
+  /// time rather than retaining a complete multi-gigabyte download in memory.
+  Stream<Uint8List> streamChunks(String grantId) async* {
+    _grant(grantId);
+    final root = await _existingRoot();
+    if (root == null) return;
+    final directory = Directory('${root.path}/$grantId');
+    final type = await FileSystemEntity.type(
+      directory.path,
+      followLinks: false,
+    );
+    if (type == FileSystemEntityType.notFound) return;
+    if (type != FileSystemEntityType.directory) {
+      throw const FormatException('Invalid offline directory');
+    }
+    final files = <File>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      final name = entity.path.split(Platform.pathSeparator).last;
+      if (entity is! File) throw const FormatException('Invalid offline chunk');
+      if (name == _manifestName ||
+          name == '$_manifestName.partial' ||
+          RegExp(r'^[0-9a-f]{16}\.chunk\.partial$').hasMatch(name)) {
+        continue;
+      }
+      if (!RegExp(r'^[0-9a-f]{16}\.chunk$').hasMatch(name) ||
+          files.length >= quotaBytes ~/ (16 * 1024)) {
         throw const FormatException('Invalid offline chunk');
       }
-      final nonce = raw.sublist(0, 12);
-      final mac = Mac(raw.sublist(12, 28));
-      final clear = await _cipher.decrypt(
-        SecretBox(raw.sublist(28), nonce: nonce, mac: mac),
-        secretKey: key,
-        aad: utf8.encode('$grantId:$offset'),
-      );
-      final bytes = Uint8List.fromList(clear);
-      result.add(bytes);
-      offset += bytes.length;
+      files.add(entity);
     }
-    return result;
+    files.sort((left, right) => left.path.compareTo(right.path));
+    if (files.isEmpty) return;
+    var offset = 0;
+    final key = await _existingKey(grantId);
+    for (final file in files) {
+      final expected = '${offset.toRadixString(16).padLeft(16, '0')}.chunk';
+      if (file.path.split(Platform.pathSeparator).last != expected) {
+        throw const FormatException('Invalid offline chunk sequence');
+      }
+      final bytes = await _readExistingChunk(directory, grantId, offset, key);
+      offset += bytes.length;
+      if (offset > quotaBytes) {
+        throw const FormatException('Offline quota exceeded');
+      }
+      yield bytes;
+    }
+  }
+
+  Future<List<Uint8List>> readChunks(String grantId) =>
+      streamChunks(grantId).toList();
+
+  Future<Uint8List> _readBoundedFile(File file, int maximumBytes) async {
+    if (await FileSystemEntity.type(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      throw const FormatException('Invalid offline file');
+    }
+    final handle = await file.open();
+    try {
+      final length = await handle.length();
+      if (length <= 28 || length > maximumBytes) {
+        throw const FormatException('Invalid offline file');
+      }
+      final bytes = await handle.read(maximumBytes + 1);
+      if (bytes.length != length ||
+          await handle.length() != length ||
+          await FileSystemEntity.type(file.path, followLinks: false) !=
+              FileSystemEntityType.file) {
+        throw const FormatException('Changed offline file');
+      }
+      return bytes;
+    } finally {
+      await handle.close();
+    }
   }
 
   Future<ServerOfflineMediaManifest?> _readManifest(Directory directory) async {
@@ -213,10 +281,7 @@ final class ServerOfflineMediaVault {
     if (type != FileSystemEntityType.file) {
       throw const FormatException('Invalid offline manifest');
     }
-    final raw = await target.readAsBytes();
-    if (raw.length <= 28 || raw.length > maximumManifestBytes + 28) {
-      throw const FormatException('Invalid offline manifest');
-    }
+    final raw = await _readBoundedFile(target, maximumManifestBytes + 28);
     final clear = await _cipher.decrypt(
       SecretBox(
         raw.sublist(28),
@@ -250,10 +315,7 @@ final class ServerOfflineMediaVault {
         FileSystemEntityType.file) {
       throw const FormatException('Missing offline chunk');
     }
-    final raw = await file.readAsBytes();
-    if (raw.length <= 28 || raw.length > 32 * 1024 + 28) {
-      throw const FormatException('Invalid offline chunk');
-    }
+    final raw = await _readBoundedFile(file, 32 * 1024 + 28);
     final clear = await _cipher.decrypt(
       SecretBox(
         raw.sublist(28),
@@ -275,12 +337,16 @@ final class ServerOfflineMediaVault {
       throw const FormatException('Invalid offline manifest');
     }
     final directory = await _existingDirectory(manifest.grantId);
-    final entries = await directory.list(followLinks: false).toList();
-    if (entries.length >
+    final maximumEntries =
         (manifest.contentLength + manifest.chunkBytes - 1) ~/
-                manifest.chunkBytes +
-            1) {
-      throw const FormatException('Invalid offline chunks');
+            manifest.chunkBytes +
+        1;
+    final entries = <FileSystemEntity>[];
+    await for (final entry in directory.list(followLinks: false)) {
+      if (entries.length >= maximumEntries) {
+        throw const FormatException('Invalid offline chunks');
+      }
+      entries.add(entry);
     }
     final expectedFiles = <String>{_manifestName};
     final sink = _VaultDigestSink();
@@ -404,23 +470,7 @@ final class ServerOfflineMediaVault {
     SecretKey key,
   ) async {
     final directory = await _existingDirectory(grantId);
-    final file = File(
-      '${directory.path}/${offset.toRadixString(16).padLeft(16, '0')}.chunk',
-    );
-    final raw = await file.readAsBytes();
-    if (raw.length <= 28) {
-      throw const FormatException('Invalid offline chunk');
-    }
-    final clear = await _cipher.decrypt(
-      SecretBox(
-        raw.sublist(28),
-        nonce: raw.sublist(0, 12),
-        mac: Mac(raw.sublist(12, 28)),
-      ),
-      secretKey: key,
-      aad: utf8.encode('$grantId:$offset'),
-    );
-    return Uint8List.fromList(clear);
+    return _readExistingChunk(directory, grantId, offset, key);
   }
 
   Future<ServerOfflineMediaPlaybackLease> openPlayback(
@@ -469,6 +519,7 @@ final class ServerOfflineMediaVault {
             'bytes $start-$end/${manifest.contentLength}',
           );
         }
+        final key = await _existingKey(manifest.grantId);
         request.response.headers
           ..contentType = ContentType.parse(manifest.contentType)
           ..contentLength = end - start + 1
@@ -478,20 +529,24 @@ final class ServerOfflineMediaVault {
           await request.response.close();
           return;
         }
-        final key = await _key(manifest.grantId);
         var chunkOffset = (start ~/ manifest.chunkBytes) * manifest.chunkBytes;
         while (chunkOffset <= end) {
+          if (!DateTime.now().toUtc().isBefore(manifest.expiresAt)) {
+            throw const FormatException('Offline grant expired');
+          }
           final clear = await _readChunk(manifest.grantId, chunkOffset, key);
           final from = start > chunkOffset ? start - chunkOffset : 0;
           final to = min(clear.length, end - chunkOffset + 1);
           if (from >= to) throw const FormatException('Invalid range');
           request.response.add(clear.sublist(from, to));
+          await request.response.flush();
           chunkOffset += clear.length;
         }
         await request.response.close();
       } catch (_) {
         try {
           request.response.statusCode = HttpStatus.internalServerError;
+          request.response.contentLength = 0;
           await request.response.close();
         } catch (_) {}
       }
@@ -505,9 +560,21 @@ final class ServerOfflineMediaVault {
 
   Future<void> purge(String grantId) async {
     _grant(grantId);
-    final root = await _root();
-    final directory = Directory('${root.path}/$grantId');
-    if (await directory.exists()) await directory.delete(recursive: true);
+    final root = await _existingRoot();
+    if (root != null) {
+      final directory = Directory('${root.path}/$grantId');
+      final type = await FileSystemEntity.type(
+        directory.path,
+        followLinks: false,
+      );
+      if (type == FileSystemEntityType.link) {
+        await Link(directory.path).delete();
+      } else if (type == FileSystemEntityType.directory) {
+        await directory.delete(recursive: true);
+      } else if (type != FileSystemEntityType.notFound) {
+        throw const FormatException('Invalid offline directory');
+      }
+    }
     await _secure.delete(key: _keyName(grantId));
   }
 }
