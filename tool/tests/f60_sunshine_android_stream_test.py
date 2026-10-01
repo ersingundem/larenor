@@ -220,6 +220,37 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 self.assertEqual("pairedClientObserved", bridge.public_stage())
             bridge.close()
 
+    def test_pin_bridge_acknowledges_only_after_canonical_frame_parse(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            nonce = "e" * 64
+            bridge = stream.OneShotPinBridge(
+                owned, nonce=nonce, timeout_seconds=1,
+            )
+            bridge.start()
+            payload = (
+                '{"schemaVersion":1,"nonce":"' + nonce + '","pin":"4821"}\n'
+            ).encode()
+            with socket.create_connection(
+                ("127.0.0.1", bridge.host_port), timeout=1,
+            ) as client:
+                client.settimeout(1)
+                client.sendall(payload)
+                acknowledgement = bytearray()
+                while len(acknowledgement) < len(stream.PIN_ACKNOWLEDGEMENT):
+                    chunk = client.recv(
+                        len(stream.PIN_ACKNOWLEDGEMENT) - len(acknowledgement),
+                    )
+                    self.assertTrue(chunk)
+                    acknowledgement.extend(chunk)
+                self.assertEqual(
+                    stream.PIN_ACKNOWLEDGEMENT, bytes(acknowledgement),
+                )
+                self.assertEqual(b"", client.recv(1))
+            bridge.wait()
+            self.assertEqual("pairedClientObserved", bridge.public_stage())
+            bridge.close()
+
     def test_pin_bridge_receive_rejects_same_read_trailing_and_incomplete_frames(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             owned = _Owned(Path(temporary))
@@ -281,6 +312,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 ) as client:
                     client.sendall(payload)
                     client.shutdown(socket.SHUT_WR)
+                    self.assertEqual(b"", client.recv(len(stream.PIN_ACKNOWLEDGEMENT)))
                 with self.assertRaisesRegex(
                     stream.StreamAcceptanceFailure, "private PIN bridge failed",
                 ):
@@ -325,6 +357,30 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 writer.close()
             self.assertEqual("peerRejected", bridge.terminal_failure_stage())
             self.assertEqual(-1, reader.fileno())
+
+    def test_pin_bridge_ack_failure_is_fixed_and_never_approves_pairing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            nonce = "b" * 64
+            payload = (
+                '{"schemaVersion":1,"nonce":"' + nonce + '","pin":"4821"}\n'
+            ).encode()
+            connection = mock.MagicMock()
+            connection.__enter__.return_value = connection
+            connection.recv.side_effect = [payload[:64], payload[64:]]
+            connection.sendall.side_effect = OSError("private ACK write failure")
+            listener = mock.Mock()
+            listener.accept.return_value = (
+                connection, ("127.0.0.1", 44_001),
+            )
+            bridge = stream.OneShotPinBridge(
+                owned, nonce=nonce, timeout_seconds=1,
+            )
+            bridge._socket.close()
+            bridge._socket = listener
+            bridge._serve()
+            self.assertEqual("ackRejected", bridge.terminal_failure_stage())
+            self.assertEqual([], owned.api.approved)
 
     def test_gradle_observer_reaps_owned_child_on_timely_and_late_bridge_failure(self) -> None:
         class Bridge:
@@ -1154,7 +1210,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             "java.lang.IllegalStateException: private-provider-material\n"
             " at com.ersingundem.larenor.game.moonlight."
             "MoonlightOwnedSunshineStreamTest."
-            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:268)"
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:274)"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

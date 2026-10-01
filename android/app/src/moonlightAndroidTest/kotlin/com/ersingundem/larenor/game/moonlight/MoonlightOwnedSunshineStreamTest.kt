@@ -21,9 +21,13 @@ import com.limelight.binding.input.virtual_controller.LeftTrigger
 import com.limelight.binding.input.virtual_controller.RightAnalogStick
 import com.limelight.binding.input.virtual_controller.RightTrigger
 import com.limelight.binding.input.virtual_controller.VirtualControllerElement
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.io.InputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -61,6 +65,7 @@ class MoonlightOwnedSunshineStreamTest {
             require(it == PIN_PORT)
         }
         idSeed = nonce
+        assertPinAcknowledgementParserRejectsInvalidFrames()
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val activity = AtomicReference<MainActivity>()
@@ -699,6 +704,8 @@ class MoonlightOwnedSunshineStreamTest {
             val activeSocket = AtomicReference<Socket?>()
             val delivered = CountDownLatch(1)
             val deliveryFailure = AtomicReference<Throwable?>()
+            val deadline = System.nanoTime() +
+                TimeUnit.SECONDS.toNanos(PIN_DELIVERY_TIMEOUT_SECONDS)
             val sender = Thread({
                 try {
                     Socket().use { socket ->
@@ -707,12 +714,14 @@ class MoonlightOwnedSunshineStreamTest {
                         socket.tcpNoDelay = true
                         socket.connect(
                             InetSocketAddress(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), port),
-                            PIN_CONNECT_TIMEOUT_MILLIS,
+                            minOf(PIN_CONNECT_TIMEOUT_MILLIS, remainingPinDeliveryMillis(deadline)),
                         )
                         socket.getOutputStream().apply {
                             write(payload)
                             flush()
                         }
+                        socket.soTimeout = remainingPinDeliveryMillis(deadline)
+                        readPinAcknowledgement(socket.getInputStream())
                     }
                 } catch (failure: Exception) {
                     deliveryFailure.compareAndSet(null, failure)
@@ -740,6 +749,19 @@ class MoonlightOwnedSunshineStreamTest {
                 sender.interrupt()
                 payload.fill(0)
             }
+        }
+    }
+
+    private fun assertPinAcknowledgementParserRejectsInvalidFrames() {
+        readPinAcknowledgement(ByteArrayInputStream(PIN_ACKNOWLEDGEMENT))
+        for (invalid in listOf(
+            byteArrayOf(),
+            "LRNPIN2\n".toByteArray(Charsets.US_ASCII),
+            PIN_ACKNOWLEDGEMENT + byteArrayOf('x'.code.toByte()),
+        )) {
+            require(runCatching {
+                readPinAcknowledgement(ByteArrayInputStream(invalid))
+            }.isFailure)
         }
     }
 
@@ -859,6 +881,36 @@ class MoonlightOwnedSunshineStreamTest {
         private const val CONTROL_CONNECT_TIMEOUT_MILLIS = 5_000
         private const val CONTROL_READ_TIMEOUT_MILLIS = 90_000
         private const val MAX_PIN_PAYLOAD_BYTES = 256
+        private val PIN_ACKNOWLEDGEMENT = "LRNPIN1\n".toByteArray(Charsets.US_ASCII)
+
+        private fun readPinAcknowledgement(input: InputStream) {
+            val observed = ByteArray(PIN_ACKNOWLEDGEMENT.size)
+            try {
+                var offset = 0
+                while (offset < observed.size) {
+                    val read = input.read(observed, offset, observed.size - offset)
+                    if (read < 0) throw IOException("owned PIN acknowledgement was unavailable")
+                    offset += read
+                }
+                if (!observed.contentEquals(PIN_ACKNOWLEDGEMENT) || input.read() != -1) {
+                    throw IOException("owned PIN acknowledgement was invalid")
+                }
+            } finally {
+                observed.fill(0)
+            }
+        }
+
+        private fun remainingPinDeliveryMillis(deadlineNanos: Long): Int {
+            val remaining = deadlineNanos - System.nanoTime()
+            if (remaining <= 0) {
+                throw SocketTimeoutException("owned PIN delivery exceeded its bound")
+            }
+            return TimeUnit.NANOSECONDS.toMillis(remaining)
+                .coerceAtLeast(1)
+                .coerceAtMost(Int.MAX_VALUE.toLong())
+                .toInt()
+        }
+
         private const val MAX_CONTROL_PAYLOAD_BYTES = 512
         private const val OSC_ENABLED = "checkbox_show_onscreen_controls"
         private const val OSC_ONLY_L3_R3 = "checkbox_only_show_L3R3"

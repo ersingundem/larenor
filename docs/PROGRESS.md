@@ -49,6 +49,8 @@ F08 exact `5325c083` geniş CI’da UID IPC testini geçti; stress testi `memory
 
 K07’nin yeni native komut regresyonu düzeltildi ve 17 dar test/analyze geçti. Değişen kaynak henüz geniş CI kabulü almadığı için K07 ve ona bağlı K08 önceki done durumundan CI bekliyor durumuna alındı; eski exact kabul kanıtları tarihsel kaldı. Güncel tam kabul 35/127 (%27,6); seçili özellikler 3/63 (%4,8).
 
+F60 owned PIN teslimi artık canonical parse sonrası nonsecret ACK ve EOF ister; root56 runner/workflow testi ve iki native motor zorunlu actual AndroidTest derlemesi geçti. Strict stream kabulü hâlâ açık; F60 yeniden çalışılıyor. [Dar sınır](testing/f60-pin-peer-ack-2026-10-01.md).
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.

@@ -64,6 +64,7 @@ FAILURE_RECEIPT_NAME = "f60-sunshine-android-stream-failure.json"
 ANDROID_PIN_PORT = 49_361
 ANDROID_CONTROL_PORT = 49_362
 PIN_MESSAGE_BYTES = 256
+PIN_ACKNOWLEDGEMENT = b"LRNPIN1\n"
 CONTROL_MESSAGE_BYTES = 512
 PAIRING_CLIENT_NAME = "roth"
 CONTROL_TIMEOUT_SECONDS = 300.0
@@ -94,6 +95,7 @@ _PIN_BRIDGE_STAGES = frozenset({
     "peerRejected",
     "readRejected",
     "parseRejected",
+    "ackRejected",
     "pinReceived",
     "pendingPairingObserved",
     "approvalInFlight",
@@ -132,20 +134,20 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "1611180df28c8cd1a7739a17b55f34ad09c7ffb9889e9e64832476bb18fe82ce"
+_STAGE_SOURCE_SHA256 = "4e0034961544dd96de401fee2a7d50dcc370ac07dcdc1b96f992eacd689f9100"
 _STAGE_LINES = (
-    (49, 64, "fixtureInputs"),
-    (65, 98, "discovery"),
-    (99, 123, "pairingRegistration"),
-    (124, 150, "catalog"),
-    (151, 211, "capabilityAndSession"),
-    (212, 224, "firstStreamOutput"),
-    (225, 234, "ownedInputEffects"),
-    (235, 241, "deliberateStop"),
-    (242, 263, "secondStreamOutput"),
-    (264, 285, "remoteDisconnect"),
-    (286, 315, "localRetirement"),
-    (316, 327, "cleanup"),
+    (52, 68, "fixtureInputs"),
+    (69, 103, "discovery"),
+    (104, 128, "pairingRegistration"),
+    (129, 155, "catalog"),
+    (156, 216, "capabilityAndSession"),
+    (217, 230, "firstStreamOutput"),
+    (231, 239, "ownedInputEffects"),
+    (240, 246, "deliberateStop"),
+    (247, 268, "secondStreamOutput"),
+    (269, 290, "remoteDisconnect"),
+    (291, 320, "localRetirement"),
+    (321, 333, "cleanup"),
 )
 
 
@@ -378,6 +380,11 @@ class OneShotPinBridge:
                     pin = parse_pin_message(frame, expected_nonce=self.nonce)
                 except BaseException:
                     self._set_failure_stage("parseRejected")
+                    raise
+                try:
+                    connection.sendall(PIN_ACKNOWLEDGEMENT)
+                except BaseException:
+                    self._set_failure_stage("ackRejected")
                     raise
             self._set_stage("pinReceived")
             deadline = self._monotonic() + self._timeout
