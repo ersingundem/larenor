@@ -67,6 +67,8 @@ Kullanıcı veya fiziksel kabul bekleyen tüm işler
 
 Tamamlanan ve test/CI bekleyen işler
 
+CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin CI kabulü bekleniyor. Kanıtla tamamlandı durumu yalnız tam kabulü geçen işler içindir.
+
 | ID | İş | Durum | Beklenen bağımlılık |
 | --- | --- | --- | --- |
 | S06.3a | Worker kaynak planı ve değişmez kimlikler | Kanıtla tamamlandı | — |

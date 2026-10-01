@@ -141,3 +141,7 @@ flow, so the product does not claim OAuth interoperability. That explicit
 credential limitation is distinct from a dead or dummy production route.
 
 F62 owned display fixture correction: bare Xvfb resizing was not valid evidence. A direct Xorg dummy display now requires exact single-output CRTC and framebuffer transitions before the AAR build, with candidate-version install/readback. The precreated package directory is handled idempotently;31 runner/workflow checks passed. Actual changed-source hosted Xorg/FreeRDP execution remains open and does not promote the feature. See [owned shadow baseline](f62-owned-shadow-baseline-2026-10-01.md).
+
+F60 primary-source blocker reconciliation: Moonlight GET `/unpair` is absent from the pinned Sunshine NvHTTP routes. The v2 Core/Dart `local_cleared` contract requires real local registration retirement/readback; provider pairing removal is a separate unaccepted boundary. Owned admin teardown never proves product revocation. Discovery run36792376426 at exact04552c7 failed emulator boot before Python/NSD, after the receipted engine build. It proves neither discovery success nor a Sunshine fault. F60 remains reworking and all counters/CI-waiting labels remain unchanged.
+
+F62 partial hosted evidence: exacte05df8ea/run36794954941, package(x86_64), named owned-Xorg preflight completed successfully. Root independently verified exact source and step result. This proves Linux single-output CRTC/root shrink+restore only; full Android/shadow and feature acceptance remain open. Counters/statuses stay unchanged.

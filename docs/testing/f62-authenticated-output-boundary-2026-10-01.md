@@ -50,4 +50,4 @@ The display fixture uses a direct Xorg dummy driver with two configured modes.
 Before building the AAR, it must prove one active output and exact CRTC/root
 1280×800 → 1024×768 → 1280×800 readbacks. Bare Xvfb could not provide this
 resize contract. The31 runner/workflow tests and shell checks are local
-evidence; no hosted Xorg resize result is claimed yet.
+evidence; the later exact e05df8ea hosted display preflight passed, while the full Android/shadow result remains open.

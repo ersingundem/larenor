@@ -395,6 +395,8 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
             key=lambda node: DISPLAY_ORDER[node['status']],
         )
         lines.extend(['', 'Tamamlanan ve test/CI bekleyen işler', '',
+                      'CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin CI kabulü bekleniyor. '
+                      'Kanıtla tamamlandı durumu yalnız tam kabulü geçen işler içindir.', '',
                       '| ID | İş | Durum | Beklenen bağımlılık |', '| --- | --- | --- | --- |'])
         for node in closed_tasks:
             blocked = ', '.join(model.blockers(node['id'])) or '—'

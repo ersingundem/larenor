@@ -65,3 +65,7 @@ Local verification for this change is limited to the bounded Python runner and
 workflow policy tests plus workflow lint. The real Android/Xorg/shadow result
 must come from a changed-source hosted run; this document does not claim that
 run has passed.
+
+## Hosted display preflight (partial evidence)
+
+At exact `e05df8ea1a95978370679b1f71fd7d93ff8b2c8b`, [run36794954941](https://github.com/ersingundem/larenor/actions/runs/36794954941), the `package (x86_64)` step `Preflight an owned resizable Xorg display` completed successfully. Root re-read the exact run SHA and named step result. Its shell requires one active output and matching CRTC plus `xdpyinfo` dimensions for1280×800 →1024×768 →1280×800. This closes the owned Linux display preflight only. The Android/NLA/frame/key/ACK/close baseline receipt and full feature acceptance remain open.
