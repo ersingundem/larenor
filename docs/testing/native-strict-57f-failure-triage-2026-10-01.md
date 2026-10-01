@@ -65,3 +65,27 @@ are retained here and in the historical progress record rather than taking
 two array slots needed for the new exact691 validation/run. Both failed before
 instrumentation at the Flutter JNI producer boundary; neither proved a stream
 or a provider defect. No accepted runtime evidence was removed.
+
+## Persisted HTTPS-port composition repair
+
+Root source review and the actual pinned upstream SQLite round-trip proved
+that the paired record reload produces transient HTTPS port0. The private
+positive-only launch guard rejected this before lease issuance. Changed-source
+`092a9727` accepts the upstream zero sentinel while keeping all other bounds
+and certificate/authority fences. Old guard RED; fixed native suite43/0skip
+and required AndroidTestcompile314 passed.
+
+The changed-source strict [run36828275540](https://github.com/ersingundem/larenor/actions/runs/36828275540)
+uses exact `ed91234d41667c4c546dbbf6d96de61baaed0134`. No accepted
+frame/audio/input receipt exists yet. [Source and primary-source proof](f60-persisted-https-port-2026-10-01.md).
+
+## Archived early preparation records
+
+These failed pre-runtime records were moved out of the bounded32-entry F60
+evidence array. Their exact identity and limits remain historical here. They
+are not accepted runtime proof and were superseded by later named host/NSD
+and strict stream runs.
+
+- [36791191000](https://github.com/ersingundem/larenor/actions/runs/36791191000) — exact `47909b66b1d1bda844f97783e4ac851931a76739`, completed/failed: Owned Sunshine host setup passed, no readiness receipt, exact child cleanup succeeded
+- [36792376426](https://github.com/ersingundem/larenor/actions/runs/36792376426) — exact `04552c724fd8a5f981a3f9f64986605f218604a1`, completed/failed: Receipted Moonlight build passed; Android emulator boot timed out before Python, NSD or provider acceptance
+- [36796250482](https://github.com/ersingundem/larenor/actions/runs/36796250482) — exact `0036260b9d6eb09336b881889e885328f63d6520`, completed/failed: Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt; same-source companion 36796253857 also failed at this preparation boundary

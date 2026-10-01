@@ -5401,27 +5401,11 @@
       "evidence": [
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36791191000",
-          "commit": "47909b66b1d1bda844f97783e4ac851931a76739",
-          "state": "completed",
-          "result": "failed",
-          "label": "Owned Sunshine host setup passed, no readiness receipt, exact child cleanup succeeded"
-        },
-        {
-          "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36791861104",
           "commit": "768a511176136c00b8fef103105602e02178e311",
           "state": "completed",
           "result": "passed",
           "label": "Owned Sunshine host readiness only; streamAccepted=false; canonical receipt independently verified"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36792376426",
-          "commit": "04552c724fd8a5f981a3f9f64986605f218604a1",
-          "state": "completed",
-          "result": "failed",
-          "label": "Receipted Moonlight build passed; Android emulator boot timed out before Python, NSD or provider acceptance"
         },
         {
           "kind": "test",
@@ -5438,14 +5422,6 @@
           "state": "completed",
           "result": "passed",
           "label": "12 Client widget tests and scoped analyze passed; UI states Sunshine pairing remains"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36796250482",
-          "commit": "0036260b9d6eb09336b881889e885328f63d6520",
-          "state": "completed",
-          "result": "failed",
-          "label": "Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt; same-source companion 36796253857 also failed at this preparation boundary"
         },
         {
           "kind": "ci",
@@ -5654,10 +5630,34 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact691 canonical original1/1/0/0 firstStreamOutput; closed dispatch beforeIssue/IllegalArgumentException/none, leaseAbsentOrUnreadable; no accepted runtime receipt"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
+          "commit": "092a9727a329be235bf08a07a69874b89980ba12",
+          "state": "completed",
+          "result": "passed",
+          "label": "Actual upstream SQLite HTTPS0 round-trip oldguard RED;43native tests/0skip GREEN; canonical v3 package and AndroidTestcompile314task passed"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
+          "commit": "092a9727a329be235bf08a07a69874b89980ba12",
+          "state": "completed",
+          "result": "passed",
+          "label": "Pinned primary DB/Game/NvHTTP confirm zero discovery sentinel and unchanged certificate pin; root XML/task evidence inspected; actual runtime separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36828275540",
+          "commit": "ed91234d41667c4c546dbbf6d96de61baaed0134",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source HTTPS0 composition repair; strict actual Sunshine frame/PCM/input/two-lifetime/stop/disconnect gate running; no accepted receipt"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact691/run36825268673 original1/1/0/0 firstStreamOutput; beforeIssue/IllegalArgumentException. Gerçek pinned Moonlight DB round-trip httpsPort alanını transient0 okur, private launch guardı bunu reddediyordu. 092a9727 değişmiş kaynak upstream0sentinelini kabul ediyor; eski guard RED,43native/0skip GREEN, AndroidTestcompile314task ve pinned primary source incelemesi geçti. Belirsiz yerel oturumun görünür exact cleanup eylemi ayrı odaklı düzeltmede. Strict frame/PCM/input/iki yaşam/stop/disconnect kabulü henüz yok; aynıSHA kör rerun yok. FinalHEAD genişCI ve MANUAL ayrı. docs/testing/f60-persisted-https-port-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor: exact691/run36825268673 original1/1/0/0 firstStreamOutput; beforeIssue/IllegalArgumentException. Gerçek pinned Moonlight DB round-trip httpsPort alanını transient0 okur, private launch guardı bunu reddediyordu. 092a9727 değişmiş kaynak upstream0sentinelini kabul ediyor; eski guard RED,43native/0skip GREEN, AndroidTestcompile314task ve pinned primary source incelemesi geçti. Belirsiz yerel oturumun görünür exact cleanup eylemi ayrı odaklı düzeltmede. Exacted912/run36828275540 değişmiş kaynak strict frame/PCM/input/iki yaşam/stop/disconnect koşuyor; kabul henüz yok; aynıSHA kör rerun yok. FinalHEAD genişCI ve MANUAL ayrı. docs/testing/f60-persisted-https-port-2026-10-01.md"
     },
     {
       "id": "G11",
@@ -6238,7 +6238,7 @@
           "commit": "1916395b1d55828c5640b23bd1d04b8ca5f453df",
           "state": "in_progress",
           "result": null,
-          "label": "Exact191 broad run still active; Flutter shard0 failed F27 duplicate signout purge; other3Flutter/static/nativepackage/host/F08 passed, Server/emulator/APK pending"
+          "label": "Exact191 broad run still active; Flutter shard0 failed F27 duplicate signout purge; other3Flutter/static/nativepackage/APK/host/F08 passed, Server/emulator pending"
         },
         {
           "kind": "ci",
@@ -6250,7 +6250,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi.57 seçili/68iş CI bekliyor; F27/F60/F62 reworking; kabul35/127ve3/63. Exact191 Security36826516434 üçişpassed; genişAndroid/allServer36826527140 sürüyor ancak Flutter shard0 F27signout duplicate purge failed; odaklı düzeltme sürüyor. Diğer3Fluttershard/static/nativepackage/host/F08passed; Server/emulator/productAPK henüz terminal değil. F60exact691/36825268673 failed beforeIssue/IllegalArgumentException; pinned DBhttps0guard 092a9727 ile43native/0skip+compile314 geçti, belirsiz yerel cleanup ayrıca düzeltiliyor. F62body tanısı6bbe root57/40subtest+compile277;36826438225arm64packagepassed,x86gerçekhostgate sürüyor. Önceki fullFlutter/allServer/JVMnamed kanıtları tarihsel; başkaFINAL başlamaz;MANUAL/CORE.WEBayrı."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi.57 seçili/68iş CI bekliyor; F27/F60/F62 reworking; kabul35/127ve3/63. Exact191 Security36826516434 üçişpassed; genişAndroid/allServer36826527140 sürüyor ancak Flutter shard0 F27signout duplicate purge failed; odaklı düzeltme sürüyor. Diğer3Fluttershard/static/nativepackage/host/F08passed; Server/emulator/productAPK henüz terminal değil. F60exact691/36825268673 failed beforeIssue/IllegalArgumentException; pinned DBhttps0guard 092a9727 ile43native/0skip+compile314 geçti, stricted912/run36828275540 başladı, belirsiz yerel cleanup ayrıca düzeltiliyor. F62body tanısı6bbe root57/40subtest+compile277;36826438225arm64packagepassed,x86gerçekhostgate sürüyor. Önceki fullFlutter/allServer/JVMnamed kanıtları tarihsel; başkaFINAL başlamaz;MANUAL/CORE.WEBayrı."
     },
     {
       "id": "FINAL.UI",
