@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../data/server_account_controller.dart';
+import '../../domain/server_local_media_scope.dart';
 import '../../domain/server_models.dart';
 import '../../media_catalog/data/server_media_catalog_api.dart';
 import '../../media_segments/domain/server_media_segment_models.dart';
@@ -22,13 +23,28 @@ final class _DigestSink implements Sink<Digest> {
 final class ServerOfflineMediaController extends ChangeNotifier {
   ServerOfflineMediaController(this.account, {ServerOfflineMediaVault? vault})
     : _accountGeneration = account.generation,
+      _scope = _scopeFrom(account.session),
+      _localMediaScope = null,
       vault = vault ?? ServerOfflineMediaVault() {
+    account.addListener(_accountChanged);
+  }
+
+  ServerOfflineMediaController.local(
+    this.account,
+    ServerLocalMediaScope scope, {
+    ServerOfflineMediaVault? vault,
+  }) : _accountGeneration = account.generation,
+       _scope = _scopeFromLocal(scope),
+       _localMediaScope = scope,
+       vault = vault ?? ServerOfflineMediaVault() {
     account.addListener(_accountChanged);
   }
 
   final ServerAccountController account;
   final ServerOfflineMediaVault vault;
   final int _accountGeneration;
+  final ServerOfflineMediaScope? _scope;
+  final ServerLocalMediaScope? _localMediaScope;
   int _epoch = 0;
   bool _disposed = false;
   ServerOfflineMediaPlaybackLease? _playbackLease;
@@ -36,6 +52,25 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   bool busy = false;
   String? failure;
   ServerOfflineMediaManifest? manifest;
+
+  static ServerOfflineMediaScope? _scopeFrom(ServerSession? session) {
+    if (session?.context == null || session?.sessionFamilyId == null) {
+      return null;
+    }
+    try {
+      return ServerOfflineMediaScope.fromSession(session!);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static ServerOfflineMediaScope _scopeFromLocal(ServerLocalMediaScope scope) =>
+      ServerOfflineMediaScope(
+        coreId: scope.coreId,
+        homeId: scope.homeId,
+        accountId: scope.accountId,
+        sessionFamilyId: scope.sessionFamilyId,
+      );
 
   bool get _authorized =>
       account.isCurrent(_accountGeneration) &&
@@ -48,7 +83,27 @@ final class ServerOfflineMediaController extends ChangeNotifier {
       account.session?.user.mustChangePassword == false;
 
   void _accountChanged() {
-    if (!_authorized) retire(purge: true);
+    final local = _localMediaScope;
+    if (local != null) {
+      final current = account.localMediaScope;
+      if (current == local) return;
+      final authoritativeRetirement =
+          !account.working &&
+          !account.hasPendingContext &&
+          (current != null || account.initialized);
+      retire(purge: authoritativeRetirement);
+      return;
+    }
+    if (_authorized) return;
+    final currentScope = _scopeFrom(account.session);
+    final retired = switch ((_scope, currentScope)) {
+      (final ServerOfflineMediaScope expected, final actual?) =>
+        !expected.sameAuthority(actual),
+      (final ServerOfflineMediaScope _, null) =>
+        account.initialized && !account.working && !account.hasPendingContext,
+      _ => false,
+    };
+    retire(purge: retired);
   }
 
   bool _currentManifest(ServerOfflineMediaManifest selected) {
@@ -66,6 +121,14 @@ final class ServerOfflineMediaController extends ChangeNotifier {
     final retained = _playbackLease;
     _playbackLease = null;
     await retained?.close();
+  }
+
+  Future<void> _purgeRetired(
+    ServerOfflineMediaManifest? retained,
+    ServerOfflineMediaScope? scope,
+  ) async {
+    if (retained != null) await vault.purge(retained.grantId);
+    if (scope != null) await vault.purgeScope(scope);
   }
 
   Future<Uri?> openPlayback({required bool Function() current}) async {
@@ -98,6 +161,110 @@ final class ServerOfflineMediaController extends ChangeNotifier {
     }
   }
 
+  Future<bool> loadCompletedItem(
+    String itemId, {
+    required bool Function() current,
+  }) async {
+    if (_disposed || busy || !_authorized || !current()) return false;
+    final scope = _scope;
+    final session = account.session;
+    if (scope == null || session == null) return false;
+    final normalizedItemId = serverMediaSegmentItemId(itemId);
+    final operation = ++_epoch;
+    bool valid() =>
+        !_disposed &&
+        operation == _epoch &&
+        _authorized &&
+        identical(account.session, session) &&
+        current();
+    busy = true;
+    failure = null;
+    notifyListeners();
+    try {
+      final selected = await vault.loadCompletedItem(scope, normalizedItemId);
+      if (!valid() || selected == null) return false;
+      manifest = selected;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      if (valid()) {
+        failure = 'offline_media_integrity_failed';
+        notifyListeners();
+      }
+      return false;
+    } finally {
+      if (!_disposed && operation == _epoch) {
+        busy = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  bool _currentLocalScope(
+    ServerLocalMediaScope scope,
+    bool Function() current,
+  ) {
+    try {
+      return !_disposed &&
+          _localMediaScope == scope &&
+          account.localMediaScope == scope &&
+          current();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<ServerOfflineMediaManifest>> completedForLocalScope(
+    ServerLocalMediaScope scope, {
+    required bool Function() current,
+  }) async {
+    if (!_currentLocalScope(scope, current)) return const [];
+    final operation = ++_epoch;
+    final completed = await vault.completed(_scopeFromLocal(scope));
+    if (_disposed ||
+        operation != _epoch ||
+        !_currentLocalScope(scope, current)) {
+      return const [];
+    }
+    return completed;
+  }
+
+  Future<Uri?> openCompletedForLocalScope(
+    ServerLocalMediaScope scope,
+    ServerOfflineMediaManifest selected, {
+    required bool Function() current,
+  }) async {
+    final expected = _scopeFromLocal(scope);
+    if (!expected.matches(selected) ||
+        !_currentLocalScope(scope, current)) {
+      return null;
+    }
+    final operation = ++_epoch;
+    await closePlayback();
+    if (_disposed ||
+        operation != _epoch ||
+        !_currentLocalScope(scope, current)) {
+      return null;
+    }
+    final lease = await vault.openPlayback(selected);
+    if (_disposed ||
+        operation != _epoch ||
+        !_currentLocalScope(scope, current)) {
+      await lease.close();
+      return null;
+    }
+    _playbackLease = lease;
+    return lease.uri;
+  }
+
+  Future<void> purgeLocalScope(ServerLocalMediaScope scope) async {
+    if (_localMediaScope != scope) {
+      throw const FormatException('Invalid offline scope');
+    }
+    await closePlayback();
+    await vault.purgeScope(_scopeFromLocal(scope));
+  }
+
   void retire({bool purge = false}) {
     if (_disposed) return;
     _epoch++;
@@ -106,7 +273,10 @@ final class ServerOfflineMediaController extends ChangeNotifier {
     busy = false;
     failure = null;
     manifest = null;
-    if (purge && retained != null) unawaited(vault.purge(retained.grantId));
+    if (purge) {
+      final scope = _scope;
+      unawaited(_purgeRetired(retained, scope));
+    }
     notifyListeners();
   }
 
@@ -173,6 +343,9 @@ final class ServerOfflineMediaController extends ChangeNotifier {
             next,
             sha256: finalChunk ? sink.value?.toString() : null,
           );
+          if (currentManifest.complete) {
+            await vault.storeCompletedManifest(currentManifest);
+          }
           if (valid() && identical(account.session, session)) {
             manifest = currentManifest;
             notifyListeners();

@@ -2,6 +2,44 @@ import '../../domain/server_models.dart';
 
 Never _invalid() => throw const FormatException('invalid_response');
 
+final class ServerOfflineMediaScope {
+  const ServerOfflineMediaScope({
+    required this.coreId,
+    required this.homeId,
+    required this.accountId,
+    required this.sessionFamilyId,
+  });
+
+  factory ServerOfflineMediaScope.fromSession(ServerSession session) {
+    final context = session.context;
+    final family = session.sessionFamilyId;
+    if (context == null || family == null) _invalid();
+    return ServerOfflineMediaScope(
+      coreId: context.coreId,
+      homeId: context.homeId,
+      accountId: session.user.id,
+      sessionFamilyId: family,
+    );
+  }
+
+  final String coreId, homeId, accountId, sessionFamilyId;
+
+  bool matches(ServerOfflineMediaManifest manifest) =>
+      manifest.coreId == coreId &&
+      manifest.homeId == homeId &&
+      manifest.accountId == accountId &&
+      manifest.sessionFamilyId == sessionFamilyId;
+
+  bool sameAuthority(ServerOfflineMediaScope other) =>
+      coreId == other.coreId &&
+      homeId == other.homeId &&
+      accountId == other.accountId &&
+      sessionFamilyId == other.sessionFamilyId;
+
+  @override
+  String toString() => 'ServerOfflineMediaScope(redacted)';
+}
+
 final class ServerOfflineMediaManifest {
   const ServerOfflineMediaManifest._({
     required this.grantId,
@@ -9,6 +47,7 @@ final class ServerOfflineMediaManifest {
     required this.coreId,
     required this.homeId,
     required this.accountId,
+    required this.accountRevision,
     required this.sessionFamilyId,
     required this.installationId,
     required this.installationRevision,
@@ -30,6 +69,14 @@ final class ServerOfflineMediaManifest {
     Object? value, {
     required ServerSession session,
   }) {
+    final parsed = ServerOfflineMediaManifest.fromStorageJson(value);
+    if (!ServerOfflineMediaScope.fromSession(session).matches(parsed)) {
+      _invalid();
+    }
+    return parsed;
+  }
+
+  factory ServerOfflineMediaManifest.fromStorageJson(Object? value) {
     final map = serverObject(value);
     const keys = {
       'schemaVersion',
@@ -65,17 +112,9 @@ final class ServerOfflineMediaManifest {
       'itemId',
       'mediaKey',
     };
-    final context = session.context;
-    final family = session.sessionFamilyId;
     if (authority.length != authorityKeys.length ||
         !authority.keys.every(authorityKeys.contains) ||
-        authority['schemaVersion'] != 1 ||
-        context == null ||
-        family == null ||
-        authority['coreId'] != context.coreId ||
-        authority['homeId'] != context.homeId ||
-        authority['accountId'] != session.user.id ||
-        authority['sessionFamilyId'] != family) {
+        authority['schemaVersion'] != 1) {
       _invalid();
     }
     String id(Object? value) {
@@ -117,7 +156,7 @@ final class ServerOfflineMediaManifest {
       maximum: length,
     );
     final state = map['state'];
-    revision(authority['accountRevision']);
+    final accountRevision = revision(authority['accountRevision']);
     if (!{'granted', 'transferring', 'complete', 'revoked'}.contains(state) ||
         (state == 'complete') != (downloaded == length) && state != 'revoked') {
       _invalid();
@@ -137,6 +176,7 @@ final class ServerOfflineMediaManifest {
       coreId: id(authority['coreId']),
       homeId: id(authority['homeId']),
       accountId: id(authority['accountId']),
+      accountRevision: accountRevision,
       sessionFamilyId: id(authority['sessionFamilyId']),
       installationId: id(authority['installationId']),
       installationRevision: revision(authority['installationRevision']),
@@ -169,9 +209,37 @@ final class ServerOfflineMediaManifest {
       title,
       contentSha256,
       contentType;
-  final int revision, installationRevision, snapshotRevision;
+  final int revision, accountRevision, installationRevision, snapshotRevision;
   final int jellyfinServiceRevision, contentLength, chunkBytes, downloadedBytes;
   final String state;
   final DateTime expiresAt;
   bool get complete => state == 'complete';
+
+  Map<String, Object?> toJson() => {
+    'schemaVersion': 1,
+    'grantId': grantId,
+    'revision': revision,
+    'authority': {
+      'schemaVersion': 1,
+      'coreId': coreId,
+      'homeId': homeId,
+      'accountId': accountId,
+      'accountRevision': accountRevision,
+      'sessionFamilyId': sessionFamilyId,
+      'installationId': installationId,
+      'installationRevision': installationRevision,
+      'snapshotRevision': snapshotRevision,
+      'jellyfinServiceRevision': jellyfinServiceRevision,
+      'itemId': itemId,
+      'mediaKey': mediaKey,
+    },
+    'title': title,
+    'contentLength': contentLength,
+    'contentSha256': contentSha256,
+    'contentType': contentType,
+    'chunkBytes': chunkBytes,
+    'downloadedBytes': downloadedBytes,
+    'state': state,
+    'expiresAt': expiresAt.millisecondsSinceEpoch ~/ 1000,
+  };
 }
