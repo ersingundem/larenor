@@ -18,6 +18,7 @@ import 'package:larenor/features/server/data/server_session_store.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 import 'package:larenor/features/server/presentation/server_connection_screen.dart';
 import 'package:larenor/features/server/presentation/server_vault_screen.dart';
+import 'package:larenor/features/server/offline_media/presentation/server_offline_downloads_screen.dart';
 import 'package:larenor/features/server/providers/server_providers.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 import 'package:larenor/features/settings/providers/settings_providers.dart';
@@ -212,6 +213,50 @@ Future<void> resume(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'offline cached profile exposes only local downloads navigation',
+    (tester) async {
+      final store = Store()
+        ..value = ServerSession(
+          endpoint: ServerEndpoint('https://server.example'),
+          accessToken: 'synthetic_offline_scope_access_token',
+          refreshToken: 'synthetic_offline_scope_refresh_token',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          user: ServerUser(
+            id: 'c' * 32,
+            username: 'Owned offline profile',
+            role: ServerRole.member,
+            mustChangePassword: false,
+          ),
+          context: ServerContext.fromJson({
+            'schemaVersion': 1,
+            'coreId': 'a' * 32,
+            'homeId': 'b' * 32,
+          }),
+          sessionFamilyId: 'd' * 32,
+        );
+      final api = Api()..offline = true;
+      final account = ServerAccountController(
+        store: store,
+        apiFactory: (_) => api,
+      );
+      await mount(tester, account);
+      expect(account.initialized, isFalse);
+      expect(account.session, isNull);
+      expect(account.localMediaScope, isNotNull);
+      expect(api.meReads, 1);
+      expect(find.byKey(const ValueKey('server-sign-in')), findsNothing);
+      await tap(tester, 'server-offline-downloads');
+      // The real vault begins filesystem work outside fake-async; this gate
+      // checks normal navigation and zero extra Core calls, not vault loading.
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ServerOfflineDownloadsScreen), findsOneWidget);
+      expect(api.meReads, 1);
+      expect(api.logins, 0);
+      expect(api.contextReads, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final language in ['en', 'tr']) {
     for (final width in [600.0, 1200.0]) {
       testWidgets('server login is tablet ready $language $width 2x', (

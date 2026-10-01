@@ -4504,6 +4504,8 @@
   "serverComponentUpdatesCancel": "Güncellemeyi iptal et",
   "serverComponentUpdatesCancelRequested": "İptal istendi",
   "jellyfinOfflineMediaTitle": "Çevrimdışı kopya",
+  "serverOfflineDownloadsTitle": "İndirilen medya",
+  "serverOfflineDownloadsHint": "Core çevrimdışıyken de bu cihazdaki doğrulanmış şifreli kopyaları açın.",
   "jellyfinOfflineMediaHint": "İzinli Jellyfin dosyasını seyahat için cihazın şifreli kasasına kaydedin. Sağlayıcı kısıtları geçerliliğini korur.",
   "jellyfinOfflineMediaDownload": "Çevrimdışı kullanım için indir",
   "jellyfinOfflineMediaResume": "İndirmeye devam et",

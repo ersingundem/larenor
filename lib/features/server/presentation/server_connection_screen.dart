@@ -29,6 +29,7 @@ import '../habit_anomalies/presentation/server_habit_anomaly_screen.dart';
 import '../data/server_account_controller.dart';
 import '../domain/server_models.dart';
 import '../media_recovery/presentation/server_media_recovery_screen.dart';
+import '../offline_media/presentation/server_offline_downloads_screen.dart';
 import '../mcp_gateway/presentation/server_mcp_gateway_screen.dart';
 import '../support_sessions/presentation/server_support_sessions_screen.dart';
 import '../mini_plugins/presentation/server_mini_plugin_screen.dart';
@@ -442,6 +443,42 @@ class _ServerConnectionScreenState
                                         ),
                                       ),
                                     )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      if (_account.localMediaScope case final localScope?)
+                        SettingsSection(
+                          children: [
+                            SettingsActionTile(
+                              buttonKey: const ValueKey(
+                                'server-offline-downloads',
+                              ),
+                              leading: const Icon(
+                                CupertinoIcons.arrow_down_circle,
+                              ),
+                              title: Text(l10n.serverOfflineDownloadsTitle),
+                              additionalInfo: Text(
+                                l10n.serverOfflineDownloadsHint,
+                              ),
+                              onTap:
+                                  _active &&
+                                      !_ownedOperation &&
+                                      !_account.working
+                                  ? _callback(() {
+                                      if (_account.localMediaScope !=
+                                          localScope) {
+                                        return;
+                                      }
+                                      Navigator.of(context).push<void>(
+                                        CupertinoPageRoute(
+                                          builder: (_) =>
+                                              ServerOfflineDownloadsScreen(
+                                                scope: localScope,
+                                              ),
+                                        ),
+                                      );
+                                    })
                                   : null,
                             ),
                           ],

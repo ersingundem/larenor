@@ -4863,6 +4863,8 @@
   "serverComponentUpdatesCancel": "Cancel update",
   "serverComponentUpdatesCancelRequested": "Cancellation requested",
   "jellyfinOfflineMediaTitle": "Offline copy",
+  "serverOfflineDownloadsTitle": "Downloaded media",
+  "serverOfflineDownloadsHint": "Open verified encrypted copies on this device, even while Core is offline.",
   "jellyfinOfflineMediaHint": "Save this permitted Jellyfin file in the encrypted device vault for travel. Provider restrictions remain in effect.",
   "jellyfinOfflineMediaDownload": "Download for offline use",
   "jellyfinOfflineMediaResume": "Resume download",

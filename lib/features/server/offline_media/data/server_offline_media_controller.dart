@@ -47,6 +47,7 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   final ServerLocalMediaScope? _localMediaScope;
   int _epoch = 0;
   bool _disposed = false;
+  bool _localAuthorityRetired = false;
   ServerOfflineMediaPlaybackLease? _playbackLease;
 
   bool busy = false;
@@ -91,6 +92,8 @@ final class ServerOfflineMediaController extends ChangeNotifier {
           !account.working &&
           !account.hasPendingContext &&
           (current != null || account.initialized);
+      if (authoritativeRetirement && _localAuthorityRetired) return;
+      if (authoritativeRetirement) _localAuthorityRetired = true;
       retire(purge: authoritativeRetirement);
       return;
     }
@@ -206,6 +209,7 @@ final class ServerOfflineMediaController extends ChangeNotifier {
   ) {
     try {
       return !_disposed &&
+          !_localAuthorityRetired &&
           _localMediaScope == scope &&
           account.localMediaScope == scope &&
           current();
@@ -235,8 +239,7 @@ final class ServerOfflineMediaController extends ChangeNotifier {
     required bool Function() current,
   }) async {
     final expected = _scopeFromLocal(scope);
-    if (!expected.matches(selected) ||
-        !_currentLocalScope(scope, current)) {
+    if (!expected.matches(selected) || !_currentLocalScope(scope, current)) {
       return null;
     }
     final operation = ++_epoch;
