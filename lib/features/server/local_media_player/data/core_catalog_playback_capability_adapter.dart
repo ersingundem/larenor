@@ -87,6 +87,86 @@ final class CoreCatalogPlaybackAuthorization {
   final ServerSession _session;
 }
 
+enum CoreCatalogPlaybackOutcome {
+  directPlaySupported,
+  requiresRemux,
+  requiresTranscode,
+  unavailable,
+  contractUnknown,
+}
+
+enum CoreCatalogPlaybackMethod { unknown, directPlay, directStream, transcode }
+
+enum CoreCatalogPlaybackReason {
+  available,
+  multipleSources,
+  originalByteMismatch,
+  noSupportedMethod,
+  contractUnsupported,
+}
+
+final class CoreCatalogPlaybackSourceEvidence {
+  const CoreCatalogPlaybackSourceEvidence._({
+    required this.container,
+    required this.bitrateBps,
+    required this.videoCodecs,
+    required this.audioCodecs,
+    required this.videoRanges,
+  });
+
+  final String? container;
+  final int? bitrateBps;
+  final List<String> videoCodecs, audioCodecs, videoRanges;
+}
+
+final class CoreCatalogPlaybackTranscodingEvidence {
+  const CoreCatalogPlaybackTranscodingEvidence._({
+    required this.container,
+    required this.videoCodec,
+    required this.audioCodec,
+    required this.bitrateBps,
+    required this.reasons,
+  });
+
+  final String? container, videoCodec, audioCodec;
+  final int? bitrateBps;
+  final List<String> reasons;
+}
+
+/// A short-lived provider observation bound to the exact current native
+/// profile and Core authority. It is advice only and does not create or
+/// consume a playback lease.
+final class CoreCatalogPlaybackAssessment {
+  const CoreCatalogPlaybackAssessment._({
+    required this.profile,
+    required this.outcome,
+    required this.method,
+    required this.source,
+    required this.transcoding,
+    required this.reason,
+    required this.observedAt,
+    required this.expiresAt,
+    required this._observationId,
+    required this._accountGeneration,
+    required this._session,
+  });
+
+  final CoreCatalogLocalPlaybackProfile profile;
+  final CoreCatalogPlaybackOutcome outcome;
+  final CoreCatalogPlaybackMethod method;
+  final CoreCatalogPlaybackSourceEvidence? source;
+  final CoreCatalogPlaybackTranscodingEvidence? transcoding;
+  final CoreCatalogPlaybackReason reason;
+  final DateTime observedAt, expiresAt;
+  final String? _observationId;
+  final int _accountGeneration;
+  final ServerSession _session;
+
+  bool get allowsOriginalBytes =>
+      outcome == CoreCatalogPlaybackOutcome.directPlaySupported &&
+      method == CoreCatalogPlaybackMethod.directPlay;
+}
+
 abstract interface class CoreCatalogPlaybackCapabilityPort {
   Future<Object?> snapshot();
 }
@@ -137,6 +217,15 @@ final class CoreCatalogPlaybackCapabilityAdapter {
   final String Function() _requestId;
   final DateTime Function() _clock;
 
+  void addAuthorityListener(VoidCallback listener) =>
+      _account.addListener(listener);
+
+  void removeAuthorityListener(VoidCallback listener) =>
+      _account.removeListener(listener);
+
+  Duration remaining(CoreCatalogPlaybackAssessment assessment) =>
+      assessment.expiresAt.difference(_clock());
+
   Future<CoreCatalogLocalPlaybackProfile?> capture() async {
     try {
       return _profile(
@@ -150,6 +239,31 @@ final class CoreCatalogPlaybackCapabilityAdapter {
   Future<CoreCatalogPlaybackAuthorization?> observe(
     CoreCatalogPlayerBinding binding, {
     required bool Function() current,
+  }) async {
+    final assessment = await _assess(binding, current: current, recorded: true);
+    if (assessment == null ||
+        !assessment.allowsOriginalBytes ||
+        assessment._observationId == null) {
+      return null;
+    }
+    return CoreCatalogPlaybackAuthorization._(
+      observationId: assessment._observationId,
+      profile: assessment.profile,
+      expiresAt: assessment.expiresAt,
+      accountGeneration: assessment._accountGeneration,
+      session: assessment._session,
+    );
+  }
+
+  Future<CoreCatalogPlaybackAssessment?> assess(
+    CoreCatalogPlayerBinding binding, {
+    required bool Function() current,
+  }) => _assess(binding, current: current, recorded: false);
+
+  Future<CoreCatalogPlaybackAssessment?> _assess(
+    CoreCatalogPlayerBinding binding, {
+    required bool Function() current,
+    required bool recorded,
   }) async {
     final accountGeneration = _account.generation;
     final capturedSession = _account.session;
@@ -175,7 +289,8 @@ final class CoreCatalogPlaybackCapabilityAdapter {
         }
         final response = await api.request(
           'POST',
-          '/media/playback-quality/${context.coreId}/${context.homeId}/observe-item',
+          '/media/playback-quality/${context.coreId}/${context.homeId}/'
+              '${recorded ? 'observe-item' : 'assess-item'}',
           token: session.accessToken,
           body: {
             'schemaVersion': 1,
@@ -189,15 +304,16 @@ final class CoreCatalogPlaybackCapabilityAdapter {
             'localProfile': profile.toJson(),
           },
         );
-        final authorization = _authorization(
+        final assessment = _assessment(
           response,
           binding: binding,
           profile: profile,
           requestId: requestId,
           session: session,
           accountGeneration: accountGeneration,
+          recorded: recorded,
         );
-        if (authorization == null ||
+        if (assessment == null ||
             !current() ||
             !_account.isCurrent(accountGeneration)) {
           return null;
@@ -208,10 +324,10 @@ final class CoreCatalogPlaybackCapabilityAdapter {
             !current() ||
             !_account.isCurrent(accountGeneration) ||
             !identical(_account.session, capturedSession) ||
-            !authorization.expiresAt.isAfter(_clock())) {
+            !assessment.expiresAt.isAfter(_clock())) {
           return null;
         }
-        return authorization;
+        return assessment;
       });
     } catch (_) {
       return null;
@@ -235,6 +351,25 @@ final class CoreCatalogPlaybackCapabilityAdapter {
         after != null &&
         authorization.profile.sameFacts(after) &&
         authorization.expiresAt.isAfter(_clock());
+  }
+
+  Future<bool> revalidateAssessment(
+    CoreCatalogPlaybackAssessment assessment, {
+    required bool Function() current,
+  }) async {
+    if (!current() ||
+        !_account.isCurrent(assessment._accountGeneration) ||
+        !identical(_account.session, assessment._session) ||
+        !assessment.expiresAt.isAfter(_clock())) {
+      return false;
+    }
+    final after = await capture();
+    return current() &&
+        _account.isCurrent(assessment._accountGeneration) &&
+        identical(_account.session, assessment._session) &&
+        after != null &&
+        assessment.profile.sameFacts(after) &&
+        assessment.expiresAt.isAfter(_clock());
   }
 
   CoreCatalogLocalPlaybackProfile? _profile(_NativeLocalPlaybackFacts facts) {
@@ -289,18 +424,19 @@ final class CoreCatalogPlaybackCapabilityAdapter {
     );
   }
 
-  CoreCatalogPlaybackAuthorization? _authorization(
+  CoreCatalogPlaybackAssessment? _assessment(
     Object? raw, {
     required CoreCatalogPlayerBinding binding,
     required CoreCatalogLocalPlaybackProfile profile,
     required String requestId,
     required ServerSession session,
     required int accountGeneration,
+    required bool recorded,
   }) {
-    final value = _closedMap(raw, const {
+    final value = _closedMap(raw, {
       'schemaVersion',
       'requestId',
-      'observationId',
+      if (recorded) 'observationId',
       'authority',
       'observation',
     });
@@ -338,29 +474,48 @@ final class CoreCatalogPlaybackCapabilityAdapter {
       'observedAt',
       'expiresAt',
     });
-    final source = _closedMap(observation['source'], const {
-      'container',
-      'bitrateBps',
-      'videoCodecs',
-      'audioCodecs',
-      'videoRanges',
-    });
-    final sourceContainer = source['container'];
-    final sourceBitrate = source['bitrateBps'];
-    _tokens(source['videoCodecs'], 8, _token);
-    _tokens(source['audioCodecs'], 8, _token);
-    _tokens(source['videoRanges'], 8, _token);
     final context = session.context;
     final observedAt = _timestamp(observation['observedAt']);
     final expiresAt = _timestamp(observation['expiresAt']);
+    final outcome = switch (observation['originalByteOutcome']) {
+      'direct_play_supported' => CoreCatalogPlaybackOutcome.directPlaySupported,
+      'requires_remux' => CoreCatalogPlaybackOutcome.requiresRemux,
+      'requires_transcode' => CoreCatalogPlaybackOutcome.requiresTranscode,
+      'unavailable' => CoreCatalogPlaybackOutcome.unavailable,
+      'contract_unknown' => CoreCatalogPlaybackOutcome.contractUnknown,
+      _ => null,
+    };
+    final method = switch (observation['playMethod']) {
+      'unknown' => CoreCatalogPlaybackMethod.unknown,
+      'direct_play' => CoreCatalogPlaybackMethod.directPlay,
+      'direct_stream' => CoreCatalogPlaybackMethod.directStream,
+      'transcode' => CoreCatalogPlaybackMethod.transcode,
+      _ => null,
+    };
+    final reason = switch (observation['reason']) {
+      'available' => CoreCatalogPlaybackReason.available,
+      'multiple_sources' => CoreCatalogPlaybackReason.multipleSources,
+      'original_byte_mismatch' =>
+        CoreCatalogPlaybackReason.originalByteMismatch,
+      'no_supported_method' => CoreCatalogPlaybackReason.noSupportedMethod,
+      'contract_unsupported' => CoreCatalogPlaybackReason.contractUnsupported,
+      _ => null,
+    };
+    final source = _source(observation['source']);
+    final transcoding = _transcoding(observation['transcoding']);
     final expiration = DateTime.fromMillisecondsSinceEpoch(
       expiresAt * 1000,
       isUtc: true,
     );
+    final observationTime = DateTime.fromMillisecondsSinceEpoch(
+      observedAt * 1000,
+      isUtc: true,
+    );
     if (value['schemaVersion'] != 1 ||
         value['requestId'] != requestId ||
-        value['observationId'] is! String ||
-        !_identity.hasMatch(value['observationId'] as String) ||
+        (recorded &&
+            (value['observationId'] is! String ||
+                !_identity.hasMatch(value['observationId'] as String))) ||
         context == null ||
         authority['schemaVersion'] != 1 ||
         authority['coreId'] != context.coreId ||
@@ -385,28 +540,68 @@ final class CoreCatalogPlaybackCapabilityAdapter {
         observation['schemaVersion'] != 1 ||
         observation['assurance'] !=
             'provider_observed_for_client_reported_profile' ||
-        observation['originalByteOutcome'] != 'direct_play_supported' ||
-        observation['playMethod'] != 'direct_play' ||
-        (sourceContainer != null &&
-            (sourceContainer is! String ||
-                !_token.hasMatch(sourceContainer))) ||
-        (sourceBitrate != null &&
-            !_boundedInteger(sourceBitrate, 1000000000)) ||
-        observation['transcoding'] != null ||
-        observation['reason'] != 'available' ||
+        outcome == null ||
+        method == null ||
+        reason == null ||
+        !_coherent(outcome, method, reason, source, transcoding) ||
         observation['advisoryOnly'] != true ||
         observation['physicalAcceptance'] != 'manual' ||
         observedAt >= expiresAt ||
         expiresAt > observedAt + 30 ||
+        observationTime.isAfter(_clock()) ||
         !expiration.isAfter(_clock())) {
       return null;
     }
-    return CoreCatalogPlaybackAuthorization._(
-      observationId: value['observationId'] as String,
+    return CoreCatalogPlaybackAssessment._(
       profile: profile,
+      outcome: outcome,
+      method: method,
+      source: source,
+      transcoding: transcoding,
+      reason: reason,
+      observedAt: observationTime,
       expiresAt: expiration,
+      observationId: recorded ? value['observationId'] as String : null,
       accountGeneration: accountGeneration,
       session: session,
+    );
+  }
+
+  CoreCatalogPlaybackSourceEvidence? _source(Object? raw) {
+    if (raw == null) return null;
+    final value = _closedMap(raw, const {
+      'container',
+      'bitrateBps',
+      'videoCodecs',
+      'audioCodecs',
+      'videoRanges',
+    });
+    final container = _nullableToken(value['container']);
+    final bitrate = _nullableRate(value['bitrateBps']);
+    return CoreCatalogPlaybackSourceEvidence._(
+      container: container,
+      bitrateBps: bitrate,
+      videoCodecs: _tokens(value['videoCodecs'], 8, _token),
+      audioCodecs: _tokens(value['audioCodecs'], 8, _token),
+      videoRanges: _tokens(value['videoRanges'], 8, _token),
+    );
+  }
+
+  CoreCatalogPlaybackTranscodingEvidence? _transcoding(Object? raw) {
+    if (raw == null) return null;
+    final value = _closedMap(raw, const {
+      'container',
+      'videoCodec',
+      'audioCodec',
+      'bitrateBps',
+      'reasons',
+    });
+    return CoreCatalogPlaybackTranscodingEvidence._(
+      container: _nullableToken(value['container']),
+      videoCodec: _nullableToken(value['videoCodec']),
+      audioCodec: _nullableToken(value['audioCodec']),
+      bitrateBps: _nullableRate(value['bitrateBps']),
+      reasons: _uniqueTokens(value['reasons'], 16, _token),
     );
   }
 }
@@ -477,6 +672,15 @@ Map<Object?, Object?> _closedMap(Object? raw, Set<String> keys) {
 }
 
 List<String> _tokens(Object? raw, int maximum, RegExp pattern) {
+  final result = _uniqueTokens(raw, maximum, pattern);
+  final sorted = [...result]..sort();
+  if (!_same(result, sorted)) {
+    throw const FormatException('Unstable playback capability ordering');
+  }
+  return result;
+}
+
+List<String> _uniqueTokens(Object? raw, int maximum, RegExp pattern) {
   if (raw is! List<Object?> || raw.length > maximum) {
     throw const FormatException('Invalid playback capability list');
   }
@@ -486,10 +690,6 @@ List<String> _tokens(Object? raw, int maximum, RegExp pattern) {
       throw const FormatException('Invalid playback capability token');
     }
     result.add(item);
-  }
-  final sorted = [...result]..sort();
-  if (!_same(result, sorted)) {
-    throw const FormatException('Unstable playback capability ordering');
   }
   return List.unmodifiable(result);
 }
@@ -514,6 +714,60 @@ int _timestamp(Object? raw) {
   }
   return raw;
 }
+
+String? _nullableToken(Object? raw) {
+  if (raw == null) return null;
+  if (raw is! String || !_token.hasMatch(raw)) {
+    throw const FormatException('Invalid playback capability token');
+  }
+  return raw;
+}
+
+int? _nullableRate(Object? raw) {
+  if (raw == null) return null;
+  if (!_boundedInteger(raw, 1000000000)) {
+    throw const FormatException('Invalid playback capability rate');
+  }
+  return raw as int;
+}
+
+bool _coherent(
+  CoreCatalogPlaybackOutcome outcome,
+  CoreCatalogPlaybackMethod method,
+  CoreCatalogPlaybackReason reason,
+  CoreCatalogPlaybackSourceEvidence? source,
+  CoreCatalogPlaybackTranscodingEvidence? transcoding,
+) => switch (outcome) {
+  CoreCatalogPlaybackOutcome.directPlaySupported =>
+    method == CoreCatalogPlaybackMethod.directPlay &&
+        reason == CoreCatalogPlaybackReason.available &&
+        source != null &&
+        transcoding == null,
+  CoreCatalogPlaybackOutcome.requiresRemux =>
+    method == CoreCatalogPlaybackMethod.directStream &&
+        reason == CoreCatalogPlaybackReason.available &&
+        source != null &&
+        transcoding == null,
+  CoreCatalogPlaybackOutcome.requiresTranscode =>
+    method == CoreCatalogPlaybackMethod.transcode &&
+        reason == CoreCatalogPlaybackReason.available &&
+        source != null &&
+        transcoding != null,
+  CoreCatalogPlaybackOutcome.unavailable =>
+    method == CoreCatalogPlaybackMethod.unknown &&
+        reason == CoreCatalogPlaybackReason.noSupportedMethod &&
+        source == null &&
+        transcoding == null,
+  CoreCatalogPlaybackOutcome.contractUnknown =>
+    method == CoreCatalogPlaybackMethod.unknown &&
+        const {
+          CoreCatalogPlaybackReason.multipleSources,
+          CoreCatalogPlaybackReason.originalByteMismatch,
+          CoreCatalogPlaybackReason.contractUnsupported,
+        }.contains(reason) &&
+        source == null &&
+        transcoding == null,
+};
 
 bool _boundedInteger(Object? raw, int maximum) =>
     raw is int && raw >= 1 && raw <= maximum;

@@ -4506,6 +4506,8 @@
   "jellyfinOfflineMediaTitle": "Çevrimdışı kopya",
   "serverOfflineDownloadsTitle": "İndirilen medya",
   "serverOfflineDownloadsHint": "Core çevrimdışıyken de bu cihazdaki doğrulanmış şifreli kopyaları açın.",
+  "serverMediaPlayOnThisDevice": "Bu cihazda oynat",
+  "serverMediaLocalPlayerHint": "Geçerli Core katalog öğesini bu cihazda oynatın veya çevrimdışı kullanım için doğrulanmış şifreli bir kopya kaydedin.",
   "jellyfinOfflineMediaHint": "İzinli Jellyfin dosyasını seyahat için cihazın şifreli kasasına kaydedin. Sağlayıcı kısıtları geçerliliğini korur.",
   "jellyfinOfflineMediaDownload": "Çevrimdışı kullanım için indir",
   "jellyfinOfflineMediaResume": "İndirmeye devam et",

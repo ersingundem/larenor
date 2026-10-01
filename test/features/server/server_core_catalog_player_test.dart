@@ -45,11 +45,12 @@ final class _CapabilityPort implements CoreCatalogPlaybackCapabilityPort {
 
 Map<String, Object?> _qualityResponse(
   CoreCatalogLocalPlaybackProfile profile,
-  int now,
-) => {
+  int now, {
+  bool recorded = true,
+}) => {
   'schemaVersion': 1,
   'requestId': '3' * 32,
-  'observationId': '4' * 32,
+  if (recorded) 'observationId': '4' * 32,
   'authority': {
     'schemaVersion': 1,
     'coreId': 'a' * 32,
@@ -1171,6 +1172,7 @@ void main() {
             _qualityResponse(
               profile,
               fixture.now.millisecondsSinceEpoch ~/ 1000,
+              recorded: request.url.path.endsWith('/observe-item'),
             ),
           );
         }
@@ -1230,6 +1232,13 @@ void main() {
         const ValueKey('core-catalog-player-open-online'),
       );
       await tester.ensureVisible(online);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('quality-assessment')), findsOneWidget);
+      expect(find.text('Direct Play is suitable'), findsOneWidget);
+      // Advice from the normal player route must leave opening a source and
+      // starting the native player under the user's explicit play action.
+      expect(source.opens, 0);
+      expect(platform.opens, 0);
       await tester.tap(online);
       await tester.pumpAndSettle();
 

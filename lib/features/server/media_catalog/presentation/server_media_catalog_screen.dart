@@ -392,7 +392,7 @@ final class _ServerMediaCatalogScreenState
               ),
               Semantics(
                 button: true,
-                label: '${l.jellyfinOfflineMediaDownload}: ${item.title}',
+                label: '${l.serverMediaPlayOnThisDevice}: ${item.title}',
                 child: CupertinoButton(
                   key: ValueKey(
                     'server-media-catalog-local-player-${item.itemId}',
@@ -400,7 +400,7 @@ final class _ServerMediaCatalogScreenState
                   minimumSize: const Size(48, 48),
                   padding: const EdgeInsets.all(12),
                   onPressed: _active ? () => _openLocal(page, item) : null,
-                  child: const Icon(CupertinoIcons.arrow_down_circle),
+                  child: const Icon(CupertinoIcons.play_circle),
                 ),
               ),
             ],

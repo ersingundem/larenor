@@ -4865,6 +4865,8 @@
   "jellyfinOfflineMediaTitle": "Offline copy",
   "serverOfflineDownloadsTitle": "Downloaded media",
   "serverOfflineDownloadsHint": "Open verified encrypted copies on this device, even while Core is offline.",
+  "serverMediaPlayOnThisDevice": "Play on this device",
+  "serverMediaLocalPlayerHint": "Play the current Core catalog item on this device, or save a verified encrypted copy for offline use.",
   "jellyfinOfflineMediaHint": "Save this permitted Jellyfin file in the encrypted device vault for travel. Provider restrictions remain in effect.",
   "jellyfinOfflineMediaDownload": "Download for offline use",
   "jellyfinOfflineMediaResume": "Resume download",

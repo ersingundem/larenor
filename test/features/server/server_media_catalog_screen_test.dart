@@ -447,6 +447,10 @@ void main() {
       ),
       findsOneWidget,
     );
+    final localPlay = find.bySemanticsLabel('Play on this device: The Matrix');
+    expect(localPlay, findsOneWidget);
+    expect(tester.getSemantics(localPlay).flagsCollection.isButton, isTrue);
+    expect(find.text('Download for offline use'), findsNothing);
     expect(fixture.browseCalls, 1);
     expect(fixture.catalogCalls, 0);
     expect(
@@ -536,6 +540,11 @@ void main() {
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel('Play on this device: The Matrix'),
+        findsOneWidget,
+      );
 
       final item = find.byKey(
         const ValueKey(

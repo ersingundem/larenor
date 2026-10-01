@@ -22,6 +22,7 @@ import '../../providers/server_providers.dart';
 import '../../watch_parties/data/server_watch_party_controller.dart';
 import '../../watch_parties/domain/server_watch_party_models.dart';
 import '../data/core_catalog_playback_capability_adapter.dart';
+import 'core_catalog_playback_quality_panel.dart';
 import '../data/core_catalog_player_source.dart';
 import '../domain/core_catalog_player_binding.dart';
 
@@ -1310,7 +1311,7 @@ final class _CoreCatalogPlayerScreenState
             const SizedBox(height: 16),
             Text(_binding.title, style: AppText.title2),
             const SizedBox(height: 8),
-            Text(l.jellyfinOfflineMediaHint, style: AppText.body),
+            Text(l.serverMediaLocalPlayerHint, style: AppText.body),
             if (_failure != null) ...[
               const SizedBox(height: 12),
               Semantics(
@@ -1398,6 +1399,13 @@ final class _CoreCatalogPlayerScreenState
               const SizedBox(height: 8),
             ],
             if (onlineAvailable) ...[
+              CoreCatalogPlaybackQualityPanel(
+                key: const ValueKey('core-catalog-player-quality'),
+                adapter: _capabilities,
+                binding: _binding,
+                current: () => _active,
+              ),
+              const SizedBox(height: 10),
               CupertinoButton.filled(
                 key: const ValueKey('core-catalog-player-open-online'),
                 onPressed: _active && !_busy
