@@ -4348,10 +4348,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent single-flight exactscope/authority/transient/disposal/retry review; permanent IOfailure remains pending, vault guards unchanged, no eventualpurge claim"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36829836571",
+          "commit": "1f35fdb1552e992d8abe07ca0e5bff57e31e1ea1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact1f35 changed F27 retirement/F60 local-close source: complete Analyze&Test passed; static-analysis, all4 Flutter shards and aggregate green. Source-specific Client CI, not final combined native HEAD acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; CI bekliyor. 1916395b geniş koşusunda bulunan hesap çıkışı temizleme yarışı 243cc694 ile düzeltildi. Tek işlem rezervasyonu bildirimlerden önce kurulur; başarısız temizlik yakalanmış grant/scope ile bekler ve hesap yaşam döngüsünde yeniden denenebilir. Root birleşik 49 Client testi (0 atlanan), altı dosya analizi ve bağımsız inceleme geçti. Vault bütünlük korumaları değişmedi; kalıcı I/O hatasında başarı veya kesin temizlenme iddiası yok. Önceki Core kapalı/restart/yeniden indirmesiz kabul kanıtı korunur. Yeni kaynak geniş CI ve fiziksel decoder/DRM/storage pressure MANUAL kapıları ayrı. docs/testing/f27-authoritative-retirement-idempotency-2026-10-01.md"
+      "reason": "Geliştirme ve odaklı doğrulama tamamlandı; CI bekliyor. 1916395b geniş koşusunda bulunan hesap çıkışı temizleme yarışı 243cc694 ile düzeltildi. Tek işlem rezervasyonu bildirimlerden önce kurulur; başarısız temizlik yakalanmış grant/scope ile bekler ve hesap yaşam döngüsünde yeniden denenebilir. Root birleşik 49 Client testi (0 atlanan), altı dosya analizi ve bağımsız inceleme geçti. Vault bütünlük korumaları değişmedi; kalıcı I/O hatasında başarı veya kesin temizlenme iddiası yok. Önceki Core kapalı/restart/yeniden indirmesiz kabul kanıtı korunur. Değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 tamamlandı: analiz, dört Flutter shardı ve aggregate geçti; kaynakla bağlı Client CI kanıtı doğrulandı. Final HEAD geniş CI ve fiziksel decoder/DRM/storage pressure MANUAL kapıları ayrı. docs/testing/f27-authoritative-retirement-idempotency-2026-10-01.md"
     },
     {
       "id": "F28",
@@ -5457,35 +5465,11 @@
         },
         {
           "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36801361054",
-          "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
-          "state": "completed",
-          "result": "failed",
-          "label": "Exact d69 changed-source gate failed at hosted UHID preflight with fixed gamepadHostUnavailable; no engine/provider/instrumentation/receipt; narrower source diagnostics needed, no blind rerun"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36802066869",
-          "commit": "10cfb1385c5e8af6c1b7cd5001897486540b23a8",
-          "state": "completed",
-          "result": "failed",
-          "label": "Safe changed-source preflight diagnosed gamepadKernelModuleUnavailable before engine/provider/Android test; no acceptance receipt"
-        },
-        {
-          "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36802851003",
           "commit": "5fa91e438806decc81d24c4e8a28058bbd53cea3",
           "state": "completed",
           "result": "passed",
           "label": "Canonical exact1test/0skip/0failure/0error Android NSD receipt independently verified;2 discovery lifetimes;streamAccepted=false"
-        },
-        {
-          "kind": "ci",
-          "ref": "https://github.com/ersingundem/larenor/actions/runs/36802861944",
-          "commit": "5fa91e438806decc81d24c4e8a28058bbd53cea3",
-          "state": "in_progress",
-          "result": null,
-          "label": "Stream step cancelled during APK prebuild before instrumentation;cleanup passed,no receipt;stale GET conflicts with terminal backend,old live concurrency lease released"
         },
         {
           "kind": "ci",
@@ -5670,10 +5654,34 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent3P1 findings fixed and root source reviewed; visible cold recovery, exact returnedid, refresh serialization and close-generation fences; providerstop notclaimed"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
+          "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root actual packaged layout old-source RED:1/1/0/0 InflateException; restored final44 JVM/0skip GREEN with real StreamView/SurfaceControl.SECURE/FLAG_SECURE; required AndroidTest compile277 passed"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
+          "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
+          "state": "completed",
+          "result": "passed",
+          "label": "Pinned Moonlight merge root and AOSP attach rule source-verified; normal Activity attachment preserves private lease/storage/secure surface and actual callbacks; no runtime effects claimed"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36830633169",
+          "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exactd81 changed-source actual merge-layout repair; strict owned Sunshine frame/PCM/input/two-lifetime/stop/disconnect gate running; no accepted receipt yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. 691b54c4/run36825268673 başlatma öncesinde IllegalArgumentException verdi. Pinned Moonlight DB round-trip geçici HTTPS portunu 0 okur; 092a9727 düzeltmesi bu upstream değerini kabul ediyor: eski guard RED,43 native test (0 atlanan) GREEN ve AndroidTest derlemesi geçti. Yerel belirsiz oturum kapatma a67f0d0e ile düzeltildi; root49 Client testi/analiz ve bağımsız inceleme geçti. Değişmiş ed91234d/run36828275540 gerçek yayın kapısı original1/1/0/0 başarısız: pairedClientObserved, owned LarenorMoonlightGame.kt satır57/48, exception unclassified. Canonical998B artifact11146891530 root üretim validatorı ile doğrulandı; native/provider alt neden henüz kanıtlanmadı. Frame/PCM/input/iki yaşam/stop/disconnect kabulü açık. Aynı SHA kör tekrar yok; final HEAD geniş CI ve MANUAL ayrı. docs/testing/native-strict-57f-failure-triage-2026-10-01.md"
+      "reason": "Yeniden çalışılıyor. ed91234d/run36828275540 original1/1/0/0 başarısız; pairedClientObserved ve owned Game satır57/48 gözlendi. Kaynak incelemesi ve gerçek paket regresyonu, merge köklü düzeni attachToRoot=false ile açma hatasını yeniden üretti. d81febad normal Activity attachment kullanıyor: root eski kaynak1/1/0/0 InflateException RED, son kaynak44 native/0skip GREEN; gerçek StreamView ve SurfaceControl.SECURE/FLAG_SECURE doğrulandı, required AndroidTest compile277 geçti. HTTPS0 ve belirsiz yerel cleanup düzeltmeleri korunur. Değişmiş d81/run36830633169 strict frame/PCM/input/iki yaşam/stop/disconnect koşuyor; runtime kabulü henüz yok. F60 CI bekliyor sayılmaz. Final HEAD geniş CI ve fiziksel GPU/codec/gamepad/network MANUAL ayrı. docs/testing/f60-game-merge-layout-2026-10-01.md"
     },
     {
       "id": "G11",
@@ -6263,10 +6271,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact191 Security secret/dependency/platform-policy all three passed; broad Android/Server and actual native runtime still separate"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36829836571",
+          "commit": "1f35fdb1552e992d8abe07ca0e5bff57e31e1ea1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact1f35 changed F27 retirement/F60 local-close source: complete Analyze&Test passed; static-analysis, all4 Flutter shards and aggregate green. Source-specific Client CI, not final combined native HEAD acceptance"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exact191 Security üç işi geçti. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; yeni kaynak Flutter CI gerekiyor. F60 HTTPS0 ve yerel cleanup düzeltildi; strict ed912/run36828275540 original1/1/0/0 başarısız, pairedClientObserved/ownedGame57/48/unclassified; kesin alt neden açık. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni bağlı marker geliştiriliyor. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor; kabul35/127iş ve3/63özellik. Exact191 Security üç işi geçti. Geniş Android/allServer36826527140 tamamlandı: dört Server shardı/aggregate, emulator journeys, native package/productAPK, üç Flutter shardı/static/host/F08 geçti; Flutter0 F27 çıkış temizliği yarışı nedeniyle başarısız.243cc694 düzeltmesi root49/analiz/bağımsız inceleme ile geçti; değişmiş kaynak 1f35fdb1/Analyze&Test36829836571 analiz/dört Flutter shardı/aggregate geçti. Son birleşik native HEAD kabulü ayrı. F60 HTTPS0/yerel cleanup ve gerçek paket merge-layout hatası düzeltildi; d81 root eski kaynak InflateException RED/44native GREEN/compile277 geçti. Değişmiş d81/run36830633169 strict yayın kapısı koşuyor; runtime kabulü yok. F62 strict6bbe original1/1/0/0 unclassified/marker yok; yeni bağlı marker geliştiriliyor. Tarihsel yeşil kanıtlar son birleşik HEAD kabulü yerine geçmez. Başka FINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",

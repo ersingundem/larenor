@@ -129,3 +129,25 @@ passed for artifact **11146891530**, **998 bytes**, JSON SHA-256
 The exact failed job **110258793929** log is retained privately. No unchanged-source
 retry or runtime success is claimed. The later a67f0d0e Client local-close slice
 is outside this run's source and needs its own changed-source CI.
+
+
+Additional superseded F60 preparation records archived for the bounded evidence array:
+
+- [36801361054](https://github.com/ersingundem/larenor/actions/runs/36801361054) — exact `d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01`, recorded state `completed`, result `failed`: Exact d69 changed-source gate failed at hosted UHID preflight with fixed gamepadHostUnavailable; no engine/provider/instrumentation/receipt; narrower source diagnostics needed, no blind rerun
+- [36802066869](https://github.com/ersingundem/larenor/actions/runs/36802066869) — exact `10cfb1385c5e8af6c1b7cd5001897486540b23a8`, recorded state `completed`, result `failed`: Safe changed-source preflight diagnosed gamepadKernelModuleUnavailable before engine/provider/Android test; no acceptance receipt
+- [36802861944](https://github.com/ersingundem/larenor/actions/runs/36802861944) — exact `5fa91e438806decc81d24c4e8a28058bbd53cea3`, recorded state `in_progress`, result `None`: Stream step cancelled during APK prebuild before instrumentation;cleanup passed,no receipt;stale GET conflicts with terminal backend,old live concurrency lease released
+
+The last archived record deliberately retains the stale GET/terminal-backend
+conflict; it is not a current pending acceptance gate and supplies no receipt.
+
+## F60 local inflation fault reproduced and repaired
+
+The ed912 owned Game frames above were traced to a false-attachment inflate
+call for the actual packaged merge-root layout. Root reproduced that exact
+local fault with `android.view.InflateException`; the restored d81 repair
+passed44 native tests (0 skipped) and preserved the real secure stream surface.
+[Source and regression proof](f60-game-merge-layout-2026-10-01.md).
+The new exact d81
+[run36830633169](https://github.com/ersingundem/larenor/actions/runs/36830633169)
+is pending actual stream acceptance; the old failed receipt is not rewritten
+as a success and no later frame/audio/input/retirement effect is claimed.
