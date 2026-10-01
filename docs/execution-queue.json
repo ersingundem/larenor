@@ -5206,7 +5206,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f59-workshop-intent-retention-2026-10-01.md",
+          "commit": "6d795f961598f02bc5e543075cdbe51ec974bf94",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root live-source28/28 normal Core/owned HTTP/retention cases; true10000 signed capacity and restart; replay/unknown/tamper/child mismatch/rollback; no physical printer acceptance"
+        }
+      ],
       "completionCommit": null,
       "reason": "CI bekliyor: HMAC doğrulamalı terminal intent/effect retention kalıcı 10000 kapasite/restart açığını kapattı. Root live-source 28/28 normal Core, owned OctoPrint/Moonraker HTTP ve retention kontrolü geçti. Gerçek tek applied receipt kaynaklı bounded signed10000 geçmiş fixture sonrası restart/new confirm yalnız bir yeni provider etkisi üretir; 10000 gerçek yazıcı komutu iddiası değildir. Current intent, inclusive24h/recent replay ve tüm unknown/pre-dispatch/uncertain etkiler korunur. Tamper, resealed mismatched child ve silme hatası sıfır kalıcı deletion/transaction rollback verir; kapasite artışı ve otomatik resend yok. Önceki gerçek Client/Core/provider kabulü korunur; fiziksel yazıcı/sensör MANUAL, geniş finalHEAD CI ayrı. Kanıt: docs/testing/f59-workshop-intent-retention-2026-10-01.md."
     },
@@ -5405,10 +5414,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Canonical original1test/1failure/0error/0skip; pairingRegistration timeout owned source99/680; no accepted stream receipt"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
+          "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
+          "state": "completed",
+          "result": "passed",
+          "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar teslim ve sabit bridge-stage düzeltmesi odaklı doğrulanıyor; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVMde1 manifest hatası açık. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor: exact3feb723c/run36808021320 original1test/1failure/0error/0skip, pairingRegistration awaitResult timeout owned99/680. Bu receipt PIN/admin bridge alt aşamasını kanıtlamaz; kaynak incelemesi fixtureın PIN socket hatasını yuttuğunu buldu. Dar bounded PIN teslim ve sabit bridge-stage düzeltmesi root33/33 +15subtest ve actual AndroidTest Kotlin derlemesiyle doğrulandı; değişmiş kaynaklı hosted koşu gerekli; gerçek frame/PCM/input/iki yaşam/stop/kopuş kabulü henüz yok. NSD exact5fa91e43/run36802851003 iki fresh yaşam,1test/0skip geçti, streamAccepted=false. İki motorun source-bound aynı iki-ABI product APKsı yerelde root24package/69focusednative test ve exact installed/APK verifier ile doğrulandı (55fb5f7c); geniş JVMde1 manifest hatası açık. Yerel paket/derleme runtime yerine sayılmaz; geniş son HEAD CI ve fiziksel host/GPU/controller MANUAL ayrı. Kanıt: docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md."
     },
     {
       "id": "G11",
@@ -5669,6 +5686,14 @@
           "state": "completed",
           "result": "failed",
           "label": "Canonical original1test/1failure/0error/0skip; unclassified exception/no owned frames/serverResizeRequested=false; exact cause unproved, arm64 package passed"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
+          "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
+          "state": "completed",
+          "result": "passed",
+          "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
         }
       ],
       "completionCommit": null,

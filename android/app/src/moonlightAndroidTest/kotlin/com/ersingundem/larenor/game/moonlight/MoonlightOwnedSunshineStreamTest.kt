@@ -697,6 +697,8 @@ class MoonlightOwnedSunshineStreamTest {
             require(payload.size <= MAX_PIN_PAYLOAD_BYTES)
             val closed = AtomicBoolean(false)
             val activeSocket = AtomicReference<Socket?>()
+            val delivered = CountDownLatch(1)
+            val deliveryFailure = AtomicReference<Throwable?>()
             val sender = Thread({
                 try {
                     Socket().use { socket ->
@@ -712,16 +714,25 @@ class MoonlightOwnedSunshineStreamTest {
                             flush()
                         }
                     }
-                } catch (_: Exception) {
-                    // The real pairing operation remains bounded and fails if
-                    // the private one-use PIN cannot reach the owned host.
+                } catch (failure: Exception) {
+                    deliveryFailure.compareAndSet(null, failure)
                 } finally {
                     activeSocket.set(null)
                     payload.fill(0)
+                    delivered.countDown()
                 }
             }, "f60-owned-pin-sender").apply {
                 isDaemon = true
                 start()
+            }
+            if (!delivered.await(PIN_DELIVERY_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                closed.set(true)
+                runCatching { activeSocket.getAndSet(null)?.close() }
+                sender.interrupt()
+                throw AssertionError("owned PIN delivery did not complete within its bound")
+            }
+            if (deliveryFailure.get() != null) {
+                throw AssertionError("owned PIN delivery failed")
             }
             return AutoCloseable {
                 closed.set(true)
@@ -844,6 +855,7 @@ class MoonlightOwnedSunshineStreamTest {
         private const val REVOKE_TIMEOUT_SECONDS = 60L
         private const val POLL_MILLIS = 100L
         private const val PIN_CONNECT_TIMEOUT_MILLIS = 5_000
+        private const val PIN_DELIVERY_TIMEOUT_SECONDS = 10L
         private const val CONTROL_CONNECT_TIMEOUT_MILLIS = 5_000
         private const val CONTROL_READ_TIMEOUT_MILLIS = 90_000
         private const val MAX_PIN_PAYLOAD_BYTES = 256

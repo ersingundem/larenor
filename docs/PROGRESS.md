@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | **CI bekliyor** | **57 seçili özellik / toplam 66 iş** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **Yeniden çalışılıyor** | **F57** | Aktif sağlayıcının 256 kalibrasyon makbuzunda kalıcı kapasite/restart açığı; güvenli retention ve odaklı kabul bitmedi |
-| **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN teslim/bridge alt aşaması bu receiptte kanıtlanmadı; dar kaynak düzeltmesi inceleniyor. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
+| **Yeniden çalışılıyor** | **F60** | Exact3feb / [run36808021320](https://github.com/ersingundem/larenor/actions/runs/36808021320) original1test/1failure/0error/0skip, pairingRegistration timeout. PIN/admin alt aşaması bu receiptte kanıtlanmadı; bounded teslim ve sabit bridge-stage düzeltmesi root33/33+15subtest/Kotlin compile geçti, değişmiş kaynaklı gerçek stream kabulü gerekli. Frame/PCM/input/iki yaşam/stop/kopuş kabulü açık |
 | **Yeniden çalışılıyor** | **F62** | Exact36c / [run36808149011](https://github.com/ersingundem/larenor/actions/runs/36808149011) original1test/1failure/0error/0skip, unclassified/no owned frames/serverResizeRequested=false. Arm64 package geçti; current cause bilinmiyor. Strict frame/DISP/Unicode/iki yaşam kabulü açık |
 | **Aktif final** | **FINAL.FUNCTION** | Bu açıkların kapanması, tam işlev/uyum incelemesi ve geniş finalHEAD CI |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |
@@ -24,6 +24,8 @@
 - F50root33/33 kapasite/restart; F57/F58root21/21 sahipli confirmation dialog production-route kabulü önceki kanıttır. F57’nin yeni retention açığı bu eski route kanıtıyla kapanmış sayılmaz.
 - Normal product APK artık source/receipt/API bağlı gerçek Moonlight+FreeRDP motorlarını aynı iki-ABI dağıtıma alır. Actual required-mode debug APK SHA256ea17fc26…; root24/24package, installed/APK verifier ve focused69/69native geçti. GenişJVM338toplam=335passed/2skip/1manifest failure; tam yeşil değildir. [Actual build](testing/product-android-dual-native-actual-build-2026-10-01.md).
 - Eski fecc Android koşusunda Server nested scope atlandı; defaultall düzeltmesi10/10 ve actionlint geçti. Format hatası iki Dart testinde düzeltildi. MQTT fixture TLS teardown ve legacy qualifiedlabel regresyonları root7passed+1explicit runner-onlyskip/scoped analyze/format geçti. [Flutter düzeltmeleri](testing/k09-mqtt-retired-transport-fixture-2026-10-01.md). Değişmiş son HEAD için yeni geniş koşu gerekir; eski fecc Security başarısı bütün CI yerine sayılmaz.
+
+F60 PIN teslim düzeltmesi eski failureın kesin alt nedeni olarak sunulmaz; kaynakta kanıtlanan swallow/dispatch yolu kapatıldı. [Kaynak ve tanı kabulü](testing/f60-pin-delivery-pairing-stage-2026-10-01.md).
 
 ## Tarihsel doğrulama kayıtları
 

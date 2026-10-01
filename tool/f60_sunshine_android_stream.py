@@ -86,6 +86,14 @@ _FAILURE_CODES = frozenset({
     "instrumentation_test_failure",
     "instrumentation_test_error",
 })
+_PIN_BRIDGE_STAGES = frozenset({
+    "listening",
+    "pinReceived",
+    "pendingPairingObserved",
+    "approvalInFlight",
+    "approvalConfirmed",
+    "pairedClientObserved",
+})
 _KNOWN_EXCEPTION_TYPES = frozenset({
     "java.lang.AssertionError",
     "java.lang.IllegalArgumentException",
@@ -118,7 +126,7 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "be50b4eabe648a7c39d0ad379038a6b107f670e5d6264e5d522df4f906485422"
+_STAGE_SOURCE_SHA256 = "1611180df28c8cd1a7739a17b55f34ad09c7ffb9889e9e64832476bb18fe82ce"
 _STAGE_LINES = (
     (49, 64, "fixtureInputs"),
     (65, 98, "discovery"),
@@ -280,6 +288,8 @@ class OneShotPinBridge:
         self._socket.settimeout(timeout_seconds)
         self.host_port = int(self._socket.getsockname()[1])
         self._failure: Optional[BaseException] = None
+        self._stage = "listening"
+        self._stage_lock = threading.Lock()
         self._done = threading.Event()
         self._cancelled = threading.Event()
         self._connection: Optional[socket.socket] = None
@@ -290,6 +300,16 @@ class OneShotPinBridge:
 
     def start(self) -> None:
         self._thread.start()
+
+    def _set_stage(self, stage: str) -> None:
+        if stage not in _PIN_BRIDGE_STAGES:
+            raise StreamAcceptanceFailure("private PIN bridge stage is invalid")
+        with self._stage_lock:
+            self._stage = stage
+
+    def public_stage(self) -> str:
+        with self._stage_lock:
+            return self._stage
 
     def _receive(self, connection: socket.socket) -> bytes:
         connection.settimeout(self._timeout)
@@ -316,6 +336,7 @@ class OneShotPinBridge:
                 raise StreamAcceptanceFailure("private PIN peer identity is invalid")
             with connection:
                 pin = parse_pin_message(self._receive(connection), expected_nonce=self.nonce)
+            self._set_stage("pinReceived")
             deadline = self._monotonic() + self._timeout
             pairing_id: Optional[str] = None
             while self._monotonic() < deadline and not self._cancelled.is_set():
@@ -326,8 +347,11 @@ class OneShotPinBridge:
                 self._sleeper(0.1)
             if pairing_id is None:
                 raise StreamAcceptanceFailure("owned pending pairing was not observed")
+            self._set_stage("pendingPairingObserved")
+            self._set_stage("approvalInFlight")
             self._owned.api.approve_pairing(pairing_id, pin, PAIRING_CLIENT_NAME)
             self.pin_approved = True
+            self._set_stage("approvalConfirmed")
             pin = "0000"
             while self._monotonic() < deadline and not self._cancelled.is_set():
                 self._owned.processes.require_alive()
@@ -336,6 +360,7 @@ class OneShotPinBridge:
                         PAIRING_CLIENT_NAME
                     )
                     self.paired_client_observed = True
+                    self._set_stage("pairedClientObserved")
                     return
                 except HostFailure:
                     self._sleeper(0.1)
@@ -1277,7 +1302,7 @@ def failure_diagnostic(root: Optional[Path] = None) -> dict[str, object]:
 def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
-        "acceptanceStage",
+        "acceptanceStage", "pinBridgeStage",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1340,6 +1365,9 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     ):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
     stage = diagnostic.get("acceptanceStage")
+    pin_stage = diagnostic.get("pinBridgeStage")
+    if pin_stage is not None and pin_stage not in _PIN_BRIDGE_STAGES:
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
     frame_stages = {
         _acceptance_stage(frame["line"])
         for frame in frames
@@ -1442,9 +1470,14 @@ def _publish_failed_test(
     *,
     version: str,
     moonlight_package: Mapping[str, str],
+    pin_bridge_stage: Optional[str] = None,
 ) -> None:
     try:
         diagnostic = failure_diagnostic()
+        if pin_bridge_stage is not None:
+            if pin_bridge_stage not in _PIN_BRIDGE_STAGES:
+                raise StreamAcceptanceFailure("private PIN bridge stage is invalid")
+            diagnostic["pinBridgeStage"] = pin_bridge_stage
         write_failure_receipt(
             runner_temp / FAILURE_RECEIPT_NAME,
             version=version,
@@ -1460,12 +1493,14 @@ def _capture_failed_test(
     *,
     version: str,
     moonlight_package: Mapping[str, str],
+    pin_bridge_stage: Optional[str] = None,
 ) -> None:
     try:
         _publish_failed_test(
             runner_temp,
             version=version,
             moonlight_package=moonlight_package,
+            pin_bridge_stage=pin_bridge_stage,
         )
     except Exception:
         # Diagnostics are secondary evidence. Their failure must never replace
@@ -1638,6 +1673,7 @@ def _run() -> int:
                         runner_temp,
                         version=version,
                         moonlight_package=moonlight_package,
+                        pin_bridge_stage=bridge.public_stage(),
                     )
                     raise StreamAcceptanceFailure(
                         "owned Sunshine Android stream failed"
@@ -1647,6 +1683,7 @@ def _run() -> int:
                         runner_temp,
                         version=version,
                         moonlight_package=moonlight_package,
+                        pin_bridge_stage=bridge.public_stage(),
                     )
                     raise StreamAcceptanceFailure("owned Sunshine Android stream failed")
             bridge.wait()

@@ -177,6 +177,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 client.sendall(payload)
             bridge.wait()
             bridge.close()
+            self.assertEqual("pairedClientObserved", bridge.public_stage())
             self.assertTrue(bridge.pin_approved)
             self.assertTrue(bridge.paired_client_observed)
             self.assertEqual(
@@ -190,6 +191,25 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertGreaterEqual(owned.processes.alive_checks, 2)
             with self.assertRaises(OSError):
                 socket.create_connection(("127.0.0.1", bridge.host_port), timeout=0.1)
+
+    def test_pin_bridge_reports_only_fixed_last_completed_stage_on_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            owned.api.approve_pairing = mock.Mock(side_effect=RuntimeError("private"))
+            nonce = "d" * 64
+            bridge = stream.OneShotPinBridge(owned, nonce=nonce, timeout_seconds=2)
+            bridge.start()
+            payload = (
+                '{"schemaVersion":1,"nonce":"' + nonce + '","pin":"4821"}\n'
+            ).encode()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client:
+                client.sendall(payload)
+            with self.assertRaisesRegex(
+                stream.StreamAcceptanceFailure, "private PIN bridge failed"
+            ):
+                bridge.wait()
+            self.assertEqual("approvalInFlight", bridge.public_stage())
+            bridge.close()
 
     def test_private_phase_bridge_requires_exact_touch_then_stops_owned_sunshine(self) -> None:
         class Gamepad:
@@ -711,6 +731,10 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         diagnostic["namedTest"] = {"className": "private-provider-value"}
         with self.assertRaises(stream.StreamAcceptanceFailure):
             stream._validate_failure_diagnostic(diagnostic)
+        diagnostic = stream._static_failure("instrumentation_report_missing")
+        diagnostic["pinBridgeStage"] = "private-provider-value"
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(diagnostic)
 
     def test_changed_owned_source_never_reuses_stale_line_stage_mapping(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -861,7 +885,10 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 stream, "source_revision", return_value="e" * 40,
             ):
                 stream._publish_failed_test(
-                    root, version="36.5.10.0", moonlight_package=package,
+                    root,
+                    version="36.5.10.0",
+                    moonlight_package=package,
+                    pin_bridge_stage="approvalInFlight",
                 )
             destination = root / stream.FAILURE_RECEIPT_NAME
             receipt = json.loads(destination.read_text(encoding="utf-8"))
@@ -870,6 +897,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertEqual(package, receipt["moonlightPackage"])
             self.assertEqual("failed", receipt["result"])
             self.assertEqual("remoteDisconnect", receipt["diagnostic"]["acceptanceStage"])
+            self.assertEqual("approvalInFlight", receipt["diagnostic"]["pinBridgeStage"])
             self.assertFalse(report.exists())
             self.assertNotIn("private-provider-material", destination.read_text())
 
