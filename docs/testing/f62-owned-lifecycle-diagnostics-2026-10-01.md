@@ -51,3 +51,19 @@ report's invocation proof.
 These are local source and compilation checks. A new changed-source hosted
 FreeRDP run is required to prove the real remote desktop lifecycle; F62 remains
 **reworking**, not CI-awaiting implementation complete.
+
+## Exact changed-source result
+
+Source `c829106162b92207a22d6d6f7731ec505c7100af`,
+[run 36811909218](https://github.com/ersingundem/larenor/actions/runs/36811909218),
+completed with the original named test failing: **1 test, 1 failure, 0 errors,
+0 skips**. Its bounded diagnostic is `unclassified`, with no owned source
+frames, no `testLifecycleStage`, and `serverResizeRequested=false`. The arm64
+package job passed. The failure establishes no current initial-frame, resize,
+or process-crash cause.
+
+The marker is currently written after argument parsing and secondary checks,
+and read only after Gradle exits. An absent marker cannot distinguish an early
+initialization failure, a diagnostic I/O failure, or package-data teardown.
+An early marker and bounded non-destructive collection during Gradle execution
+are being developed to narrow that gap; no unchanged-source retry is used.
