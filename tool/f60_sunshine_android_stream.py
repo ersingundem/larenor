@@ -88,6 +88,12 @@ _FAILURE_CODES = frozenset({
 })
 _PIN_BRIDGE_STAGES = frozenset({
     "listening",
+    "connectionAccepted",
+    "connectionRejected",
+    "peerVerified",
+    "peerRejected",
+    "readRejected",
+    "parseRejected",
     "pinReceived",
     "pendingPairingObserved",
     "approvalInFlight",
@@ -145,6 +151,14 @@ _STAGE_LINES = (
 
 class StreamAcceptanceFailure(RuntimeError):
     """A secret-free, fail-closed stream acceptance error."""
+
+
+@dataclass(frozen=True)
+class _GradleObservation:
+    pid: int
+    returncode: int
+    pin_failure_stage: Optional[str]
+    timed_out: bool
 
 
 def _probe_owned_x11_pointer(x: int, y: int) -> None:
@@ -311,6 +325,18 @@ class OneShotPinBridge:
         with self._stage_lock:
             return self._stage
 
+    def terminal_failure_stage(self) -> Optional[str]:
+        if not self._done.is_set() or self._failure is None:
+            return None
+        stage = self.public_stage()
+        if stage not in _PIN_BRIDGE_STAGES:
+            raise StreamAcceptanceFailure("private PIN bridge stage is invalid")
+        return stage
+
+    def _set_failure_stage(self, stage: str) -> None:
+        if not self._cancelled.is_set():
+            self._set_stage(stage)
+
     def _receive(self, connection: socket.socket) -> bytes:
         connection.settimeout(self._timeout)
         data = bytearray()
@@ -329,13 +355,30 @@ class OneShotPinBridge:
         raise StreamAcceptanceFailure("private PIN control message is invalid")
 
     def _serve(self) -> None:
+        connection: Optional[socket.socket] = None
         try:
-            connection, address = self._socket.accept()
+            try:
+                connection, address = self._socket.accept()
+            except BaseException:
+                self._set_failure_stage("connectionRejected")
+                raise
             self._connection = connection
-            if address[0] != "127.0.0.1":
-                raise StreamAcceptanceFailure("private PIN peer identity is invalid")
+            self._set_stage("connectionAccepted")
             with connection:
-                pin = parse_pin_message(self._receive(connection), expected_nonce=self.nonce)
+                if address[0] != "127.0.0.1":
+                    self._set_failure_stage("peerRejected")
+                    raise StreamAcceptanceFailure("private PIN peer identity is invalid")
+                self._set_stage("peerVerified")
+                try:
+                    frame = self._receive(connection)
+                except BaseException:
+                    self._set_failure_stage("readRejected")
+                    raise
+                try:
+                    pin = parse_pin_message(frame, expected_nonce=self.nonce)
+                except BaseException:
+                    self._set_failure_stage("parseRejected")
+                    raise
             self._set_stage("pinReceived")
             deadline = self._monotonic() + self._timeout
             pairing_id: Optional[str] = None
@@ -366,9 +409,15 @@ class OneShotPinBridge:
                     self._sleeper(0.1)
             raise StreamAcceptanceFailure("owned paired client was not observed")
         except BaseException as error:
-            self._failure = error
+            if not self._cancelled.is_set():
+                self._failure = error
         finally:
             self._done.set()
+            if connection is not None:
+                try:
+                    connection.close()
+                except OSError:
+                    pass
             try:
                 self._socket.close()
             except OSError:
@@ -1004,6 +1053,127 @@ def install_adb_reverse(
         raise StreamAcceptanceFailure("private reverse transport is unavailable") from error
     if completed.returncode != 0:
         raise StreamAcceptanceFailure("private reverse transport is unavailable")
+
+
+def _terminate_and_reap_owned_process(
+    process: Any,
+    *,
+    terminate_timeout_seconds: float = 5.0,
+    kill_timeout_seconds: float = 5.0,
+) -> int:
+    pid = getattr(process, "pid", None)
+    if type(pid) is not int or pid <= 1:
+        raise StreamAcceptanceFailure("Android stream child identity is invalid")
+    returncode = process.poll()
+    if returncode is not None:
+        process.wait(timeout=1)
+        return int(returncode)
+    try:
+        group = os.getpgid(pid)
+        if group != pid:
+            raise StreamAcceptanceFailure("Android stream child group identity is invalid")
+        os.killpg(group, signal.SIGTERM)
+    except ProcessLookupError:
+        return int(process.wait(timeout=1))
+    except StreamAcceptanceFailure:
+        raise
+    except OSError as error:
+        raise StreamAcceptanceFailure("Android stream child cleanup failed") from error
+    try:
+        return int(process.wait(timeout=terminate_timeout_seconds))
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError as error:
+            raise StreamAcceptanceFailure("Android stream child cleanup failed") from error
+        try:
+            return int(process.wait(timeout=kill_timeout_seconds))
+        except subprocess.TimeoutExpired as error:
+            raise StreamAcceptanceFailure("Android stream child cleanup failed") from error
+
+
+def _terminate_and_reap_process_handle(
+    process: Any,
+    *,
+    terminate_timeout_seconds: float = 5.0,
+    kill_timeout_seconds: float = 5.0,
+) -> int:
+    """Reap a returned Popen handle when its numeric identity is unusable."""
+    try:
+        returncode = process.poll()
+        if returncode is not None:
+            return int(process.wait(timeout=1))
+        process.terminate()
+        try:
+            return int(process.wait(timeout=terminate_timeout_seconds))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            return int(process.wait(timeout=kill_timeout_seconds))
+    except (AttributeError, OSError, subprocess.TimeoutExpired, ValueError) as error:
+        raise StreamAcceptanceFailure("Android stream child cleanup failed") from error
+
+
+def _run_gradle_with_pin_observation(
+    argv: Sequence[str],
+    bridge: OneShotPinBridge,
+    *,
+    cwd: Path,
+    timeout_seconds: float,
+    poll_seconds: float = 0.1,
+    process_factory: Callable[..., Any] = subprocess.Popen,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> _GradleObservation:
+    if (
+        not argv
+        or any(not isinstance(value, str) or not value for value in argv)
+        or not cwd.is_absolute()
+        or not 0 < timeout_seconds <= PROCESS_TIMEOUT_SECONDS
+        or not 0 < poll_seconds <= 1
+    ):
+        raise StreamAcceptanceFailure("Android stream child configuration is invalid")
+    process = process_factory(
+        list(argv),
+        cwd=cwd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    pid = getattr(process, "pid", None)
+    if type(pid) is not int or pid <= 1:
+        _terminate_and_reap_process_handle(process)
+        raise StreamAcceptanceFailure("Android stream child identity is invalid")
+    try:
+        deadline = monotonic() + timeout_seconds
+        while True:
+            returncode = process.poll()
+            if returncode is not None:
+                process.wait(timeout=1)
+                return _GradleObservation(
+                    pid, int(returncode), bridge.terminal_failure_stage(), False,
+                )
+            failure_stage = bridge.terminal_failure_stage()
+            if failure_stage is not None:
+                return _GradleObservation(
+                    pid,
+                    _terminate_and_reap_owned_process(process),
+                    failure_stage,
+                    False,
+                )
+            if monotonic() >= deadline:
+                return _GradleObservation(
+                    pid, _terminate_and_reap_owned_process(process), None, True,
+                )
+            sleeper(poll_seconds)
+    except BaseException:
+        try:
+            _terminate_and_reap_owned_process(process)
+        except BaseException:
+            pass
+        raise
 
 
 def remove_adb_reverse(
@@ -1651,24 +1821,26 @@ def _run() -> int:
                 gradle = materialized_gradle_command(
                     Path(temporary) / "launcher", project_android=ROOT / "android",
                 )
+                gradle_argv = [
+                    *gradle, "--no-daemon", ":app:connectedDebugAndroidTest",
+                    f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
+                    "-Pandroid.testInstrumentationRunnerArguments.larenorF60OwnedStream=required",
+                    "-Pandroid.testInstrumentationRunnerArguments."
+                    f"larenorF60OwnedMdnsInstance={expected_instance}",
+                    "-Pandroid.testInstrumentationRunnerArguments."
+                    f"larenorF60PinNonce={nonce}",
+                    "-Pandroid.testInstrumentationRunnerArguments."
+                    f"larenorF60PinPort={ANDROID_PIN_PORT}",
+                    "-x", ":app:compileFlutterBuildDebug",
+                ]
                 try:
-                    result = subprocess.run(
-                        [
-                            *gradle, "--no-daemon", ":app:connectedDebugAndroidTest",
-                            f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
-                            "-Pandroid.testInstrumentationRunnerArguments.larenorF60OwnedStream=required",
-                            "-Pandroid.testInstrumentationRunnerArguments."
-                            f"larenorF60OwnedMdnsInstance={expected_instance}",
-                            "-Pandroid.testInstrumentationRunnerArguments."
-                            f"larenorF60PinNonce={nonce}",
-                            "-Pandroid.testInstrumentationRunnerArguments."
-                            f"larenorF60PinPort={ANDROID_PIN_PORT}",
-                            "-x", ":app:compileFlutterBuildDebug",
-                        ],
-                        cwd=ROOT / "android", check=False,
-                        timeout=PROCESS_TIMEOUT_SECONDS,
+                    observation = _run_gradle_with_pin_observation(
+                        gradle_argv,
+                        bridge,
+                        cwd=ROOT / "android",
+                        timeout_seconds=PROCESS_TIMEOUT_SECONDS,
                     )
-                except (OSError, subprocess.TimeoutExpired):
+                except (OSError, StreamAcceptanceFailure):
                     _capture_failed_test(
                         runner_temp,
                         version=version,
@@ -1678,15 +1850,30 @@ def _run() -> int:
                     raise StreamAcceptanceFailure(
                         "owned Sunshine Android stream failed"
                     ) from None
-                if result.returncode:
+                if (
+                    observation.returncode != 0
+                    or observation.timed_out
+                    or observation.pin_failure_stage is not None
+                ):
                     _capture_failed_test(
                         runner_temp,
                         version=version,
                         moonlight_package=moonlight_package,
-                        pin_bridge_stage=bridge.public_stage(),
+                        pin_bridge_stage=(
+                            observation.pin_failure_stage or bridge.public_stage()
+                        ),
                     )
                     raise StreamAcceptanceFailure("owned Sunshine Android stream failed")
-            bridge.wait()
+            try:
+                bridge.wait()
+            except StreamAcceptanceFailure:
+                _capture_failed_test(
+                    runner_temp,
+                    version=version,
+                    moonlight_package=moonlight_package,
+                    pin_bridge_stage=bridge.public_stage(),
+                )
+                raise
             phase_bridge.wait()
             tone_thread.join(timeout=CONTROL_TIMEOUT_SECONDS)
             if tone_thread.is_alive() or tone_state.get("injected") is not True:

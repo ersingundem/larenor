@@ -8,6 +8,8 @@ from pathlib import Path
 import signal
 import socket
 import stat
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -262,6 +264,234 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 bridge.wait()
             self.assertEqual("approvalInFlight", bridge.public_stage())
             bridge.close()
+
+    def test_pin_bridge_actual_socket_rejects_truncated_read_and_malformed_frame_distinctly(self) -> None:
+        cases = (
+            (b'{"schemaVersion":1}', "readRejected"),
+            (b'{"schemaVersion":1}\n', "parseRejected"),
+        )
+        for payload, expected_stage in cases:
+            with self.subTest(expected_stage=expected_stage), tempfile.TemporaryDirectory() as temporary:
+                bridge = stream.OneShotPinBridge(
+                    _Owned(Path(temporary)), nonce="7" * 64, timeout_seconds=1,
+                )
+                bridge.start()
+                with socket.create_connection(
+                    ("127.0.0.1", bridge.host_port), timeout=1,
+                ) as client:
+                    client.sendall(payload)
+                    client.shutdown(socket.SHUT_WR)
+                with self.assertRaisesRegex(
+                    stream.StreamAcceptanceFailure, "private PIN bridge failed",
+                ):
+                    bridge.wait()
+                self.assertEqual(expected_stage, bridge.public_stage())
+                self.assertEqual(expected_stage, bridge.terminal_failure_stage())
+                bridge.close()
+
+    def test_pin_bridge_cancellation_is_not_published_as_a_transport_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            bridge = stream.OneShotPinBridge(
+                _Owned(Path(temporary)), nonce="8" * 64, timeout_seconds=1,
+            )
+            bridge.start()
+            bridge.close()
+            self.assertIsNone(bridge.terminal_failure_stage())
+
+    def test_pin_bridge_connection_and_peer_rejections_are_fixed_safe_stages(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            bridge = stream.OneShotPinBridge(
+                _Owned(Path(temporary)), nonce="9" * 64, timeout_seconds=1,
+            )
+            bridge._socket.close()
+            failed_listener = mock.Mock()
+            failed_listener.accept.side_effect = OSError("private listener failure")
+            bridge._socket = failed_listener
+            bridge._serve()
+            self.assertEqual("connectionRejected", bridge.terminal_failure_stage())
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bridge = stream.OneShotPinBridge(
+                _Owned(Path(temporary)), nonce="a" * 64, timeout_seconds=1,
+            )
+            bridge._socket.close()
+            reader, writer = socket.socketpair()
+            foreign_listener = mock.Mock()
+            foreign_listener.accept.return_value = (reader, ("192.0.2.1", 44_001))
+            bridge._socket = foreign_listener
+            try:
+                bridge._serve()
+            finally:
+                writer.close()
+            self.assertEqual("peerRejected", bridge.terminal_failure_stage())
+            self.assertEqual(-1, reader.fileno())
+
+    def test_gradle_observer_reaps_owned_child_on_timely_and_late_bridge_failure(self) -> None:
+        class Bridge:
+            def __init__(self, failures: list[str | None]) -> None:
+                self.failures = failures
+
+            def terminal_failure_stage(self) -> str | None:
+                if len(self.failures) > 1:
+                    return self.failures.pop(0)
+                return self.failures[0]
+
+        for failures in (["parseRejected"], [None, None, "readRejected"]):
+            with self.subTest(failures=failures), tempfile.TemporaryDirectory() as temporary:
+                observation = stream._run_gradle_with_pin_observation(
+                    [sys.executable, "-c", "import time; time.sleep(30)"],
+                    Bridge(list(failures)),
+                    cwd=Path(temporary),
+                    timeout_seconds=3,
+                    poll_seconds=0.01,
+                )
+                self.assertIn(
+                    observation.pin_failure_stage, {"parseRejected", "readRejected"},
+                )
+                self.assertFalse(observation.timed_out)
+                self.assertNotEqual(0, observation.returncode)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(observation.pid, 0)
+
+    def test_gradle_observer_keeps_output_private_and_does_not_cancel_a_completed_child(self) -> None:
+        calls = []
+
+        class Process:
+            pid = 4502
+            returncode = 0
+
+            def poll(self):
+                return 0
+
+            def wait(self, timeout=None):
+                return 0
+
+        class Bridge:
+            def terminal_failure_stage(self):
+                return None
+
+        def popen(argv, **kwargs):
+            calls.append((list(argv), kwargs))
+            return Process()
+
+        observation = stream._run_gradle_with_pin_observation(
+            ["/private/gradlew", "connectedDebugAndroidTest"],
+            Bridge(),
+            cwd=Path("/private/project"),
+            timeout_seconds=1,
+            process_factory=popen,
+        )
+        self.assertEqual(0, observation.returncode)
+        self.assertIsNone(observation.pin_failure_stage)
+        self.assertFalse(observation.timed_out)
+        self.assertEqual(subprocess.DEVNULL, calls[0][1]["stdin"])
+        self.assertEqual(subprocess.DEVNULL, calls[0][1]["stdout"])
+        self.assertEqual(subprocess.DEVNULL, calls[0][1]["stderr"])
+        self.assertTrue(calls[0][1]["start_new_session"])
+
+    def test_gradle_observer_preserves_completed_failure_as_primary_result(self) -> None:
+        class Process:
+            pid = 4503
+
+            def poll(self):
+                return 7
+
+            def wait(self, timeout=None):
+                return 7
+
+        class Bridge:
+            def terminal_failure_stage(self):
+                return "parseRejected"
+
+        observation = stream._run_gradle_with_pin_observation(
+            ["/private/gradlew", "connectedDebugAndroidTest"],
+            Bridge(),
+            cwd=Path("/private/project"),
+            timeout_seconds=1,
+            process_factory=lambda *_args, **_kwargs: Process(),
+        )
+        self.assertEqual(7, observation.returncode)
+        self.assertEqual("parseRejected", observation.pin_failure_stage)
+        self.assertFalse(observation.timed_out)
+
+    def test_gradle_observer_reaps_owned_child_and_preserves_base_exception(self) -> None:
+        processes = []
+
+        class Bridge:
+            def terminal_failure_stage(self):
+                raise KeyboardInterrupt()
+
+        def popen(argv, **kwargs):
+            process = subprocess.Popen(argv, **kwargs)
+            processes.append(process)
+            return process
+
+        with tempfile.TemporaryDirectory() as temporary, self.assertRaises(
+            KeyboardInterrupt
+        ):
+            stream._run_gradle_with_pin_observation(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                Bridge(),
+                cwd=Path(temporary),
+                timeout_seconds=3,
+                process_factory=popen,
+            )
+        self.assertEqual(1, len(processes))
+        self.assertIsNotNone(processes[0].poll())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(processes[0].pid, 0)
+
+    def test_gradle_observer_invalid_pid_reaps_only_through_owned_handle(self) -> None:
+        class Process:
+            pid = 0
+
+            def __init__(self) -> None:
+                self.terminated = False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                self.terminated = True
+
+            def wait(self, timeout=None):
+                if not self.terminated:
+                    raise AssertionError("wait before handle termination")
+                return -signal.SIGTERM
+
+        process = Process()
+        with mock.patch.object(
+            stream.os, "getpgid", side_effect=AssertionError("numeric pid used")
+        ), self.assertRaisesRegex(
+            stream.StreamAcceptanceFailure, "child identity is invalid"
+        ):
+            stream._run_gradle_with_pin_observation(
+                ["/private/gradlew", "connectedDebugAndroidTest"],
+                mock.Mock(),
+                cwd=Path("/private/project"),
+                timeout_seconds=1,
+                process_factory=lambda *_args, **_kwargs: process,
+            )
+        self.assertTrue(process.terminated)
+
+    def test_gradle_observer_reaps_owned_child_at_its_absolute_timeout(self) -> None:
+        class Bridge:
+            def terminal_failure_stage(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as temporary:
+            observation = stream._run_gradle_with_pin_observation(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                Bridge(),
+                cwd=Path(temporary),
+                timeout_seconds=0.05,
+                poll_seconds=0.01,
+            )
+            self.assertTrue(observation.timed_out)
+            self.assertIsNone(observation.pin_failure_stage)
+            self.assertNotEqual(0, observation.returncode)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(observation.pid, 0)
 
     def test_private_phase_bridge_requires_exact_touch_then_stops_owned_sunshine(self) -> None:
         class Gamepad:

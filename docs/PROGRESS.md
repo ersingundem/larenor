@@ -16,6 +16,8 @@
 
 ## Son doğrulanan düzeltmeler
 
+F60 PIN bridge artık kabul edilen bağlantı, peer doğrulaması, okuma ve parse sınırlarını gizli değer içermeyen ayrı durumlarla kaydeder. Terminal bridge hatası yaşayan owned Gradle alt süreci bounded TERM/KILL ile kapatılıp toplanır; bitmiş Gradle sonucu korunur. Root 60 stream/discovery ve 10 workflow testi geçti. Strict tek named test, gerçek frame/PCM/input/iki yaşam/kapanış kapıları değişmedi; F60 **yeniden çalışılıyor**, yeni kaynaklı hosted kabul açık. [Dar kanıt](testing/f60-pin-transport-observation-2026-10-01.md).
+
 - **Tam Flutter:** 7.919 passed/57explicit opt-in skip/0failure, terminal machine done.success=true; tam analyze temiz,1.981 Dart dosyası format değişikliği yok. Hidden loading sayılmaz; skipped normal-Core/SSH runnerları ve Kotlin/native/CI kabulü ayrı. [Kaynak ve sınırlar](testing/final-function-flutter-regression-2026-10-01.md).
 - F14 gerçek Client/normal Core TCP aynı DB restart iki süreç kabulü1+1 ve root11/11 Client testi geçti. Kalıcı oturum/olay kapasitesi ayrıca root9/9 live-source kabulüyle kapandı. [Client/Core](testing/f14-normal-core-acceptance-2026-10-01.md), [retention](testing/f14-support-session-retention-2026-10-01.md).
 - F01/F02/F03 root22/22: default256taslak/128deneme ve signed4096olay fixture kapasitesi restart sonrası toparlanır. Current/live/recent replay, encrypted rules, tamper/child graph ve rollback korunur. [Kanıt](testing/f01-f03-automation-retention-2026-10-01.md).
