@@ -3,6 +3,7 @@ package com.ersingundem.larenor.game.moonlight
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.os.Build
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -19,7 +20,7 @@ class LarenorMoonlightGame : Game() {
     private var launchToken: String? = null
     private var scoped: MoonlightScopedContext? = null
     private var resumed = false
-    private var focused = false
+    private var topResumed = false
     private var claimed = false
     override fun onCreate(savedInstanceState: Bundle?) {
         val token = intent?.getStringExtra(EXTRA_LAUNCH_TOKEN)
@@ -63,16 +64,36 @@ class LarenorMoonlightGame : Game() {
         super.onResume()
         resumed = true
         claimWhenVisible()
+        // The decor can attach after onResume. Re-check the exact lifecycle
+        // when that happens; a queued callback never overrides later pause.
+        window.decorView.post(::claimWhenVisible)
     }
 
     override fun onPause() {
         resumed = false
+        retireWhenBackgrounded()
         super.onPause()
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        topResumed = isTopResumedActivity
+        if (isTopResumedActivity) {
+            claimWhenVisible()
+        } else {
+            retireWhenBackgrounded()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        claimWhenVisible()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        focused = hasFocus
+        // The upstream connection spinner owns focus until connectionStarted.
+        // Activity ownership must not wait on that circular dependency.
         claimWhenVisible()
     }
 
@@ -140,9 +161,22 @@ class LarenorMoonlightGame : Game() {
 
     private fun claimWhenVisible() {
         val token = launchToken ?: return
-        if (resumed && focused && !claimed) {
+        val decor = window.decorView
+        // API 29 introduced multi-resume. Earlier Android versions have one
+        // resumed foreground Activity; newer versions require the top owner.
+        val ownsForeground = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || topResumed
+        if (resumed && ownsForeground && decor.isAttachedToWindow && decor.isShown &&
+            !isFinishing && !isDestroyed && !claimed) {
             MoonlightForegroundLeaseRegistry.claim(token, this)
             claimed = true
+        }
+    }
+
+    private fun retireWhenBackgrounded() {
+        if (claimed) {
+            launchToken?.let {
+                MoonlightForegroundLeaseRegistry.gameHidden(it, isInPictureInPictureMode)
+            }
         }
     }
 
