@@ -14,6 +14,23 @@ check_commit_progress = importlib.import_module('check_commit_progress')
 
 
 class CheckCommitProgressTest(unittest.TestCase):
+    def test_reopening_fixture_is_a_self_contained_accepted_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo, queue, _ = self._queue_repository(Path(directory))
+            model = check_commit_progress.execution_queue.load_queue(queue)
+
+            for identifier in ('K07', 'K08'):
+                node = model.nodes[identifier]
+                self.assertEqual(node['status'], 'done')
+                self.assertEqual(node['completionCommit'], 'a' * 40)
+                self.assertEqual(
+                    {proof['kind'] for proof in node['evidence']},
+                    set(node['requiredEvidence']),
+                )
+                self.assertFalse(model.blockers(identifier, finishing=True))
+            self.assertTrue(
+                (repo / 'docs/testing/synthetic-accepted.md').is_file())
+
     def test_allows_exact_evidence_bound_reopening_from_the_base_commit(self):
         with tempfile.TemporaryDirectory() as directory:
             repo, queue, base = self._queue_repository(Path(directory))
@@ -410,13 +427,67 @@ class CheckCommitProgressTest(unittest.TestCase):
         self._git(repo, 'config', 'user.email', 'test@larenor.invalid')
         queue = repo / 'docs/execution-queue.json'
         queue.parent.mkdir()
-        queue.write_bytes(subprocess.run(
-            ['git', 'show', 'HEAD:docs/execution-queue.json'],
-            cwd=ROOT, check=True, capture_output=True,
-        ).stdout)
-        self._git(repo, 'add', 'docs/execution-queue.json')
+        queue.write_text(json.dumps(self._accepted_queue_fixture()))
+        evidence = repo / 'docs/testing/synthetic-accepted.md'
+        evidence.parent.mkdir(parents=True)
+        evidence.write_text('Synthetic accepted history for validator tests.\n')
+        self._git(repo, 'add', 'docs/execution-queue.json',
+                  'docs/testing/synthetic-accepted.md')
         self._git(repo, 'commit', '-q', '-m', 'queue base')
         return repo, queue, self._git(repo, 'rev-parse', 'HEAD').strip()
+
+    @staticmethod
+    def _accepted_queue_fixture():
+        value = json.loads((ROOT / 'docs/execution-queue.json').read_text())
+        nodes = {node['id']: node for node in value['nodes']}
+        children = {identifier: [] for identifier in nodes}
+        for node in value['nodes']:
+            if node['parent'] is not None:
+                children[node['parent']].append(node['id'])
+        accepted = set()
+
+        def accept(identifier):
+            node = nodes[identifier]
+            if node['kind'] == 'group':
+                for child in children[identifier]:
+                    accept(child)
+                return
+            if identifier in accepted:
+                return
+            accepted.add(identifier)
+            for dependency in node['dependsOn'] + node['finishDependsOn']:
+                accept(dependency)
+
+        for identifier in ('K07', 'K08', 'F06'):
+            accept(identifier)
+        for node in value['nodes']:
+            if node['kind'] == 'checkpoint':
+                accept(node['id'])
+
+        completion = 'a' * 40
+        for node in value['nodes']:
+            if node['kind'] == 'group':
+                continue
+            is_accepted = node['id'] in accepted
+            node['status'] = 'done' if is_accepted else 'pending'
+            node['completionCommit'] = completion if is_accepted else None
+            node['reason'] = None
+            node['evidence'] = [
+                {
+                    'kind': kind,
+                    'ref': (
+                        'https://github.com/ersingundem/larenor/actions/runs/1'
+                        if kind == 'ci'
+                        else 'docs/testing/synthetic-accepted.md'
+                    ),
+                    'commit': completion,
+                    'state': 'completed',
+                    'result': 'passed',
+                    'label': f'Synthetic accepted {kind} evidence.',
+                }
+                for kind in node['requiredEvidence']
+            ] if is_accepted else []
+        return value
 
     @staticmethod
     def _reopen(queue, identifiers, *, reason, status='awaiting_ci'):
