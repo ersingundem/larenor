@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import xml.etree.ElementTree as ET
 
@@ -818,8 +819,8 @@ def _test_lifecycle_adb_prefix(adb: Path) -> list[str] | None:
     return [str(adb), "-s", serial]
 
 
-def _read_test_lifecycle_stage(nonce: str) -> str | None:
-    """Read one private fixed stage; never retain or publish Android output."""
+def _peek_test_lifecycle_stage(nonce: str, *, timeout: float = 5) -> str | None:
+    """Read a fixed enum without consuming the marker or retaining raw output."""
     try:
         filename = _test_lifecycle_filename(nonce)
     except ValueError:
@@ -841,25 +842,10 @@ def _read_test_lifecycle_stage(nonce: str) -> str | None:
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
-            timeout=5,
+            timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired):
         pass
-    finally:
-        try:
-            subprocess.run(
-                [
-                    *prefix, "shell", "run-as", _TEST_PACKAGE,
-                    "rm", "-f", filename, f"{filename}.new", f"{filename}.bak",
-                ],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-                timeout=5,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            pass
     if result is None:
         return None
     if result.returncode != 0 or len(result.stdout) > 128:
@@ -869,6 +855,92 @@ def _read_test_lifecycle_stage(nonce: str) -> str | None:
     except UnicodeDecodeError:
         return None
     return stage if stage in _TEST_LIFECYCLE_STAGE_SET else None
+
+
+def _cleanup_test_lifecycle_stage(nonce: str) -> None:
+    """Remove only this invocation's marker, after observation has stopped."""
+    try:
+        filename = _test_lifecycle_filename(nonce)
+    except ValueError:
+        return
+    adb = _adb_path()
+    if adb is None:
+        return
+    prefix = _test_lifecycle_adb_prefix(adb)
+    if prefix is None:
+        return
+    try:
+        subprocess.run(
+            [
+                *prefix, "shell", "run-as", _TEST_PACKAGE,
+                "rm", "-f", filename, f"{filename}.new", f"{filename}.bak",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _read_test_lifecycle_stage(nonce: str) -> str | None:
+    try:
+        return _peek_test_lifecycle_stage(nonce)
+    finally:
+        _cleanup_test_lifecycle_stage(nonce)
+
+
+class _OwnedLifecycleObserver:
+    """Cache only a nonce-bound enum while Gradle still owns the installed app.
+
+    adb runs independently of the channel witness loop, whose phase deadlines
+    must not wait for diagnostic I/O. A transient failed peek cannot erase a
+    previously observed stage; absence remains unknown rather than acceptance.
+    """
+
+    def __init__(self, nonce: str):
+        _test_lifecycle_filename(nonce)
+        self._nonce = nonce
+        self._stop = threading.Event()
+        self._lock = threading.Lock()
+        self._stage: str | None = None
+        self._thread = threading.Thread(target=self._observe, daemon=True)
+
+    def start(self) -> None:
+        try:
+            self._thread.start()
+        except RuntimeError:
+            # Resource exhaustion in a secondary observer is not test failure.
+            pass
+
+    def _observe(self) -> None:
+        while not self._stop.is_set():
+            try:
+                stage = _peek_test_lifecycle_stage(self._nonce, timeout=1)
+            except Exception:
+                # Diagnostic failures must never replace the owned test result.
+                stage = None
+            if isinstance(stage, str) and stage in _TEST_LIFECYCLE_STAGE_SET:
+                with self._lock:
+                    self._stage = stage
+            if self._stop.is_set():
+                return
+            self._stop.wait(0.5)
+
+    def last_stage(self) -> str | None:
+        with self._lock:
+            return self._stage
+
+    def stop(self) -> str | None:
+        self._stop.set()
+        if self._thread.ident is not None:
+            try:
+                self._thread.join(timeout=2)
+            except RuntimeError:
+                pass
+        return self.last_stage()
 
 
 def _stop_owned_process(process: subprocess.Popen[bytes]) -> None:
@@ -1409,6 +1481,7 @@ def _run_owned_shadow_baseline(
     shadow_log_fd: int | None = None
     shadow_log_path: Path | None = None
     shadow_log_size = 0
+    lifecycle = _OwnedLifecycleObserver(diagnostic_nonce)
     selector = selectors.DefaultSelector()
     deadline = time.monotonic() + timeout
     with tempfile.TemporaryDirectory(
@@ -1456,6 +1529,7 @@ def _run_owned_shadow_baseline(
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
+            lifecycle.start()
             key_witness = Xi2KeyWitness()
             xi2_buffer = b""
             xi2_bytes = 0
@@ -1479,7 +1553,8 @@ def _run_owned_shadow_baseline(
                             gradle_status,
                             None,
                             _server_resize_requested(shadow_log_path),
-                            _read_test_lifecycle_stage(diagnostic_nonce),
+                            lifecycle.stop()
+                            or _peek_test_lifecycle_stage(diagnostic_nonce),
                         )
                     if (
                         key_witness.complete
@@ -1570,6 +1645,7 @@ def _run_owned_shadow_baseline(
                     _mark_clipboard_effect()
                     clip_marked = True
         except BaselineFailure as error:
+            error.test_lifecycle_stage = lifecycle.stop()
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -1584,6 +1660,7 @@ def _run_owned_shadow_baseline(
                     error.server_resize_requested = None
             raise
         except subprocess.TimeoutExpired as error:
+            error.test_lifecycle_stage = lifecycle.stop()
             if shadow_log_fd is not None and shadow_log_path is not None:
                 try:
                     if shadow is not None and shadow.stdout is not None:
@@ -1597,10 +1674,15 @@ def _run_owned_shadow_baseline(
                 except BaselineFailure:
                     error.server_resize_requested = None
             raise
+        except OSError as error:
+            error.test_lifecycle_stage = lifecycle.stop()
+            raise
         finally:
+            lifecycle.stop()
             selector.close()
             if gradle is not None and gradle.poll() is None:
                 _stop_owned_process(gradle)
+            _cleanup_test_lifecycle_stage(diagnostic_nonce)
             if xinput is not None:
                 _stop_owned_process(xinput)
             if shadow is not None:
@@ -1657,7 +1739,7 @@ def main() -> int:
             package_versions,
             code=error.code,
             server_resize_requested=error.server_resize_requested,
-            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
+            test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
         )
         raise AcceptanceFailure(str(error)) from None
     except subprocess.TimeoutExpired as error:
@@ -1669,14 +1751,14 @@ def main() -> int:
             server_resize_requested=getattr(
                 error, "server_resize_requested", None,
             ),
-            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
+            test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
         )
         raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
-    except (AndroidAcceptanceGradleError, OSError):
+    except (AndroidAcceptanceGradleError, OSError) as error:
         _publish_failed_run(
             runner_temp, package_versions,
             code="instrumentation_launch_unavailable",
-            test_lifecycle_stage=_read_test_lifecycle_stage(diagnostic_nonce),
+            test_lifecycle_stage=getattr(error, "test_lifecycle_stage", None),
         )
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None

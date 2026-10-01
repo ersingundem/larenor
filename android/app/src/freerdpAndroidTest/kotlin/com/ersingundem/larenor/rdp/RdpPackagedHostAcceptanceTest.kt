@@ -32,20 +32,19 @@ class RdpPackagedHostAcceptanceTest {
     @Test
     fun nlaShadowBaselineProvesPinnedFramesKeyEffectResizeAndCleanClose() {
         val arguments = InstrumentationRegistry.getArguments()
+        val diagnosticNonce = arguments.required("rdpDiagnosticNonce")
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val diagnostic = OwnedLifecycleDiagnostic(
+            AtomicLifecycleStorage(context, diagnosticNonce),
+        )
+        diagnostic.enter("testInitialization")
+
         val host = arguments.required("rdpHost")
         val port = arguments.required("rdpPort").toInt()
         val username = arguments.required("rdpUsername")
         val domain = arguments.required("rdpDomain")
         val passwordValue = arguments.required("rdpPassword")
-        val context = ApplicationProvider.getApplicationContext<Context>()
         assertDiagnosticFailuresAreSecondary()
-        val diagnostic = OwnedLifecycleDiagnostic(
-            AtomicLifecycleStorage(
-                context,
-                arguments.required("rdpDiagnosticNonce"),
-            ),
-        )
-        diagnostic.enter("testInitialization")
         val runtime = RdpPackagedRuntime(context)
 
         diagnostic.enter("connectionValidation")
@@ -377,12 +376,12 @@ class RdpPackagedHostAcceptanceTest {
     }
 }
 
-private interface LifecycleStorage {
+internal interface LifecycleStorage {
     fun write(stage: String)
     fun remove()
 }
 
-private class AtomicLifecycleStorage(context: Context, nonce: String) : LifecycleStorage {
+internal class AtomicLifecycleStorage(context: Context, nonce: String) : LifecycleStorage {
     private val file: AtomicFile
 
     init {
@@ -410,7 +409,7 @@ private class AtomicLifecycleStorage(context: Context, nonce: String) : Lifecycl
     override fun remove() = file.delete()
 }
 
-private class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
+internal class OwnedLifecycleDiagnostic(private val storage: LifecycleStorage) {
     fun enter(stage: String) {
         require(stage in STAGES)
         runCatching { storage.write(stage) }

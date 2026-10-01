@@ -17,11 +17,22 @@ credential, clipboard content, exception message, or arbitrary string. Android
 writes it using AtomicFile with flush-to-disk semantics. Write and removal
 failures remain secondary and preserve the original acceptance result.
 
-The runner reads at most 128 ASCII bytes from the exact app-private filename
-with a fixed adb/run-as/dd argument vector and a five-second timeout. Unknown,
-malformed and oversized stages are omitted. In a finally block it removes only
-that nonce's base, .new and .bak files, including after a read timeout. Neither
-the nonce nor the private filename is included in the public receipt.
+The runner now peeks at most 128 ASCII bytes from the exact app-private filename
+while Gradle runs, with a fixed adb/run-as/dd argument vector. A background
+observer uses a one-second I/O timeout and half-second cadence, so host channel
+witnesses and their deadlines do not wait on adb. Only an allowlisted enum is
+retained in host memory; a transient read failure cannot erase an observed stage.
+Unknown and malformed data are omitted. On terminal failure the observer stops
+and joins before the failure tuple is constructed, preserving a valid in-flight
+read. The post-terminal fallback read has a five-second timeout. Finally, after
+the owned Gradle process stops, cleanup removes only the nonce's base, .new and
+.bak files. Neither nonce nor filename enters the public receipt.
+
+Android writes `testInitialization` as soon as validated nonce/context/storage
+exist, before host/port/credential argument parsing, secondary assertions, or
+runtime construction. A failure before nonce or context is available can still
+leave no stage; that absence remains unknown. Polling can miss rapid boundaries,
+so a recorded stage means last observed entry, never completed work or cause.
 
 The optional `testLifecycleStage` is the last successfully recorded entered
 boundary, not an exception classification or proof that the operation completed.
@@ -66,4 +77,23 @@ The marker is currently written after argument parsing and secondary checks,
 and read only after Gradle exits. An absent marker cannot distinguish an early
 initialization failure, a diagnostic I/O failure, or package-data teardown.
 An early marker and bounded non-destructive collection during Gradle execution
-are being developed to narrow that gap; no unchanged-source retry is used.
+now narrow that gap; no unchanged-source retry is used.
+
+## Before-teardown correction verification
+
+- Root passed **51 runner/workflow/dependency tests, 4 subtests**, including
+  non-destructive reading, transient marker loss, malformed enum rejection,
+  non-blocking channel caller, and marker loss when Gradle terminates.
+- Independent review found a real shutdown race: stopping could discard a
+  valid in-flight enum or construct the tuple before joining. Root reproduced
+  the failure in a new regression, then fixed both orderings. The strengthened
+  integrated teardown case also passed with the marker already absent.
+- Current required-native AndroidTest Kotlin compilation: **BUILD SUCCESSFUL**,
+  278 tasks. The additional host-free AtomicFile test class is compiled, not
+  claimed executed; the original production acceptance filter is unchanged.
+- Final independent source review found no remaining concrete blocker. Strict
+  original report identity/counts, TLS/NLA/SPKI, frame/channel/input effects,
+  two lifetimes, and success/failure checks remain unchanged.
+
+These checks prove the diagnostic correction only. The real hosted RDP
+acceptance remains open and F62 stays **reworking**.

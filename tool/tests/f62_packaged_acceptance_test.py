@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -227,6 +229,8 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     ),
                 ),
                 mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
+                mock.patch.object(runner, "_OwnedLifecycleObserver"),
+                mock.patch.object(runner, "_cleanup_test_lifecycle_stage"),
                 mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
                 mock.patch.object(runner.os, "read", side_effect=lambda _fd, _size: next(output)),
                 mock.patch.object(runner, "_resize_owned_display") as resize,
@@ -506,6 +510,147 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertIn("file.failWrite(stream)", source)
         self.assertIn("runCatching { storage.write(stage) }", source)
         self.assertIn("runCatching { storage.remove() }", source)
+
+    def test_lifecycle_peek_does_not_remove_the_live_marker(self):
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/sdk/adb")),
+            mock.patch.object(
+                runner.subprocess, "run",
+                return_value=SimpleNamespace(returncode=0, stdout=b"initialFrameWait"),
+            ) as run,
+        ):
+            self.assertEqual(
+                runner._peek_test_lifecycle_stage("d" * 64, timeout=1),
+                "initialFrameWait",
+            )
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs["timeout"], 1)
+        self.assertNotIn("rm", run.call_args.args[0])
+
+    def test_lifecycle_observer_preserves_stage_after_marker_disappears(self):
+        absent = threading.Event()
+        calls = []
+
+        def peek(nonce, *, timeout):
+            calls.append((nonce, timeout))
+            if len(calls) == 1:
+                return "initialFrameWait"
+            absent.set()
+            return None
+
+        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+            observer = runner._OwnedLifecycleObserver("d" * 64)
+            observer.start()
+            try:
+                self.assertTrue(absent.wait(timeout=2))
+                self.assertEqual(observer.last_stage(), "initialFrameWait")
+            finally:
+                retained = observer.stop()
+        self.assertEqual(retained, "initialFrameWait")
+        self.assertTrue(all(call == ("d" * 64, 1) for call in calls))
+        self.assertFalse(observer._thread.is_alive())
+
+    def test_lifecycle_observer_retains_valid_inflight_peek_when_stopped(self):
+        entered = threading.Event()
+        observer = runner._OwnedLifecycleObserver("d" * 64)
+
+        def peek(_nonce, *, timeout):
+            entered.set()
+            self.assertTrue(observer._stop.wait(timeout=1))
+            return "initialFrameWait"
+
+        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+            observer.start()
+            try:
+                self.assertTrue(entered.wait(timeout=1))
+                self.assertEqual(observer.stop(), "initialFrameWait")
+            finally:
+                observer.stop()
+        self.assertFalse(observer._thread.is_alive())
+
+    def test_lifecycle_observer_does_not_block_channel_loop_or_accept_injection(self):
+        entered = threading.Event()
+        release = threading.Event()
+        second = threading.Event()
+        calls = []
+
+        def peek(_nonce, *, timeout):
+            calls.append(timeout)
+            if len(calls) == 1:
+                entered.set()
+                release.wait(timeout=2)
+                return "private-host\nsecret"
+            second.set()
+            raise OSError("private secondary I/O failure")
+
+        with mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek):
+            observer = runner._OwnedLifecycleObserver("d" * 64)
+            observer.start()
+            try:
+                self.assertTrue(entered.wait(timeout=1))
+                self.assertIsNone(observer.last_stage())
+                # The owned witness caller remains runnable during stalled adb I/O.
+                release.set()
+                self.assertTrue(second.wait(timeout=2))
+                self.assertIsNone(observer.last_stage())
+            finally:
+                release.set()
+                self.assertIsNone(observer.stop())
+        self.assertFalse(observer._thread.is_alive())
+
+    def test_failed_gradle_keeps_stage_observed_before_package_teardown(self):
+        observer = runner._OwnedLifecycleObserver("d" * 64)
+        stage_gone = threading.Event()
+        peek_entered = threading.Event()
+
+        def peek(_nonce, *, timeout=5):
+            if stage_gone.is_set():
+                return None
+            peek_entered.set()
+            self.assertTrue(observer._stop.wait(timeout=1))
+            return "initialFrameWait"
+
+        class Gradle:
+            def poll(self):
+                if not peek_entered.is_set():
+                    return None
+                stage_gone.set()
+                return 1
+
+        shadow = SimpleNamespace(stdout=SimpleNamespace(fileno=lambda: 7), poll=lambda: None)
+        xinput = SimpleNamespace(stdout=object(), poll=lambda: None)
+        selector = SimpleNamespace(
+            register=lambda *args: None,
+            select=lambda **kwargs: (time.sleep(0.01) or []),
+            close=lambda: None,
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                mock.patch.object(runner, "_OwnedLifecycleObserver", return_value=observer),
+                mock.patch.object(runner, "_peek_test_lifecycle_stage", side_effect=peek),
+                mock.patch.object(runner, "_cleanup_test_lifecycle_stage") as cleanup,
+                mock.patch.object(
+                    runner, "_start_owned_shadow",
+                    return_value=(shadow, 8, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
+                ),
+                mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, Gradle()]),
+                mock.patch.object(runner.selectors, "DefaultSelector", return_value=selector),
+                mock.patch.object(runner, "_drain_shadow_output", return_value=0),
+                mock.patch.object(runner, "_server_resize_requested", return_value=False),
+                mock.patch.object(runner, "_stop_owned_process"),
+                mock.patch.object(runner.os, "fsync"),
+                mock.patch.object(runner.os, "close"),
+            ):
+                self.assertEqual(
+                    runner._run_owned_shadow_baseline(
+                        ["owned-gradle"], runner_temp=Path(temporary),
+                        diagnostic_nonce="d" * 64, timeout=5,
+                    ),
+                    (1, None, False, "initialFrameWait"),
+                )
+        cleanup.assert_called_once_with("d" * 64)
+        self.assertTrue(stage_gone.is_set())
+        self.assertFalse(observer._thread.is_alive())
 
     def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
         completed = [

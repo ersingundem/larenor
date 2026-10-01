@@ -38,6 +38,8 @@ Exact `36269cf05091156ae960106eaec27810ff35fc78` üzerinde [Android ve tüm Serv
 
 Security failure kaynağı doğrulandı: 15 tam geçmiş fingerprint için yanlış pozitif istisnası hazırlandı; genel dosya/kural/commit istisnası yok. Root tam geçmiş taramasında 0 bulgu, yeni sentetik adayda engelleyici exit17 ve 23 politika testi geçti. [Kaynak ve kapsam](testing/security-exact-history-fingerprints-2026-10-01.md). Yeni hosted Security kabulü henüz yok.
 
+F62 erken başlangıç ve Gradle kapanmadan enum toplama düzeltmesi root51 runner/workflow/dependency testinden ve actual required-native AndroidTest Kotlin derlemesinden geçti. Bağımsız incelemede bulunan in-flight okuma/kapanış yarışı RED→GREEN ile kapandı; orijinal strict RDP kabul kapıları korunur. Yeni kaynaklı hosted kabul gerekli. Geniş exact362 Android CI’ında FreeRDP iki-ABI paket adımı yeni failure verdi; dar inceleme sürüyor. Security düzeltmesi `81cd4172` pushlandı, [yeni koşu](https://github.com/ersingundem/larenor/actions/runs/36814632423) sürüyor. Bunlar tamamlanma sayaçlarını artırmaz.
+
 ## Tarihsel doğrulama kayıtları
 
 Aşağıdaki kayıtlar ilgili commit ve koşunun o andaki durumunu korur; eski “bekliyor”, “açık” veya “henüz geçmedi” ifadeleri güncel durum değildir. Güncel sınıflandırma yukarıdaki tablo ve [execution queue](EXECUTION_QUEUE.md) kaynağıdır.
