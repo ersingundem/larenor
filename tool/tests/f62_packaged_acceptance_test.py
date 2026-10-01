@@ -9,6 +9,17 @@ from unittest import mock
 
 from tool import f62_packaged_acceptance as runner
 
+CHANNEL_EVIDENCE_BASE = {
+    "enabledClientToRemoteClipboard": True,
+    "enabledDisplayControl": True,
+    "disabledClipboardTransfers": 0,
+    "authenticatedLifetimes": 2,
+}
+CHANNEL_EVIDENCE = {
+    **CHANNEL_EVIDENCE_BASE,
+    "shadowBinarySha256": "c" * 64,
+}
+
 
 class PackagedRdpReceiptTest(unittest.TestCase):
     @staticmethod
@@ -32,7 +43,6 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
     def test_owned_host_package_versions_are_bounded_and_explicit(self):
         values = {
-            "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
             "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
             "RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION": "1.6.4-1build1",
             "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION": "2:21.1.12-1ubuntu1.6",
@@ -43,7 +53,6 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(
             versions,
             {
-                "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
                 "xinput": "1.6.4-1build1",
                 "xserver-xorg-core": "2:21.1.12-1ubuntu1.6",
@@ -54,11 +63,18 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             versions,
             revision="a" * 40,
             package_digest="b" * 64,
+            channel_evidence=CHANNEL_EVIDENCE,
         )
         self.assertEqual(receipt["ownedHostPackages"], versions)
         self.assertEqual(receipt["sourceRevision"], "a" * 40)
         self.assertEqual(receipt["packageReceiptSha256"], "b" * 64)
-        self.assertEqual(receipt["scope"], "ownedShadowBaseline")
+        self.assertEqual(receipt["scope"], "ownedShadowChannels")
+        self.assertEqual(receipt["ownedShadowFixture"], {
+            "version": runner.SHADOW_SOURCE_VERSION,
+            "sourceCommit": runner.SHADOW_SOURCE_COMMIT,
+            "sourceArchiveSha256": runner.SHADOW_SOURCE_SHA256,
+            "patchSha256": runner.SHADOW_PATCH_SHA256,
+        })
         self.assertEqual(receipt["evidence"]["rdpKeyEffect"], {
             "usbHidUsage": "KeyA", "xi2PressRelease": True,
         })
@@ -66,15 +82,16 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["evidence"]["hostDrivenFramebufferResize"], {
             "width": 1024, "height": 768, "nonzero": True,
         })
+        self.assertEqual(receipt["evidence"]["channels"], CHANNEL_EVIDENCE)
         self.assertEqual(receipt["unsupportedOrUnproven"], [
-            "clientDynamicResolution", "clientToRemoteClipboard", "ime",
+            "ime", "remoteToClientClipboard",
         ])
         self.assertEqual(
             {key: receipt[key] for key in ("tests", "skipped", "failures", "errors")},
             {"tests": 1, "skipped": 0, "failures": 0, "errors": 0},
         )
         for invalid in ("", "(none)", "version with spaces", "x" * 129):
-            values["RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION"] = invalid
+            values["RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION"] = invalid
             with mock.patch.dict(os.environ, values, clear=False):
                 with self.assertRaises(runner.AcceptanceFailure):
                     runner.fixture_package_versions()
@@ -89,7 +106,15 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     versions,
                     revision=revision,
                     package_digest=digest,
+                    channel_evidence=CHANNEL_EVIDENCE,
                 )
+        with self.assertRaises(runner.AcceptanceFailure):
+            runner.acceptance_receipt(
+                versions,
+                revision="a" * 40,
+                package_digest="b" * 64,
+                channel_evidence={**CHANNEL_EVIDENCE, "disabledClipboardTransfers": 1},
+            )
 
     def test_xi2_witness_requires_one_exact_a_press_release_pair(self):
         witness = runner.Xi2KeyWitness()
@@ -148,45 +173,229 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
     def test_outer_shadow_runner_ignores_unrelated_non_ascii_xi2_and_observes_exact_pair(self):
         class Process:
-            def __init__(self, *, stdout=None):
+            def __init__(self, *, stdout=None, finish_after=None):
                 self.stdout = stdout
-                self.done = False
+                self.finish_after = finish_after
+                self.polls = 0
 
             def poll(self):
-                return 0 if self.done else None
-
-            def wait(self, *, timeout):
-                self.done = True
-                return 0
+                self.polls += 1
+                if self.finish_after is not None and self.polls >= self.finish_after:
+                    return 0
+                return None
 
         class Selector:
+            def __init__(self):
+                self.index = 0
+
             def register(self, *_args):
                 pass
 
             def select(self, *, timeout):
-                return [(SimpleNamespace(fd=7), None)]
+                values = (
+                    SimpleNamespace(fd=7, data="xi2"),
+                    SimpleNamespace(fd=8, data="phase"),
+                    SimpleNamespace(fd=8, data="phase"),
+                )
+                value = values[min(self.index, len(values) - 1)]
+                self.index += 1
+                return [(value, None)]
 
             def close(self):
                 pass
 
+        shadow = Process(stdout=object())
         xinput = Process(stdout=object())
-        gradle = Process()
-        output = (
+        gradle = Process(finish_after=4)
+        output = iter((
             b"\xe2\x8e\xa1 Virtual core keyboard id=3\n"
-            b"EVENT type 13 (RawKeyPress)\n"
-            b"    detail: 38\n"
-            b"EVENT type 14 (RawKeyRelease)\n"
-            b"    detail: 38\n"
-        )
-        with (
-            mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
-            mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
-            mock.patch.object(runner.os, "read", return_value=output),
-            mock.patch.object(runner, "_resize_owned_display") as resize,
-            mock.patch.object(runner, "_stop_owned_process"),
-        ):
-            self.assertEqual(runner._run_owned_shadow_baseline(["owned-gradle"]), 0)
+            b"EVENT type 13 (RawKeyPress)\n    detail: 38\n"
+            b"EVENT type 14 (RawKeyRelease)\n    detail: 38\n",
+            runner._CHANNEL_PHASE_DISP,
+            runner._CHANNEL_PHASE_CLIP,
+        ))
+        evidence = CHANNEL_EVIDENCE.copy()
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                mock.patch.object(
+                    runner,
+                    "_start_owned_shadow",
+                    return_value=(
+                        shadow, 8, "c" * 64, 9,
+                        Path(temporary) / "shadow.log", 0,
+                    ),
+                ),
+                mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
+                mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
+                mock.patch.object(runner.os, "read", side_effect=lambda _fd, _size: next(output)),
+                mock.patch.object(runner, "_resize_owned_display") as resize,
+                mock.patch.object(runner, "_mark_clipboard_effect") as marker,
+                mock.patch.object(runner, "_channel_evidence", return_value=evidence),
+                mock.patch.object(runner, "_append_private_log", return_value=0),
+                mock.patch.object(runner, "_server_resize_requested", return_value=True),
+                mock.patch.object(runner, "_stop_owned_process"),
+                mock.patch.object(runner.os, "close"),
+            ):
+                self.assertEqual(
+                    runner._run_owned_shadow_baseline(
+                        ["owned-gradle"], runner_temp=Path(temporary),
+                    ),
+                    (0, evidence, None),
+                )
         resize.assert_called_once_with()
+        marker.assert_called_once_with()
+
+    def test_terminal_channel_witness_requires_enabled_effects_and_disabled_zero_transfer(self):
+        enabled = {
+            "schemaVersion": 1,
+            "clipboardEffect": True,
+            "displayEffect": True,
+            "formatLists": 1,
+            "dataRequests": 1,
+            "dataResponses": 1,
+            "emptyResponses": 0,
+            "displayLayouts": 1,
+            "channelErrors": 0,
+        }
+        disabled = {
+            "schemaVersion": 1,
+            "clipboardEffect": False,
+            "displayEffect": False,
+            "formatLists": 0,
+            "dataRequests": 0,
+            "dataResponses": 0,
+            "emptyResponses": 0,
+            "displayLayouts": 0,
+            "channelErrors": 0,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary) / "witness"
+            Path(f"{base}.1").touch()
+            Path(f"{base}.2").touch()
+            with mock.patch.object(
+                runner, "read_lifetimes",
+                return_value={"schemaVersion": 1, "enabled": enabled, "disabled": disabled},
+            ):
+                self.assertEqual(runner._channel_evidence(base), CHANNEL_EVIDENCE_BASE)
+            for bad in (
+                {**enabled, "clipboardEffect": False},
+                {**disabled, "dataRequests": 1},
+                {**disabled, "channelErrors": 1},
+            ):
+                pair = (
+                    {"schemaVersion": 1, "enabled": bad, "disabled": disabled}
+                    if bad.get("formatLists") else
+                    {"schemaVersion": 1, "enabled": enabled, "disabled": bad}
+                )
+                with mock.patch.object(runner, "read_lifetimes", return_value=pair):
+                    with self.assertRaises(runner.BaselineFailure):
+                        runner._channel_evidence(base)
+
+    def test_owned_shadow_process_uses_exact_binary_sam_pipe_and_two_witness_base(self):
+        process = SimpleNamespace(
+            poll=lambda: None,
+            stdout=SimpleNamespace(fileno=lambda: 123),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            source = root / "source"
+            source.mkdir(mode=0o700)
+            build = root / "build"
+            build.mkdir(mode=0o700)
+            binary = build / runner.SHADOW_CLI_RELATIVE
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"owned-shadow-binary")
+            binary.chmod(0o700)
+            sam = root / "larenor-rdp.sam"
+            sam.write_bytes(b"owned-private-sam")
+            sam.chmod(0o600)
+            witness = root / "terminal-witness"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "RDP_ACCEPTANCE_SHADOW_BINARY": str(binary),
+                        "RDP_ACCEPTANCE_SHADOW_SOURCE": str(source),
+                        "RDP_ACCEPTANCE_SHADOW_BUILD": str(build),
+                    },
+                    clear=False,
+                ),
+                mock.patch.object(runner, "_shadow_port_open", return_value=False),
+                mock.patch.object(runner, "_wait_shadow_ready", return_value=0) as ready,
+                mock.patch.object(runner, "verify_patched_source") as verify_source,
+                mock.patch.object(runner.subprocess, "Popen", return_value=process) as popen,
+                mock.patch.object(runner.os, "set_blocking"),
+            ):
+                (
+                    returned, read_fd, digest, log_fd, log_path, log_size,
+                ) = runner._start_owned_shadow(root, witness)
+            try:
+                self.assertIs(returned, process)
+                self.assertEqual(log_path, root / "shadow.log")
+                self.assertEqual(log_size, 0)
+                self.assertEqual(os.fstat(log_fd).st_mode & 0o777, 0o600)
+                self.assertEqual(
+                    digest, hashlib.sha256(b"owned-shadow-binary").hexdigest(),
+                )
+                command = popen.call_args.args[0]
+                self.assertEqual(command, [
+                    str(binary), "/port:3390", "/sec:nla", f"/sam-file:{sam}",
+                ])
+                environment = popen.call_args.kwargs["env"]
+                self.assertEqual(environment["LARENOR_F62_CHANNEL_WITNESS"], str(witness))
+                self.assertEqual(environment["LARENOR_F62_EXPECT_WIDTH"], "1024")
+                self.assertEqual(environment["LARENOR_F62_EXPECT_HEIGHT"], "768")
+                self.assertEqual(
+                    popen.call_args.kwargs["pass_fds"],
+                    (int(environment["LARENOR_F62_CHANNEL_PHASE_FD"]),),
+                )
+                ready.assert_called_once_with(process, log_fd)
+                verify_source.assert_called_once_with(source)
+            finally:
+                os.close(read_fd)
+                os.close(log_fd)
+
+            alias = root / "shadow-alias"
+            alias.symlink_to(binary)
+            with self.assertRaises(runner.BaselineFailure):
+                runner._owned_regular(alias, executable=True)
+
+    def test_private_shadow_log_exposes_only_exact_resize_request_boolean(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / "shadow.log"
+            log.write_bytes(
+                b"[INFO][com.freerdp.server.shadow.client] - Client private-host "
+                b"resize requested (1024x768@180)\nprivate credential text\n"
+            )
+            log.chmod(0o600)
+            self.assertTrue(runner._server_resize_requested(log))
+            log.write_bytes(b"resize requested (1280x800@180)\n")
+            self.assertFalse(runner._server_resize_requested(log))
+            log.chmod(0o644)
+            with self.assertRaises(runner.BaselineFailure):
+                runner._server_resize_requested(log)
+
+    def test_failure_receipt_accepts_only_boolean_resize_diagnostic(self):
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": "java.lang.AssertionError",
+            "frames": [],
+            "counts": {"tests": 1, "skipped": 0, "failures": 1, "errors": 0},
+        }
+        receipt = runner.failure_receipt(
+            {},
+            revision="a" * 40,
+            package_digest="b" * 64,
+            diagnostic={**base, "serverResizeRequested": True},
+        )
+        self.assertIs(receipt["diagnostic"]["serverResizeRequested"], True)
+        for invalid in ("true", 1, None):
+            diagnostic = {**base, "serverResizeRequested": invalid}
+            with self.assertRaises(runner.AcceptanceFailure):
+                runner.failure_receipt(
+                    {}, revision="a" * 40, package_digest="b" * 64,
+                    diagnostic=diagnostic,
+                )
 
     def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
         completed = [
@@ -362,12 +571,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             path = Path(temporary).resolve() / "receipt.json"
             receipt = runner.acceptance_receipt(
                 {
-                    "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                     "winpr3-utils": "3.8.0+dfsg-3build3",
                     "xinput": "1.6.4-1build1",
                 },
                 revision="a" * 40,
                 package_digest="b" * 64,
+                channel_evidence=CHANNEL_EVIDENCE,
             )
             runner.write_public_receipt(path, receipt)
             self.assertEqual(
@@ -389,7 +598,6 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             report = root / "TEST-device.xml"
             report.write_text("<testsuite/>")
             versions = {
-                "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
                 "xinput": "1.6.4-1build1",
             }
@@ -399,7 +607,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner, "package_receipt_digest", return_value="b" * 64
                 ),
             ):
-                path = runner.publish_public_receipt(report, root, versions)
+                path = runner.publish_public_receipt(
+                    report, root, versions, CHANNEL_EVIDENCE,
+                )
             self.assertFalse(report.exists())
             self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
             self.assertEqual(
@@ -408,6 +618,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     versions,
                     revision="a" * 40,
                     package_digest="b" * 64,
+                    channel_evidence=CHANNEL_EVIDENCE,
                 ),
             )
 
@@ -583,7 +794,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 "probeOutcome": "connectionFailureBeforeCertificate",
             })
             public = runner.failure_receipt(
-                {"freerdp3-shadow-x11": "3.32.0", "winpr3-utils": "3.32.0"},
+                {"winpr3-utils": "3.32.0"},
                 revision="a" * 40,
                 package_digest="b" * 64,
                 diagnostic=diagnostic,
@@ -742,7 +953,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             with self.assertRaises(runner.AcceptanceFailure):
                 runner.verify_reports(directory)
             public = runner.failure_receipt(
-                {"freerdp3-shadow-x11": "3.32.0", "winpr3-utils": "3.32.0"},
+                {"winpr3-utils": "3.32.0"},
                 revision="a" * 40, package_digest="b" * 64, diagnostic=diagnostic)
             self.assertEqual(public["result"], "failed")
             for bad in (
@@ -823,7 +1034,6 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             )))
             diagnostic = runner.failure_diagnostic(reports)
             versions = {
-                "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
                 "winpr3-utils": "3.8.0+dfsg-3build3",
                 "xinput": "1.6.4-1build1",
             }
@@ -847,7 +1057,6 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
     def test_failure_receipt_rejects_raw_or_unowned_diagnostic_fields(self):
         versions = {
-            "freerdp3-shadow-x11": "3.8.0+dfsg-3build3",
             "winpr3-utils": "3.8.0+dfsg-3build3",
         }
         for diagnostic in (
@@ -904,11 +1113,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
             def failed_process(*_args, **_kwargs):
                 report.write_text(failure_xml)
-                return SimpleNamespace(returncode=1)
+                return 1, None, True
             environment = {
                 "RUNNER_TEMP": str(root),
                 "RDP_ACCEPTANCE_PASSWORD": "disposable-password",
-                "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
                 "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
                 "RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION": "1.6.4-1build1",
                 "RDP_ACCEPTANCE_XORG_CORE_PACKAGE_VERSION": "2:21.1.12-1ubuntu1.6",
@@ -935,10 +1143,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             command = process.call_args.args[0]
             self.assertIn(":app:connectedDebugAndroidTest", command)
             self.assertEqual(process.call_args.kwargs["timeout"], 1200)
+            self.assertEqual(process.call_args.kwargs["runner_temp"], root)
             self.assertFalse(report.exists())
             failure = root / "freerdp-public-acceptance/failure.json"
             payload = failure.read_text()
             self.assertIn("RdpPackagedHostAcceptanceTest.kt", payload)
+            self.assertIn('"serverResizeRequested":true', payload)
             self.assertNotIn("disposable-password", payload)
 
 

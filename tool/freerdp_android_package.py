@@ -52,8 +52,10 @@ def load_lock(path=LOCK_PATH):
         raise PackageError("invalid_lock") from error
     _require(set(value) == {
         "schemaVersion", "engineRevision", "source", "reviewedFiles",
+        "patches",
         "toolchain", "supportedAbis", "jniSchema", "defaultChannels",
         "requiredLibraries", "requiredClasses", "requiredJniSymbols",
+        "requiredNativeEvidence",
     }, "invalid_lock")
     _require(value["schemaVersion"] == 1 and value["jniSchema"] == 1,
              "invalid_lock")
@@ -68,9 +70,29 @@ def load_lock(path=LOCK_PATH):
         "freerdp-3.31.1.tar.gz"
     ), "invalid_lock")
     reviewed = value["reviewedFiles"]
-    _require(type(reviewed) is dict and len(reviewed) == 7 and
+    _require(type(reviewed) is dict and len(reviewed) == 8 and
              all(type(name) is str and HEX40.fullmatch(digest or "")
                  for name, digest in reviewed.items()), "invalid_lock")
+    patches = value["patches"]
+    try:
+        expected_patches = [
+            {
+                "path": "android/freerdp-certificate-pem.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-certificate-pem.patch"),
+            },
+            {
+                "path": "android/freerdp-clipboard-utf8.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-clipboard-utf8.patch"),
+            },
+        ]
+    except OSError as error:
+        raise PackageError("invalid_lock") from error
+    _require(
+        type(patches) is list
+        and len(patches) == 2
+        and patches == expected_patches,
+        "invalid_lock",
+    )
     _require(value["toolchain"] == {
         "java": "17", "androidPlatform": "37.0",
         "androidBuildTools": "37.0.0", "ndk": "29.0.13113456",
@@ -91,6 +113,11 @@ def load_lock(path=LOCK_PATH):
         "com/freerdp/freerdpcore/application/SessionState.class",
     ], "invalid_lock")
     _require(value["requiredJniSymbols"] == ["JNI_OnLoad"], "invalid_lock")
+    _require(
+        value["requiredNativeEvidence"]
+        == ["JNI_OnLoad", "ConvertWCharNToUtf8Alloc"],
+        "invalid_lock",
+    )
     kotlin = KOTLIN_PATH.read_text()
     for expected in (
         f'const val VERSION = "{source["version"]}"',
@@ -161,6 +188,71 @@ def verify_certificate_patch(source):
     )
 
 
+def verify_clipboard_patch(source):
+    try:
+        text = source.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PackageError("invalid_clipboard_patch") from error
+    start = text.find(
+        "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
+        "freerdp_1send_1clipboard_1data"
+    )
+    following = text.find("static BOOL android_is_image_mime_supported", start + 1)
+    function = text[start:following] if start >= 0 and following > start else ""
+    required = (
+        "#define ANDROID_CLIPBOARD_TEXT_MAX_BYTES (64U * 1024U)",
+        "#include <winpr/crt.h>",
+        "#include <winpr/string.h>",
+        "GetStringLength(env, jdata)",
+        "GetStringChars(env, jdata, nullptr)",
+        "android_copy_clipboard_utf16(chars, wide_length, wide)",
+        "ConvertWCharNToUtf8Alloc(wide, (size_t)wide_length, &data_length)",
+        "data_length > ANDROID_CLIPBOARD_TEXT_MAX_BYTES",
+        'android_push_clipboard_event(inst, data, data_length, "text/plain")',
+        "SecureZeroMemory(data, data_length + 1U)",
+        "SecureZeroMemory(wide, ((size_t)wide_length + 1U) * sizeof(WCHAR))",
+        "ReleaseStringChars(env, jdata, chars)",
+    )
+    helper_start = text.find("static BOOL android_copy_clipboard_utf16")
+    helper_end = start
+    helper = text[helper_start:helper_end] if 0 <= helper_start < helper_end else ""
+    event_source = source.with_name("android_event.c")
+    try:
+        event_text = event_source.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PackageError("invalid_clipboard_patch") from error
+    event_start = event_text.find("static void android_event_clipboard_free")
+    event_following = event_text.find("BOOL android_event_queue_init", event_start + 1)
+    event_free = (
+        event_text[event_start:event_following]
+        if event_start >= 0 and event_following > event_start
+        else ""
+    )
+    _require(
+        function
+        and all(marker in text if marker.startswith("#") else marker in function
+                for marker in required)
+        and "value == 0" in helper
+        and "value >= 0xD800U" in helper
+        and "value <= 0xDBFFU" in helper
+        and "chars[x + 1] < 0xDC00U" in helper
+        and "chars[x + 1] > 0xDFFFU" in helper
+        and "value >= 0xDC00U" in helper
+        and "value <= 0xDFFFU" in helper
+        and "GetStringUTFChars" not in function
+        and "GetStringUTFLength" not in function
+        and 'send_clipboard_data: (%s)' not in function
+        and function.find("GetStringChars")
+        < function.find("ConvertWCharNToUtf8Alloc")
+        < function.find("android_push_clipboard_event")
+        < function.find("SecureZeroMemory(data")
+        and "SecureZeroMemory(event->data, event->data_length)" in event_free
+        and event_free.find("SecureZeroMemory(event->data")
+        < event_free.find("free(event->data)"),
+        "invalid_clipboard_patch",
+    )
+
+
 def package_receipt(aar, abi, lock):
     _require(abi in lock["supportedAbis"], "unsupported_abi")
     _require(aar.is_file() and aar.stat().st_size <= 512 * 1024 * 1024,
@@ -195,6 +287,13 @@ def package_receipt(aar, abi, lock):
             primary = bundle.read(by_name["libfreerdp-android.so"])
             _require(all(symbol.encode() in primary for symbol in lock["requiredJniSymbols"]),
                      "missing_jni_symbol")
+            _require(
+                all(
+                    evidence.encode() in primary
+                    for evidence in lock["requiredNativeEvidence"]
+                ),
+                "missing_native_evidence",
+            )
     except (zipfile.BadZipFile, KeyError, OSError) as error:
         raise PackageError("invalid_aar") from error
     return {
@@ -205,6 +304,7 @@ def package_receipt(aar, abi, lock):
         "abi": abi,
         "aarSha256": _sha256(aar),
         "classesSha256": hashlib.sha256(classes).hexdigest(),
+        "patches": lock["patches"],
         "defaultChannels": [],
         "libraries": entries,
     }
@@ -221,9 +321,55 @@ def verify_install(aar, receipt_path, lock):
              "receipt_mismatch")
 
 
+def _verify_receipt_contract(receipt, lock):
+    _require(
+        type(receipt) is dict
+        and set(receipt) == {
+            "schemaVersion",
+            "engineRevision",
+            "sourceCommit",
+            "sourceSha256",
+            "abi",
+            "aarSha256",
+            "classesSha256",
+            "patches",
+            "defaultChannels",
+            "libraries",
+        }
+        and receipt["schemaVersion"] == 1
+        and receipt["engineRevision"] == lock["engineRevision"]
+        and receipt["sourceCommit"] == lock["source"]["commit"]
+        and receipt["sourceSha256"] == lock["source"]["sha256"]
+        and receipt["abi"] in lock["supportedAbis"]
+        and type(receipt["aarSha256"]) is str
+        and HEX64.fullmatch(receipt["aarSha256"] or "")
+        and type(receipt["classesSha256"]) is str
+        and HEX64.fullmatch(receipt["classesSha256"] or "")
+        and receipt["patches"] == lock["patches"]
+        and receipt["defaultChannels"] == [],
+        "receipt_mismatch",
+    )
+    libraries = receipt["libraries"]
+    _require(
+        type(libraries) is list
+        and all(
+            type(item) is dict
+            and set(item) == {"name", "size", "sha256"}
+            and type(item["size"]) is int
+            and item["size"] > 0
+            and type(item["sha256"]) is str
+            and HEX64.fullmatch(item["sha256"] or "")
+            for item in libraries
+        )
+        and [item["name"] for item in libraries] == lock["requiredLibraries"],
+        "receipt_mismatch",
+    )
+
+
 def verify_apk(apk, receipt_path, lock):
     try:
         receipt = json.loads(receipt_path.read_text())
+        _verify_receipt_contract(receipt, lock)
         with zipfile.ZipFile(apk) as bundle:
             for item in receipt["libraries"]:
                 data = bundle.read(f'lib/{receipt["abi"]}/{item["name"]}')
@@ -258,6 +404,7 @@ def main(argv=None):
             verify_source(args.archive, lock)
         elif args.command == "verify-patch":
             verify_certificate_patch(args.source)
+            verify_clipboard_patch(args.source)
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")

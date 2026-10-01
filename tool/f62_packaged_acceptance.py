@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import selectors
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -26,6 +27,16 @@ if __package__:
         NativeAcceptanceReceiptError,
         source_revision,
     )
+    from .f62_owned_shadow_channels import (
+        FixtureError,
+        PATCH_SHA256 as SHADOW_PATCH_SHA256,
+        SHADOW_CLI_RELATIVE,
+        SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
+        SOURCE_SHA256 as SHADOW_SOURCE_SHA256,
+        SOURCE_VERSION as SHADOW_SOURCE_VERSION,
+        read_lifetimes,
+        verify_patched_source,
+    )
 else:
     from android_acceptance_gradle import (
         AndroidAcceptanceGradleError,
@@ -34,6 +45,16 @@ else:
     from native_acceptance_receipt import (
         NativeAcceptanceReceiptError,
         source_revision,
+    )
+    from f62_owned_shadow_channels import (
+        FixtureError,
+        PATCH_SHA256 as SHADOW_PATCH_SHA256,
+        SHADOW_CLI_RELATIVE,
+        SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
+        SOURCE_SHA256 as SHADOW_SOURCE_SHA256,
+        SOURCE_VERSION as SHADOW_SOURCE_VERSION,
+        read_lifetimes,
+        verify_patched_source,
     )
 
 
@@ -46,6 +67,15 @@ _DISPLAY = ":99"
 _XINPUT_A_KEYCODE = 38
 _SOURCE_DIMENSIONS = (1280, 800)
 _TARGET_DIMENSIONS = (1024, 768)
+_CHANNEL_PHASE_DISP = b"LRNDISP1"
+_CHANNEL_PHASE_CLIP = b"LRNCLIP1"
+_CHANNEL_PHASE_BYTES = len(_CHANNEL_PHASE_DISP) + len(_CHANNEL_PHASE_CLIP)
+_CLIPBOARD_MARKER_COLOR = "#8f3c72"
+_SHADOW_PORT = 3390
+_MAX_SHADOW_LOG_BYTES = 1024 * 1024
+_SERVER_RESIZE_REQUESTED = re.compile(
+    rb"resize requested \(1024x768@[0-9]{1,4}\)"
+)
 _XI2_EVENT = re.compile(rb"^EVENT type \d+ \(([A-Za-z0-9]+)\)$")
 _XI2_DETAIL = re.compile(rb"^\s*detail:\s*(\d+)\s*$")
 _XDPI_DIMENSIONS = re.compile(r"^\s*dimensions:\s*(\d+)x(\d+) pixels")
@@ -82,6 +112,8 @@ _FAILURE_CODES = frozenset({
     "instrumentation_test_error",
     "host_keyboard_witness_missing",
     "host_resize_unavailable",
+    "host_channel_fixture_unavailable",
+    "host_channel_witness_invalid",
 })
 _ACCEPTANCE_STAGES = {
     "com.ersingundem.larenor.rdp.RdpOwnedResizedFrameWaitFailure":
@@ -94,6 +126,14 @@ _ACCEPTANCE_STAGES = {
         "cleanClose",
     "com.ersingundem.larenor.rdp.RdpOwnedCredentialClearFailure":
         "credentialClear",
+    "com.ersingundem.larenor.rdp.RdpOwnedClientDispSubmissionFailure":
+        "clientDispSubmission",
+    "com.ersingundem.larenor.rdp.RdpOwnedClipboardSubmissionFailure":
+        "clipboardSubmission",
+    "com.ersingundem.larenor.rdp.RdpOwnedClipboardEffectWaitFailure":
+        "clipboardEffectWait",
+    "com.ersingundem.larenor.rdp.RdpOwnedDisabledClipboardFailure":
+        "disabledClipboard",
 }
 _KNOWN_EXCEPTION_TYPES = frozenset({
     "com.ersingundem.larenor.rdp.RdpNativeFailure",
@@ -142,10 +182,12 @@ class BaselineFailure(AcceptanceFailure):
     def __init__(self, code: str, message: str):
         if code not in {
             "host_keyboard_witness_missing", "host_resize_unavailable",
+            "host_channel_fixture_unavailable", "host_channel_witness_invalid",
         }:
             raise ValueError("invalid owned baseline failure code")
         super().__init__(message)
         self.code = code
+        self.server_resize_requested: bool | None = None
 
 
 class Xi2KeyWitness:
@@ -199,9 +241,6 @@ class Xi2KeyWitness:
 
 def fixture_package_versions() -> dict[str, str]:
     values = {
-        "freerdp3-shadow-x11": os.environ.get(
-            "RDP_ACCEPTANCE_SHADOW_PACKAGE_VERSION", ""
-        ),
         "winpr3-utils": os.environ.get("RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION", ""),
         "xinput": os.environ.get("RDP_ACCEPTANCE_XINPUT_PACKAGE_VERSION", ""),
         "xserver-xorg-core": os.environ.get(
@@ -241,11 +280,29 @@ def acceptance_receipt(
     *,
     revision: str,
     package_digest: str,
+    channel_evidence: dict[str, object],
 ) -> dict[str, object]:
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise AcceptanceFailure("packaged RDP source revision is unavailable")
     if _DIGEST.fullmatch(package_digest) is None:
         raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
+    if (
+        type(channel_evidence) is not dict
+        or set(channel_evidence) != {
+            "enabledClientToRemoteClipboard",
+            "enabledDisplayControl",
+            "disabledClipboardTransfers",
+            "authenticatedLifetimes",
+            "shadowBinarySha256",
+        }
+        or channel_evidence["enabledClientToRemoteClipboard"] is not True
+        or channel_evidence["enabledDisplayControl"] is not True
+        or channel_evidence["disabledClipboardTransfers"] != 0
+        or channel_evidence["authenticatedLifetimes"] != 2
+        or type(channel_evidence["shadowBinarySha256"]) is not str
+        or _DIGEST.fullmatch(channel_evidence["shadowBinarySha256"]) is None
+    ):
+        raise AcceptanceFailure("owned RDP channel evidence is unavailable")
     return {
         "schemaVersion": 1,
         "sourceRevision": revision,
@@ -253,7 +310,13 @@ def acceptance_receipt(
         "testClass": TEST_CLASS,
         "testName": TEST_NAME,
         "ownedHostPackages": package_versions,
-        "scope": "ownedShadowBaseline",
+        "ownedShadowFixture": {
+            "version": SHADOW_SOURCE_VERSION,
+            "sourceCommit": SHADOW_SOURCE_COMMIT,
+            "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
+            "patchSha256": SHADOW_PATCH_SHA256,
+        },
+        "scope": "ownedShadowChannels",
         "evidence": {
             "tlsNlaSpki": True,
             "initialFramebuffer": {"width": 1280, "height": 800, "nonzero": True},
@@ -264,10 +327,11 @@ def acceptance_receipt(
                 "width": 1024, "height": 768, "nonzero": True,
             },
             "frameAcknowledgementsAtLeast": 2,
+            "channels": channel_evidence,
             "cleanClose": True,
         },
         "unsupportedOrUnproven": [
-            "clientDynamicResolution", "clientToRemoteClipboard", "ime",
+            "ime", "remoteToClientClipboard",
         ],
         "result": "passed",
         "tests": 1,
@@ -459,7 +523,10 @@ def failure_receipt(
         raise AcceptanceFailure("packaged RDP source revision is unavailable")
     if _DIGEST.fullmatch(package_digest) is None:
         raise AcceptanceFailure("packaged RDP receipt digest is unavailable")
-    if set(diagnostic) not in ({"code", "exceptionType", "frames"}, {
+    has_resize_requested = "serverResizeRequested" in diagnostic
+    resize_requested = diagnostic.get("serverResizeRequested")
+    diagnostic_shape = set(diagnostic) - {"serverResizeRequested"}
+    if (has_resize_requested and type(resize_requested) is not bool) or diagnostic_shape not in ({"code", "exceptionType", "frames"}, {
             "code", "exceptionType", "frames", "counts"}, {
             "code", "exceptionType", "frames", "counts", "identity"}, {
             "code", "exceptionType", "frames", "counts", "probeOutcome"}, {
@@ -541,6 +608,12 @@ def failure_receipt(
         "testClass": TEST_CLASS,
         "testName": TEST_NAME,
         "ownedHostPackages": package_versions,
+        "ownedShadowFixture": {
+            "version": SHADOW_SOURCE_VERSION,
+            "sourceCommit": SHADOW_SOURCE_COMMIT,
+            "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
+            "patchSha256": SHADOW_PATCH_SHA256,
+        },
         "result": "failed",
         "diagnostic": diagnostic,
     }
@@ -611,12 +684,14 @@ def publish_public_receipt(
     report: Path,
     runner_temp: Path,
     package_versions: dict[str, str],
+    channel_evidence: dict[str, object],
 ) -> Path:
     revision, package_digest = _provenance()
     receipt = acceptance_receipt(
         package_versions,
         revision=revision,
         package_digest=package_digest,
+        channel_evidence=channel_evidence,
     )
     output = _public_output(runner_temp)
     destination = output / "receipt.json"
@@ -660,9 +735,12 @@ def _publish_failed_run(
     package_versions: dict[str, str],
     *,
     code: str | None = None,
+    server_resize_requested: bool | None = None,
 ) -> None:
     diagnostic = (failure_diagnostic() if code is None
                   else _static_diagnostic(code))
+    if server_resize_requested is not None:
+        diagnostic["serverResizeRequested"] = server_resize_requested
     publish_public_failure(diagnostic, runner_temp, package_versions)
 
 
@@ -681,6 +759,387 @@ def _stop_owned_process(process: subprocess.Popen[bytes]) -> None:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             pass
+
+
+def _owned_regular(
+    path: Path,
+    *,
+    executable: bool = False,
+    mode: int | None = None,
+    max_size: int = 256 * 1024 * 1024,
+) -> Path:
+    try:
+        metadata = path.lstat()
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture input was unavailable",
+        ) from error
+    actual_mode = stat.S_IMODE(metadata.st_mode)
+    if (
+        not path.is_absolute()
+        or resolved != path
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_nlink != 1
+        or metadata.st_size <= 0
+        or metadata.st_size > max_size
+        or mode is not None and actual_mode != mode
+        or executable and (
+            actual_mode & stat.S_IXUSR == 0 or actual_mode & 0o022 != 0
+        )
+    ):
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture input was invalid",
+        )
+    return path
+
+
+def _owned_regular_sha256(path: Path, *, max_size: int) -> str:
+    try:
+        before = path.lstat()
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_uid != os.getuid()
+            or opened.st_nlink != 1
+            or opened.st_size <= 0
+            or opened.st_size > max_size
+            or (before.st_dev, before.st_ino, before.st_size) !=
+                (opened.st_dev, opened.st_ino, opened.st_size)
+        ):
+            raise OSError()
+        digest = hashlib.sha256()
+        remaining = opened.st_size
+        while remaining:
+            chunk = os.read(fd, min(1024 * 1024, remaining))
+            if not chunk:
+                raise OSError()
+            digest.update(chunk)
+            remaining -= len(chunk)
+        after = path.lstat()
+        if (after.st_dev, after.st_ino, after.st_size) != (
+            opened.st_dev, opened.st_ino, opened.st_size,
+        ):
+            raise OSError()
+        return digest.hexdigest()
+    except OSError as error:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture binary identity changed",
+        ) from error
+    finally:
+        if "fd" in locals():
+            os.close(fd)
+
+
+def _append_private_log(fd: int, current_size: int, chunk: bytes) -> int:
+    if not chunk or current_size + len(chunk) > _MAX_SHADOW_LOG_BYTES:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture log exceeded its bound",
+        )
+    offset = 0
+    while offset < len(chunk):
+        written = os.write(fd, chunk[offset:])
+        if written <= 0:
+            raise BaselineFailure(
+                "host_channel_fixture_unavailable",
+                "owned channel fixture log was unavailable",
+            )
+        offset += written
+    return current_size + len(chunk)
+
+
+def _drain_shadow_output(
+    stream_fd: int,
+    log_fd: int,
+    current_size: int,
+) -> int:
+    while True:
+        try:
+            chunk = os.read(stream_fd, 4096)
+        except BlockingIOError:
+            return current_size
+        if not chunk:
+            return current_size
+        current_size = _append_private_log(log_fd, current_size, chunk)
+
+
+def _server_resize_requested(path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or not 0 <= metadata.st_size <= _MAX_SHADOW_LOG_BYTES
+        ):
+            raise OSError()
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino, opened.st_size) != (
+            metadata.st_dev, metadata.st_ino, metadata.st_size,
+        ):
+            raise OSError()
+        chunks: list[bytes] = []
+        remaining = opened.st_size
+        while remaining:
+            chunk = os.read(fd, min(64 * 1024, remaining))
+            if not chunk:
+                raise OSError()
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        return _SERVER_RESIZE_REQUESTED.search(data) is not None
+    except OSError as error:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture diagnostic log was invalid",
+        ) from error
+    finally:
+        if "fd" in locals():
+            os.close(fd)
+
+
+def _owned_directory(path: Path, *, parent: Path) -> Path:
+    try:
+        metadata = path.lstat()
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(parent)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture directory was unavailable",
+        ) from error
+    if (
+        resolved != path
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or stat.S_IMODE(metadata.st_mode) & 0o022 != 0
+    ):
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture directory was invalid",
+        )
+    return path
+
+
+def _shadow_port_open() -> bool:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(0.2)
+        return probe.connect_ex(("127.0.0.1", _SHADOW_PORT)) == 0
+    finally:
+        probe.close()
+
+
+def _wait_shadow_ready(
+    process: subprocess.Popen[bytes],
+    log_fd: int,
+    *,
+    timeout: float = 15,
+) -> int:
+    deadline = time.monotonic() + timeout
+    size = 0
+    while time.monotonic() < deadline:
+        if process.stdout is not None:
+            size = _drain_shadow_output(process.stdout.fileno(), log_fd, size)
+        if process.poll() is not None:
+            break
+        if _shadow_port_open():
+            return size
+        time.sleep(0.05)
+    raise BaselineFailure(
+        "host_channel_fixture_unavailable",
+        "owned channel fixture did not become ready",
+    )
+
+
+def _start_owned_shadow(
+    runner_temp: Path,
+    witness_base: Path,
+) -> tuple[subprocess.Popen[bytes], int, str, int, Path, int]:
+    binary_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BINARY", "")
+    source_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_SOURCE", "")
+    build_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BUILD", "")
+    source = _owned_directory(Path(source_raw), parent=runner_temp)
+    build = _owned_directory(Path(build_raw), parent=runner_temp)
+    binary = _owned_regular(Path(binary_raw), executable=True)
+    if binary != build / SHADOW_CLI_RELATIVE or source == build:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture binary layout was invalid",
+        )
+    try:
+        verify_patched_source(source)
+    except FixtureError:
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture source identity was invalid",
+        ) from None
+    binary_digest = _owned_regular_sha256(binary, max_size=256 * 1024 * 1024)
+    sam = _owned_regular(
+        runner_temp / "larenor-rdp.sam", mode=0o600, max_size=64 * 1024,
+    )
+    if (
+        _shadow_port_open()
+        or witness_base.exists()
+        or any(Path(f"{witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
+    ):
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture state was not empty",
+        )
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    log_path = witness_base.parent / "shadow.log"
+    try:
+        log_fd = os.open(
+            log_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+            0o600,
+        )
+    except OSError as error:
+        os.close(read_fd)
+        os.close(write_fd)
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture diagnostic log could not be created",
+        ) from error
+    environment = {
+        key: os.environ[key]
+        for key in ("HOME", "LANG", "LC_ALL", "LD_LIBRARY_PATH", "PATH", "TMPDIR")
+        if key in os.environ
+    }
+    environment.update({
+        "DISPLAY": _DISPLAY,
+        "WLOG_LEVEL": "INFO",
+        "LARENOR_F62_CHANNEL_WITNESS": str(witness_base),
+        "LARENOR_F62_CHANNEL_PHASE_FD": str(write_fd),
+        "LARENOR_F62_EXPECT_WIDTH": str(_TARGET_DIMENSIONS[0]),
+        "LARENOR_F62_EXPECT_HEIGHT": str(_TARGET_DIMENSIONS[1]),
+    })
+    process: subprocess.Popen[bytes] | None = None
+    try:
+        process = subprocess.Popen(
+            [
+                str(binary),
+                f"/port:{_SHADOW_PORT}",
+                "/sec:nla",
+                f"/sam-file:{sam}",
+            ],
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            pass_fds=(write_fd,),
+            start_new_session=True,
+        )
+        if _owned_regular_sha256(
+            binary, max_size=256 * 1024 * 1024,
+        ) != binary_digest:
+            raise BaselineFailure(
+                "host_channel_fixture_unavailable",
+                "owned channel fixture binary changed during launch",
+            )
+        os.close(write_fd)
+        write_fd = -1
+        if process.stdout is None:
+            raise BaselineFailure(
+                "host_channel_fixture_unavailable",
+                "owned channel fixture diagnostic pipe was unavailable",
+            )
+        os.set_blocking(process.stdout.fileno(), False)
+        log_size = _wait_shadow_ready(process, log_fd)
+        return process, read_fd, binary_digest, log_fd, log_path, log_size
+    except (OSError, subprocess.SubprocessError):
+        if process is not None:
+            _stop_owned_process(process)
+        os.close(read_fd)
+        os.close(log_fd)
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned channel fixture could not start",
+        ) from None
+    except BaseException:
+        if process is not None:
+            _stop_owned_process(process)
+        os.close(read_fd)
+        os.close(log_fd)
+        raise
+    finally:
+        if write_fd >= 0:
+            os.close(write_fd)
+
+
+def _mark_clipboard_effect() -> None:
+    try:
+        result = subprocess.run(
+            ["/usr/bin/xsetroot", "-solid", _CLIPBOARD_MARKER_COLOR],
+            env={**os.environ, "DISPLAY": _DISPLAY},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned clipboard display marker was unavailable",
+        ) from error
+    if result.returncode != 0:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned clipboard display marker was not applied",
+        )
+
+
+def _channel_evidence(witness_base: Path, *, timeout: float = 10) -> dict[str, object]:
+    first = Path(f"{witness_base}.1")
+    second = Path(f"{witness_base}.2")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and not (first.exists() and second.exists()):
+        time.sleep(0.05)
+    try:
+        lifetimes = read_lifetimes(witness_base)
+        enabled = lifetimes["enabled"]
+        disabled = lifetimes["disabled"]
+    except (FixtureError, OSError):
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned channel terminal witness was invalid",
+        ) from None
+    if not (
+        enabled["clipboardEffect"] is True
+        and enabled["displayEffect"] is True
+        and enabled["emptyResponses"] == 0
+        and enabled["channelErrors"] == 0
+        and enabled["formatLists"] > 0
+        and enabled["dataRequests"] > 0
+        and enabled["dataResponses"] > 0
+        and enabled["displayLayouts"] > 0
+        and disabled["clipboardEffect"] is False
+        and disabled["formatLists"] == 0
+        and disabled["dataRequests"] == 0
+        and disabled["dataResponses"] == 0
+        and disabled["emptyResponses"] == 0
+        and disabled["channelErrors"] == 0
+    ):
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned channel terminal witness did not prove both lifetimes",
+        )
+    return {
+        "enabledClientToRemoteClipboard": True,
+        "enabledDisplayControl": True,
+        "disabledClipboardTransfers": 0,
+        "authenticatedLifetimes": 2,
+    }
 
 
 def _display_dimensions() -> tuple[int, int]:
@@ -806,88 +1265,220 @@ def _resize_owned_display() -> None:
         )
 
 
-def _run_owned_shadow_baseline(command: list[str], *, timeout: float = 1200) -> int:
-    """Run instrumentation while witnessing XI2 and controlling owned Xorg."""
+def _run_owned_shadow_baseline(
+    command: list[str],
+    *,
+    runner_temp: Path,
+    timeout: float = 1200,
+) -> tuple[int, dict[str, object] | None, bool | None]:
+    """Run two authenticated lifetimes against one owned patched shadow host."""
     environment = {**os.environ, "DISPLAY": _DISPLAY}
     xinput: subprocess.Popen[bytes] | None = None
     gradle: subprocess.Popen[bytes] | None = None
+    shadow: subprocess.Popen[bytes] | None = None
+    phase_fd: int | None = None
+    shadow_log_fd: int | None = None
+    shadow_log_path: Path | None = None
+    shadow_log_size = 0
     selector = selectors.DefaultSelector()
     deadline = time.monotonic() + timeout
-    try:
-        xinput = subprocess.Popen(
-            ["/usr/bin/stdbuf", "-oL", "/usr/bin/xinput", "test-xi2", "--root"],
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            bufsize=0,
-        )
-        if xinput.stdout is None or xinput.poll() is not None:
-            raise BaselineFailure(
-                "host_keyboard_witness_missing",
-                "owned XI2 key witness could not start",
-            )
-        selector.register(xinput.stdout, selectors.EVENT_READ)
-        gradle = subprocess.Popen(
-            command,
-            cwd=ROOT / "android",
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        witness = Xi2KeyWitness()
-        buffered = b""
-        observed_bytes = 0
-        while not witness.complete:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise subprocess.TimeoutExpired(command, timeout)
-            gradle_status = gradle.poll()
-            if gradle_status is not None:
-                if gradle_status != 0:
-                    return gradle_status
-                raise BaselineFailure(
-                    "host_keyboard_witness_missing",
-                    "owned XI2 key witness was not observed",
-                )
-            if xinput.poll() is not None:
-                raise BaselineFailure(
-                    "host_keyboard_witness_missing",
-                    "owned XI2 key witness stopped early",
-                )
-            for key, _ in selector.select(timeout=min(0.25, remaining)):
-                chunk = os.read(key.fd, 4096)
-                if not chunk:
-                    raise BaselineFailure(
-                        "host_keyboard_witness_missing",
-                        "owned XI2 key witness closed early",
-                    )
-                observed_bytes += len(chunk)
-                if observed_bytes > 1024 * 1024:
-                    raise BaselineFailure(
-                        "host_keyboard_witness_missing",
-                        "owned XI2 key witness exceeded its bound",
-                    )
-                buffered += chunk
-                while b"\n" in buffered:
-                    raw_line, buffered = buffered.split(b"\n", 1)
-                    witness.feed_bytes(raw_line)
-        _resize_owned_display()
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise subprocess.TimeoutExpired(command, timeout)
+    with tempfile.TemporaryDirectory(
+        prefix="larenor-f62-channels-", dir=runner_temp,
+    ) as temporary:
+        private = Path(temporary)
+        private.chmod(0o700)
+        witness_base = private / "terminal-witness"
         try:
-            return gradle.wait(timeout=remaining)
-        except subprocess.TimeoutExpired:
-            raise subprocess.TimeoutExpired(command, timeout) from None
-    finally:
-        selector.close()
-        if gradle is not None and gradle.poll() is None:
-            _stop_owned_process(gradle)
-        if xinput is not None:
-            _stop_owned_process(xinput)
+            (
+                shadow,
+                phase_fd,
+                shadow_binary_digest,
+                shadow_log_fd,
+                shadow_log_path,
+                shadow_log_size,
+            ) = _start_owned_shadow(runner_temp, witness_base)
+            selector.register(phase_fd, selectors.EVENT_READ, "phase")
+            if shadow.stdout is None:
+                raise BaselineFailure(
+                    "host_channel_fixture_unavailable",
+                    "owned channel fixture diagnostic pipe was unavailable",
+                )
+            selector.register(shadow.stdout, selectors.EVENT_READ, "shadow")
+            xinput = subprocess.Popen(
+                ["/usr/bin/stdbuf", "-oL", "/usr/bin/xinput", "test-xi2", "--root"],
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                bufsize=0,
+            )
+            if xinput.stdout is None or xinput.poll() is not None:
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness could not start",
+                )
+            selector.register(xinput.stdout, selectors.EVENT_READ, "xi2")
+            gradle = subprocess.Popen(
+                command,
+                cwd=ROOT / "android",
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            key_witness = Xi2KeyWitness()
+            xi2_buffer = b""
+            xi2_bytes = 0
+            phase_buffer = b""
+            phases: list[bytes] = []
+            resized = False
+            clip_marked = False
+            gradle_finished_at: float | None = None
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                gradle_status = gradle.poll()
+                if gradle_status is not None:
+                    if gradle_status != 0:
+                        shadow_log_size = _drain_shadow_output(
+                            shadow.stdout.fileno(), shadow_log_fd, shadow_log_size,
+                        )
+                        os.fsync(shadow_log_fd)
+                        return (
+                            gradle_status,
+                            None,
+                            _server_resize_requested(shadow_log_path),
+                        )
+                    if (
+                        key_witness.complete
+                        and phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP]
+                        and phase_buffer == b""
+                        and resized
+                        and clip_marked
+                    ):
+                        evidence = _channel_evidence(witness_base)
+                        evidence["shadowBinarySha256"] = shadow_binary_digest
+                        return 0, evidence, None
+                    if gradle_finished_at is None:
+                        gradle_finished_at = time.monotonic()
+                    elif time.monotonic() - gradle_finished_at >= 5:
+                        raise BaselineFailure(
+                            "host_channel_witness_invalid",
+                            "owned channel phases were incomplete",
+                        )
+                if xinput.poll() is not None:
+                    raise BaselineFailure(
+                        "host_keyboard_witness_missing",
+                        "owned XI2 key witness stopped early",
+                    )
+                if shadow.poll() is not None:
+                    raise BaselineFailure(
+                        "host_channel_fixture_unavailable",
+                        "owned channel fixture stopped early",
+                    )
+                for key, _ in selector.select(timeout=min(0.25, remaining)):
+                    try:
+                        chunk = os.read(key.fd, 4096)
+                    except BlockingIOError:
+                        continue
+                    if not chunk:
+                        raise BaselineFailure(
+                            "host_channel_witness_invalid",
+                            "owned channel witness closed early",
+                        )
+                    if key.data == "shadow":
+                        shadow_log_size = _append_private_log(
+                            shadow_log_fd, shadow_log_size, chunk,
+                        )
+                    elif key.data == "xi2":
+                        xi2_bytes += len(chunk)
+                        if xi2_bytes > 1024 * 1024:
+                            raise BaselineFailure(
+                                "host_keyboard_witness_missing",
+                                "owned XI2 key witness exceeded its bound",
+                            )
+                        xi2_buffer += chunk
+                        while b"\n" in xi2_buffer:
+                            raw_line, xi2_buffer = xi2_buffer.split(b"\n", 1)
+                            key_witness.feed_bytes(raw_line)
+                    else:
+                        if phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP]:
+                            raise BaselineFailure(
+                                "host_channel_witness_invalid",
+                                "owned channel phase witness was ambiguous",
+                            )
+                        phase_buffer += chunk
+                        if len(phase_buffer) > _CHANNEL_PHASE_BYTES:
+                            raise BaselineFailure(
+                                "host_channel_witness_invalid",
+                                "owned channel phase witness was ambiguous",
+                            )
+                        while len(phase_buffer) >= 8:
+                            phase = phase_buffer[:8]
+                            phase_buffer = phase_buffer[8:]
+                            expected = (
+                                _CHANNEL_PHASE_DISP if not phases else _CHANNEL_PHASE_CLIP
+                                if phases == [_CHANNEL_PHASE_DISP] else None
+                            )
+                            if phase != expected:
+                                raise BaselineFailure(
+                                    "host_channel_witness_invalid",
+                                    "owned channel phase order was invalid",
+                                )
+                            phases.append(phase)
+                if key_witness.complete and phases and not resized:
+                    _resize_owned_display()
+                    resized = True
+                if phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP] and not clip_marked:
+                    if not resized:
+                        raise BaselineFailure(
+                            "host_channel_witness_invalid",
+                            "owned clipboard effect preceded the display effect",
+                        )
+                    _mark_clipboard_effect()
+                    clip_marked = True
+        except BaselineFailure as error:
+            if shadow_log_fd is not None and shadow_log_path is not None:
+                try:
+                    if shadow is not None and shadow.stdout is not None:
+                        shadow_log_size = _drain_shadow_output(
+                            shadow.stdout.fileno(), shadow_log_fd, shadow_log_size,
+                        )
+                    os.fsync(shadow_log_fd)
+                    error.server_resize_requested = _server_resize_requested(
+                        shadow_log_path,
+                    )
+                except BaselineFailure:
+                    error.server_resize_requested = None
+            raise
+        except subprocess.TimeoutExpired as error:
+            if shadow_log_fd is not None and shadow_log_path is not None:
+                try:
+                    if shadow is not None and shadow.stdout is not None:
+                        shadow_log_size = _drain_shadow_output(
+                            shadow.stdout.fileno(), shadow_log_fd, shadow_log_size,
+                        )
+                    os.fsync(shadow_log_fd)
+                    error.server_resize_requested = _server_resize_requested(
+                        shadow_log_path,
+                    )
+                except BaselineFailure:
+                    error.server_resize_requested = None
+            raise
+        finally:
+            selector.close()
+            if gradle is not None and gradle.poll() is None:
+                _stop_owned_process(gradle)
+            if xinput is not None:
+                _stop_owned_process(xinput)
+            if shadow is not None:
+                _stop_owned_process(shadow)
+            if phase_fd is not None:
+                os.close(phase_fd)
+            if shadow_log_fd is not None:
+                os.close(shadow_log_fd)
 
 
 def main() -> int:
@@ -907,26 +1498,42 @@ def main() -> int:
                 Path(temporary) / "launcher",
                 project_android=ROOT / "android",
             )
-            returncode = _run_owned_shadow_baseline(
+            (
+                returncode,
+                channel_evidence,
+                server_resize_requested,
+            ) = _run_owned_shadow_baseline(
                 [
                     *gradle, "--no-daemon",
                     ":app:connectedDebugAndroidTest",
                     f"-Pandroid.testInstrumentationRunnerArguments.class={TEST_CLASS}",
                     "-Pandroid.testInstrumentationRunnerArguments.rdpHost=10.0.2.2",
-                    "-Pandroid.testInstrumentationRunnerArguments.rdpPort=3390",
+                    f"-Pandroid.testInstrumentationRunnerArguments.rdpPort={_SHADOW_PORT}",
                     "-Pandroid.testInstrumentationRunnerArguments.rdpUsername=larenor",
                     "-Pandroid.testInstrumentationRunnerArguments.rdpDomain=LARENOR",
                     f"-Pandroid.testInstrumentationRunnerArguments.rdpPassword={password}",
                 ],
+                runner_temp=runner_temp,
                 timeout=1200,
             )
     except BaselineFailure as error:
-        _publish_failed_run(runner_temp, package_versions, code=error.code)
+        _publish_failed_run(
+            runner_temp,
+            package_versions,
+            code=error.code,
+            server_resize_requested=error.server_resize_requested,
+        )
         raise AcceptanceFailure(str(error)) from None
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as error:
         # TimeoutExpired includes argv, including the disposable credential.
         _publish_failed_run(
-            runner_temp, package_versions, code="instrumentation_timeout")
+            runner_temp,
+            package_versions,
+            code="instrumentation_timeout",
+            server_resize_requested=getattr(
+                error, "server_resize_requested", None,
+            ),
+        )
         raise AcceptanceFailure("packaged RDP instrumentation timed out") from None
     except (AndroidAcceptanceGradleError, OSError):
         _publish_failed_run(
@@ -936,7 +1543,11 @@ def main() -> int:
         raise AcceptanceFailure(
             "packaged RDP instrumentation could not start") from None
     if returncode:
-        _publish_failed_run(runner_temp, package_versions)
+        _publish_failed_run(
+            runner_temp,
+            package_versions,
+            server_resize_requested=server_resize_requested,
+        )
         raise AcceptanceFailure(
             "packaged RDP instrumentation failed; public diagnostics written")
     try:
@@ -945,7 +1556,11 @@ def main() -> int:
         _publish_failed_run(runner_temp, package_versions)
         raise AcceptanceFailure(
             "packaged RDP report failed; public diagnostics written") from None
-    publish_public_receipt(report, runner_temp, package_versions)
+    if channel_evidence is None:
+        raise AcceptanceFailure("owned RDP channel evidence is unavailable")
+    publish_public_receipt(
+        report, runner_temp, package_versions, channel_evidence,
+    )
     return 0
 
 

@@ -79,6 +79,42 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn("git apply --check", patch)
         self.assertIn("freerdp_android_package.py\" verify-patch", patch)
         self.assertIn("<manifest", patch)
+        self.assertLess(
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"'),
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"'),
+        )
+        self.assertLess(
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"'),
+            patch.index('freerdp_android_package.py" verify-patch'),
+        )
+
+    def test_owned_channels_use_exact_source_built_cli_before_android_build(self):
+        steps = self.workflow["jobs"]["package"]["steps"]
+        fixture = next(step for step in steps if step.get("name") ==
+                       "Build exact owned FreeRDP channel fixture")
+        native = next(step for step in steps if "assembleRelease" in step.get("run", ""))
+        self.assertEqual(fixture["if"], "matrix.abi == 'x86_64'")
+        self.assertLess(steps.index(fixture), steps.index(native))
+        for required in (
+            "f62_owned_shadow_channels.py prepare",
+            '"$RUNNER_TEMP/freerdp-3.31.1.tar.gz"',
+            '"$ANDROID_HOME/cmake/4.1.2/bin/cmake"',
+            "f62_owned_shadow_channels.py build",
+            "RDP_ACCEPTANCE_SHADOW_BINARY=",
+            "RDP_ACCEPTANCE_SHADOW_SOURCE=",
+            "server/shadow/cli/freerdp-shadow-cli",
+        ):
+            self.assertIn(required, fixture["run"])
+        text = json.dumps(self.workflow)
+        self.assertNotIn("freerdp3-shadow-x11", text)
+        self.assertNotIn("freerdp-shadow-cli3", text)
+        paths = self.workflow["on"]["pull_request"]["paths"]
+        for required in (
+            "android/freerdp-clipboard-utf8.patch",
+            "tool/f62_owned_shadow_channels.py",
+            "tool/patches/f62-owned-shadow-channels.patch",
+        ):
+            self.assertIn(required, paths)
 
     def test_xorg_preflight_directory_precedes_idempotent_package_copy(self):
         steps = self.workflow["jobs"]["package"]["steps"]
@@ -150,7 +186,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
             if step.get("name") == "Preflight an owned resizable Xorg display"
         )
         host = next(step for step in steps if step.get("name") ==
-                    "Start an owned NLA FreeRDP shadow host")
+                    "Prepare the owned NLA FreeRDP host")
         kvm = next(step for step in steps if step.get("name") ==
                    "Enable hosted KVM for packaged acceptance")
         client = next(step for step in steps if step.get("name") ==
@@ -190,11 +226,13 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         for required in (
             'kill -0 "$(cat "$RUNNER_TEMP/xorg.pid")"',
             "RDP_ACCEPTANCE_XORG_OUTPUT",
-            "openssl rand", "::add-mask::", "winpr-hash3", "/sec:nla",
-            "/sam-file:", "freerdp-shadow-cli3",
+            "openssl rand", "::add-mask::", "winpr-hash3", "umask 077",
+            'chmod 0600 "$RUNNER_TEMP/larenor-rdp.sam"',
             "xdpyinfo", "xmodmap -pke", '$2 == "38"',
         ):
             self.assertIn(required, host["run"])
+        self.assertNotIn("shadow-cli", host["run"])
+        self.assertNotIn("/dev/tcp", host["run"])
         self.assertEqual(client["if"], "matrix.abi == 'x86_64'")
         self.assertRegex(client["uses"],
                          r"^ReactiveCircus/android-emulator-runner@[0-9a-f]{40}$")
@@ -213,8 +251,10 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn('"RDP_ACCEPTANCE_XORG_OUTPUT"', runner)
         self.assertIn('"--output",', runner)
         self.assertIn('"--mode",', runner)
-        self.assertIn('"ownedShadowBaseline"', runner)
-        self.assertIn('"clientDynamicResolution", "clientToRemoteClipboard", "ime"', runner)
+        self.assertIn('"ownedShadowChannels"', runner)
+        self.assertIn('"enabledClientToRemoteClipboard"', runner)
+        self.assertIn('"enabledDisplayControl"', runner)
+        self.assertIn('"disabledClipboardTransfers"', runner)
         self.assertIn("rdpHost=10.0.2.2", runner)
         self.assertIn("rdpPassword={password}", runner)
         self.assertIn('"ownedHostPackages": package_versions', runner)
@@ -226,7 +266,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertNotIn("shell=True", runner)
         self.assertLess(
             runner.index("report = verify_reports()"),
-            runner.index("publish_public_receipt(report"),
+            runner.index("publish_public_receipt(", runner.index("report = verify_reports()")),
         )
         self.assertEqual(cleanup["if"], "always() && matrix.abi == 'x86_64'")
         self.assertIn("shadow xmessage xorg", cleanup["run"])

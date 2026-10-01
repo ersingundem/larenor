@@ -18,7 +18,7 @@ object RdpFreeRdpPackage {
     const val VERSION = "3.31.1"
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
-    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca"
+    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-clipboard-utf8-v1"
     // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
     internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
     internal const val TLS_PROTOCOL = "TLSv1.2"

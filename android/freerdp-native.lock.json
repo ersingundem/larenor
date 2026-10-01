@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "freerdp-3.31.1-63b948ca",
+  "engineRevision": "freerdp-3.31.1-63b948ca-clipboard-utf8-v1",
   "source": {
     "version": "3.31.1",
     "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
@@ -12,10 +12,21 @@
     "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java": "8c82d6e67db089dee2cedc87dd67bc8b83efa5ab",
     "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/SessionState.java": "3b039910bd16d60efe2116fdbb9a22fcabc7f865",
     "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c": "2e1f1c0d099a3ffcee0597090625439228d2441c",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c": "ae8aa24085ebf12b67764da1487dfb5508253702",
     "client/Android/Studio/freeRDPCore/src/main/cpp/CMakeLists.txt": "1123f8515a55c7aaea3663c0cb3097079fc8c0c4",
     "client/Android/Studio/freeRDPCore/build.gradle": "a9337c8ef86497c0b6a5c9c29ded943b84cd2317",
     "client/Android/Studio/gradle/wrapper/gradle-wrapper.properties": "a9db11550c6202b666ed9c44cafdc6726fd5b264"
   },
+  "patches": [
+    {
+      "path": "android/freerdp-certificate-pem.patch",
+      "sha256": "c89ccb10198bd03a848bd4752ffdff7f028476a9f454f5dea4bb8cbbb4d54069"
+    },
+    {
+      "path": "android/freerdp-clipboard-utf8.patch",
+      "sha256": "37b595b5555effeddbd9aecef0a93d8b611389eb3b5660df08e9eae0c54fd341"
+    }
+  ],
   "toolchain": {
     "java": "17",
     "androidPlatform": "37.0",
@@ -45,5 +56,9 @@
   ],
   "requiredJniSymbols": [
     "JNI_OnLoad"
+  ],
+  "requiredNativeEvidence": [
+    "JNI_OnLoad",
+    "ConvertWCharNToUtf8Alloc"
   ]
 }

@@ -5483,13 +5483,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36801363639",
           "commit": "d69cb0bdaecda35e5a7a927dc2f4cfd93ffe1a01",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source owned NLA/frame/key/resize/ACK/close gate with actual Android report-format diagnostics; exact SHA verified, no receipt yet"
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact d69 original1test/1failure/0error/0skip at resizedFrameWait; arm64 package passed, post-resize frame/channel/close acceptance remains unproven"
         }
       ],
       "completionCommit": null,
-      "reason": "Reworking: strict Client/native clipboard software submission is now connected to packaged FreeRDP. Root45 Flutter cases,15 native XML cases/zero failures/errors/skips, receipted production Kotlin compile and full Flutter analyze passed. Explicit foreground plain-text read only; strict UTF8/64KiB/NUL, shared sequence, payload erasure, generation/channel fences, five-second read/submission deadlines and no successor replay. Accepted submission is not remote clipboard readback; the owned NLA shadow fixture lacks cliprdr. Logical display lifecycle previously passed13 native and49 Flutter/window checks. Exact7fccce52/run36797967344 completed failed at the packaged Android/NLA step; Private diagnosis confirms original1 test/1failure/0error/0skip after initial frame/ACK/key and host resize; post-resize frame/ACK/close/credential assertion remains uncertain, five fixed post-resize stage diagnostics preserve all original assertions and now match actual AGP9.4.1/ddmlib32.4.1 no-type XML; root27 parser tests, exact JAR hash/bytecode and277-task receipted AndroidTest compile record verified. Changed-source hosted result still required. Actual Android baseline, cliprdr/clientDISP and physical MANUAL gates remain open. No CI-waiting/done promotion:58 selected/67 total await broad CI;37/127 and3/63 acceptance counters stay unchanged."
+      "reason": "Yeniden çalışılıyor: explicit clientToRemote pano Client/native yolu45 Flutter/15 native ve analyze geçti. Exactd69cb0bd/run36801363639 original1test/1failure/0error/0skip ile resizedFrameWait aşamasında düştü; arm64 paket geçti, Android post-resize frame/kanal/close kabulü yok. İncelenen FreeRDP3.31.1 JNI Unicode düzeltmesi UTF16→standard UTF8, emoji/surrogate/NUL/64KiB ve payload silme sınırlarını korur; yeni engine identity eski AARı reddeder. Root exact release+locked patches ile gerçek x86_64 AARı yeniden derledi ve receipt/verify-install geçti; yeni paketle app/AndroidTest compile ve24 RDP unit/0skip/0failure/0error geçti. Source-built owned Linux shadow fixture actual CLIPRDR/DISP ve iki authenticated lifetime ister: ilkinde gerçek Unicode remote etkisi/DISP→host resize→frame/ACK, ikincide clipboard kapalı/zero transfer. Source/patch/binary/witness hashes bağlıdır; safe serverResizeRequested tanısı sonraki gerçek failureı ayırır. Root105 Python check, actionlint ve diff check geçti; Linux fixture build ve yeni exact hosted gate henüz açık. Geniş HEAD CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı; F62 tamamlandı/CI bekliyor yapılmaz,58/67 ve37/127,3/63 sayaçları korunur."
     },
     {
       "id": "F61",
@@ -5601,7 +5601,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Only active FINAL: evidence-based real Client/Core/provider review.58 selected/67 total completed software items await broad exact HEAD CI. F60 owned Sunshine stream/input/disconnect/gamepad acceptance remains open. F61 exact hosted native receipt passed. F62 clipboard software path now passes45 Flutter/15 native checks and full analyze; actual NLA/cliprdr/clientDISP acceptance remains open. Exact7fccce52/run36797967344 failed the Android/NLA baseline and needs fixed post-resize diagnostics after initial frame/ACK/HID and host resize passed. No second FINAL starts; acceptance counters remain37/127 and3/63."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve uyum incelemesi. Yazılımı/odaklı kabulü tamamlanan58 seçili/toplam67 iş geniş exact HEAD CI bekliyor. F61 gerçek hosted native receipt geçti. F60 gerçek Sunshine stream/input/gamepad/disconnect kabulü hâlâ açık. F62 exactd69 native koşusu resizedFrameWait ile failed; yeni JNI Unicode AARı gerçek rebuild/receipt, app+AndroidTest compile,24 RDP unit ve105 Python kontrolünü geçti. Owned Linux CLIPRDR/DISP iki-lifetime hosted gate ve fiziksel MANUAL kapıları açık. İkinci FINAL başlamaz; tam kabul37/127 ve3/63."
     },
     {
       "id": "FINAL.UI",

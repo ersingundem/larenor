@@ -1,0 +1,110 @@
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -23,7 +23,9 @@
+ #include <errno.h>
+ 
+ #include <winpr/assert.h>
++#include <winpr/crt.h>
+ #include <winpr/image.h>
++#include <winpr/string.h>
+ 
+ #include <freerdp/graphics.h>
+ #include <freerdp/codec/rfx.h>
+@@ -1128,6 +1130,35 @@
+ 		return JNI_FALSE;
+ 	}
+ 	return JNI_TRUE;
++}
++
++#define ANDROID_CLIPBOARD_TEXT_MAX_BYTES (64U * 1024U)
++
++static BOOL android_copy_clipboard_utf16(const jchar* chars, jsize length, WCHAR* wide)
++{
++	if (!chars || !wide || (length <= 0))
++		return FALSE;
++
++	for (jsize x = 0; x < length; x++)
++	{
++		const jchar value = chars[x];
++		if (value == 0)
++			return FALSE;
++		if ((value >= 0xD800U) && (value <= 0xDBFFU))
++		{
++			if ((x + 1 >= length) || (chars[x + 1] < 0xDC00U) ||
++			    (chars[x + 1] > 0xDFFFU))
++				return FALSE;
++			wide[x] = (WCHAR)value;
++			x++;
++			wide[x] = (WCHAR)chars[x];
++			continue;
++		}
++		if ((value >= 0xDC00U) && (value <= 0xDFFFU))
++			return FALSE;
++		wide[x] = (WCHAR)value;
++	}
++	return TRUE;
+ }
+ 
+ JNIEXPORT jboolean JNICALL
+@@ -1138,14 +1169,40 @@
+ {
+ 	WINPR_UNUSED(cls);
+ 	freerdp* inst = (freerdp*)instance;
+-	const char* data = jdata != nullptr ? (*env)->GetStringUTFChars(env, jdata, nullptr) : nullptr;
+-	const size_t data_length = data ? (*env)->GetStringUTFLength(env, jdata) : 0;
+-	jboolean ret = android_push_clipboard_event(inst, data, data_length, "text/plain");
+-	WLog_DBG(TAG, "send_clipboard_data: (%s)", data);
++	const jsize wide_length = jdata ? (*env)->GetStringLength(env, jdata) : 0;
++	const jchar* chars = nullptr;
++	WCHAR* wide = nullptr;
++	char* data = nullptr;
++	size_t data_length = 0;
++	jboolean ret = JNI_FALSE;
+ 
+-	if (data)
+-		(*env)->ReleaseStringUTFChars(env, jdata, data);
++	if ((wide_length <= 0) || ((size_t)wide_length > ANDROID_CLIPBOARD_TEXT_MAX_BYTES))
++		goto out;
++	chars = (*env)->GetStringChars(env, jdata, nullptr);
++	if (!chars)
++		goto out;
++	wide = (WCHAR*)calloc((size_t)wide_length + 1U, sizeof(WCHAR));
++	if (!wide || !android_copy_clipboard_utf16(chars, wide_length, wide))
++		goto out;
++	data = ConvertWCharNToUtf8Alloc(wide, (size_t)wide_length, &data_length);
++	if (!data || (data_length == 0) || (data_length > ANDROID_CLIPBOARD_TEXT_MAX_BYTES))
++		goto out;
++	ret = android_push_clipboard_event(inst, data, data_length, "text/plain");
+ 
++out:
++	if (data)
++	{
++		SecureZeroMemory(data, data_length + 1U);
++		free(data);
++	}
++	if (wide)
++	{
++		SecureZeroMemory(wide, ((size_t)wide_length + 1U) * sizeof(WCHAR));
++		free(wide);
++	}
++	if (chars)
++		(*env)->ReleaseStringChars(env, jdata, chars);
++	WLog_DBG(TAG, "send_clipboard_data: accepted=%d", ret == JNI_TRUE);
+ 	return ret;
+ }
+ 
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c
+@@ -311,7 +311,11 @@
+ {
+ 	if (event)
+ 	{
+-		free(event->data);
++		if (event->data)
++		{
++			SecureZeroMemory(event->data, event->data_length);
++			free(event->data);
++		}
+ 		free(event->mimeType);
+ 		free(event);
+ 	}
