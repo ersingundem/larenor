@@ -16,6 +16,8 @@
 
 ## Son doğrulanan düzeltmeler
 
+F30 medya arşivi artık elapsed EOF/parser hatasını aynı monotonic süre sınırında doğru şekilde sınıflandırır; erken EOF hâlâ protokol hatasıdır. Aynı yazma isteği tekrarlanmaz. Gerçek owned loopback RED→GREEN ve root 10/10 transport testi geçti; **CI bekliyor**. [Dar kanıt](testing/media-archive-deadline-eof-2026-10-01.md).
+
 Backup power-loss fixture’ının yalnız kesilmiş restore/recovery işlemlerindeki süre sınırı 8’den 30 saniyeye çıkarıldı. Hosted committed vaka 8,476 saniye sürdü; süre aşımı güçlü çıkarım, redacted asıl exception nedeniyle kesin kök neden değildir. Dört power-loss ve iki yetkisiz pause vakası root kabulünü geçti; production restore motoru değişmedi. [Dar kanıt ve sınırlar](testing/backup-committed-recovery-2026-10-01.md). Yeni Linux CI sonucu gerekli.
 
 F60 PIN bridge artık kabul edilen bağlantı, peer doğrulaması, okuma ve parse sınırlarını gizli değer içermeyen ayrı durumlarla kaydeder. Terminal bridge hatası yaşayan owned Gradle alt süreci bounded TERM/KILL ile kapatılıp toplanır; bitmiş Gradle sonucu korunur. Root 60 stream/discovery ve 10 workflow testi geçti. Strict tek named test, gerçek frame/PCM/input/iki yaşam/kapanış kapıları değişmedi; F60 **yeniden çalışılıyor**, yeni kaynaklı hosted kabul açık. [Dar kanıt](testing/f60-pin-transport-observation-2026-10-01.md).

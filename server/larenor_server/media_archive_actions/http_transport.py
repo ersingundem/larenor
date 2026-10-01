@@ -82,7 +82,8 @@ class UnmanicLoopbackHttpTransport:
         except (socket.timeout, TimeoutError):
             raise UnmanicHttpError("unmanic_deadline_exceeded") from None
         except ProbeTransportError as error:
-            code = ("unmanic_deadline_exceeded" if error.code == "request_timeout"
+            code = ("unmanic_deadline_exceeded"
+                    if error.code == "request_timeout" or time.monotonic() >= deadline
                     else "unmanic_protocol_changed")
             raise UnmanicHttpError(code) from None
         except (OSError, ValueError, TypeError):

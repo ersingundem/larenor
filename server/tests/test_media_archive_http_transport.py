@@ -8,12 +8,14 @@ import time
 
 import pytest
 
+from larenor_server.media_archive_actions import http_transport
 from larenor_server.media_archive_actions.http_transport import UnmanicLoopbackHttpTransport
 from larenor_server.media_archive_actions.unmanic import UnmanicAdapter, UnmanicHttpError, UnmanicRequest
+from larenor_server.services.transport import ProbeTransportError
 
 
 @contextmanager
-def endpoint(status=200, *, hang=False, duplicate_type=False, oversized=False):
+def endpoint(status=200, *, hang=False, empty=False, duplicate_type=False, oversized=False):
     calls = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -28,6 +30,8 @@ def endpoint(status=200, *, hang=False, duplicate_type=False, oversized=False):
             calls.append((self.command, self.path, dict(self.headers), raw))
             if hang:
                 time.sleep(0.15)
+                return
+            if empty:
                 return
             body = json.dumps({"success": True}).encode()
             self.send_response(status)
@@ -80,6 +84,32 @@ def test_redirect_ambiguous_headers_and_oversized_response_are_rejected(options)
 
 def test_timeout_never_repeats_a_write():
     with endpoint(hang=True) as (exchange, calls):
+        with pytest.raises(UnmanicHttpError) as raised:
+            UnmanicAdapter(exchange, timeout=0.04).delete_pending([31])
+        assert raised.value.code == "unmanic_deadline_exceeded"
+        assert len(calls) == 1
+
+
+def test_eof_before_deadline_remains_protocol_changed():
+    with endpoint(empty=True) as (exchange, calls):
+        with pytest.raises(UnmanicHttpError) as raised:
+            UnmanicAdapter(exchange, timeout=0.5).delete_pending([31])
+        assert raised.value.code == "unmanic_protocol_changed"
+        assert len(calls) == 1
+
+
+def test_eof_classification_uses_the_deadline_at_the_error_boundary(monkeypatch):
+    original = http_transport._response
+
+    def delayed_error(*args, **kwargs):
+        try:
+            return original(*args, **kwargs)
+        except ProbeTransportError:
+            time.sleep(0.06)
+            raise
+
+    monkeypatch.setattr(http_transport, "_response", delayed_error)
+    with endpoint(empty=True) as (exchange, calls):
         with pytest.raises(UnmanicHttpError) as raised:
             UnmanicAdapter(exchange, timeout=0.04).delete_pending([31])
         assert raised.value.code == "unmanic_deadline_exceeded"
