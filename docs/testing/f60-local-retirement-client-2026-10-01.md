@@ -69,7 +69,7 @@ flutter analyze \
 The native/Core owned-host gate must separately prove that `local_cleared`
 removes the exact local mapping while the exact Sunshine pairing remains
 present. That partial receipt is named `streamAndLocalRetirement`; it is not
-provider-pairing-removal evidence and does not complete F60 acceptance.
+provider-pairing-removal evidence. Playback/input/unexpected-disconnect and broad commit CI gates still remain; automatic provider-admin deletion is outside the current product action.
 
 ## Primary sources
 

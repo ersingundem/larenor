@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../core/window/window_policy_models.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/widgets/app_page_scaffold.dart';
@@ -64,11 +65,12 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   bool _rememberCredential = false;
   String? _settingsNotice;
   bool _resumed = true, _focused = true, _retired = false;
+  WindowDisplayIdentity? _controllerDisplayIdentity;
 
-  bool? _loadedExternalDisplay() {
+  WindowDisplayIdentity? _loadedDisplayIdentity() {
     final state = ref.read(windowPolicySnapshotProvider);
     if (!state.hasValue || state.isLoading || state.hasError) return null;
-    return state.requireValue.isExternalDisplay;
+    return state.requireValue.displayIdentity;
   }
 
   bool _current() {
@@ -127,9 +129,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _factory ??= ref.read(rdpEngineFactoryProvider);
     _trust ??= widget.securityStore ?? ref.read(rdpTrustStoreProvider);
     _security ??= widget.securityStore ?? ref.read(rdpSecurityStoreProvider);
-    _controller ??= _newController(
-      externalDisplay: _loadedExternalDisplay() ?? false,
-    )..addListener(_changed);
+    _controller ??= _newController(displayIdentity: _loadedDisplayIdentity())
+      ..addListener(_changed);
     if (!_settingsStarted) {
       _settingsStarted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
@@ -146,7 +147,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     }
   }
 
-  RdpSessionController _newController({required bool externalDisplay}) {
+  RdpSessionController _newController({
+    required WindowDisplayIdentity? displayIdentity,
+  }) {
+    _controllerDisplayIdentity = displayIdentity;
     final media = MediaQuery.of(context), size = media.size;
     var width = (size.width * media.devicePixelRatio).round().clamp(640, 8192),
         height = (size.height * media.devicePixelRatio).round().clamp(
@@ -163,30 +167,27 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       credentialVault: _security,
       engineFactory: _factory!,
       isCurrent: () =>
-          _current() && _loadedExternalDisplay() == externalDisplay,
+          _current() &&
+          displayIdentity != null &&
+          _loadedDisplayIdentity() == displayIdentity,
       display: RdpDisplaySpec(
         width: width,
         height: height,
         dpi: (160 * media.devicePixelRatio).round().clamp(72, 640),
-        externalDisplay: externalDisplay,
+        externalDisplay: displayIdentity?.isExternalDisplay ?? false,
       ),
       settings: _settings,
     );
   }
 
-  void _replaceController({bool? externalDisplay}) {
-    final nextExternal =
-        externalDisplay ??
-        _loadedExternalDisplay() ??
-        _controller?.display.externalDisplay ??
-        false;
-    if (_controller?.display.externalDisplay == nextExternal &&
-        externalDisplay != null) {
-      return;
-    }
+  void _replaceController({
+    required WindowDisplayIdentity? displayIdentity,
+    bool force = false,
+  }) {
+    if (!force && _controllerDisplayIdentity == displayIdentity) return;
     _controller?.removeListener(_changed);
     _controller?.dispose();
-    _controller = _newController(externalDisplay: nextExternal)
+    _controller = _newController(displayIdentity: displayIdentity)
       ..addListener(_changed);
   }
 
@@ -208,7 +209,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       _settings = value;
       _fillSettings(value);
       _settingsLoaded = true;
-      _replaceController();
+      _replaceController(
+        displayIdentity: _loadedDisplayIdentity(),
+        force: true,
+      );
       if (mounted) setState(() {});
     } catch (_) {
       if (_current() && mounted) {
@@ -221,20 +225,18 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }
 
   Future<void> _connect() async {
-    final before = _loadedExternalDisplay();
+    final before = _loadedDisplayIdentity();
     if (before == null) return;
-    if (_controller?.display.externalDisplay != before) {
-      _replaceController(externalDisplay: before);
+    if (_controllerDisplayIdentity != before) {
+      _replaceController(displayIdentity: before);
     }
     if (!_settingsLoaded) await _loadSettings();
-    final after = _loadedExternalDisplay();
+    final after = _loadedDisplayIdentity();
     if (after == null || after != before) {
-      if (after != null) _replaceController(externalDisplay: after);
+      _replaceController(displayIdentity: after);
       return;
     }
-    if (_current() &&
-        _settingsLoaded &&
-        _controller?.display.externalDisplay == after) {
+    if (_current() && _settingsLoaded && _controllerDisplayIdentity == after) {
       await _controller!.connect();
     }
   }
@@ -269,7 +271,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       await _security!.saveSettings(widget.profile, value, isCurrent: _current);
       if (!_current()) return;
       _settings = value;
-      _replaceController();
+      _replaceController(
+        displayIdentity: _loadedDisplayIdentity(),
+        force: true,
+      );
       setState(() => _settingsNotice = 'saved');
     } catch (_) {
       if (_current()) setState(() => _settingsNotice = 'failed');
@@ -377,9 +382,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                   !value.hasWindowFocus ||
                   value.isPictureInPicture)) {
         _retire();
-      } else if (_controller?.display.externalDisplay !=
-          value.isExternalDisplay) {
-        _replaceController(externalDisplay: value.isExternalDisplay);
+      } else if (_controllerDisplayIdentity != value.displayIdentity) {
+        _replaceController(displayIdentity: value.displayIdentity);
         if (mounted) setState(() {});
       } else if (!_settingsLoaded && !_settingsBusy) {
         unawaited(_loadSettings());
@@ -387,6 +391,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     });
     ref.watch(windowPolicySnapshotProvider);
     final l = AppLocalizations.of(context), c = _controller!;
+    final displayIdentity = _loadedDisplayIdentity();
     Widget action(String key, String title, VoidCallback? callback) =>
         SettingsActionTile(
           key: ValueKey(key),
@@ -444,7 +449,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                       child: Semantics(
                         liveRegion: true,
                         child: Text(
-                          _status(l, c),
+                          displayIdentity == null
+                              ? l.windowUnsupported
+                              : _status(l, c),
                           key: const ValueKey('rdp-status'),
                         ),
                       ),
@@ -609,7 +616,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           action(
                             'rdp-check',
                             l.rdpCheck,
-                            () => unawaited(_connect()),
+                            displayIdentity == null
+                                ? null
+                                : () => unawaited(_connect()),
                           ),
                         if (c.phase == RdpSessionPhase.certificate) ...[
                           Padding(
@@ -678,7 +687,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                             ),
                           ),
                         ],
-                        if (c.phase == RdpSessionPhase.connected) ...[
+                        if (c.phase == RdpSessionPhase.connected &&
+                            displayIdentity != null) ...[
                           _RdpInputSurface(
                             controller: c,
                             label: l.rdpInputReady,
@@ -719,7 +729,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           action(
                             'rdp-reconnect',
                             l.rdpReconnect,
-                            () => unawaited(c.reconnect()),
+                            displayIdentity == null
+                                ? null
+                                : () => unawaited(c.reconnect()),
                           ),
                       ],
                     ),

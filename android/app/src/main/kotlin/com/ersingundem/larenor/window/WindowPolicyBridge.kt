@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.res.Configuration
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -30,6 +31,24 @@ class WindowPolicyBridge(
     private val handler = Handler(Looper.getMainLooper())
     private val decor = activity.window.decorView
     private val controller = WindowPolicyController(this)
+    private val displayManager = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    private val displayGenerations = WindowDisplayGeneration()
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {
+            advanceDisplayGeneration(displayId)
+            controller.refresh(force = true)
+        }
+
+        override fun onDisplayChanged(displayId: Int) {
+            controller.refresh(force = true)
+        }
+
+        override fun onDisplayRemoved(displayId: Int) {
+            advanceDisplayGeneration(displayId)
+            controller.refresh(force = true)
+        }
+    }
+    private var displayListening = false
     private var resumed = false
     private var disposed = false
     private var sink: EventChannel.EventSink? = null
@@ -44,6 +63,12 @@ class WindowPolicyBridge(
         methods.setMethodCallHandler(this)
         events.setStreamHandler(this)
         controller.onChanged = { sink?.success(it) }
+        displayListening = try {
+            displayManager.registerDisplayListener(displayListener, handler)
+            true
+        } catch (_: RuntimeException) {
+            false
+        }
         attachObserver()
     }
 
@@ -99,14 +124,16 @@ class WindowPolicyBridge(
 
     override fun readEnvironment(): WindowEnvironment {
         val insets = ViewCompat.getRootWindowInsets(decor)
-        val display = decor.display
+        val display = observeWindowDisplay(decor.display, displayListening, displayGenerations)
         return WindowEnvironment(
             resumed = resumed,
             focused = decor.hasWindowFocus(),
             multiWindow = activity.isInMultiWindowMode,
             pictureInPicture = Build.VERSION.SDK_INT >= 26 && activity.isInPictureInPictureMode,
-            externalDisplay = display != null && display.displayId != Display.DEFAULT_DISPLAY,
-            displayKnown = display != null,
+            externalDisplay = display.external,
+            displayKnown = display.known,
+            displayId = display.id,
+            displayRevision = display.revision,
             desktopMode = activity.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK == Configuration.UI_MODE_TYPE_DESK,
             captionVisible = insets?.isVisible(WindowInsetsCompat.Type.captionBar()),
             imeVisible = insets?.isVisible(WindowInsetsCompat.Type.ime()),
@@ -151,14 +178,61 @@ class WindowPolicyBridge(
         return WindowCancellation { handler.removeCallbacks(work) }
     }
 
+    private fun advanceDisplayGeneration(displayId: Int) {
+        if (displayId < 0) return
+        displayGenerations.lifecycle(displayId)
+    }
+
     fun dispose() {
         if (disposed) return
         disposed = true
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
         sink = null
-        viewObserver?.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(layoutObserver)
+        runWindowPolicyCleanup(
+            {
+                if (displayListening) {
+                    displayManager.unregisterDisplayListener(displayListener)
+                }
+            },
+            { viewObserver?.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(layoutObserver) },
+            controller::dispose,
+        )
+        displayListening = false
         viewObserver = null
-        controller.dispose()
     }
+}
+
+internal fun runWindowPolicyCleanup(vararg steps: () -> Unit) {
+    for (step in steps) {
+        try {
+            step()
+        } catch (_: RuntimeException) {
+            // Each independent observer/controller cleanup must still run.
+        }
+    }
+}
+
+internal data class WindowDisplayObservation(
+    val known: Boolean,
+    val external: Boolean,
+    val id: Int?,
+    val revision: Long?,
+)
+
+internal fun observeWindowDisplay(
+    display: Display?,
+    listening: Boolean,
+    generations: WindowDisplayGeneration,
+): WindowDisplayObservation {
+    if (display == null || !display.isValid) {
+        return WindowDisplayObservation(false, false, null, null)
+    }
+    val id = display.displayId
+    return WindowDisplayObservation(
+        known = true,
+        external = id != Display.DEFAULT_DISPLAY,
+        id = if (listening) id else null,
+        revision = if (listening) generations.current(id) else null,
+    )
 }

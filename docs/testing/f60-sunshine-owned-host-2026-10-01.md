@@ -209,7 +209,7 @@ No changed-source hosted success is claimed.
 This slice does not yet prove Xvfb capture, CPU H.264 encoder initialization, emulator mDNS
 visibility, cryptographic pairing, NvHTTP catalog/launch, RTP transport,
 MediaCodec decoded frames, Android audio, causal stop, restart reconciliation,
-or owned-client absence after unpair.
+or exact local registration absence after tablet retirement. Sunshine pairing remains; administrator removal is a separate manual operation.
 
 The later combined gate must run the packaged APK against this owned host and
 record only a sanitized public receipt. A passing owned fixture would cover
@@ -227,7 +227,7 @@ its exact source/package/dependency identity and SHA-256
 Artifact `11131388820`, `f60-sunshine-owned-host-36791861104`, also matched the
 GitHub artifact digest. The receipt says `host_ready`, X11/software/H264 and
 `streamAccepted: false`. No Android discovery, pairing, rendered frame, audio,
-input, stop or unpair acceptance follows from that host-only result.
+input, stop or local-retirement acceptance follows from that host-only result.
 
 [Discovery run36791864541](https://github.com/ersingundem/larenor/actions/runs/36791864541)
 at the same exact source failed before instrumentation with

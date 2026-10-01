@@ -9,6 +9,8 @@ data class WindowEnvironment(
     val pictureInPicture: Boolean = false,
     val externalDisplay: Boolean = false,
     val displayKnown: Boolean = false,
+    val displayId: Int? = null,
+    val displayRevision: Long? = null,
     val desktopMode: Boolean = false,
     val captionVisible: Boolean? = null,
     val imeVisible: Boolean? = null,
@@ -19,6 +21,30 @@ data class WindowEnvironment(
 )
 
 data class WindowDecision(val mode: String, val reason: String, val hide: Boolean = false)
+
+/** Process-local logical-display incarnation fence; it is not hardware identity. */
+internal class WindowDisplayGeneration {
+    private val generations = mutableMapOf<Int, Long>()
+
+    @Synchronized
+    fun current(displayId: Int): Long {
+        require(displayId >= 0)
+        return generations.getOrPut(displayId) { 1L }
+    }
+
+    @Synchronized
+    fun lifecycle(displayId: Int): Long {
+        require(displayId >= 0)
+        val current = generations[displayId] ?: 0L
+        val next = if (current >= MAX_REVISION) 1L else current + 1L
+        generations[displayId] = next
+        return next
+    }
+
+    private companion object {
+        const val MAX_REVISION = 9_007_199_254_740_991L
+    }
+}
 
 object WindowPolicy {
     fun decide(profile: WindowProfile, env: WindowEnvironment, imeSettling: Boolean = false): WindowDecision {
@@ -129,6 +155,8 @@ class WindowPolicyController(private val host: WindowPolicyHost) {
             "isMultiWindow" to env.multiWindow,
             "isPictureInPicture" to env.pictureInPicture,
             "isExternalDisplay" to env.externalDisplay,
+            "displayId" to env.displayId,
+            "displayRevision" to env.displayRevision,
             "captionVisible" to env.captionVisible,
             "imeVisible" to env.imeVisible,
             "statusBarVisible" to env.statusBarVisible,

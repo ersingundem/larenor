@@ -32,6 +32,31 @@ class WindowPolicyTest {
         }
     }
 
+    @Test fun displayLifecycleGenerationFencesIdReuseWithoutInventingHardwareIdentity() {
+        val generations = WindowDisplayGeneration()
+        assertEquals(1L, generations.current(4))
+        assertEquals(1L, generations.current(4))
+        assertEquals(2L, generations.lifecycle(4)) // Removed.
+        assertEquals(3L, generations.lifecycle(4)) // Same logical ID added again.
+        assertEquals(3L, generations.current(4))
+        assertEquals(1L, generations.lifecycle(7))
+        assertEquals(1L, generations.current(7))
+    }
+
+    @Test fun snapshotCarriesOnlyCurrentLogicalDisplayAndProcessRevision() {
+        val host = Host(eligible.copy(
+            externalDisplay = true,
+            displayId = 4,
+            displayRevision = 3,
+        ))
+        val snapshot = WindowPolicyController(host).snapshot()
+        assertEquals(true, snapshot["isExternalDisplay"])
+        assertEquals(4, snapshot["displayId"])
+        assertEquals(3L, snapshot["displayRevision"])
+        assertFalse(snapshot.containsKey("displayName"))
+        assertFalse(snapshot.containsKey("displayUniqueId"))
+    }
+
     @Test fun defaultNeverHidesAndEveryRestrictionPreventsPanelHide() {
         val variants = listOf(
             eligible.copy(resumed = false) to "notForeground",

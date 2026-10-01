@@ -34,8 +34,9 @@ F04–F06, F09, F13–F16 ve F19–F21'de bu tarama yeni dummy/ölü normal
 production yolu bulmadı. Bu gözlem kapsamlı CI veya fiziksel cihaz kabulünün
 yerine geçmez. F15 configured component worker gerektirir; F16 effect-disabled
 geçici Core restore çalıştırır; F21 player raporu ve yerel playback/seek uygular.
-F09 ve diğer yeniden açılan görevlere bağlı işler bağımlılık kapanana kadar
-kuyrukta pending kalır; tamamlanan kod dilimleri silinmiş sayılmaz.
+Bu eski taramada yeniden açılan bağımlılıklar daha sonra aşağıdaki kabul
+dilimlerinde kapatıldı. Güncel kuyrukta F09 dahil 58 seçili özellik/toplam67 iş
+CI bekliyor; F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktiftir.
 
 F42 gerçek Frigate/FFmpeg yolu ve F57 gerçek mqtt_room yolu odaklı normal Core
 ve gerçek Flutter TCP kabulünden geçti. F55'in UID10004 Zigbee2MQTT worker'ı da
@@ -93,7 +94,7 @@ F59 authenticated service catalog ve inline Client kayıt akışı tamamlandı; 
 
 F20 adlandırılmış gerçek Flutter→normal Core TCP iki yaşamında pin/compare/rotate ve restart doğrulamasını geçti. Gerçek HMAC tamper sonrası startup fail/no reset root tarafından doğrulandı; exact checkpoint query transport boşluğu kapandı. `awaiting_ci`; fiziksel secure-storage ve geniş exact CI ayrı.
 
-F19 iki bağımsız gerçek Core, gerçek Client registry ve owned Jellyfin TCP iki fazında kabul edildi; `awaiting_ci`. F37 kabulündeki edit history eksikliği gerçek kod incelemesinde bulundu ve yalnız bu özellik aktif geliştirmeye alındı; ödeme/create/export varlığı tam kabul sayılmaz.
+F19 iki bağımsız gerçek Core, gerçek Client registry ve owned Jellyfin TCP iki fazında kabul edildi; `awaiting_ci`. F37 incelemesinde bulunan edit history eksikliği aşağıdaki immutable correction dilimiyle kapandı; güncel durumu `awaiting_ci`dir.
 
 F13 actual Client→normal Core→owned RFC1918 HA iki yaşamında configure/restart/revoke ve exact iki GET/sıfır üçüncü çağrı kapısını geçti; `awaiting_ci`. Fiziksel ağ ve broad exact CI açık kalır.
 
@@ -179,14 +180,14 @@ F62 latest source-bound result: exact1259f39e/run36786452264 original method/1te
 
 F60 owned Sunshine host hazırlığı pinned Ubuntu paket/TLS/API/Xvfb/PulseAudio/mDNS sınırlarını uygular; root47 host/policy testi geçti. Yeni hosted smoke henüz çalışmadı ve host_ready/streamAccepted=false receipt gerçek Android keşif/eşleme/yayın/girdi/stop/revoke kabulü yerine sayılmaz. F60 yeniden çalışılıyor ve sayaçlar korunur. [Owned host kanıtı](f60-sunshine-owned-host-2026-10-01.md).
 
-F60 current integration: normal Core/Client/native v2 paths, PIN/current authority, durable cleanup and fresh-screen instance identity are wired. Native45/45, Flutter86+1 expected runner-only skip, scoped analyze, verified embedded/default APKs passed; root actual normal Core TCP1/1 and80 tool/queue/progress checks independently passed. Three hosted owned-Sunshine readiness runs produced no receipt; full production NSD/pairing/stream/frame/audio/input/stop/unpair remains open. The new discovery-only workflow is strict source/package-bound and never calls this a stream acceptance. F60 stays reworking and58 selected/67 total tasks await broad CI. See [integration evidence](f60-moonlight-embedded-integration-2026-10-01.md).
+F60 current integration: normal Core/Client/native v2 paths, PIN/current authority, durable cleanup and fresh-screen instance identity are wired. Native45/45, Flutter86+1 expected runner-only skip, scoped analyze, verified embedded/default APKs passed; root actual normal Core TCP1/1 and80 tool/queue/progress checks independently passed. Three hosted owned-Sunshine readiness runs produced no receipt; full production NSD/pairing/stream/frame/audio/input/stop/local retirement remains open. The new discovery-only workflow is strict source/package-bound and never calls this a stream acceptance. F60 stays reworking and58 selected/67 total tasks await broad CI. See [integration evidence](f60-moonlight-embedded-integration-2026-10-01.md).
 
 F60 latest host result: exact768a5111/run36791861104 passed canonical owned Sunshine
 host_ready receipt (SHA256905cee98), independently verified by root; streamAccepted=false.
 The same exact Android discovery run36791864541 never entered instrumentation:
 output_must_not_exist came from the workflow pre-created work directory. The narrow
 mkdir repair passed7 discovery regression tests/actionlint. Real production NSD and
-full pairing/stream/frame/audio/input/stop/unpair receipts remain open; F60 stays
+full pairing/stream/frame/audio/input/stop/local retirement receipts remain open; F60 stays
 reworking and58 selected/67 total tasks await broad CI.
 
 F62 latest actual result: exact7f673d55/run36789173329 passed TLS/NLA/SPKI and
@@ -203,8 +204,25 @@ F62 capability/authentication correction: IME unavailable, explicit conservative
 
 F62 owned display fixture correction: bare Xvfb resizing was not valid evidence. A direct Xorg dummy display now requires exact single-output CRTC and framebuffer transitions before the AAR build, with candidate-version install/readback. The precreated package directory is handled idempotently;31 runner/workflow checks passed. Actual changed-source hosted Xorg/FreeRDP execution remains open and does not promote the feature. See [owned shadow baseline](f62-owned-shadow-baseline-2026-10-01.md).
 
-F60 primary-source blocker reconciliation: Moonlight GET `/unpair` is absent from the pinned Sunshine NvHTTP routes. The v2 Core/Dart `local_cleared` contract requires real local registration retirement/readback; provider pairing removal is a separate unaccepted boundary. Owned admin teardown never proves product revocation. Discovery run36792376426 at exact04552c7 failed emulator boot before Python/NSD, after the receipted engine build. It proves neither discovery success nor a Sunshine fault. F60 remains reworking and all counters/CI-waiting labels remain unchanged.
+F60 primary-source blocker reconciliation: Moonlight GET `/unpair` is absent from the pinned Sunshine NvHTTP routes. The v2 Core/Dart `local_cleared` contract requires real local registration retirement/readback; provider pairing removal is a separate manual Sunshine administrator operation, outside the tablet-only product action. Owned admin teardown never proves product revocation. Discovery run36792376426 at exact04552c7 failed emulator boot before Python/NSD, after the receipted engine build. It proves neither discovery success nor a Sunshine fault. F60 remains reworking and all counters/CI-waiting labels remain unchanged.
 
 F62 partial hosted evidence: exacte05df8ea/run36794954941, package(x86_64), named owned-Xorg preflight completed successfully. Root independently verified exact source and step result. This proves Linux single-output CRTC/root shrink+restore only; full Android/shadow and feature acceptance remain open. Counters/statuses stay unchanged.
 
 F60 changed-source harness now requires usable hosted KVM and supported SwiftShader; the prior boot timeout occurred before provider code. Its named stream gate emits only `streamAndLocalRetirement`, `featureAccepted=false` and `providerPairingRemoved=false`; cancellation unwinds owned resources and strict Avahi stop precedes artifact upload. Root independently passed 95 focused tool/queue/progress checks plus actionlint. New hosted stream acceptance remains open.
+
+## 1 Ekim actual CI hata uzlaşması
+
+Exact0036260b F60 discovery36796250482 ve stream36796253857 engine/KVM
+kapılarını geçti; `tool` modülü bulunamadığı için provider workspace, NSD ve
+instrumentation başlamadan başarısız oldu.1887ff9a repo-root module çağrısı
+ve regresyonlarını taşır; yeni discovery36797303341/stream36797304940 bu exact
+kaynak üzerinde başladı. Hosted receipt henüz yoktur.
+
+F62 exacte05df8ea/run36794954941 gerçek Xorg preflightı ve iki ABI APK
+buildini geçti; dış XI2 witness ilgisiz UTF8 satırını ASCII çözerken düştü.
+Terminal JUnit sayımı yoktur.1887ff9a byte parserı eski kaynağa karşı aynı
+RED→GREEN regresyonu geçti; root91 birleşik workflow/runner/kuyruk/progress
+kontrolünü ve actionlinti doğruladı. Android frame/key/resize/close kabulü
+açık kalır. Bu düzeltmeler sayaçları veya F60/F62 durumunu artırmaz.
+
+The F62 logical-display slice passed root49 Flutter RDP/window cases and13 native Window XML cases without skips/failures/errors. Removed Display objects cannot supply a tuple (`Display.isValid()`), stream closure emits unknown before completion, and tuple changes dispose without automatic reconnect. Scope is observed logical lifecycle only; physical identity and real hosted channel acceptance remain open.

@@ -77,10 +77,12 @@ proof booleans.
 software key effect, stop, and local binding retirement. The same receipt says
 `featureAccepted: false`, `localBindingCleared: true`,
 `providerPairingRemoved: false`, and records provider pairing removal as
-`unaccepted`. Source implementation and local unit tests are not streaming
+`unaccepted` as an out-of-scope/manual provider-admin boundary, not as a missing required tablet-removal feature. Source implementation and local unit tests are not streaming
 acceptance, and this partial scope does not complete F60 functional acceptance.
 
 ## Current unpair compatibility boundary
+
+The supported product promise is tablet-only removal with `local_cleared|unknown`, as the Client explicitly explains. Automatic Sunshine administrator pairing deletion is an optional separate capability; it is not a mandatory F60 acceptance step. The partial stream gate still cannot close touch/gamepad, unexpected-disconnect, physical latency, or broad commit CI acceptance.
 
 The pinned Moonlight client implements `NvHTTP.unpair()` as an unauthenticated
 GameStream `GET /unpair`. The pinned Sunshine `nvhttp.cpp` does not register

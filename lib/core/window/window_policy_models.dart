@@ -19,9 +19,38 @@ enum WindowRestrictionReason {
 
 enum WindowLockTaskState { none, pinned, locked, unknown }
 
+typedef WindowDisplayIdentity = ({
+  int displayId,
+  int displayRevision,
+  bool isExternalDisplay,
+});
+
 /// Observations describe the current Activity; a hide request is not proof
 /// that Android has hidden its bars or locked the device.
 class WindowPolicySnapshot {
+  static const _legacyKeys = <String>{
+    'supported',
+    'requestedProfile',
+    'effectiveMode',
+    'reason',
+    'isResumed',
+    'hasWindowFocus',
+    'isMultiWindow',
+    'isPictureInPicture',
+    'isExternalDisplay',
+    'captionVisible',
+    'imeVisible',
+    'statusBarVisible',
+    'navigationBarVisible',
+    'lockTaskPermitted',
+    'lockTaskState',
+  };
+  static const _displayKeys = <String>{
+    ..._legacyKeys,
+    'displayId',
+    'displayRevision',
+  };
+
   const WindowPolicySnapshot({
     this.supported = false,
     this.requestedProfile = WindowProfile.adaptive,
@@ -32,6 +61,8 @@ class WindowPolicySnapshot {
     this.isMultiWindow = false,
     this.isPictureInPicture = false,
     this.isExternalDisplay = false,
+    this.displayId,
+    this.displayRevision,
     this.captionVisible,
     this.imeVisible,
     this.statusBarVisible,
@@ -49,6 +80,8 @@ class WindowPolicySnapshot {
   final bool isMultiWindow;
   final bool isPictureInPicture;
   final bool isExternalDisplay;
+  final int? displayId;
+  final int? displayRevision;
   final bool? captionVisible;
   final bool? imeVisible;
   final bool? statusBarVisible;
@@ -56,13 +89,29 @@ class WindowPolicySnapshot {
   final bool? lockTaskPermitted;
   final WindowLockTaskState lockTaskState;
 
+  WindowDisplayIdentity? get displayIdentity {
+    final id = displayId, revision = displayRevision;
+    if (id == null || revision == null) return null;
+    return (
+      displayId: id,
+      displayRevision: revision,
+      isExternalDisplay: isExternalDisplay,
+    );
+  }
+
   static const unknown = WindowPolicySnapshot(
     supported: true,
     reason: WindowRestrictionReason.unknown,
   );
 
   factory WindowPolicySnapshot.fromChannel(Object? raw) {
-    if (raw is! Map || raw.length != 15) _invalid();
+    if (raw is! Map) _invalid();
+    final keys = raw.length == _legacyKeys.length
+        ? _legacyKeys
+        : raw.length == _displayKeys.length
+        ? _displayKeys
+        : null;
+    if (keys == null || !raw.keys.every(keys.contains)) _invalid();
     bool requiredBool(String key) {
       final value = raw[key];
       if (value is! bool) _invalid();
@@ -84,6 +133,19 @@ class WindowPolicySnapshot {
       _invalid();
     }
 
+    final hasDisplayId = keys == _displayKeys;
+    int? displayInteger(String key, int minimum, int maximum) {
+      if (!hasDisplayId || raw[key] == null) return null;
+      final value = raw[key];
+      if (value is! int || value < minimum || value > maximum) _invalid();
+      return value;
+    }
+
+    if (hasDisplayId &&
+        ((raw['displayId'] == null) != (raw['displayRevision'] == null))) {
+      _invalid();
+    }
+
     return WindowPolicySnapshot(
       supported: requiredBool('supported'),
       requestedProfile: enumeration('requestedProfile', WindowProfile.values),
@@ -94,6 +156,8 @@ class WindowPolicySnapshot {
       isMultiWindow: requiredBool('isMultiWindow'),
       isPictureInPicture: requiredBool('isPictureInPicture'),
       isExternalDisplay: requiredBool('isExternalDisplay'),
+      displayId: displayInteger('displayId', 0, 0x7fffffff),
+      displayRevision: displayInteger('displayRevision', 1, 9007199254740991),
       captionVisible: optionalBool('captionVisible'),
       imeVisible: optionalBool('imeVisible'),
       statusBarVisible: optionalBool('statusBarVisible'),

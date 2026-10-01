@@ -66,7 +66,13 @@ class WindowPolicyBridge {
             }
           },
           onError: (Object _) => sink.add(WindowPolicySnapshot.unknown),
-          onDone: sink.close,
+          onDone: () {
+            scheduleMicrotask(() {
+              if (cancelled) return;
+              sink.add(WindowPolicySnapshot.unknown);
+              sink.close();
+            });
+          },
         );
       });
       sink.onCancel = () {

@@ -7,7 +7,12 @@ import 'package:larenor/core/window/window_policy_bridge.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/core/window/window_policy_providers.dart';
 
-Map<String, Object?> packet({String mode = 'adaptive'}) => {
+Map<String, Object?> packet({
+  String mode = 'adaptive',
+  int? displayId = 0,
+  int? displayRevision = 1,
+  bool legacy = false,
+}) => {
   'supported': true,
   'requestedProfile': 'adaptive',
   'effectiveMode': mode,
@@ -17,6 +22,8 @@ Map<String, Object?> packet({String mode = 'adaptive'}) => {
   'isMultiWindow': false,
   'isPictureInPicture': false,
   'isExternalDisplay': false,
+  if (!legacy) 'displayId': displayId,
+  if (!legacy) 'displayRevision': displayRevision,
   'captionVisible': null,
   'imeVisible': null,
   'statusBarVisible': true,
@@ -52,6 +59,15 @@ void main() {
     expect(result.statusBarVisible, isTrue);
     expect(result.captionVisible, isNull);
     expect(result.lockTaskState, WindowLockTaskState.unknown);
+    expect(result.displayIdentity, (
+      displayId: 0,
+      displayRevision: 1,
+      isExternalDisplay: false,
+    ));
+    expect(
+      WindowPolicySnapshot.fromChannel(packet(legacy: true)).displayIdentity,
+      isNull,
+    );
     for (final invalid in [
       null,
       {},
@@ -60,6 +76,11 @@ void main() {
       {...packet(), 'captionVisible': 0},
       {...packet(), 'requestedProfile': 'kiosk'},
       {...packet(), 'private': 'fixture-secret'},
+      {...packet(legacy: true), 'extraOne': 1, 'extraTwo': 2},
+      {...packet()}..remove('displayRevision'),
+      packet(displayId: null, displayRevision: 1),
+      packet(displayId: -1),
+      packet(displayRevision: 9007199254740992),
     ]) {
       expect(
         () => WindowPolicySnapshot.fromChannel(invalid),
@@ -221,4 +242,22 @@ void main() {
       await frames(tester);
     },
   );
+
+  testWidgets('native stream completion emits unknown before closing', (
+    tester,
+  ) async {
+    messenger.setMockMethodCallHandler(methods, (_) async => packet());
+    messenger.setMockMethodCallHandler(events, (_) async => null);
+    final received = <WindowPolicySnapshot>[];
+    WindowPolicyBridge(isAndroid: true).changes.listen(received.add);
+    await frames(tester);
+    expect(received.last.displayIdentity, isNotNull);
+    await messenger.handlePlatformMessage(
+      WindowPolicyBridge.eventChannelName,
+      null,
+      (_) {},
+    );
+    await frames(tester);
+    expect(received.last, same(WindowPolicySnapshot.unknown));
+  });
 }

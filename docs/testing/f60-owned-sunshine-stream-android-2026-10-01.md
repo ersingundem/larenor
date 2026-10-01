@@ -97,11 +97,14 @@ workflow identity remain separate mandatory fields.
 
 Pinned Sunshine does not expose a paired-client-authorized NvHTTP unpair route.
 Its remote client removal API belongs to the separately authenticated web-admin
-surface. This gate therefore proves local credential retirement only; the host
-must observe that its paired client remains enabled. It does not satisfy the
-product promise to remove both upstream and private credentials, and F60 stays
-open until a separately provisioned, trusted admin adapter performs and reads
-back that remote removal.
+surface. The product action is explicitly **Remove from this tablet** and its
+versioned Core/Dart terminal states are `local_cleared|unknown`; it tells the
+user that Sunshine pairing remains. Automatic administrator deletion is an
+optional separate capability, not a completion requirement silently added to
+F60. Administrative fixture teardown is never product revocation evidence.
+F60 remains reworking because named real streaming and the remaining software
+input/disconnect acceptance have not passed, with physical controller/latency
+and household-host validation tracked separately in MANUAL.
 
 This source slice has not yet produced that hosted receipt. Compilation or a
 passing local unit test does not promote F60 to provider acceptance.

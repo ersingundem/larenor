@@ -5206,10 +5206,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Engine and explicit KVM passed; ModuleNotFoundError for tool before provider workspace, NSD or instrumentation; no receipt"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36797303341",
+          "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source repo-root module discovery run started; no provider acceptance yet"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36797304940",
+          "commit": "1887ff9a0b19468ff344434863f83e08878e0d18",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source repo-root module stream/local-retirement run started; no receipt yet"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek owned Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7/run36792376426 receipted engine buildini geçti, fakat /dev/kvm erişimi olmadan -accel off ile emülatör açılışı zaman aşımına düştü; Python/NSD başlamadı. Discovery/stream workflowları artık KVM character-device ve read/write erişimi ister, hardware acceleration açık ve desteklenen swiftshader kullanır. Root95 host/stream/workflow/kuyruk/progress kontrolü ve actionlint geçti. Pinned Sunshine GameStream GET/unpair rotasını sunmuyor: local_cleared yalnız exact Core/tablet registration retirement/readback anlamına gelir; Client Sunshine eşlemesinin korunduğunu açıklar. Gerçek production NSD/pair/catalog/launch/rendered-frame/full-PCM/software-key/causal-stop/local-clear hosted gate ayrı partial streamAndLocalRetirement receipt ister; featureAccepted=false ve providerPairingRemoved=false. Gerçek yayın kapısı ile provider-side removal kabulü açık; F60 CI bekliyor/done olmaz. Yerel kaldırma fence-first/generation/no-replay sınırları33 native test ve AndroidTest compile ile doğrulandı; Client12 widget testi ve scoped analyze geçti. Exact0036260b discovery36796250482 ve stream36796253857 engine/KVM geçti; tool modülü bulunamadığı için provider workspace/NSD/instrumentation başlamadan düştü, receipt yok. Repo-root python -m çağrısı ve54 F60 kontrolüyle dar düzeltme geçti; değişen kaynak hosted kabulü hâlâ açık."
+      "reason": "Yeniden çalışılıyor: normal Core/Client/native v2 yolu odaklı kabulü geçti. Exact768a5111/run36791861104 gerçek owned Sunshine host_ready receiptini üretti; streamAccepted=false. Exact04552c7/run36792376426 receipted engine buildini geçti, fakat /dev/kvm erişimi olmadan -accel off ile emülatör açılışı zaman aşımına düştü; Python/NSD başlamadı. Discovery/stream workflowları artık KVM character-device ve read/write erişimi ister, hardware acceleration açık ve desteklenen swiftshader kullanır. Root95 host/stream/workflow/kuyruk/progress kontrolü ve actionlint geçti. Pinned Sunshine GameStream GET/unpair rotasını sunmuyor: local_cleared yalnız exact Core/tablet registration retirement/readback anlamına gelir; Client Sunshine eşlemesinin korunduğunu açıklar. Gerçek production NSD/pair/catalog/launch/rendered-frame/full-PCM/software-key/causal-stop/local-clear hosted gate ayrı partial streamAndLocalRetirement receipt ister; featureAccepted=false ve providerPairingRemoved=false. Gerçek yayın ile touch/gamepad/beklenmeyen kopuş yazılım kabulü açık; F60 CI bekliyor/done olmaz. Otomatik Sunshine admin eşleme silme mevcut ürün kapsamının zorunlu adımı değildir. Yerel kaldırma fence-first/generation/no-replay sınırları33 native test ve AndroidTest compile ile doğrulandı; Client12 widget testi ve scoped analyze geçti. Exact0036260b discovery36796250482 ve stream36796253857 engine/KVM geçti; tool modülü bulunamadığı için provider workspace/NSD/instrumentation başlamadan düştü, receipt yok. Repo-root python -m çağrısı ve54 F60 kontrolüyle dar düzeltme geçti; değişen kaynak hosted kabulü hâlâ açık."
     },
     {
       "id": "G11",
@@ -5385,7 +5401,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor: consumer ACK/terminal yarışı dar RED regresyonla düzeltildi. Native sertifika callbacki yalnız exact endpoint/SPKI pinini kabul eder; güvenlik ve kare gerçek OnConnectionSuccess sonrası açılır. TLS1.2 min/max enforce edilir. Root22 native/0skip, production/AndroidTest compile315 task,38 RDP Flutter testi/scoped analyze ve31 runner/workflow testi geçti. IME=false; yalnız disabled/clientToRemote pano modları ilan edilir, legacy bidirectional sessizce değişmez. Loaded external/default display değişimi no replay ile kapanır; aynı sınıfta exact display değişimi hâlâ açık ve ortak contract düzeltiliyor. Owned shadow baseline gerçek software HID→XI2 effect, host resize/ACK/close ister; clipboard/IME/clientDISP veya fiziksel kabul iddiası vermez. Exacte05df8ea/run36794954941 tamamlandı: gerçek tek-output Xorg resize preflightı ve iki ABI paket/APK buildi geçti, x86 gerçek Android NLA kapısı başarısız. Dış XI2 witness ilgisiz UTF8 device satırını strict ASCII çözerken düştü; terminal JUnit sayımı yok ve Android key/frame/resize kabulü kurulmadı. Byte-parser düzeltmesi eski kaynağa karşı aynı regresyonda RED→GREEN ve75 runner/workflow/kuyruk/progress kontrolüyle doğrulandı; değişen kaynak hosted kabulü gerekir. Tam display/clipboard/Android kabulü açık, F62 CI bekliyor/done yapılmaz;58 seçili/toplam67 CI bekliyor ve kabul sayaçları korunur."
+      "reason": "Yeniden çalışılıyor: consumer ACK/terminal yarışı dar RED regresyonla düzeltildi. Native sertifika callbacki yalnız exact endpoint/SPKI pinini kabul eder; güvenlik ve kare gerçek OnConnectionSuccess sonrası açılır. TLS1.2 min/max enforce edilir. Root22 native/0skip, production/AndroidTest compile315 task,38 RDP Flutter testi/scoped analyze ve31 runner/workflow testi geçti. IME=false; yalnız disabled/clientToRemote pano modları ilan edilir, legacy bidirectional sessizce değişmez. Logical displayId/process-local revision, invalid Display ve kapanan native stream eski oturumu kapatır; tekrar bağlantı yalnız açık kullanıcı eylemidir. Canonical legacy15/new17 packet ve paired-null tuple sınırları13 native/0skip ve49 Flutter RDP/window testiyle geçti; scoped analyze temiz. Fiziksel kimlik veya kaçırılmış hotplug callback kanıtı değildir. Owned shadow baseline gerçek software HID→XI2 effect, host resize/ACK/close ister; clipboard/IME/clientDISP veya fiziksel kabul iddiası vermez. Exacte05df8ea/run36794954941 tamamlandı: gerçek tek-output Xorg resize preflightı ve iki ABI paket/APK buildi geçti, x86 gerçek Android NLA kapısı başarısız. Dış XI2 witness ilgisiz UTF8 device satırını strict ASCII çözerken düştü; terminal JUnit sayımı yok ve Android key/frame/resize kabulü kurulmadı. Byte-parser düzeltmesi eski kaynağa karşı aynı regresyonda RED→GREEN ve75 runner/workflow/kuyruk/progress kontrolüyle doğrulandı; değişen kaynak hosted kabulü gerekir. Tam display/clipboard/Android kabulü açık, F62 CI bekliyor/done yapılmaz;58 seçili/toplam67 CI bekliyor ve kabul sayaçları korunur."
     },
     {
       "id": "F61",

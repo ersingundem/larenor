@@ -12,6 +12,24 @@ import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 import '../remote_profiles_ui_fixture.dart';
 import 'rdp_models_test.dart' show fixture, packagedCapabilities;
 
+const _defaultWindow = WindowPolicySnapshot(
+  supported: true,
+  isResumed: true,
+  hasWindowFocus: true,
+  displayId: 0,
+  displayRevision: 1,
+);
+
+WindowPolicySnapshot _externalWindow(int id, int revision) =>
+    WindowPolicySnapshot(
+      supported: true,
+      isResumed: true,
+      hasWindowFocus: true,
+      isExternalDisplay: true,
+      displayId: id,
+      displayRevision: revision,
+    );
+
 class UiTrust implements RdpTrustStore {
   final pin = RdpCertificatePin.fromJson(fixture()['certificate']);
   @override
@@ -107,6 +125,8 @@ class HeldCapabilityEngine extends UiEngine {
 }
 
 Future<void> openRdp(WidgetTester tester, RemoteUi ui) async {
+  ui.windows.add(_defaultWindow);
+  await tester.pump();
   await ui.edit(tester, name: 'Office PC');
   await press(tester, 'remote-protocol-rdp');
   await ui.save(tester);
@@ -364,7 +384,7 @@ void main() {
     );
   });
 
-  testWidgets('external display classification change retires without replay', (
+  testWidgets('exact display identity change retires without replay', (
     tester,
   ) async {
     final engines = <UiEngine>[];
@@ -385,14 +405,7 @@ void main() {
     await connectRdp(tester);
     expect(engines.single.requests.single.display.externalDisplay, isFalse);
 
-    ui.windows.add(
-      const WindowPolicySnapshot(
-        supported: true,
-        isResumed: true,
-        hasWindowFocus: true,
-        isExternalDisplay: true,
-      ),
-    );
+    ui.windows.add(_externalWindow(4, 1));
     await tester.pumpAndSettle();
     expect(engines, hasLength(1));
     expect(key('rdp-check'), findsOneWidget);
@@ -400,6 +413,26 @@ void main() {
     await connectRdp(tester);
     expect(engines, hasLength(2));
     expect(engines.last.requests.single.display.externalDisplay, isTrue);
+    ui.windows.add(_externalWindow(4, 1));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('rdp-surface')), findsOneWidget);
+    expect(engines, hasLength(2));
+
+    ui.windows.add(_externalWindow(5, 1));
+    await tester.pumpAndSettle();
+    expect(key('rdp-check'), findsOneWidget);
+    expect(engines, hasLength(2));
+    await connectRdp(tester);
+    expect(engines, hasLength(3));
+    expect(engines.last.requests.single.display.externalDisplay, isTrue);
+
+    // A remove/add lifecycle can reuse a logical display ID. Its new process
+    // revision must still fence the old session without reconnecting it.
+    ui.windows.add(_externalWindow(5, 2));
+    await tester.pumpAndSettle();
+    expect(key('rdp-check'), findsOneWidget);
+    expect(engines, hasLength(3));
+
     ui.windows.add(
       const WindowPolicySnapshot(
         supported: true,
@@ -409,8 +442,57 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('rdp-surface')), findsOneWidget);
-    expect(engines, hasLength(2));
+    await tester.drag(key('rdp-scroll'), const Offset(0, 1200));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Window control is unavailable on this platform.'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      key('rdp-check'),
+      240,
+      scrollable: find
+          .descendant(of: key('rdp-scroll'), matching: find.byType(Scrollable))
+          .first,
+    );
+    await tester.pumpAndSettle();
+    final check = tester.widget<CupertinoButton>(
+      find.descendant(
+        of: key('rdp-check'),
+        matching: find.byType(CupertinoButton),
+      ),
+    );
+    expect(check.onPressed, isNull);
+    expect(engines, hasLength(3));
+    expect(engines.last.requests, hasLength(1));
+  });
+
+  testWidgets('window completion unknown retires without replay', (
+    tester,
+  ) async {
+    final engines = <UiEngine>[];
+    final ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () {
+        final engine = UiEngine();
+        engines.add(engine);
+        return engine;
+      },
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, ui);
+    await connectRdp(tester);
+    expect(engines.single.requests, hasLength(1));
+
+    // WindowPolicyBridge emits this final unknown snapshot before its native
+    // stream closes. The provider then retains the safe value, not the tuple.
+    ui.windows.add(WindowPolicySnapshot.unknown);
+    await tester.pumpAndSettle();
+    expect(engines.single.channel.doneCompleter.isCompleted, isTrue);
+    expect(engines, hasLength(1));
+    expect(engines.single.requests, hasLength(1));
   });
 
   testWidgets(
@@ -428,14 +510,7 @@ void main() {
       await tester.pump();
       expect(engine.capabilityReads, 1);
 
-      ui.windows.add(
-        const WindowPolicySnapshot(
-          supported: true,
-          isResumed: true,
-          hasWindowFocus: true,
-          isExternalDisplay: true,
-        ),
-      );
+      ui.windows.add(_externalWindow(4, 1));
       await tester.pump();
       engine.release.complete();
       await tester.pumpAndSettle();

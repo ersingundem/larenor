@@ -22,7 +22,7 @@ makes F60 available.
 
 - `_nvstream._tcp` discovery through `DiscoveryService`;
 - `NvHTTP`, `PairingManager`, `AndroidCryptoProvider`, `IdentityManager` and
-  `ComputerDatabaseManager` for probe, pairing, catalog and unpair readback;
+  `ComputerDatabaseManager` for probe, pairing, catalog and exact local-retirement readback;
 - `Game`, `NvConnection`, `MediaCodecDecoderRenderer`,
   `AndroidAudioRenderer` and `ControllerHandler` for playback and input; and
 - upstream `Game` connection callbacks as causal connection-started and
@@ -61,9 +61,9 @@ as `pinRevision`; both booleans participate in its fingerprint. A policy with
 has a fresh unlock. Capability observation reports `pinRequired` and mutation
 methods return `pin_required` when that proof is absent.
 
-Current authority is rechecked immediately before WOL, quit, launch, pair and
-unpair provider mutations and again before accepting causal readback or local
-credential/registration state. Catalogs above 256 entries fail closed; they are
+Current authority is rechecked immediately before WOL, quit, launch and pair
+provider mutations, and before exact local credential/registration retirement
+or accepting causal readback. Local retirement never calls Sunshine admin unpair. Catalogs above 256 entries fail closed; they are
 never silently truncated into false Core retirements. Wake and launch receipts
 use the contract's real `serverInfoOnline/hostAwake` and
 `currentGameMatched/appRunning` pairs. Unknown provider timing never becomes a
