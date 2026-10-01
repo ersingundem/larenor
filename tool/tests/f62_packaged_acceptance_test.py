@@ -98,10 +98,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             "EVENT type 13 (RawKeyPress)",
             "    detail: 38",
         ):
-            witness.feed(line)
+            witness.feed_bytes(line.encode("ascii"))
         self.assertFalse(witness.complete)
-        witness.feed("EVENT type 14 (RawKeyRelease)")
-        witness.feed("    detail: 38")
+        witness.feed_bytes(b"EVENT type 14 (RawKeyRelease)")
+        witness.feed_bytes(b"    detail: 38")
         self.assertTrue(witness.complete)
 
         for lines in (
@@ -116,7 +116,74 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 runner.BaselineFailure, "owned XI2 key witness",
             ):
                 for line in lines:
-                    invalid.feed(line)
+                    invalid.feed_bytes(line.encode("ascii"))
+
+    def test_xi2_witness_ignores_non_ascii_unrelated_lines_but_rejects_relevant_malformed_bytes(self):
+        witness = runner.Xi2KeyWitness()
+        witness.feed_bytes(b"\xe2\x8e\xa1 Virtual core keyboard id=3")
+        witness.feed_bytes(b"EVENT type 13 (RawKeyPress)")
+        witness.feed_bytes(b"    detail: 38")
+        witness.feed_bytes(b"EVENT type 14 (RawKeyRelease)")
+        witness.feed_bytes(b"    detail: 38")
+        self.assertTrue(witness.complete)
+
+        for malformed in (
+            b"EVENT type \xff (RawKeyPress)",
+            b"    detail:\xff38",
+        ):
+            with self.assertRaisesRegex(
+                runner.BaselineFailure, "owned XI2 key witness was malformed",
+            ):
+                runner.Xi2KeyWitness().feed_bytes(malformed)
+
+        stale = runner.Xi2KeyWitness()
+        stale.feed_bytes(b"EVENT type 13 (RawKeyPress)")
+        with self.assertRaises(runner.BaselineFailure):
+            stale.feed_bytes(b"    detail:\xff38")
+        stale.feed_bytes(b"    detail: 38")
+        self.assertFalse(stale.complete)
+
+    def test_outer_shadow_runner_ignores_unrelated_non_ascii_xi2_and_observes_exact_pair(self):
+        class Process:
+            def __init__(self, *, stdout=None):
+                self.stdout = stdout
+                self.done = False
+
+            def poll(self):
+                return 0 if self.done else None
+
+            def wait(self, *, timeout):
+                self.done = True
+                return 0
+
+        class Selector:
+            def register(self, *_args):
+                pass
+
+            def select(self, *, timeout):
+                return [(SimpleNamespace(fd=7), None)]
+
+            def close(self):
+                pass
+
+        xinput = Process(stdout=object())
+        gradle = Process()
+        output = (
+            b"\xe2\x8e\xa1 Virtual core keyboard id=3\n"
+            b"EVENT type 13 (RawKeyPress)\n"
+            b"    detail: 38\n"
+            b"EVENT type 14 (RawKeyRelease)\n"
+            b"    detail: 38\n"
+        )
+        with (
+            mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
+            mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
+            mock.patch.object(runner.os, "read", return_value=output),
+            mock.patch.object(runner, "_resize_owned_display") as resize,
+            mock.patch.object(runner, "_stop_owned_process"),
+        ):
+            self.assertEqual(runner._run_owned_shadow_baseline(["owned-gradle"]), 0)
+        resize.assert_called_once_with()
 
     def test_owned_resize_requires_xrandr_and_exact_xdpyinfo_readback(self):
         completed = [

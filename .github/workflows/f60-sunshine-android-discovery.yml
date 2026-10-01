@@ -125,7 +125,7 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
-          script: python3 -B tool/f60_sunshine_android_discovery.py
+          script: python3 -B -m tool.f60_sunshine_android_discovery
 
       - name: Upload bounded discovery receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

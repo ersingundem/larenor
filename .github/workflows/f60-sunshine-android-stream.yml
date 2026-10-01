@@ -125,7 +125,7 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader -no-snapshot -no-boot-anim
-          script: python3 -B tool/f60_sunshine_android_stream.py
+          script: python3 -B -m tool.f60_sunshine_android_stream
 
       - name: Stop owned host support service before receipt
         run: |

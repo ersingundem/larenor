@@ -69,3 +69,39 @@ run has passed.
 ## Hosted display preflight (partial evidence)
 
 At exact `e05df8ea1a95978370679b1f71fd7d93ff8b2c8b`, [run36794954941](https://github.com/ersingundem/larenor/actions/runs/36794954941), the `package (x86_64)` step `Preflight an owned resizable Xorg display` completed successfully. Root re-read the exact run SHA and named step result. Its shell requires one active output and matching CRTC plus `xdpyinfo` dimensions for1280×800 →1024×768 →1280×800. This closes the owned Linux display preflight only. The Android/NLA/frame/key/ACK/close baseline receipt and full feature acceptance remain open.
+
+The same run later failed in the outer XI2 witness before a terminal JUnit
+report was classified. Its bounded public diagnostic names the one expected
+class and method but contains no test counts or Kotlin frames. The private
+bounded step diagnostic was `owned XI2 key witness was malformed`: the runner
+had decoded every `xinput test-xi2` line as strict ASCII, so a non-ASCII byte in
+an unrelated device/locale line aborted the witness before its exact event
+grammar was considered. This result does not prove that the Android test
+reached its key calls.
+
+The runner now parses bytes directly. Only a syntactically exact XI2 `EVENT`
+line and its ASCII `detail` line can change the witness state; the accepted
+effect remains one keycode-38 `RawKeyPress` followed by one
+`RawKeyRelease`. A malformed line carrying either security-relevant prefix
+fails closed. Unrelated bounded bytes are ignored and are never retained or
+published. The existing one-megabyte stream bound remains unchanged.
+
+Root independently ran the same outer-runner regression against the exact
+pre-fix `e05df8ea` source loaded from Git. It failed with the observed
+`UnicodeDecodeError` → `owned XI2 key witness was malformed` path; the current
+byte parser passed the same fixture and reached resize. Root also passed all
+75 runner/workflow/queue/progress checks. This is local regression evidence,
+not a successful hosted Android baseline.
+
+The actual pre-fix failure evidence is the changed-source hosted diagnostic
+above, produced by the old strict-ASCII decode path. A new outer-runner
+regression now supplies an unrelated non-ASCII XI2 line followed by the exact
+ASCII key pair through the mocked bounded selector/read boundary. That payload
+reaches the same old `raw_line.decode("ascii", errors="strict")` path and would
+raise the observed malformed-witness failure; the byte parser observes the
+pair. A second regression proves a malformed relevant-prefix line clears any
+pending event before failing, so later detail bytes cannot complete stale
+state. After the repair, the two focused regressions and the complete
+packaged-acceptance runner suite pass. This is local parser evidence only. A
+changed-source hosted run must still produce the one-test, zero-skip
+Android/NLA/frame/key/resize/close receipt.

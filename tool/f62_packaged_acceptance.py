@@ -46,8 +46,8 @@ _DISPLAY = ":99"
 _XINPUT_A_KEYCODE = 38
 _SOURCE_DIMENSIONS = (1280, 800)
 _TARGET_DIMENSIONS = (1024, 768)
-_XI2_EVENT = re.compile(r"^EVENT type \d+ \((RawKeyPress|RawKeyRelease)\)$")
-_XI2_DETAIL = re.compile(r"^\s*detail:\s*(\d+)\s*$")
+_XI2_EVENT = re.compile(rb"^EVENT type \d+ \(([A-Za-z0-9]+)\)$")
+_XI2_DETAIL = re.compile(rb"^\s*detail:\s*(\d+)\s*$")
 _XDPI_DIMENSIONS = re.compile(r"^\s*dimensions:\s*(\d+)x(\d+) pixels")
 _XRANDR_ACTIVE_OUTPUT = re.compile(
     rb"^([A-Za-z0-9][A-Za-z0-9_.:-]{0,63})\s+connected(?:\s+primary)?\s+"
@@ -139,13 +139,26 @@ class Xi2KeyWitness:
         self._pressed = False
         self.complete = False
 
-    def feed(self, line: str) -> None:
-        event = _XI2_EVENT.fullmatch(line.rstrip("\r\n"))
+    def feed_bytes(self, raw_line: bytes) -> None:
+        line = raw_line.rstrip(b"\r")
+        event = _XI2_EVENT.fullmatch(line)
         if event is not None:
-            self._event = event.group(1)
+            name = event.group(1)
+            self._event = name.decode("ascii") if name in {
+                b"RawKeyPress", b"RawKeyRelease",
+            } else None
             return
-        detail = _XI2_DETAIL.fullmatch(line.rstrip("\r\n"))
-        if detail is None or self._event is None:
+        detail = _XI2_DETAIL.fullmatch(line)
+        if detail is None:
+            stripped = line.lstrip(b" \t")
+            if stripped.startswith(b"EVENT type ") or stripped.startswith(b"detail:"):
+                self._event = None
+                raise BaselineFailure(
+                    "host_keyboard_witness_missing",
+                    "owned XI2 key witness was malformed",
+                )
+            return
+        if self._event is None:
             return
         event_name = self._event
         self._event = None
@@ -804,13 +817,7 @@ def _run_owned_shadow_baseline(command: list[str], *, timeout: float = 1200) -> 
                 buffered += chunk
                 while b"\n" in buffered:
                     raw_line, buffered = buffered.split(b"\n", 1)
-                    try:
-                        witness.feed(raw_line.decode("ascii", errors="strict"))
-                    except UnicodeDecodeError as error:
-                        raise BaselineFailure(
-                            "host_keyboard_witness_missing",
-                            "owned XI2 key witness was malformed",
-                        ) from error
+                    witness.feed_bytes(raw_line)
         _resize_owned_display()
         remaining = deadline - time.monotonic()
         if remaining <= 0:

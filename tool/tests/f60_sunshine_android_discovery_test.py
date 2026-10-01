@@ -200,6 +200,16 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
         self.assertNotIn("swiftshader_indirect", WORKFLOW)
         self.assertIn("disable-linux-hw-accel: false", WORKFLOW)
 
+    def test_workflow_runs_discovery_as_repo_root_python_module(self) -> None:
+        self.assertIn(
+            "script: python3 -B -m tool.f60_sunshine_android_discovery",
+            WORKFLOW,
+        )
+        self.assertNotIn(
+            "script: python3 -B tool/f60_sunshine_android_discovery.py",
+            WORKFLOW,
+        )
+
     def test_workflow_requires_accessible_host_kvm_without_software_fallback(self) -> None:
         self.assertEqual(0, self._run_kvm("ready").returncode)
         missing = self._run_kvm("absent")

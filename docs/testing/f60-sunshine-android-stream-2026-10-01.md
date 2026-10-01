@@ -128,6 +128,17 @@ but that renderer correction was not the demonstrated cause of run
 `36792376426`. A changed-source hosted run is still required; neither the
 timeout nor these local workflow tests are provider evidence.
 
+The changed-source discovery run `36796250482` and stream run `36796253857`
+at exact revision `0036260b9d6eb09336b881889e885328f63d6520` both passed the
+receipted Moonlight build and hosted KVM preflight, then failed before creating
+the private provider workspace. Their fixed diagnostic was
+`ModuleNotFoundError` for the public `tool` module: direct script execution put
+`tool/`, rather than the checkout root, on Python's import path. Both workflows
+now invoke the entrypoints as repository modules with `python3 -B -m`. Those
+runs reached neither Sunshine, production NSD, Android instrumentation, nor a
+receipt and provide no feature-acceptance evidence. A new changed-source run is
+required.
+
 ## Primary protocol sources
 
 - Sunshine pairing and launch server:

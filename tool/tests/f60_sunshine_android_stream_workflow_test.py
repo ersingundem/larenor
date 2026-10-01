@@ -101,7 +101,14 @@ class F60SunshineAndroidStreamWorkflowTest(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-24.04", WORKFLOW)
         self.assertIn("moonlight-android.git", WORKFLOW)
         self.assertIn("b48494cb96bff23d8886c4775cc4f39a1075495d", WORKFLOW)
-        self.assertIn("tool/f60_sunshine_android_stream.py", WORKFLOW)
+        self.assertIn(
+            "script: python3 -B -m tool.f60_sunshine_android_stream",
+            WORKFLOW,
+        )
+        self.assertNotIn(
+            "script: python3 -B tool/f60_sunshine_android_stream.py",
+            WORKFLOW,
+        )
         self.assertIn("stream and local retirement lifecycle", WORKFLOW)
         self.assertIn("f60-sunshine-android-stream-receipt.json", WORKFLOW)
         self.assertIn("x11-apps", WORKFLOW)
