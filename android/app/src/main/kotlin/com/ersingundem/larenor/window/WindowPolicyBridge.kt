@@ -105,6 +105,9 @@ class WindowPolicyBridge(
                     result.success(controller.snapshot())
                 }
                 "setProfile" -> result.success(controller.setProfile(call.arguments))
+                "acquireFullscreen" -> result.success(controller.acquireFullscreen(call.arguments))
+                "releaseFullscreen" -> result.success(controller.releaseFullscreen(call.arguments))
+                "cancelFullscreen" -> result.success(controller.cancelFullscreen(call.arguments))
                 else -> result.notImplemented()
             }
         } catch (_: IllegalArgumentException) {
