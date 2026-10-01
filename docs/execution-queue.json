@@ -6196,13 +6196,21 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36823315743",
           "commit": "a51c8006c73aa9dfceaf0c4255d52943d0a79098",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exacta51 changed owned Frigate fixture; allServer CI running, host/F08 passed; later Client changes require their own finalHEAD gate"
+          "state": "completed",
+          "result": "passed",
+          "label": "Exacta51 allServer passed: all4 shards plus installed host-worker and Linux cgroup gates; later d8/0f514 media changes still need broad finalHEAD CI"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/36825781068",
+          "commit": "e09b51de6e5f1ca90b6539627fda7ca4d867046d",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exacte09 Security secret/dependency/platform-policy all3 passed; Android/Server combined finalHEAD acceptance separate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi. F21/F24–F27 normal player/quality/offline bileşimi sonroot110 Client+46 Server ve plan/kaynak incelemesiyle kapandı;58 seçili/69iş CI bekliyor. F60/F62 strict runtime reworking; kabul35/127ve3/63. Frozen fullFlutter7919/57explicit skip, actualv3 ikiABI/JVM343/2opt-in skip tarihsel kanıt. Exact0659 allServer shard0 F44bind503/1823passed1failed; ownedclose fixturea51root18+31geçti, yeni36823315743 host/F08/shard1/3passed,0/2sürüyor. F60c9 failed; exact691/36825268673 yeni tanılı strictCI sürüyor. F625aa unclassified/no marker failed, alt neden açık. Son birleşikHEAD genişCI gerekli. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
+      "reason": "Yalnız aktif FINAL: gerçek Client/Core/provider işlev ve kullanılabilirlik geçişi. F21/F24–F27 normal player/quality/offline bileşimi sonroot110 Client+46 Server ve plan/kaynak incelemesiyle kapandı;58 seçili/69iş CI bekliyor. F60/F62 strict runtime reworking; kabul35/127ve3/63. Frozen fullFlutter7919/57explicit skip, actualv3 ikiABI/JVM343/2opt-in skip tarihsel kanıt. Exact0659 allServer shard0 F44bind503/1823passed1failed; ownedclose fixturea51root18+31geçti, yeni36823315743 all4shards/host/F08passed. F60c9 failed; exact691/36825268673 yeni tanılı strictCI sürüyor. F625aa unclassified/no marker failed, alt neden açık. Exacte09 Security36825781068 üçişpassed; son birleşikHEAD Android/Server genişCI gerekli. BaşkaFINAL başlamaz; MANUAL/CORE.WEB ayrı."
     },
     {
       "id": "FINAL.UI",
