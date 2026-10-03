@@ -5515,14 +5515,6 @@
           "label": "Canonical original1test/1failure/0error/0skip; pairingRegistration timeout owned source99/680; no accepted stream receipt"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md",
-          "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root33/33+15subtests; actual required-package AndroidTest Kotlin compilation; bounded one-use delivery and fixed bridge enum. Old exact cause unproved; runtime separate"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36811116354",
           "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
@@ -5737,6 +5729,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen working tree on e06c97f4 base: actual embed-v4 dualABI AAR/compiled IIZ hook source/receipt verified; root47Moonlight JVM/0skip/failure/error + actual AndroidTest compile314tasks; root225tools/184subtests. Closed stage enums and per-lifetime nonce-arm nonzero output; hosted stream remains open."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37123578040",
+          "commit": "9551e73782fdfcfb4a1308e1d01522858ec8d494",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact9551 registered scope=f60-stream started once; embed-v4/nonzero per-lifetime tone and finite stage diagnosis. In progress; no frame/PCM/input/two-lifetime acceptance yet."
         }
       ],
       "completionCommit": null,
@@ -5956,14 +5956,6 @@
           "label": "Exactc829 original1test/1failure/0error/0skip,unclassified/no owned frames/testLifecycleStage absent/serverResizeRequested=false; arm64 actual package passed; precise cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
-          "commit": "70ab1058495957844edc79740abe46df4a50296a",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent review: fixed enum cached before stop/tuple,background bounded adb outside channel deadlines,exact nonce cleanup,strict original acceptance unchanged"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36814807367",
           "commit": "70ab1058495957844edc79740abe46df4a50296a",
@@ -6138,6 +6130,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen working tree on7a53 base: root65RDP JVM incl9exact open-diagnostic tests/0skip/failure/error; actual schema3 AndroidTest compile314tasks; root61runner/89subtests, composed225tools/184subtests; exact private22source manifest. No hosted runtime acceptance."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37123504468",
+          "commit": "9551e73782fdfcfb4a1308e1d01522858ec8d494",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact9551 strict FreeRDP twoABI/source-bound named NLA runtime started once; failure-only exact open boundaries. In progress; no runtime acceptance yet."
         }
       ],
       "completionCommit": null,
@@ -6430,7 +6430,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 sürüyor. Audio3 üretim dilimi aktif; ikinciFINAL başlamadı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 failed/original1/1/0/0; root canonical kimlikleri doğrulandı. Yeni exact9551 stream37123578040 veRDP37123504468 in progress. Audio3/embed-v4 yerel doğrulandı; microphone4 üretim dilimi aktif; ikinciFINAL başlamadı."
     },
     {
       "id": "FINAL.UI",

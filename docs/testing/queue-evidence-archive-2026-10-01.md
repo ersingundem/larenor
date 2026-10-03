@@ -111,6 +111,24 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md",
+    "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root33/33+15subtests; actual required-package AndroidTest Kotlin compilation; bounded one-use delivery and fixed bridge enum. Old exact cause unproved; runtime separate"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+    "commit": "70ab1058495957844edc79740abe46df4a50296a",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent review: fixed enum cached before stop/tuple,background bounded adb outside channel deadlines,exact nonce cleanup,strict original acceptance unchanged"
   }
 ]
 ```
