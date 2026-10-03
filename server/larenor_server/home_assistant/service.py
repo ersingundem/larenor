@@ -622,47 +622,86 @@ class HomeAssistantAdapter:
             ),
         )
 
+    @staticmethod
+    def _arbitration_outcome(receipt):
+        return (
+            'applied'
+            if receipt['dispatchState'] == 'accepted'
+            and receipt['observationMatchesTarget'] is True
+            else 'rejected'
+            if receipt['dispatchState'] == 'rejected'
+            else 'unknown'
+        )
+
     def command(self, actor, core, home, resource, body, *, cancelled=lambda: False,
                 attribution=None, authority_guard=None):
         body = CommandRequest.model_validate(body)
         if attribution is not None:
             attribution = CommandAttribution.model_validate(attribution)
-        decision = self._arbitration_decision(
-            actor, core, home, resource, body, attribution
-        )
-        try:
-            result = self._command_unarbitrated(
-                actor,
-                core,
-                home,
-                resource,
-                body,
-                cancelled=cancelled,
-                attribution=attribution,
-                authority_guard=authority_guard,
-            )
-            receipt = result['receipt']
-            if decision is not None and decision['state'] != 'authorized':
+        decision = None
+
+        def execute(arbitration_guard=None):
+            def current(connection):
+                if authority_guard is not None:
+                    authority_guard(connection)
+                if arbitration_guard is not None:
+                    arbitration_guard(connection)
+
+            try:
+                result = self._command_unarbitrated(
+                    actor,
+                    core,
+                    home,
+                    resource,
+                    body,
+                    cancelled=cancelled,
+                    attribution=attribution,
+                    authority_guard=(
+                        current
+                        if authority_guard is not None or arbitration_guard is not None
+                        else None
+                    ),
+                )
+                receipt = result['receipt']
+                if decision is not None and decision['state'] != 'authorized':
+                    return result
+                outcome = self._arbitration_outcome(receipt)
+                self._complete_arbitration(actor, core, home, decision, outcome)
                 return result
-            outcome = (
-                'applied'
-                if receipt['dispatchState'] == 'accepted'
-                and receipt['observationMatchesTarget'] is True
-                else 'rejected'
-                if receipt['dispatchState'] == 'rejected'
-                else 'unknown'
+            except BaseException:
+                if decision is not None and decision['state'] == 'authorized':
+                    outcome = 'unknown'
+                    try:
+                        durable = self.command_result(
+                            actor, core, home, resource, body.requestId
+                        )['receipt']
+                        outcome = self._arbitration_outcome(durable)
+                    except Exception:
+                        pass
+                    try:
+                        self._complete_arbitration(
+                            actor, core, home, decision, outcome
+                        )
+                    except ApiError:
+                        pass
+                raise
+
+        def dispatch():
+            nonlocal decision
+            decision = self._arbitration_decision(
+                actor, core, home, resource, body, attribution
             )
-            self._complete_arbitration(actor, core, home, decision, outcome)
-            return result
-        except BaseException:
             if decision is not None and decision['state'] == 'authorized':
-                try:
-                    self._complete_arbitration(
-                        actor, core, home, decision, 'unknown'
-                    )
-                except ApiError:
-                    pass
-            raise
+                return self._arbitration.run_authorized_effect(
+                    actor, core, home, decision, execute
+                )
+            return execute()
+
+        if self._arbitration is None:
+            return dispatch()
+        return self._arbitration.run_device_dispatch(
+            core, home, resource, dispatch
+        )
 
     def _observe_external_change(self, actor, core, home, resource, projection):
         if self._arbitration is None or projection.state not in {'on', 'off'}:

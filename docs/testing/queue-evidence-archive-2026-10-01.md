@@ -546,3 +546,23 @@ Only the oldest non-CI entry is archived for the32-entry queue bound; all CI fai
   }
 ]
 ```
+
+## Preserve changed-source F62 CI while retaining bounded queue
+
+Only oldest non-CI evidence moves here; all CI records remain live.
+
+```json
+[
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
+      "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen workingtree on7e552base: root46archive-source diagnostic/probe/workflow tests+3subtests and Ruff passed; pinned archive unit digest/exactline bound, raw-message/path rejection, cleanup unchanged. No compiled provider or Android/feature acceptance; changed-source Linux probe next."
+    }
+  }
+]
+```

@@ -3711,7 +3711,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Çakışan kurallar hakemi",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3725,7 +3725,8 @@
         "docs/feature-candidates-2026-09-05.json",
         "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md",
         "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md",
-        "docs/testing/final-function-routing-audit-2026-10-03.md"
+        "docs/testing/final-function-routing-audit-2026-10-03.md",
+        "docs/testing/f04-device-dispatch-serialization-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
       "acceptance": [
@@ -3753,10 +3754,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Independent exact-source acceptance review found P1 gaps: stale HA ownership dispatch and absent named required CI; concurrency/expiry/cancel matrix open."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f04-device-dispatch-serialization-2026-10-03.md",
+          "commit": "b5b30be61be5da5854f0f506a003e5a915b1b556",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen production serialization on b5b30 base; root34 actual concurrency/HA/attribution tests and two strict actual Client/Core named lifetimes passed; required CI/final source/F05 dependency remain open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f04-device-dispatch-serialization-2026-10-03.md",
+          "commit": "b5b30be61be5da5854f0f506a003e5a915b1b556",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent read-only exact production three-file SHA review CLEAR for packaged single-process dispatch; no P1/P2. Physical provider effects and multiprocess semantics not claimed."
         }
       ],
       "completionCommit": null,
-      "reason": "Aynı Core DB/cihaz admission→provider→receipt dispatch ve signed ownership/token/state/expiry yeniden kontrolü onarıldı. Root34 concurrency/HA/attribution testi ve iki actual Flutter→normal Core lifetime strict named1/0skip geçti; bağımsız repair incelemesi açık. Named required CI teslimi ve F05 kabul bağımlılığı bekliyor. Kanıt: docs/testing/f04-device-dispatch-serialization-2026-10-03.md."
+      "reason": "Aynı Core DB/cihaz admission→provider→receipt sıralaması ve signed ownership/token/state/expiry onarıldı. Root34 gerçek concurrency/HA/attribution ve iki strict actual Flutter/Core yaşamı geçti; independent CLEAR. Uygulama/odaklı yazılım doğrulaması tamamlandı; named required CI teslimi/son birleşik HEAD CI ve F05 kabul bağımlılığı açık. Multiprocess/physical HA MANUAL ayrı. Kanıt: docs/testing/f04-device-dispatch-serialization-2026-10-03.md."
     },
     {
       "id": "F02",
@@ -5651,7 +5668,8 @@
         "docs/testing/f60-owned-host-startup-diagnostic-2026-10-03.md",
         "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md",
         "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
-        "docs/testing/f60-owned-touch-effect-2026-10-03.md"
+        "docs/testing/f60-owned-touch-effect-2026-10-03.md",
+        "docs/testing/f60-gamepad-first-controller-ordering-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5916,13 +5934,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37142746206",
           "commit": "1a90752379bb6dbfd6fc0f5e07d41e770340e59f",
-          "state": "in_progress",
-          "result": null,
-          "label": "One changed-source exact1a907 strict Android Sunshine stream dispatched; build in progress. No stream/feature acceptance or merge."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact1a907 terminalFAILED original1/1/0/0 ownedInputEffects; gamepadArm/failed/unclassified after pairedClientObserved. Root production diagnostic/package validators and canonical SHA dd5bdab447374092545370675468916aa86f599fd5d28856108f6a9e59697cf5 verified. Prior touch effect completed; real OSC gamepad/second lifetime/local retirement acceptance remain open; no same-SHA rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact1a907523 strict37142746206 bir kez başladı; gerçek Android input/iki yaşam/kapanış sonucu bekleniyor. Relative AXIS_X/Y, iki nonzero hareket ve host deadline fixture onarımı root85 test/actual276task AndroidTest compile geçti. Önceki7e552 strict37140213824 failed/frame-PCM-listener kanıtı korunur. Startup-only featureAccepted=false; yayın kabulü veya merge yok."
+      "reason": "Exact1a907/37142746206 terminal FAILED original named1test/1failure/0error/0skip ownedInputEffects, phase gamepadArm/failed/unclassified. Root canonical schema/source/package/named validators doğrulandı; önceki touch effect kapısı geçti, gerçek gamepad açık. İlk visible OSC controller packetinden önce host evdev arm bekleniyordu; bounded prepare→host drain→ikinci sole BTN_SOUTH witness dar onarımı özel kaynakta doğrulandı. Changed-source compile/hosted iki yaşam/kapanış ve kabul/main merge açık."
     },
     {
       "id": "G11",
@@ -6266,14 +6284,6 @@
           "label": "Exactf0ded Gateway/auth passed; FreeRDP compile/compilerError exit1; owned cleanup passed. Closed644B receipt SHAd7c6b7b8d4d6dde3b2d9c75184c02fc71b753fc9c4c11eace3079496520daa2d; compile log SHAcc83d52626215ee8e7049a015ce68ba7ecd35afd825b54002f4bf5e0a061b40b. Six reviewed units/line/class all null; no source cause or acceptance claimed."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
-          "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen workingtree on7e552base: root46archive-source diagnostic/probe/workflow tests+3subtests and Ruff passed; pinned archive unit digest/exactline bound, raw-message/path rejection, cleanup unchanged. No compiled provider or Android/feature acceptance; changed-source Linux probe next."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37140389792",
           "commit": "3f86082026624d8de6b13c037de203e0c938c158",
@@ -6336,10 +6346,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen four-path repair on b6f4 base; root60 portable tests/11subtests and Ruff passed. Canonical exact0cad schema4 failure verified against all source pins and two rdpsnd identifier hashes. Static-only CMake target patch is exact; changed-source compile/real Gateway RDPDR/Android effects remain unproved."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37144057232",
+          "commit": "b5b30be61be5da5854f0f506a003e5a915b1b556",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source static-shadow rdpsnd-server fix exactb5b30 dispatched once; hosted Linux real Gateway/RDPDR transport open. Root actual pinned CMake077 before/after strict apply passed; no Android/product/full feature acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact0cad/37142705819 terminal compile/linkerError canonical schema4 iki rdpsnd symbol hashı root doğrulandı. Static-only shadow rdpsnd-server object target dar onarımı root60 test/11subtest ve Ruff geçti; değişmiş kaynak Linux build/gerçek Gateway→RDPDR kabulü açık. Integrated200JVM/201Flutter yerel kanıt; product Gateway/files false. Android DIRECT/PUBLIC/audio/mic/final CI ve kabul/merge açık."
+      "reason": "Static-only shadow rdpsnd object target onarımı commit/push b5b30; exact Linux37144057232 bir kez başladı, gerçek Gateway/RDPDR sonucu açık. Root60 test/11subtest, Ruff ve actual pinned CMake077 before/after strict apply geçti. Önceki0cad terminal linkerError canonical iki rdpsnd hashı doğrulandı; same-SHA rerun yok. Integrated200JVM/201Flutter yerel kanıt; product Gateway/files false. Android DIRECT/PUBLIC/audio/mic/final CI ve kabul/merge açık."
     },
     {
       "id": "F61",
@@ -6643,7 +6661,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F04/F16/F19/F20 kabul eksikleri ve F60/F62 exact CI hataları nedeniyle altı özellik yeniden çalışılıyor;54 seçili özellik/65 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri, bağımlılıkları, independent review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04 uygulama ve odaklı doğrulama+review tamamlandı, son CI/F05 kabulü bekliyor. F16/F19/F20/F60/F62 açıkları yeniden çalışılıyor;55 seçili özellik/66 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri/bağımlılıkları, review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

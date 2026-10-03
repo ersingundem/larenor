@@ -2,7 +2,7 @@
 
 ## Current state — 3 October 2026
 
-Canonical current totals are **54 selected features / 65 tasks awaiting CI**; accepted totals remain **3/63 features and 35/127 tasks**. Only `FINAL.FUNCTION` is active. **F04/F16/F19/F20/F60/F62 are reworking**. F60 exact `1a90752379bb6dbfd6fc0f5e07d41e770340e59f` strict run `37142746206` remains open. F62 exact `0cadf0ef9719d2cba1b050ddb09d4624219b9675` Linux run `37142705819` terminal linker failure is root verified; the changed-source static-link repair passed60 tests/11subtests and awaits real hosted build/effects. Root F04 repair passed34 tests and two strict actual Flutter/Core lifetimes; review/required CI and F05 acceptance remain open. F16 genuine isolated component health and F20 Client failure gates reopened after the [routing audit](final-function-routing-audit-2026-10-03.md). F19 cancel/profile-limit candidate validation is private and unaccepted. Named required CI for F05/F20/F54 must be registered and passed. Private200-JVM/201-Flutter/313-task AndroidTest evidence remains supporting local proof. See the [queue](../EXECUTION_QUEUE.md), [live work](function-live-work-2026-10-03.md), and [link repair](f62-shadow-rdpsnd-static-link-2026-10-03.md).
+Canonical current totals are **55 selected features / 66 tasks awaiting CI**; accepted totals remain **3/63 features and 35/127 tasks**. Only `FINAL.FUNCTION` is active. **F16/F19/F20/F60/F62 are reworking**. Integrated F04 serialization and F19 cancellation/profile-limit gates have local named software evidence and independent review; current required CI/dependencies remain separate. F20 Client failure proof and named F05/F20/F54 runner registration are tracked in the [queue](../EXECUTION_QUEUE.md). F60 exact1a907/37142746206 failed at gamepadArm after touch effects; the source-proven first-controller ordering repair needs changed-source evidence. F62 changed static-link source exactb5b30/37144057232 is in progress; real Gateway/RDPDR/Android acceptance remains open and product capabilities remain false. F16 genuine isolated component health/lifecycle work is private and unaccepted. See the [routing audit](final-function-routing-audit-2026-10-03.md), [live work](function-live-work-2026-10-03.md), and [gamepad diagnosis](f60-gamepad-first-controller-ordering-2026-10-03.md).
 
 All selected software items and their dependencies must be accepted, then the final branch exact HEAD must pass required CI. Only after the completion branch is merged to `main` and ancestry/content are verified may `FINAL.UI` start from current `main` on its separate branch. Historical runs below remain evidence for their exact sources and are not current acceptance.
 
@@ -68,7 +68,7 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-54 seçili özellik / 65 iş CI beklerken, F04/F16/F19/F20/F60/F62 üretim/kabul açıkları
+55 seçili özellik / 66 iş CI beklerken, F16/F19/F20/F60/F62 üretim/kabul açıkları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz. Tüm yazılım kabulü ve final dal
 exact-HEAD zorunlu CI tamamlandıktan sonra dal `main`e birleşir; ancestry/içerik

@@ -4,11 +4,65 @@ import hashlib
 import hmac
 import json
 import sqlite3
+import threading
 import uuid
+import weakref
+from contextlib import contextmanager
 
 from ..errors import ApiError, StartupError
 from ..home_resources.models import HomeScope
 from . import schema
+
+
+class _DeviceDispatchLock:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.users = 0
+
+
+class _DeviceDispatchRegistry:
+    """Bounded process lock set shared by services for one canonical database."""
+
+    def __init__(self):
+        self._guard = threading.Lock()
+        self._devices = {}
+
+    @contextmanager
+    def hold(self, device_id):
+        with self._guard:
+            entry = self._devices.get(device_id)
+            if entry is None:
+                if len(self._devices) >= schema.MAX_DEVICES:
+                    raise ApiError("rule_arbiter_limit_reached", 429)
+                entry = _DeviceDispatchLock()
+                self._devices[device_id] = entry
+            entry.users += 1
+        acquired = False
+        try:
+            entry.lock.acquire()
+            acquired = True
+            yield
+        finally:
+            if acquired:
+                entry.lock.release()
+            with self._guard:
+                entry.users -= 1
+                if entry.users == 0 and self._devices.get(device_id) is entry:
+                    del self._devices[device_id]
+
+
+_DISPATCH_REGISTRIES_GUARD = threading.Lock()
+_DISPATCH_REGISTRIES = weakref.WeakValueDictionary()
+
+
+def _dispatch_registry(database):
+    identity = str(database.path.resolve())
+    with _DISPATCH_REGISTRIES_GUARD:
+        registry = _DISPATCH_REGISTRIES.get(identity)
+        if registry is None:
+            registry = _DeviceDispatchRegistry()
+            _DISPATCH_REGISTRIES[identity] = registry
+        return registry
 
 
 class RuleArbitrationService:
@@ -16,6 +70,7 @@ class RuleArbitrationService:
 
     def __init__(self, db, auth, settings, key, context):
         self.db, self.auth, self.settings = db, auth, settings
+        self._dispatch_locks = _dispatch_registry(db)
         self.scope = HomeScope.model_validate(context.model_dump())
         self._key = hmac.new(
             key,
@@ -226,6 +281,11 @@ class RuleArbitrationService:
 
     def _submit(self, actor, core_id, home_id, body, *, source):
         self._scope(core_id, home_id)
+        with self._dispatch_locks.hold(body.deviceId):
+            return self._submit_locked(actor, core_id, home_id, body, source=source)
+
+    def _submit_locked(self, actor, core_id, home_id, body, *, source):
+        self._scope(core_id, home_id)
         now = self.settings.clock()
         request_hash = self._request_hash(body)
         with self.db.transaction() as connection:
@@ -299,7 +359,107 @@ class RuleArbitrationService:
     def submit_manual(self, actor, core_id, home_id, body):
         return self._submit(actor, core_id, home_id, body, source="manual")
 
+    def run_device_dispatch(
+        self, core_id, home_id, device_id, operation
+    ):
+        """Keep decision admission and its provider effect on one device lock."""
+        self._scope(core_id, home_id)
+        if (
+            type(device_id) is not str
+            or len(device_id) != 32
+            or any(char not in "0123456789abcdef" for char in device_id)
+            or not callable(operation)
+        ):
+            raise ApiError("invalid_request")
+        with self._dispatch_locks.hold(device_id):
+            return operation()
+
+    def _decision_device(self, actor, core_id, home_id, decision_id):
+        self._scope(core_id, home_id)
+        with self.db.transaction() as connection:
+            self._actor(connection, actor)
+            self._validate(connection)
+            decision = self._verified(connection.execute(
+                "SELECT * FROM rule_arbiter_decisions WHERE id=?", (decision_id,)
+            ).fetchone(), self._decision_tag)
+            if (decision["owner_id"], decision["family_id"]) != (
+                actor.id, actor.family_id
+            ):
+                raise ApiError("not_found", 404)
+            return decision["device_id"]
+
+    def _assert_authorized(
+        self, connection, actor, decision_id, device_id, effect_token
+    ):
+        self._actor(connection, actor)
+        self._validate(connection)
+        decision = self._verified(connection.execute(
+            "SELECT * FROM rule_arbiter_decisions WHERE id=?", (decision_id,)
+        ).fetchone(), self._decision_tag)
+        if (
+            (decision["owner_id"], decision["family_id"])
+            != (actor.id, actor.family_id)
+            or decision["device_id"] != device_id
+        ):
+            raise ApiError("not_found", 404)
+        if (
+            type(effect_token) is not str
+            or not hmac.compare_digest(effect_token, self._effect_token(decision))
+        ):
+            raise ApiError("rule_arbiter_result_invalid", 400)
+        ownership = self._ownership(connection, device_id)
+        now = self.settings.clock()
+        if (
+            decision["state"] != "authorized"
+            or now >= decision["expires_at"]
+            or ownership is None
+            or ownership["decision_id"] != decision["id"]
+            or now >= ownership["expires_at"]
+        ):
+            raise ApiError("rule_action_suppressed", 409)
+
+    def run_authorized_effect(
+        self, actor, core_id, home_id, decision, operation
+    ):
+        """Run one effect while its exact same-device ownership stays current.
+
+        The packaged Core is explicitly single-process (`uvicorn workers=1`).
+        Fresh service objects for the same canonical database share this
+        process registry; independently owned databases do not.
+        """
+        self._scope(core_id, home_id)
+        try:
+            decision_id = decision["id"]
+            device_id = decision["deviceId"]
+            effect_token = decision["effectToken"]
+        except (KeyError, TypeError):
+            raise ApiError("invalid_request") from None
+        if (
+            type(decision_id) is not str
+            or type(device_id) is not str
+            or type(effect_token) is not str
+            or not callable(operation)
+        ):
+            raise ApiError("invalid_request")
+        with self._dispatch_locks.hold(device_id):
+            with self.db.transaction() as connection:
+                self._assert_authorized(
+                    connection, actor, decision_id, device_id, effect_token
+                )
+
+            def authority_guard(connection):
+                self._assert_authorized(
+                    connection, actor, decision_id, device_id, effect_token
+                )
+
+            return operation(authority_guard)
+
     def complete(self, actor, core_id, home_id, decision_id, body):
+        device_id = self._decision_device(actor, core_id, home_id, decision_id)
+        with self._dispatch_locks.hold(device_id):
+            return self._complete_locked(actor, core_id, home_id, decision_id, body)
+
+    def _complete_locked(self, actor, core_id, home_id, decision_id, body):
         self._scope(core_id, home_id)
         now = self.settings.clock()
         with self.db.transaction() as connection:
