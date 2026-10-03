@@ -326,6 +326,17 @@ class CliJourneyTest(unittest.TestCase):
             self.assertEqual(path.read_bytes(), before)
             self.assertEqual(sorted(p.name for p in Path(directory).iterdir()), ['queue.json'])
 
+    def test_render_exposes_active_and_ci_gate_reasons_without_reclassifying_work(self):
+        data = fixture()
+        data['nodes'][2].update(status='reworking', reason='Aktif <native>|düzeltme')
+        data['nodes'][3].update(status='awaiting_ci', reason='Exact kaynak CI kabulü')
+        output = queue.render(queue.validate_queue(data))
+        active, waiting = output.split('Tamamlanan ve test/CI bekleyen işler')
+        self.assertIn('Aktif &lt;native&gt;&#124;düzeltme', active)
+        self.assertNotIn('| F02 |', active)
+        self.assertIn('| F02 | F02 kabul işi | CI bekliyor |', waiting)
+        self.assertIn('Exact kaynak CI kabulü', waiting)
+
     def test_invalid_cli_input_fails_statically_without_traceback_or_data_leak(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'queue.json'; path.write_text('{"secret":"DO_NOT_ECHO"}')

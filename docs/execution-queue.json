@@ -5458,7 +5458,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5471,7 +5471,8 @@
         "docs/feature-candidates-2026-09-05.json",
         "docs/testing/queue-evidence-archive-2026-10-01.md",
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
-        "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md"
+        "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
+        "docs/testing/function-live-work-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5742,7 +5743,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. RI5 gerçek paket/consumer dilimi yerelde tamamlandı: provider launch ve matching-app resume aynı tek kullanımlık RI key/ID ile Game bağlantısına aktarılır; açık matching uygulama kapatılmaz. Exact binding/session/quality sahipliği, timeout, concurrent one-use, wipe ve geç eski publish/successor çitleri var. Root actual dualABI v5 AAR+microphone4 ürününü doğruladı;55Moonlight+78RDP+13hazırlananSAF=146JVM/0skip/error/failure, actual AndroidTest compile315task,88portable ve Ruff geçti;1227-source manifest değişmedi. Exact9551/run37123578040 FAILED original1/1/0/0 rtspHandshake sonucu korunur; RI farkı source-confirmed composition eksikliğidir, eski sağlayıcı hatasının tek nedeni iddia edilmez. Değişmiş exact kaynak strict launch/RTSP/frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli. F60 CI bekliyor/done sayılmaz; fiziksel receiver MANUAL ayrı. Exact9a85/run37127353767 provider öncesi eski v4 kabul sabiti nedeniyle FAILED; artifact yok. Root86 ve Ruff ile ortak strict lock kimliği düzeltildi; değişmiş kaynakta gerçek stream kabulü açık. Değişmiş exact79506ada/run37128656191 bir kez başlatıldı; gerçek runtime kabulü bekleniyor."
+      "reason": "RI5 launch/resume anahtar sahipliği ve strict paket kimliği düzeltmesi commit edilip pushlandı; yerel 86 test ve actual v5 paket kapıları geçti. Exact79506ada / Sunshine37128656191 gerçek yayın kabulü çalışıyor; frame, ses, girdi, iki yaşam ve kapanış sonucu henüz yok. Aktif kaynak geliştirmesi yok; yeni gerçek hata çıkarsa yeniden çalışılır. Önceki başarısız koşular kanıt kaydında korunur; final dal HEAD CI ayrıca gerekli."
     },
     {
       "id": "G11",
@@ -5878,7 +5879,8 @@
         "docs/testing/f62-microphone-client-2026-10-03.md",
         "docs/testing/f62-microphone-native-consumer-2026-10-03.md",
         "docs/testing/f62-microphone-package-2026-10-03.md",
-        "docs/testing/f62-owned-effect-control-2026-10-03.md"
+        "docs/testing/f62-owned-effect-control-2026-10-03.md",
+        "docs/testing/function-live-work-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6149,7 +6151,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Mikrofon4 gerçek çift ABI paketi, local125native/105Flutter/128portable ve actual315task compile geçti. Exact06ef/run37125727523 arm64 package passed; x86 original1/1/0/0 failed, canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 doğrulandı; marker invalid, shadow live, resizefalse, kesin aşama/kök neden bilinmiyor. Tanı/effect-control ayrımı tamamlandı: root78/Ruff ve actual AndroidTest compile geçti; exact source/test/nonce-bound tek kullanımlık arm, tanıdan bağımsız. Failed koşu rerun edilmedi; değişmiş kaynak hosted etkisi açık. SAF grant5/clientSettings3 tamamlandı: encrypted permission ledger, exact authority/picker, replay/crash/revoke ve256record sınırı; root94RDP/compile, son18SAF/0skip,179Flutter/analyze geçti. Bu yerel grant alt dilimi dosya aktarımı değildir: filesfalse; private mirror, native asyncdrain/quota, explicit SAF save/readback ve RD Gateway hâlâ açık. F62 CI bekliyor/done sayılmaz; gerçek cihaz/ses kalitesi MANUAL ayrı. Eski9551 source-bound failure korunur. Değişmiş exactf201ecf9/run37128695877 bir kez başlatıldı; gerçek runtime kabulü bekleniyor."
+      "reason": "Aktif: native v5 dosya kotası ve oturum yaşam döngüsü güvenliği; SAF mirror/kurtarma ile gerçek MethodChannel/Client bağlantısı; ayrı pin/parolalı Gateway entegrasyonu. Grant5 ve effect-control commit edilip pushlandı. Exactf201ecf9 / RDP37128695877: arm64 actual APK derlemesi geçti, x86 strict host kabulü çalışıyor. Özel hazırlıklar henüz ürün dalına alınmadı; dosya/Gateway kabulü yok. Sıradaki: değişmiş SAF testleri, native v5 derlemesi, atomik entegrasyon ve gerçek host etkisi."
     },
     {
       "id": "F61",
@@ -6246,7 +6248,8 @@
         "docs/product-implementation-plan-2026-09-05.md",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/PROGRESS.md",
-        "docs/testing/native-strict-9551-failure-2026-10-03.md"
+        "docs/testing/native-strict-9551-failure-2026-10-03.md",
+        "docs/testing/function-live-work-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
@@ -6440,7 +6443,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Tarihsel exact721 broad dört Server shardı/Flutter/aggregate/emulator/APK/native/host geçti; F08 leaf observer ve Serveraggregate failed; değişmişa8/run36835138089 F08Linux/CoreUID IPC/cgroup passed. Exact5122 Security37121144283 passed; final combined required CI yerine geçmez. F60 exact9551/run37123578040 ve F62/run37123504468 original1/1/0/0 failed, source-bound canonical kimlikleri korunur. F60 RI5 source/paket düzeltmesi root55Moonlight+78RDP+13hazırlananSAF=146native/0skip/error/failure, actual compile315task ve88portable geçti; exact9a85/run37127353767 provider öncesi stale package identity ile FAILED; root86/Ruff identity düzeltmesi geçti, gerçek stream kabulü açık. F62 microphone4 local125native/105Flutter/128portable passed; exact06ef/run37125727523 x86 owned host gate FAILED; source-bound canonical doğrulandı, arm64 package geçti. Tanıdan bağımsız effect-control root78/Ruff/actual AndroidTest compile geçti; hosted etki kabulü açık. SAF grant5 lifecycle/crash/revocation local94RDP/son18SAF ve179Flutter geçti; gerçek mirror/asyncdrain/readback/quota ve RD Gateway açık. Yerel grant tam transfer sayılmaz. Reader yarışı düzeltilmesi önceki provider hatasının tek nedeni iddia edilmez. İkinci FINAL başlamaz; finalHEAD CI ve MANUAL ayrı."
+      "reason": "Yalnız bu final aktif. F60 kaynak geliştirmesi tamamlandı ve exact kaynak yayın CI kabulü bekliyor; F62 dosya/Gateway entegrasyonu sürüyor. 59 seçili özellik / 70 iş CI bekliyor; kabul edilen 35/127 iş ve 3/63 özellik değişmedi. Dar işler ve kanıt sınırları function-live-work-2026-10-03.md içinde. F60/F62 ve final dal HEAD zorunlu CI kabulünden sonra mevcut dal main’e birleşecek; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

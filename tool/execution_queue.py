@@ -353,17 +353,18 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
             '',
             'Şu anda çalışılanlar',
             '',
-            '| ID | İş | Durum | Beklenen bağımlılık |',
-            '| --- | --- | --- | --- |',
+            '| ID | İş | Durum | Beklenen bağımlılık | Son durum ve sıradaki adım |',
+            '| --- | --- | --- | --- | --- |',
         ])
         if current:
             for node in current:
                 blockers = ', '.join(model.blockers(node['id'])) or '—'
-                lines.append('| %s | %s | %s | %s |' %
+                lines.append('| %s | %s | %s | %s | %s |' %
                              (node['id'], escape(node['title']),
-                              LABELS[node['status']], blockers))
+                              LABELS[node['status']], blockers,
+                              escape(node['reason']) if node['reason'] else '—'))
         else:
-            lines.append('| — | Aktif iş yok | — | — |')
+            lines.append('| — | Aktif iş yok | — | — | — |')
         lines.extend([
             '',
             'Bekleyen tüm işler',
@@ -397,11 +398,13 @@ def render(model, group=None, page=1, page_size=20, summary_only=False):
         lines.extend(['', 'Tamamlanan ve test/CI bekleyen işler', '',
                       'CI bekliyor: geliştirme ve odaklı doğrulama tamamlandı; son dal HEAD’inin CI kabulü bekleniyor. '
                       'Kanıtla tamamlandı durumu yalnız tam kabulü geçen işler içindir.', '',
-                      '| ID | İş | Durum | Beklenen bağımlılık |', '| --- | --- | --- | --- |'])
+                      '| ID | İş | Durum | Beklenen bağımlılık | Son durum ve sıradaki kapı |',
+                      '| --- | --- | --- | --- | --- |'])
         for node in closed_tasks:
             blocked = ', '.join(model.blockers(node['id'])) or '—'
-            lines.append('| %s | %s | %s | %s |' %
-                         (node['id'], escape(node['title']), LABELS[node['status']], blocked))
+            lines.append('| %s | %s | %s | %s | %s |' %
+                         (node['id'], escape(node['title']), LABELS[node['status']], blocked,
+                          escape(node['reason']) if node['reason'] else '—'))
     return '\n'.join(lines) + '\n'
 
 
