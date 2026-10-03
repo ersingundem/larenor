@@ -239,7 +239,13 @@ class MoonlightOwnedSunshineStreamTest {
                     control.exchange("touch_ready", "touch_armed")
                     dispatchOwnedTouchAndMouse(firstGame)
                     control.exchange("touch_sent", "touch_observed")
+                    // Moonlight's OSC default context has no controller-arrival packet.
+                    // A real visible B transition creates Sunshine's virtual controller without
+                    // producing the BTN_SOUTH transition used as acceptance evidence. It may
+                    // arrive after the host drain, so the witness ignores its idle BTN_SOUTH=0.
+                    dispatchOwnedOscB(firstGame)
                     control.exchange("gamepad_ready", "gamepad_armed")
+                    // Only this post-arm A transition can produce BTN_SOUTH down/up + SYN.
                     dispatchOwnedOscA(firstGame)
                     control.exchange("gamepad_sent", "gamepad_observed")
 
@@ -561,7 +567,20 @@ class MoonlightOwnedSunshineStreamTest {
         }
     }
 
+    private fun dispatchOwnedOscB(game: LarenorMoonlightGame) {
+        dispatchOwnedOscFaceButton(game, elementIndex = 2, label = "B")
+    }
+
     private fun dispatchOwnedOscA(game: LarenorMoonlightGame) {
+        dispatchOwnedOscFaceButton(game, elementIndex = 1, label = "A")
+    }
+
+    private fun dispatchOwnedOscFaceButton(
+        game: LarenorMoonlightGame,
+        elementIndex: Int,
+        label: String,
+    ) {
+        require((elementIndex == 1 && label == "A") || (elementIndex == 2 && label == "B"))
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val elements = mutableListOf<VirtualControllerElement>()
@@ -586,9 +605,12 @@ class MoonlightOwnedSunshineStreamTest {
                 ),
                 elements.map { it.javaClass },
             )
-            val aButton = elements[1] as DigitalButton
-            assertTrue("Moonlight OSC A button is not attached", aButton.isAttachedToWindow)
-            assertTrue("Moonlight OSC A button has no touch target", aButton.width > 0 && aButton.height > 0)
+            val button = elements[elementIndex] as DigitalButton
+            assertTrue("Moonlight OSC $label button is not attached", button.isAttachedToWindow)
+            assertTrue(
+                "Moonlight OSC $label button has no touch target",
+                button.width > 0 && button.height > 0,
+            )
             val downTime = SystemClock.uptimeMillis()
             pointerEvent(
                 downTime = downTime,
@@ -596,18 +618,18 @@ class MoonlightOwnedSunshineStreamTest {
                 action = MotionEvent.ACTION_DOWN,
                 source = InputDevice.SOURCE_TOUCHSCREEN,
                 toolType = MotionEvent.TOOL_TYPE_FINGER,
-                x = aButton.width / 2f,
-                y = aButton.height / 2f,
-            ).use(aButton::dispatchTouchEvent)
+                x = button.width / 2f,
+                y = button.height / 2f,
+            ).use(button::dispatchTouchEvent)
             pointerEvent(
                 downTime = downTime,
                 eventTime = downTime + 1,
                 action = MotionEvent.ACTION_UP,
                 source = InputDevice.SOURCE_TOUCHSCREEN,
                 toolType = MotionEvent.TOOL_TYPE_FINGER,
-                x = aButton.width / 2f,
-                y = aButton.height / 2f,
-            ).use(aButton::dispatchTouchEvent)
+                x = button.width / 2f,
+                y = button.height / 2f,
+            ).use(button::dispatchTouchEvent)
         }
     }
 

@@ -566,3 +566,34 @@ Only oldest non-CI evidence moves here; all CI records remain live.
   }
 ]
 ```
+
+## F60 current preparation proof retains every CI record
+
+Only oldest non-CI evidence is archived.
+
+```json
+[
+  {
+    "node": "F60",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
+      "commit": "23516304565026a06119f2e4e51bd7ba7dfba4e1",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen phase diagnostic slice on235 base: root74stream/workflow tests and Ruff passed; real private socket audio-timeout/XI2-start failure, cleanup primary cause, closed enums and host-wait receipt/rethrow regression. Strict success gates unchanged; runtime fix/acceptance unproved."
+    }
+  },
+  {
+    "node": "F60",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
+      "commit": "7736683371a6b955a0d4f04a0ba4f9460a9246f0",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen XI2 repair on773 base independently integrated: root80tests/72subtests and scoped Ruff passed. Long-lived pointer stream removes cumulative command cap, retains4KiB lines/exact readiness and bounded2positions; closed XI2 error codes. Actual changed-source Android stream and exclusive old cause unproved."
+    }
+  }
+]
+```

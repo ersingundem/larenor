@@ -5720,7 +5720,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -5743,7 +5743,8 @@
         "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md",
         "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
         "docs/testing/f60-owned-touch-effect-2026-10-03.md",
-        "docs/testing/f60-gamepad-first-controller-ordering-2026-10-03.md"
+        "docs/testing/f60-gamepad-first-controller-ordering-2026-10-03.md",
+        "docs/testing/f60-owned-gamepad-prepare-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5909,28 +5910,12 @@
           "label": "Exacta3f01 actual Ubuntu Xvfb/production XI2/XTest pointer+button probe passed; root finite source-bound receipt SHAee6c8d69c30b207793416e0e24dd6a5e2fc218e5ae5d7aa0b8f74e9fca149cf9 verified. featureAccepted=false; integrated Sunshine ACK/two-lifetime acceptance remains open."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
-          "commit": "23516304565026a06119f2e4e51bd7ba7dfba4e1",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen phase diagnostic slice on235 base: root74stream/workflow tests and Ruff passed; real private socket audio-timeout/XI2-start failure, cleanup primary cause, closed enums and host-wait receipt/rethrow regression. Strict success gates unchanged; runtime fix/acceptance unproved."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37131893719",
           "commit": "54954a768a5c97e7844e94bdeb46c445f54958c0",
           "state": "completed",
           "result": "failed",
           "label": "Exact549 strict37131893719 failed: original named1/1/0/0 ownedInputEffects; phaseBridge touchListener/failed/contract, pairedClientObserved. Canonical1150B SHAa09f1191b1f607e7223066968e272b4e45302c4115da116d21300da7edebd528 validated source/named/classes/package source identity. Listener cause open; no blind rerun or acceptance."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
-          "commit": "7736683371a6b955a0d4f04a0ba4f9460a9246f0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen XI2 repair on773 base independently integrated: root80tests/72subtests and scoped Ruff passed. Long-lived pointer stream removes cumulative command cap, retains4KiB lines/exact readiness and bounded2positions; closed XI2 error codes. Actual changed-source Android stream and exclusive old cause unproved."
         },
         {
           "kind": "ci",
@@ -6011,10 +5996,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact1a907 terminalFAILED original1/1/0/0 ownedInputEffects; gamepadArm/failed/unclassified after pairedClientObserved. Root production diagnostic/package validators and canonical SHA dd5bdab447374092545370675468916aa86f599fd5d28856108f6a9e59697cf5 verified. Prior touch effect completed; real OSC gamepad/second lifetime/local retirement acceptance remain open; no same-SHA rerun."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-owned-gamepad-prepare-2026-10-03.md",
+          "commit": "ca179042dab902c6a53555bd66b0ebeecf1c4dff",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root integrated six-path F60v2:111 portable/workflow tests, Ruff and actual Java17 required-native5 AndroidTest compile278tasks passed; all tracked Kotlin/Java match shared source. Actual hosted evdev/gamepad/two-lifetime/closure and final acceptance open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f60-owned-gamepad-prepare-2026-10-03.md",
+          "commit": "ca179042dab902c6a53555bd66b0ebeecf1c4dff",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent second source review CLEAR: exact default B before host arm cannot satisfy BTN_SOUTH press, post-arm A remains mandatory; preferences/nonces/order/replay/cleanup fail closed. Six-path freeze aa7d872 bound; no native effect acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact1a907/37142746206 terminal FAILED original named1test/1failure/0error/0skip ownedInputEffects, phase gamepadArm/failed/unclassified. Root canonical schema/source/package/named validators doğrulandı; önceki touch effect kapısı geçti, gerçek gamepad açık. İlk visible OSC controller packetinden önce host evdev arm bekleniyordu; bounded prepare→host drain→ikinci sole BTN_SOUTH witness dar onarımı özel kaynakta doğrulandı. Changed-source compile/hosted iki yaşam/kapanış ve kabul/main merge açık."
+      "reason": "Visible B hazırlığı→exact yeni evdev identity/drain→post-arm sole A/BTN_SOUTH tanığı ortak dala entegre; root111 portable/workflow, Ruff, independent CLEAR ve actual278task AndroidTest compile geçti. A/A gecikmiş paket false-positive kapatıldı; nonce/sıra/replay/kapalı tanılar korunuyor. Uygulama ve scoped yerel doğrulama tamamlandı; changed-source hosted gerçek gamepad, iki stream yaşamı/kapanış ve final exactCI/kabul bağımlılıkları açık. Önceki1a907/37142746206 failed kanıtı korunuyor; same-SHA rerun yok."
     },
     {
       "id": "G11",
@@ -6735,7 +6736,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F04/F19/F20 uygulama, odaklı gerçek Client/Core doğrulaması ve independent review tamamlandı; son CI ve kabul bağımlılıkları bekleniyor. F16/F60/F62 yeniden çalışılıyor;57 seçili özellik/68 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam kriter/bağımlılık/review/final exactHEAD requiredCI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04/F19/F20/F60 scoped yazılım uygulaması/yerel test/review tamamlandı; son CI ve kabul bağımlılıkları bekleniyor. F16/F62 yeniden çalışılıyor;58 seçili özellik/69 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam kriter/bağımlılık/review/final exactHEAD requiredCI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

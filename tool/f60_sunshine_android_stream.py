@@ -38,7 +38,7 @@ from tool.f60_sunshine_android_discovery import (
     prebuild_android_test as prebuild_owned_android_test,
     single_success_suite,
 )
-from tool.f60_owned_gamepad import OwnedGamepadAccess
+from tool.f60_owned_gamepad import GamepadHostFailure, OwnedGamepadAccess
 from tool.f60_sunshine_owned_host import (
     DISPLAY,
     HostFailure,
@@ -120,7 +120,7 @@ _PIN_BRIDGE_STAGES = frozenset({
 _PHASE_BRIDGE_STAGES = frozenset({
     "listening", "peerValidation", "audioReady", "audioPairing", "audioArm",
     "audioInjection", "touchReady", "touchListener", "touchArm", "touchSent",
-    "touchEffect", "touchObserved", "gamepadReady", "gamepadArm", "gamepadSent",
+    "touchEffect", "touchObserved", "gamepadPrepare", "gamepadReady", "gamepadArm", "gamepadSent",
     "gamepadEffect", "gamepadDisarm", "gamepadObserved", "secondAudioReady",
     "secondAudioPairing", "secondAudioArm", "secondAudioInjection",
     "disconnectReady", "disconnectPairing", "sunshineStop", "disconnectArm",
@@ -143,9 +143,10 @@ _XI2_POINTER_EFFECT_ERRORS = frozenset({
     "xi2EffectTimeout",
 })
 _XI2_POINTER_ERRORS = _XI2_POINTER_START_ERRORS | _XI2_POINTER_EFFECT_ERRORS
+_GAMEPAD_ERRORS = frozenset({"gamepadDiscoveryTimeout"})
 _PHASE_BRIDGE_ERRORS = frozenset(
     {"none", "timeout", "io", "contract", "unclassified"}
-) | _XI2_POINTER_ERRORS
+) | _XI2_POINTER_ERRORS | _GAMEPAD_ERRORS
 
 
 def _validate_phase_bridge_observation(observation: Mapping[str, object]) -> None:
@@ -171,6 +172,10 @@ def _validate_phase_bridge_observation(observation: Mapping[str, object]) -> Non
                     and observation["error"] in _XI2_POINTER_EFFECT_ERRORS
                 )
             )
+        )
+        or (
+            observation["error"] in _GAMEPAD_ERRORS
+            and observation["stage"] != "gamepadArm"
         )
         or (observation["state"] == "complete" and observation["stage"] != "endOfStream")
     ):
@@ -288,7 +293,7 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "31363eb7d591ebdd7660660ea8c865f2df793d022d9310112e73546502c07d7d"
+_STAGE_SOURCE_SHA256 = "56f7797b3de26b4709ed9a271e555a39c03ae21af0a6169998c61bed427179f3"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
@@ -296,12 +301,12 @@ _STAGE_LINES = (
     (129, 155, "catalog"),
     (156, 216, "capabilityAndSession"),
     (217, 237, "firstStreamOutput"),
-    (238, 244, "ownedInputEffects"),
-    (245, 252, "deliberateStop"),
-    (253, 285, "secondStreamOutput"),
-    (286, 306, "remoteDisconnect"),
-    (307, 337, "localRetirement"),
-    (338, 350, "cleanup"),
+    (238, 251, "ownedInputEffects"),
+    (252, 258, "deliberateStop"),
+    (259, 291, "secondStreamOutput"),
+    (292, 313, "remoteDisconnect"),
+    (314, 344, "localRetirement"),
+    (345, 357, "cleanup"),
 )
 
 
@@ -1128,6 +1133,11 @@ class PhaseControlBridge:
             return
         kind = (
             error.public_code if isinstance(error, Xi2PointerWitnessFailure)
+            else error.args[0] if (
+                isinstance(error, GamepadHostFailure)
+                and len(error.args) == 1
+                and error.args[0] in _GAMEPAD_ERRORS
+            )
             else "timeout" if isinstance(error, (TimeoutError, subprocess.TimeoutExpired))
             else "io" if isinstance(error, OSError)
             else "contract" if isinstance(error, (StreamAcceptanceFailure, HostFailure))
@@ -1198,7 +1208,7 @@ class PhaseControlBridge:
                 self.touch_observed = True
                 self._set_stage("touchObserved")
                 self._send(control, "touch_observed")
-                self._set_stage("gamepadReady")
+                self._set_stage("gamepadPrepare")
                 self._expect(control, "gamepad_ready")
                 self._set_stage("gamepadArm")
                 self._gamepad.arm()

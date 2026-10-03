@@ -5,7 +5,7 @@ Kuyruk JSON'u durumların tek kaynağıdır; EXECUTION_QUEUE.md aynı kaynaktan
 
 | Alt iş | Şu anki durum | Kanıt / sıradaki somut kapı |
 | --- | --- | --- |
-| F60 RI5 launch/resume ve strict yayın | Yeni exact koşu terminal failed | Exact1a907/37142746206 original1/1/0/0 gamepadArm/failed/unclassified; touch effect geçti. First-controller-before-host-arm sırası onarılıyor; changed-source gerçek gamepad/iki yaşam/kapanış açık |
+| F60 RI5 launch/resume ve strict yayın | CI bekliyor | Root111 portable/workflow, actual278task native AndroidTest compile ve independent CLEAR; distinct B hazırlık/A effect tanığı entegre. Changed-source hosted gamepad/iki yaşam/kapanış ve final acceptance açık |
 | F04 aynı cihaz dispatch | CI bekliyor | Root34 concurrency/HA/attribution, iki strict actual Client/Core yaşamı ve independent CLEAR; named final-source CI/F05 bağımlılığı açık |
 | F19 çoklu Core | CI bekliyor | Sekiz strict actual normal-Core yaşamı,16-profile zero-I/O sınırı ve independent CLEAR; required final-source CI/F16/F20/F54 kabul ve fiziksel MANUAL ayrı |
 | F62 mikrofon4 ve SAF grant5 | Commit edildi, pushlandı | 06ef24fae / 0cb84d079 yerel native/Flutter/AndroidTest kanıtları; gerçek dosya aktarımı veya Gateway kabulü değildir |

@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import stat
 import subprocess
-import tempfile
 import unittest
 from unittest import mock
 
@@ -372,6 +371,82 @@ class F60OwnedGamepadTest(unittest.TestCase):
             os.close(write_descriptor)
             os.close(read_descriptor)
             access._descriptor = None
+
+    def test_delayed_prepare_b_cannot_satisfy_and_post_arm_a_is_required(self) -> None:
+        with mock.patch.object(gamepad, "require_owned_runner"):
+            access = gamepad.OwnedGamepadAccess({})
+        read_descriptor, write_descriptor = os.pipe()
+        access._descriptor = read_descriptor
+        try:
+            # Sunshine's uinput backend emits a full button-state report. A
+            # delayed B prepare includes idle BTN_SOUTH=0, B itself, and SYN.
+            prepare_b = (
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 0),
+                (gamepad.EV_KEY, 305, 1),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 0),
+                (gamepad.EV_KEY, 305, 0),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+            )
+            witness_a = (
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 1),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 0),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+            )
+            os.write(
+                write_descriptor,
+                b"".join(
+                    gamepad.EVENT_STRUCT.pack(0, 0, kind, code, value)
+                    for kind, code, value in prepare_b + witness_a
+                ),
+            )
+            access.wait_effect(timeout_seconds=1)
+        finally:
+            os.close(write_descriptor)
+            os.close(read_descriptor)
+            access._descriptor = None
+
+    def test_delayed_prepare_b_alone_never_satisfies_btn_south_witness(self) -> None:
+        with mock.patch.object(gamepad, "require_owned_runner"):
+            access = gamepad.OwnedGamepadAccess({})
+        read_descriptor, write_descriptor = os.pipe()
+        access._descriptor = read_descriptor
+        try:
+            events = (
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 0),
+                (gamepad.EV_KEY, 305, 1),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+                (gamepad.EV_KEY, gamepad.BTN_SOUTH, 0),
+                (gamepad.EV_KEY, 305, 0),
+                (gamepad.EV_SYN, gamepad.SYN_REPORT, 0),
+            )
+            os.write(
+                write_descriptor,
+                b"".join(
+                    gamepad.EVENT_STRUCT.pack(0, 0, kind, code, value)
+                    for kind, code, value in events
+                ),
+            )
+            with self.assertRaises(gamepad.GamepadHostFailure):
+                access.wait_effect(timeout_seconds=0.05)
+        finally:
+            os.close(write_descriptor)
+            os.close(read_descriptor)
+            access._descriptor = None
+
+    def test_arm_reports_closed_discovery_timeout_before_any_device_open(self) -> None:
+        with mock.patch.object(gamepad, "require_owned_runner"):
+            access = gamepad.OwnedGamepadAccess({})
+        access._monotonic = mock.Mock(side_effect=[0.0, 0.0, 0.06])
+        access._sleeper = mock.Mock()
+        access._event_nodes = mock.Mock(return_value=[])
+        with self.assertRaisesRegex(
+            gamepad.GamepadHostFailure, "gamepadDiscoveryTimeout"
+        ):
+            access.arm(timeout_seconds=0.05)
+        access._event_nodes.assert_called_once_with(require_match=True)
+        self.assertIsNone(access._descriptor)
 
     def test_effect_rejects_button_transition_without_syn_commit(self) -> None:
         with mock.patch.object(gamepad, "require_owned_runner"):

@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest import mock
 import wave
@@ -642,10 +643,44 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 bridge.public_observation(),
             )
 
+    def test_gamepad_prepare_uses_b_before_arm_and_only_a_after_arm(self) -> None:
+        source = stream._STAGE_SOURCE.read_text()
+        start = source.index('control.exchange("touch_sent", "touch_observed")')
+        end = source.index('control.exchange("gamepad_sent", "gamepad_observed")', start)
+        fixture = source[start:end]
+        prepare_b = fixture.index("dispatchOwnedOscB(firstGame)")
+        ready = fixture.index('control.exchange("gamepad_ready", "gamepad_armed")')
+        witness_a = fixture.index("dispatchOwnedOscA(firstGame)")
+        self.assertLess(prepare_b, ready)
+        self.assertLess(ready, witness_a)
+        self.assertEqual(1, fixture.count("dispatchOwnedOscB(firstGame)"))
+        self.assertEqual(1, fixture.count("dispatchOwnedOscA(firstGame)"))
+        self.assertIn(
+            'dispatchOwnedOscFaceButton(game, elementIndex = 2, label = "B")', source,
+        )
+        self.assertIn(
+            'dispatchOwnedOscFaceButton(game, elementIndex = 1, label = "A")', source,
+        )
+
+    def test_gamepad_discovery_timeout_is_closed_to_exact_arm_stage(self) -> None:
+        bridge = object.__new__(stream.PhaseControlBridge)
+        bridge._failure = None
+        bridge._observation_lock = threading.Lock()
+        bridge._observation = {"stage": "gamepadArm", "state": "active", "error": "none"}
+        bridge._record_failure(stream.GamepadHostFailure("gamepadDiscoveryTimeout"))
+        self.assertEqual(
+            {"stage": "gamepadArm", "state": "failed", "error": "gamepadDiscoveryTimeout"},
+            bridge.public_observation(),
+        )
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_phase_bridge_observation(
+                {"stage": "touchEffect", "state": "failed", "error": "gamepadDiscoveryTimeout"}
+            )
+
     def test_touch_fixture_matches_pinned_relative_axis_contract(self) -> None:
         source = stream._STAGE_SOURCE.read_text()
         start = source.index("    private fun dispatchOwnedTouchAndMouse")
-        end = source.index("    private fun dispatchOwnedOscA", start)
+        end = source.index("    private fun dispatchOwnedOscB", start)
         fixture = source[start:end]
         self.assertIn("listOf(18f to 12f, -7f to 5f)", fixture)
         self.assertEqual(1, fixture.count("action = MotionEvent.ACTION_MOVE"))
@@ -2008,7 +2043,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             "java.lang.IllegalStateException: private-provider-material\n"
             " at com.ersingundem.larenor.game.moonlight."
             "MoonlightOwnedSunshineStreamTest."
-            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:286)"
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:293)"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

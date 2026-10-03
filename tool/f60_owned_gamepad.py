@@ -470,6 +470,8 @@ class OwnedGamepadAccess:
             if candidates:
                 break
             self._sleeper(0.05)
+        if not candidates:
+            raise GamepadHostFailure("gamepadDiscoveryTimeout")
         if len(candidates) != 1:
             raise GamepadHostFailure("gamepadHostUnavailable")
         event = candidates[0]
@@ -532,6 +534,10 @@ class OwnedGamepadAccess:
                     raise GamepadHostFailure("gamepadHostUnavailable")
                 if state == 0 and event_type == EV_KEY and code == BTN_SOUTH and value == 1:
                     state = 1
+                elif state == 0 and event_type == EV_KEY and code == BTN_SOUTH and value == 0:
+                    # Sunshine's full-state uinput report for the preparation B
+                    # transition carries an idle BTN_SOUTH=0. It is not evidence.
+                    continue
                 elif state == 1 and event_type == EV_SYN and code == SYN_REPORT:
                     state = 2
                 elif state == 2 and event_type == EV_KEY and code == BTN_SOUTH and value == 0:
