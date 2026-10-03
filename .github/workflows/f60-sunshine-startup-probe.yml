@@ -1,0 +1,82 @@
+name: F60 Sunshine stream-profile startup probe
+
+on:
+  workflow_call:
+    inputs:
+      caller_contract:
+        description: "Exact registered same-repository dispatcher contract"
+        required: true
+        type: string
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f60-sunshine-startup-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  startup-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require exact reviewed GitHub-hosted source
+        env:
+          CALLER_CONTRACT: ${{ inputs.caller_contract || '' }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          case "$GITHUB_REF" in refs/heads/main|refs/heads/codex/project-completion-100) ;; *) exit 1;; esac
+          test -z "$PR_HEAD_REPOSITORY"
+          test "$GITHUB_REPOSITORY" = ersingundem/larenor
+          test "$GITHUB_WORKFLOW_SHA" = "$GITHUB_SHA"
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          case "$GITHUB_WORKFLOW_REF:$CALLER_CONTRACT" in
+            "ersingundem/larenor/.github/workflows/f60-sunshine-startup-probe.yml@$GITHUB_REF:") ;;
+            "ersingundem/larenor/.github/workflows/server-test.yml@$GITHUB_REF:f60-owned-startup-probe-v1") ;;
+            *) exit 1 ;;
+          esac
+          test -n "$RUNNER_TEMP"
+          printf 'STARTUP_RECEIPT=%s/f60-sunshine-startup-probe.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install exact stream-host prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          packages=(acl avahi-daemon avahi-utils openssl pulseaudio pulseaudio-utils x11-apps x11-utils x11-xserver-utils xinput xvfb)
+          for package in "${packages[@]}"; do
+            candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
+            case "$candidate" in ""|"(none)") exit 1;; esac
+            sudo apt-get install --yes --no-install-recommends "$package=$candidate"
+            test "$(dpkg-query --show --showformat='${Version}' "$package")" = "$candidate"
+          done
+          sudo systemctl start avahi-daemon
+          test "$(systemctl is-active avahi-daemon)" = active
+
+      - name: Start and retire the real owned stream-profile host
+        id: startup_probe
+        run: >-
+          python3 -B -m tool.f60_sunshine_startup_probe
+          --receipt "$STARTUP_RECEIPT"
+
+      - name: Upload the bounded nonacceptance startup receipt
+        if: always() && steps.startup_probe.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: f60-sunshine-startup-probe-${{ github.sha }}
+          path: ${{ runner.temp }}/f60-sunshine-startup-probe.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop owned host support service
+        if: always()
+        run: sudo systemctl stop avahi-daemon || true

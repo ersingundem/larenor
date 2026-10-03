@@ -777,6 +777,74 @@ class F60SunshineOwnedHostTest(unittest.TestCase):
         self.assertIs(receipt["streamAccepted"], False)
         self.assertNotIn("success", receipt)
 
+    def test_startup_exit_preserves_private_logs_and_publishes_only_closed_facts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            workspace = host.PrivateWorkspace.create(parent)
+            material = workspace.write_host_material(username="u", password="p" * 16)
+            (material.logs / "sunshine.log").write_bytes(
+                b"private endpoint https://127.0.0.1:47990\n"
+                b"Fatal: Couldn't find any working encoder\n"
+            )
+            (material.logs / "sunshine-process.log").write_bytes(b"private raw value\n")
+            processes = host.OwnedProcesses()
+            audio, display, sunshine = _Process(201), _Process(202), _Process(203)
+            sunshine.returncode = 78
+            processes.add("pulseaudio", audio)
+            processes.add("xvfb", display)
+            processes.add("sunshine", sunshine)
+
+            private_logs = host._preserve_startup_logs(material, parent)
+            observation = processes.startup_observation(
+                "apiReadiness", material, private_logs=private_logs,
+            )
+            workspace.close()
+
+            self.assertEqual({
+                "stage": "apiReadiness", "process": "sunshine", "poll": "exited",
+                "exit": "nonzero", "knownCode": "encoderUnavailable",
+                "privateLogs": "preserved",
+            }, observation)
+            preserved = list(parent.glob("f60-host-startup-private-*"))
+            self.assertEqual(1, len(preserved))
+            self.assertEqual(0o700, stat.S_IMODE(preserved[0].stat().st_mode))
+            copied = preserved[0] / "sunshine.log"
+            self.assertEqual(0o600, stat.S_IMODE(copied.stat().st_mode))
+            self.assertIn(b"private endpoint", copied.read_bytes())
+            self.assertNotIn("endpoint", json.dumps(observation))
+
+    def test_startup_logs_reject_symlink_oversize_and_missing_without_raw_publication(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            workspace = host.PrivateWorkspace.create(parent)
+            material = workspace.write_host_material(username="u", password="p" * 16)
+            foreign = parent / "foreign.log"
+            foreign.write_bytes(b"Address already in use")
+            (material.logs / "sunshine.log").symlink_to(foreign)
+            (material.logs / "sunshine-process.log").write_bytes(
+                b"x" * (host.MAX_STARTUP_LOG_BYTES + 1)
+            )
+            processes = host.OwnedProcesses()
+            observation = processes.startup_observation(
+                "packageAcquisition", material,
+                private_logs=host._preserve_startup_logs(material, parent),
+            )
+            self.assertEqual("unclassified", observation["knownCode"])
+            self.assertEqual("unavailable", observation["privateLogs"])
+            self.assertEqual("notStarted", observation["poll"])
+            self.assertNotIn("foreign", json.dumps(observation))
+            workspace.close()
+
+    def test_startup_failure_has_fixed_message_and_copies_observation(self):
+        observation = {
+            "stage": "sunshineLaunch", "process": "sunshine", "poll": "exited",
+            "exit": "signal", "knownCode": "unclassified", "privateLogs": "preserved",
+        }
+        failure = host.HostStartupFailure(observation)
+        observation["stage"] = "private injection"
+        self.assertEqual("owned Sunshine host startup failed", str(failure))
+        self.assertEqual("sunshineLaunch", failure.observation["stage"])
+
 
 if __name__ == "__main__":
     unittest.main()

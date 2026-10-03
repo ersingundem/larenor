@@ -55,3 +55,7 @@ malformed receipt tuples, prior failure classes, successful-build absence, and
 private receipt/log modes.
 
 Root review adds fail-closed rejection for a bound source with no line, rejects a truncated over-512-byte compiler message, and only extracts location tuples for the matching compiler/header/linker failure families. Root 51 focused runner/archive/workflow tests plus 8 subtests and scoped Ruff passed. The target patch and source manifest stay unchanged because the pinned API/syntax review did not prove the hosted compiler cause.
+
+## Exact schema-2 terminal result
+
+Exact `f0ded7f538853fdb7a6afd31d000dc1fdc6e5cfb` [run37139430213](https://github.com/ersingundem/larenor/actions/runs/37139430213) failed in FreeRDP compilation after Gateway/authentication built; owned cleanup passed. Root independently validated the closed 644-byte receipt SHA-256 `d7c6b7b8d4d6dde3b2d9c75184c02fc71b753fc9c4c11eace3079496520daa2d`, compile log digest `cc83d52626215ee8e7049a015ce68ba7ecd35afd825b54002f4bf5e0a061b40b`, exact source and original target/archive bindings. The compiler source/line/class tuple is entirely null. This does not identify a failing source unit. Any next diagnostic must bind the complete pinned archive source index; no speculative target repair or same-SHA rerun is authorized by this evidence. No runtime or Android acceptance occurred.

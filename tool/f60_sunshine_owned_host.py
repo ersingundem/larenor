@@ -55,6 +55,7 @@ OWNED_MDNS_NAME = "Larenor-F60-Owned"
 MAX_RELEASE_BYTES = 16 * 1024 * 1024
 MAX_API_BYTES = 1024 * 1024
 MAX_MDNS_BYTES = 64 * 1024
+MAX_STARTUP_LOG_BYTES = 4 * 1024 * 1024
 START_TIMEOUT_SECONDS = 30
 STOP_TIMEOUT_SECONDS = 5
 _PAIRING_ID = re.compile(r"[0-9A-Fa-f]{32}\Z")
@@ -70,6 +71,40 @@ _ALLOWED_RELEASE_HOSTS = frozenset(
 
 class HostFailure(RuntimeError):
     """A secret-free, fail-closed owned-host error."""
+
+
+class HostStartupFailure(HostFailure):
+    """Closed startup evidence retained after the private workspace is removed."""
+
+    def __init__(self, observation: Mapping[str, object]):
+        super().__init__("owned Sunshine host startup failed")
+        self.observation = dict(observation)
+
+
+_STARTUP_STAGES = frozenset({
+    "packageAcquisition", "packageInstallation", "materialSetup", "tlsIdentity",
+    "credentialSetup", "audioLaunch", "audioReadiness", "displayLaunch",
+    "displayReadiness", "sunshineLaunch", "apiReadiness", "mdnsReadiness",
+    "finalReadiness",
+})
+_STARTUP_PROCESS_BY_STAGE = {
+    "audioLaunch": "audio", "audioReadiness": "audio",
+    "displayLaunch": "display", "displayReadiness": "display",
+    "sunshineLaunch": "sunshine", "apiReadiness": "sunshine",
+    "mdnsReadiness": "sunshine", "finalReadiness": "sunshine",
+}
+_STARTUP_PROCESS_NAMES = {
+    "pulseaudio": "audio", "xvfb": "display", "sunshine": "sunshine",
+}
+_STARTUP_LOG_CODES = (
+    (b"Fatal: Couldn't find any working encoder", "encoderUnavailable"),
+    (b"Error: Unable to initialize capture method", "captureUnavailable"),
+    (b"Error: Failed to locate an output device", "displayUnavailable"),
+    (b"Address already in use", "portUnavailable"),
+)
+_STARTUP_LOG_NAMES = (
+    "pulseaudio.log", "xvfb.log", "sunshine-process.log", "sunshine.log",
+)
 
 
 def _pairs(values: Iterable[Tuple[str, Any]]) -> Dict[str, Any]:
@@ -114,6 +149,58 @@ def _regular_nofollow(path: Path, *, maximum: int) -> bytes:
         raise
     except OSError as error:
         raise HostFailure("owned fixture file is unavailable") from error
+
+
+def _startup_log_code(material: Optional["HostMaterial"]) -> str:
+    if material is None:
+        return "unclassified"
+    observed = bytearray()
+    for name in ("sunshine.log", "sunshine-process.log"):
+        try:
+            observed.extend(_regular_nofollow(
+                material.logs / name, maximum=MAX_STARTUP_LOG_BYTES,
+            ))
+        except HostFailure:
+            continue
+    try:
+        for marker, code in _STARTUP_LOG_CODES:
+            if marker in observed:
+                return code
+        return "unclassified"
+    finally:
+        observed[:] = b"\x00" * len(observed)
+
+
+def _preserve_startup_logs(
+    material: Optional["HostMaterial"], runner_temp: Path,
+) -> str:
+    if material is None:
+        return "unavailable"
+    destination: Optional[Path] = None
+    try:
+        destination = Path(tempfile.mkdtemp(
+            prefix="f60-host-startup-private-", dir=str(runner_temp),
+        ))
+        os.chmod(destination, 0o700)
+        copied = 0
+        for name in _STARTUP_LOG_NAMES:
+            source = material.logs / name
+            try:
+                data = _regular_nofollow(source, maximum=MAX_STARTUP_LOG_BYTES)
+            except HostFailure:
+                continue
+            _write_private(destination / name, data)
+            copied += 1
+        if copied:
+            return "preserved"
+    except (HostFailure, OSError):
+        pass
+    if destination is not None:
+        try:
+            shutil.rmtree(destination)
+        except OSError:
+            pass
+    return "unavailable"
 
 
 def _os_release(path: Path) -> Dict[str, str]:
@@ -929,6 +1016,41 @@ class OwnedProcesses:
         if not self._items or any(process.poll() is not None for _, process, _ in self._items):
             raise HostFailure("owned host process exited before readiness")
 
+    def startup_observation(
+        self,
+        stage: str,
+        material: Optional[HostMaterial],
+        *,
+        private_logs: str,
+    ) -> Dict[str, object]:
+        if stage not in _STARTUP_STAGES or private_logs not in {"preserved", "unavailable"}:
+            raise HostFailure("owned host startup observation is invalid")
+        exited: List[Tuple[str, int]] = []
+        for name, process, _ in self._items:
+            status = process.poll()
+            if type(status) is int:
+                exited.append((name, status))
+        if len(exited) == 1:
+            raw_name, status = exited[0]
+            process = _STARTUP_PROCESS_NAMES.get(raw_name, "multiple")
+            poll = "exited"
+            exit_kind = "zero" if status == 0 else "signal" if status < 0 else "nonzero"
+        elif len(exited) > 1:
+            process, poll, exit_kind = "multiple", "exited", "unavailable"
+        elif self._items:
+            process = _STARTUP_PROCESS_BY_STAGE.get(stage, "none")
+            poll, exit_kind = "running", "unavailable"
+        else:
+            process, poll, exit_kind = "none", "notStarted", "unavailable"
+        return {
+            "stage": stage,
+            "process": process,
+            "poll": poll,
+            "exit": exit_kind,
+            "knownCode": _startup_log_code(material),
+            "privateLogs": private_logs,
+        }
+
     def stop_sunshine(self) -> None:
         """Stop only the exact Sunshine process group registered by this fixture."""
 
@@ -1134,26 +1256,38 @@ class OwnedSunshineHost:
         runner_temp = environment.get("RUNNER_TEMP")
         if not runner_temp:
             raise HostFailure("GitHub-hosted runner temp directory is unavailable")
-        workspace = PrivateWorkspace.create(Path(runner_temp))
+        runner_temp_path = Path(runner_temp)
+        workspace = PrivateWorkspace.create(runner_temp_path)
         processes = OwnedProcesses()
+        material: Optional[HostMaterial] = None
+        stage = "packageAcquisition"
         try:
             package = acquire_release(workspace)
+            stage = "packageInstallation"
             install_release(package)
             username = "f60-" + secrets.token_hex(6)
             password = secrets.token_urlsafe(32)
+            stage = "materialSetup"
             material = workspace.write_host_material(
                 username=username,
                 password=password,
                 stream_profile=stream_profile,
             )
+            stage = "tlsIdentity"
             tls_fingerprint = _generate_certificate(material)
+            stage = "credentialSetup"
             _configure_credentials(material, username, password)
             plans = process_plans(material)
+            stage = "audioLaunch"
             processes.spawn(plans[0])
             pulse_probe, xvfb_probe = _private_runtime_probe_commands(material)
+            stage = "audioReadiness"
             _wait_private_runtime(*pulse_probe, processes)
+            stage = "displayLaunch"
             processes.spawn(plans[1])
+            stage = "displayReadiness"
             _wait_private_runtime(*xvfb_probe, processes)
+            stage = "sunshineLaunch"
             processes.spawn(plans[2])
             processes.require_alive()
             api = SunshineApi(
@@ -1161,8 +1295,11 @@ class OwnedSunshineHost:
                 password=password,
                 certificate=material.certificate,
             )
+            stage = "apiReadiness"
             _wait_api(api, processes)
+            stage = "mdnsReadiness"
             mdns = _observe_mdns()
+            stage = "finalReadiness"
             processes.require_alive()
             return cls(
                 workspace=workspace,
@@ -1174,11 +1311,23 @@ class OwnedSunshineHost:
                 tls_fingerprint=tls_fingerprint,
                 mdns=mdns,
             )
-        except BaseException:
+        except BaseException as error:
+            startup: Optional[HostStartupFailure] = None
+            if isinstance(error, HostFailure):
+                private_logs = _preserve_startup_logs(material, runner_temp_path)
+                startup = HostStartupFailure(processes.startup_observation(
+                    stage, material, private_logs=private_logs,
+                ))
             try:
                 processes.close()
-            finally:
+            except HostFailure:
+                pass
+            try:
                 workspace.close()
+            except HostFailure:
+                pass
+            if startup is not None:
+                raise startup from error
             raise
 
     def public_readiness(self) -> Dict[str, Any]:

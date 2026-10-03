@@ -42,6 +42,7 @@ from tool.f60_owned_gamepad import OwnedGamepadAccess
 from tool.f60_sunshine_owned_host import (
     DISPLAY,
     HostFailure,
+    HostStartupFailure,
     OwnedSunshineHost,
     ProcessPlan,
     _sunshine_mdns_instance_name,
@@ -86,6 +87,19 @@ _FAILURE_CODES = frozenset({
     "instrumentation_report_identity_mismatch",
     "instrumentation_test_failure",
     "instrumentation_test_error",
+})
+_HOST_STARTUP_STAGES = frozenset({
+    "packageAcquisition", "packageInstallation", "materialSetup", "tlsIdentity",
+    "credentialSetup", "audioLaunch", "audioReadiness", "displayLaunch",
+    "displayReadiness", "sunshineLaunch", "apiReadiness", "mdnsReadiness",
+    "finalReadiness",
+})
+_HOST_STARTUP_PROCESSES = frozenset({"none", "audio", "display", "sunshine", "multiple"})
+_HOST_STARTUP_POLLS = frozenset({"notStarted", "running", "exited"})
+_HOST_STARTUP_EXITS = frozenset({"unavailable", "zero", "nonzero", "signal"})
+_HOST_STARTUP_CODES = frozenset({
+    "unclassified", "encoderUnavailable", "captureUnavailable",
+    "displayUnavailable", "portUnavailable",
 })
 _PIN_BRIDGE_STAGES = frozenset({
     "listening",
@@ -1996,14 +2010,33 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
             raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
 
 
-def write_failure_receipt(
-    destination: Path,
-    *,
-    version: str,
-    moonlight_package: Mapping[str, str],
-    diagnostic: Mapping[str, object],
-) -> None:
-    _validate_failure_diagnostic(diagnostic)
+def _validate_startup_observation(observation: Mapping[str, object]) -> None:
+    if (
+        type(observation) is not dict
+        or set(observation) != {
+            "stage", "process", "poll", "exit", "knownCode", "privateLogs",
+        }
+        or observation["stage"] not in _HOST_STARTUP_STAGES
+        or observation["process"] not in _HOST_STARTUP_PROCESSES
+        or observation["poll"] not in _HOST_STARTUP_POLLS
+        or observation["exit"] not in _HOST_STARTUP_EXITS
+        or observation["knownCode"] not in _HOST_STARTUP_CODES
+        or observation["privateLogs"] not in {"preserved", "unavailable"}
+        or (observation["poll"] == "exited" and observation["process"] == "none")
+        or (observation["poll"] == "notStarted" and observation["process"] != "none")
+        or (observation["poll"] == "running" and observation["process"] not in {
+            "audio", "display", "sunshine",
+        })
+        or (observation["poll"] == "exited" and observation["exit"] == "unavailable"
+            and observation["process"] != "multiple")
+        or (observation["poll"] != "exited" and observation["exit"] != "unavailable")
+    ):
+        raise StreamAcceptanceFailure("owned host startup diagnostic is invalid")
+
+
+def _validate_package_provenance(
+    version: str, moonlight_package: Mapping[str, str],
+) -> dict[str, str]:
     package = dict(moonlight_package)
     if (
         set(package) != {
@@ -2019,15 +2052,10 @@ def write_failure_receipt(
         or re.fullmatch(r"[0-9]+(?:\.[0-9]+){2,3}", version) is None
     ):
         raise StreamAcceptanceFailure("Android stream failure provenance is invalid")
-    payload = {
-        "schemaVersion": 1,
-        "gate": "owned_sunshine_android_stream",
-        "sourceRevision": source_revision(ROOT),
-        "emulatorVersion": version,
-        "moonlightPackage": package,
-        "result": "failed",
-        "diagnostic": dict(diagnostic),
-    }
+    return package
+
+
+def _write_exclusive_json(destination: Path, payload: Mapping[str, object]) -> None:
     encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n"
     if len(encoded) > 8192:
         raise StreamAcceptanceFailure("Android stream failure receipt exceeds its bound")
@@ -2065,6 +2093,51 @@ def write_failure_receipt(
         raise
     finally:
         os.close(descriptor)
+
+
+def write_startup_failure_receipt(
+    destination: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+    observation: Mapping[str, object],
+) -> None:
+    _validate_startup_observation(observation)
+    package = _validate_package_provenance(version, moonlight_package)
+    _write_exclusive_json(destination, {
+        "schemaVersion": 1,
+        "gate": "owned_sunshine_android_stream",
+        "sourceRevision": source_revision(ROOT),
+        "emulatorVersion": version,
+        "moonlightPackage": package,
+        "result": "failed",
+        "phase": "hostStartup",
+        "counts": None,
+        "startup": dict(observation),
+        "streamAccepted": False,
+        "featureAccepted": False,
+    })
+
+
+def write_failure_receipt(
+    destination: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+    diagnostic: Mapping[str, object],
+) -> None:
+    _validate_failure_diagnostic(diagnostic)
+    package = _validate_package_provenance(version, moonlight_package)
+    payload = {
+        "schemaVersion": 1,
+        "gate": "owned_sunshine_android_stream",
+        "sourceRevision": source_revision(ROOT),
+        "emulatorVersion": version,
+        "moonlightPackage": package,
+        "result": "failed",
+        "diagnostic": dict(diagnostic),
+    }
+    _write_exclusive_json(destination, payload)
 
 
 def _remove_raw_reports(root: Optional[Path] = None) -> None:
@@ -2135,6 +2208,44 @@ def _capture_failed_test(
         # Diagnostics are secondary evidence. Their failure must never replace
         # the connected-test result or change its exit status.
         return
+
+
+def _capture_startup_failure(
+    runner_temp: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+    observation: Mapping[str, object],
+) -> None:
+    try:
+        write_startup_failure_receipt(
+            runner_temp / FAILURE_RECEIPT_NAME,
+            version=version,
+            moonlight_package=moonlight_package,
+            observation=observation,
+        )
+    except Exception:
+        # The closed startup receipt is secondary. Its failure never replaces
+        # the exact provider-start failure or changes the runner exit code.
+        return
+
+
+def _owned_host_for_stream(
+    runner_temp: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+) -> OwnedSunshineHost:
+    try:
+        return OwnedSunshineHost.start(stream_profile=True)
+    except HostStartupFailure as error:
+        _capture_startup_failure(
+            runner_temp,
+            version=version,
+            moonlight_package=moonlight_package,
+            observation=error.observation,
+        )
+        raise StreamAcceptanceFailure("owned Sunshine host startup failed") from None
 
 
 def _wait_phase_bridge(
@@ -2249,8 +2360,8 @@ def _run() -> int:
     xi2: Optional[Xi2KeyWitness] = None
     pin_reverse_installed = False
     control_reverse_installed = False
-    with OwnedGamepadAccess(os.environ) as gamepad, OwnedSunshineHost.start(
-        stream_profile=True
+    with OwnedGamepadAccess(os.environ) as gamepad, _owned_host_for_stream(
+        runner_temp, version=version, moonlight_package=moonlight_package,
     ) as owned:
         readiness = owned.public_readiness()
         if readiness.get("state") != "host_ready" or readiness.get("streamAccepted") is not False:

@@ -129,6 +129,7 @@ class ServerTestWorkflowTest(unittest.TestCase):
                 )
         for job in {
             "f60-sunshine-owned-host",
+            "f60-sunshine-startup-probe",
             "f60-sunshine-android-discovery",
             "f60-sunshine-android-stream",
         }:
@@ -151,6 +152,7 @@ class ServerTestWorkflowTest(unittest.TestCase):
     def test_explicit_manual_provider_scope_remains_isolated(self):
         expected = {
             "f60-host": "f60-sunshine-owned-host",
+            "f60-startup-probe": "f60-sunshine-startup-probe",
             "f60-discovery": "f60-sunshine-android-discovery",
             "f60-stream": "f60-sunshine-android-stream",
             "f30-media": "media-archive-linux",

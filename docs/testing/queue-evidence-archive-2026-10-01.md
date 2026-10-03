@@ -394,3 +394,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   "label": "Root15 Flutter window/policy/guard and20 pure-Kotlin/JUnit passed; owner/display/session fences; fullscreen route/provider effect separate"
 }
 ```
+
+Archived F60 record while retaining every CI record:
+
+```json
+{"commit": "b2eb56faaef2f4add5be25b87894d6fdf3c520df", "kind": "test", "label": "Real packaged merge/SpinnerDialog old-source RED; root48 native tests/0skip GREEN and AndroidTest compile; top-resumed/attached/shown ownership reviewed; hosted effect separate", "ref": "docs/testing/f60-owned-spinner-foreground-2026-10-01.md", "result": "passed", "state": "completed"}
+```
+
+Archived F62 record while retaining every CI record:
+
+```json
+{"commit": "61db4639bb05ad3ec3b9b3326be29bda1c6c8ff9", "kind": "test", "label": "Root30 Flutter geometry/profile/panel tests and scoped analyze passed; contain/fill/native physical mapping and owned pan; schema2 density/fullscreen/runtime gates separate", "ref": "docs/testing/f62-fit-fill-native-rendering-2026-10-01.md", "result": "passed", "state": "completed"}
+```

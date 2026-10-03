@@ -2080,6 +2080,99 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         self.assertNotIn("unpair_owned(", source)
         self.assertNotIn("require_client_absent(", source)
 
+    def test_host_startup_exit_writes_separate_source_bound_nonacceptance_receipt(self) -> None:
+        package = {
+            "aarSha256": "a" * 64, "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
+            "sourceCommit": "c" * 40, "sourceTree": "d" * 40,
+        }
+        observation = {
+            "stage": "apiReadiness", "process": "sunshine", "poll": "exited",
+            "exit": "nonzero", "knownCode": "encoderUnavailable",
+            "privateLogs": "preserved",
+        }
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            stream, "source_revision", return_value="e" * 40,
+        ), mock.patch.object(
+            stream.OwnedSunshineHost, "start",
+            side_effect=stream.HostStartupFailure(observation),
+        ):
+            root = Path(temporary)
+            with self.assertRaisesRegex(
+                stream.StreamAcceptanceFailure, "owned Sunshine host startup failed",
+            ):
+                stream._owned_host_for_stream(
+                    root, version="36.5.10.0", moonlight_package=package,
+                )
+            receipt = json.loads((root / stream.FAILURE_RECEIPT_NAME).read_text())
+        self.assertEqual({
+            "schemaVersion", "gate", "sourceRevision", "emulatorVersion",
+            "moonlightPackage", "result", "phase", "counts", "startup",
+            "streamAccepted", "featureAccepted",
+        }, set(receipt))
+        self.assertEqual("hostStartup", receipt["phase"])
+        self.assertIsNone(receipt["counts"])
+        self.assertEqual(observation, receipt["startup"])
+        self.assertIs(receipt["streamAccepted"], False)
+        self.assertIs(receipt["featureAccepted"], False)
+        self.assertNotIn("namedTest", receipt)
+        self.assertNotIn("endpoint", json.dumps(receipt).lower())
+
+    def test_startup_observation_rejects_injection_impossible_exit_and_extra_fields(self) -> None:
+        valid = {
+            "stage": "apiReadiness", "process": "sunshine", "poll": "exited",
+            "exit": "nonzero", "knownCode": "unclassified",
+            "privateLogs": "unavailable",
+        }
+        stream._validate_startup_observation(valid)
+        invalid = (
+            {**valid, "knownCode": "private raw provider value"},
+            {**valid, "endpoint": "127.0.0.1"},
+            {**valid, "poll": "running", "exit": "nonzero"},
+            {**valid, "process": "none"},
+            {**valid, "privateLogs": "/private/path"},
+        )
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(stream.StreamAcceptanceFailure):
+                stream._validate_startup_observation(value)
+
+    def test_startup_deadline_can_record_a_still_running_owned_process(self) -> None:
+        stream._validate_startup_observation({
+            "stage": "apiReadiness", "process": "sunshine", "poll": "running",
+            "exit": "unavailable", "knownCode": "unclassified",
+            "privateLogs": "preserved",
+        })
+
+    def test_startup_receipt_is_exclusive_and_diagnostic_failure_preserves_original(self) -> None:
+        package = {
+            "aarSha256": "a" * 64, "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
+            "sourceCommit": "c" * 40, "sourceTree": "d" * 40,
+        }
+        observation = {
+            "stage": "apiReadiness", "process": "sunshine", "poll": "exited",
+            "exit": "signal", "knownCode": "unclassified", "privateLogs": "preserved",
+        }
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            stream, "source_revision", return_value="e" * 40,
+        ):
+            root = Path(temporary)
+            destination = root / stream.FAILURE_RECEIPT_NAME
+            destination.symlink_to(root / "foreign")
+            with self.assertRaises(FileExistsError):
+                stream.write_startup_failure_receipt(
+                    destination, version="36.5.10.0",
+                    moonlight_package=package, observation=observation,
+                )
+            with mock.patch.object(
+                stream, "write_startup_failure_receipt", side_effect=OSError("private"),
+            ):
+                stream._capture_startup_failure(
+                    root, version="36.5.10.0",
+                    moonlight_package=package, observation=observation,
+                )
+            self.assertTrue(destination.is_symlink())
+
 
 def subprocess_devnull() -> int:
     import subprocess

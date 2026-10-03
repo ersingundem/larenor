@@ -5476,7 +5476,9 @@
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
         "docs/testing/f60-owned-input-probe-2026-10-03.md",
         "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
-        "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md"
+        "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
+        "docs/testing/f60-owned-host-startup-diagnostic-2026-10-03.md",
+        "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5592,14 +5594,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exactd81 actual Sunshine stream failed original1/1/0/0 firstStreamOutput: leaseUncertain, callback unknown_effect; root canonical1394B artifact11147745861 verified. Local merge-layout fix remains proved; runtime cause separate"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-owned-spinner-foreground-2026-10-01.md",
-          "commit": "b2eb56faaef2f4add5be25b87894d6fdf3c520df",
-          "state": "completed",
-          "result": "passed",
-          "label": "Real packaged merge/SpinnerDialog old-source RED; root48 native tests/0skip GREEN and AndroidTest compile; top-resumed/attached/shown ownership reviewed; hosted effect separate"
         },
         {
           "kind": "ci",
@@ -5744,10 +5738,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact15ba strict stream failed before instrumentation: owned host process exited before pinned API readiness. No named acceptance count or artifact was produced. Raw private job log SHA80b60776b9dadcf475a50cd630af476106f1545718ec98f15e0bc9ab30abc1da; no same-SHA rerun."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md",
+          "commit": "f0ded7f538853fdb7a6afd31d000dc1fdc6e5cfb",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen working tree on exactf0ded base: root114host/stream/startup/dispatcher tests passed; timeout-running observation RED then GREEN; Ruff and actionlint clean. Startup-only fixture retains closed provenance; Android streaming/feature acceptance remains open."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact15ba Linux observer37136733239 geçti: overlap xi2ChildExit ve sıralı keyboard/pointer/button handoff kanıtlandı. Full strict37136853828 instrumentation öncesi owned Sunshine API readiness process exit ile başarısız; named test/acceptance receipt oluşmadı. Bounded startup tanısı eklenecek; kök neden doğrulanmadan aynı SHA rerun veya kabul yok. Gerçek iki yaşam/yayın/girdi/kapanış kapısı açık."
+      "reason": "Exact15ba Linux XI2 observer geçti; full strict37136853828 instrumentation öncesi owned host API readiness process exit ile başarısız. Root114 test, Ruff/actionlint ile bounded startup tanısı ve gerçek startup-only probe hazır; çalışan süreç deadline tanısı RED→GREEN onarıldı. Değişmiş exact startup probe sırada. Named iki yaşam/yayın/girdi/kapanış ve final required CI açık; kabul/merge yok."
     },
     {
       "id": "G11",
@@ -6022,14 +6024,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/testing/f62-fit-fill-native-rendering-2026-10-01.md",
-          "commit": "61db4639bb05ad3ec3b9b3326be29bda1c6c8ff9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root30 Flutter geometry/profile/panel tests and scoped analyze passed; contain/fill/native physical mapping and owned pan; schema2 density/fullscreen/runtime gates separate"
-        },
-        {
-          "kind": "test",
           "ref": "docs/testing/f62-native-display-pointer-v2-2026-10-01.md",
           "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
           "state": "completed",
@@ -6155,10 +6149,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact3f231 Gateway/auth built; FreeRDP compile/compilerError exit1. Source-bound closed receipt SHAebf04c2cb4488dbb129c294269005db7e16efbbdb79c14d3618aab7ef1be8911, private compile-log SHA87c634cc2137d85f2a6cb055f051f2932b5a53bc890c40a525e7a8c1caeb452c. Owned cleanup passed. No Linux transport/Android effects; fixed source review before any new run."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37139430213",
+          "commit": "f0ded7f538853fdb7a6afd31d000dc1fdc6e5cfb",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exactf0ded Gateway/auth passed; FreeRDP compile/compilerError exit1; owned cleanup passed. Closed644B receipt SHAd7c6b7b8d4d6dde3b2d9c75184c02fc71b753fc9c4c11eace3079496520daa2d; compile log SHAcc83d52626215ee8e7049a015ce68ba7ecd35afd825b54002f4bf5e0a061b40b. Six reviewed units/line/class all null; no source cause or acceptance claimed."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact3f231 Linux37138370042 Gateway/auth build geçti; FreeRDP compile/compilerError exit1. Closed source-bound receipt doğrulandı; owned cleanup artık geçti. Pinned C/API ve iki patched unit syntax kontrolü geçti; hosted compiler nedeni kanıtlanmadı. Yeni closed source-enum/bounded-line/error-class tanısı root51test/8subtest+Ruff geçti; değişmiş exact probe sırada, aynı SHA rerun yok. Native5 yerel bileşim kabul değildir. Public Android senaryosu gerçek Flutter messenger/codec2 ve25contract geçti; gerçek Gateway/RDPDR/SAF/audio/mic etkileri açık. SAF4 önceki drain/cleanup hatalarını kapattı; UNKNOWN persistence failure sonrası duplicate callback için SAF5 dar onarımı doğrulanıyor. Final required CI açık."
+      "reason": "Exactf0ded Linux37139430213 Gateway/auth geçti; FreeRDP compile/compilerError exit1, cleanup geçti. Closed644B receipt doğrulandı fakat reviewed6unit/line/class null; pinned archive tüm source-bound unit tanısı hazırlanıyor, aynı SHA rerun yok. Private SAF5 duplicate callback RED→29GREEN; root birleşik197JVM testi iki0600 izin kontrolünde başarısız, gerçek üretim/Robolectric ayrımı inceleniyor. DIRECT/PUBLIC gerçek Android etkisi, Gateway/SAF/audio/mic ve final CI açık. Native5 yerel bileşim kabul değildir."
     },
     {
       "id": "F61",

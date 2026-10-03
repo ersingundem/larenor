@@ -21,6 +21,7 @@ on:
           - host
           - f30-media
           - f60-host
+          - f60-startup-probe
           - f60-discovery
           - f60-stream
           - f60-input-probe
@@ -339,6 +340,15 @@ jobs:
     uses: ./.github/workflows/f60-sunshine-owned-host.yml
     with:
       caller_contract: f60-owned-host-v1
+
+  f60-sunshine-startup-probe:
+    name: f60-sunshine-startup-probe
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-startup-probe'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/f60-sunshine-startup-probe.yml
+    with:
+      caller_contract: f60-owned-startup-probe-v1
 
   f60-sunshine-android-discovery:
     name: f60-sunshine-android-discovery
