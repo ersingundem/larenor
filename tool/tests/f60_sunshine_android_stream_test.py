@@ -637,6 +637,161 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertTrue(bridge.sunshine_stopped)
             self.assertTrue(owned.processes.sunshine_stopped)
             self.assertTrue(witnesses[0].closed)
+            self.assertEqual(
+                {"stage": "endOfStream", "state": "complete", "error": "none"},
+                bridge.public_observation(),
+            )
+
+    def test_phase_failure_snapshot_identifies_real_listener_boundary_without_payload(self) -> None:
+        class Gamepad:
+            def disarm(self):
+                raise OSError("private cleanup material")
+
+        class Witness:
+            def __init__(self, _owned):
+                self.closed = False
+
+            def start(self):
+                raise stream.StreamAcceptanceFailure("private observer material")
+
+            def close(self):
+                self.closed = True
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            nonce = "d" * 64
+            bridge = stream.PhaseControlBridge(
+                owned, nonce=nonce,
+                paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
+                gamepad=Gamepad(), tone=tone, timeout_seconds=1,
+                witness_factory=Witness, audio_injector=lambda *_args: None,
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client, \
+                    client.makefile("rwb", buffering=0) as control:
+                control.write(stream._control_message(nonce=nonce, phase="audio_ready"))
+                self.assertEqual(
+                    stream._control_message(nonce=nonce, phase="audio_armed"),
+                    control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                )
+                control.write(stream._control_message(nonce=nonce, phase="touch_ready"))
+                self.assertEqual(b"", control.read(1))
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                bridge.wait()
+            self.assertEqual(
+                {"stage": "touchListener", "state": "failed", "error": "contract"},
+                bridge.public_observation(),
+            )
+            self.assertEqual(1, bridge.audio_injection_count)
+            self.assertFalse(bridge.touch_observed)
+            self.assertFalse(bridge.gamepad_observed)
+            self.assertFalse(bridge.sunshine_stopped)
+            self.assertTrue(bridge._witness.closed)
+            # A later cleanup error must not replace the primary failing stage.
+            self.assertNotIn("private", json.dumps(bridge.public_observation()))
+            bridge.close()
+
+    def test_phase_audio_timeout_never_becomes_listener_or_input_evidence(self) -> None:
+        class Gamepad:
+            def disarm(self):
+                pass
+
+        def timeout(*_args):
+            raise subprocess.TimeoutExpired("private provider command", 1)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            nonce = "c" * 64
+            bridge = stream.PhaseControlBridge(
+                owned, nonce=nonce,
+                paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
+                gamepad=Gamepad(), tone=tone, timeout_seconds=1,
+                audio_injector=timeout,
+            )
+            self.assertEqual(
+                {"stage": "listening", "state": "active", "error": "none"},
+                bridge.public_observation(),
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client, \
+                    client.makefile("rwb", buffering=0) as control:
+                control.write(stream._control_message(nonce=nonce, phase="audio_ready"))
+                self.assertEqual(
+                    stream._control_message(nonce=nonce, phase="audio_armed"),
+                    control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                )
+                self.assertEqual(b"", control.read(1))
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                bridge.wait()
+            self.assertEqual(
+                {"stage": "audioInjection", "state": "failed", "error": "timeout"},
+                bridge.public_observation(),
+            )
+            self.assertIsNone(bridge._witness)
+            self.assertEqual(0, bridge.audio_injection_count)
+            bridge.close()
+
+    def test_phase_observation_is_closed_and_cannot_claim_success_from_active_stage(self) -> None:
+        valid = {"stage": "touchListener", "state": "failed", "error": "contract"}
+        diagnostic = {**stream._static_failure("instrumentation_report_missing"), "phaseBridge": valid}
+        stream._validate_failure_diagnostic(diagnostic)
+        for invalid in (
+            {**valid, "stage": "private value"},
+            {**valid, "stage": []},
+            {**valid, "state": "complete", "error": "none"},
+            {**valid, "state": "active"},
+            {**valid, "error": "none"},
+            {**valid, "error": "private exception"},
+            {**valid, "nonce": "c" * 64},
+            {**valid, "coordinates": [17, 19]},
+        ):
+            with self.subTest(fields=sorted(invalid)):
+                with self.assertRaises(stream.StreamAcceptanceFailure):
+                    stream._validate_failure_diagnostic({**diagnostic, "phaseBridge": invalid})
+
+    def test_post_gradle_phase_wait_failure_has_own_code_and_preserves_original_error(self) -> None:
+        failure = stream.StreamAcceptanceFailure("private phase failure")
+        observation = {"stage": "touchListener", "state": "failed", "error": "contract"}
+        bridge = mock.Mock()
+        bridge.wait.side_effect = failure
+        bridge.public_observation.return_value = observation
+        package = {
+            "aarSha256": "a" * 64, "classesSha256": "b" * 64,
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
+            "sourceCommit": "c" * 40, "sourceTree": "d" * 40,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reports = root / "reports"
+            reports.mkdir()
+            self._report(reports)
+            with mock.patch.object(stream, "REPORTS", reports), mock.patch.object(
+                stream, "source_revision", return_value="e" * 40,
+            ):
+                with self.assertRaises(stream.StreamAcceptanceFailure) as raised:
+                    stream._wait_phase_bridge(
+                        bridge, root, version="36.5.10.0",
+                        moonlight_package=package, pin_bridge_stage="pairedClientObserved",
+                    )
+            self.assertIs(failure, raised.exception)
+            receipt = json.loads((root / stream.FAILURE_RECEIPT_NAME).read_text())
+            self.assertEqual("failed", receipt["result"])
+            self.assertEqual("host_phase_bridge_failure", receipt["diagnostic"]["code"])
+            self.assertEqual(observation, receipt["diagnostic"]["phaseBridge"])
+            self.assertNotIn("counts", receipt["diagnostic"])
+            self.assertNotIn("private phase failure", json.dumps(receipt))
+            self.assertEqual([], list(reports.iterdir()))
+        with mock.patch.object(stream, "_capture_failed_test", side_effect=None):
+            with self.assertRaises(stream.StreamAcceptanceFailure) as raised:
+                stream._wait_phase_bridge(
+                    bridge, Path("unused"), version="36.5.10.0",
+                    moonlight_package=package, pin_bridge_stage="pairedClientObserved",
+                )
+            self.assertIs(failure, raised.exception)
 
     def test_private_phase_bridge_never_injects_before_exact_audio_arm(self) -> None:
         class Gamepad:
@@ -1664,6 +1819,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                     version="36.5.10.0",
                     moonlight_package=package,
                     pin_bridge_stage="approvalInFlight",
+                    phase_bridge_observation={
+                        "stage": "touchListener", "state": "failed", "error": "contract",
+                    },
                 )
             destination = root / stream.FAILURE_RECEIPT_NAME
             receipt = json.loads(destination.read_text(encoding="utf-8"))
@@ -1673,6 +1831,10 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertEqual("failed", receipt["result"])
             self.assertEqual("remoteDisconnect", receipt["diagnostic"]["acceptanceStage"])
             self.assertEqual("approvalInFlight", receipt["diagnostic"]["pinBridgeStage"])
+            self.assertEqual(
+                {"stage": "touchListener", "state": "failed", "error": "contract"},
+                receipt["diagnostic"]["phaseBridge"],
+            )
             self.assertFalse(report.exists())
             self.assertNotIn("private-provider-material", destination.read_text())
 

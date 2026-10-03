@@ -31,6 +31,13 @@ Değişmiş kaynak kabul koşuları bir kez başlatıldı: [Sunshine exact79506 
 
 ## Güncel durum ayrımı
 
+F60 phase bridge tanısı root **74/74** stream/workflow ve Ruff geçti. Kayıp
+ACK'ın gerçek host aşaması sonraki changed-source strict koşuda yalnız kapalı
+enumlarla görülecek; başarı kapısı değişmedi. [Tanı ve sınırlar](testing/f60-phase-bridge-observation-2026-10-03.md).
+Native v5 private tek arm64/x86 paketleri root strict source/API/ELF/receipt ve
+verify-install kapılarını geçti; portable test ve Kotlin/Flutter ürün bileşimi
+henüz teslim kabulü değildir. Henüz main merge veya sonraki final yok.
+
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
 | **CI bekliyor** | **58 seçili özellik / toplam 69 iş; F21/F24/F25/F26/F27 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |

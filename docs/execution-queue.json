@@ -5474,7 +5474,8 @@
         "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
-        "docs/testing/f60-owned-input-probe-2026-10-03.md"
+        "docs/testing/f60-owned-input-probe-2026-10-03.md",
+        "docs/testing/f60-phase-bridge-observation-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5566,14 +5567,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exactc9 original1/1/0/0; firstStreamOutput unknown/unknown/unknown, leaseAbsentOrUnreadable; actual pre-issue vs launch cause unproved"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-stream-dispatch-stage-diagnostics-2026-10-01.md",
-          "commit": "691b54c4bf9a5ec7158b22d6142cc17644ccccb9",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root42 JVM/0skip XML, actual AndroidTest compile277, root60 Python/workflow; closed exact dispatch stages only"
         },
         {
           "kind": "ci",
@@ -5742,10 +5735,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Exacta3f01 actual Ubuntu Xvfb/production XI2/XTest pointer+button probe passed; root finite source-bound receipt SHAee6c8d69c30b207793416e0e24dd6a5e2fc218e5ae5d7aa0b8f74e9fca149cf9 verified. featureAccepted=false; integrated Sunshine ACK/two-lifetime acceptance remains open."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
+          "commit": "23516304565026a06119f2e4e51bd7ba7dfba4e1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen phase diagnostic slice on235 base: root74stream/workflow tests and Ruff passed; real private socket audio-timeout/XI2-start failure, cleanup primary cause, closed enums and host-wait receipt/rethrow regression. Strict success gates unchanged; runtime fix/acceptance unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact79506 strict37128656191 FAILED: ilk görüntü/nonzero ses sonrası touch_ready ACK yok, Android girdisi henüz dispatch edilmedi. Exacta3f01 gerçek Linux XI2 probe37130637087 listener/pointer/düğme kapısını geçti; featureAccepted=false. Aktif dar iş integrated phase bridge kayıp yanıtını kaynakla gözlemleyip düzeltmek. İki yaşam/girdi/kopuş/kapanış kabulü açık; aynı koşu rerun edilmiyor."
+      "reason": "Exact79506 strict37128656191 FAILED: ilk frame/nonzero ses sonrası touch_ready ACK yok, Android girdisi henüz dispatch edilmedi. Exacta3f01 gerçek Linux XI2 probe37130637087 geçti; featureAccepted=false. Root74test/Ruff sınırlı phase bridge tanısı geçti; audio injection/XI2 startup/socket sınırı sonraki tek changed-source strict koşuda görülecek. İki yaşam/girdi/kopuş/kapanış kabulü açık; hata çözüldü sayılmadı."
     },
     {
       "id": "G11",
@@ -6155,7 +6156,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader düzeltmesi root84/84+Ruff geçti; gerçek host etkisi açık. Native5 actual iki ABI derleme geçti; karma ABI AAR reddedildi, tek ABI actual paket/receipt kapısı sürüyor. Private SAF14/14, Flutter108/108/scoped analyze ve Core19/19; Kotlin/native entegrasyon, normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
+      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader düzeltmesi root84/84+Ruff geçti; gerçek host etkisi açık. Native5 actual tek arm64/x86 paketleri root strict source/API/ELF/receipt ve verify-install geçti; portable test ve Kotlin/Flutter ürün bileşimi açık. Private SAF14/14, Flutter108/108/analyze ve Core19/19; normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
     },
     {
       "id": "F61",

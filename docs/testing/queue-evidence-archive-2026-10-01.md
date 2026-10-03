@@ -228,6 +228,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "failed",
     "label": "Independent exact721 explicit-plan review found missing basic keyboard/Unicode/IME/display/pointer/audio/microphone/SAF behavior and unsupported Gateway UI exposure; false capability alone is not completion"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-stream-dispatch-stage-diagnostics-2026-10-01.md",
+    "commit": "691b54c4bf9a5ec7158b22d6142cc17644ccccb9",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root42 JVM/0skip XML, actual AndroidTest compile277, root60 Python/workflow; closed exact dispatch stages only"
   }
 ]
 ```

@@ -79,6 +79,7 @@ XI2_READY_POSITIONS = ((17, 19), (23, 29))
 MAX_REPORT_BYTES = 1024 * 1024
 MAX_PUBLIC_FRAMES = 8
 _FAILURE_CODES = frozenset({
+    "host_phase_bridge_failure",
     "instrumentation_report_missing",
     "instrumentation_report_ambiguous",
     "instrumentation_report_malformed",
@@ -101,6 +102,34 @@ _PIN_BRIDGE_STAGES = frozenset({
     "approvalConfirmed",
     "pairedClientObserved",
 })
+_PHASE_BRIDGE_STAGES = frozenset({
+    "listening", "peerValidation", "audioReady", "audioPairing", "audioArm",
+    "audioInjection", "touchReady", "touchListener", "touchArm", "touchSent",
+    "touchEffect", "touchObserved", "gamepadReady", "gamepadArm", "gamepadSent",
+    "gamepadEffect", "gamepadDisarm", "gamepadObserved", "secondAudioReady",
+    "secondAudioPairing", "secondAudioArm", "secondAudioInjection",
+    "disconnectReady", "disconnectPairing", "sunshineStop", "disconnectArm",
+    "endOfStream", "cleanup",
+})
+_PHASE_BRIDGE_ERRORS = frozenset({"none", "timeout", "io", "contract", "unclassified"})
+
+
+def _validate_phase_bridge_observation(observation: Mapping[str, object]) -> None:
+    if (
+        type(observation) is not dict
+        or set(observation) != {"stage", "state", "error"}
+        or type(observation["stage"]) is not str
+        or observation["stage"] not in _PHASE_BRIDGE_STAGES
+        or type(observation["state"]) is not str
+        or observation["state"] not in {"active", "failed", "complete"}
+        or type(observation["error"]) is not str
+        or observation["error"] not in _PHASE_BRIDGE_ERRORS
+        or (observation["state"] == "failed") != (observation["error"] != "none")
+        or (observation["state"] == "complete" and observation["stage"] != "endOfStream")
+    ):
+        raise StreamAcceptanceFailure("private phase bridge observation is invalid")
+
+
 _KNOWN_EXCEPTION_TYPES = frozenset({
     "java.lang.AssertionError",
     "java.lang.IllegalArgumentException",
@@ -979,6 +1008,8 @@ class PhaseControlBridge:
         self._failure: Optional[BaseException] = None
         self._done = threading.Event()
         self._cancelled = threading.Event()
+        self._observation_lock = threading.Lock()
+        self._observation = {"stage": "listening", "state": "active", "error": "none"}
         self._connection: Optional[socket.socket] = None
         self._witness: Optional[Xi2PointerWitness] = None
         self.audio_injection_count = 0
@@ -992,6 +1023,33 @@ class PhaseControlBridge:
 
     def start(self) -> None:
         self._thread.start()
+
+    def _set_stage(self, stage: str) -> None:
+        if stage not in _PHASE_BRIDGE_STAGES:
+            raise StreamAcceptanceFailure("private phase bridge observation is invalid")
+        with self._observation_lock:
+            self._observation["stage"] = stage
+
+    def public_observation(self) -> dict[str, str]:
+        with self._observation_lock:
+            observation = dict(self._observation)
+        _validate_phase_bridge_observation(observation)
+        return observation
+
+    def _record_failure(self, error: BaseException, *, cleanup: bool = False) -> None:
+        if self._failure is not None:
+            return
+        kind = (
+            "timeout" if isinstance(error, (TimeoutError, subprocess.TimeoutExpired))
+            else "io" if isinstance(error, OSError)
+            else "contract" if isinstance(error, (StreamAcceptanceFailure, HostFailure))
+            else "unclassified"
+        )
+        with self._observation_lock:
+            if cleanup:
+                self._observation["stage"] = "cleanup"
+            self._observation.update(state="failed", error=kind)
+            self._failure = error
 
     def _line(self, stream: Any) -> bytes:
         raw = stream.readline(CONTROL_MESSAGE_BYTES + 1)
@@ -1009,14 +1067,19 @@ class PhaseControlBridge:
         stream.flush()
 
     def _arm_and_inject_audio(self, control: Any) -> None:
+        prefix = "audio" if self.audio_injection_count == 0 else "secondAudio"
+        self._set_stage(prefix + "Ready")
         self._expect(control, "audio_ready")
+        self._set_stage(prefix + "Pairing")
         audio_client_uuid = self._paired_client_uuid()
         if audio_client_uuid is None:
             raise StreamAcceptanceFailure("owned paired client proof is incomplete")
         self._owned.api.require_owned_client_present(
             PAIRING_CLIENT_NAME, audio_client_uuid
         )
+        self._set_stage(prefix + "Arm")
         self._send(control, "audio_armed")
+        self._set_stage(prefix + "Injection")
         self._audio_injector(self._owned, self._tone, self._cancelled.is_set)
         self.audio_injection_count += 1
 
@@ -1024,29 +1087,44 @@ class PhaseControlBridge:
         try:
             connection, address = self._socket.accept()
             self._connection = connection
+            self._set_stage("peerValidation")
             if address[0] != "127.0.0.1":
                 raise StreamAcceptanceFailure("private phase peer identity is invalid")
             connection.settimeout(self._timeout)
             with connection, connection.makefile("rwb", buffering=0) as control:
                 self._arm_and_inject_audio(control)
+                self._set_stage("touchReady")
                 self._expect(control, "touch_ready")
+                self._set_stage("touchListener")
                 self._witness = self._witness_factory(self._owned)
                 self._witness.start()
+                self._set_stage("touchArm")
                 self._send(control, "touch_armed")
+                self._set_stage("touchSent")
                 self._expect(control, "touch_sent")
+                self._set_stage("touchEffect")
                 self._witness.wait(self._timeout)
                 self.touch_observed = True
+                self._set_stage("touchObserved")
                 self._send(control, "touch_observed")
+                self._set_stage("gamepadReady")
                 self._expect(control, "gamepad_ready")
+                self._set_stage("gamepadArm")
                 self._gamepad.arm()
                 self._send(control, "gamepad_armed")
+                self._set_stage("gamepadSent")
                 self._expect(control, "gamepad_sent")
+                self._set_stage("gamepadEffect")
                 self._gamepad.wait_effect()
+                self._set_stage("gamepadDisarm")
                 self._gamepad.disarm()
                 self.gamepad_observed = True
+                self._set_stage("gamepadObserved")
                 self._send(control, "gamepad_observed")
                 self._arm_and_inject_audio(control)
+                self._set_stage("disconnectReady")
                 self._expect(control, "disconnect_ready")
+                self._set_stage("disconnectPairing")
                 client_uuid = self._paired_client_uuid()
                 if client_uuid is None:
                     raise StreamAcceptanceFailure("owned paired client proof is incomplete")
@@ -1054,23 +1132,29 @@ class PhaseControlBridge:
                     PAIRING_CLIENT_NAME, client_uuid
                 )
                 self.provider_pairing_present_before_disconnect = True
+                self._set_stage("sunshineStop")
                 self._owned.processes.stop_sunshine()
                 self.sunshine_stopped = True
+                self._set_stage("disconnectArm")
                 self._send(control, "owned_sunshine_stopped")
+                self._set_stage("endOfStream")
                 if control.read(1) != b"":
                     raise StreamAcceptanceFailure("private phase control message is invalid")
         except BaseException as error:
-            self._failure = error
+            self._record_failure(error)
         finally:
             try:
                 self._gamepad.disarm()
             except BaseException as error:
-                self._failure = self._failure or error
+                self._record_failure(error, cleanup=True)
             if self._witness is not None:
                 try:
                     self._witness.close()
                 except BaseException as error:
-                    self._failure = self._failure or error
+                    self._record_failure(error, cleanup=True)
+            if self._failure is None:
+                with self._observation_lock:
+                    self._observation["state"] = "complete"
             self._done.set()
             try:
                 self._socket.close()
@@ -1670,7 +1754,7 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
         "acceptanceStage", "pinBridgeStage", "streamCommand", "streamDispatch",
-        "connectionBoundaries", "outputWitness",
+        "connectionBoundaries", "outputWitness", "phaseBridge",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1737,6 +1821,13 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     pin_stage = diagnostic.get("pinBridgeStage")
     if pin_stage is not None and pin_stage not in _PIN_BRIDGE_STAGES:
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    phase_observation = diagnostic.get("phaseBridge")
+    if code == "host_phase_bridge_failure" and (
+        phase_observation is None or counts is not None
+    ):
+        raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    if phase_observation is not None:
+        _validate_phase_bridge_observation(phase_observation)
     frame_stages = {
         _acceptance_stage(frame["line"])
         for frame in frames
@@ -1922,13 +2013,23 @@ def _publish_failed_test(
     version: str,
     moonlight_package: Mapping[str, str],
     pin_bridge_stage: Optional[str] = None,
+    phase_bridge_observation: Optional[Mapping[str, object]] = None,
+    host_phase_failure: bool = False,
 ) -> None:
     try:
-        diagnostic = failure_diagnostic()
+        if type(host_phase_failure) is not bool:
+            raise StreamAcceptanceFailure("private phase bridge observation is invalid")
+        diagnostic = (
+            _static_failure("host_phase_bridge_failure")
+            if host_phase_failure else failure_diagnostic()
+        )
         if pin_bridge_stage is not None:
             if pin_bridge_stage not in _PIN_BRIDGE_STAGES:
                 raise StreamAcceptanceFailure("private PIN bridge stage is invalid")
             diagnostic["pinBridgeStage"] = pin_bridge_stage
+        if phase_bridge_observation is not None:
+            _validate_phase_bridge_observation(phase_bridge_observation)
+            diagnostic["phaseBridge"] = dict(phase_bridge_observation)
         write_failure_receipt(
             runner_temp / FAILURE_RECEIPT_NAME,
             version=version,
@@ -1945,6 +2046,8 @@ def _capture_failed_test(
     version: str,
     moonlight_package: Mapping[str, str],
     pin_bridge_stage: Optional[str] = None,
+    phase_bridge_observation: Optional[Mapping[str, object]] = None,
+    host_phase_failure: bool = False,
 ) -> None:
     try:
         _publish_failed_test(
@@ -1952,11 +2055,33 @@ def _capture_failed_test(
             version=version,
             moonlight_package=moonlight_package,
             pin_bridge_stage=pin_bridge_stage,
+            phase_bridge_observation=phase_bridge_observation,
+            host_phase_failure=host_phase_failure,
         )
     except Exception:
         # Diagnostics are secondary evidence. Their failure must never replace
         # the connected-test result or change its exit status.
         return
+
+
+def _wait_phase_bridge(
+    phase_bridge: PhaseControlBridge,
+    runner_temp: Path,
+    *,
+    version: str,
+    moonlight_package: Mapping[str, str],
+    pin_bridge_stage: str,
+) -> None:
+    try:
+        phase_bridge.wait()
+    except StreamAcceptanceFailure:
+        _capture_failed_test(
+            runner_temp, version=version, moonlight_package=moonlight_package,
+            pin_bridge_stage=pin_bridge_stage,
+            phase_bridge_observation=phase_bridge.public_observation(),
+            host_phase_failure=True,
+        )
+        raise
 
 
 def write_receipt(
@@ -2108,6 +2233,7 @@ def _run() -> int:
                         version=version,
                         moonlight_package=moonlight_package,
                         pin_bridge_stage=bridge.public_stage(),
+                        phase_bridge_observation=phase_bridge.public_observation(),
                     )
                     raise StreamAcceptanceFailure(
                         "owned Sunshine Android stream failed"
@@ -2124,6 +2250,7 @@ def _run() -> int:
                         pin_bridge_stage=(
                             observation.pin_failure_stage or bridge.public_stage()
                         ),
+                        phase_bridge_observation=phase_bridge.public_observation(),
                     )
                     raise StreamAcceptanceFailure("owned Sunshine Android stream failed")
             try:
@@ -2134,9 +2261,14 @@ def _run() -> int:
                     version=version,
                     moonlight_package=moonlight_package,
                     pin_bridge_stage=bridge.public_stage(),
+                    phase_bridge_observation=phase_bridge.public_observation(),
                 )
                 raise
-            phase_bridge.wait()
+            _wait_phase_bridge(
+                phase_bridge, runner_temp, version=version,
+                moonlight_package=moonlight_package,
+                pin_bridge_stage=bridge.public_stage(),
+            )
             xi2.wait()
         finally:
             cleanup_error: Optional[BaseException] = None
