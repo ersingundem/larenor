@@ -29,7 +29,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         lock = load_lock()
         self.assertEqual(
             lock["engineRevision"],
-            "moonlight-android-12.2-larenor-embed-v4",
+            "moonlight-android-12.2-larenor-embed-v5",
         )
         self.assertEqual(
             lock["upstream"]["commit"],
@@ -61,6 +61,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                 "video", "audio", "input", "stream",
                 "causalStop", "renderedFrameWitness",
                 "acceptedNonZeroPcmWriteWitness",
+                "ownedLaunchRiKeyHandoff",
             },
         )
         self.assertEqual(
@@ -68,6 +69,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             [
                 "android/moonlight/patches/0001-embed-library.patch",
                 "android/moonlight/patches/0002-nonzero-pcm-witness.patch",
+                "android/moonlight/patches/0003-owned-launch-ri-key.patch",
             ],
         )
         self.assertEqual(
@@ -146,10 +148,12 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                     ("com/limelight/Game.class", "onConnectionStopCompleted"),
                     ("com/limelight/Game.class", "onVideoFrameRendered"),
                     ("com/limelight/Game.class", "onAudioPcmWritten"),
+                    ("com/limelight/Game.class", "createConnection"),
                     (
                         "com/limelight/nvstream/http/NvHTTP.class",
                         "cancelPendingRequests",
                     ),
+                    ("com/limelight/nvstream/NvConnection.class", "<init>"),
                 ],
             )
 
@@ -180,6 +184,30 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                 with self.assertRaisesRegex(PackageError, error):
                     verify_transformed_tree(root, lock)
 
+    def test_transformation_requires_owned_ri_key_factory_clone_and_wipe(self):
+        lock = load_lock()
+        for relative, marker in (
+            (
+                "app/src/main/java/com/limelight/Game.java",
+                "conn = createConnection(getApplicationContext(),",
+            ),
+            (
+                "app/src/main/java/com/limelight/nvstream/NvConnection.java",
+                "byte[] ownedCopy = encodedKey.clone();",
+            ),
+            (
+                "app/src/main/java/com/limelight/nvstream/NvConnection.java",
+                "Arrays.fill(ownedCopy, (byte) 0);",
+            ),
+        ):
+            with self.subTest(relative=relative, marker=marker), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self._transformed_tree(root, lock)
+                path = root / relative
+                path.write_text(path.read_text().replace(marker, "removed owned RI key contract"))
+                with self.assertRaisesRegex(PackageError, "owned_ri_key_handoff_missing"):
+                    verify_transformed_tree(root, lock)
+
     def test_receipt_rejects_legacy_complete_write_only_pcm_hook(self):
         lock = load_lock()
         with tempfile.TemporaryDirectory() as directory:
@@ -188,6 +216,15 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             self._aar(legacy, lock, include_nonzero_pcm_api=False)
             with self.assertRaisesRegex(PackageError, "missing_engine_api"):
                 package_receipt(legacy, lock)
+
+    def test_receipt_rejects_engine_without_owned_ri_key_factory_and_constructor(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stale = root / "stale-ri-key.aar"
+            self._aar(stale, lock, include_owned_ri_key_api=False)
+            with self.assertRaisesRegex(PackageError, "missing_engine_api"):
+                package_receipt(stale, lock)
 
     def test_install_and_apk_require_receipted_native_and_dex_contracts(self):
         lock = load_lock()
@@ -302,6 +339,14 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos) {}\n"
             "public void onAudioPcmWritten(int requestedSamples, int writtenSamples, "
             "boolean containsNonZeroPcm) {}\n"
+            "conn = createConnection(getApplicationContext(), host, httpsPort, uniqueId, "
+            "config, cryptoProvider, serverCert);\n"
+            "protected NvConnection createConnection(Context appContext, "
+            "ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, "
+            "StreamConfiguration config, LimelightCryptoProvider cryptoProvider, "
+            "X509Certificate serverCert) {\n"
+            "return new NvConnection(appContext, host, httpsPort, uniqueId, config, "
+            "cryptoProvider, serverCert);\n}\n"
         )
         (root / "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java").write_text(
             "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {\n"
@@ -318,6 +363,20 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples, "
             "containsNonZeroPcm);\n"
         )
+        (root / "app/src/main/java/com/limelight/nvstream/NvConnection.java").write_text(
+            "public NvConnection(Context appContext, ComputerDetails.AddressTuple host, "
+            "int httpsPort, String uniqueId, StreamConfiguration config, "
+            "LimelightCryptoProvider cryptoProvider, X509Certificate serverCert, "
+            "byte[] remoteInputAesKey, int remoteInputAesKeyId) {\n"
+            "importRiAesKey(requireOwnedRiAesKey(remoteInputAesKey, remoteInputAesKeyId));\n}\n"
+            "if (keyId < 0) {}\n"
+            "if (encodedKey == null || encodedKey.length != 16) {}\n"
+            "byte[] ownedCopy = encodedKey.clone();\n"
+            "new SecretKeySpec(ownedCopy, \"AES\");\n"
+            "Arrays.fill(ownedCopy, (byte) 0);\n"
+            "this.context.riKey = remoteInputAesKey;\n"
+            "this.context.riKeyId = remoteInputAesKeyId;\n"
+        )
 
     def _aar(
         self,
@@ -327,6 +386,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         include_current_api=True,
         include_cancel_api=True,
         include_nonzero_pcm_api=True,
+        include_owned_ri_key_api=True,
     ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
@@ -337,6 +397,14 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                         self._game_class(
                             include_current_api=include_current_api,
                             include_nonzero_pcm_api=include_nonzero_pcm_api,
+                            include_owned_ri_key_api=include_owned_ri_key_api,
+                        ),
+                    )
+                elif name == "com/limelight/nvstream/NvConnection.class":
+                    jar.writestr(
+                        name,
+                        self._nvconnection_class(
+                            include_owned_ri_key_api=include_owned_ri_key_api,
                         ),
                     )
                 elif name == "com/limelight/nvstream/http/NvHTTP.class":
@@ -380,7 +448,10 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         return bytes(value)
 
     @staticmethod
-    def _game_class(*, include_current_api, include_nonzero_pcm_api=True):
+    def _game_class(
+        *, include_current_api, include_nonzero_pcm_api=True,
+        include_owned_ri_key_api=True,
+    ):
         method_specs = []
         if include_current_api:
             method_specs = [
@@ -392,6 +463,12 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                     "(IIZ)V" if include_nonzero_pcm_api else "(II)V",
                 ),
             ]
+            if include_owned_ri_key_api:
+                method_specs.append((
+                    0x0004 | 0x0100,
+                    "createConnection",
+                    "(Landroid/content/Context;Lcom/limelight/nvstream/http/ComputerDetails$AddressTuple;ILjava/lang/String;Lcom/limelight/nvstream/StreamConfiguration;Lcom/limelight/nvstream/http/LimelightCryptoProvider;Ljava/security/cert/X509Certificate;)Lcom/limelight/nvstream/NvConnection;",
+                ))
         return MoonlightAndroidPackageTest._class_file(
             "com/limelight/Game", method_specs,
         )
@@ -403,6 +480,19 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             methods.append((0x0001 | 0x0100, "cancelPendingRequests", "()V"))
         return MoonlightAndroidPackageTest._class_file(
             "com/limelight/nvstream/http/NvHTTP", methods,
+        )
+
+    @staticmethod
+    def _nvconnection_class(*, include_owned_ri_key_api):
+        methods = []
+        if include_owned_ri_key_api:
+            methods.append((
+                0x0001 | 0x0100,
+                "<init>",
+                "(Landroid/content/Context;Lcom/limelight/nvstream/http/ComputerDetails$AddressTuple;ILjava/lang/String;Lcom/limelight/nvstream/StreamConfiguration;Lcom/limelight/nvstream/http/LimelightCryptoProvider;Ljava/security/cert/X509Certificate;[BI)V",
+            ))
+        return MoonlightAndroidPackageTest._class_file(
+            "com/limelight/nvstream/NvConnection", methods,
         )
 
     @staticmethod

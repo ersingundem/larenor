@@ -29,6 +29,7 @@ MAX_AAR_BYTES = 256 * 1024 * 1024
 MAX_APK_BYTES = 1024 * 1024 * 1024
 GAME_CLASS = "com/limelight/Game.class"
 NVHTTP_CLASS = "com/limelight/nvstream/http/NvHTTP.class"
+NVCONNECTION_CLASS = "com/limelight/nvstream/NvConnection.class"
 REQUIRED_ENGINE_API = (
     {
         "class": GAME_CLASS,
@@ -49,9 +50,21 @@ REQUIRED_ENGINE_API = (
         "access": "public",
     },
     {
+        "class": GAME_CLASS,
+        "name": "createConnection",
+        "descriptor": "(Landroid/content/Context;Lcom/limelight/nvstream/http/ComputerDetails$AddressTuple;ILjava/lang/String;Lcom/limelight/nvstream/StreamConfiguration;Lcom/limelight/nvstream/http/LimelightCryptoProvider;Ljava/security/cert/X509Certificate;)Lcom/limelight/nvstream/NvConnection;",
+        "access": "protected",
+    },
+    {
         "class": NVHTTP_CLASS,
         "name": "cancelPendingRequests",
         "descriptor": "()V",
+        "access": "public",
+    },
+    {
+        "class": NVCONNECTION_CLASS,
+        "name": "<init>",
+        "descriptor": "(Landroid/content/Context;Lcom/limelight/nvstream/http/ComputerDetails$AddressTuple;ILjava/lang/String;Lcom/limelight/nvstream/StreamConfiguration;Lcom/limelight/nvstream/http/LimelightCryptoProvider;Ljava/security/cert/X509Certificate;[BI)V",
         "access": "public",
     },
 )
@@ -116,7 +129,7 @@ def load_lock(path=LOCK_PATH):
     )
     _require(
         value["schemaVersion"] == 1
-        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v4",
+        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v5",
         "invalid_lock",
     )
     upstream = value["upstream"]
@@ -163,6 +176,7 @@ def load_lock(path=LOCK_PATH):
             "pairing", "credentialStore", "boundedPairingCancellation",
             "video", "audio", "input", "stream",
             "causalStop", "renderedFrameWitness", "acceptedNonZeroPcmWriteWitness",
+            "ownedLaunchRiKeyHandoff",
         ],
         "invalid_lock",
     )
@@ -208,6 +222,7 @@ def load_lock(path=LOCK_PATH):
         == [
             "android/moonlight/patches/0001-embed-library.patch",
             "android/moonlight/patches/0002-nonzero-pcm-witness.patch",
+            "android/moonlight/patches/0003-owned-launch-ri-key.patch",
         ],
         "invalid_lock",
     )
@@ -433,6 +448,31 @@ def verify_transformed_tree(root, lock):
         in game
         and "boolean containsNonZeroPcm)" in game,
         "accepted_pcm_hook_missing",
+    )
+    _require(
+        "conn = createConnection(getApplicationContext()," in game
+        and "protected NvConnection createConnection(Context appContext," in game
+        and "return new NvConnection(appContext, host, httpsPort, uniqueId, config," in game,
+        "owned_ri_key_handoff_missing",
+    )
+    connection = _bounded_text(
+        root / "app/src/main/java/com/limelight/nvstream/NvConnection.java",
+        4 * 1024 * 1024,
+    )
+    ri_key_markers = (
+        "public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert, byte[] remoteInputAesKey, int remoteInputAesKeyId)",
+        "importRiAesKey(requireOwnedRiAesKey(remoteInputAesKey, remoteInputAesKeyId))",
+        "if (keyId < 0)",
+        "encodedKey == null || encodedKey.length != 16",
+        "byte[] ownedCopy = encodedKey.clone();",
+        'new SecretKeySpec(ownedCopy, "AES")',
+        "Arrays.fill(ownedCopy, (byte) 0);",
+        "this.context.riKey = remoteInputAesKey;",
+        "this.context.riKeyId = remoteInputAesKeyId;",
+    )
+    _require(
+        all(marker in connection for marker in ri_key_markers),
+        "owned_ri_key_handoff_missing",
     )
 
 

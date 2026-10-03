@@ -8,13 +8,22 @@
 
 Değişmiş mikrofon4 kaynak için [exact06ef RDP37125727523](https://github.com/ersingundem/larenor/actions/runs/37125727523) bir kez başlatıldı; henüz sonuç/host etkisi yok.
 
+3 Ekim Sunshine RI5 source/package dilimi tamamlandı: açık matching uygulama gerçek
+`resume` ile korunur; provider launch/resume ve Game aynı process-private tek
+kullanımlık RI key/ID kullanır. Geç eski callback yeni binding anahtarını değiştiremez.
+Root gerçek çift ABI v5 ürününde **55 Moonlight / 78 RDP / 13 hazırlanan SAF = 146**
+native testi (0 atlama/hata) ve actual AndroidTest **315 task** derlemesini;
+**88 portatif** testi ve Ruff'u geçti. SAF alt dilimi gerçek dosya aktarımı kabulü
+sayılmaz. F60 değişmiş exact source strict yayın kabulü bekliyor; yeniden çalışılıyor
+kalır ve sayaçlar artmaz. [Birleşik kanıt](testing/f60-launch-key-composed-2026-10-03.md).
+
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
 | --- | --- | --- |
 | **CI bekliyor** | **58 seçili özellik / toplam 69 iş; F21/F24/F25/F26/F27 dahil** | Son birleşik dal HEAD’inin geniş Server/Android/Security CI kabulü |
 | **CI bekliyor** | **F18** | F27 ortak DB hold/admission ve durable/in-flight drain tamamlandı: root9 odaklı test. NUT listener publication yarışı da kapandı: root28 geçti/1 mevcut Linux-only skip, Ruff ve bağımsız inceleme temiz. Son birleşik CI ve fiziksel UPS kabulü açık. [Güç sırası](testing/f18-f27-offline-power-hold-2026-10-01.md), [socket kanıtı](testing/f18-notify-socket-publication-2026-10-01.md) |
-| **Yeniden çalışılıyor** | **F60** | Normal Başlat ve Game spinner sahipliği düzeltmeleri yerel kapıları geçti; [exact-a8 strict 36835162847](https://github.com/ersingundem/larenor/actions/runs/36835162847) original 1/1/0/0 firstStreamOutput ile başarısız. Lease gameVisible, timeout/unknown_effect; frame/PCM/input/iki yaşam/kapanış ve kesin alt neden açık. [Doğrulanmış sonuç](testing/f60-a8-stream-failure-2026-10-01.md) |
+| **Yeniden çalışılıyor** | **F60** | RI5 gerçek launch/resume key sahipliği, actual v5 çift ABI paket,55Moonlight+78RDP+13hazırlananSAF=146native/0skip, compile315task ve88portable geçti. Exact9551 strict37123578040 FAILED/rtspHandshake korunur; değişmiş exact gerçek frame/nonzeroPCM/input/iki yaşam/close kapısı açık. [RI5 birleşik kanıt](testing/f60-launch-key-composed-2026-10-03.md) |
 | **Yeniden çalışılıyor** | **F62** | Keyboard/Türkçe layout/Unicode, pencere lease ve fit/fill/native geometry dilimleri yerel kapıları geçti. [Exact-42be strict 36836063548](https://github.com/ersingundem/larenor/actions/runs/36836063548) original 1/1/0/0 initialFrameWait/connectionFailed ile başarısız; sağlayıcı süreç canlı gözlendi. Fullscreen ve schema-2 density/relative pointer/wheel yazılımı root81Flutter/analyze, actual dual-ABI paket ve90native test/AndroidTest derleme kapılarını geçti. Ses/mikrofon yerel ürün dilimleri tamamlandı; mikrofon4 root125native/105Flutter/128portable ve actual315task compile geçti. Gerçek SAF/Gateway yazılımı ve strict runtime/host microphone kabulü açık. [Doğrulanmış sonuç](testing/f62-42be-provider-failure-2026-10-01.md) |
 | **Aktif final** | **FINAL.FUNCTION** | Exact721 geniş36832137026 tamamlandı: dört Server shardı, Flutter/static/aggregate, emulator/native/APK/host yeşil; eski F08 leaf observer ve Server aggregate başarısız. Değişmiş [exacta8 F08Linux36835138089](https://github.com/ersingundem/larenor/actions/runs/36835138089) gerçek CoreUID IPC/cgroup kapısını geçti. Security721 üç işi geçti. Final birleşik HEAD ve strict F60/F62 kabulü açık |
 | **Bağımlılık bekliyor** | **FINAL.UI → FINAL.AUDIT → FINAL.CI → FINAL.GALLERY → FINAL.README → CORE.WEB** | Her adım önceki final tamamlandıktan sonra başlar; aynı anda ikinci FINAL alınmaz |

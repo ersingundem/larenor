@@ -19,7 +19,10 @@ import com.limelight.binding.video.MediaCodecDecoderRenderer
 import com.limelight.computers.ComputerDatabaseManager
 import com.limelight.computers.IdentityManager
 import com.limelight.nvstream.NvConnection
+import com.limelight.nvstream.StreamConfiguration
+import com.limelight.nvstream.ConnectionContext
 import com.limelight.nvstream.http.ComputerDetails
+import com.limelight.nvstream.http.LimelightCryptoProvider
 import com.limelight.nvstream.http.NvHTTP
 import com.limelight.nvstream.http.PairingManager
 import com.limelight.ui.StreamView
@@ -43,6 +46,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
+import java.lang.reflect.Modifier
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
@@ -58,7 +63,10 @@ class MoonlightEmbeddedRuntimeTest {
     @get:Rule val temporary = TemporaryFolder()
     private val ids = (1..12).associateWith { Integer.toHexString(it).padStart(32, '0') }
 
-    @After fun clearLease() = MoonlightForegroundLeaseRegistry.clearForTest()
+    @After fun clearLease() {
+        MoonlightForegroundLeaseRegistry.clearForTest()
+        MoonlightLaunchKeyLeaseRegistry.retireAll()
+    }
 
     @Test fun persistedComputerKeepsUpstreamUnknownHttpsPortForGameLaunch() {
         val context = MoonlightScopedContext.create(
@@ -111,6 +119,13 @@ class MoonlightEmbeddedRuntimeTest {
         assertNotNull(PairingManager::class.java.getDeclaredMethod("pair", String::class.java, String::class.java))
         assertNotNull(NvHTTP::class.java.getDeclaredMethod("getAppList"))
         assertNotNull(NvHTTP::class.java.getDeclaredMethod("cancelPendingRequests"))
+        assertNotNull(NvHTTP::class.java.getDeclaredMethod(
+            "launchApp",
+            ConnectionContext::class.java,
+            String::class.java,
+            Int::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType,
+        ))
         assertNotNull(NvConnection::class.java)
         assertNotNull(Game::class.java)
         assertNotNull(MediaCodecDecoderRenderer::class.java)
@@ -127,8 +142,30 @@ class MoonlightEmbeddedRuntimeTest {
             Int::class.javaPrimitiveType,
             Boolean::class.javaPrimitiveType,
         ))
+        val factory = Game::class.java.getDeclaredMethod(
+            "createConnection",
+            Context::class.java,
+            ComputerDetails.AddressTuple::class.java,
+            Int::class.javaPrimitiveType,
+            String::class.java,
+            StreamConfiguration::class.java,
+            LimelightCryptoProvider::class.java,
+            X509Certificate::class.java,
+        )
+        assertTrue(Modifier.isProtected(factory.modifiers))
+        assertNotNull(NvConnection::class.java.getConstructor(
+            Context::class.java,
+            ComputerDetails.AddressTuple::class.java,
+            Int::class.javaPrimitiveType,
+            String::class.java,
+            StreamConfiguration::class.java,
+            LimelightCryptoProvider::class.java,
+            X509Certificate::class.java,
+            ByteArray::class.java,
+            Int::class.javaPrimitiveType,
+        ))
         assertEquals(
-            "moonlight-android-12.2-larenor-embed-v4",
+            "moonlight-android-12.2-larenor-embed-v5",
             MoonlightEmbeddedRuntime.ENGINE_REVISION,
         )
     }

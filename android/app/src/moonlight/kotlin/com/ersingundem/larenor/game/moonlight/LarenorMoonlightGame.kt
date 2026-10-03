@@ -12,9 +12,14 @@ import android.view.WindowManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import com.limelight.Game
+import com.limelight.nvstream.NvConnection
+import com.limelight.nvstream.StreamConfiguration
+import com.limelight.nvstream.http.ComputerDetails
+import com.limelight.nvstream.http.LimelightCryptoProvider
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.security.cert.X509Certificate
 
 /** The actual upstream MediaCodec/audio/input activity behind an opaque launch token. */
 class LarenorMoonlightGame : Game() {
@@ -50,6 +55,7 @@ class LarenorMoonlightGame : Game() {
         try {
             super.onCreate(savedInstanceState)
         } catch (failure: Throwable) {
+            MoonlightLaunchKeyLeaseRegistry.retireToken(token)
             MoonlightForegroundLeaseRegistry.gameDestroyed(token)
             throw failure
         }
@@ -61,6 +67,31 @@ class LarenorMoonlightGame : Game() {
         super.setContentView(layoutResID)
         val content = window.decorView.findViewById<ViewGroup>(android.R.id.content)
         secureMoonlightSurfaces(content)
+    }
+
+    override fun createConnection(
+        appContext: Context,
+        host: ComputerDetails.AddressTuple,
+        httpsPort: Int,
+        uniqueId: String,
+        config: StreamConfiguration,
+        cryptoProvider: LimelightCryptoProvider,
+        serverCert: X509Certificate,
+    ): NvConnection {
+        val token = launchToken ?: throw MoonlightRuntimeFailure("foreground_required")
+        return MoonlightLaunchKeyLeaseRegistry.consume(token).use { key, keyId ->
+            NvConnection(
+                appContext,
+                host,
+                httpsPort,
+                uniqueId,
+                config,
+                cryptoProvider,
+                serverCert,
+                key,
+                keyId,
+            )
+        }
     }
 
     override fun onResume() {
@@ -200,6 +231,7 @@ class LarenorMoonlightGame : Game() {
 
     override fun onDestroy() {
         launchToken?.let {
+            MoonlightLaunchKeyLeaseRegistry.retireToken(it)
             runCatching { MoonlightForegroundLeaseRegistry.gameDestroyed(it) }
         }
         scoped = null

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+  "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
   "upstream": {
     "name": "Moonlight Android",
     "version": "12.2",
@@ -48,6 +48,10 @@
     {
       "path": "android/moonlight/patches/0002-nonzero-pcm-witness.patch",
       "sha256": "95c7e95ca9f4087e029459e00856868d9a22fe2a265c3de32715b67ac5b462ca"
+    },
+    {
+      "path": "android/moonlight/patches/0003-owned-launch-ri-key.patch",
+      "sha256": "2453816189554e3f1d78b79457830b5b80bf6686a32ee686201ab5b9dcb941f8"
     }
   ],
   "reviewedFiles": {
@@ -120,7 +124,8 @@
     "stream",
     "causalStop",
     "renderedFrameWitness",
-    "acceptedNonZeroPcmWriteWitness"
+    "acceptedNonZeroPcmWriteWitness",
+    "ownedLaunchRiKeyHandoff"
   ],
   "requiredSources": [
     "app/src/main/java/com/limelight/Game.java",

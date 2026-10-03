@@ -27,7 +27,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.nio.file.Files
 import java.nio.charset.StandardCharsets
-import javax.crypto.KeyGenerator
+import javax.crypto.spec.SecretKeySpec
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -168,6 +168,7 @@ class MoonlightEmbeddedRuntime internal constructor(
     fun bindAuthority(next: MoonlightAuthority): Pair<String, Long> {
         var staleFlight: MoonlightPairingFlight? = null
         var stalePrompt: AutoCloseable? = null
+        var activateBinding = false
         val binding = synchronized(lock) {
             ensureOpen()
             if (retiringHosts.isNotEmpty()) throw MoonlightRuntimeFailure("authority_changed")
@@ -183,6 +184,9 @@ class MoonlightEmbeddedRuntime internal constructor(
                 ).containsAuthority(next.fingerprint)
             ) throw MoonlightRuntimeFailure("authority_changed")
             authority?.let { previous ->
+                bindingId?.let {
+                    MoonlightLaunchKeyLeaseRegistry.retireBinding(it, bindingRevision)
+                }
                 bindingId?.let { MoonlightForegroundLeaseRegistry.retire(previous.authorityId, previous.epoch) }
             }
             staleFlight = pairingFlight.also { pairingFlight = null }
@@ -200,7 +204,11 @@ class MoonlightEmbeddedRuntime internal constructor(
             candidates.clear()
             bindingId = randomIdentity()
             bindingRevision = if (bindingRevision >= MAX_JS_REVISION) 1 else bindingRevision + 1
+            activateBinding = true
             exactBinding()
+        }
+        if (activateBinding) {
+            MoonlightLaunchKeyLeaseRegistry.activateBinding(binding.first, binding.second)
         }
         staleFlight?.cancel()
         stalePrompt?.let { main.post { runCatching { it.close() } } }
@@ -624,6 +632,16 @@ class MoonlightEmbeddedRuntime internal constructor(
         synchronized(lock) {
             current(captured)
             ensureHostUsableLocked(captured, session.hostId)
+            boundSession?.takeIf {
+                it.sessionId != session.sessionId || it.sessionRevision != session.sessionRevision
+            }?.let {
+                MoonlightLaunchKeyLeaseRegistry.retireSession(
+                    captured.bindingId,
+                    captured.bindingRevision,
+                    it.sessionId,
+                    it.sessionRevision,
+                )
+            }
             boundSession = session
         }
     }
@@ -790,6 +808,16 @@ class MoonlightEmbeddedRuntime internal constructor(
         observer: ((MoonlightLeaseObservation) -> Unit)? = null,
     ): MoonlightLeaseSnapshot {
         val captured = capture(expected)
+        val session = synchronized(lock) {
+            currentLocked(captured)
+            boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == epoch &&
+                    it.hostId == hostId && it.hostRevision == hostRevision &&
+                    it.pairingRevision == pairingRevision &&
+                    it.catalogRevision == catalogRevision && it.appId == appId &&
+                    it.appRevision == appRevision && it.selectedQuality.displayId == displayId
+            }
+        } ?: throw MoonlightRuntimeFailure("authority_changed")
         val (pairing, app) = requireRegistrations().resolve(
             hostId, hostRevision, pairingRevision, catalogRevision, appId, appRevision,
         )
@@ -801,7 +829,8 @@ class MoonlightEmbeddedRuntime internal constructor(
             ?: throw MoonlightRuntimeFailure("provider_unavailable")
         val certificate = details.serverCert?.encoded ?: throw MoonlightRuntimeFailure("stale_pairing")
         current(captured)
-        return MoonlightForegroundLeaseRegistry.issue(MoonlightLaunchSpec(
+        val owner = launchKeyOwner(captured, session, pairing, app, details, active)
+        val spec = MoonlightLaunchSpec(
             authority = expected,
             sessionId = sessionId,
             epoch = epoch,
@@ -811,7 +840,7 @@ class MoonlightEmbeddedRuntime internal constructor(
             httpsPort = details.httpsPort,
             appName = app.name,
             appId = app.upstreamAppId,
-            uniqueId = IdentityManager(context).uniqueId,
+            uniqueId = owner.uniqueId,
             computerUuid = details.uuid,
             computerName = details.name,
             supportsHdr = app.hdrSupported,
@@ -819,7 +848,11 @@ class MoonlightEmbeddedRuntime internal constructor(
             displayId = displayId,
             maximumLifetimeMillis = maximumLifetimeMillis,
             maximumIdleMillis = maximumIdleMillis,
-        ), observer)
+        )
+        return MoonlightLaunchKeyLeaseRegistry.bindIssued(owner) {
+            val snapshot = MoonlightForegroundLeaseRegistry.issue(spec, observer)
+            snapshot to snapshot.token
+        }
     }
 
     fun launchStream(snapshot: MoonlightLeaseSnapshot) {
@@ -1027,22 +1060,28 @@ class MoonlightEmbeddedRuntime internal constructor(
     }
 
     fun retireCurrentAuthority() {
-        val (previous, prompt, flight) = synchronized(lock) {
+        val (previous, previousBinding, prompt, flight) = synchronized(lock) {
             generation += 1
             candidates.clear()
             boundSession = null
             activeLeaseToken = null
             pairingPrompt = null
             discardPendingPairingsLocked()
-            Triple(
+            RetireState(
                 authority.also { authority = null },
+                bindingId?.let { it to bindingRevision },
                 pairingDialog.also { pairingDialog = null },
                 pairingFlight.also { pairingFlight = null },
             )
         }
         flight?.cancel()
         prompt?.let { main.post { runCatching { it.close() } } }
-        previous?.let { MoonlightForegroundLeaseRegistry.retire(it.authorityId, it.epoch) }
+        previousBinding?.let { binding ->
+            MoonlightLaunchKeyLeaseRegistry.retireBinding(binding.first, binding.second)
+        }
+        previous?.let {
+            MoonlightForegroundLeaseRegistry.retire(it.authorityId, it.epoch)
+        }
     }
 
     internal fun retireAuthority(
@@ -1110,6 +1149,10 @@ class MoonlightEmbeddedRuntime internal constructor(
         }
         flight?.cancel()
         prompt?.let { main.post { runCatching { it.close() } } }
+        MoonlightLaunchKeyLeaseRegistry.retireBinding(
+            retired.nativeBindingId,
+            retired.bindingRevision,
+        )
         MoonlightForegroundLeaseRegistry.retire(previous.authorityId, previous.epoch)
         store.save(retired)
         synchronized(lock) { pendingRetirements.remove(requestId) }
@@ -1119,7 +1162,7 @@ class MoonlightEmbeddedRuntime internal constructor(
     fun retireExactSession(sessionId: String, expectedSessionRevision: Long) {
         requireIdentity(sessionId, "session_id")
         requireRevision(expectedSessionRevision, "revision")
-        val (prompt, flight) = synchronized(lock) {
+        val (binding, prompt, flight) = synchronized(lock) {
             val session = boundSession
             if (session?.sessionId != sessionId || session.sessionRevision != expectedSessionRevision) {
                 throw MoonlightRuntimeFailure("authority_changed")
@@ -1136,17 +1179,24 @@ class MoonlightEmbeddedRuntime internal constructor(
             pairingPrompt = null
             discardPendingPairingsLocked()
             authority = null
-            Pair(
+            Triple(
+                exactBinding(),
                 pairingDialog.also { pairingDialog = null },
                 pairingFlight.also { pairingFlight = null },
             )
         }
         flight?.cancel()
         prompt?.let { main.post { runCatching { it.close() } } }
+        MoonlightLaunchKeyLeaseRegistry.retireSession(
+            binding.first,
+            binding.second,
+            sessionId,
+            expectedSessionRevision,
+        )
     }
 
     override fun close() {
-        val (previous, prompt, flight) = synchronized(lock) {
+        val state = synchronized(lock) {
             if (closed) return
             closed = true
             generation += 1
@@ -1155,15 +1205,17 @@ class MoonlightEmbeddedRuntime internal constructor(
             activeLeaseToken = null
             pairingPrompt = null
             discardPendingPairingsLocked()
-            Triple(
-                authority.also { authority = null },
-                pairingDialog.also { pairingDialog = null },
-                pairingFlight.also { pairingFlight = null },
+            CloseState(
+                authority = authority.also { authority = null },
+                binding = bindingId?.let { it to bindingRevision },
+                prompt = pairingDialog.also { pairingDialog = null },
+                flight = pairingFlight.also { pairingFlight = null },
             )
         }
-        flight?.cancel()
-        prompt?.let { main.post { runCatching { it.close() } } }
-        previous?.let { MoonlightForegroundLeaseRegistry.retire(it.authorityId, it.epoch) }
+        state.flight?.cancel()
+        state.prompt?.let { main.post { runCatching { it.close() } } }
+        state.binding?.let { MoonlightLaunchKeyLeaseRegistry.retireBinding(it.first, it.second) }
+        state.authority?.let { MoonlightForegroundLeaseRegistry.retire(it.authorityId, it.epoch) }
         executor.shutdownNow()
     }
 
@@ -1267,6 +1319,7 @@ class MoonlightEmbeddedRuntime internal constructor(
                         ), MoonlightStreamDispatchStage.TIMEOUT)
                     }, COMMAND_TIMEOUT_MS)
                 } catch (failure: Throwable) {
+                    MoonlightLaunchKeyLeaseRegistry.retireToken(lease.token)
                     streamDispatchTraces.fail(traceOwner, failure)
                     finish(MoonlightLeaseObservation(
                         lease.copy(state = MoonlightLeaseState.UNCERTAIN), "unknown", "unknown",
@@ -1295,8 +1348,17 @@ class MoonlightEmbeddedRuntime internal constructor(
         callback: (Result<MoonlightCommandReceipt>) -> Unit,
     ) {
         executor.execute {
+            var launchKeyReservation: MoonlightLaunchKeyReservation? = null
             val receipt = try {
                 current(captured)
+                if (intent == "launch") {
+                    MoonlightLaunchKeyLeaseRegistry.retireSession(
+                        captured.bindingId,
+                        captured.bindingRevision,
+                        session.sessionId,
+                        session.sessionRevision,
+                    )
+                }
                 val (pairing, app) = requireRegistrations().resolve(
                     session.hostId, session.hostRevision, session.pairingRevision,
                     session.catalogRevision, session.appId, session.appRevision,
@@ -1329,12 +1391,27 @@ class MoonlightEmbeddedRuntime internal constructor(
                         "serverInfoOnline", revision,
                     )
                 } else {
+                    val owner = launchKeyOwner(
+                        captured = captured,
+                        session = session,
+                        pairing = pairing,
+                        app = app,
+                        details = details,
+                        address = address,
+                    )
+                    val reservation = MoonlightLaunchKeyLeaseRegistry.reserve(
+                        owner,
+                        COMMAND_TIMEOUT_MS,
+                    )
+                    launchKeyReservation = reservation
                     val http = provider(details, context)
                     val serverInfo = http.getServerInfo(true)
                     if (http.getPairState(serverInfo) != PairingManager.PairState.PAIRED) {
                         throw MoonlightRuntimeFailure("stale_pairing")
                     }
-                    if (http.getCurrentGame(serverInfo) != app.upstreamAppId) {
+                    var launchKey: ByteArray? = null
+                    var launchKeyId: Int? = null
+                    try {
                         val streamConfig = StreamConfiguration.Builder()
                             .setApp(com.limelight.nvstream.http.NvApp(app.name, app.upstreamAppId, app.hdrSupported))
                             .setRemoteConfiguration(StreamConfiguration.STREAM_CFG_AUTO)
@@ -1352,37 +1429,71 @@ class MoonlightEmbeddedRuntime internal constructor(
                             .setAudioConfiguration(MoonBridge.AUDIO_CONFIGURATION_STEREO)
                             .setSupportedVideoFormats(videoFormat(session.selectedQuality.codec))
                             .build()
+                        val key = ByteArray(16).also(random::nextBytes)
+                        val keyId = random.nextInt(Int.MAX_VALUE)
+                        launchKey = key
+                        launchKeyId = keyId
+                        val connectionKey = key.copyOf()
                         val connection = ConnectionContext().apply {
                             isNvidiaServerSoftware = details.nvidiaServer
                             this.streamConfig = streamConfig
                             negotiatedWidth = session.selectedQuality.widthPixels
                             negotiatedHeight = session.selectedQuality.heightPixels
                             negotiatedHdr = app.hdrSupported
-                            riKey = KeyGenerator.getInstance("AES").apply { init(128) }.generateKey()
-                            riKeyId = random.nextInt(Int.MAX_VALUE)
+                            try {
+                                riKey = SecretKeySpec(connectionKey, "AES")
+                            } finally {
+                                connectionKey.fill(0)
+                            }
+                            riKeyId = keyId
                         }
-                        if (http.getCurrentGame(serverInfo) != 0) {
+                        val plan = providerLaunchPlan(
+                            http.getCurrentGame(serverInfo),
+                            app.upstreamAppId,
+                        )
+                        if (plan.quitExistingApp) {
                             current(captured)
                             if (!http.quitApp()) throw MoonlightRuntimeFailure("unknown_effect")
                         }
                         current(captured)
-                        if (!http.launchApp(connection, "launch", app.upstreamAppId, app.hdrSupported)) {
+                        if (!http.launchApp(connection, plan.verb, app.upstreamAppId, app.hdrSupported)) {
                             throw MoonlightRuntimeFailure("unknown_effect")
                         }
+                        val readback = http.getServerInfo(true)
+                        if (http.getCurrentGame(readback) != app.upstreamAppId) {
+                            throw MoonlightRuntimeFailure("unknown_effect")
+                        }
+                        current(captured)
+                        val publishedKey = launchKey
+                        val publishedKeyId = launchKeyId
+                        if (publishedKey != null && publishedKeyId != null) {
+                            synchronized(lock) {
+                                currentLocked(captured)
+                                if (boundSession != session) {
+                                    throw MoonlightRuntimeFailure("authority_changed")
+                                }
+                                // This registry has no callbacks into the runtime. Keep the
+                                // exact-session check and reservation commit indivisible, but
+                                // never call ForegroundLeaseRegistry while holding this lock.
+                                MoonlightLaunchKeyLeaseRegistry.publish(
+                                    reservation,
+                                    publishedKey,
+                                    publishedKeyId,
+                                )
+                            }
+                        }
+                        val revision = requireJournal().nextReadbackRevision()
+                        current(captured)
+                        commandReceipt(
+                            requestId, session.sessionId, commandId, "native_observed", "appRunning",
+                            "currentGameMatched", revision,
+                        )
+                    } finally {
+                        launchKey?.fill(0)
                     }
-                    val readback = http.getServerInfo(true)
-                    if (http.getCurrentGame(readback) != app.upstreamAppId) {
-                        throw MoonlightRuntimeFailure("unknown_effect")
-                    }
-                    current(captured)
-                    val revision = requireJournal().nextReadbackRevision()
-                    current(captured)
-                    commandReceipt(
-                        requestId, session.sessionId, commandId, "native_observed", "appRunning",
-                        "currentGameMatched", revision,
-                    )
                 }
             } catch (_: Throwable) {
+                launchKeyReservation?.let(MoonlightLaunchKeyLeaseRegistry::retireReservation)
                 commandReceipt(
                     requestId, session.sessionId, commandId, "unknown", "unknown", "unknown", null,
                 )
@@ -1390,10 +1501,16 @@ class MoonlightEmbeddedRuntime internal constructor(
             val state = if (receipt.state == "native_observed") {
                 MoonlightOperationState.CONFIRMED
             } else MoonlightOperationState.UNKNOWN
-            requireJournal().transition(
-                requestId, MoonlightOperationState.DISPATCHING, state,
-                receipt.readbackRevision ?: 0, commandReceiptJson(receipt),
-            )
+            try {
+                requireJournal().transition(
+                    requestId, MoonlightOperationState.DISPATCHING, state,
+                    receipt.readbackRevision ?: 0, commandReceiptJson(receipt),
+                )
+            } catch (failure: Throwable) {
+                launchKeyReservation?.let(MoonlightLaunchKeyLeaseRegistry::retireReservation)
+                main.post { callback(Result.failure(publicFailure(failure))) }
+                return@execute
+            }
             main.post { callback(Result.success(receipt)) }
         }
     }
@@ -1412,6 +1529,38 @@ class MoonlightEmbeddedRuntime internal constructor(
         "av1" -> MoonBridge.VIDEO_FORMAT_MASK_AV1
         "hevc" -> MoonBridge.VIDEO_FORMAT_MASK_H265
         else -> MoonBridge.VIDEO_FORMAT_MASK_H264
+    }
+
+    private fun launchKeyOwner(
+        captured: Captured,
+        session: MoonlightBoundSession,
+        pairing: MoonlightNativePairing,
+        app: MoonlightObservedApp,
+        details: ComputerDetails,
+        address: ComputerDetails.AddressTuple,
+    ): MoonlightLaunchKeyOwner {
+        val certificate = details.serverCert ?: throw MoonlightRuntimeFailure("stale_pairing")
+        return MoonlightLaunchKeyOwner(
+            authorityFingerprint = captured.fingerprint,
+            bindingId = captured.bindingId,
+            bindingRevision = captured.bindingRevision,
+            sessionId = session.sessionId,
+            sessionRevision = session.sessionRevision,
+            hostId = session.hostId,
+            hostRevision = session.hostRevision,
+            pairingRevision = session.pairingRevision,
+            catalogRevision = session.catalogRevision,
+            appId = session.appId,
+            appRevision = session.appRevision,
+            selectedQualityFingerprint = session.selectedQuality.fingerprint,
+            upstreamHostUuid = pairing.upstreamHostUuid,
+            providerHost = address.address,
+            providerPort = address.port,
+            providerHttpsPort = details.httpsPort,
+            upstreamAppId = app.upstreamAppId,
+            uniqueId = IdentityManager(requireScoped()).uniqueId,
+            certificateFingerprint = sha256(certificate.encoded).hex(),
+        )
     }
 
     private fun dispatchStop(
@@ -2065,6 +2214,18 @@ class MoonlightEmbeddedRuntime internal constructor(
         val bindingId: String,
         val bindingRevision: Long,
     )
+    private data class CloseState(
+        val authority: MoonlightAuthority?,
+        val binding: Pair<String, Long>?,
+        val prompt: AutoCloseable?,
+        val flight: MoonlightPairingFlight?,
+    )
+    private data class RetireState(
+        val authority: MoonlightAuthority?,
+        val binding: Pair<String, Long>?,
+        val prompt: AutoCloseable?,
+        val flight: MoonlightPairingFlight?,
+    )
     private data class SafetyStopContext(
         val authority: MoonlightAuthority,
         val session: MoonlightBoundSession,
@@ -2183,7 +2344,7 @@ class MoonlightEmbeddedRuntime internal constructor(
     private fun File.isSymbolicLink(): Boolean = Files.isSymbolicLink(toPath())
 
     companion object {
-        const val ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v4"
+        const val ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v5"
         const val PROVIDER = "moonlight-nvhttp"
         private const val MAX_CANDIDATES = 64
         private const val MAX_APPS = 256

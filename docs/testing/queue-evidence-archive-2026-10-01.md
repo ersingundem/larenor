@@ -147,6 +147,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root57 runner/workflow+40subtests, actual required-native AndroidTest compile277; fixed body-stage/class only, runtime acceptance separate"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-pairing-cancellation-2026-10-01.md",
+    "commit": "36269cf05091156ae960106eaec27810ff35fc78",
+    "state": "completed",
+    "result": "passed",
+    "label": "Embed-v3 production cancellation/deadline:40 native tests,zero skips; combined root165 tool gates passed; original hosted stream acceptance separate"
   }
 ]
 ```

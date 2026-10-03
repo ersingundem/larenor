@@ -1,0 +1,108 @@
+--- a/app/src/main/java/com/limelight/Game.java
++++ b/app/src/main/java/com/limelight/Game.java
+@@ -21,6 +21,7 @@
+ import com.limelight.nvstream.NvConnectionListener;
+ import com.limelight.nvstream.StreamConfiguration;
+ import com.limelight.nvstream.http.ComputerDetails;
++import com.limelight.nvstream.http.LimelightCryptoProvider;
+ import com.limelight.nvstream.http.NvApp;
+ import com.limelight.nvstream.http.NvHTTP;
+ import com.limelight.nvstream.input.ControllerPacket;
+@@ -482,7 +483,7 @@
+                 .build();
+ 
+         // Initialize the connection
+-        conn = new NvConnection(getApplicationContext(),
++        conn = createConnection(getApplicationContext(),
+                 new ComputerDetails.AddressTuple(host, port),
+                 httpsPort, uniqueId, config,
+                 PlatformBinding.getCryptoProvider(this), serverCert);
+@@ -533,6 +534,17 @@
+ 
+         // The connection will be started when the surface gets created
+         streamView.getHolder().addCallback(this);
++    }
++
++    protected NvConnection createConnection(Context appContext,
++                                              ComputerDetails.AddressTuple host,
++                                              int httpsPort,
++                                              String uniqueId,
++                                              StreamConfiguration config,
++                                              LimelightCryptoProvider cryptoProvider,
++                                              X509Certificate serverCert) {
++        return new NvConnection(appContext, host, httpsPort, uniqueId, config,
++                cryptoProvider, serverCert);
+     }
+ 
+     private void setPreferredOrientationForCurrentDisplay() {
+--- a/app/src/main/java/com/limelight/nvstream/NvConnection.java
++++ b/app/src/main/java/com/limelight/nvstream/NvConnection.java
+@@ -19,12 +19,14 @@
+ import java.security.NoSuchAlgorithmException;
+ import java.security.SecureRandom;
+ import java.security.cert.X509Certificate;
++import java.util.Arrays;
+ import java.util.Timer;
+ import java.util.TimerTask;
+ import java.util.concurrent.Semaphore;
+ 
+ import javax.crypto.KeyGenerator;
+ import javax.crypto.SecretKey;
++import javax.crypto.spec.SecretKeySpec;
+ 
+ import org.xmlpull.v1.XmlPullParserException;
+ 
+@@ -51,6 +53,19 @@
+ 
+     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
+     {
++        this(appContext, host, httpsPort, uniqueId, config, cryptoProvider, serverCert,
++                generateRiAesKey(), generateRiKeyId());
++    }
++
++    public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert, byte[] remoteInputAesKey, int remoteInputAesKeyId)
++    {
++        this(appContext, host, httpsPort, uniqueId, config, cryptoProvider, serverCert,
++                importRiAesKey(requireOwnedRiAesKey(remoteInputAesKey, remoteInputAesKeyId)),
++                remoteInputAesKeyId);
++    }
++
++    private NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert, SecretKey remoteInputAesKey, int remoteInputAesKeyId)
++    {
+         this.appContext = appContext;
+         this.cryptoProvider = cryptoProvider;
+         this.uniqueId = uniqueId;
+@@ -61,12 +76,30 @@
+         this.context.streamConfig = config;
+         this.context.serverCert = serverCert;
+ 
+-        // This is unique per connection
+-        this.context.riKey = generateRiAesKey();
+-        this.context.riKeyId = generateRiKeyId();
++        this.context.riKey = remoteInputAesKey;
++        this.context.riKeyId = remoteInputAesKeyId;
+ 
+         this.isMonkey = ActivityManager.isUserAMonkey();
+     }
++
++    private static byte[] requireOwnedRiAesKey(byte[] encodedKey, int keyId) {
++        if (keyId < 0) {
++            throw new IllegalArgumentException("RI key ID must be nonnegative");
++        }
++        if (encodedKey == null || encodedKey.length != 16) {
++            throw new IllegalArgumentException("RI AES key must contain exactly 16 bytes");
++        }
++        return encodedKey;
++    }
++
++    private static SecretKey importRiAesKey(byte[] encodedKey) {
++        byte[] ownedCopy = encodedKey.clone();
++        try {
++            return new SecretKeySpec(ownedCopy, "AES");
++        } finally {
++            Arrays.fill(ownedCopy, (byte) 0);
++        }
++    }
+     
+     private static SecretKey generateRiAesKey() {
+         try {
