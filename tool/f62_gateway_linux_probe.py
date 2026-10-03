@@ -81,7 +81,7 @@ BUILD_FAILURE_RECEIPT_KEYS = {
     "schemaVersion", "runnerSourceRevision", "sourceRevision", "sourceArchiveSha256",
     "targetPatchSha256", "sourceManifestSha256", "phase", "failureCode",
     "exitCode", "logSha256", "compilerSource", "compilerLine",
-    "compilerErrorClass", "featureAccepted",
+    "compilerErrorClass", "compilerUnit", "compilerUnitSha256", "featureAccepted",
 }
 BUILD_FAILURE_CODES = frozenset(
     {
@@ -91,14 +91,18 @@ BUILD_FAILURE_CODES = frozenset(
     }
 )
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
-_COMPILER_SOURCES = {
-    b"shadow_owned_rdpdr.c": ("ownedRdpdr", 553),
-    b"shadow_owned_rdpdr.h": ("ownedRdpdrHeader", 18),
-    b"shadow_channels.c": ("shadowChannels", 66),
-    b"shadow_channels.h": ("shadowChannelsHeader", 45),
-    b"shadow_client.c": ("shadowClient", 3128),
-    b"shadow.h": ("shadowPublicHeader", 438),
+_SPECIAL_COMPILER_SOURCES = {
+    "server/shadow/shadow_owned_rdpdr.c": "ownedRdpdr",
+    "server/shadow/shadow_owned_rdpdr.h": "ownedRdpdrHeader",
+    "server/shadow/shadow_channels.c": "shadowChannels",
+    "server/shadow/shadow_channels.h": "shadowChannelsHeader",
+    "server/shadow/shadow_client.c": "shadowClient",
+    "include/freerdp/server/shadow.h": "shadowPublicHeader",
 }
+_ARCHIVE_SOURCE_SUFFIXES = frozenset({".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"})
+_ARCHIVE_SOURCE_PATH = re.compile(r"[A-Za-z0-9_.+@/-]{1,384}\Z")
+_MAX_ARCHIVE_SOURCE_FILES = 20000
+_MAX_ARCHIVE_SOURCE_BYTES = 8 * 1024 * 1024
 _COMPILER_ERROR_CLASSES = frozenset(
     {
         "missingHeader", "undeclaredIdentifier", "missingMember",
@@ -187,6 +191,93 @@ def _safe_extract_freerdp(
     return source
 
 
+def _source_identity(path: pathlib.Path) -> tuple[str, int]:
+    owned.private_regular(path)
+    info = path.lstat()
+    if not 0 < info.st_size <= _MAX_ARCHIVE_SOURCE_BYTES:
+        fail("invalidArchiveSourceIndex")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    digest = hashlib.sha256()
+    size = 0
+    lines = 0
+    last = b""
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+            fail("invalidArchiveSourceIndex")
+        while True:
+            block = os.read(fd, 64 * 1024)
+            if not block:
+                break
+            size += len(block)
+            if size > _MAX_ARCHIVE_SOURCE_BYTES:
+                fail("invalidArchiveSourceIndex")
+            digest.update(block)
+            lines += block.count(b"\n")
+            last = block[-1:]
+    finally:
+        os.close(fd)
+    if size != info.st_size:
+        fail("invalidArchiveSourceIndex")
+    if last != b"\n":
+        lines += 1
+    if lines < 1:
+        fail("invalidArchiveSourceIndex")
+    return digest.hexdigest(), lines
+
+
+def _archive_source_relative(path: pathlib.Path, source: pathlib.Path) -> str | None:
+    try:
+        relative = path.relative_to(source).as_posix()
+    except ValueError:
+        return None
+    if (
+        pathlib.PurePosixPath(relative).suffix not in _ARCHIVE_SOURCE_SUFFIXES
+        or _ARCHIVE_SOURCE_PATH.fullmatch(relative) is None
+        or ".." in pathlib.PurePosixPath(relative).parts
+    ):
+        return None
+    return relative
+
+
+def _build_archive_source_index(
+    source: pathlib.Path,
+) -> dict[str, tuple[str, int]]:
+    owned.private_dir(source)
+    result: dict[str, tuple[str, int]] = {}
+    for path in source.rglob("*"):
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size == 0:
+            continue
+        relative = _archive_source_relative(path, source)
+        if relative is None:
+            continue
+        if relative in result or len(result) >= _MAX_ARCHIVE_SOURCE_FILES:
+            fail("invalidArchiveSourceIndex")
+        result[relative] = _source_identity(path)
+    if not result:
+        fail("invalidArchiveSourceIndex")
+    return result
+
+
+def _refresh_manifest_source_index(
+    source: pathlib.Path,
+    index: dict[str, tuple[str, int]],
+    patched: dict[str, str],
+) -> dict[str, tuple[str, int]]:
+    result = dict(index)
+    for relative, expected_digest in patched.items():
+        path = source / relative
+        public_relative = _archive_source_relative(path, source)
+        if public_relative is None:
+            continue
+        identity = _source_identity(path)
+        if identity[0] != expected_digest:
+            fail("invalidArchiveSourceIndex")
+        result[public_relative] = identity
+    return result
+
+
 def _classify_build_failure(phase: str, raw: bytes) -> str:
     if phase == "configure":
         if (
@@ -209,20 +300,53 @@ def _classify_build_failure(phase: str, raw: bytes) -> str:
     return "commandFailed"
 
 
-def _compiler_diagnostic(raw: bytes) -> tuple[str | None, int | None, str | None]:
+def _compiler_diagnostic(
+    raw: bytes,
+    *,
+    source: pathlib.Path,
+    source_index: dict[str, tuple[str, int]],
+) -> tuple[str | None, int | None, str | None, str | None, str | None]:
     """Reduce private compiler output to a fixed, source-bound diagnostic tuple."""
-    if b"undefined reference to" in raw or b"collect2: error:" in raw:
-        return None, None, "linkUndefined"
     pattern = re.compile(
-        rb"(?:^|\n)(?:[^\r\n:]+[/\\])?(?P<file>[A-Za-z0-9_.-]+):"
+        rb"(?P<path>/?[A-Za-z0-9_.+@/-]{1,1024}):"
         rb"(?P<line>[0-9]{1,6}):[0-9]{1,6}: (?:fatal )?error: "
-        rb"(?P<message>[^\r\n]{1,512})(?=\r?\n|$)"
+        rb"(?P<message>[^\r\n]{1,512})\Z"
     )
-    for match in pattern.finditer(raw):
-        bound = _COMPILER_SOURCES.get(match.group("file"))
+    for record in raw.splitlines():
+        if not 1 <= len(record) <= 1600:
+            continue
+        match = pattern.fullmatch(record)
+        if match is None:
+            continue
+        try:
+            raw_path = match.group("path").decode("ascii")
+        except UnicodeDecodeError:
+            continue
+        candidate = pathlib.PurePosixPath(raw_path)
+        if candidate.is_absolute():
+            try:
+                relative = pathlib.PurePosixPath(raw_path).relative_to(
+                    pathlib.PurePosixPath(source.as_posix())
+                ).as_posix()
+            except ValueError:
+                continue
+        else:
+            relative = candidate.as_posix()
+        if (
+            _ARCHIVE_SOURCE_PATH.fullmatch(relative) is None
+            or ".." in pathlib.PurePosixPath(relative).parts
+        ):
+            continue
+        bound = source_index.get(relative)
         if bound is None:
             continue
-        source, maximum = bound
+        digest, maximum = bound
+        try:
+            current = _source_identity(source / relative)
+        except (OSError, owned.FixtureError, ProbeError):
+            continue
+        if current != bound:
+            continue
         line = int(match.group("line"))
         if not 1 <= line <= maximum:
             continue
@@ -241,8 +365,11 @@ def _compiler_diagnostic(raw: bytes) -> tuple[str | None, int | None, str | None
             error_class = "syntaxError"
         else:
             error_class = "other"
-        return source, line, error_class
-    return None, None, None
+        source_kind = _SPECIAL_COMPILER_SOURCES.get(relative, "archiveSource")
+        return source_kind, line, error_class, relative, digest
+    if b"undefined reference to" in raw or b"collect2: error:" in raw:
+        return None, None, "linkUndefined", None, None
+    return None, None, None, None, None
 
 
 def _write_build_failure(
@@ -252,28 +379,60 @@ def _write_build_failure(
     failure_code: str,
     exit_code: int | None,
     log: pathlib.Path,
-    compiler_diagnostic: tuple[str | None, int | None, str | None] = (None, None, None),
+    compiler_diagnostic: tuple[
+        str | None, int | None, str | None, str | None, str | None,
+    ] = (None, None, None, None, None),
+    compiler_index: dict[str, tuple[str, int]] | None = None,
 ) -> None:
-    compiler_source, compiler_line, compiler_error_class = compiler_diagnostic
-    source_line_bounds = {value[0]: value[1] for value in _COMPILER_SOURCES.values()}
+    (
+        compiler_source,
+        compiler_line,
+        compiler_error_class,
+        compiler_unit,
+        compiler_unit_sha256,
+    ) = compiler_diagnostic
+    compiler_index = {} if compiler_index is None else compiler_index
+    indexed = compiler_index.get(compiler_unit) if compiler_unit is not None else None
+    special_source = (
+        _SPECIAL_COMPILER_SOURCES.get(compiler_unit)
+        if compiler_unit is not None
+        else None
+    )
     if (
         phase not in ("configure", "compile")
         or failure_code not in BUILD_FAILURE_CODES
         or (exit_code is not None and (type(exit_code) is not int or exit_code == 0 or not -255 <= exit_code <= 255))
-        or compiler_source not in ({value[0] for value in _COMPILER_SOURCES.values()} | {None})
+        or compiler_source not in (
+            set(_SPECIAL_COMPILER_SOURCES.values()) | {"archiveSource", None}
+        )
         or (compiler_line is not None and (type(compiler_line) is not int or compiler_line < 1))
-        or (compiler_source is not None and (compiler_line is None or compiler_line > source_line_bounds[compiler_source]))
         or compiler_error_class not in (_COMPILER_ERROR_CLASSES | {None})
         or ((compiler_source is None) != (compiler_line is None))
+        or ((compiler_source is None) != (compiler_unit is None))
+        or ((compiler_source is None) != (compiler_unit_sha256 is None))
+        or (compiler_unit is not None and _ARCHIVE_SOURCE_PATH.fullmatch(compiler_unit) is None)
+        or (compiler_unit is not None and ".." in pathlib.PurePosixPath(compiler_unit).parts)
+        or (compiler_unit_sha256 is not None and _HEX64.fullmatch(compiler_unit_sha256) is None)
+        or (compiler_source is not None and indexed is None)
+        or (
+            indexed is not None
+            and (compiler_line is None or compiler_line > indexed[1]
+                 or compiler_unit_sha256 != indexed[0])
+        )
+        or (compiler_source == "archiveSource" and special_source is not None)
+        or (
+            compiler_source not in (None, "archiveSource")
+            and compiler_source != special_source
+        )
         or (compiler_source is not None and compiler_error_class in (None, "linkUndefined"))
         or (compiler_source is None and compiler_error_class not in (None, "linkUndefined"))
         or (compiler_error_class == "linkUndefined" and failure_code != "linkerError")
         or (failure_code not in ("compilerError", "missingHeader", "linkerError") and
-            compiler_diagnostic != (None, None, None))
+            compiler_diagnostic != (None, None, None, None, None))
     ):
         fail("invalidBuildFailureReceipt")
     value = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "runnerSourceRevision": source_revision(pathlib.Path(__file__).resolve().parents[1]),
         "sourceRevision": FREERDP_REVISION,
         "sourceArchiveSha256": FREERDP_ARCHIVE_SHA256,
@@ -286,6 +445,8 @@ def _write_build_failure(
         "compilerSource": compiler_source,
         "compilerLine": compiler_line,
         "compilerErrorClass": compiler_error_class,
+        "compilerUnit": compiler_unit,
+        "compilerUnitSha256": compiler_unit_sha256,
         "featureAccepted": False,
     }
     if set(value) != BUILD_FAILURE_RECEIPT_KEYS:
@@ -296,6 +457,8 @@ def _write_build_failure(
 def _run_build(
     argv: list[str], *, cwd: pathlib.Path, log: pathlib.Path, timeout: int,
     phase: str, failure_receipt: pathlib.Path,
+    compiler_source: pathlib.Path | None = None,
+    compiler_index: dict[str, tuple[str, int]] | None = None,
 ) -> None:
     if not argv or not pathlib.Path(argv[0]).is_absolute():
         fail("nonAbsoluteCommand")
@@ -334,14 +497,20 @@ def _run_build(
         if process.returncode != 0:
             raw = log.read_bytes()
             failure_code = _classify_build_failure(phase, raw)
+            compiler_diagnostic = (None, None, None, None, None)
+            if failure_code in ("compilerError", "missingHeader", "linkerError"):
+                if compiler_source is None or compiler_index is None:
+                    if failure_code == "linkerError":
+                        compiler_diagnostic = (None, None, "linkUndefined", None, None)
+                else:
+                    compiler_diagnostic = _compiler_diagnostic(
+                        raw, source=compiler_source, source_index=compiler_index,
+                    )
             _write_build_failure(
                 failure_receipt, phase=phase, failure_code=failure_code,
                 exit_code=process.returncode, log=log,
-                compiler_diagnostic=(
-                    _compiler_diagnostic(raw)
-                    if failure_code in ("compilerError", "missingHeader", "linkerError")
-                    else (None, None, None)
-                ),
+                compiler_diagnostic=compiler_diagnostic,
+                compiler_index=compiler_index,
             )
             fail("freerdpBuildFailed")
     finally:
@@ -452,6 +621,7 @@ def build_freerdp(args: argparse.Namespace) -> None:
         TARGET_MANIFEST_SHA256,
     )
     source = _safe_extract_freerdp(archive, workspace / "source")
+    source_index = _build_archive_source_index(source)
     target_package.verify(
         SimpleNamespace(
             manifest=str(manifest),
@@ -471,6 +641,9 @@ def build_freerdp(args: argparse.Namespace) -> None:
         fail("targetPatchApplyFailed")
     target_manifest = target_package.read_manifest(manifest)
     target_package.verify_tree(source, target_manifest["patched"])
+    source_index = _refresh_manifest_source_index(
+        source, source_index, target_manifest["patched"],
+    )
     build = workspace / "cmake-build"
     build.mkdir(mode=0o700)
     args_cmake = _cmake_arguments(source, build)
@@ -496,6 +669,8 @@ def build_freerdp(args: argparse.Namespace) -> None:
         timeout=600,
         phase="compile",
         failure_receipt=build_failure,
+        compiler_source=source,
+        compiler_index=source_index,
     )
     shadow = build / "server" / "shadow" / "cli" / "freerdp-shadow-cli"
     client = build / "client" / "X11" / "xfreerdp"

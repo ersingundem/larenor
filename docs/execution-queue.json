@@ -2483,7 +2483,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/product-implementation-plan-2026-09-05.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/testing/product-appletv-software-acceptance-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek Apple TV/tvOS/alıcı uygulaması, kodek ve DRM kabulü MANUAL.MEDIA içinde ayrıca izlenir. MP4 adayının fiziksel uyumluluğu garanti edilmez.",
       "acceptance": [
@@ -2495,7 +2496,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/product-appletv-software-acceptance-2026-09-30.md",
+          "commit": "298de78e79a56c936de5a05451bcffc94262e8a8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 67Flutter/0skip+analyze. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Root 67 Flutter testi, gerçek HaWebSocketClient→WsHaPlaybackApi→HaPlaybackController owned HA TCP kapısı ve temiz scoped analyze doğruladı. Exact Apple TV identity/capability/service yeniden okunur; tek gönderim ve newer last_updated/exact media-source receipt yalnız HA raporudur. Post-ACK authority kaybı unknown kalır, replay yok. MP4 etiketi kodek/DRM garantisi sayılmaz; EN/TR açık onay uyarısı var. Gerçek Apple TV/tvOS/codec/DRM/kopuş MANUAL.MEDIA açık. docs/testing/product-appletv-software-acceptance-2026-09-30.md."
     },
@@ -2538,7 +2548,8 @@
       ],
       "finishDependsOn": [],
       "sources": [
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/product-health-software-acceptance-2026-09-30.md"
       ],
       "scope": "Health Connect ve açık Home Assistant sensör eşlemesi yazılım yoludur; Huawei ve Apple doğrudan sağlayıcı kaydı/onayı, gerçek hesap izinleri ve cihaz kabulü MANUAL.HEALTH altında kalır ve uygulanmış gibi gösterilmez.",
       "acceptance": [
@@ -2550,7 +2561,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/product-health-software-acceptance-2026-09-30.md",
+          "commit": "17c5e4abb8b5d103c354d443c68328ed8acd3397",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 100Flutter+21Android/0skip/failure/error+analyze. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Salt okunur Health Connect ve açık HA tartı eşlemesi üretim girişinden bağımsız incelendi; 100 Flutter ve 21 Android wellbeing testi sıfır atlama/hata ile geçti, analyze temiz. İzin onayı otomatik okuma yapmaz; private-view/account/foreground/revoke/geç yanıt sınırları ve ölçümlerin yalnız bellekte tutulması doğrulandı. Huawei providerRegistrationRequired ve Android Apple Health unsupportedPlatform açıktır. Exact HEAD CI bekliyor; fiziksel cihaz/GMS/OEM ve gerçek sağlayıcı onayı MANUAL.HEALTH içinde açık. Kanıt: docs/testing/product-health-software-acceptance-2026-09-30.md."
     },
@@ -2565,7 +2585,8 @@
       ],
       "finishDependsOn": [],
       "sources": [
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/product-camera-software-acceptance-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; fiziksel kamera/izin/termal/batarya/performans MANUAL.TABLET/FEATURES içinde açık. Yüz eşleme yalnız kişiselleştirme; yönetici veya sağlık yetkisi değildir. Gizli arka plan kayıt/uyandırma yok.",
       "acceptance": [
@@ -2577,7 +2598,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/product-camera-software-acceptance-2026-09-30.md",
+          "commit": "aff2dfb25454779120e71ed010d90e49c81a9dce",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 30Flutter/0skip+analyze. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Root 30 Flutter testi ve temiz scoped analyze doğruladı; normal Android CameraX/packaged MLKit compile gate geçti. Explicit owned dialog foreign-route callbackinden silme/pop yapmaz; reverse transition sonrası current-route/profile/interaction yeniden doğrulanır. Native event listener iptali pending permission/preview/analysis kapatır; exact close yalnız son released session için idempotent. Owned HA authenticated snapshot TCP kanıtı var. Keystore/model accuracy/latency, kamera busy/izin/OEM/termal/batarya ve gerçek ONVIF snapshot MANUAL açık; live WebRTC/HLS/RTSP/audio/PTZ iddiası yok. docs/testing/product-camera-software-acceptance-2026-09-30.md."
     },
@@ -2874,7 +2904,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k10-local-sensor-tablet.tdd.md"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2885,7 +2916,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k10-local-sensor-tablet.tdd.md",
+          "commit": "6813ad9c75cda7dd120ae5af8d2b03da99fe13bf",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 24Flutter+12Android+analyze. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Güncel production yolu ve named gate 30 Eylül bağımsız yeniden doğrulandı: 24 Flutter, 12 Android SensorPolicy/Bridge testi ve 15 dosyada scoped analyze geçti. Explicit ön plan local sensör gözlemi bounded 1–10sn, memory-only, HA/cihaz etkisi yok; route/focus/lifecycle kaybında kapanır. Yazılım tamamlandı; geniş exact HEAD CI bekleniyor. Fiziksel OEM sensör/izin ve 24 saat pil/termal MANUAL.KIOSKta açık. Kanıt: docs/testing/k10-local-sensor-tablet.tdd.md."
     },
@@ -2929,7 +2969,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/kiosk-capabilities-research-2026-09-05.md",
-        "docs/product-implementation-plan-2026-09-05.md"
+        "docs/product-implementation-plan-2026-09-05.md",
+        "docs/testing/k12-watchdog-local-usage-foundation.tdd.md"
       ],
       "scope": "K00–K06 önceki temelini yeniden tamamlandı sayma; fiziksel DPC/OEM ve donanım kabulü ayrı.",
       "acceptance": [
@@ -2940,7 +2981,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/k12-watchdog-local-usage-foundation.tdd.md",
+          "commit": "6813ad9c75cda7dd120ae5af8d2b03da99fe13bf",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 55/55+analyze. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Güncel production yolu ve named gate 30 Eylül bağımsız yeniden doğrulandı: 55 Flutter watchdog/maintenance/WebPanel testi ve scoped analyze geçti. Durable 3 deneme/10dk recovery, bozuk/yazılamayan storage fail-closed, 30 günlük içeriksiz sayaç ve exhausted WebPanel bakım ekranı gerçek uygulama yolunda bağlı. Yazılım tamamlandı; geniş exact HEAD CI bekleniyor. Fiziksel Huawei/DeX process-death/long-idle MANUAL.KIOSKta açık; force-stop/OS automatic relaunch destek iddiası yok. Kanıt: docs/testing/k12-watchdog-local-usage-foundation.tdd.md."
     },
@@ -4434,7 +4484,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f28-sleep-timer-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önceki müzik planının uzantısı; kaynak erişimi gerekir, her ücretli kitap sağlayıcısı desteklenmez.",
       "acceptance": [
@@ -4446,7 +4497,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f28-sleep-timer-2026-09-30.md",
+          "commit": "eddd61fca4b4e844a13987960af6c582dd5d31e7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 57Server+21Flutter,2normalClient/Core lifetimes; later46Server+37Flutter. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Durable authority-bound deadline pause normal Core dispatcher ve production Unix IPCye bağlandı. Root gerçek Flutter→normal Core→owned Music Assistant iki yaşamını tekrar geçti; tek pause ve restart readback/no replay doğrulandı. F28/music 57 test, ortak F22-F28 46 Server ve F47-F28 37 Flutter testi geçti; scoped analyze temiz. Provider effect/receipt arası takeover exact public409 üretir, final success veya lost-ACK unknown korunur; v1 migration legacy progressi korur ama yetkisiz timer üretmez. Fresh player/queue/media identity pause öncesi/sonrası doğrulanır; IPC sonrası belirsiz etki replay edilmez. Geniş exact HEAD CI bekliyor; fiziksel receiver MANUAL ayrı. Kanıt: docs/testing/f28-sleep-timer-2026-09-30.md."
     },
@@ -4606,7 +4666,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f32-normal-core-tcp-acceptance-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Stok doğruluğu girişlere bağlıdır; son kullanma bilgisi görüntüden kesin çıkarılmaz.",
       "acceptance": [
@@ -4618,7 +4679,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f32-normal-core-tcp-acceptance-2026-09-30.md",
+          "commit": "6aa32be63ea4e3bcb8a149a48c891a22e56741d4",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: mutate1/restart1+4Flutter+7Server. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Gerçek Flutter account/pantry API/controller → normal TCP Core iki lot, FEFO tüketim, exact replay, undo, stale CAS, route retire ve ayrı Core/Client restart sonrası kalıcı iki lot/tek undo kapısını geçti. Eski receipt ile güncel snapshotın yanlış reddi düzeltildi; receipt exact requestId/kind ve revision<=snapshot ile doğrulanır. 7 Server, 4 Client contract ve iki gerçek Client fazı root doğrulamasından geçti; analyze temiz. Fiziksel miktar/barkod/tablet MANUAL kayıtlarında açık; sayaç artmadı. docs/testing/f32-normal-core-tcp-acceptance-2026-09-30.md."
     },
@@ -4637,7 +4707,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f33-normal-core-acceptance-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. 31 ile ortak tarif temeli; fırın veya ocak kontrolü ilk kapsamda otomatik değildir.",
       "acceptance": [
@@ -4649,7 +4720,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f33-normal-core-acceptance-2026-09-30.md",
+          "commit": "f57de558f4250841d91a82e2a4e3202fb0debee0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 7Server+5Flutter+prepare1/restart1. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı kabul tamamlandı; geniş exact HEAD CI bekliyor. Gerçek Flutter Client → normal Uvicorn Core ile oturum/adım, atomik kiler düşümü, idempotent replay ve ayrı Core/Client restart sonrası kalıcı makbuz doğrulandı. Gerçek kapının bulduğu nested write transaction, strict JSON receipt restore ve Client canonical digest hataları düzeltildi. 7 Server, 17 Flutter testi ve iki gerçek TCP Client fazı geçti; root 7 Server ve birleşik runnerı bağımsız doğruladı. Tablet/native bildirim ve fiziksel mutfak kabulü MANUAL kayıtlarında açık; sayaç artırılmadı. docs/testing/f33-normal-core-acceptance-2026-09-30.md."
     },
@@ -4835,7 +4915,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f38-normal-source-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Mevcut fotoğraf ortam ekranından ileriye gider; Türkçe model, bellek ve albüm izinleri ayrıca sınanır.",
       "acceptance": [
@@ -4847,7 +4928,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f38-normal-source-2026-09-30.md",
+          "commit": "9bc92d3695f410f2eec67e47fa863eb8a525d43f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 40Server+7Flutter+1normalCore fixture. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Gerçek Immich araması her seçili albüm için ayrı bounded provider çağrısı kullanır; round-robin/dedupe doğru sourceAlbumIdyi korur ve seçim üyeliği ayrıca doğrulanır. 40 Server, 1 gerçek Flutter→normal Core→TCP Immich kabulü ve analyze geçti. docs/testing/f38-normal-source-2026-09-30.md. Geniş exact HEAD CI/manual sağlayıcı kabulü açık; sayaç artmadı."
     },
@@ -4965,7 +5055,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f42-f44-linux-media-runtime-2026-10-01.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Frigate kayıt/export temel alınır; bulanıklaştırma ve link yetkisi Larenor geliştirmesidir. Sonuç kullanıcıca izlenir.",
       "acceptance": [
@@ -4977,7 +5068,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f42-f44-linux-media-runtime-2026-10-01.md",
+          "commit": "5325c083970096fc84da2daa63b6b2a2f208aed2",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 8/31Server F42 subset+3workflow. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek F41/Frigate klibini okur; sabit full-frame FFmpeg dönüşümü, çıktı metadata/frame/duration/decode doğrulaması ve şifreli artifact kaydı uygulandı. Client gerçek kullanıcı/policy/consent seçimi, preview, süreli paylaşım, download ve revoke yolunu kullanır. 18 Server, 4 Flutter ve gerçek Client→normal Core→TCP Frigate→FFmpeg kabulü geçti; analyze temiz. Targeted yüz/plaka tespiti iddiası yok. Geniş exact HEAD CI ve fiziksel mahremiyet kabulü açık. Kanıt: docs/testing/f42-private-event-sharing-production-2026-09-30.md. 1 Ekim gerçek media runtime CI bileşimi düzeltildi; FFmpeg/FFprobe pair fail-closed doğrulanır, Homebrew-only fixture yolları kaldırıldı. Root31F42/F44+3workflow/actionlint geçti; priorF44 503 exclusive neden unproved. Yeni Ubuntu CI bekliyor. docs/testing/f42-f44-linux-media-runtime-2026-10-01.md."
     },
@@ -5027,7 +5127,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f42-f44-linux-media-runtime-2026-10-01.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Frigate yolu eğitim ve çıkarımda AVX/AVX2 ister, ARM64 Core desteği varsayılmaz. Kilit açma kimliği yerine kullanılmaz.",
       "acceptance": [
@@ -5039,7 +5140,16 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f42-f44-linux-media-runtime-2026-10-01.md",
+          "commit": "5325c083970096fc84da2daa63b6b2a2f208aed2",
+          "state": "completed",
+          "result": "passed",
+          "label": "Historical focused proof: 23/31Server F44 subset+3workflow. Full explicitly bound production/test/doc paths byte-equivalent at exact7e552; root and independent audit verified. No current CI/review/provider/manual acceptance inferred; status staysawaiting_ci."
+        }
+      ],
       "completionCommit": null,
       "reason": "Uygulama ve odaklı doğrulama tamamlandı; geniş exact HEAD CI/kabul sonucu bekleniyor. Normal Core gerçek Frigate 0.17 trained single-camera state modelini ve yeni protected WebP çıkarım karesini kullanıyor. Inline EN/TR kamera/model/sınıf kurulum UI, tazelik/histerezis, atomik source/rule CAS, gerçek FFprobe/FFmpeg decode, current registry/profile/ACL/model pre/post guard ve metadata-only HTTP ingress reddi uygulandı. 22 Server, 19 Flutter, 1 gerçek Client→normal Core→TCP Frigate ve 21 container policy testi geçti; analyze temiz (docs/testing/f44-real-frigate-classification-2026-09-30.md). Core remote CPU desteği uydurmaz; model yoksa veya kare yaşlanınca unknown. Gerçek eğitim/kamera, iki mimaride imaj smoke ve exact HEAD CI açık. 30 Eylül authority düzeltmesi: normal Frigate gözlemi ve evcc enerji girdisi gerçek Home Resource Registry revizyonunu taşır; sabit homeRevision=1/şema revizyonu production kaynağı kaldırıldı. F44 21, F47/evcc 25 odaklı Server testi ve revizyon>1 normal Core regresyonları geçti. Geniş exact HEAD CI ve fiziksel provider kapısı açık; sayaç değişmedi. 1 Ekim gerçek media runtime CI bileşimi düzeltildi; FFmpeg/FFprobe pair fail-closed doğrulanır, Homebrew-only fixture yolları kaldırıldı. Root31F42/F44+3workflow/actionlint geçti; priorF44 503 exclusive neden unproved. Yeni Ubuntu CI bekliyor. docs/testing/f42-f44-linux-media-runtime-2026-10-01.md."
     },
@@ -5604,28 +5714,12 @@
           "label": "Exacta8 original1/1/0/0 firstStreamOutput failed; lease gameVisible and bridge pairedClientObserved, timeout/unknown_effect; canonical1397B artifact11149980532 verified; actual frame/PCM/input acceptance open"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f60-a8-stream-failure-2026-10-01.md",
-          "commit": "a8dda8956d251a65021b8aa28a0472fb8a12c0ea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent source/package/closed-shape/canonical validation confirms gameVisible before missing connectionStarted; no sole native/surface/HTTP cause or runtime acceptance claimed"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37121179343",
           "commit": "5122bc61fa67a2723751388b52a6e21404e94796",
           "state": "completed",
           "result": "failed",
           "label": "Exact5122 FAILED original1/1/0/0 firstStreamOutput; surfaceCreated/positiveSurfaceChanged/stageStarted/stageCompleted/stageFailed true, connectionStarted false; pairedClientObserved, leaseGameVisible, timeout/unknown_effect. Rootcanonical1561B artifact11274220421 SHA606cf18c1151f8acadd633595c4300f4b8dc5433b7edd0b50b104f1e42bfbe65; no sole cause claimed."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-nonzero-pcm-consumer-2026-10-03.md",
-          "commit": "e06c97f4af6bde0f909027a3ab4749eed3b4295a",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen working tree on e06c97f4 base: actual embed-v4 dualABI AAR/compiled IIZ hook source/receipt verified; root47Moonlight JVM/0skip/failure/error + actual AndroidTest compile314tasks; root225tools/184subtests. Closed stage enums and per-lifetime nonce-arm nonzero output; hosted stream remains open."
         },
         {
           "kind": "ci",
@@ -5746,10 +5840,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen working tree on exactf0ded base: root114host/stream/startup/dispatcher tests passed; timeout-running observation RED then GREEN; Ruff and actionlint clean. Startup-only fixture retains closed provenance; Android streaming/feature acceptance remains open."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37140051214",
+          "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact7e552 actual owned stream-profile Sunshine startup and cleanup ready. Root verified797B canonical receipt SHAf9813ccb35ee469d14798501e3d04673fd9dcc9aceb19b8988cd024c6d77c3d1, source/package/readiness. counts=null, streamAccepted=false, featureAccepted=false; no Android acceptance."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37140213824",
+          "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed exact7e552 strict Android stream: bounded startup diagnostic after actual startup-only success; two lifetimes/frame/nonzeroPCM/input/stop/retirement required. No same-SHA rerun or acceptance claim."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact15ba Linux XI2 observer geçti; full strict37136853828 instrumentation öncesi owned host API readiness process exit ile başarısız. Root114 test, Ruff/actionlint ile bounded startup tanısı ve gerçek startup-only probe hazır; çalışan süreç deadline tanısı RED→GREEN onarıldı. Değişmiş exact startup probe sırada. Named iki yaşam/yayın/girdi/kapanış ve final required CI açık; kabul/merge yok."
+      "reason": "Exact7e552 startup-only37140051214 geçti; root797B source/package/cleanup kaydı doğruladı, featureAccepted=false. Aynı değişmiş kaynak full strict37140213824 sürüyor; iki yaşam/frame/PCM/girdi/kapanış kabulü bekleniyor. F60 yeniden çalışılıyor ve sayaç/main merge değişmedi."
     },
     {
       "id": "G11",
@@ -5889,7 +5999,8 @@
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
         "docs/testing/f62-effect-control-read-2026-10-03.md",
-        "docs/testing/f62-native5-composed-local-2026-10-03.md"
+        "docs/testing/f62-native5-composed-local-2026-10-03.md",
+        "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6023,14 +6134,6 @@
           "label": "Exact42be arm64 passed; x86 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; ownedShadowProcess live/exitCodenull; root canonical1667B artifact11149613819 verified; precise cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-native-display-pointer-v2-2026-10-01.md",
-          "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
-          "state": "completed",
-          "result": "passed",
-          "label": "Schema2 integrated: root81Flutter/all-RDP analyze, verifiedactualdualABI product;44RDP+46Moonlight JVM tests zero skips/failures/errors; AndroidTest compile;106portable/83subtests; hosted provider and audio/mic/SAF/Gateway remain open"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f62-v2-owned-initial-display-2026-10-03.md",
           "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
@@ -6157,10 +6260,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exactf0ded Gateway/auth passed; FreeRDP compile/compilerError exit1; owned cleanup passed. Closed644B receipt SHAd7c6b7b8d4d6dde3b2d9c75184c02fc71b753fc9c4c11eace3079496520daa2d; compile log SHAcc83d52626215ee8e7049a015ce68ba7ecd35afd825b54002f4bf5e0a061b40b. Six reviewed units/line/class all null; no source cause or acceptance claimed."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
+          "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen workingtree on7e552base: root46archive-source diagnostic/probe/workflow tests+3subtests and Ruff passed; pinned archive unit digest/exactline bound, raw-message/path rejection, cleanup unchanged. No compiled provider or Android/feature acceptance; changed-source Linux probe next."
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf0ded Linux37139430213 Gateway/auth geçti; FreeRDP compile/compilerError exit1, cleanup geçti. Closed644B receipt doğrulandı fakat reviewed6unit/line/class null; pinned archive tüm source-bound unit tanısı hazırlanıyor, aynı SHA rerun yok. Private SAF5 duplicate callback RED→29GREEN; root birleşik197JVM testi iki0600 izin kontrolünde başarısız, gerçek üretim/Robolectric ayrımı inceleniyor. DIRECT/PUBLIC gerçek Android etkisi, Gateway/SAF/audio/mic ve final CI açık. Native5 yerel bileşim kabul değildir."
+      "reason": "Exactf0ded Linux37139430213 compile/compilerError exit1, cleanup geçti; unit/line/class null. Tüm pinned archive source-unit hash/line-bound tanısı root46test/3subtest+Ruff geçti; değişmiş exact Linux probe sırada, aynı SHA rerun yok. Private SAF5 RED→29GREEN; root197JVM iki0600 testi Robolectric chmod/fchmod no-op nedeniyle başarısız; syscall-order JVM ve gerçek Android mode kanıtı hazırlanıyor. DIRECT/PUBLIC gerçek Android/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
     },
     {
       "id": "F61",

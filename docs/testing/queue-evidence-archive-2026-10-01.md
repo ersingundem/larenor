@@ -406,3 +406,21 @@ Archived F62 record while retaining every CI record:
 ```json
 {"commit": "61db4639bb05ad3ec3b9b3326be29bda1c6c8ff9", "kind": "test", "label": "Root30 Flutter geometry/profile/panel tests and scoped analyze passed; contain/fill/native physical mapping and owned pan; schema2 density/fullscreen/runtime gates separate", "ref": "docs/testing/f62-fit-fill-native-rendering-2026-10-01.md", "result": "passed", "state": "completed"}
 ```
+
+Archived F60 record while retaining every CI record:
+
+```json
+{"commit": "a8dda8956d251a65021b8aa28a0472fb8a12c0ea", "kind": "review", "label": "Independent source/package/closed-shape/canonical validation confirms gameVisible before missing connectionStarted; no sole native/surface/HTTP cause or runtime acceptance claimed", "ref": "docs/testing/f60-a8-stream-failure-2026-10-01.md", "result": "passed", "state": "completed"}
+```
+
+Archived F60 record while retaining every CI record:
+
+```json
+{"commit": "e06c97f4af6bde0f909027a3ab4749eed3b4295a", "kind": "test", "label": "Frozen working tree on e06c97f4 base: actual embed-v4 dualABI AAR/compiled IIZ hook source/receipt verified; root47Moonlight JVM/0skip/failure/error + actual AndroidTest compile314tasks; root225tools/184subtests. Closed stage enums and per-lifetime nonce-arm nonzero output; hosted stream remains open.", "ref": "docs/testing/f60-nonzero-pcm-consumer-2026-10-03.md", "result": "passed", "state": "completed"}
+```
+
+Archived F62 record while retaining every CI record:
+
+```json
+{"commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7", "kind": "test", "label": "Schema2 integrated: root81Flutter/all-RDP analyze, verifiedactualdualABI product;44RDP+46Moonlight JVM tests zero skips/failures/errors; AndroidTest compile;106portable/83subtests; hosted provider and audio/mic/SAF/Gateway remain open", "ref": "docs/testing/f62-native-display-pointer-v2-2026-10-01.md", "result": "passed", "state": "completed"}
+```
