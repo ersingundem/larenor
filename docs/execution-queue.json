@@ -5740,13 +5740,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37131893719",
           "commit": "54954a768a5c97e7844e94bdeb46c445f54958c0",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact549 changed phaseBridge diagnostic source: one strict owned Sunshine stream run37131893719 in progress; not a rerun of failed795. Required named zero-skip two-lifetime/input/cleanup acceptance remains open."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact549 strict37131893719 failed: original named1/1/0/0 ownedInputEffects; phaseBridge touchListener/failed/contract, pairedClientObserved. Canonical1150B SHAa09f1191b1f607e7223066968e272b4e45302c4115da116d21300da7edebd528 validated source/named/classes/package source identity. Listener cause open; no blind rerun or acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact549 strict Sunshine37131893719 tek changed-source koşu sürüyor; yeni bounded phaseBridge stage/state/error tanısı root74/74+Ruff geçti. Exacta3f01 Linux XI2 pointer/düğme probe geçti fakat featureAccepted=false. Eski795 ownedInputEffects/ACK hatası korunur. Gerçek yayın/girdi/iki yaşam ve kapanış kabulü açık; kabul veya merge yok."
+      "reason": "Exact549 strict Sunshine37131893719 başarısız: original named1/1/0/0 ownedInputEffects; phaseBridge touchListener/failed/contract. Root canonical1150B source/named/classes/package-source/hash doğruladı. İlk frame/ses sonrası gerçek XI2 dinleyici sınırı dar incelemede; temiz Xvfb probe stream kabulü sayılmaz. Aynı SHA rerun yok. İki yaşam/girdi/kapanış kabulü açık; kabul veya merge yok."
     },
     {
       "id": "G11",

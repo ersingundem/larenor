@@ -29,3 +29,9 @@ Success receipt generation, exact named XML identity, zero-skip requirement,
 two stream lifetimes and host touch/gamepad/disconnect proof remain unchanged.
 No runtime failure is declared fixed by this diagnostic slice. F60 remains
 `reworking`; a single changed-source strict run is the next acceptance gate.
+
+## Changed-source terminal result
+
+Exact `54954a768a5c97e7844e94bdeb46c445f54958c0` [strict run37131893719](https://github.com/ersingundem/larenor/actions/runs/37131893719) failed. Original named XML counts are 1test/1failure/0error/0skip at `ownedInputEffects`; the preserved phase tuple is `touchListener/failed/contract`, with `pinBridgeStage=pairedClientObserved`. The touch-arm ACK was never sent: the host failed while starting its real XI2 listener after the first frame/audio stage. This narrows the failing boundary; it does not establish the underlying readiness/probe/format cause or Android input ordering.
+
+Root validated the canonical 1150-byte artifact against the closed production diagnostic validator, exact run SHA, named test, classes hash and receipted Moonlight source/engine identity. Artifact SHA256: `a09f1191b1f607e7223066968e272b4e45302c4115da116d21300da7edebd528`. CI AAR SHA256 `688b6771bcde7547465cd720fe8d157bada9af4ef88fdbc5575497bf3c0c6a1d` differs from the local build container hash; identical source/classes identity was checked separately. The private job log remains mode0600 (SHA256 `246c29c621fc1e0e3a2104fbf347d0ff4e531dc7bda36618e8fd4337454e8682`); no raw provider output is published. No rerun of this exact SHA is scheduled. F60 remains reworking; acceptance/merge counters are unchanged.

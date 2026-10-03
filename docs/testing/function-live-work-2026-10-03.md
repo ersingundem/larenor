@@ -5,7 +5,7 @@ Kuyruk JSON'u durumların tek kaynağıdır; EXECUTION_QUEUE.md aynı kaynaktan
 
 | Alt iş | Şu anki durum | Kanıt / sıradaki somut kapı |
 | --- | --- | --- |
-| F60 RI5 launch/resume ve strict paket kimliği | Yeni sınırlı phase bridge tanısı doğrulandı; runtime hatası açık | Exact a3f01 Linux XI2 probe 37130637087 geçti. Root 74 stream/workflow ve Ruff geçti; kapalı stage/state/error kayıtları audio injection/XI2 startup/socket sınırını ayıracak. Exact549 strict37131893719 tek changed-source koşu sürüyor; iki yaşam/girdi/kapanış kabulü açık |
+| F60 RI5 launch/resume ve strict paket kimliği | Yeni sınırlı phase bridge tanısı doğrulandı; runtime hatası açık | Exact a3f01 Linux XI2 probe 37130637087 geçti. Root74 ve Ruff geçti. Exact549 strict37131893719 original1/1/0/0 ownedInputEffects ile başarısız: phaseBridge touchListener/failed/contract, pairedClientObserved. Canonical1150B source/named/classes/hash doğrulandı; gerçek XI2 dinleyici nedeni inceleniyor. Aynı SHA rerun yok; iki yaşam/girdi/kapanış kabulü açık |
 | F62 mikrofon4 ve SAF grant5 | Commit edildi, pushlandı | 06ef24fae / 0cb84d079 yerel native/Flutter/AndroidTest kanıtları; gerçek dosya aktarımı veya Gateway kabulü değildir |
 | F62 audio/mic effect-control | Okuyucu düzeltmesi yerelde doğrulandı; hosted etkiler açık | Tek bounded read absent/unavailable ayrımını korur; exact consume başarılı olmadan faz ilerlemez. Root 73 runner +11 workflow =84 geçti, Ruff temiz. f201 host hatası ve gerçek ses/mikrofon kabulü açık |
 | F62 SAF mirror ve kalıcı aktarım günlüğü | Özel kaynak dondu; root actual Robolectric 14/14 geçti | 0600 dosyalar, birleşik kota, kalıcı explicit Save/UNKNOWN/deadline. Gerçek DocumentsProvider etkisi ve MethodChannel entegrasyonu açık |
