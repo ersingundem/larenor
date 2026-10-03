@@ -76,6 +76,7 @@ KEY_A_CODE = 38
 PRIMARY_BUTTON = 1
 XI2_LINE_BYTES = 4096
 XI2_READY_TIMEOUT_SECONDS = 5.0
+XI2_EFFECT_TIMEOUT_SECONDS = 60.0
 XI2_READY_POSITIONS = ((17, 19), (23, 29))
 MAX_REPORT_BYTES = 1024 * 1024
 MAX_PUBLIC_FRAMES = 8
@@ -287,7 +288,7 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "d07844aa3dd8e6f0188666c9a1082a56faf44401e28b0200cf6b4722e3d593e1"
+_STAGE_SOURCE_SHA256 = "31363eb7d591ebdd7660660ea8c865f2df793d022d9310112e73546502c07d7d"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
@@ -1190,7 +1191,10 @@ class PhaseControlBridge:
                 self._set_stage("touchSent")
                 self._expect(control, "touch_sent")
                 self._set_stage("touchEffect")
-                self._witness.wait(self._timeout)
+                # The Android control peer has a fixed 90-second read bound.
+                # Finish the owned XI2 observation first so a closed failure
+                # code is available before that peer retires the test.
+                self._witness.wait(min(self._timeout, XI2_EFFECT_TIMEOUT_SECONDS))
                 self.touch_observed = True
                 self._set_stage("touchObserved")
                 self._send(control, "touch_observed")

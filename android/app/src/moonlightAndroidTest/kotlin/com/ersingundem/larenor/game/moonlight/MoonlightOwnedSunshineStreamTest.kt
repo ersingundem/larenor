@@ -532,18 +532,20 @@ class MoonlightOwnedSunshineStreamTest {
                     y = y,
                 ).use(game::dispatchTouchEvent)
             }
+            listOf(18f to 12f, -7f to 5f).forEachIndexed { index, (deltaX, deltaY) ->
+                pointerEvent(
+                    downTime = downTime,
+                    eventTime = downTime + 4 + index,
+                    action = MotionEvent.ACTION_MOVE,
+                    source = InputDevice.SOURCE_MOUSE_RELATIVE,
+                    toolType = MotionEvent.TOOL_TYPE_MOUSE,
+                    x = deltaX,
+                    y = deltaY,
+                ).use(game::dispatchGenericMotionEvent)
+            }
             pointerEvent(
                 downTime = downTime,
-                eventTime = downTime + 4,
-                action = MotionEvent.ACTION_MOVE,
-                source = InputDevice.SOURCE_MOUSE_RELATIVE,
-                toolType = MotionEvent.TOOL_TYPE_MOUSE,
-                relativeX = 18f,
-                relativeY = 12f,
-            ).use(game::dispatchGenericMotionEvent)
-            pointerEvent(
-                downTime = downTime,
-                eventTime = downTime + 5,
+                eventTime = downTime + 6,
                 action = MotionEvent.ACTION_BUTTON_PRESS,
                 source = InputDevice.SOURCE_MOUSE_RELATIVE,
                 toolType = MotionEvent.TOOL_TYPE_MOUSE,
@@ -551,7 +553,7 @@ class MoonlightOwnedSunshineStreamTest {
             ).use(game::dispatchGenericMotionEvent)
             pointerEvent(
                 downTime = downTime,
-                eventTime = downTime + 6,
+                eventTime = downTime + 7,
                 action = MotionEvent.ACTION_BUTTON_RELEASE,
                 source = InputDevice.SOURCE_MOUSE_RELATIVE,
                 toolType = MotionEvent.TOOL_TYPE_MOUSE,
@@ -631,8 +633,6 @@ class MoonlightOwnedSunshineStreamTest {
         toolType: Int,
         x: Float = 0f,
         y: Float = 0f,
-        relativeX: Float = 0f,
-        relativeY: Float = 0f,
         buttonState: Int = 0,
     ): MotionEvent {
         val properties = MotionEvent.PointerProperties().apply {
@@ -644,8 +644,6 @@ class MoonlightOwnedSunshineStreamTest {
             this.y = y
             pressure = 1f
             size = 1f
-            setAxisValue(MotionEvent.AXIS_RELATIVE_X, relativeX)
-            setAxisValue(MotionEvent.AXIS_RELATIVE_Y, relativeY)
         }
         return MotionEvent.obtain(
             downTime,

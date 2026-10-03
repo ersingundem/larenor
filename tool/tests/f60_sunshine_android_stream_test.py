@@ -642,6 +642,98 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 bridge.public_observation(),
             )
 
+    def test_touch_fixture_matches_pinned_relative_axis_contract(self) -> None:
+        source = stream._STAGE_SOURCE.read_text()
+        start = source.index("    private fun dispatchOwnedTouchAndMouse")
+        end = source.index("    private fun dispatchOwnedOscA", start)
+        fixture = source[start:end]
+        self.assertIn("listOf(18f to 12f, -7f to 5f)", fixture)
+        self.assertEqual(1, fixture.count("action = MotionEvent.ACTION_MOVE"))
+        self.assertIn("source = InputDevice.SOURCE_MOUSE_RELATIVE", fixture)
+        self.assertIn("x = deltaX", fixture)
+        self.assertIn("y = deltaY", fixture)
+        self.assertNotIn("relativeX =", fixture)
+        self.assertNotIn("relativeY =", fixture)
+        self.assertNotIn("MotionEvent.AXIS_RELATIVE_X", source)
+        self.assertNotIn("MotionEvent.AXIS_RELATIVE_Y", source)
+        self.assertEqual(
+            stream._STAGE_SOURCE_SHA256,
+            stream.hashlib.sha256(stream._STAGE_SOURCE.read_bytes()).hexdigest(),
+        )
+
+    def test_touch_effect_failure_finishes_before_android_control_deadline(self) -> None:
+        class Gamepad:
+            def disarm(self) -> None:
+                pass
+
+        class Witness:
+            def __init__(self, _owned) -> None:
+                self.timeout = None
+
+            def start(self) -> None:
+                pass
+
+            def wait(self, timeout) -> None:
+                self.timeout = timeout
+                raise stream.Xi2PointerWitnessFailure("xi2EffectTimeout")
+
+            def close(self) -> None:
+                pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce="b" * 64,
+                paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
+                gamepad=Gamepad(),
+                tone=tone,
+                timeout_seconds=stream.CONTROL_TIMEOUT_SECONDS,
+                witness_factory=Witness,
+                audio_injector=lambda *_args: None,
+            )
+            bridge.start()
+            with socket.create_connection(
+                ("127.0.0.1", bridge.host_port), timeout=1,
+            ) as client, client.makefile("rwb", buffering=0) as control:
+                control.write(
+                    stream._control_message(nonce="b" * 64, phase="audio_ready"),
+                )
+                self.assertEqual(
+                    stream._control_message(nonce="b" * 64, phase="audio_armed"),
+                    control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                )
+                control.write(
+                    stream._control_message(nonce="b" * 64, phase="touch_ready"),
+                )
+                self.assertEqual(
+                    stream._control_message(nonce="b" * 64, phase="touch_armed"),
+                    control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                )
+                control.write(
+                    stream._control_message(nonce="b" * 64, phase="touch_sent"),
+                )
+                self.assertEqual(b"", control.read(1))
+            with self.assertRaises(stream.StreamAcceptanceFailure) as raised:
+                bridge.wait()
+            self.assertIsInstance(
+                raised.exception.__cause__,
+                stream.Xi2PointerWitnessFailure,
+            )
+            self.assertEqual(stream.XI2_EFFECT_TIMEOUT_SECONDS, bridge._witness.timeout)
+            self.assertLess(stream.XI2_EFFECT_TIMEOUT_SECONDS, 90)
+            self.assertEqual(
+                {
+                    "stage": "touchEffect",
+                    "state": "failed",
+                    "error": "xi2EffectTimeout",
+                },
+                bridge.public_observation(),
+            )
+            bridge.close()
+
     def test_phase_failure_snapshot_identifies_real_listener_boundary_without_payload(self) -> None:
         class Gamepad:
             def disarm(self):
