@@ -66,6 +66,33 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root27 parser tests; actual ddmlib32.4.1 JAR hash/bytecode confirms no-type XML;277-task receipted instrumentation compile record; no hosted acceptance"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-native-clipboard-unicode-2026-10-01.md",
+    "commit": "8d54993f8138a798bb3fa436dafd9f139b5feebb",
+    "state": "completed",
+    "result": "passed",
+    "label": "Real x86_64 JNI Unicode AAR rebuild/receipt/verify-install;app+AndroidTest compile;24 RDP XML tests zero skips/failures/errors;root105 Python checks/actionlint passed"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
+    "commit": "8d54993f8138a798bb3fa436dafd9f139b5feebb",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent exact source/patch/hash, JNI allocation and channel teardown review;fresh pinned patch applies;Linux/Android runtime acceptance still open"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
+    "commit": "1d1ccf2e14e5814800417c32cbe45e8e1fceb24c",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root112 package/runner/fixture/workflow/queue/progress checks; directCLI withoutPYTHONPATH exactsource passed; actionlint; originalfailure preserved and optionalwarning/fatal causality guarded"
   }
 ]
 ```
