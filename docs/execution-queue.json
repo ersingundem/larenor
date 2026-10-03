@@ -5872,7 +5872,11 @@
         "docs/remote-access-plan-2026-09-05.json",
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/testing/queue-evidence-archive-2026-10-01.md",
-        "docs/testing/native-strict-9551-failure-2026-10-03.md"
+        "docs/testing/native-strict-9551-failure-2026-10-03.md",
+        "docs/testing/f62-owned-microphone-composed-2026-10-03.md",
+        "docs/testing/f62-microphone-client-2026-10-03.md",
+        "docs/testing/f62-microphone-native-consumer-2026-10-03.md",
+        "docs/testing/f62-microphone-package-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -5972,14 +5976,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact57f arm64 package passed;x86 original1test/1failure/0error/0skip;initialFrameWait terminal exception/serverResizeRequested=false;session failure code and underlying cause unproved"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-initial-terminal-classification-2026-10-01.md",
-          "commit": "5aa76fe85e522b2648b5957ebab5f47270af608d",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root44 runner/workflow tests; actual AndroidTest compile277tasks; initial terminal enum bound to exact owned source and tuple, strict acceptance unchanged"
         },
         {
           "kind": "ci",
@@ -6140,10 +6136,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact9551 arm64 package passed; x86 FAILED original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure. Source-bound marker available/invalid/unknown and shadow live. Root original validator/canonical1605B artifact11274533856 SHA0ece0a2196d4810eace0b551fd65775ae448c60c78c97ddce5c1959e5f4d8d5a verified. Reader race repair is not proof of sole provider cause; runtime acceptance open."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-microphone-composed-2026-10-03.md",
+          "commit": "c279d30f7a25cb7cd11403135b0c2ef7c1bd66a6",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen working tree on c279 base: real schema4 dual-ABI package/product verified; root125 JVM (78RDP/47Moonlight), zero skips/errors/failures, actual AndroidTest compile315tasks; 105Flutter/analyze,128portable and source manifests unchanged. Owned AUDIN host effect remains unproven."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Schema3 uzak ses açık kullanıcı seçimi, gerçek OpenSL buffer completion ve bounded sorgularla yerelde tamamlandı; root91Flutter/analyze ve56RDP native geçti. Yeni exact open-boundary tanısı root9diagnostic dahil65RDP/0skip ve actual AndroidTest compile314tasks,61runner/89subtest ile doğrulandı; yalnız finite failure-only gözlemler, başarı/alt neden iddiası değil. Exact5122/run37121180943 arm64package geçti, x86original1/1/0/0 firstSessionOpen/RdpNativeFailure başarısız; canonical1519B/hash root doğrulandı. Yeni kaynaklı gerçek TLS/NLA/frame/ACK/key/DISP/clipboard/audio/iki yaşam/close kabulü gerekli. Mikrofon/SAF/Gateway üretim kapsamı açık; CI bekliyor/done sayılmaz. Gerçek ev cihazı ve fiziksel ses kalitesi MANUAL ayrı. Exact9551/run37123504468 failed/firstSessionOpen; marker invalid sticky yarışı dar düzeltmede. Mikrofon4 gerçek paket üretildi; actual SDK derlemesi public izin API düzeltmesini bekliyor. Runtime/SAF/Gateway açık."
+      "reason": "Yeniden çalışılıyor. Mikrofon4 varsayılan kapalı kullanıcı seçimi, exact izin/Activity/AppOps sahipliği, gerçek OpenSL capture/submission ve çift ABI paket yerelde tamamlandı. Root125native (78RDP/47Moonlight,0skip/failure/error), actual AndroidTest compile315tasks,105Flutter/analyze ve128portable geçti; frozen source manifestleri değişmedi. Owned Pulse/AUDIN nonce-tone host kabul düzeneği hazır; Linux fixture build/emulator etkisi henüz yok. Exact9551/run37123504468 original1/1/0/0 firstSessionOpen/RdpNativeFailure ve source-bound canonical1605B korunur. Live marker reader yarışı düzeltildi; önceki sağlayıcı hatasının tek nedeni iddia edilmez. Yeni exact TLS/NLA/frame/ACK/key/DISP/clipboard/audio/mic/iki yaşam/close CI kapısı gerekli. Gerçek SAF grant/mirror/asyncdrain/readback ve RD Gateway üretim kapsamı açık; F62 CI bekliyor/done sayılmaz. Fiziksel cihaz/ses kalitesi MANUAL ayrı."
     },
     {
       "id": "F61",
@@ -6433,7 +6437,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 failed/original1/1/0/0; root canonical kimlikleri doğrulandı. Exact9551 stream37123578040 veRDP37123504468 failed/original1/1/0/0; canonical validator/hash doğrulandı. F60 RI anahtarı, F62 tanı reader yarışı/mikrofon SDK yolu düzeltiliyor. Audio3/embed-v4 yerel doğrulandı; microphone4 üretim dilimi aktif; ikinciFINAL başlamadı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 failed/original1/1/0/0; root canonical kimlikleri doğrulandı. Exact9551 stream37123578040 veRDP37123504468 failed/original1/1/0/0; canonical validator/hash doğrulandı. F60 RI anahtarı düzeltiliyor. F62 microphone4 yerel tamamlandı:125native/105Flutter/128portable ve actual compile315task geçti; hosted AUDIN kabulü açık, gerçek SAF/Gateway geliştiriliyor. Reader yarışı düzeltilmesi sağlayıcı hatasının tek nedenini kanıtlamaz. İkinciFINAL başlamadı."
     },
     {
       "id": "FINAL.UI",

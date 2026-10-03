@@ -54,6 +54,19 @@ abstract interface class RdpAudioPlaybackChannel implements RdpChannel {
   Future<RdpAudioObservation> audioObservation();
 }
 
+abstract interface class RdpMicrophoneCaptureChannel implements RdpChannel {
+  Future<RdpMicrophoneObservation> microphoneObservation();
+}
+
+/// Permission is requested before native activation. The granted request id is
+/// consumed by the exact microphone-enabled session and cannot be replayed.
+abstract interface class RdpMicrophonePermissionEngine implements RdpEngine {
+  Future<bool> requestMicrophonePermission({
+    required bool Function() isCurrent,
+  });
+  void cancelMicrophonePermission();
+}
+
 /// An owned read deadline: retirement cancels its timer and resolves waiters.
 /// A late native reply remains handled but cannot revive the cancelled read.
 class RdpAudioRead {
@@ -72,6 +85,56 @@ class RdpAudioRead {
   final _completion = Completer<RdpAudioObservation>();
   Timer? _deadline;
   Future<RdpAudioObservation> get future => _completion.future;
+  void _fail(Object error, [StackTrace? stack]) {
+    if (_completion.isCompleted) return;
+    _deadline?.cancel();
+    _completion.completeError(error, stack);
+  }
+
+  void cancel() => _fail(const RdpFailure('retired'));
+}
+
+class RdpMicrophoneRead {
+  RdpMicrophoneRead(Future<RdpMicrophoneObservation> source) {
+    _deadline = Timer(const Duration(seconds: 5), () {
+      _fail(const RdpFailure('timed_out'));
+    });
+    unawaited(
+      source.then<void>((value) {
+        if (_completion.isCompleted) return;
+        _deadline?.cancel();
+        _completion.complete(value);
+      }, onError: (Object error, StackTrace stack) => _fail(error, stack)),
+    );
+  }
+  final _completion = Completer<RdpMicrophoneObservation>();
+  Timer? _deadline;
+  Future<RdpMicrophoneObservation> get future => _completion.future;
+  void _fail(Object error, [StackTrace? stack]) {
+    if (_completion.isCompleted) return;
+    _deadline?.cancel();
+    _completion.completeError(error, stack);
+  }
+
+  void cancel() => _fail(const RdpFailure('retired'));
+}
+
+class RdpMicrophonePermissionRead {
+  RdpMicrophonePermissionRead(Future<bool> source) {
+    _deadline = Timer(const Duration(seconds: 35), () {
+      _fail(const RdpFailure('timed_out'));
+    });
+    unawaited(
+      source.then<void>((value) {
+        if (_completion.isCompleted) return;
+        _deadline?.cancel();
+        _completion.complete(value);
+      }, onError: (Object error, StackTrace stack) => _fail(error, stack)),
+    );
+  }
+  final _completion = Completer<bool>();
+  Timer? _deadline;
+  Future<bool> get future => _completion.future;
   void _fail(Object error, [StackTrace? stack]) {
     if (_completion.isCompleted) return;
     _deadline?.cancel();
@@ -104,7 +167,7 @@ class UnsupportedRdpEngine implements RdpEngine {
   }) async {
     if (!isCurrent()) throw const RdpFailure('retired');
     return RdpCapabilities.fromJson({
-      "schemaVersion": 3,
+      "schemaVersion": 4,
       "availability": "unavailable",
       "engineRevision": null,
       "security": {
@@ -132,6 +195,7 @@ class UnsupportedRdpEngine implements RdpEngine {
       "channels": {
         "clipboard": false,
         "audio": false,
+        "microphone": false,
         "files": false,
         "clipboardModes": [],
       },
@@ -155,7 +219,7 @@ class UnsupportedRdpEngine implements RdpEngine {
 
 /// Android product engine. The native side remains unavailable unless the
 /// reviewed FreeRDP AAR and its exact receipt were packaged into this APK.
-class RdpMethodChannelEngine implements RdpEngine {
+class RdpMethodChannelEngine implements RdpMicrophonePermissionEngine {
   RdpMethodChannelEngine({
     MethodChannel? methods,
     EventChannel? events,
@@ -173,6 +237,9 @@ class RdpMethodChannelEngine implements RdpEngine {
   final Random _random;
   final bool _isAndroid;
   _RdpMethodChannel? _active;
+  String? _microphonePermissionRequestId;
+  RdpMicrophonePermissionRead? _microphonePermissionRead;
+  bool _microphonePermissionGranted = false;
   bool _closed = false;
 
   @override
@@ -251,7 +318,15 @@ class RdpMethodChannelEngine implements RdpEngine {
     if (credential == null) throw const RdpFailure('invalid_credential');
     final existing = _active;
     if (existing != null) throw const RdpFailure('busy');
-    final requestId = _uuid();
+    final microphone = request.channels.microphone;
+    final requestId = microphone ? _microphonePermissionRequestId : _uuid();
+    if (requestId == null || (microphone && !_microphonePermissionGranted)) {
+      throw const RdpFailure('microphone_permission_required');
+    }
+    if (microphone) {
+      _microphonePermissionRequestId = null;
+      _microphonePermissionGranted = false;
+    }
     final channel = _RdpMethodChannel(
       methods: _methods,
       events: _events,
@@ -272,6 +347,90 @@ class RdpMethodChannelEngine implements RdpEngine {
       if (identical(_active, channel)) _active = null;
       rethrow;
     }
+  }
+
+  @override
+  Future<bool> requestMicrophonePermission({
+    required bool Function() isCurrent,
+  }) async {
+    if (_closed || !isCurrent() || !_isAndroid) {
+      throw const RdpFailure('retired');
+    }
+    if (_active != null ||
+        _microphonePermissionRead != null ||
+        _microphonePermissionRequestId != null) {
+      throw const RdpFailure('busy');
+    }
+    final requestId = _uuid();
+    _microphonePermissionRequestId = requestId;
+    final read = _microphonePermissionRead = RdpMicrophonePermissionRead(
+      _requestMicrophonePermission(requestId),
+    );
+    try {
+      final granted = await read.future;
+      if (_closed || !isCurrent()) {
+        await _cancelMicrophonePermission(requestId);
+        throw const RdpFailure('retired');
+      }
+      _microphonePermissionGranted = granted;
+      if (!granted) _microphonePermissionRequestId = null;
+      return granted;
+    } catch (_) {
+      if (_microphonePermissionRequestId == requestId) {
+        _microphonePermissionRequestId = null;
+        _microphonePermissionGranted = false;
+      }
+      await _cancelMicrophonePermission(requestId);
+      rethrow;
+    } finally {
+      if (identical(_microphonePermissionRead, read)) {
+        _microphonePermissionRead = null;
+      }
+    }
+  }
+
+  Future<bool> _requestMicrophonePermission(String requestId) async {
+    try {
+      final raw = await _methods.invokeMethod<Object?>(
+        'requestMicrophonePermission',
+        {'schemaVersion': 4, 'requestId': requestId},
+      );
+      final value = _strict(raw, {'schemaVersion', 'requestId', 'granted'});
+      if (value['schemaVersion'] != 4 ||
+          value['requestId'] != requestId ||
+          value['granted'] is! bool) {
+        throw const RdpFailure('invalid_response');
+      }
+      return value['granted']! as bool;
+    } on PlatformException catch (error) {
+      throw RdpFailure(
+        error.code == 'channelUnavailable'
+            ? 'microphone_unavailable'
+            : _failure(error.code),
+      );
+    }
+  }
+
+  Future<void> _cancelMicrophonePermission(String requestId) async {
+    try {
+      final result = await _methods.invokeMethod<Object?>(
+        'cancelMicrophonePermission',
+        {'schemaVersion': 4, 'requestId': requestId},
+      );
+      if (result != null) throw const RdpFailure('invalid_response');
+    } catch (_) {
+      // Native still owns an exact request id and rejects stale callbacks.
+    }
+  }
+
+  @override
+  void cancelMicrophonePermission() {
+    final requestId = _microphonePermissionRequestId;
+    _microphonePermissionRead?.cancel();
+    _microphonePermissionRead = null;
+    _microphonePermissionRequestId = null;
+    _microphonePermissionGranted = false;
+    if (requestId != null) unawaited(_cancelMicrophonePermission(requestId));
   }
 
   String _uuid() {
@@ -295,6 +454,7 @@ class RdpMethodChannelEngine implements RdpEngine {
   void close() {
     if (_closed) return;
     _closed = true;
+    cancelMicrophonePermission();
     _active?.close();
     _active = null;
     unawaited(_cancel());
@@ -305,7 +465,8 @@ class _RdpMethodChannel
     implements
         RdpFrameChannel,
         RdpNegotiatedInputChannel,
-        RdpAudioPlaybackChannel {
+        RdpAudioPlaybackChannel,
+        RdpMicrophoneCaptureChannel {
   _RdpMethodChannel({
     required this.methods,
     required this.events,
@@ -331,9 +492,13 @@ class _RdpMethodChannel
   bool _closed = false;
   bool _clipboardEnabled = false;
   bool _audioEnabled = false;
+  bool _microphoneEnabled = false;
   RdpAudioObservation? _lastAudio;
   Future<RdpAudioObservation>? _audioInFlight;
   RdpAudioRead? _audioRead;
+  RdpMicrophoneObservation? _lastMicrophone;
+  Future<RdpMicrophoneObservation>? _microphoneInFlight;
+  RdpMicrophoneRead? _microphoneRead;
 
   @override
   bool supportsUnicodeInput = false;
@@ -366,6 +531,7 @@ class _RdpMethodChannel
   Future<void> open(RdpSessionRequest request, RdpCredential credential) async {
     _requestedDisplay = request.display;
     _audioEnabled = request.channels.audio;
+    _microphoneEnabled = request.channels.microphone;
     _clipboardEnabled =
         request.settings.clipboardMode == RdpClipboardMode.clientToRemote &&
         request.channels.clipboard;
@@ -382,7 +548,7 @@ class _RdpMethodChannel
     try {
       await methods.invokeMethod<void>('activate', {'requestId': requestId});
       final response = await methods.invokeMethod<Object?>('open', {
-        'schemaVersion': 3,
+        'schemaVersion': 4,
         'request': _request(request),
         'requestId': requestId,
         'password': password,
@@ -393,7 +559,7 @@ class _RdpMethodChannel
         'unicodeTextInput',
         'relativePointer',
       });
-      if (parsed['schemaVersion'] != 3 ||
+      if (parsed['schemaVersion'] != 4 ||
           parsed['unicodeTextInput'] is! bool ||
           parsed['relativePointer'] is! bool) {
         throw const RdpFailure('invalid_response');
@@ -409,7 +575,7 @@ class _RdpMethodChannel
   }
 
   Map<String, Object?> _request(RdpSessionRequest value) => {
-    'schemaVersion': 3,
+    'schemaVersion': 4,
     'requestId': requestId,
     'targetHost': value.profile.host,
     'targetPort': value.profile.port,
@@ -428,6 +594,7 @@ class _RdpMethodChannel
     'keyboardLayout': value.settings.keyboardLayout.name,
     'clipboardMode': value.settings.clipboardMode.name,
     'audio': value.channels.audio,
+    'microphone': value.channels.microphone,
     'files': value.channels.files,
   };
 
@@ -466,7 +633,7 @@ class _RdpMethodChannel
   Future<RdpAudioObservation> _readAudio() async {
     try {
       final raw = await methods.invokeMethod<Object?>('audioObservation', {
-        'schemaVersion': 3,
+        'schemaVersion': 4,
         'requestId': requestId,
       });
       if (_closed || !isCurrent()) throw const RdpFailure('retired');
@@ -479,6 +646,64 @@ class _RdpMethodChannel
       return value;
     } on PlatformException catch (error) {
       throw RdpFailure(_failure(error.code));
+    }
+  }
+
+  @override
+  Future<RdpMicrophoneObservation> microphoneObservation() {
+    if (_closed || !isCurrent()) {
+      return Future.error(const RdpFailure('retired'));
+    }
+    if (!_microphoneEnabled) {
+      return Future.error(const RdpFailure('microphone_unavailable'));
+    }
+    final pending = _microphoneInFlight;
+    if (pending != null) return pending;
+    final read = _microphoneRead = RdpMicrophoneRead(_readMicrophone());
+    final querying = read.future.then(
+      (value) {
+        if (identical(_microphoneRead, read)) {
+          _microphoneRead = null;
+          _microphoneInFlight = null;
+        }
+        return value;
+      },
+      onError: (Object error, StackTrace stack) {
+        if (identical(_microphoneRead, read)) {
+          _microphoneRead = null;
+          _microphoneInFlight = null;
+        }
+        close();
+        Error.throwWithStackTrace(error, stack);
+      },
+    );
+    _microphoneInFlight = querying;
+    return querying;
+  }
+
+  Future<RdpMicrophoneObservation> _readMicrophone() async {
+    try {
+      final raw = await methods.invokeMethod<Object?>('microphoneObservation', {
+        'schemaVersion': 4,
+        'requestId': requestId,
+      });
+      if (_closed || !isCurrent()) throw const RdpFailure('retired');
+      final value = RdpMicrophoneObservation.fromJson(
+        raw,
+        requestId: requestId,
+      );
+      final previous = _lastMicrophone;
+      if (previous != null && !value.follows(previous)) {
+        throw const RdpFailure('invalid_response');
+      }
+      _lastMicrophone = value;
+      return value;
+    } on PlatformException catch (error) {
+      throw RdpFailure(
+        error.code == 'channelUnavailable'
+            ? 'microphone_unavailable'
+            : _failure(error.code),
+      );
     }
   }
 
@@ -510,7 +735,7 @@ class _RdpMethodChannel
             stride = frame['stride'],
             revision = frame['displayLayoutRevision'],
             pixels = frame['pixels'];
-        if (frame['schemaVersion'] != 3 ||
+        if (frame['schemaVersion'] != 4 ||
             sequence is! int ||
             width is! int ||
             height is! int ||
@@ -568,7 +793,7 @@ class _RdpMethodChannel
     try {
       final response = await methods
           .invokeMethod<Object?>(method, {
-            'schemaVersion': 3,
+            'schemaVersion': 4,
             'requestId': requestId,
             'sequence': sequence,
             ...event,
@@ -666,7 +891,7 @@ class _RdpMethodChannel
       if (sequence == null) return false;
       final response = await methods
           .invokeMethod<Object?>('input', {
-            'schemaVersion': 3,
+            'schemaVersion': 4,
             'requestId': requestId,
             'sequence': sequence,
             'kind': 'channel',
@@ -727,7 +952,7 @@ class _RdpMethodChannel
     try {
       final reply = await methods
           .invokeMethod<Object?>('ackFrame', {
-            'schemaVersion': 3,
+            'schemaVersion': 4,
             'requestId': requestId,
             'frameSequence': pending.sequence,
           })
@@ -762,6 +987,10 @@ class _RdpMethodChannel
     _audioRead?.cancel();
     _audioRead = null;
     _lastAudio = null;
+    _microphoneRead?.cancel();
+    _microphoneRead = null;
+    _microphoneInFlight = null;
+    _lastMicrophone = null;
     final pending = _pendingFrame;
     pending?.bgra.fillRange(0, pending.bgra.length, 0);
     _pendingFrame = null;
@@ -794,6 +1023,7 @@ String _failure(String code) => switch (code) {
   'certificatePinningRequired' => 'certificate_changed',
   'nlaUnavailable' => 'nla_unsupported',
   'channelUnavailable' => 'audio_unavailable',
+  'microphonePermissionRequired' => 'microphone_permission_required',
   'invalidSecrets' => 'invalid_credential',
   'cancelled' || 'staleSession' || 'foregroundRequired' => 'retired',
   'timedOut' => 'timed_out',

@@ -129,6 +129,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Independent review: fixed enum cached before stop/tuple,background bounded adb outside channel deadlines,exact nonce cleanup,strict original acceptance unchanged"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-initial-terminal-classification-2026-10-01.md",
+    "commit": "5aa76fe85e522b2648b5957ebab5f47270af608d",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root44 runner/workflow tests; actual AndroidTest compile277tasks; initial terminal enum bound to exact owned source and tuple, strict acceptance unchanged"
   }
 ]
 ```

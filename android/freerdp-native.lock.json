@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "freerdp-3.31.1-63b948ca-display-pointer-audio-v3",
+  "engineRevision": "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4",
   "source": {
     "version": "3.31.1",
     "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
@@ -23,7 +23,13 @@
     "channels/rdpsnd/client/opensles/opensl_io.c": "a5a79cb1359a26eb3ed966bb60d2c3eaa9e0ffc4",
     "channels/rdpsnd/client/opensles/opensl_io.h": "f303d2145b523a85e5243dc644a4810318afdd8d",
     "channels/rdpsnd/client/opensles/rdpsnd_opensles.c": "70762eedf1e839fe7a40fb51555d9233b5143327",
-    "include/freerdp/event.h": "f1cd9bd663c836885a8c88480241f723dfce754e"
+    "include/freerdp/event.h": "f1cd9bd663c836885a8c88480241f723dfce754e",
+    "include/freerdp/client/audin.h": "b497cf85d539acd7139803ded90c676f3cf8f18c",
+    "channels/audin/client/audin_main.c": "697fd28481bfb52c2b20722ce34f4a78b7a77c68",
+    "channels/audin/client/opensles/audin_opensl_es.c": "52281aec2cef8ad5e6c2a07656469195cb443ef0",
+    "channels/audin/client/opensles/opensl_io.c": "c4598a6342eeb2e8504520486258de7f779f99af",
+    "channels/audin/client/opensles/opensl_io.h": "bdba57cabaa69e22dcec8ce15a467eeca2a94764",
+    "libfreerdp/crypto/tls.c": "f8d2d210c3a3ffb15219c9d22fa54a92db0ffffd"
   },
   "patches": [
     {
@@ -41,6 +47,14 @@
     {
       "path": "android/freerdp-remote-audio-v3.patch",
       "sha256": "d0c6a07304bbdda398d5238d40bf8ae90996660a211e5f380a7f50bc90b89142"
+    },
+    {
+      "path": "android/freerdp-always-pin-v4.patch",
+      "sha256": "a914b7d7ee479a1cdddf7a17d81018fa6c1505257b451a25660651bbe6cb183b"
+    },
+    {
+      "path": "android/freerdp-microphone-v4.patch",
+      "sha256": "a244e5791e1d30ae02fc4222b412ee14182794f6d8d48be96f9071b277c66df2"
     }
   ],
   "toolchain": {
@@ -55,7 +69,7 @@
     "arm64-v8a",
     "x86_64"
   ],
-  "jniSchema": 3,
+  "jniSchema": 4,
   "defaultChannels": [],
   "requiredLibraries": [
     "libfreerdp-android.so",
@@ -81,6 +95,8 @@
     "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
     "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
     "OnDisplayControlReady",
-    "OnRemoteAudioPlayback"
+    "OnRemoteAudioPlayback",
+    "OnVerifyX509Certificate",
+    "OnMicrophoneCapture"
   ]
 }

@@ -23,7 +23,7 @@ class RdpNativeContractTest {
     }
 
     private fun available() = mapOf<String, Any?>(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "availability" to "available",
         "engineRevision" to "freerdp-fixture-1",
         "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to true),
@@ -32,12 +32,13 @@ class RdpNativeContractTest {
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote", "bidirectional"),
             "audio" to false,
+            "microphone" to false,
             "files" to false,
         ),
     )
 
     private fun request(overrides: Map<String, Any?> = emptyMap()) = mapOf<String, Any?>(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "requestId" to "11111111-1111-4111-8111-111111111111",
         "targetHost" to "desktop.home.arpa",
         "targetPort" to 3389,
@@ -76,7 +77,7 @@ class RdpNativeContractTest {
         assertFalse(unavailable.canConnect)
         assertNull(unavailable.engineRevision)
         reject("invalidCapabilities") {
-            RdpNativeCapabilities.parse(available() + ("schemaVersion" to 1))
+            RdpNativeCapabilities.parse(available() + ("schemaVersion" to 3))
         }
         reject("invalidCapabilities") {
             RdpNativeCapabilities.parse(available() + ("display" to mapOf(
@@ -96,6 +97,8 @@ class RdpNativeContractTest {
         assertEquals("desktop.home.arpa", parsed.targetHost)
         assertEquals("gateway.home.arpa", parsed.gateway?.host)
         assertEquals(RdpKeyboardLayout.TURKISH_Q, parsed.keyboardLayout)
+        assertFalse(parsed.microphone)
+        assertTrue(RdpNativeRequest.parse(request(mapOf("microphone" to true))).microphone)
         assertEquals(RdpClipboardMode.CLIENT_TO_REMOTE, parsed.clipboardMode)
         assertFalse(parsed.toString().contains("desktop.home.arpa"))
         assertFalse(parsed.publicSummary().keys.any { it in setOf("targetHost", "username", "domain", "gateway", "certificateFingerprint", "password") })
@@ -110,7 +113,7 @@ class RdpNativeContractTest {
         }
         reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("targetPort" to 0))) }
         reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("password" to "secret"))) }
-        reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("schemaVersion" to 1))) }
+        reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("schemaVersion" to 3))) }
         for (display in listOf(
             mapOf("width" to 2559, "height" to 1600, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
             mapOf("width" to 8192, "height" to 2049, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
@@ -134,12 +137,19 @@ class RdpNativeContractTest {
             "gatewayUnavailable" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false)),
             "displayUnavailable" to mapOf("display" to mapOf("dynamicResolution" to false, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180))),
             "clipboardUnavailable" to mapOf("channels" to mapOf(
-                "clipboardModes" to listOf("disabled"), "audio" to false, "files" to false,
+                "clipboardModes" to listOf("disabled"), "audio" to false, "microphone" to false, "files" to false,
+            )),
+            "channelUnavailable" to mapOf("channels" to mapOf(
+                "clipboardModes" to listOf("disabled", "clientToRemote", "bidirectional"),
+                "audio" to false, "microphone" to false, "files" to false,
             )),
         )
         for ((code, override) in cases) {
             reject(code) {
-                RdpNativeNegotiator.negotiate(parsed, RdpNativeCapabilities.parse(available() + override))
+                val candidate = if (code == "channelUnavailable") {
+                    RdpNativeRequest.parse(request(mapOf("microphone" to true)))
+                } else parsed
+                RdpNativeNegotiator.negotiate(candidate, RdpNativeCapabilities.parse(available() + override))
             }
         }
     }

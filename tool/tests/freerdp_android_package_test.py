@@ -15,7 +15,9 @@ from tool.freerdp_android_package import (
     PackageError,
     REQUIRED_EVENT_LISTENER_API,
     REQUIRED_FREERDP_API,
+    REQUIRED_MICROPHONE_CONSTANTS,
     REQUIRED_REMOTE_AUDIO_CONSTANTS,
+    REQUIRED_AUDIN_NATIVE_EVIDENCE,
     load_lock,
     package_receipt,
     verify_apk,
@@ -35,10 +37,10 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
     def test_repository_lock_is_exact_and_matches_runtime_gate(self):
         lock = load_lock()
         self.assertEqual(lock["source"]["version"], "3.31.1")
-        self.assertEqual(lock["jniSchema"], 3)
+        self.assertEqual(lock["jniSchema"], 4)
         self.assertEqual(
             lock["engineRevision"],
-            "freerdp-3.31.1-63b948ca-display-pointer-audio-v3",
+            "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4",
         )
         self.assertEqual(lock["supportedAbis"], ["arm64-v8a", "x86_64"])
         self.assertEqual(lock["defaultChannels"], [])
@@ -49,6 +51,8 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "android/freerdp-clipboard-utf8.patch",
                 "android/freerdp-display-pointer-v2.patch",
                 "android/freerdp-remote-audio-v3.patch",
+                "android/freerdp-always-pin-v4.patch",
+                "android/freerdp-microphone-v4.patch",
             ],
         )
         self.assertEqual(
@@ -65,6 +69,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             (
                 ("OnDisplayControlReady", "(J)V"),
                 ("OnRemoteAudioPlayback", "(JZJJI)V"),
+                ("OnMicrophoneCapture", "(JZJJI)V"),
             ),
         )
         self.assertEqual(
@@ -78,8 +83,28 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
                 "OnDisplayControlReady",
                 "OnRemoteAudioPlayback",
+                "OnVerifyX509Certificate",
+                "OnMicrophoneCapture",
             ],
         )
+
+    def test_schema4_receipt_rejects_v3_java_and_missing_audin_backend(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            aar = Path(directory) / "old.aar"
+            self._aar(
+                aar, lock, "arm64-v8a",
+                microphone_constants={},
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(aar, "arm64-v8a", lock)
+
+            self._aar(
+                aar, lock, "arm64-v8a",
+                audin_evidence=False,
+            )
+            with self.assertRaisesRegex(PackageError, "missing_audin_evidence"):
+                package_receipt(aar, "arm64-v8a", lock)
 
     def test_lock_rejects_tampered_or_reordered_reviewed_patches(self):
         lock = load_lock()
@@ -289,7 +314,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -311,7 +336,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_display_pointer_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -333,7 +358,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -353,7 +378,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_display_pointer_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -373,7 +398,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_display_pointer_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -397,7 +422,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -427,7 +452,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_display_pointer_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -447,7 +472,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_display_pointer_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -533,7 +558,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -553,7 +578,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -572,7 +597,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_remote_audio_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -590,7 +615,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -613,7 +638,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -629,7 +654,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 verify_remote_audio_patch(root)
 
             self._copy_reviewed_android_sources(root)
-            for item in lock["patches"]:
+            for item in lock["patches"][:4]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -734,6 +759,8 @@ BOOL android_event_queue_init(freerdp* inst)
         java_api=None,
         event_listener_api=None,
         remote_audio_constants=None,
+        microphone_constants=None,
+        audin_evidence=True,
     ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
@@ -757,11 +784,14 @@ BOOL android_event_queue_init(freerdp* inst)
                                     "I",
                                     value,
                                 )
-                                for field, value in (
-                                    REQUIRED_REMOTE_AUDIO_CONSTANTS
-                                    if remote_audio_constants is None
-                                    else remote_audio_constants
-                                ).items()
+                                for field, value in ({
+                                    **(REQUIRED_REMOTE_AUDIO_CONSTANTS
+                                       if remote_audio_constants is None
+                                       else remote_audio_constants),
+                                    **(REQUIRED_MICROPHONE_CONSTANTS
+                                       if microphone_constants is None
+                                       else microphone_constants),
+                                }).items()
                             ),
                         ),
                     )
@@ -791,6 +821,8 @@ BOOL android_event_queue_init(freerdp* inst)
                     payload += b"JNI_OnLoad"
                     if native_evidence:
                         payload += b"".join(item.encode() for item in evidence)
+                if name == "libfreerdp-client3.so" and audin_evidence:
+                    payload += REQUIRED_AUDIN_NATIVE_EVIDENCE.encode()
                 archive.writestr(f"jni/{abi}/{name}", payload)
             if second:
                 archive.writestr(f"jni/{second}/extra.so", self._elf(62))

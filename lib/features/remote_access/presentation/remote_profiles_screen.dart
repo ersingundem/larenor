@@ -60,6 +60,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _tunnel = false;
   bool _coreProfiles = false;
   bool _rdp = false;
+  bool _rdpPermissionPrompt = false;
   bool _vnc = false;
   bool Function()? _terminalCurrent;
   bool Function()? _sftpCurrent;
@@ -127,7 +128,10 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _resumed = state == AppLifecycleState.resumed;
-    if (!_resumed) _invalidate();
+    if (!_resumed &&
+        !(state == AppLifecycleState.inactive && _rdpPermissionPrompt)) {
+      _invalidate();
+    }
     if (mounted) setState(() {});
   }
 
@@ -135,7 +139,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   void didChangeViewFocus(ViewFocusEvent event) {
     if (mounted && event.viewId == View.of(context).viewId) {
       _nativeFocused = event.state == ViewFocusState.focused;
-      if (!_nativeFocused) _invalidate();
+      if (!_nativeFocused && !_rdpPermissionPrompt) _invalidate();
       setState(() {});
     }
   }
@@ -145,6 +149,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     _sftp = false;
     _tunnel = false;
     _rdp = false;
+    _rdpPermissionPrompt = false;
     _vnc = false;
     _coreProfiles = false;
     _terminalCurrent = null;
@@ -166,11 +171,32 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     }
   }
 
-  bool _current(int generation) {
+  void _setRdpPermissionPrompt(bool pending, int generation) {
+    if (!mounted || generation != _generation) return;
+    if (pending && !_rdp && !_coreProfiles) return;
+    if (_rdpPermissionPrompt == pending) return;
+    _rdpPermissionPrompt = pending;
+    if (!pending) {
+      final window = ref.read(windowPolicySnapshotProvider).value;
+      if (!_nativeFocused ||
+          window == null ||
+          (window.supported &&
+              (!window.isResumed ||
+                  !window.hasWindowFocus ||
+                  window.isPictureInPicture))) {
+        _invalidate();
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  bool _current(int generation, {bool allowRdpPermissionPrompt = false}) {
     try {
+      final ownsRdpPermissionPrompt =
+          allowRdpPermissionPrompt && _rdpPermissionPrompt;
       if (!mounted ||
-          !_resumed ||
-          !_nativeFocused ||
+          (!_resumed && !ownsRdpPermissionPrompt) ||
+          (!_nativeFocused && !ownsRdpPermissionPrompt) ||
           _retired ||
           generation != _generation ||
           !widget.gateCurrent() ||
@@ -189,20 +215,23 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       if (state.isLoading || state.hasError || !state.hasValue) return false;
       final window = state.value!;
       return !window.supported ||
-          (window.isResumed &&
-              window.hasWindowFocus &&
+          ((window.isResumed || ownsRdpPermissionPrompt) &&
+              (window.hasWindowFocus || ownsRdpPermissionPrompt) &&
               !window.isPictureInPicture);
     } catch (_) {
       return false;
     }
   }
 
-  bool Function() _action() {
+  bool Function() _action({bool allowRdpPermissionPrompt = false}) {
     final generation = _generation;
     var retired = false;
     return () {
       if (retired) return false;
-      return !(retired = !_current(generation));
+      return !(retired = !_current(
+        generation,
+        allowRdpPermissionPrompt: allowRdpPermissionPrompt,
+      ));
     };
   }
 
@@ -217,7 +246,11 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         account == null) {
       return null;
     }
-    final action = _action();
+    final action = _action(
+      allowRdpPermissionPrompt:
+          profile.protocol == RemoteProtocol.rdp &&
+          resource == PersonalSessionResource.desktop,
+    );
     final lease = PersonalSessionLease.capture(
       account: account,
       routeIdentity: route,
@@ -232,6 +265,10 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         final selected = _selected;
         final currentSnapshot = _snapshot;
         final currentRoute = ModalRoute.of(context);
+        final ownsRdpPermissionPrompt =
+            resource == PersonalSessionResource.desktop &&
+            selected?.protocol == RemoteProtocol.rdp &&
+            _rdpPermissionPrompt;
         final allowed =
             action() &&
             selected != null &&
@@ -245,7 +282,9 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
               resource: resource,
               now: DateTime.now(),
               gateCurrent: widget.gateCurrent(),
-              foreground: _resumed && _nativeFocused,
+              foreground:
+                  (_resumed || ownsRdpPermissionPrompt) &&
+                  (_nativeFocused || ownsRdpPermissionPrompt),
               interactionActive: _interaction?.active != false,
               routeCurrent:
                   currentRoute.isCurrent &&
@@ -432,13 +471,16 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
           next.hasError ||
           w == null ||
           (w.supported &&
-              (!w.isResumed || !w.hasWindowFocus || w.isPictureInPicture))) {
+              ((!w.isResumed && !_rdpPermissionPrompt) ||
+                  (!w.hasWindowFocus && !_rdpPermissionPrompt) ||
+                  w.isPictureInPicture))) {
         _invalidate();
         if (mounted) setState(() {});
       }
     });
     ref.watch(windowPolicySnapshotProvider);
-    final current = _action(), active = current();
+    final current = _action(allowRdpPermissionPrompt: _rdpPermissionPrompt),
+        active = current();
     if (active && !_started) {
       _started = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -522,8 +564,11 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       );
     }
     if (_coreProfiles && active) {
+      final generation = _generation;
       return CorePersonalProfilesScreen(
         isCurrent: current,
+        onRdpMicrophonePermissionPromptChanged: (pending) =>
+            _setRdpPermissionPrompt(pending, generation),
         onBack: () {
           _generation++;
           setState(() => _coreProfiles = false);
@@ -553,12 +598,16 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       );
     }
     if (_rdp && _selected != null && active) {
+      final generation = _generation;
       return RdpSessionPanel(
         key: ValueKey('rdp-${_selected!.id}'),
         profile: _selected!,
         isCurrent: _rdpCurrent!,
+        onMicrophonePermissionPromptChanged: (pending) =>
+            _setRdpPermissionPrompt(pending, generation),
         onBack: () {
           _generation++;
+          _rdpPermissionPrompt = false;
           setState(() => _rdp = false);
         },
       );

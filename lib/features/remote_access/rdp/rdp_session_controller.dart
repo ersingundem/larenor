@@ -27,6 +27,7 @@ class RdpSessionController extends ChangeNotifier {
     required this.trust,
     required this.engineFactory,
     required this.isCurrent,
+    this.isInteractive,
     required this.display,
     this.credentialVault,
     this.settings = const RdpProfileSettings(),
@@ -37,6 +38,7 @@ class RdpSessionController extends ChangeNotifier {
   final RdpTrustStore trust;
   final RdpEngine Function() engineFactory;
   final bool Function() isCurrent;
+  final bool Function()? isInteractive;
   final RdpDisplaySpec display;
   final RdpCredentialVault? credentialVault;
   final RdpProfileSettings settings;
@@ -50,8 +52,13 @@ class RdpSessionController extends ChangeNotifier {
   bool supportsUnicodeInput = false;
   bool supportsRelativePointer = false;
   RdpAudioObservation? audioObservation;
+  RdpMicrophoneObservation? microphoneObservation;
+  bool microphonePermissionPending = false;
   Timer? _audioTimer;
   RdpAudioRead? _audioRead;
+  Timer? _microphoneTimer;
+  RdpMicrophoneRead? _microphoneRead;
+  Completer<bool>? _microphoneFocusDecision;
   RdpFrameGeometry? _acknowledgedGeometry;
   int _displayGeneration = 0, _displayLayoutRevision = 1;
   RdpDisplaySpec? _requestedDisplay;
@@ -121,6 +128,14 @@ class RdpSessionController extends ChangeNotifier {
     }
   }
 
+  bool _interactionCurrent() {
+    try {
+      return (isInteractive ?? isCurrent)();
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _check(int generation) {
     if (!_current(generation)) throw const RdpFailure('retired');
   }
@@ -130,6 +145,20 @@ class RdpSessionController extends ChangeNotifier {
   }
 
   void _closeResources() {
+    final engine = _engine;
+    if (engine is RdpMicrophonePermissionEngine) {
+      engine.cancelMicrophonePermission();
+    }
+    if (_microphoneFocusDecision?.isCompleted == false) {
+      _microphoneFocusDecision!.complete(false);
+    }
+    _microphoneFocusDecision = null;
+    microphonePermissionPending = false;
+    _microphoneRead?.cancel();
+    _microphoneRead = null;
+    _microphoneTimer?.cancel();
+    _microphoneTimer = null;
+    microphoneObservation = null;
     _audioRead?.cancel();
     _audioRead = null;
     _audioTimer?.cancel();
@@ -240,6 +269,13 @@ class RdpSessionController extends ChangeNotifier {
     if (remoteAudio && !found.supportsAudio) {
       throw const RdpFailure('audio_unavailable');
     }
+    if (settings.microphone && !found.supportsMicrophone) {
+      throw const RdpFailure('microphone_unavailable');
+    }
+    if (settings.microphone) {
+      await _requestMicrophonePermission(generation, engine);
+      _check(generation);
+    }
     await trust.checkProfile(profile, isCurrent: () => _current(generation));
     final probe = await engine.inspect(
       profile,
@@ -295,6 +331,7 @@ class RdpSessionController extends ChangeNotifier {
       channels: RdpChannelPolicy(
         clipboard: settings.clipboardMode != RdpClipboardMode.disabled,
         audio: remoteAudio,
+        microphone: settings.microphone,
       ),
     );
     request.validate(found);
@@ -312,6 +349,9 @@ class RdpSessionController extends ChangeNotifier {
     if (remoteAudio && channel is! RdpAudioPlaybackChannel) {
       throw const RdpFailure('audio_unavailable');
     }
+    if (settings.microphone && channel is! RdpMicrophoneCaptureChannel) {
+      throw const RdpFailure('microphone_unavailable');
+    }
     supportsUnicodeInput =
         channel is RdpNegotiatedInputChannel && channel.supportsUnicodeInput;
     supportsRelativePointer =
@@ -323,6 +363,9 @@ class RdpSessionController extends ChangeNotifier {
     phase = RdpSessionPhase.connected;
     _publish();
     if (remoteAudio) unawaited(_readAudio(generation, channel));
+    if (settings.microphone) {
+      unawaited(_readMicrophone(generation, channel));
+    }
     unawaited(
       channel.done.then(
         (_) {
@@ -333,6 +376,52 @@ class RdpSessionController extends ChangeNotifier {
         },
       ),
     );
+  }
+
+  Future<void> _requestMicrophonePermission(
+    int generation,
+    RdpEngine engine,
+  ) async {
+    if (engine is! RdpMicrophonePermissionEngine) {
+      throw const RdpFailure('microphone_unavailable');
+    }
+    final focus = _microphoneFocusDecision = Completer<bool>();
+    microphonePermissionPending = true;
+    _publish();
+    try {
+      final granted = await engine.requestMicrophonePermission(
+        isCurrent: () => _current(generation),
+      );
+      _check(generation);
+      if (!granted) throw const RdpFailure('microphone_permission_denied');
+      if (!_interactionCurrent()) {
+        final resumed = await focus.future;
+        _check(generation);
+        if (!resumed || !_interactionCurrent()) {
+          throw const RdpFailure('retired');
+        }
+      }
+    } finally {
+      if (identical(_microphoneFocusDecision, focus)) {
+        _microphoneFocusDecision = null;
+      }
+      if (generation == _generation && !_disposed) {
+        microphonePermissionPending = false;
+        _publish();
+      }
+    }
+  }
+
+  /// Called only after the exact panel regains foreground window focus.
+  void resumeMicrophonePermission() {
+    final decision = _microphoneFocusDecision;
+    if (!microphonePermissionPending ||
+        decision == null ||
+        decision.isCompleted ||
+        !_interactionCurrent()) {
+      return;
+    }
+    decision.complete(true);
   }
 
   Future<void> _readAudio(int generation, RdpChannel channel) async {
@@ -373,6 +462,53 @@ class RdpSessionController extends ChangeNotifier {
     } catch (value) {
       if (_current(generation) && identical(channel, _channel)) {
         _finish(code: value is RdpFailure ? value.code : 'audio_unavailable');
+      } else if (generation == _generation && !_disposed) {
+        retire();
+      }
+    }
+  }
+
+  Future<void> _readMicrophone(int generation, RdpChannel channel) async {
+    if (!_current(generation)) {
+      if (generation == _generation && !_disposed) retire();
+      return;
+    }
+    if (phase != RdpSessionPhase.connected ||
+        !identical(channel, _channel) ||
+        channel is! RdpMicrophoneCaptureChannel) {
+      return;
+    }
+    try {
+      final read = _microphoneRead = RdpMicrophoneRead(
+        channel.microphoneObservation(),
+      );
+      final value = await read.future;
+      if (identical(_microphoneRead, read)) _microphoneRead = null;
+      if (!_current(generation)) {
+        if (generation == _generation && !_disposed) retire();
+        return;
+      }
+      if (!identical(channel, _channel)) return;
+      final previous = microphoneObservation;
+      if (previous != null && !value.follows(previous)) {
+        throw const RdpFailure('invalid_response');
+      }
+      microphoneObservation = value;
+      if (value != previous) _publish();
+      if (_current(generation) &&
+          phase == RdpSessionPhase.connected &&
+          value.state != RdpMicrophoneState.closed &&
+          value.state != RdpMicrophoneState.failed) {
+        _microphoneTimer = Timer(const Duration(seconds: 1), () {
+          _microphoneTimer = null;
+          unawaited(_readMicrophone(generation, channel));
+        });
+      }
+    } catch (value) {
+      if (_current(generation) && identical(channel, _channel)) {
+        _finish(
+          code: value is RdpFailure ? value.code : 'microphone_unavailable',
+        );
       } else if (generation == _generation && !_disposed) {
         retire();
       }

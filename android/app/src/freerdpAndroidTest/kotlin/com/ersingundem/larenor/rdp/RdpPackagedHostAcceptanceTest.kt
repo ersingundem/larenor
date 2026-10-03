@@ -2,6 +2,13 @@ package com.ersingundem.larenor.rdp
 
 import android.content.Context
 import android.util.AtomicFile
+import android.Manifest
+import androidx.test.core.app.ActivityScenario
+import androidx.lifecycle.Lifecycle
+import com.ersingundem.larenor.MainActivity
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -52,7 +59,12 @@ class RdpPackagedHostAcceptanceTest {
             val domain = arguments.required("rdpDomain")
             val passwordValue = arguments.required("rdpPassword")
             assertDiagnosticFailuresAreSecondary()
-            val runtime = RdpPackagedRuntime(context)
+            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
+                context.packageName, Manifest.permission.RECORD_AUDIO,
+            )
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            val runtime = focusedRuntimeWithMicrophoneGrant(scenario)
 
             diagnostic.enter("connectionValidation")
             assertConnectionInfoParses(
@@ -75,7 +87,7 @@ class RdpPackagedHostAcceptanceTest {
             assertTrue(capabilities.verticalWheel)
             assertEquals(setOf(100, 140, 180), capabilities.deviceScaleFactors)
             assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
-            assertTrue(capabilities.audio && !capabilities.files)
+            assertTrue(capabilities.audio && capabilities.microphone && !capabilities.files)
 
             diagnostic.enter("providerInspection")
             val inspected = runtime.inspect(host, port, username)
@@ -95,6 +107,7 @@ class RdpPackagedHostAcceptanceTest {
                 height = 800,
                 clipboardMode = "clientToRemote",
                 audio = true,
+                microphone = true,
             )
             val security = CountDownLatch(1)
             val frameReady = ArrayBlockingQueue<Unit>(8)
@@ -150,6 +163,11 @@ class RdpPackagedHostAcceptanceTest {
                 assertTrue(audio.deviceOpen)
                 assertTrue(audio.acceptedCount >= audio.completedCount)
                 assertTrue(audio.completedCount >= audioBaseline.completedCount + 1L)
+
+                diagnostic.enter("microphoneOpenWait")
+                val microphoneBaseline = awaitMicrophoneOpen(session, 30)
+                diagnostic.enter("microphoneEffectWait")
+                awaitMicrophoneHostEffect(context, diagnosticNonce, session, microphoneBaseline, 30)
 
                 // The host runner observes this exact software HID key pair through XI2.
                 // It changes the owned Xorg output only after the patched server observes
@@ -223,6 +241,7 @@ class RdpPackagedHostAcceptanceTest {
                 height = 768,
                 clipboardMode = "disabled",
                 audio = false,
+                microphone = false,
             )
             val disabledSecurity = CountDownLatch(1)
             val disabledFrames = ArrayBlockingQueue<Unit>(8)
@@ -262,6 +281,10 @@ class RdpPackagedHostAcceptanceTest {
                     disabled.audioObservation()
                 }
                 assertEquals("channelUnavailable", unavailable.code)
+                val microphoneUnavailable = assertThrows(RdpNativeFailure::class.java) {
+                    disabled.microphoneObservation()
+                }
+                assertEquals("channelUnavailable", microphoneUnavailable.code)
                 diagnostic.enter("disabledClipboardCheck")
                 val rejected = "must-not-cross-disabled-channel".encodeToByteArray()
                 diagnoseStage(::RdpOwnedDisabledClipboardFailure) {
@@ -285,7 +308,49 @@ class RdpPackagedHostAcceptanceTest {
             }
             diagnostic.enter("complete")
             diagnostic.remove()
+            }
         }
+
+    private fun focusedRuntimeWithMicrophoneGrant(
+        scenario: ActivityScenario<MainActivity>,
+    ): RdpPackagedRuntime {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        var runtime: RdpPackagedRuntime? = null
+        val id = "62726270-0000-4000-8000-000000000001"
+        while (System.nanoTime() < deadline && runtime == null) {
+            scenario.onActivity { activity ->
+                if (!activity.hasWindowFocus() || activity.isFinishing || activity.isDestroyed) {
+                    return@onActivity
+                }
+                val field = MainActivity::class.java.getDeclaredField("rdpNative")
+                field.isAccessible = true
+                val bridge = field.get(activity) as? RdpNativeBridge ?: return@onActivity
+                val result = object : MethodChannel.Result {
+                    override fun success(value: Any?) {
+                        assertEquals(mapOf("schemaVersion" to 4, "requestId" to id, "granted" to true), value)
+                        runtime = RdpPackagedRuntime(activity)
+                    }
+                    override fun error(code: String, message: String?, details: Any?) {
+                        throw AssertionError("owned microphone permission broker rejected: $code")
+                    }
+                    override fun notImplemented() = throw AssertionError("owned microphone permission unavailable")
+                }
+                bridge.onListen(id, object : EventChannel.EventSink {
+                    override fun success(value: Any?) = Unit
+                    override fun error(code: String, message: String?, details: Any?) = Unit
+                    override fun endOfStream() = Unit
+                })
+                try {
+                    bridge.onMethodCall(MethodCall("requestMicrophonePermission",
+                        mapOf("schemaVersion" to 4, "requestId" to id)), result)
+                } finally {
+                    bridge.onCancel(id)
+                }
+            }
+            if (runtime == null) Thread.sleep(25)
+        }
+        return runtime ?: throw AssertionError("owned resumed RDP activity was unavailable")
+    }
 
     private inline fun <T> diagnoseOpen(
         runtime: RdpPackagedRuntime,
@@ -316,9 +381,10 @@ class RdpPackagedHostAcceptanceTest {
         height: Int,
         clipboardMode: String,
         audio: Boolean,
+        microphone: Boolean,
     ): RdpNativeRequest = RdpNativeRequest.parse(
         mapOf(
-            "schemaVersion" to 3,
+            "schemaVersion" to 4,
             "requestId" to requestId,
             "targetHost" to host,
             "targetPort" to port,
@@ -338,9 +404,65 @@ class RdpPackagedHostAcceptanceTest {
             "keyboardLayout" to "us",
             "clipboardMode" to clipboardMode,
             "audio" to audio,
+            "microphone" to microphone,
             "files" to false,
         ),
     )
+
+    private fun awaitMicrophoneOpen(
+        session: RdpFreeRdpSession,
+        timeoutSeconds: Long,
+    ): RdpMicrophoneCaptureObservation {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        while (System.nanoTime() < deadline) {
+            val observation = session.microphoneObservation()
+            if (observation.deviceOpen && observation.state in setOf(
+                RdpMicrophoneCaptureState.OPENED,
+                RdpMicrophoneCaptureState.CAPTURED,
+                RdpMicrophoneCaptureState.SENT,
+            )) return observation
+            assertFalse(observation.state in setOf(
+                RdpMicrophoneCaptureState.CLOSED,
+                RdpMicrophoneCaptureState.FAILED,
+            ))
+            Thread.sleep(25)
+        }
+        throw AssertionError("owned microphone capture did not open before arming")
+    }
+
+    private fun awaitMicrophoneHostEffect(
+        context: Context,
+        nonce: String,
+        session: RdpFreeRdpSession,
+        baseline: RdpMicrophoneCaptureObservation,
+        timeoutSeconds: Long,
+    ) {
+        require(Regex("[0-9a-f]{64}").matches(nonce))
+        val file = File(context.filesDir, "f62-owned-microphone-$nonce")
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        try {
+            while (System.nanoTime() < deadline) {
+                val observation = session.microphoneObservation()
+                if (file.exists()) {
+                    val metadata = android.system.Os.lstat(file.absolutePath)
+                    assertEquals(0x8000, metadata.st_mode and 0xF000)
+                    assertEquals(0x180, metadata.st_mode and 0x1FF)
+                    assertEquals(android.os.Process.myUid(), metadata.st_uid)
+                    assertEquals(64L, metadata.st_size)
+                    assertEquals(nonce, file.readText(Charsets.US_ASCII))
+                    assertTrue(observation.deviceOpen)
+                    assertTrue(observation.capturedCount > baseline.capturedCount)
+                    assertTrue(observation.acceptedCount > baseline.acceptedCount)
+                    assertTrue(observation.acceptedCount <= observation.capturedCount)
+                    return
+                }
+                Thread.sleep(25)
+            }
+            throw AssertionError("owned host microphone tone was not observed")
+        } finally {
+            file.delete()
+        }
+    }
 
     private fun awaitRemoteAudio(
         session: RdpFreeRdpSession,
@@ -705,6 +827,8 @@ private val OWNED_LIFECYCLE_STAGES = setOf(
     "firstSecurityWait",
     "initialFrameWait",
     "audioEffectWait",
+    "microphoneOpenWait",
+    "microphoneEffectWait",
     "keySubmission",
     "resizeSubmission",
     "resizedFrameWait",

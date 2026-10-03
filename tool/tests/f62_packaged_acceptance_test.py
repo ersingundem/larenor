@@ -20,6 +20,8 @@ CHANNEL_EVIDENCE_BASE = {
     "disabledRemoteAudioPackets": 0,
     "audioWaveConfirmations": 1,
     "authenticatedLifetimes": 2,
+    "enabledMicrophoneTonePackets": 1,
+    "disabledMicrophonePackets": 0,
 }
 CHANNEL_EVIDENCE = {
     **CHANNEL_EVIDENCE_BASE,
@@ -28,6 +30,11 @@ CHANNEL_EVIDENCE = {
 
 
 class PackagedRdpReceiptTest(unittest.TestCase):
+    def setUp(self):
+        pulse = mock.patch.object(runner, "verified_pulse", return_value=123)
+        pulse.start()
+        self.addCleanup(pulse.stop)
+
     @staticmethod
     def _failure_xml(*, exception_type="java.lang.AssertionError", body=""):
         failure_type = (
@@ -85,13 +92,14 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["ownedHostPackages"], versions)
         self.assertEqual(receipt["sourceRevision"], "a" * 40)
         self.assertEqual(receipt["packageReceiptSha256"], "b" * 64)
-        self.assertEqual(receipt["scope"], "ownedShadowChannelsAndAudioQueue")
+        self.assertEqual(receipt["scope"], "ownedShadowChannelsAudioAndMicrophone")
         self.assertEqual(receipt["ownedShadowFixture"], {
             "version": runner.SHADOW_SOURCE_VERSION,
             "sourceCommit": runner.SHADOW_SOURCE_COMMIT,
             "sourceArchiveSha256": runner.SHADOW_SOURCE_SHA256,
             "patchSha256": runner.SHADOW_PATCH_SHA256,
             "audioPatchSha256": runner.SHADOW_AUDIO_PATCH_SHA256,
+            "microphonePatchSha256": runner.SHADOW_MICROPHONE_PATCH_SHA256,
         })
         self.assertEqual(receipt["evidence"]["rdpKeyEffect"], {
             "usbHidUsage": "KeyA", "xi2PressRelease": True,
@@ -103,7 +111,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["evidence"]["channels"], CHANNEL_EVIDENCE)
         self.assertTrue(receipt["evidence"]["remoteAudioQueueCompletion"])
         self.assertEqual(receipt["unsupportedOrUnproven"], [
-            "ime", "remoteToClientClipboard", "physicalAudioAudibility",
+            "ime", "remoteToClientClipboard", "physicalAudioAudibility", "physicalMicrophoneQuality",
         ])
         self.assertEqual(
             {key: receipt[key] for key in ("tests", "skipped", "failures", "errors")},
@@ -215,6 +223,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     SimpleNamespace(fd=7, data="xi2"),
                     SimpleNamespace(fd=8, data="phase"),
                     SimpleNamespace(fd=8, data="phase"),
+                    SimpleNamespace(fd=8, data="phase"),
                 )
                 value = values[min(self.index, len(values) - 1)]
                 self.index += 1
@@ -225,11 +234,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
         shadow = Process(stdout=object())
         xinput = Process(stdout=object())
-        gradle = Process(finish_after=4)
+        gradle = Process(finish_after=5)
         output = iter((
             b"\xe2\x8e\xa1 Virtual core keyboard id=3\n"
             b"EVENT type 13 (RawKeyPress)\n    detail: 38\n"
             b"EVENT type 14 (RawKeyRelease)\n    detail: 38\n",
+            runner._CHANNEL_PHASE_MICROPHONE,
             runner._CHANNEL_PHASE_DISP,
             runner._CHANNEL_PHASE_CLIP,
         ))
@@ -237,10 +247,11 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         marker_evidence = runner._OwnedMarkerEvidence(
             "available", "observed", "observed", stage="complete",
         )
+        stages = iter(("audioEffectWait", "microphoneEffectWait"))
         lifecycle = SimpleNamespace(
             start=lambda: None,
             stop=lambda: None,
-            last_stage=lambda: "audioEffectWait",
+            last_stage=lambda: next(stages, "microphoneEffectWait"),
             last_evidence=lambda: marker_evidence,
             observe_after_host_exit=lambda: (None, marker_evidence),
         )
@@ -250,7 +261,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner,
                     "_start_owned_shadow",
                     return_value=(
-                        shadow, 8, 10, "c" * 64, 9,
+                        shadow, 8, 10, 11, "c" * 64, 9,
                         Path(temporary) / "shadow.log", 0,
                     ),
                 ),
@@ -268,6 +279,8 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(runner, "_server_resize_requested", return_value=True),
                 mock.patch.object(runner, "_stop_owned_process"),
                 mock.patch.object(runner.os, "write", return_value=72) as audio_write,
+                mock.patch.object(runner, "start_tone", return_value=Process()),
+                mock.patch.object(runner, "_acknowledge_microphone_effect") as acknowledge,
                 mock.patch.object(runner.os, "close"),
             ):
                 self.assertEqual(
@@ -279,7 +292,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 )
         resize.assert_called_once_with()
         marker.assert_called_once_with()
-        self.assertEqual(audio_write.call_args.args, (10, b"LRNAUD01" + b"d" * 64))
+        self.assertEqual([call.args for call in audio_write.call_args_list], [
+            (10, b"LRNAUD01" + b"d" * 64), (11, b"LRNMIC01" + b"d" * 64)])
+        acknowledge.assert_called_once_with("d" * 64)
 
     def test_terminal_channel_witness_requires_enabled_effects_and_disabled_zero_transfer(self):
         enabled = {
@@ -318,6 +333,8 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             }
             audio_disabled = {"acceptedCount": 0}
             with (
+                mock.patch.object(runner, "read_microphone_lifetimes", return_value={
+                    "enabled": {"matchingPackets": 1}, "disabled": {"packets": 0}}),
                 mock.patch.object(
                     runner, "read_lifetimes",
                     return_value={"schemaVersion": 2,
@@ -331,7 +348,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ),
             ):
                 self.assertEqual(
-                    runner._channel_evidence(base, audio_base), CHANNEL_EVIDENCE_BASE,
+                    runner._channel_evidence(base, audio_base, Path(temporary) / "microphone"), CHANNEL_EVIDENCE_BASE,
                 )
             for bad in (
                 {**enabled, "clipboardEffect": False},
@@ -360,7 +377,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     ),
                 ):
                     with self.assertRaises(runner.BaselineFailure):
-                        runner._channel_evidence(base, audio_base)
+                        runner._channel_evidence(base, audio_base, Path(temporary) / "microphone")
 
     def test_owned_shadow_process_uses_exact_binary_sam_pipe_and_two_witness_base(self):
         def portable_owned_pipe2(flags):
@@ -410,10 +427,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ) as pipe2,
             ):
                 (
-                    returned, read_fd, audio_write_fd, digest,
+                    returned, read_fd, audio_write_fd, microphone_write_fd, digest,
                     log_fd, log_path, log_size,
                 ) = runner._start_owned_shadow(
-                    root, witness, audio_witness, "d" * 64,
+                    root, witness, audio_witness, "d" * 64, root / "microphone",
                 )
             try:
                 self.assertIs(returned, process)
@@ -438,14 +455,16 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     (
                         int(environment["LARENOR_F62_CHANNEL_PHASE_FD"]),
                         int(environment["LARENOR_F62_AUDIO_ARM_FD"]),
+                        int(environment["LARENOR_F62_MICROPHONE_ARM_FD"]),
                     ),
                 )
                 ready.assert_called_once_with(process, log_fd)
                 verify_source.assert_called_once_with(source)
-                self.assertEqual(pipe2.call_count, 2)
+                self.assertEqual(pipe2.call_count, 3)
             finally:
                 os.close(read_fd)
                 os.close(audio_write_fd)
+                os.close(microphone_write_fd)
                 os.close(log_fd)
 
             alias = root / "shadow-alias"
@@ -1000,7 +1019,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ) as cleanup,
                 mock.patch.object(
                     runner, "_start_owned_shadow",
-                    return_value=(shadow, 8, 10, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
+                    return_value=(shadow, 8, 10, 11, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
                 ),
                 mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, Gradle()]),
                 mock.patch.object(runner.selectors, "DefaultSelector", return_value=selector),
@@ -1098,7 +1117,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(
                     runner, "_start_owned_shadow",
                     return_value=(
-                        shadow, 8, 10, "c" * 64, 9,
+                        shadow, 8, 10, 11, "c" * 64, 9,
                         Path(temporary) / "shadow.log", 0,
                     ),
                 ),
@@ -1927,6 +1946,47 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             open_boundaries={**observed.open_boundaries, "certificateAccepted": False},
         )
         self.assertEqual(runner._merge_owned_marker_evidence(marker, conflict).record, "invalid")
+
+    def test_live_partial_marker_recovers_to_original_open_failure_but_final_invalid_rejects(self):
+        raw = b"openFailure|v1|firstSessionOpen|connectionFailed|1110000|timeout|1"
+        observed, _ = runner._decode_test_lifecycle_marker(raw)
+        marker = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage=str(observed),
+            body_failure=observed.body_failure, open_boundaries=observed.open_boundaries,
+        )
+        invalid = runner._OwnedMarkerEvidence("available", "invalid", "unknown")
+        recovered = runner._merge_owned_marker_evidence(invalid, marker)
+        self.assertEqual(recovered, marker)
+        self.assertEqual(runner._merge_owned_marker_evidence(marker, invalid), marker)
+        self.assertEqual(runner._merge_owned_marker_evidence(marker, invalid, writer_quiesced=True), invalid)
+        conflict = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage=str(observed),
+            body_failure=observed.body_failure,
+            open_boundaries={**observed.open_boundaries, "certificateAccepted": False},
+        )
+        poisoned = runner._merge_owned_marker_evidence(marker, conflict)
+        self.assertEqual(poisoned.record, "invalid")
+        self.assertTrue(poisoned.conflict)
+        self.assertEqual(runner._merge_owned_marker_evidence(poisoned, marker), poisoned)
+        self.assertEqual(runner._merge_owned_marker_evidence(poisoned, marker, writer_quiesced=True), poisoned)
+
+    def test_observer_final_complete_marker_replaces_live_partial_without_accepting_success(self):
+        observer = runner._OwnedLifecycleObserver("d" * 64)
+        observer._evidence = runner._OwnedMarkerEvidence("available", "invalid", "unknown")
+        parsed, _ = runner._decode_test_lifecycle_marker(
+            b"openFailure|v1|firstSessionOpen|connectionFailed|1110000|timeout|1")
+        marker = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage=str(parsed),
+            body_failure=parsed.body_failure, open_boundaries=parsed.open_boundaries,
+        )
+        with mock.patch.object(runner, "_read_owned_marker", return_value=marker):
+            stage, final = observer.observe_after_host_exit()
+        self.assertEqual(stage, "firstSessionOpen")
+        self.assertEqual(final.open_boundaries, parsed.open_boundaries)
+        with mock.patch.object(runner, "_read_owned_marker", return_value=runner._OwnedMarkerEvidence("available", "invalid", "unknown")):
+            stage, final = observer.observe_after_host_exit()
+        self.assertIsNone(stage)
+        self.assertEqual(final.record, "invalid")
 
     def test_body_marker_only_upgrades_exact_named_failure_with_bound_source(self):
         base = {

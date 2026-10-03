@@ -1,0 +1,544 @@
+diff --git a/channels/audin/client/audin_main.c b/channels/audin/client/audin_main.c
+index 697fd2848..db1bc01f2 100644
+--- a/channels/audin/client/audin_main.c
++++ b/channels/audin/client/audin_main.c
+@@ -403,7 +403,10 @@ static UINT audin_receive_wave_data(const AUDIO_FORMAT* format, const BYTE* data
+ 		return error;
+ 	}
+ 
+-	return audin_channel_write_and_free(callback, audin->data, FALSE);
++	error = audin_channel_write_and_free(callback, audin->data, FALSE);
++	if (error == CHANNEL_RC_OK)
++		error = IFCALLRESULT(CHANNEL_RC_OK, audin->device->DataSent, audin->device);
++	return error;
+ }
+ 
+ static BOOL audin_open_device(AUDIN_PLUGIN* audin, AUDIN_CHANNEL_CALLBACK* callback)
+diff --git a/channels/audin/client/opensles/audin_opensl_es.c b/channels/audin/client/opensles/audin_opensl_es.c
+index 52281aec2..d10223ea0 100644
+--- a/channels/audin/client/opensles/audin_opensl_es.c
++++ b/channels/audin/client/opensles/audin_opensl_es.c
+@@ -32,6 +32,7 @@
+ #include <freerdp/freerdp.h>
+ #include <freerdp/addin.h>
+ #include <freerdp/channels/rdpsnd.h>
++#include <freerdp/event.h>
+ 
+ #include <SLES/OpenSLES.h>
+ #include <freerdp/client/audin.h>
+@@ -57,10 +58,75 @@ typedef struct
+ 
+ 	rdpContext* rdpcontext;
+ 	wLog* log;
++	CRITICAL_SECTION observationLock;
++	BOOL observationLockReady;
++	BOOL deviceOpen;
++	BOOL failed;
++	UINT64 capturedCount;
++	UINT64 acceptedCount;
+ } AudinOpenSLESDevice;
+ 
++#define LARENOR_MICROPHONE_OPENED 1u
++#define LARENOR_MICROPHONE_CAPTURED 2u
++#define LARENOR_MICROPHONE_SENT 3u
++#define LARENOR_MICROPHONE_CLOSED 4u
++#define LARENOR_MICROPHONE_FAILED 5u
++#define LARENOR_JS_SAFE_COUNTER_MAX 9007199254740991ull
++
+ static UINT audin_opensles_close(IAudinDevice* device);
+ 
++static UINT audin_opensles_observe(AudinOpenSLESDevice* opensles, UINT32 fixedState)
++{
++	if (!opensles || !opensles->observationLockReady || !opensles->rdpcontext ||
++	    !opensles->rdpcontext->pubSub)
++		return ERROR_INVALID_STATE;
++
++	EnterCriticalSection(&opensles->observationLock);
++	if (opensles->failed && (fixedState != LARENOR_MICROPHONE_FAILED))
++	{
++		LeaveCriticalSection(&opensles->observationLock);
++		return ERROR_INVALID_STATE;
++	}
++	switch (fixedState)
++	{
++		case LARENOR_MICROPHONE_OPENED:
++			opensles->deviceOpen = TRUE;
++			break;
++		case LARENOR_MICROPHONE_CAPTURED:
++			if (!opensles->deviceOpen || (opensles->capturedCount >= LARENOR_JS_SAFE_COUNTER_MAX))
++				goto fail;
++			opensles->capturedCount++;
++			break;
++		case LARENOR_MICROPHONE_SENT:
++			if (!opensles->deviceOpen || (opensles->acceptedCount >= opensles->capturedCount) ||
++			    (opensles->acceptedCount >= LARENOR_JS_SAFE_COUNTER_MAX))
++				goto fail;
++			opensles->acceptedCount++;
++			break;
++		case LARENOR_MICROPHONE_CLOSED:
++			opensles->deviceOpen = FALSE;
++			break;
++		case LARENOR_MICROPHONE_FAILED:
++		fail:
++			opensles->deviceOpen = FALSE;
++			opensles->failed = TRUE;
++			fixedState = LARENOR_MICROPHONE_FAILED;
++			break;
++		default:
++			LeaveCriticalSection(&opensles->observationLock);
++			return ERROR_INVALID_PARAMETER;
++	}
++	MicrophoneCaptureEventArgs event = WINPR_C_ARRAY_INIT;
++	event.deviceOpen = opensles->deviceOpen;
++	event.capturedCount = opensles->capturedCount;
++	event.acceptedCount = opensles->acceptedCount;
++	event.fixedState = fixedState;
++	LeaveCriticalSection(&opensles->observationLock);
++	const BOOL published = PubSub_OnMicrophoneCapture(opensles->rdpcontext->pubSub,
++	                                                  opensles->rdpcontext, &event);
++	return published ? CHANNEL_RC_OK : ERROR_INTERNAL_ERROR;
++}
++
+ static void audin_receive(void* context, const void* data, size_t size)
+ {
+ 	UINT error;
+@@ -72,10 +138,18 @@ static void audin_receive(void* context, const void* data, size_t size)
+ 		return;
+ 	}
+ 
++	if (size == 0 || audin_opensles_observe(opensles, LARENOR_MICROPHONE_CAPTURED) != CHANNEL_RC_OK)
++	{
++		(void)audin_opensles_observe(opensles, LARENOR_MICROPHONE_FAILED);
++		return;
++	}
+ 	error = opensles->receive(&opensles->format, data, size, opensles->user_data);
+ 
+ 	if (error && opensles->rdpcontext)
++	{
++		(void)audin_opensles_observe(opensles, LARENOR_MICROPHONE_FAILED);
+ 		setChannelError(opensles->rdpcontext, error, "audin_receive reported an error");
++	}
+ }
+ 
+ /**
+@@ -91,8 +165,13 @@ static UINT audin_opensles_free(IAudinDevice* device)
+ 		return ERROR_INVALID_PARAMETER;
+ 
+ 	WLog_Print(opensles->log, WLOG_DEBUG, "device=%p", (void*)device);
++	if (opensles->stream)
++		return ERROR_BUSY;
+ 
+ 	free(opensles->device_name);
++	if (opensles->observationLockReady)
++		DeleteCriticalSection(&opensles->observationLock);
++	SecureZeroMemory(opensles, sizeof(*opensles));
+ 	free(opensles);
+ 	return CHANNEL_RC_OK;
+ }
+@@ -202,6 +281,8 @@ static UINT audin_opensles_open(IAudinDevice* device, AudinReceive receive, void
+ 	if (opensles->stream)
+ 		goto error_out;
+ 
++	opensles->receive = receive;
++	opensles->user_data = user_data;
+ 	if (!(opensles->stream = android_OpenRecDevice(
+ 	          opensles, audin_receive, opensles->format.nSamplesPerSec, opensles->format.nChannels,
+ 	          opensles->frames_per_packet, opensles->format.wBitsPerSample)))
+@@ -210,11 +291,13 @@ static UINT audin_opensles_open(IAudinDevice* device, AudinReceive receive, void
+ 		goto error_out;
+ 	}
+ 
+-	opensles->receive = receive;
+-	opensles->user_data = user_data;
++	if (audin_opensles_observe(opensles, LARENOR_MICROPHONE_OPENED) != CHANNEL_RC_OK ||
++	    !android_StartRecDevice(opensles->stream))
++		goto error_out;
+ 	return CHANNEL_RC_OK;
+ error_out:
+-	audin_opensles_close(device);
++	(void)audin_opensles_observe(opensles, LARENOR_MICROPHONE_FAILED);
++	(void)audin_opensles_close(device);
+ 	return ERROR_INTERNAL_ERROR;
+ }
+ 
+@@ -231,11 +314,18 @@ UINT audin_opensles_close(IAudinDevice* device)
+ 		return ERROR_INVALID_PARAMETER;
+ 
+ 	WLog_Print(opensles->log, WLOG_DEBUG, "device=%p", (void*)device);
+-	android_CloseRecDevice(opensles->stream);
++	OPENSL_STREAM* stream = opensles->stream;
++	opensles->stream = nullptr;
++	const BOOL closed = android_CloseRecDevice(stream);
+ 	opensles->receive = nullptr;
+ 	opensles->user_data = nullptr;
+-	opensles->stream = nullptr;
+-	return CHANNEL_RC_OK;
++	if (!closed)
++	{
++		opensles->stream = stream;
++		(void)audin_opensles_observe(opensles, LARENOR_MICROPHONE_FAILED);
++		return ERROR_INTERNAL_ERROR;
++	}
++	return audin_opensles_observe(opensles, LARENOR_MICROPHONE_CLOSED);
+ }
+ 
+ /**
+@@ -243,6 +333,11 @@ UINT audin_opensles_close(IAudinDevice* device)
+  *
+  * @return 0 on success, otherwise a Win32 error code
+  */
++static UINT audin_opensles_data_sent(IAudinDevice* device)
++{
++	return audin_opensles_observe((AudinOpenSLESDevice*)device, LARENOR_MICROPHONE_SENT);
++}
++
+ static UINT audin_opensles_parse_addin_args(AudinOpenSLESDevice* device, const ADDIN_ARGV* args)
+ {
+ 	UINT status;
+@@ -305,10 +400,13 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE opensles_freerdp_audin_client_subsystem_entry
+ 	}
+ 
+ 	opensles->log = WLog_Get(TAG);
++	InitializeCriticalSection(&opensles->observationLock);
++	opensles->observationLockReady = TRUE;
+ 	opensles->iface.Open = audin_opensles_open;
+ 	opensles->iface.FormatSupported = audin_opensles_format_supported;
+ 	opensles->iface.SetFormat = audin_opensles_set_format;
+ 	opensles->iface.Close = audin_opensles_close;
++	opensles->iface.DataSent = audin_opensles_data_sent;
+ 	opensles->iface.Free = audin_opensles_free;
+ 	opensles->rdpcontext = pEntryPoints->rdpcontext;
+ 	const ADDIN_ARGV* args = pEntryPoints->args;
+@@ -329,6 +427,9 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE opensles_freerdp_audin_client_subsystem_entry
+ 
+ 	return CHANNEL_RC_OK;
+ error_out:
++	if (opensles->observationLockReady)
++		DeleteCriticalSection(&opensles->observationLock);
++	SecureZeroMemory(opensles, sizeof(*opensles));
+ 	free(opensles);
+ 	return error;
+ }
+diff --git a/channels/audin/client/opensles/opensl_io.c b/channels/audin/client/opensles/opensl_io.c
+index c4598a634..a97d73fd0 100644
+--- a/channels/audin/client/opensles/opensl_io.c
++++ b/channels/audin/client/opensles/opensl_io.c
+@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include "opensl_io.h"
+ #define CONV16BIT 32768
+ #define CONVMYFLT (1. / 32768.)
++#define LARENOR_AUDIN_MAX_BUFFER_BYTES (1024ull * 1024ull)
+ 
+ typedef struct
+ {
+@@ -64,6 +65,10 @@ struct opensl_stream
+ 
+ 	void* context;
+ 	opensl_receive_t receive;
++	CRITICAL_SECTION callbackLock;
++	HANDLE callbacksIdleEvent;
++	BOOL closing;
++	UINT32 callbacksActive;
+ };
+ 
+ static void bqRecorderCallback(SLAndroidSimpleBufferQueueItf bq, void* context);
+@@ -307,8 +312,11 @@ static void opensles_queue_element_free(void* obj)
+ {
+ 	queue_element* e = (queue_element*)obj;
+ 
+-	if (e)
++	if (e && e->data)
++	{
++		SecureZeroMemory(e->data, e->size);
+ 		free(e->data);
++	}
+ 
+ 	free(e);
+ }
+@@ -327,6 +335,14 @@ OPENSL_STREAM* android_OpenRecDevice(void* context, opensl_receive_t receive, si
+ 
+ 	p->context = context;
+ 	p->receive = receive;
++	InitializeCriticalSection(&p->callbackLock);
++	p->callbacksIdleEvent = CreateEvent(nullptr, TRUE, TRUE, nullptr);
++	if (!p->callbacksIdleEvent)
++	{
++		DeleteCriticalSection(&p->callbackLock);
++		free(p);
++		return nullptr;
++	}
+ 	if (inchannels > INT32_MAX)
+ 		goto fail;
+ 	p->inchannels = inchannels;
+@@ -335,7 +351,7 @@ OPENSL_STREAM* android_OpenRecDevice(void* context, opensl_receive_t receive, si
+ 		goto fail;
+ 	p->sr = sr;
+ 
+-	if (bufferframes > SIZE_MAX / 2)
++	if ((bufferframes == 0) || (inchannels == 0))
+ 		goto fail;
+ 	p->buffersize = bufferframes;
+ 
+@@ -351,10 +367,13 @@ OPENSL_STREAM* android_OpenRecDevice(void* context, opensl_receive_t receive, si
+ 		goto fail;
+ 
+ 	const size_t bytesPerSample = p->bits_per_sample / 8ull;
+-	if (p->buffersize >= SIZE_MAX / bytesPerSample)
++	if ((p->buffersize > SIZE_MAX / p->inchannels) ||
++	    ((p->buffersize * p->inchannels) > SIZE_MAX / bytesPerSample))
+ 		goto fail;
+ 
+-	const size_t queuesize = p->buffersize * bytesPerSample;
++	const size_t queuesize = p->buffersize * p->inchannels * bytesPerSample;
++	if ((queuesize == 0) || (queuesize > LARENOR_AUDIN_MAX_BUFFER_BYTES))
++		goto fail;
+ 	/* Create receive buffers, prepare them and start recording */
+ 	p->prep = opensles_queue_element_new(queuesize);
+ 	p->next = opensles_queue_element_new(queuesize);
+@@ -362,25 +381,49 @@ OPENSL_STREAM* android_OpenRecDevice(void* context, opensl_receive_t receive, si
+ 	if (!p->prep || !p->next)
+ 		goto fail;
+ 
+-	(*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, p->next->data, p->next->size);
+-	(*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, p->prep->data, p->prep->size);
+-	(*p->recorderRecord)->SetRecordState(p->recorderRecord, SL_RECORDSTATE_RECORDING);
+ 	return p;
+ fail:
+-	android_CloseRecDevice(p);
++	(void)android_CloseRecDevice(p);
+ 	return nullptr;
+ }
+ 
+-// close the android audio device
+-void android_CloseRecDevice(OPENSL_STREAM* p)
++BOOL android_StartRecDevice(OPENSL_STREAM* p)
+ {
+-	if (p == nullptr)
+-		return;
++	if (!p || !p->recorderBufferQueue || !p->recorderRecord || !p->next || !p->prep)
++		return FALSE;
++	return ((*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, p->next->data,
++	                                          p->next->size) == SL_RESULT_SUCCESS) &&
++	       ((*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, p->prep->data,
++	                                          p->prep->size) == SL_RESULT_SUCCESS) &&
++	       ((*p->recorderRecord)->SetRecordState(p->recorderRecord, SL_RECORDSTATE_RECORDING) ==
++	        SL_RESULT_SUCCESS);
++}
+ 
++// close the android audio device after all capture callbacks have quiesced
++BOOL android_CloseRecDevice(OPENSL_STREAM* p)
++{
++	if (p == nullptr)
++		return TRUE;
++
++	EnterCriticalSection(&p->callbackLock);
++	p->closing = TRUE;
++	LeaveCriticalSection(&p->callbackLock);
++	if (p->recorderRecord)
++		(void)(*p->recorderRecord)->SetRecordState(p->recorderRecord, SL_RECORDSTATE_STOPPED);
++	if (p->recorderBufferQueue)
++		(void)(*p->recorderBufferQueue)->Clear(p->recorderBufferQueue);
++	openSLDestroyEngine(p);
++	const DWORD wait = p->callbacksIdleEvent ? WaitForSingleObject(p->callbacksIdleEvent, 5000)
++	                                         : WAIT_FAILED;
++	if (wait != WAIT_OBJECT_0)
++		return FALSE;
+ 	opensles_queue_element_free(p->next);
+ 	opensles_queue_element_free(p->prep);
+-	openSLDestroyEngine(p);
++	CloseHandle(p->callbacksIdleEvent);
++	DeleteCriticalSection(&p->callbackLock);
++	SecureZeroMemory(p, sizeof(*p));
+ 	free(p);
++	return TRUE;
+ }
+ 
+ // this callback handler is called every time a buffer finishes recording
+@@ -392,17 +435,39 @@ static void bqRecorderCallback(SLAndroidSimpleBufferQueueItf bq, void* context)
+ 	if (!p)
+ 		return;
+ 
++	EnterCriticalSection(&p->callbackLock);
++	if (p->closing)
++	{
++		LeaveCriticalSection(&p->callbackLock);
++		return;
++	}
++	p->callbacksActive++;
++	ResetEvent(p->callbacksIdleEvent);
++	LeaveCriticalSection(&p->callbackLock);
++
+ 	e = p->next;
+ 
+ 	if (!e)
+-		return;
++		goto exit;
+ 
+ 	if (!p->context || !p->receive)
+ 		WLog_WARN(TAG, "Missing receive callback=%p, context=%p", p->receive, p->context);
+ 	else
+ 		p->receive(p->context, e->data, e->size);
+ 
+-	p->next = p->prep;
+-	p->prep = e;
+-	(*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, e->data, e->size);
++	EnterCriticalSection(&p->callbackLock);
++	if (!p->closing && p->recorderBufferQueue)
++	{
++		p->next = p->prep;
++		p->prep = e;
++		(void)(*p->recorderBufferQueue)->Enqueue(p->recorderBufferQueue, e->data, e->size);
++	}
++	LeaveCriticalSection(&p->callbackLock);
++exit:
++	EnterCriticalSection(&p->callbackLock);
++	WINPR_ASSERT(p->callbacksActive > 0);
++	p->callbacksActive--;
++	if (p->callbacksActive == 0)
++		SetEvent(p->callbacksIdleEvent);
++	LeaveCriticalSection(&p->callbackLock);
+ }
+diff --git a/channels/audin/client/opensles/opensl_io.h b/channels/audin/client/opensles/opensl_io.h
+index bdba57cab..97f4680fa 100644
+--- a/channels/audin/client/opensles/opensl_io.h
++++ b/channels/audin/client/opensles/opensl_io.h
+@@ -49,7 +49,8 @@ extern "C"
+ 	/*
+ 	Close the audio device
+ 	*/
+-	FREERDP_LOCAL void android_CloseRecDevice(OPENSL_STREAM* p);
++	WINPR_ATTR_NODISCARD FREERDP_LOCAL BOOL android_StartRecDevice(OPENSL_STREAM* p);
++	WINPR_ATTR_NODISCARD FREERDP_LOCAL BOOL android_CloseRecDevice(OPENSL_STREAM* p);
+ 
+ 	/*
+ 	Open the audio device with a given sampling rate (sr), input and output channels and IO buffer
+diff --git a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+index 188e348d1..017a96d8e 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -232,8 +232,21 @@ static void android_OnRemoteAudioPlaybackEventHandler(
+ 	                 (jint)event->fixedState);
+ }
+ 
++static void android_OnMicrophoneCaptureEventHandler(
++    void* context, const MicrophoneCaptureEventArgs* event)
++{
++	rdpContext* rdp = (rdpContext*)context;
++	if (!rdp || !rdp->instance || !event)
++		return;
++	freerdp_callback("OnMicrophoneCapture", "(JZJJI)V", (jlong)rdp->instance,
++	                 (jboolean)(event->deviceOpen ? JNI_TRUE : JNI_FALSE),
++	                 (jlong)event->capturedCount, (jlong)event->acceptedCount,
++	                 (jint)event->fixedState);
++}
++
+ static wEventType androidRemoteAudioEvents[] = {
+ 	DEFINE_EVENT_ENTRY(RemoteAudioPlayback),
++	DEFINE_EVENT_ENTRY(MicrophoneCapture),
+ };
+ 
+ static BOOL android_pre_connect(freerdp* instance)
+@@ -287,6 +300,19 @@ static BOOL android_pre_connect(freerdp* instance)
+ 		WLog_ERR(TAG, "Could not subscribe to remote audio lifecycle handler [%08X]", rc);
+ 		return FALSE;
+ 	}
++	rc = PubSub_SubscribeMicrophoneCapture(instance->context->pubSub,
++	                                      android_OnMicrophoneCaptureEventHandler);
++	if (rc != CHANNEL_RC_OK)
++	{
++		PubSub_UnsubscribeRemoteAudioPlayback(instance->context->pubSub,
++		                                     android_OnRemoteAudioPlaybackEventHandler);
++		PubSub_UnsubscribeChannelDisconnected(instance->context->pubSub,
++		                                      android_OnChannelDisconnectedEventHandler);
++		PubSub_UnsubscribeChannelConnected(instance->context->pubSub,
++		                                   android_OnChannelConnectedEventHandler);
++		WLog_ERR(TAG, "Could not subscribe to microphone lifecycle handler [%08X]", rc);
++		return FALSE;
++	}
+ 
+ 	freerdp_callback("OnPreConnect", "(J)V", (jlong)instance);
+ 	return TRUE;
+@@ -525,6 +551,8 @@ static void android_post_final_disconnect(freerdp* instance)
+ 	                                      android_OnChannelDisconnectedEventHandler);
+ 	PubSub_UnsubscribeRemoteAudioPlayback(instance->context->pubSub,
+ 	                                     android_OnRemoteAudioPlaybackEventHandler);
++	PubSub_UnsubscribeMicrophoneCapture(instance->context->pubSub,
++	                                  android_OnMicrophoneCaptureEventHandler);
+ }
+ 
+ static BOOL android_authenticate_int(freerdp* instance, char** username, char** password,
+diff --git a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+index 28d73e2eb..23eafe982 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+@@ -54,6 +54,11 @@ public class LibFreeRDP
+ 	public static final int REMOTE_AUDIO_BUFFER_COMPLETED = 3;
+ 	public static final int REMOTE_AUDIO_DEVICE_CLOSED = 4;
+ 	public static final int REMOTE_AUDIO_FAILED = 5;
++	public static final int MICROPHONE_DEVICE_OPENED = 1;
++	public static final int MICROPHONE_BUFFER_CAPTURED = 2;
++	public static final int MICROPHONE_BUFFER_ACCEPTED = 3;
++	public static final int MICROPHONE_DEVICE_CLOSED = 4;
++	public static final int MICROPHONE_FAILED = 5;
+ 
+ 	private static boolean tryLoad(String[] libraries)
+ 	{
+@@ -653,6 +658,15 @@ public class LibFreeRDP
+ 			                               fixedState);
+ 	}
+ 
++	private static void OnMicrophoneCapture(long inst, boolean deviceOpen,
++	                                        long capturedCount, long acceptedCount,
++	                                        int fixedState)
++	{
++		if (listener != null)
++			listener.OnMicrophoneCapture(inst, deviceOpen, capturedCount, acceptedCount,
++			                             fixedState);
++	}
++
+ 	private static void OnConnectionFailure(long inst)
+ 	{
+ 		if (listener != null)
+@@ -928,6 +942,12 @@ public class LibFreeRDP
+ 		{
+ 		}
+ 
++		default void OnMicrophoneCapture(long instance, boolean deviceOpen,
++		                                 long capturedCount, long acceptedCount,
++		                                 int fixedState)
++		{
++		}
++
+ 		void OnConnectionFailure(long instance);
+ 
+ 		void OnDisconnecting(long instance);
+diff --git a/include/freerdp/client/audin.h b/include/freerdp/client/audin.h
+index b497cf85d..00eda5d65 100644
+--- a/include/freerdp/client/audin.h
++++ b/include/freerdp/client/audin.h
+@@ -50,6 +50,7 @@ extern "C"
+ 		WINPR_ATTR_NODISCARD UINT (*SetFormat)(IAudinDevice* devplugin, const AUDIO_FORMAT* format,
+ 		                                       UINT32 FramesPerPacket);
+ 		WINPR_ATTR_NODISCARD UINT (*Close)(IAudinDevice* devplugin);
++		WINPR_ATTR_NODISCARD UINT (*DataSent)(IAudinDevice* devplugin);
+ 		WINPR_ATTR_NODISCARD UINT (*Free)(IAudinDevice* devplugin);
+ 	};
+ 
+diff --git a/include/freerdp/event.h b/include/freerdp/event.h
+index 91b0892ab..c0d242f8e 100644
+--- a/include/freerdp/event.h
++++ b/include/freerdp/event.h
+@@ -167,6 +167,13 @@ extern "C"
+ 	UINT32 fixedState;
+ 	DEFINE_EVENT_END(RemoteAudioPlayback)
+ 
++	DEFINE_EVENT_BEGIN(MicrophoneCapture)
++	BOOL deviceOpen;
++	UINT64 capturedCount;
++	UINT64 acceptedCount;
++	UINT32 fixedState;
++	DEFINE_EVENT_END(MicrophoneCapture)
++
+ #ifdef __cplusplus
+ }
+ #endif

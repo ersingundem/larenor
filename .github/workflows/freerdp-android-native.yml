@@ -30,7 +30,13 @@
         "tool/tests/f62_owned_shadow_channels_test.py",
         "android/freerdp-display-pointer-v2.patch",
         "android/freerdp-remote-audio-v3.patch",
-        "tool/patches/f62-owned-shadow-audio.patch"
+        "tool/patches/f62-owned-shadow-audio.patch",
+        "android/freerdp-always-pin-v4.patch",
+        "android/freerdp-microphone-v4.patch",
+        "tool/f62_owned_microphone.py",
+        "tool/patches/f62-owned-shadow-microphone.patch",
+        "tool/tests/f62_owned_microphone_test.py",
+        "contracts/rdp-client.v4.json"
       ]
     }
   },
@@ -89,7 +95,7 @@
         },
         {
           "name": "Apply reviewed SPKI and standard Unicode JNI patches",
-          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch .\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
+          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-always-pin-v4.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-always-pin-v4.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-microphone-v4.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-microphone-v4.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch .\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
         },
         {
           "name": "Preflight an owned resizable Xorg display",
@@ -139,6 +145,11 @@
           "run": "set -euo pipefail\numask 077\ntest -s \"$RUNNER_TEMP/xorg.pid\"\nkill -0 \"$(cat \"$RUNNER_TEMP/xorg.pid\")\"\ntest \"$(DISPLAY=:99 xdpyinfo | awk '$1 == \"dimensions:\" {print $2}')\" = 1280x800\ntest \"$(DISPLAY=:99 xrandr --query | awk -v output=\"$RDP_ACCEPTANCE_XORG_OUTPUT\"   '$1 == output && $2 == \"connected\" && $0 ~ /1280x800\\+0\\+0/ {count++} END {print count+0}')\" -eq 1\nfixture_password=\"$(openssl rand -base64 36 | tr -d '=+/\\n' | cut -c1-32)\"\necho \"::add-mask::$fixture_password\"\necho \"RDP_ACCEPTANCE_PASSWORD=$fixture_password\" >> \"$GITHUB_ENV\"\nwinpr-hash3 -u larenor -p \"$fixture_password\" -d LARENOR -f sam -v 1 > \"$RUNNER_TEMP/larenor-rdp.sam\"\nchmod 0600 \"$RUNNER_TEMP/larenor-rdp.sam\"\nDISPLAY=:99 xmodmap -pke | awk '$1 == \"keycode\" && $2 == \"38\" && $3 == \"=\" && $4 == \"a\" && $5 == \"A\" { found=1 } END { exit !found }'\nDISPLAY=:99 xsetroot -solid '#315a9c'\nenv -u RUNNER_TRACKING_ID DISPLAY=:99 nohup xmessage -geometry 460x180+80+80 'Larenor owned NLA RDP acceptance host' > \"$RUNNER_TEMP/freerdp-package/acceptance/xmessage.log\" 2>&1 &\necho $! > \"$RUNNER_TEMP/xmessage.pid\"\n"
         },
         {
+          "name": "Prepare isolated microphone source for owned emulator",
+          "if": "matrix.abi == 'x86_64'",
+          "run": "set -euo pipefail\numask 077\npackages=(pulseaudio pulseaudio-utils)\nfor package in \"${packages[@]}\"; do\n  version=\"$(apt-cache policy \"$package\" | awk '$1 == \"Candidate:\" {print $2}')\"\n  [[ \"$version\" =~ ^[A-Za-z0-9.+:~_-]+$ ]] || exit 1\n  sudo apt-get install --yes --no-install-recommends \"$package=$version\"\n  test \"$(dpkg-query -W -f='${Version}' \"$package\")\" = \"$version\"\ndone\npython3 -B -m tool.f62_owned_microphone prepare \"$RUNNER_TEMP/larenor-rdp-microphone\"\n{\n  echo \"PULSE_SERVER=unix:$RUNNER_TEMP/larenor-rdp-microphone/native\"\n  echo \"PULSE_CLIENTCONFIG=$RUNNER_TEMP/larenor-rdp-microphone/client.conf\"\n  echo \"PULSE_SOURCE=larenor_owned_microphone.monitor\"\n  echo \"PULSE_SINK=larenor_owned_output\"\n  echo \"QEMU_AUDIO_DRV=pa\"\n} >> \"$GITHUB_ENV\"\n"
+        },
+        {
           "name": "Exercise the packaged Android client against the NLA host",
           "if": "matrix.abi == 'x86_64'",
           "uses": "ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d",
@@ -152,18 +163,18 @@
             "disk-size": "3072M",
             "emulator-boot-timeout": 300,
             "emulator-build": 13823996,
-            "emulator-options": "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none",
+            "emulator-options": "-no-window -gpu swangle_indirect -no-snapshot -allow-host-audio -no-boot-anim -camera-back none -camera-front none",
             "disable-animations": true,
             "disable-spellchecker": true,
             "disable-linux-hw-accel": false,
-            "script": "python3 tool/f62_packaged_acceptance.py"
+            "script": "adb emu avd hostmicon\npython3 tool/f62_packaged_acceptance.py"
           },
           "id": "packaged_acceptance"
         },
         {
           "name": "Stop the owned RDP host",
           "if": "always() && matrix.abi == 'x86_64'",
-          "run": "set +e\nfor name in shadow xmessage xorg; do\n  pid_file=\"$RUNNER_TEMP/$name.pid\"\n  if test -f \"$pid_file\"; then kill \"$(cat \"$pid_file\")\" 2>/dev/null || true; fi\ndone\nrm -f \"$RUNNER_TEMP/larenor-rdp.sam\"\n"
+          "run": "set +e\nfor name in shadow xmessage xorg; do\n  pid_file=\"$RUNNER_TEMP/$name.pid\"\n  if test -f \"$pid_file\"; then kill \"$(cat \"$pid_file\")\" 2>/dev/null || true; fi\ndone\nrm -f \"$RUNNER_TEMP/larenor-rdp.sam\"\n\nif test -f \"$RUNNER_TEMP/larenor-rdp-microphone/process.json\"; then\n  python3 -B -m tool.f62_owned_microphone stop \"$RUNNER_TEMP/larenor-rdp-microphone\"\nfi\n"
         },
         {
           "uses": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",

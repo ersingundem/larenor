@@ -134,6 +134,7 @@ class MainActivity : FlutterActivity() {
         super.onPause()
     }
     override fun onStop() {
+        rdpNative?.setStopped()
         webPanelNativeEffects?.setStopped()
         super.onStop()
     }
@@ -180,6 +181,7 @@ class MainActivity : FlutterActivity() {
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         if (localSpeech?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
+        if (rdpNative?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (kioskPeripherals?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (personalCamera?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return
         if (localNotifications?.onRequestPermissionsResult(requestCode, permissions, grantResults) == true) return

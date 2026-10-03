@@ -36,6 +36,18 @@ class AudioMethods extends MethodChannel {
   }
 }
 
+class MicrophoneMethods extends MethodChannel {
+  MicrophoneMethods(this.onMicrophone) : super('rdp-test-methods');
+  final Future<Object?> Function(Map) onMicrophone;
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    if (method == 'microphoneObservation') {
+      return await onMicrophone(arguments as Map) as T?;
+    }
+    return super.invokeMethod<T>(method, arguments);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const methods = MethodChannel('rdp-test-methods');
@@ -58,10 +70,24 @@ void main() {
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
         'open' => {
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'unicodeTextInput': true,
           'relativePointer': true,
         },
+        'requestMicrophonePermission' => {
+          'schemaVersion': 4,
+          'requestId': (call.arguments as Map)['requestId'],
+          'granted': true,
+        },
+        'microphoneObservation' => {
+          'schemaVersion': 4,
+          'requestId': (call.arguments as Map)['requestId'],
+          'state': 'pending',
+          'deviceOpen': false,
+          'capturedCount': 0,
+          'acceptedCount': 0,
+        },
+        'cancelMicrophonePermission' => null,
         'activate' || 'input' || 'resize' || 'ackFrame' || 'cancel' => null,
         _ => throw MissingPluginException(),
       };
@@ -84,6 +110,7 @@ void main() {
     bool Function()? current,
     bool enabled = true,
     bool audio = false,
+    bool microphone = false,
   }) => engine.open(
     RdpSessionRequest(
       profile: profile,
@@ -98,12 +125,159 @@ void main() {
         clipboardMode: enabled
             ? RdpClipboardMode.clientToRemote
             : RdpClipboardMode.disabled,
+        microphone: microphone,
       ),
-      channels: RdpChannelPolicy(clipboard: enabled, audio: audio),
+      channels: RdpChannelPolicy(
+        clipboard: enabled,
+        audio: audio,
+        microphone: microphone,
+      ),
     ),
     credential: const RdpCredential(password: 'temporary'),
     isCurrent: current ?? () => true,
   );
+
+  Future<RdpChannel> openMicrophone(RdpMethodChannelEngine engine) async {
+    expect(
+      await engine.requestMicrophonePermission(isCurrent: () => true),
+      isTrue,
+    );
+    return openClipboard(engine, microphone: true);
+  }
+
+  test(
+    'microphone permission receipt binds the exact session and observation',
+    () async {
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final channel = await openMicrophone(engine);
+      final permission = calls.singleWhere(
+        (value) => value.method == 'requestMicrophonePermission',
+      );
+      final open = calls.singleWhere((value) => value.method == 'open');
+      final permissionId = (permission.arguments as Map)['requestId'];
+      expect(permission.arguments, {
+        'schemaVersion': 4,
+        'requestId': permissionId,
+      });
+      expect((open.arguments as Map)['requestId'], permissionId);
+      expect(((open.arguments as Map)['request'] as Map)['microphone'], isTrue);
+      final observation = await (channel as RdpMicrophoneCaptureChannel)
+          .microphoneObservation();
+      expect(observation.state, RdpMicrophoneState.pending);
+      expect(observation.hasSubmittedAudio, isFalse);
+      expect(
+        (calls
+                .singleWhere((value) => value.method == 'microphoneObservation')
+                .arguments
+            as Map),
+        {'schemaVersion': 4, 'requestId': permissionId},
+      );
+      channel.close();
+    },
+  );
+
+  test('microphone disabled performs no permission request or query', () async {
+    final engine = RdpMethodChannelEngine(
+      methods: methods,
+      events: events,
+      isAndroid: true,
+    );
+    final channel = await openClipboard(engine);
+    await expectLater(
+      (channel as RdpMicrophoneCaptureChannel).microphoneObservation(),
+      throwsA(isA<RdpFailure>()),
+    );
+    expect(
+      calls.where(
+        (value) =>
+            value.method == 'requestMicrophonePermission' ||
+            value.method == 'microphoneObservation',
+      ),
+      isEmpty,
+    );
+    channel.close();
+  });
+
+  test('denied or retired permission cannot activate and exact cancellation is sent', () async {
+    var current = true;
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      calls.add(call);
+      if (call.method == 'requestMicrophonePermission') {
+        current = false;
+        return {
+          'schemaVersion': 4,
+          'requestId': (call.arguments as Map)['requestId'],
+          'granted': true,
+        };
+      }
+      if (call.method == 'cancelMicrophonePermission') return null;
+      throw MissingPluginException();
+    });
+    final engine = RdpMethodChannelEngine(
+      methods: methods,
+      events: events,
+      isAndroid: true,
+    );
+    await expectLater(
+      engine.requestMicrophonePermission(isCurrent: () => current),
+      throwsA(isA<RdpFailure>()),
+    );
+    expect(calls.where((value) => value.method == 'activate'), isEmpty);
+    final request = calls.first.arguments as Map;
+    expect(calls.last.arguments, {
+      'schemaVersion': 4,
+      'requestId': request['requestId'],
+    });
+    expect(calls.last.method, 'cancelMicrophonePermission');
+    engine.close();
+  });
+
+  test('closing a stuck microphone query cancels its deadline', () {
+    fakeAsync((clock) {
+      final native = Completer<Object?>();
+      final engine = RdpMethodChannelEngine(
+        methods: MicrophoneMethods((_) => native.future),
+        events: events,
+        isAndroid: true,
+      );
+      RdpMicrophoneCaptureChannel? channel;
+      unawaited(
+        openMicrophone(engine).then((value) {
+          channel = value as RdpMicrophoneCaptureChannel;
+        }),
+      );
+      clock.flushMicrotasks();
+      var retired = false;
+      unawaited(
+        channel!.microphoneObservation().then<void>(
+          (_) => fail('late microphone observation'),
+          onError: (Object error) {
+            retired = error is RdpFailure;
+          },
+        ),
+      );
+      clock.flushMicrotasks();
+      expect(clock.nonPeriodicTimerCount, 1);
+      channel!.close();
+      clock.flushMicrotasks();
+      expect(retired, isTrue);
+      expect(clock.nonPeriodicTimerCount, 0);
+      native.complete({
+        'schemaVersion': 4,
+        'requestId': 'late',
+        'state': 'sent',
+        'deviceOpen': true,
+        'capturedCount': 1,
+        'acceptedCount': 1,
+      });
+      clock.flushMicrotasks();
+      expect(clock.nonPeriodicTimerCount, 0);
+    });
+  });
 
   test('audio readback binds exact request, serializes reads and requires completion', () async {
     var reads = 0;
@@ -125,10 +299,10 @@ void main() {
     final id =
         (calls.singleWhere((v) => v.method == 'open').arguments
             as Map)['requestId'];
-    expect(arguments, {'schemaVersion': 3, 'requestId': id});
+    expect(arguments, {'schemaVersion': 4, 'requestId': id});
     expect(reads, 1);
     reply.complete({
-      'schemaVersion': 3,
+      'schemaVersion': 4,
       'requestId': id,
       'state': 'playing',
       'deviceOpen': true,
@@ -169,7 +343,7 @@ void main() {
     final rejected = expectLater(awaiting, throwsA(isA<RdpFailure>()));
     current = false;
     reply.complete({
-      'schemaVersion': 3,
+      'schemaVersion': 4,
       'requestId': 'foreign',
       'state': 'playing',
       'deviceOpen': true,
@@ -186,7 +360,7 @@ void main() {
     final engine = RdpMethodChannelEngine(
       methods: AudioMethods(
         (value) async => {
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'requestId': value['requestId'],
           'state': 'playing',
           'deviceOpen': true,
@@ -237,7 +411,7 @@ void main() {
         expect(retired, isTrue);
         expect(clock.nonPeriodicTimerCount, 0);
         native.complete({
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'requestId': 'stale',
           'state': 'playing',
           'deviceOpen': true,
@@ -268,7 +442,7 @@ void main() {
         'requestId': requestId,
         'kind': 'frame',
         'payload': {
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'sequence': sequence,
           'width': width,
           'height': height,
@@ -515,7 +689,7 @@ void main() {
             call.method == 'input' && (call.arguments as Map)['kind'] == 'ime',
       );
       expect(ime.arguments, {
-        'schemaVersion': 3,
+        'schemaVersion': 4,
         'requestId': arguments['requestId'],
         'sequence': 1,
         'kind': 'ime',
@@ -546,7 +720,7 @@ void main() {
             'width': 640,
             'height': 480,
             'stride': 2560,
-            'schemaVersion': 3,
+            'schemaVersion': 4,
             'displayLayoutRevision': 1,
             'pixels': pixels,
           },
@@ -576,7 +750,7 @@ void main() {
         'requestId': id,
         'kind': 'frame',
         'payload': {
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'sequence': 1,
           'width': 640,
           'height': 480,
@@ -706,7 +880,7 @@ void main() {
         calls.add(call);
         if (call.method == 'open') {
           return {
-            'schemaVersion': 3,
+            'schemaVersion': 4,
             'unicodeTextInput': true,
             'relativePointer': false,
           };

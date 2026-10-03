@@ -1,10 +1,13 @@
 package com.ersingundem.larenor.rdp.packaged
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.util.Base64
+import java.util.Base64
 import com.ersingundem.larenor.rdp.RdpAuthenticatedOutputGate
 import com.ersingundem.larenor.rdp.RdpClipboardMode
 import com.ersingundem.larenor.rdp.RdpFreeRdpIdentity
@@ -19,6 +22,7 @@ import com.ersingundem.larenor.rdp.RdpNativeDisplay
 import com.ersingundem.larenor.rdp.RdpNativeFailure
 import com.ersingundem.larenor.rdp.RdpNativeFrame
 import com.ersingundem.larenor.rdp.RdpKeyboardLayout
+import com.ersingundem.larenor.rdp.RdpMicrophoneCaptureObservation
 import com.ersingundem.larenor.rdp.RdpNativeNegotiated
 import com.ersingundem.larenor.rdp.RdpNativeRequest
 import com.ersingundem.larenor.rdp.RdpRemoteAudioObservation
@@ -27,6 +31,7 @@ import com.freerdp.freerdpcore.application.GlobalApp
 import com.freerdp.freerdpcore.application.SessionState
 import com.freerdp.freerdpcore.services.LibFreeRDP
 import java.io.ByteArrayInputStream
+import java.lang.ref.WeakReference
 import java.lang.reflect.Modifier
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -45,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** Compiled only when the exact receipted FreeRDP AAR is present. */
 class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
     private val appContext = context.applicationContext
+    private val activity = WeakReference(context as? Activity)
     private val openDiagnostics = RdpPackagedOpenDiagnosticSlot()
 
     init {
@@ -57,7 +63,7 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         sourceCommit = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256 = RdpFreeRdpPackage.SOURCE_SHA256,
         abi = Build.SUPPORTED_ABIS.firstOrNull { it in RdpFreeRdpPackage.SUPPORTED_ABIS }.orEmpty(),
-        jniSchema = 3,
+        jniSchema = 4,
         enabledChannels = emptySet(),
     )
 
@@ -77,9 +83,15 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         plan: RdpNativeNegotiated,
         listener: RdpJniOperation.Listener,
     ): RdpJniOperation {
+        if (request.microphone && !microphoneAuthorized()) {
+            throw RdpNativeFailure("microphonePermissionRequired")
+        }
         val diagnostic = openDiagnostics.begin(request.requestId)
         return try {
-            FreeRdpOperation(appContext, request, plan, listener, diagnostic)
+            FreeRdpOperation(
+                appContext, request, plan, listener, diagnostic,
+                microphoneAuthorized = ::microphoneAuthorized,
+            )
         } catch (failure: LinkageError) {
             diagnostic.candidateCreateFailure()
             throw failure
@@ -96,6 +108,10 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
     internal fun consumeFailedOpenDiagnostic(
         requestId: String,
     ): RdpPackagedOpenDiagnosticSnapshot? = openDiagnostics.consumeFailed(requestId)
+
+    private fun microphoneAuthorized(): Boolean {
+        return packagedMicrophoneAuthority(activity.get())
+    }
 
     private fun requireExactSymbols() {
         if (LibFreeRDP.getVersion() != RdpFreeRdpPackage.VERSION) unavailable()
@@ -127,6 +143,24 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
             LibFreeRDP.REMOTE_AUDIO_BUFFER_COMPLETED != 3 ||
             LibFreeRDP.REMOTE_AUDIO_DEVICE_CLOSED != 4 ||
             LibFreeRDP.REMOTE_AUDIO_FAILED != 5) {
+            unavailable()
+        }
+        if (LibFreeRDP.MICROPHONE_DEVICE_OPENED != 1 ||
+            LibFreeRDP.MICROPHONE_BUFFER_CAPTURED != 2 ||
+            LibFreeRDP.MICROPHONE_BUFFER_ACCEPTED != 3 ||
+            LibFreeRDP.MICROPHONE_DEVICE_CLOSED != 4 ||
+            LibFreeRDP.MICROPHONE_FAILED != 5) {
+            unavailable()
+        }
+        val x509 = LibFreeRDP.UIEventListener::class.java.methods.filter {
+            it.name == "OnVerifyX509Certificate"
+        }
+        if (x509.size != 1 || x509.single().parameterTypes.toList() != listOf(
+                ByteArray::class.java,
+                String::class.java,
+                java.lang.Long.TYPE,
+                java.lang.Long.TYPE,
+            ) || x509.single().returnType != Integer.TYPE) {
             unavailable()
         }
     }
@@ -178,6 +212,17 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
             instance, deviceOpen, acceptedCount, completedCount, fixedState,
         )
     }
+    override fun OnMicrophoneCapture(
+        instance: Long,
+        deviceOpen: Boolean,
+        capturedCount: Long,
+        acceptedCount: Long,
+        fixedState: Int,
+    ) {
+        operations[instance]?.microphoneCapture(
+            instance, deviceOpen, capturedCount, acceptedCount, fixedState,
+        )
+    }
     override fun OnConnectionFailure(instance: Long) { operations[instance]?.failed() }
     override fun OnDisconnecting(instance: Long) = Unit
     override fun OnDisconnected(instance: Long) { operations[instance]?.disconnected() }
@@ -191,6 +236,13 @@ private interface FreeRdpConnection {
         deviceOpen: Boolean,
         acceptedCount: Long,
         completedCount: Long,
+        fixedState: Int,
+    ) = Unit
+    fun microphoneCapture(
+        instance: Long,
+        deviceOpen: Boolean,
+        capturedCount: Long,
+        acceptedCount: Long,
         fixedState: Int,
     ) = Unit
     fun failed()
@@ -275,17 +327,12 @@ private abstract class BaseConnection(
         return packagedConnectionUri(host, port, username, width, height, clipboard)
     }
 
-    protected fun pinFromPem(fingerprint: String, flags: Long): String? {
-        if (flags and LibFreeRDP.VERIFY_CERT_FLAG_FP_IS_PEM == 0L || fingerprint.length > 64 * 1024) return null
-        return try {
-            val cert = CertificateFactory.getInstance("X.509")
-                .generateCertificate(ByteArrayInputStream(fingerprint.toByteArray(StandardCharsets.US_ASCII)))
-            "SHA256:" + Base64.encodeToString(
-                MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded),
-                Base64.NO_WRAP or Base64.NO_PADDING,
-            )
-        } catch (_: Exception) { null }
+    protected fun pinFromX509Certificate(pem: ByteArray): String? {
+        return packagedSpkiPinFromX509Pem(pem)
     }
+
+    protected fun directPeer(host: String, port: Long, flags: Long): Boolean =
+        packagedDirectPeerCertificate(this.host, this.port, host, port, flags)
 }
 
 private class FreeRdpProbe(
@@ -310,33 +357,40 @@ private class FreeRdpProbe(
     }
 
     override fun OnAuthenticate(username: StringBuilder, domain: StringBuilder, password: StringBuilder) = false
-    override fun OnVerifiyCertificateEx(
-        host: String, port: Long, commonName: String, subject: String, issuer: String,
-        fingerprint: String, flags: Long,
+    override fun OnVerifyX509Certificate(
+        pem: ByteArray,
+        host: String,
+        port: Long,
+        flags: Long,
     ): Int {
-        if (host != this.host || port != this.port.toLong()) {
+        if (terminal.get()) return 0
+        if (!directPeer(host, port, flags)) {
             failProbe(RdpProbeOutcome.CERTIFICATE_PARSE_FAILED)
             return 0
         }
-        if (flags and LibFreeRDP.VERIFY_CERT_FLAG_FP_IS_PEM == 0L) {
-            failProbe(RdpProbeOutcome.CERTIFICATE_CALLBACK_MISSING_PEM)
-            return 0
-        }
-        val pin = pinFromPem(fingerprint, flags)
+        val pin = pinFromX509Certificate(pem)
         if (pin == null) {
             failProbe(RdpProbeOutcome.CERTIFICATE_PARSE_FAILED)
             return 0
         }
-        // The callback is deliberately rejected below, before credentials or
-        // a live session. These values describe the enforced client policy.
         evidence = RdpJniCertificateProbe(RdpFreeRdpPackage.TLS_PROTOCOL, true, pin)
         finished.countDown()
+        return 0
+    }
+    override fun OnVerifiyCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, flags: Long,
+    ): Int {
+        failProbe(RdpProbeOutcome.CERTIFICATE_CALLBACK_MISSING_PEM)
         return 0
     }
     override fun OnVerifyChangedCertificateEx(
         host: String, port: Long, commonName: String, subject: String, issuer: String,
         fingerprint: String, oldSubject: String, oldIssuer: String, oldFingerprint: String, flags: Long,
-    ) = OnVerifiyCertificateEx(host, port, commonName, subject, issuer, fingerprint, flags)
+    ): Int {
+        failProbe(RdpProbeOutcome.CERTIFICATE_CALLBACK_MISSING_PEM)
+        return 0
+    }
 
     override fun failed() {
         failProbe(RdpProbeOutcome.CONNECTION_FAILURE_BEFORE_CERTIFICATE)
@@ -640,6 +694,7 @@ private class FreeRdpOperation(
     private val plan: RdpNativeNegotiated,
     private var listener: RdpJniOperation.Listener?,
     private val openDiagnostic: RdpPackagedOpenDiagnosticRecorder,
+    private val microphoneAuthorized: () -> Boolean,
 ) : BaseConnection(context, request.targetHost, request.targetPort, request.username), RdpJniOperation {
     @Volatile
     override var unicodeInputSupported = false
@@ -657,12 +712,24 @@ private class FreeRdpOperation(
     private val frameDelivery = RdpFrameDeliveryGate()
     @Volatile private var initialDisplayGate: RdpInitialDisplayGate? = null
     @Volatile private var remoteAudioGate: RdpRemoteAudioGate? = null
+    @Volatile private var microphoneGate: RdpPackagedMicrophoneGate? = null
     private val audioDelivery = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "larenor-rdp-audio").apply { isDaemon = true }
     }
+    private val microphoneDelivery = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "larenor-rdp-microphone").apply { isDaemon = true }
+    }
+    private val microphoneDeliveryScheduled = AtomicBoolean(false)
+    private val microphoneDeliveryFailed = AtomicBoolean(false)
+    private val pendingMicrophoneObservation =
+        AtomicReference<RdpMicrophoneCaptureObservation?>(null)
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
         if (request.gateway != null) {
+            openDiagnostic.localSetupRejected()
+            return false
+        }
+        if (request.microphone && !microphoneAuthorized()) {
             openDiagnostic.localSetupRejected()
             return false
         }
@@ -680,9 +747,11 @@ private class FreeRdpOperation(
                 request.display.desktopScaleFactor,
                 request.display.deviceScaleFactor,
                 request.audio,
+                request.microphone,
             ))
             initialDisplayGate = RdpInitialDisplayGate(instance)
             remoteAudioGate = RdpRemoteAudioGate(instance, request.audio)
+            microphoneGate = RdpPackagedMicrophoneGate(instance, request.microphone)
             connect()
             val connected = finished.await(45, TimeUnit.SECONDS)
             if (!connected && !terminal.get()) openDiagnostic.timeout()
@@ -709,6 +778,7 @@ private class FreeRdpOperation(
     override fun connectRejected() = openDiagnostic.localSetupRejected()
 
     override fun OnAuthenticate(username: StringBuilder, domain: StringBuilder, password: StringBuilder): Boolean {
+        if (request.microphone && !microphoneAuthorized()) return false
         val secret = this.password ?: return false
         username.setLength(0); username.append(request.username)
         domain.setLength(0); domain.append(request.domain)
@@ -716,12 +786,15 @@ private class FreeRdpOperation(
         return true
     }
 
-    override fun OnVerifiyCertificateEx(
-        host: String, port: Long, commonName: String, subject: String, issuer: String,
-        fingerprint: String, flags: Long,
+    override fun OnVerifyX509Certificate(
+        pem: ByteArray,
+        host: String,
+        port: Long,
+        flags: Long,
     ): Int {
-        if (host != request.targetHost || port != request.targetPort.toLong()) return 0
-        val pin = pinFromPem(fingerprint, flags) ?: return 0
+        if (terminal.get() || request.microphone && !microphoneAuthorized()) return 0
+        if (!directPeer(host, port, flags)) return 0
+        val pin = pinFromX509Certificate(pem) ?: return 0
         // This callback precedes CredSSP authentication. Keep only the accepted
         // pin here; OnConnectionSuccess is the authority for a live session.
         return if (securityGate.certificate(pin)) {
@@ -732,13 +805,24 @@ private class FreeRdpOperation(
         }
     }
 
+    override fun OnVerifiyCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, flags: Long,
+    ): Int {
+        return 0
+    }
+
     override fun OnVerifyChangedCertificateEx(
         host: String, port: Long, commonName: String, subject: String, issuer: String,
         fingerprint: String, oldSubject: String, oldIssuer: String, oldFingerprint: String, flags: Long,
-    ) = OnVerifiyCertificateEx(host, port, commonName, subject, issuer, fingerprint, flags)
+    ) = 0
 
     override fun connected() {
         if (terminal.get()) return
+        if (request.microphone && !microphoneAuthorized()) {
+            failLocally()
+            return
+        }
         val evidence = securityGate.connectionSucceeded() ?: return
         openDiagnostic.authenticatedConnectionSucceeded()
         val unicode = runCatching {
@@ -754,6 +838,10 @@ private class FreeRdpOperation(
     }
 
     override fun displayControlReady(instance: Long) {
+        if (request.microphone && !microphoneAuthorized()) {
+            failLocally()
+            return
+        }
         if (!terminal.get() && instance == this.instance) openDiagnostic.displayCapsObserved()
         applyInitialDisplay(initialDisplayGate?.peerCaps(instance))
     }
@@ -774,6 +862,27 @@ private class FreeRdpOperation(
         }
     }
 
+    override fun microphoneCapture(
+        instance: Long,
+        deviceOpen: Boolean,
+        capturedCount: Long,
+        acceptedCount: Long,
+        fixedState: Int,
+    ) {
+        if (request.microphone && !microphoneAuthorized()) {
+            dispatchMicrophoneFailure()
+            return
+        }
+        when (val update = microphoneGate?.observe(
+            instance, deviceOpen, capturedCount, acceptedCount, fixedState,
+        ) ?: RdpPackagedMicrophoneGate.Update.Ignored) {
+            RdpPackagedMicrophoneGate.Update.Ignored -> Unit
+            RdpPackagedMicrophoneGate.Update.Invalid -> dispatchMicrophoneFailure()
+            is RdpPackagedMicrophoneGate.Update.Accepted ->
+                dispatchMicrophone(update.observation)
+        }
+    }
+
     private fun dispatchAudio(observation: RdpRemoteAudioObservation) {
         runCatching {
             audioDelivery.execute {
@@ -787,6 +896,42 @@ private class FreeRdpOperation(
             audioDelivery.execute {
                 if (!terminal.get()) failLocally()
             }
+        }
+    }
+
+    private fun dispatchMicrophone(observation: RdpMicrophoneCaptureObservation) {
+        pendingMicrophoneObservation.set(observation)
+        scheduleMicrophoneDelivery()
+    }
+
+    private fun dispatchMicrophoneFailure() {
+        microphoneDeliveryFailed.set(true)
+        scheduleMicrophoneDelivery()
+    }
+
+    private fun scheduleMicrophoneDelivery() {
+        if (!microphoneDeliveryScheduled.compareAndSet(false, true)) return
+        try {
+            microphoneDelivery.execute {
+                try {
+                    while (!terminal.get()) {
+                        if (microphoneDeliveryFailed.getAndSet(false)) {
+                            failLocally()
+                            break
+                        }
+                        val observation = pendingMicrophoneObservation.getAndSet(null) ?: break
+                        listener?.onMicrophoneCapture(observation)
+                    }
+                } finally {
+                    microphoneDeliveryScheduled.set(false)
+                    if (!terminal.get() &&
+                        (microphoneDeliveryFailed.get() || pendingMicrophoneObservation.get() != null)) {
+                        scheduleMicrophoneDelivery()
+                    }
+                }
+            }
+        } catch (_: RuntimeException) {
+            microphoneDeliveryScheduled.set(false)
         }
     }
 
@@ -815,6 +960,10 @@ private class FreeRdpOperation(
 
     @Synchronized private fun publishInitialDisplay(evidence: RdpJniSecurity) {
         if (terminal.get()) return
+        if (request.microphone && !microphoneAuthorized()) {
+            failLocally()
+            return
+        }
         val consumer = listener ?: return
         consumer.onSecurity(evidence)
         // The consumer may retire the operation while handling security.
@@ -973,10 +1122,13 @@ private class FreeRdpOperation(
         openDiagnostic.retired()
         initialDisplayGate?.retire()
         remoteAudioGate?.retire()
+        microphoneGate?.retire()
         securityGate.close()
         frameDelivery.close()
         listener = null
         audioDelivery.shutdownNow()
+        microphoneDelivery.shutdownNow()
+        pendingMicrophoneObservation.set(null)
         bitmap?.recycle(); bitmap = null
         password?.fill('\u0000'); gatewayPassword?.fill('\u0000')
         super.close()
@@ -1035,6 +1187,10 @@ private const val PTR_BUTTON2 = 0x2000
 private const val PTR_BUTTON3 = 0x4000
 private const val PTR_WHEEL = 0x0200
 private const val PTR_WHEEL_NEGATIVE = 0x0100
+private const val MAX_X509_PEM_BYTES = 64 * 1024
+private const val X509_PEM_BEGIN = "-----BEGIN CERTIFICATE-----"
+private const val X509_PEM_END = "-----END CERTIFICATE-----"
+private const val CERTIFICATE_KIND_GATEWAY = 0x20L
 private val POINTER_BUTTON_FLAGS = listOf(
     1 to PTR_BUTTON1,
     2 to PTR_BUTTON3,
@@ -1091,6 +1247,41 @@ internal fun strictUtf16Units(value: String): IntArray {
     return result
 }
 
+internal fun packagedSpkiPinFromX509Pem(pem: ByteArray): String? {
+    if (pem.isEmpty() || pem.size > MAX_X509_PEM_BYTES || pem.any {
+            val value = it.toInt() and 0xff
+            value !in 0x20..0x7e && value !in setOf(0x09, 0x0a, 0x0d)
+        }) return null
+    val encoded = String(pem, StandardCharsets.US_ASCII)
+    if (!encoded.startsWith(X509_PEM_BEGIN) ||
+        !encoded.trimEnd().endsWith(X509_PEM_END) ||
+        encoded.indexOf(X509_PEM_BEGIN, X509_PEM_BEGIN.length) >= 0 ||
+        encoded.indexOf(X509_PEM_END) != encoded.lastIndexOf(X509_PEM_END)) return null
+    return try {
+        val input = ByteArrayInputStream(pem)
+        val cert = CertificateFactory.getInstance("X.509").generateCertificate(input)
+        if (input.readBytes().any { !it.toInt().toChar().isWhitespace() }) return null
+        "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(
+            MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded),
+        )
+    } catch (_: Exception) {
+        null
+    }
+}
+
+internal fun packagedDirectPeerCertificate(
+    expectedHost: String,
+    expectedPort: Int,
+    observedHost: String,
+    observedPort: Long,
+    flags: Long,
+): Boolean = observedHost == expectedHost && observedPort == expectedPort.toLong() &&
+    flags and CERTIFICATE_KIND_GATEWAY == 0L
+
+internal fun packagedMicrophoneAuthority(activity: Activity?): Boolean = activity != null &&
+    !activity.isFinishing && !activity.isDestroyed && activity.hasWindowFocus() &&
+    activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
 private fun unavailable(): Nothing = throw RdpNativeFailure("engineUnavailable")
 
 /**
@@ -1113,6 +1304,7 @@ internal fun packagedConnectionUri(
     desktopScaleFactor: Int = 100,
     deviceScaleFactor: Int = 100,
     audio: Boolean = false,
+    microphone: Boolean = false,
 ): Uri {
     val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
     return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
@@ -1127,6 +1319,7 @@ internal fun packagedConnectionUri(
         .appendQueryParameter("audio-mode", if (audio) "0" else "2")
         .apply {
             if (audio) appendQueryParameter("sound", "sys:opensles")
+            if (microphone) appendQueryParameter("microphone", "sys:opensles")
         }
         .appendQueryParameter("kbd", when (keyboardLayout) {
             RdpKeyboardLayout.AUTOMATIC -> "unicode:on"

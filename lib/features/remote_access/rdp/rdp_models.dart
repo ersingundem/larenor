@@ -68,6 +68,91 @@ enum RdpEngineAvailability { unavailable, available }
 
 enum RdpAudioState { pending, deviceOpen, playing, closed, failed }
 
+enum RdpMicrophoneState { pending, opened, captured, sent, closed, failed }
+
+/// Finite observations from this session's microphone channel. A captured
+/// buffer is local device activity; only [acceptedCount] records successful
+/// submission to the RDP channel. Neither counter proves a remote effect.
+class RdpMicrophoneObservation {
+  const RdpMicrophoneObservation._({
+    required this.state,
+    required this.deviceOpen,
+    required this.capturedCount,
+    required this.acceptedCount,
+  });
+
+  final RdpMicrophoneState state;
+  final bool deviceOpen;
+  final int capturedCount, acceptedCount;
+  bool get hasSubmittedAudio => acceptedCount > 0;
+
+  factory RdpMicrophoneObservation.fromJson(
+    Object? raw, {
+    required String requestId,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'requestId',
+      'state',
+      'deviceOpen',
+      'capturedCount',
+      'acceptedCount',
+    });
+    if (value['schemaVersion'] != 4 || value['requestId'] != requestId) {
+      _invalid();
+    }
+    final state = RdpMicrophoneState.values
+        .where((candidate) => candidate.name == value['state'])
+        .firstOrNull;
+    if (state == null) _invalid();
+    final deviceOpen = _bool(value, 'deviceOpen');
+    final captured = _integer(value, 'capturedCount', max: 9007199254740991);
+    final accepted = _integer(value, 'acceptedCount', max: captured);
+    if (deviceOpen !=
+            (state == RdpMicrophoneState.opened ||
+                state == RdpMicrophoneState.captured ||
+                state == RdpMicrophoneState.sent) ||
+        state == RdpMicrophoneState.pending &&
+            (captured != 0 || accepted != 0) ||
+        state == RdpMicrophoneState.opened &&
+            (captured != 0 || accepted != 0) ||
+        state == RdpMicrophoneState.captured && captured == 0 ||
+        state == RdpMicrophoneState.sent && accepted == 0) {
+      _invalid();
+    }
+    return RdpMicrophoneObservation._(
+      state: state,
+      deviceOpen: deviceOpen,
+      capturedCount: captured,
+      acceptedCount: accepted,
+    );
+  }
+
+  bool follows(RdpMicrophoneObservation previous) =>
+      capturedCount >= previous.capturedCount &&
+      acceptedCount >= previous.acceptedCount &&
+      (previous.state != RdpMicrophoneState.closed ||
+          state == RdpMicrophoneState.closed) &&
+      (previous.state != RdpMicrophoneState.failed ||
+          state == RdpMicrophoneState.failed) &&
+      (state != RdpMicrophoneState.pending ||
+          previous.state == RdpMicrophoneState.pending) &&
+      (state != RdpMicrophoneState.opened ||
+          previous.state == RdpMicrophoneState.pending ||
+          previous.state == RdpMicrophoneState.opened);
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpMicrophoneObservation &&
+      state == other.state &&
+      deviceOpen == other.deviceOpen &&
+      capturedCount == other.capturedCount &&
+      acceptedCount == other.acceptedCount;
+  @override
+  int get hashCode =>
+      Object.hash(state, deviceOpen, capturedCount, acceptedCount);
+}
+
 /// Finite counters from this session's native audio device. A server wave
 /// confirmation or an accepted buffer alone does not prove playback.
 class RdpAudioObservation {
@@ -94,7 +179,7 @@ class RdpAudioObservation {
       'acceptedCount',
       'completedCount',
     });
-    if (value['schemaVersion'] != 3 || value['requestId'] != requestId) {
+    if (value['schemaVersion'] != 4 || value['requestId'] != requestId) {
       _invalid();
     }
     final state = RdpAudioState.values
@@ -161,6 +246,7 @@ class RdpCapabilities {
     required this.supportsClipboard,
     required this.supportedClipboardModes,
     required this.supportsAudio,
+    required this.supportsMicrophone,
     required this.supportsFiles,
   });
 
@@ -178,7 +264,10 @@ class RdpCapabilities {
       supportsVerticalWheel,
       supportsKeyboard,
       supportsIme;
-  final bool supportsClipboard, supportsAudio, supportsFiles;
+  final bool supportsClipboard,
+      supportsAudio,
+      supportsMicrophone,
+      supportsFiles;
   final Set<RdpClipboardMode> supportedClipboardModes;
 
   bool get canConnect =>
@@ -207,7 +296,7 @@ class RdpCapabilities {
       'input',
       'channels',
     });
-    if (value['schemaVersion'] != 3) _invalid();
+    if (value['schemaVersion'] != 4) _invalid();
     final availability = switch (value['availability']) {
       'available' => RdpEngineAvailability.available,
       'unavailable' => RdpEngineAvailability.unavailable,
@@ -246,6 +335,7 @@ class RdpCapabilities {
       'clipboard',
       'clipboardModes',
       'audio',
+      'microphone',
       'files',
     });
     final clipboard = _bool(channels, 'clipboard');
@@ -312,6 +402,7 @@ class RdpCapabilities {
       supportsClipboard: clipboard,
       supportedClipboardModes: Set.unmodifiable(modes),
       supportsAudio: _bool(channels, 'audio'),
+      supportsMicrophone: _bool(channels, 'microphone'),
       supportsFiles: _bool(channels, 'files'),
     );
     if (availability == RdpEngineAvailability.unavailable &&
@@ -335,6 +426,7 @@ class RdpCapabilities {
             result.supportsClipboard ||
             modes.isNotEmpty ||
             result.supportsAudio ||
+            result.supportsMicrophone ||
             result.supportsFiles)) {
       _invalid();
     }
@@ -492,6 +584,7 @@ class RdpProfileSettings {
     this.displayMode = RdpDisplayMode.fitWindow,
     this.keyboardLayout = RdpKeyboardLayout.automatic,
     this.clipboardMode = RdpClipboardMode.disabled,
+    this.microphone = false,
   });
 
   final String domain;
@@ -501,11 +594,13 @@ class RdpProfileSettings {
   final RdpDisplayMode displayMode;
   final RdpKeyboardLayout keyboardLayout;
   final RdpClipboardMode clipboardMode;
+  final bool microphone;
 
   RdpProfileSettings copyWith({
     RdpDisplayMode? displayMode,
     RdpKeyboardLayout? keyboardLayout,
     RdpClipboardMode? clipboardMode,
+    bool? microphone,
   }) => RdpProfileSettings(
     domain: domain,
     gatewayHost: gatewayHost,
@@ -514,6 +609,7 @@ class RdpProfileSettings {
     displayMode: displayMode ?? this.displayMode,
     keyboardLayout: keyboardLayout ?? this.keyboardLayout,
     clipboardMode: clipboardMode ?? this.clipboardMode,
+    microphone: microphone ?? this.microphone,
   );
 
   static bool _safeText(String value, int max) =>
@@ -551,7 +647,7 @@ class RdpProfileSettings {
   Map<String, Object?> toJson() {
     validate();
     return {
-      'version': 1,
+      'version': 2,
       'domain': domain,
       'gatewayHost': gatewayHost,
       'gatewayPort': gatewayPort,
@@ -559,11 +655,16 @@ class RdpProfileSettings {
       'displayMode': displayMode.name,
       'keyboardLayout': keyboardLayout.name,
       'clipboardMode': clipboardMode.name,
+      'microphone': microphone,
     };
   }
 
   factory RdpProfileSettings.fromJson(Object? raw) {
-    final value = _object(raw, {
+    if (raw is! Map || raw['version'] is! int) {
+      _invalid('invalid_settings');
+    }
+    final version = raw['version'] as int;
+    final keys = {
       'version',
       'domain',
       'gatewayHost',
@@ -572,12 +673,15 @@ class RdpProfileSettings {
       'displayMode',
       'keyboardLayout',
       'clipboardMode',
-    });
-    if (value['version'] != 1 ||
-        value['domain'] is! String ||
+      if (version == 2) 'microphone',
+    };
+    if (version != 1 && version != 2) _invalid('invalid_settings');
+    final value = _object(raw, keys);
+    if (value['domain'] is! String ||
         value['gatewayHost'] != null && value['gatewayHost'] is! String ||
         value['gatewayPort'] is! int ||
-        value['gatewayUsername'] is! String) {
+        value['gatewayUsername'] is! String ||
+        version == 2 && value['microphone'] is! bool) {
       _invalid('invalid_settings');
     }
     T parse<T extends Enum>(Object? raw, List<T> values) {
@@ -602,6 +706,7 @@ class RdpProfileSettings {
       displayMode: parseDisplayMode(value['displayMode']),
       keyboardLayout: parse(value['keyboardLayout'], RdpKeyboardLayout.values),
       clipboardMode: parse(value['clipboardMode'], RdpClipboardMode.values),
+      microphone: version == 2 ? value['microphone'] as bool : false,
     );
     result.validate();
     return result;
@@ -616,7 +721,8 @@ class RdpProfileSettings {
       gatewayUsername == other.gatewayUsername &&
       displayMode == other.displayMode &&
       keyboardLayout == other.keyboardLayout &&
-      clipboardMode == other.clipboardMode;
+      clipboardMode == other.clipboardMode &&
+      microphone == other.microphone;
 
   @override
   int get hashCode => Object.hash(
@@ -627,6 +733,7 @@ class RdpProfileSettings {
     displayMode,
     keyboardLayout,
     clipboardMode,
+    microphone,
   );
 }
 
@@ -661,10 +768,11 @@ class RdpChannelPolicy {
   const RdpChannelPolicy({
     this.clipboard = false,
     this.audio = false,
+    this.microphone = false,
     this.files = false,
   });
   static const lockedDown = RdpChannelPolicy();
-  final bool clipboard, audio, files;
+  final bool clipboard, audio, microphone, files;
 }
 
 class RdpSessionRequest {
@@ -698,6 +806,8 @@ class RdpSessionRequest {
                   settings.clipboardMode,
                 ))) ||
         (channels.audio && !capabilities.supportsAudio) ||
+        channels.microphone != settings.microphone ||
+        (channels.microphone && !capabilities.supportsMicrophone) ||
         (channels.files && !capabilities.supportsFiles)) {
       _invalid('unsupported_request');
     }

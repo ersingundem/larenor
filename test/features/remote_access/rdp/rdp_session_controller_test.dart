@@ -48,7 +48,8 @@ class Channel
     implements
         RdpFrameChannel,
         RdpNegotiatedInputChannel,
-        RdpAudioPlaybackChannel {
+        RdpAudioPlaybackChannel,
+        RdpMicrophoneCaptureChannel {
   Channel({this.supportsUnicodeInput = true});
   @override
   final bool supportsUnicodeInput;
@@ -59,12 +60,28 @@ class Channel
     audioReads++;
     return audioReply?.future ??
         RdpAudioObservation.fromJson({
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'requestId': 'fixture',
           'state': 'pending',
           'deviceOpen': false,
           'acceptedCount': 0,
           'completedCount': 0,
+        }, requestId: 'fixture');
+  }
+
+  int microphoneReads = 0;
+  Completer<RdpMicrophoneObservation>? microphoneReply;
+  @override
+  Future<RdpMicrophoneObservation> microphoneObservation() async {
+    microphoneReads++;
+    return microphoneReply?.future ??
+        RdpMicrophoneObservation.fromJson({
+          'schemaVersion': 4,
+          'requestId': 'fixture',
+          'state': 'pending',
+          'deviceOpen': false,
+          'capturedCount': 0,
+          'acceptedCount': 0,
         }, requestId: 'fixture');
   }
 
@@ -112,21 +129,27 @@ class Channel
   }
 }
 
-class Engine implements RdpEngine {
+class Engine implements RdpMicrophonePermissionEngine {
   Engine({
     this.available = true,
     this.supportsNla = true,
     this.clientRequiresNla = true,
     this.supportsClipboard = false,
     this.supportsAudio = false,
+    this.supportsMicrophone = false,
+    this.microphonePermissionGranted = true,
     this.negotiatedUnicodeInput = true,
   });
   final bool available, supportsNla, clientRequiresNla;
   final bool supportsClipboard;
   final bool supportsAudio;
+  final bool supportsMicrophone;
+  bool microphonePermissionGranted;
   final bool negotiatedUnicodeInput;
   late final channel = Channel(supportsUnicodeInput: negotiatedUnicodeInput);
   int inspections = 0, opens = 0, closes = 0;
+  int microphonePermissionRequests = 0, microphonePermissionCancels = 0;
+  Completer<bool>? microphonePermissionReply;
   String? passwordSeen;
   RdpSessionRequest? lastRequest;
   Completer<RdpCertificateProbe>? delayed;
@@ -150,6 +173,7 @@ class Engine implements RdpEngine {
                   : raw['channels'])
               as Map,
           'audio': supportsAudio,
+          'microphone': supportsMicrophone,
         },
     });
   }
@@ -185,6 +209,21 @@ class Engine implements RdpEngine {
 
   @override
   void close() => closes++;
+
+  @override
+  Future<bool> requestMicrophonePermission({
+    required bool Function() isCurrent,
+  }) async {
+    microphonePermissionRequests++;
+    final result =
+        await (microphonePermissionReply?.future ??
+            Future.value(microphonePermissionGranted));
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return result;
+  }
+
+  @override
+  void cancelMicrophonePermission() => microphonePermissionCancels++;
 }
 
 RdpSessionController controller(
@@ -292,7 +331,7 @@ void main() {
       expect(clock.nonPeriodicTimerCount, 0);
       reply.complete(
         RdpAudioObservation.fromJson({
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'requestId': 'fixture',
           'state': 'playing',
           'deviceOpen': true,
@@ -316,6 +355,138 @@ void main() {
     isCurrent: current ?? () => true,
     display: const RdpDisplaySpec(width: 640, height: 480),
     remoteAudio: enabled,
+  );
+
+  RdpSessionController microphoneController(
+    Engine engine, {
+    bool Function()? current,
+    bool Function()? interactive,
+    Vault? vault,
+  }) => RdpSessionController(
+    profile: profile,
+    trust: Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
+    credentialVault:
+        vault ?? (Vault()..value = const RdpCredential(password: 'one-time')),
+    engineFactory: () => engine,
+    isCurrent: current ?? () => true,
+    isInteractive: interactive,
+    display: const RdpDisplaySpec(width: 640, height: 480),
+    settings: const RdpProfileSettings(microphone: true),
+  );
+
+  test('microphone is explicit, denied before inspect, and default off does no request', () async {
+    final deniedEngine = Engine(
+      supportsMicrophone: true,
+      microphonePermissionGranted: false,
+    );
+    final denied = microphoneController(deniedEngine);
+    await denied.connect();
+    expect(denied.error, 'microphone_permission_denied');
+    expect(deniedEngine.microphonePermissionRequests, 1);
+    expect(deniedEngine.inspections, 0);
+    expect(deniedEngine.opens, 0);
+    denied.dispose();
+
+    final offEngine = Engine(supportsMicrophone: true);
+    final off = controller(
+      offEngine,
+      Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
+      () => true,
+    );
+    await connectWithPassword(off);
+    expect(offEngine.microphonePermissionRequests, 0);
+    expect(offEngine.lastRequest!.channels.microphone, isFalse);
+    expect(offEngine.channel.microphoneReads, 0);
+    off.dispose();
+  });
+
+  test(
+    'permission focus loss waits for exact owner focus before native open',
+    () async {
+      var current = true, interactive = true;
+      final engine = Engine(supportsMicrophone: true);
+      final permission = engine.microphonePermissionReply = Completer<bool>();
+      final c = microphoneController(
+        engine,
+        current: () => current,
+        interactive: () => interactive,
+      );
+      final opening = c.connect();
+      await flush();
+      expect(c.microphonePermissionPending, isTrue);
+      expect(engine.inspections, 0);
+      interactive = false;
+      permission.complete(true);
+      await flush();
+      expect(c.microphonePermissionPending, isTrue);
+      expect(engine.inspections, 0);
+      interactive = true;
+      c.resumeMicrophonePermission();
+      await opening;
+      expect(c.phase, RdpSessionPhase.connected);
+      expect(engine.inspections, 1);
+      expect(engine.opens, 1);
+      expect(engine.lastRequest!.channels.microphone, isTrue);
+      expect(engine.channel.microphoneReads, 1);
+      current = false;
+      c.synchronize();
+      expect(c.phase, RdpSessionPhase.closed);
+      c.dispose();
+    },
+  );
+
+  test(
+    'retirement cancels permission and stale grant cannot open a successor',
+    () async {
+      var current = true;
+      final engine = Engine(supportsMicrophone: true);
+      final permission = engine.microphonePermissionReply = Completer<bool>();
+      final c = microphoneController(engine, current: () => current);
+      unawaited(c.connect());
+      await flush();
+      current = false;
+      c.synchronize();
+      permission.complete(true);
+      await flush();
+      expect(c.phase, RdpSessionPhase.closed);
+      expect(engine.opens, 0);
+      expect(engine.microphonePermissionCancels, greaterThanOrEqualTo(1));
+      expect(c.microphoneObservation, isNull);
+      c.dispose();
+    },
+  );
+
+  test(
+    'microphone observation is bounded and late result cannot revive dispose',
+    () {
+      fakeAsync((clock) {
+        final engine = Engine(supportsMicrophone: true);
+        final reply = engine.channel.microphoneReply =
+            Completer<RdpMicrophoneObservation>();
+        final c = microphoneController(engine);
+        unawaited(c.connect());
+        clock.flushMicrotasks();
+        expect(c.phase, RdpSessionPhase.connected);
+        expect(engine.channel.microphoneReads, 1);
+        expect(clock.nonPeriodicTimerCount, 1);
+        c.dispose();
+        clock.flushMicrotasks();
+        expect(clock.nonPeriodicTimerCount, 0);
+        reply.complete(
+          RdpMicrophoneObservation.fromJson({
+            'schemaVersion': 4,
+            'requestId': 'fixture',
+            'state': 'sent',
+            'deviceOpen': true,
+            'capturedCount': 1,
+            'acceptedCount': 1,
+          }, requestId: 'fixture'),
+        );
+        clock.flushMicrotasks();
+        expect(c.microphoneObservation, isNull);
+        expect(clock.nonPeriodicTimerCount, 0);
+      });
+    },
   );
 
   test(
@@ -352,7 +523,7 @@ void main() {
       current = false;
       pending.complete(
         RdpAudioObservation.fromJson({
-          'schemaVersion': 3,
+          'schemaVersion': 4,
           'requestId': 'fixture',
           'state': 'playing',
           'deviceOpen': true,

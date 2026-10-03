@@ -32,6 +32,9 @@ void main() {
       expect(value.gatewayPort, 443);
       expect(value.keyboardLayout, RdpKeyboardLayout.turkishQ);
       expect(value.clipboardMode, RdpClipboardMode.clientToRemote);
+      expect(value.microphone, isFalse);
+      expect(value.toJson()['version'], 2);
+      expect(value.toJson()['microphone'], isFalse);
       expect(value.toJson(), isNot(contains('password')));
       expect(
         () => RdpProfileSettings.fromJson({
@@ -49,6 +52,32 @@ void main() {
       );
     },
   );
+
+  test('v2 settings persist explicit microphone opt-in strictly', () {
+    final value = RdpProfileSettings.fromJson(const {
+      'version': 2,
+      'domain': '',
+      'gatewayHost': null,
+      'gatewayPort': 443,
+      'gatewayUsername': '',
+      'displayMode': 'fitWindow',
+      'keyboardLayout': 'automatic',
+      'clipboardMode': 'disabled',
+      'microphone': true,
+    });
+    expect(value.microphone, isTrue);
+    expect(value.toJson()['microphone'], isTrue);
+    for (final raw in [
+      {...value.toJson()}..remove('microphone'),
+      {...value.toJson(), 'microphone': 1},
+      {...value.toJson(), 'future': false},
+    ]) {
+      expect(
+        () => RdpProfileSettings.fromJson(raw),
+        throwsA(isA<RdpFailure>()),
+      );
+    }
+  });
 
   test('legacy unimplemented fixed display migrates to truthful fit', () {
     final legacy = RdpProfileSettings.fromJson(const {

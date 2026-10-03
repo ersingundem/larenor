@@ -34,13 +34,23 @@ REQUIRED_FREERDP_API = (
 REQUIRED_EVENT_LISTENER_API = (
     ("OnDisplayControlReady", "(J)V"),
     ("OnRemoteAudioPlayback", "(JZJJI)V"),
+    ("OnMicrophoneCapture", "(JZJJI)V"),
 )
+REQUIRED_AUDIN_NATIVE_EVIDENCE = "opensles_freerdp_audin_client_subsystem_entry"
 REQUIRED_REMOTE_AUDIO_CONSTANTS = {
     "REMOTE_AUDIO_DEVICE_OPENED": 1,
     "REMOTE_AUDIO_BUFFER_ACCEPTED": 2,
     "REMOTE_AUDIO_BUFFER_COMPLETED": 3,
     "REMOTE_AUDIO_DEVICE_CLOSED": 4,
     "REMOTE_AUDIO_FAILED": 5,
+}
+
+REQUIRED_MICROPHONE_CONSTANTS = {
+    "MICROPHONE_DEVICE_OPENED": 1,
+    "MICROPHONE_BUFFER_CAPTURED": 2,
+    "MICROPHONE_BUFFER_ACCEPTED": 3,
+    "MICROPHONE_DEVICE_CLOSED": 4,
+    "MICROPHONE_FAILED": 5,
 }
 
 
@@ -78,7 +88,7 @@ def load_lock(path=LOCK_PATH):
         "requiredLibraries", "requiredClasses", "requiredJniSymbols",
         "requiredNativeEvidence",
     }, "invalid_lock")
-    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 3,
+    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 4,
              "invalid_lock")
     source = value["source"]
     _require(set(source) == {"version", "commit", "url", "sha256"},
@@ -91,7 +101,7 @@ def load_lock(path=LOCK_PATH):
         "freerdp-3.31.1.tar.gz"
     ), "invalid_lock")
     reviewed = value["reviewedFiles"]
-    _require(type(reviewed) is dict and len(reviewed) == 16 and
+    _require(type(reviewed) is dict and len(reviewed) == 22 and
              all(type(name) is str and HEX40.fullmatch(digest or "")
                  for name, digest in reviewed.items()), "invalid_lock")
     patches = value["patches"]
@@ -113,12 +123,20 @@ def load_lock(path=LOCK_PATH):
                 "path": "android/freerdp-remote-audio-v3.patch",
                 "sha256": _sha256(ROOT / "android/freerdp-remote-audio-v3.patch"),
             },
+            {
+                "path": "android/freerdp-always-pin-v4.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-always-pin-v4.patch"),
+            },
+            {
+                "path": "android/freerdp-microphone-v4.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-microphone-v4.patch"),
+            },
         ]
     except OSError as error:
         raise PackageError("invalid_lock") from error
     _require(
         type(patches) is list
-        and len(patches) == 4
+        and len(patches) == 6
         and patches == expected_patches,
         "invalid_lock",
     )
@@ -162,6 +180,8 @@ def load_lock(path=LOCK_PATH):
             ),
             "OnDisplayControlReady",
             "OnRemoteAudioPlayback",
+            "OnVerifyX509Certificate",
+            "OnMicrophoneCapture",
         ],
         "invalid_lock",
     )
@@ -557,6 +577,66 @@ def verify_remote_audio_patch(source_root):
         "invalid_remote_audio_patch",
     )
 
+def verify_always_pin_patch(source):
+    try:
+        tls = (source / "libfreerdp/crypto/tls.c").read_text(encoding="utf-8")
+        native = (source / "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c").read_text(encoding="utf-8")
+        java = (source / "client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java").read_text(encoding="utf-8")
+    except OSError as error:
+        raise PackageError("invalid_always_pin_patch") from error
+    _require(
+        "!settings->ExternalCertificateManagement && is_accepted(tls, cert)" in tls
+        and "!settings->ExternalCertificateManagement &&\n\t    is_accepted_fingerprint" in tls
+        and "FreeRDP_ExternalCertificateManagement, TRUE" in native
+        and native.count("instance->VerifyX509Certificate = android_verify_x509_certificate;") == 1
+        and native.count('"OnVerifyX509Certificate", "(J[BLjava/lang/String;JJ)I"') == 1
+        and "return res > 0 ? 1 : 0;" in native
+        and java.count("private static int OnVerifyX509Certificate(") == 1
+        and java.count("default int OnVerifyX509Certificate(byte[] pem, String host, long port, long flags)") == 1
+        and "return 0;" in java,
+        "invalid_always_pin_patch",
+    )
+
+
+def verify_microphone_patch(source):
+    base = source / "client/Android/Studio/freeRDPCore/src/main"
+    paths = {
+        "java": base / "java/com/freerdp/freerdpcore/services/LibFreeRDP.java",
+        "native": base / "cpp/android_freerdp.c",
+        "event": source / "include/freerdp/event.h",
+        "audin_h": source / "include/freerdp/client/audin.h",
+        "main": source / "channels/audin/client/audin_main.c",
+        "plugin": source / "channels/audin/client/opensles/audin_opensl_es.c",
+        "io": source / "channels/audin/client/opensles/opensl_io.c",
+    }
+    try:
+        value = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
+    except OSError as error:
+        raise PackageError("invalid_microphone_patch") from error
+    java, native, event = value["java"], value["native"], value["event"]
+    plugin, io, main = value["plugin"], value["io"], value["main"]
+    _require(
+        all(java.count(f"public static final int {name} = {number};") == 1 for name, number in REQUIRED_MICROPHONE_CONSTANTS.items())
+        and java.count("private static void OnMicrophoneCapture(") == 1
+        and java.count("default void OnMicrophoneCapture(long instance, boolean deviceOpen,") == 1
+        and "DEFINE_EVENT_BEGIN(MicrophoneCapture)" in event
+        and "UINT64 capturedCount;" in event and "UINT64 acceptedCount;" in event
+        and "UINT (*DataSent)(IAudinDevice* devplugin);" in value["audin_h"]
+        and main.find("audin_channel_write_and_free(callback, audin->data, FALSE)") < main.find("audin->device->DataSent")
+        and "size == 0 || audin_opensles_observe(opensles, LARENOR_MICROPHONE_CAPTURED)" in plugin
+        and "opensles->acceptedCount >= opensles->capturedCount" in plugin
+        and "LARENOR_JS_SAFE_COUNTER_MAX 9007199254740991ull" in plugin
+        and "SecureZeroMemory(e->data, e->size)" in io
+        and "LARENOR_AUDIN_MAX_BUFFER_BYTES" in io
+        and "p->buffersize * p->inchannels * bytesPerSample" in io
+        and io.find("p->closing = TRUE;") < io.find("SL_RECORDSTATE_STOPPED") < io.find("->Clear(") < io.find("openSLDestroyEngine(p)") < io.find("WaitForSingleObject(p->callbacksIdleEvent, 5000)")
+        and "PubSub_SubscribeMicrophoneCapture" in native
+        and "PubSub_UnsubscribeMicrophoneCapture" in native
+        and native.count('freerdp_callback("OnMicrophoneCapture", "(JZJJI)V"') == 1,
+        "invalid_microphone_patch",
+    )
+
+
 class _ClassReader:
     def __init__(self, data):
         self.data = data
@@ -717,9 +797,9 @@ def _verify_event_listener_api(data):
         )
 
 
-def _verify_remote_audio_constants(data):
+def _verify_fixed_constants(data, constants):
     _methods, fields = _class_contract(data)
-    for name, value in REQUIRED_REMOTE_AUDIO_CONSTANTS.items():
+    for name, value in constants.items():
         matching = [
             (access, constant)
             for field, descriptor, access, constant in fields
@@ -746,7 +826,8 @@ def package_receipt(aar, abi, lock):
                 _require(all(name in class_names for name in lock["requiredClasses"]),
                          "missing_java_contract")
                 _verify_freerdp_api(jar.read(FREERDP_CLASS))
-                _verify_remote_audio_constants(jar.read(FREERDP_CLASS))
+                _verify_fixed_constants(jar.read(FREERDP_CLASS), REQUIRED_REMOTE_AUDIO_CONSTANTS)
+                _verify_fixed_constants(jar.read(FREERDP_CLASS), REQUIRED_MICROPHONE_CONSTANTS)
                 _verify_event_listener_api(jar.read(EVENT_LISTENER_CLASS))
             native = [name for name in names if name.startswith("jni/") and
                       name.endswith(".so")]
@@ -765,6 +846,9 @@ def package_receipt(aar, abi, lock):
                     "sha256": hashlib.sha256(data).hexdigest(),
                 })
             primary = bundle.read(by_name["libfreerdp-android.so"])
+            audin_library = bundle.read(by_name["libfreerdp-client3.so"])
+            _require(REQUIRED_AUDIN_NATIVE_EVIDENCE.encode() in audin_library,
+                     "missing_audin_evidence")
             _require(all(symbol.encode() in primary for symbol in lock["requiredJniSymbols"]),
                      "missing_jni_symbol")
             _require(
@@ -894,6 +978,8 @@ def main(argv=None):
             verify_clipboard_patch(native)
             verify_display_pointer_patch(args.source)
             verify_remote_audio_patch(args.source)
+            verify_always_pin_patch(args.source)
+            verify_microphone_patch(args.source)
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")

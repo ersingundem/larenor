@@ -28,6 +28,8 @@ else:
 ROOT = Path(__file__).resolve().parents[1]
 PATCH_PATH = ROOT / "tool/patches/f62-owned-shadow-channels.patch"
 AUDIO_PATCH_PATH = ROOT / "tool/patches/f62-owned-shadow-audio.patch"
+MICROPHONE_PATCH_PATH = ROOT / "tool/patches/f62-owned-shadow-microphone.patch"
+MICROPHONE_PATCH_SHA256 = "d561d4846bafb60356d7303362b9fcba2e7a2233002137dbef47caf3b149dc01"
 SOURCE_URL = (
     "https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/"
     "freerdp-3.31.1.tar.gz"
@@ -37,6 +39,7 @@ SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
 SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
 SOURCE_PREFIX = f"freerdp-{SOURCE_VERSION}"
 SOURCE_FILES = {
+    "server/shadow/shadow_audin.c": "b978e608c579d19997a57a434748f64340e38cbe44fb3d357e961241dd9f805a",
     "channels/disp/server/disp_main.c": "2d0b71196b7258edbb08cccb10893aa544abee06c273392ae0b25cb38244a0c6",
     "include/freerdp/server/disp.h": "02055944e2b2c3bda2f82a017556b7f3021f67b7b29c349908105fa46711af7f",
     "include/freerdp/server/shadow.h": "c91342c77b9a9ca4eff5490f19299eaaee0f47cfba2f999f0e0f82bb59003e04",
@@ -64,7 +67,15 @@ AUDIO_PATCHED_FILES = {
     "server/shadow/shadow_larenor_channels.h": "af8d0480341af9a5fe697ed2673197c7a8b9aa324b19306cc72be98ea334e957",
     "server/shadow/shadow_rdpsnd.c": "3641cc8fded3889e1b4201b78e76f554c19aa2e03c5e6286037f5ca969df77f3",
 }
-FINAL_PATCHED_FILES = {**PATCHED_FILES, **AUDIO_PATCHED_FILES}
+MICROPHONE_PATCHED_FILES = {
+    "server/shadow/shadow_larenor_channels.c": "a3c3cab5cde03321b0973470dbe1b9d38669432a44130dc1dec6b8ef430ec4c8",
+    "server/shadow/shadow_larenor_channels.h": "41f09421926b41c30b5f321f8f3c613a424294175c7d2f5e4036a907c51079de",
+    "server/shadow/shadow_audin.c": "a223b3aad94b7ed3cd9ac43a8ebbe53c74854a235bff912b6dc1ba0643420ecc",
+}
+FINAL_PATCHED_FILES = {**PATCHED_FILES, **AUDIO_PATCHED_FILES, **MICROPHONE_PATCHED_FILES}
+MICROPHONE_WITNESS_MAGIC = b"LRNF62M1"
+MICROPHONE_WITNESS_SIZE = 64
+MAX_MICROPHONE_PACKETS = 60000
 WITNESS_MAGIC = b"LRNF62C2"
 WITNESS_SIZE = 64
 AUDIO_WITNESS_MAGIC = b"LRNF62A1"
@@ -100,6 +111,7 @@ DIAGNOSTIC_SOURCE_PATHS = (
     "server/shadow/shadow_client.c",
     "server/shadow/shadow_larenor_channels.c",
     "server/shadow/shadow_rdpsnd.c",
+    "server/shadow/shadow_audin.c",
     "winpr/CMakeLists.txt",
     "winpr/libwinpr/sspi/CMakeLists.txt",
     "winpr/libwinpr/utils/CMakeLists.txt",
@@ -287,13 +299,20 @@ def verify_patched_source(
     source: Path,
     patch: Path = PATCH_PATH,
     audio_patch: Path | None = None,
+    microphone_patch: Path | None = None,
 ):
     require(source.is_dir() and not source.is_symlink(), "invalid_prepared_source")
     _verified_patch_bytes(patch, PATCH_SHA256)
     selected_audio_patch = AUDIO_PATCH_PATH if audio_patch is None and patch == PATCH_PATH else audio_patch
     if selected_audio_patch is not None:
         _verified_patch_bytes(selected_audio_patch, AUDIO_PATCH_SHA256)
-    expected_files = FINAL_PATCHED_FILES if selected_audio_patch is not None else PATCHED_FILES
+    selected_microphone_patch = (MICROPHONE_PATCH_PATH if microphone_patch is None
+        and patch == PATCH_PATH and selected_audio_patch is not None else microphone_patch)
+    if selected_microphone_patch is not None:
+        _verified_patch_bytes(selected_microphone_patch, MICROPHONE_PATCH_SHA256)
+    expected_files = (FINAL_PATCHED_FILES if selected_microphone_patch is not None
+        else {**PATCHED_FILES, **AUDIO_PATCHED_FILES} if selected_audio_patch is not None
+        else PATCHED_FILES)
     for relative, expected in expected_files.items():
         path = source / relative
         try:
@@ -312,6 +331,7 @@ def prepare_source(
     output: Path,
     patch: Path = PATCH_PATH,
     audio_patch: Path | None = None,
+    microphone_patch: Path | None = None,
 ):
     require(not output.exists() and not output.is_symlink(), "output_must_not_exist")
     verify_source(archive)
@@ -321,6 +341,10 @@ def prepare_source(
         _verified_patch_bytes(selected_audio_patch, AUDIO_PATCH_SHA256)
         if selected_audio_patch is not None else None
     )
+    selected_microphone_patch = (MICROPHONE_PATCH_PATH if microphone_patch is None
+        and patch == PATCH_PATH and selected_audio_patch is not None else microphone_patch)
+    microphone_patch_bytes = (_verified_patch_bytes(selected_microphone_patch, MICROPHONE_PATCH_SHA256)
+        if selected_microphone_patch is not None else None)
     _extract_verified(archive, output)
     try:
         run = subprocess.run(
@@ -346,7 +370,15 @@ def prepare_source(
                 check=False,
             )
             require(audio_run.returncode == 0, "patch_apply_failed")
-        verify_patched_source(output, patch, selected_audio_patch)
+        if microphone_patch_bytes is not None:
+            microphone_run = subprocess.run(
+                ["/usr/bin/patch", "-N", "-p1"], cwd=output, input=microphone_patch_bytes,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "LANG": "C"},
+                timeout=30, check=False,
+            )
+            require(microphone_run.returncode == 0, "patch_apply_failed")
+        verify_patched_source(output, patch, selected_audio_patch, selected_microphone_patch)
     except Exception:
         shutil.rmtree(output, ignore_errors=True)
         raise
@@ -548,6 +580,8 @@ def build_fixture(
         "-DCHANNEL_CLIPRDR_SERVER=ON",
         "-DCHANNEL_DISP=ON",
         "-DCHANNEL_DISP_SERVER=ON",
+        "-DCHANNEL_AUDIN=ON",
+        "-DCHANNEL_AUDIN_SERVER=ON",
         "-DCHANNEL_RDPSND=ON",
         "-DCHANNEL_RDPSND_SERVER=ON",
         "-DCHANNEL_DRDYNVC=ON",
@@ -821,6 +855,48 @@ def read_audio_lifetimes(base: Path):
         and disabled["audioErrors"] == 0,
         "invalid_audio_lifetimes",
     )
+    return {"schemaVersion": 1, "enabled": enabled, "disabled": disabled}
+
+
+
+def parse_microphone_witness(path: Path):
+    fd = None
+    try:
+        fd, metadata = _open_regular(path, max_size=64, exact_mode=0o600)
+        require(metadata.st_size == 64, "invalid_microphone_witness")
+        data = os.read(fd, 65)
+    except FixtureError as error:
+        raise FixtureError("invalid_microphone_witness") from error
+    finally:
+        if fd is not None:
+            os.close(fd)
+    require(len(data) == 64, "invalid_microphone_witness")
+    magic, version, size, ordinal, flags, packets, matched, prearm, errors, reserved = (
+        struct.unpack("<8sII6I24s", data)
+    )
+    require(magic == MICROPHONE_WITNESS_MAGIC and version == 1 and size == 64
+        and ordinal in (1, 2) and flags & ~3 == 0
+        and 0 <= matched <= packets <= MAX_MICROPHONE_PACKETS
+        and prearm in (0, 1) and errors in (0, 1) and reserved == bytes(24),
+        "invalid_microphone_witness")
+    return {"schemaVersion": 1, "ordinal": ordinal, "armed": bool(flags & 1),
+        "toneMatched": bool(flags & 2), "packets": packets, "matchingPackets": matched,
+        "preArmNonzero": prearm, "microphoneErrors": errors}
+
+
+def read_microphone_lifetimes(base: Path):
+    require(not base.exists() and not base.is_symlink(), "invalid_microphone_lifetimes")
+    third = Path(f"{base}.3")
+    require(not third.exists() and not third.is_symlink(), "invalid_microphone_lifetimes")
+    enabled = parse_microphone_witness(Path(f"{base}.1"))
+    disabled = parse_microphone_witness(Path(f"{base}.2"))
+    require(enabled["ordinal"] == 1 and enabled["armed"] and enabled["toneMatched"]
+        and enabled["matchingPackets"] >= 1 and enabled["preArmNonzero"] == 0
+        and enabled["microphoneErrors"] == 0 and disabled["ordinal"] == 2
+        and not disabled["armed"] and not disabled["toneMatched"]
+        and disabled["packets"] == 0 and disabled["matchingPackets"] == 0
+        and disabled["preArmNonzero"] == 0 and disabled["microphoneErrors"] == 0,
+        "invalid_microphone_lifetimes")
     return {"schemaVersion": 1, "enabled": enabled, "disabled": disabled}
 
 

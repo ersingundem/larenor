@@ -159,6 +159,50 @@ class RdpFreeRdpEngineTest {
     }
 
     @Test
+    fun microphoneEvidenceIsSessionBoundMonotonicAndActualSubmissionOnly() {
+        val fixture = Fixture(microphone = true)
+        val session = fixture.open()
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.OPENED, true, 0, 0),
+        )
+        reject("staleSession") { session.microphoneObservation() }
+
+        fixture.operation.secure(RdpJniSecurity("TLSv1.3", true, PIN))
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.CAPTURED, true, 1, 0),
+        )
+        assertEquals(0L, session.microphoneObservation().acceptedCount)
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.SENT, true, 1, 1),
+        )
+        assertEquals(1L, session.microphoneObservation().acceptedCount)
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.CLOSED, false, 1, 1),
+        )
+        assertEquals(RdpMicrophoneCaptureState.CLOSED, session.microphoneObservation().state)
+
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.CAPTURED, true, 2, 1),
+        )
+        assertEquals(RdpJniPhase.FAILED, session.phase)
+        assertEquals("channelUnavailable", session.failureCode)
+    }
+
+    @Test
+    fun disabledOrFailedMicrophoneCannotExposeOrRetainCapture() {
+        val disabled = Fixture().active()
+        reject("channelUnavailable") { disabled.microphoneObservation() }
+
+        val fixture = Fixture(microphone = true)
+        val failed = fixture.open()
+        fixture.operation.microphone(
+            RdpMicrophoneCaptureObservation(RdpMicrophoneCaptureState.FAILED, false, 0, 0),
+        )
+        assertEquals(RdpJniPhase.FAILED, failed.phase)
+        assertEquals(RdpMicrophoneCaptureState.FAILED, failed.microphoneObservation().state)
+    }
+
+    @Test
     fun unsupportedUsbKeyboardUsageIsNonFatalAndDoesNotConsumeSequence() {
         val fixture = Fixture()
         val session = fixture.active()
@@ -515,6 +559,7 @@ class RdpFreeRdpEngineTest {
         val security = capabilities.toChannel()["security"] as Map<*, *>
         assertEquals(listOf("disabled", "clientToRemote"), channels["clipboardModes"])
         assertEquals(true, channels["clipboard"])
+        assertEquals(true, channels["microphone"])
         assertEquals(false, security["rdGateway"])
         assertTrue(capabilities.ime)
         try {
@@ -541,6 +586,7 @@ class RdpFreeRdpEngineTest {
         private val externalDisplay: Boolean = false,
         private val dynamicResize: Boolean = true,
         private val audio: Boolean = false,
+        private val microphone: Boolean = false,
     ) {
         lateinit var operation: Operation
         private val runtime = object : RdpJniRuntime {
@@ -549,13 +595,14 @@ class RdpFreeRdpEngineTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                3,
+                4,
                 emptySet(),
             )
-            override fun capabilities() = if (!audio) capabilityMap else capabilityMap + (
+            override fun capabilities() = if (!audio && !microphone) capabilityMap else capabilityMap + (
                 "channels" to mapOf(
                     "clipboardModes" to listOf("disabled", "clientToRemote"),
-                    "audio" to true,
+                    "audio" to audio,
+                    "microphone" to microphone,
                     "files" to false,
                 )
             )
@@ -574,7 +621,7 @@ class RdpFreeRdpEngineTest {
 
         fun open(): RdpFreeRdpSession {
             val request = RdpNativeRequest.parse(
-                request(clipboard, externalDisplay, dynamicResize, audio),
+                request(clipboard, externalDisplay, dynamicResize, audio, microphone),
             )
             return RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
                 request,
@@ -623,6 +670,9 @@ class RdpFreeRdpEngineTest {
         override fun detach() { listener = null }
         fun secure(value: RdpJniSecurity) { listener?.onSecurity(value) }
         fun audio(value: RdpRemoteAudioObservation) { listener?.onRemoteAudio(value) }
+        fun microphone(value: RdpMicrophoneCaptureObservation) {
+            listener?.onMicrophoneCapture(value)
+        }
         fun frame(value: RdpNativeFrame) { listener?.onFrame(value) ?: value.close() }
         fun disconnected() { listener?.onDisconnected() }
     }
@@ -632,13 +682,13 @@ class RdpFreeRdpEngineTest {
         private const val OTHER_PIN = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
         fun availableCapabilities() = mapOf<String, Any?>(
-            "schemaVersion" to 3,
+            "schemaVersion" to 4,
             "availability" to "available",
             "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
             "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false),
             "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 4096, "maxHeight" to 2160, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180)),
             "input" to mapOf("absolutePointer" to true, "relativePointerNegotiation" to true, "verticalWheel" to true, "keyboard" to true, "ime" to true),
-            "channels" to mapOf("clipboardModes" to listOf("disabled", "clientToRemote"), "audio" to false, "files" to false),
+            "channels" to mapOf("clipboardModes" to listOf("disabled", "clientToRemote"), "audio" to false, "microphone" to false, "files" to false),
         )
 
         fun request(
@@ -646,8 +696,9 @@ class RdpFreeRdpEngineTest {
             externalDisplay: Boolean = false,
             dynamicResize: Boolean = true,
             audio: Boolean = false,
+            microphone: Boolean = false,
         ) = mapOf<String, Any?>(
-            "schemaVersion" to 3,
+            "schemaVersion" to 4,
             "requestId" to "11111111-1111-4111-8111-111111111111",
             "targetHost" to "fixture.invalid",
             "targetPort" to 3389,
@@ -664,6 +715,7 @@ class RdpFreeRdpEngineTest {
                 RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
             },
             "audio" to audio,
+            "microphone" to microphone,
             "files" to false,
         )
 

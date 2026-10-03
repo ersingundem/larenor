@@ -22,6 +22,7 @@ import time
 import xml.etree.ElementTree as ET
 
 if __package__:
+    from .f62_owned_microphone import MicrophoneFixtureError, start_tone, verified_pulse
     from .android_acceptance_gradle import (
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
@@ -33,6 +34,7 @@ if __package__:
     from .f62_owned_shadow_channels import (
         FixtureError,
         AUDIO_PATCH_SHA256 as SHADOW_AUDIO_PATCH_SHA256,
+        MICROPHONE_PATCH_SHA256 as SHADOW_MICROPHONE_PATCH_SHA256,
         PATCH_SHA256 as SHADOW_PATCH_SHA256,
         SHADOW_CLI_RELATIVE,
         SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
@@ -40,9 +42,11 @@ if __package__:
         SOURCE_VERSION as SHADOW_SOURCE_VERSION,
         read_lifetimes,
         read_audio_lifetimes,
+        read_microphone_lifetimes,
         verify_patched_source,
     )
 else:
+    from f62_owned_microphone import MicrophoneFixtureError, start_tone, verified_pulse
     from android_acceptance_gradle import (
         AndroidAcceptanceGradleError,
         materialized_gradle_command,
@@ -54,6 +58,7 @@ else:
     from f62_owned_shadow_channels import (
         FixtureError,
         AUDIO_PATCH_SHA256 as SHADOW_AUDIO_PATCH_SHA256,
+        MICROPHONE_PATCH_SHA256 as SHADOW_MICROPHONE_PATCH_SHA256,
         PATCH_SHA256 as SHADOW_PATCH_SHA256,
         SHADOW_CLI_RELATIVE,
         SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
@@ -61,6 +66,7 @@ else:
         SOURCE_VERSION as SHADOW_SOURCE_VERSION,
         read_lifetimes,
         read_audio_lifetimes,
+        read_microphone_lifetimes,
         verify_patched_source,
     )
 
@@ -76,7 +82,9 @@ _SOURCE_DIMENSIONS = (1280, 800)
 _TARGET_DIMENSIONS = (1024, 768)
 _CHANNEL_PHASE_DISP = b"LRNDISP1"
 _CHANNEL_PHASE_CLIP = b"LRNCLIP1"
-_CHANNEL_PHASE_BYTES = len(_CHANNEL_PHASE_DISP) + len(_CHANNEL_PHASE_CLIP)
+_CHANNEL_PHASE_MICROPHONE = b"LRNMIC01"
+_CHANNEL_PHASES = [_CHANNEL_PHASE_MICROPHONE, _CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP]
+_CHANNEL_PHASE_BYTES = 24
 _AUDIO_ARM_MAGIC = b"LRNAUD01"
 _AUDIO_ARM_BYTES = 72
 _CLIPBOARD_MARKER_COLOR = "#8f3c72"
@@ -106,6 +114,8 @@ _TEST_LIFECYCLE_STAGES = (
     "firstSecurityWait",
     "initialFrameWait",
     "audioEffectWait",
+    "microphoneOpenWait",
+    "microphoneEffectWait",
     "keySubmission",
     "resizeSubmission",
     "resizedFrameWait",
@@ -237,7 +247,7 @@ def _valid_open_boundaries(value: object) -> bool:
 
 
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "d757674537550dc871bb8a428ba684f209908bdbf3354036d7b11e24f880afb0"
+    "06292978ae81a92b40a187ed2ec4555fdb3fae2503b99218fbd8da3fa2e70396"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -475,6 +485,8 @@ def acceptance_receipt(
             "disabledRemoteAudioPackets",
             "audioWaveConfirmations",
             "authenticatedLifetimes",
+            "enabledMicrophoneTonePackets",
+            "disabledMicrophonePackets",
             "shadowBinarySha256",
         }
         or channel_evidence["enabledClientToRemoteClipboard"] is not True
@@ -484,6 +496,10 @@ def acceptance_receipt(
         or channel_evidence["disabledRemoteAudioPackets"] != 0
         or type(channel_evidence["audioWaveConfirmations"]) is not int
         or not 0 <= channel_evidence["audioWaveConfirmations"] <= 8
+        or type(channel_evidence["enabledMicrophoneTonePackets"]) is not int
+        or not 1 <= channel_evidence["enabledMicrophoneTonePackets"] <= 60000
+        or type(channel_evidence["disabledMicrophonePackets"]) is not int
+        or channel_evidence["disabledMicrophonePackets"] != 0
         or channel_evidence["authenticatedLifetimes"] != 2
         or type(channel_evidence["shadowBinarySha256"]) is not str
         or _DIGEST.fullmatch(channel_evidence["shadowBinarySha256"]) is None
@@ -502,8 +518,9 @@ def acceptance_receipt(
             "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
             "patchSha256": SHADOW_PATCH_SHA256,
             "audioPatchSha256": SHADOW_AUDIO_PATCH_SHA256,
+            "microphonePatchSha256": SHADOW_MICROPHONE_PATCH_SHA256,
         },
-        "scope": "ownedShadowChannelsAndAudioQueue",
+        "scope": "ownedShadowChannelsAudioAndMicrophone",
         "evidence": {
             "tlsNlaSpki": True,
             "initialFramebuffer": {"width": 1280, "height": 800, "nonzero": True},
@@ -516,10 +533,11 @@ def acceptance_receipt(
             "frameAcknowledgementsAtLeast": 2,
             "channels": channel_evidence,
             "remoteAudioQueueCompletion": True,
+            "microphoneToneReceivedByHost": True,
             "cleanClose": True,
         },
         "unsupportedOrUnproven": [
-            "ime", "remoteToClientClipboard", "physicalAudioAudibility",
+            "ime", "remoteToClientClipboard", "physicalAudioAudibility", "physicalMicrophoneQuality",
         ],
         "result": "passed",
         "tests": 1,
@@ -934,6 +952,7 @@ def failure_receipt(
             "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
             "patchSha256": SHADOW_PATCH_SHA256,
             "audioPatchSha256": SHADOW_AUDIO_PATCH_SHA256,
+            "microphonePatchSha256": SHADOW_MICROPHONE_PATCH_SHA256,
         },
         "result": "failed",
         "diagnostic": diagnostic,
@@ -1169,6 +1188,7 @@ class _OwnedMarkerEvidence:
     body_failure: dict[str, str] | None = None
     initial_frame_observation: dict[str, object] | None = None
     open_boundaries: dict[str, object] | None = None
+    conflict: bool = False
 
     def availability(self) -> dict[str, str]:
         return {
@@ -1181,18 +1201,25 @@ class _OwnedMarkerEvidence:
 def _merge_owned_marker_evidence(
     previous: _OwnedMarkerEvidence,
     observed: _OwnedMarkerEvidence,
+    *,
+    writer_quiesced: bool = False,
 ) -> _OwnedMarkerEvidence:
-    if previous.record == "invalid":
+    if previous.conflict:
         return previous
     if observed.record == "invalid":
-        return observed
+        # A live AtomicFile writer can expose a transient empty/partial read.
+        # Never publish that read as a fact or erase an earlier complete fact.
+        # The final read after Gradle exits still rejects malformed storage.
+        if writer_quiesced or previous.record != "observed":
+            return observed
+        return previous
     if observed.record == "observed":
         if (previous.body_failure is not None
                 and (previous.stage != observed.stage
                      or previous.body_failure != observed.body_failure)
                 or previous.open_boundaries is not None
                 and previous.open_boundaries != observed.open_boundaries):
-            return _OwnedMarkerEvidence("available", "invalid", "unknown")
+            return _OwnedMarkerEvidence("available", "invalid", "unknown", conflict=True)
         return observed
     if previous.record == "observed":
         return previous
@@ -1571,7 +1598,7 @@ class _OwnedLifecycleObserver:
             )
         with self._lock:
             self._evidence = _merge_owned_marker_evidence(
-                self._evidence, observed,
+                self._evidence, observed, writer_quiesced=True,
             )
             self._stage = (
                 self._evidence.stage
@@ -1801,7 +1828,8 @@ def _start_owned_shadow(
     witness_base: Path,
     audio_witness_base: Path,
     diagnostic_nonce: str,
-) -> tuple[subprocess.Popen[bytes], int, int, str, int, Path, int]:
+    microphone_witness_base: Path,
+) -> tuple[subprocess.Popen[bytes], int, int, int, str, int, Path, int]:
     binary_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BINARY", "")
     source_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_SOURCE", "")
     build_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BUILD", "")
@@ -1828,6 +1856,8 @@ def _start_owned_shadow(
         _shadow_port_open()
         or witness_base.exists()
         or any(Path(f"{witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
+        or microphone_witness_base.exists()
+        or any(Path(f"{microphone_witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
         or audio_witness_base.exists()
         or any(Path(f"{audio_witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
     ):
@@ -1837,6 +1867,7 @@ def _start_owned_shadow(
         )
     read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
     audio_read_fd, audio_write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    microphone_read_fd, microphone_write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
     log_path = witness_base.parent / "shadow.log"
     try:
         log_fd = os.open(
@@ -1849,6 +1880,8 @@ def _start_owned_shadow(
         os.close(write_fd)
         os.close(audio_read_fd)
         os.close(audio_write_fd)
+        os.close(microphone_read_fd)
+        os.close(microphone_write_fd)
         raise BaselineFailure(
             "host_channel_fixture_unavailable",
             "owned channel fixture diagnostic log could not be created",
@@ -1864,6 +1897,8 @@ def _start_owned_shadow(
         "LARENOR_F62_CHANNEL_WITNESS": str(witness_base),
         "LARENOR_F62_CHANNEL_PHASE_FD": str(write_fd),
         "LARENOR_F62_AUDIO_WITNESS": str(audio_witness_base),
+        "LARENOR_F62_MICROPHONE_WITNESS": str(microphone_witness_base),
+        "LARENOR_F62_MICROPHONE_ARM_FD": str(microphone_read_fd),
         "LARENOR_F62_AUDIO_ARM_FD": str(audio_read_fd),
         "LARENOR_F62_AUDIO_NONCE": diagnostic_nonce,
         "LARENOR_F62_EXPECT_WIDTH": str(_TARGET_DIMENSIONS[0]),
@@ -1882,7 +1917,7 @@ def _start_owned_shadow(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            pass_fds=(write_fd, audio_read_fd),
+            pass_fds=(write_fd, audio_read_fd, microphone_read_fd),
             start_new_session=True,
         )
         if _owned_regular_sha256(
@@ -1903,12 +1938,13 @@ def _start_owned_shadow(
             )
         os.set_blocking(process.stdout.fileno(), False)
         log_size = _wait_shadow_ready(process, log_fd)
-        return process, read_fd, audio_write_fd, binary_digest, log_fd, log_path, log_size
+        return process, read_fd, audio_write_fd, microphone_write_fd, binary_digest, log_fd, log_path, log_size
     except (OSError, subprocess.SubprocessError):
         if process is not None:
             _stop_owned_process(process)
         os.close(read_fd)
         os.close(audio_write_fd)
+        os.close(microphone_write_fd)
         os.close(log_fd)
         raise BaselineFailure(
             "host_channel_fixture_unavailable",
@@ -1919,6 +1955,7 @@ def _start_owned_shadow(
             _stop_owned_process(process)
         os.close(read_fd)
         os.close(audio_write_fd)
+        os.close(microphone_write_fd)
         os.close(log_fd)
         raise
     finally:
@@ -1926,6 +1963,27 @@ def _start_owned_shadow(
             os.close(write_fd)
         if audio_read_fd >= 0:
             os.close(audio_read_fd)
+        os.close(microphone_read_fd)
+
+
+
+def _acknowledge_microphone_effect(nonce: str) -> None:
+    if _DIAGNOSTIC_NONCE.fullmatch(nonce) is None:
+        raise BaselineFailure("host_channel_witness_invalid", "owned microphone identity invalid")
+    adb = _adb_path()
+    prefix = _test_lifecycle_adb_prefix(adb) if adb is not None else None
+    if prefix is None:
+        raise BaselineFailure("host_channel_witness_invalid", "owned microphone app unavailable")
+    # Generated nonce is the only interpolated value. No shell credentials/provider text.
+    command = f"umask 077; set -C; cat > files/f62-owned-microphone-{nonce}"
+    try:
+        result = subprocess.run([*prefix, "exec-in", "run-as", _TEST_PACKAGE, "sh", "-c", command],
+            input=nonce.encode("ascii"), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=5, check=False)
+    except (OSError, subprocess.SubprocessError):
+        raise BaselineFailure("host_channel_witness_invalid", "owned microphone acknowledgement failed") from None
+    if result.returncode != 0:
+        raise BaselineFailure("host_channel_witness_invalid", "owned microphone acknowledgement failed")
 
 
 def _mark_clipboard_effect() -> None:
@@ -1951,12 +2009,12 @@ def _mark_clipboard_effect() -> None:
         )
 
 
-def _arm_owned_audio(fd: int, diagnostic_nonce: str) -> None:
+def _arm_owned_audio(fd: int, diagnostic_nonce: str, *, magic: bytes = _AUDIO_ARM_MAGIC) -> None:
     if _DIAGNOSTIC_NONCE.fullmatch(diagnostic_nonce) is None:
         raise BaselineFailure(
             "host_channel_witness_invalid", "owned audio arm identity was invalid"
         )
-    payload = _AUDIO_ARM_MAGIC + diagnostic_nonce.encode("ascii")
+    payload = magic + diagnostic_nonce.encode("ascii")
     if len(payload) != _AUDIO_ARM_BYTES:
         raise BaselineFailure(
             "host_channel_witness_invalid", "owned audio arm identity was invalid"
@@ -1976,6 +2034,7 @@ def _arm_owned_audio(fd: int, diagnostic_nonce: str) -> None:
 def _channel_evidence(
     witness_base: Path,
     audio_witness_base: Path,
+    microphone_witness_base: Path,
     *,
     timeout: float = 10,
 ) -> dict[str, object]:
@@ -2032,7 +2091,14 @@ def _channel_evidence(
             "host_channel_witness_invalid",
             "owned channel terminal witness did not prove both lifetimes",
         )
+    try:
+        microphone = read_microphone_lifetimes(microphone_witness_base)
+    except (FixtureError, OSError):
+        raise BaselineFailure("host_channel_witness_invalid",
+            "owned microphone terminal witness did not prove both lifetimes") from None
     return {
+        "enabledMicrophoneTonePackets": microphone["enabled"]["matchingPackets"],
+        "disabledMicrophonePackets": microphone["disabled"]["packets"],
         "enabledClientToRemoteClipboard": True,
         "enabledDisplayControl": True,
         "disabledClipboardTransfers": 0,
@@ -2184,6 +2250,8 @@ def _run_owned_shadow_baseline(
     shadow: subprocess.Popen[bytes] | None = None
     phase_fd: int | None = None
     audio_arm_fd: int | None = None
+    microphone_arm_fd: int | None = None
+    microphone_tone: subprocess.Popen[bytes] | None = None
     shadow_log_fd: int | None = None
     shadow_log_path: Path | None = None
     shadow_log_size = 0
@@ -2202,11 +2270,19 @@ def _run_owned_shadow_baseline(
         private.chmod(0o700)
         witness_base = private / "terminal-witness"
         audio_witness_base = private / "audio-terminal-witness"
+        microphone_witness_base = private / "microphone-terminal-witness"
+        pulse_path = runner_temp / "larenor-rdp-microphone"
+        try:
+            verified_pulse(pulse_path)
+        except (MicrophoneFixtureError, OSError):
+            raise BaselineFailure("host_channel_fixture_unavailable",
+                "isolated owned microphone source was unavailable") from None
         try:
             (
                 shadow,
                 phase_fd,
                 audio_arm_fd,
+                microphone_arm_fd,
                 shadow_binary_digest,
                 shadow_log_fd,
                 shadow_log_path,
@@ -2216,6 +2292,7 @@ def _run_owned_shadow_baseline(
                 witness_base,
                 audio_witness_base,
                 diagnostic_nonce,
+                microphone_witness_base,
             )
             selector.register(phase_fd, selectors.EVENT_READ, "phase")
             if shadow.stdout is None:
@@ -2256,6 +2333,8 @@ def _run_owned_shadow_baseline(
             resized = False
             clip_marked = False
             audio_armed = False
+            microphone_armed = False
+            microphone_acknowledged = False
             gradle_finished_at: float | None = None
             while True:
                 remaining = deadline - time.monotonic()
@@ -2283,13 +2362,15 @@ def _run_owned_shadow_baseline(
                         )
                     if (
                         key_witness.complete
-                        and phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP]
+                        and phases == _CHANNEL_PHASES
                         and phase_buffer == b""
                         and resized
                         and clip_marked
                         and audio_armed
+                        and microphone_armed
+                        and microphone_acknowledged
                     ):
-                        evidence = _channel_evidence(witness_base, audio_witness_base)
+                        evidence = _channel_evidence(witness_base, audio_witness_base, microphone_witness_base)
                         evidence["shadowBinarySha256"] = shadow_binary_digest
                         final_stage, final_evidence = (
                             lifecycle.observe_after_host_exit()
@@ -2343,7 +2424,7 @@ def _run_owned_shadow_baseline(
                             raw_line, xi2_buffer = xi2_buffer.split(b"\n", 1)
                             key_witness.feed_bytes(raw_line)
                     else:
-                        if phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP]:
+                        if phases == _CHANNEL_PHASES:
                             raise BaselineFailure(
                                 "host_channel_witness_invalid",
                                 "owned channel phase witness was ambiguous",
@@ -2357,16 +2438,20 @@ def _run_owned_shadow_baseline(
                         while len(phase_buffer) >= 8:
                             phase = phase_buffer[:8]
                             phase_buffer = phase_buffer[8:]
-                            expected = (
-                                _CHANNEL_PHASE_DISP if not phases else _CHANNEL_PHASE_CLIP
-                                if phases == [_CHANNEL_PHASE_DISP] else None
-                            )
+                            expected = (_CHANNEL_PHASES[len(phases)]
+                                if len(phases) < len(_CHANNEL_PHASES) else None)
                             if phase != expected:
                                 raise BaselineFailure(
                                     "host_channel_witness_invalid",
                                     "owned channel phase order was invalid",
                                 )
                             phases.append(phase)
+                            if phase == _CHANNEL_PHASE_MICROPHONE:
+                                if not microphone_armed:
+                                    raise BaselineFailure("host_channel_witness_invalid",
+                                        "owned microphone effect preceded its arm")
+                                _acknowledge_microphone_effect(diagnostic_nonce)
+                                microphone_acknowledged = True
                 if not audio_armed and lifecycle.last_stage() == "audioEffectWait":
                     if audio_arm_fd is None:
                         raise BaselineFailure(
@@ -2377,10 +2462,23 @@ def _run_owned_shadow_baseline(
                     os.close(audio_arm_fd)
                     audio_arm_fd = None
                     audio_armed = True
-                if key_witness.complete and phases and not resized:
+                if not microphone_armed and lifecycle.last_stage() == "microphoneEffectWait":
+                    if microphone_arm_fd is None:
+                        raise BaselineFailure("host_channel_witness_invalid",
+                            "owned microphone arm pipe was unavailable")
+                    _arm_owned_audio(microphone_arm_fd, diagnostic_nonce, magic=_CHANNEL_PHASE_MICROPHONE)
+                    os.close(microphone_arm_fd)
+                    microphone_arm_fd = None
+                    try:
+                        microphone_tone = start_tone(pulse_path, diagnostic_nonce, private)
+                    except (MicrophoneFixtureError, OSError):
+                        raise BaselineFailure("host_channel_witness_invalid",
+                            "owned microphone tone injection failed") from None
+                    microphone_armed = True
+                if key_witness.complete and _CHANNEL_PHASE_DISP in phases and not resized:
                     _resize_owned_display()
                     resized = True
-                if phases == [_CHANNEL_PHASE_DISP, _CHANNEL_PHASE_CLIP] and not clip_marked:
+                if phases == _CHANNEL_PHASES and not clip_marked:
                     if not resized:
                         raise BaselineFailure(
                             "host_channel_witness_invalid",
@@ -2447,6 +2545,11 @@ def _run_owned_shadow_baseline(
                 _stop_owned_process(xinput)
             if shadow is not None:
                 _stop_owned_process(shadow)
+            if microphone_tone is not None:
+                _stop_owned_process(microphone_tone)
+            (private / "owned-microphone-tone.pcm").unlink(missing_ok=True)
+            if microphone_arm_fd is not None:
+                os.close(microphone_arm_fd)
             if phase_fd is not None:
                 os.close(phase_fd)
             if audio_arm_fd is not None:

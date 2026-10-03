@@ -1,0 +1,114 @@
+diff --git a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+index ab0047b3f..188e348d1 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -255,6 +255,8 @@ static BOOL android_pre_connect(freerdp* instance)
+ 	 * certificate in both normal and changed-certificate callbacks. */
+ 	if (!freerdp_settings_set_bool(settings, FreeRDP_CertificateCallbackPreferPEM, TRUE))
+ 		return FALSE;
++	if (!freerdp_settings_set_bool(settings, FreeRDP_ExternalCertificateManagement, TRUE))
++		return FALSE;
+ 
+ 	int rc = PubSub_SubscribeChannelConnected(instance->context->pubSub,
+ 	                                          android_OnChannelConnectedEventHandler);
+@@ -576,6 +578,34 @@ static BOOL android_authenticate_ex(freerdp* instance, char** username, char** p
+ 	}
+ }
+ 
++static int android_verify_x509_certificate(freerdp* instance, const BYTE* data, size_t length,
++                                           const char* host, UINT16 port, DWORD flags)
++{
++	if (!instance || !data || (length == 0) || (length > INT32_MAX) || !host)
++		return 0;
++
++	JNIEnv* env;
++	jboolean attached = jni_attach_thread(&env);
++	jbyteArray jpem = (*env)->NewByteArray(env, (jsize)length);
++	jstring jhost = (*env)->NewStringUTF(env, host);
++	if (!jpem || !jhost)
++	{
++		if (attached == JNI_TRUE)
++			jni_detach_thread();
++		return 0;
++	}
++	(*env)->SetByteArrayRegion(env, jpem, 0, (jsize)length, (const jbyte*)data);
++	jint res = freerdp_callback_int_result(
++	    "OnVerifyX509Certificate", "(J[BLjava/lang/String;JJ)I", (jlong)instance, jpem, jhost,
++	    (jlong)port, (jlong)flags);
++	(*env)->DeleteLocalRef(env, jpem);
++	(*env)->DeleteLocalRef(env, jhost);
++
++	if (attached == JNI_TRUE)
++		jni_detach_thread();
++	return res > 0 ? 1 : 0;
++}
++
+ static DWORD android_verify_certificate_ex(freerdp* instance, const char* host, UINT16 port,
+                                            const char* common_name, const char* subject,
+                                            const char* issuer, const char* fingerprint, DWORD flags)
+@@ -758,6 +788,7 @@ static BOOL android_client_new(freerdp* instance, rdpContext* context)
+ 	instance->PostDisconnect = android_post_disconnect;
+ 	instance->PostFinalDisconnect = android_post_final_disconnect;
+ 	instance->AuthenticateEx = android_authenticate_ex;
++	instance->VerifyX509Certificate = android_verify_x509_certificate;
+ 	instance->VerifyCertificateEx = android_verify_certificate_ex;
+ 	instance->VerifyChangedCertificateEx = android_verify_changed_certificate_ex;
+ 	instance->LogonErrorInfo = nullptr;
+diff --git a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+index 39dcd7686..28d73e2eb 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+@@ -721,6 +721,18 @@ public class LibFreeRDP
+ 		return false;
+ 	}
+ 
++	private static int OnVerifyX509Certificate(long inst, byte[] pem, String host, long port,
++	                                           long flags)
++	{
++		SessionState s = GlobalApp.getSession(inst);
++		if (s == null || pem == null || pem.length == 0)
++			return 0;
++		UIEventListener uiEventListener = s.getUIEventListener();
++		if (uiEventListener != null)
++			return uiEventListener.OnVerifyX509Certificate(pem, host, port, flags);
++		return 0;
++	}
++
+ 	private static int OnVerifyCertificateEx(long inst, String host, long port, String commonName,
+ 	                                       String subject, String issuer, String fingerprint,
+ 	                                       long flags)
+@@ -933,6 +945,11 @@ public class LibFreeRDP
+ 		boolean OnGatewayAuthenticate(StringBuilder username, StringBuilder domain,
+ 		                              StringBuilder password);
+ 
++		default int OnVerifyX509Certificate(byte[] pem, String host, long port, long flags)
++		{
++			return 0;
++		}
++
+ 		int OnVerifiyCertificateEx(String host, long port, String commonName, String subject, String issuer,
+ 		                         String fingerprint, long flags);
+ 
+diff --git a/libfreerdp/crypto/tls.c b/libfreerdp/crypto/tls.c
+index f8d2d210c..0c32656b9 100644
+--- a/libfreerdp/crypto/tls.c
++++ b/libfreerdp/crypto/tls.c
+@@ -1788,14 +1788,15 @@ int tls_verify_certificate(rdpTls* tls, const rdpCertificate* cert, const char*
+ 	if (!tls_extract_full_pem(cert, &pemCert, &length))
+ 		goto end;
+ 
+-	/* Check, if we already accepted this key. */
+-	if (is_accepted(tls, cert))
++	/* Application-managed pinning must observe every peer before any trust cache. */
++	if (!settings->ExternalCertificateManagement && is_accepted(tls, cert))
+ 	{
+ 		verification_status = 1;
+ 		goto end;
+ 	}
+ 
+-	if (is_accepted_fingerprint(cert, settings->CertificateAcceptedFingerprints))
++	if (!settings->ExternalCertificateManagement &&
++	    is_accepted_fingerprint(cert, settings->CertificateAcceptedFingerprints))
+ 	{
+ 		verification_status = 1;
+ 		goto end;

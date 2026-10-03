@@ -1,0 +1,126 @@
+{
+  "availableCapabilities": {
+    "schemaVersion": 4,
+    "availability": "available",
+    "engineRevision": "fixture-4",
+    "security": {
+      "tls": true,
+      "certificatePinning": true,
+      "nla": true,
+      "rdGateway": true
+    },
+    "display": {
+      "dynamicResolution": true,
+      "externalDisplay": true,
+      "maxWidth": 8192,
+      "maxHeight": 8192,
+      "desktopScaleFactorMin": 100,
+      "desktopScaleFactorMax": 500,
+      "deviceScaleFactors": [
+        100,
+        140,
+        180
+      ]
+    },
+    "input": {
+      "keyboard": true,
+      "ime": true,
+      "absolutePointer": true,
+      "relativePointerNegotiation": true,
+      "verticalWheel": true
+    },
+    "channels": {
+      "clipboard": false,
+      "clipboardModes": [
+        "disabled"
+      ],
+      "audio": false,
+      "microphone": true,
+      "files": false
+    }
+  },
+  "unavailableCapabilities": {
+    "schemaVersion": 4,
+    "availability": "unavailable",
+    "engineRevision": null,
+    "security": {
+      "tls": false,
+      "certificatePinning": false,
+      "nla": false,
+      "rdGateway": false
+    },
+    "display": {
+      "dynamicResolution": false,
+      "externalDisplay": false,
+      "maxWidth": 0,
+      "maxHeight": 0,
+      "desktopScaleFactorMin": 0,
+      "desktopScaleFactorMax": 0,
+      "deviceScaleFactors": []
+    },
+    "input": {
+      "keyboard": false,
+      "ime": false,
+      "absolutePointer": false,
+      "relativePointerNegotiation": false,
+      "verticalWheel": false
+    },
+    "channels": {
+      "clipboard": false,
+      "clipboardModes": [],
+      "audio": false,
+      "microphone": false,
+      "files": false
+    }
+  },
+  "certificate": {
+    "algorithm": "spki-sha256",
+    "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "profileSettings": {
+    "version": 2,
+    "domain": "LARENOR",
+    "gatewayHost": "gateway.home.arpa",
+    "gatewayPort": 443,
+    "gatewayUsername": "ersin",
+    "displayMode": "fitWindow",
+    "keyboardLayout": "turkishQ",
+    "clipboardMode": "clientToRemote",
+    "microphone": true
+  },
+  "audioObservation": {
+    "schemaVersion": 4,
+    "requestId": "fixture-request",
+    "state": "pending",
+    "deviceOpen": false,
+    "acceptedCount": 0,
+    "completedCount": 0
+  },
+  "legacyProfileSettings": {
+    "version": 1,
+    "domain": "LARENOR",
+    "gatewayHost": "gateway.home.arpa",
+    "gatewayPort": 443,
+    "gatewayUsername": "ersin",
+    "displayMode": "fitWindow",
+    "keyboardLayout": "turkishQ",
+    "clipboardMode": "clientToRemote"
+  },
+  "microphoneObservation": {
+    "schemaVersion": 4,
+    "requestId": "fixture-request",
+    "state": "pending",
+    "deviceOpen": false,
+    "capturedCount": 0,
+    "acceptedCount": 0
+  },
+  "microphonePermissionRequest": {
+    "schemaVersion": 4,
+    "requestId": "123e4567-e89b-42d3-a456-426614174000"
+  },
+  "microphonePermissionGranted": {
+    "schemaVersion": 4,
+    "requestId": "123e4567-e89b-42d3-a456-426614174000",
+    "granted": true
+  }
+}

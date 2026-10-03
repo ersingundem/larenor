@@ -18,14 +18,14 @@ object RdpFreeRdpPackage {
     const val VERSION = "3.31.1"
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
-    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-display-pointer-audio-v3"
+    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4"
     // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
     internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
     internal const val TLS_PROTOCOL = "TLSv1.2"
     val SUPPORTED_ABIS = setOf("arm64-v8a", "x86_64")
 
     internal fun capabilities(): Map<String, Any?> = mapOf(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
@@ -57,6 +57,7 @@ object RdpFreeRdpPackage {
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
             "audio" to true,
+            "microphone" to true,
             "files" to false,
         ),
     )
@@ -67,7 +68,7 @@ object RdpFreeRdpPackage {
             identity.sourceCommit == SOURCE_COMMIT &&
             identity.sourceSha256 == SOURCE_SHA256 &&
             identity.abi in SUPPORTED_ABIS &&
-            identity.jniSchema == 3 &&
+            identity.jniSchema == 4 &&
             identity.enabledChannels.isEmpty()
 }
 
@@ -75,6 +76,7 @@ enum class RdpJniPhase { CONNECTING, ACTIVE, AWAITING_FRAME_ACK, CANCELLED, FAIL
 enum class RdpJniChannel { CLIPBOARD, AUDIO, FILES }
 
 enum class RdpRemoteAudioState { PENDING, DEVICE_OPEN, PLAYING, CLOSED, FAILED }
+enum class RdpMicrophoneCaptureState { PENDING, OPENED, CAPTURED, SENT, CLOSED, FAILED }
 
 data class RdpRemoteAudioObservation(
     val state: RdpRemoteAudioState,
@@ -95,7 +97,7 @@ data class RdpRemoteAudioObservation(
     }
 
     internal fun toChannel(requestId: String): Map<String, Any> = mapOf(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "requestId" to requestId,
         "state" to when (state) {
             RdpRemoteAudioState.PENDING -> "pending"
@@ -112,6 +114,44 @@ data class RdpRemoteAudioObservation(
     companion object {
         val PENDING = RdpRemoteAudioObservation(
             RdpRemoteAudioState.PENDING, false, 0, 0,
+        )
+    }
+}
+
+data class RdpMicrophoneCaptureObservation(
+    val state: RdpMicrophoneCaptureState,
+    val deviceOpen: Boolean,
+    val capturedCount: Long,
+    val acceptedCount: Long,
+) {
+    init {
+        if (capturedCount !in 0..RdpFreeRdpSession.MAX_REVISION ||
+            acceptedCount !in 0..capturedCount ||
+            deviceOpen != (state == RdpMicrophoneCaptureState.OPENED ||
+                state == RdpMicrophoneCaptureState.CAPTURED ||
+                state == RdpMicrophoneCaptureState.SENT) ||
+            state == RdpMicrophoneCaptureState.PENDING &&
+            (capturedCount != 0L || acceptedCount != 0L) ||
+            state == RdpMicrophoneCaptureState.OPENED &&
+            (capturedCount != 0L || acceptedCount != 0L) ||
+            state == RdpMicrophoneCaptureState.CAPTURED && capturedCount == 0L ||
+            state == RdpMicrophoneCaptureState.SENT && acceptedCount == 0L) {
+            failRdp("channelUnavailable")
+        }
+    }
+
+    internal fun toChannel(requestId: String): Map<String, Any> = mapOf(
+        "schemaVersion" to 4,
+        "requestId" to requestId,
+        "state" to state.name.lowercase(),
+        "deviceOpen" to deviceOpen,
+        "capturedCount" to capturedCount,
+        "acceptedCount" to acceptedCount,
+    )
+
+    companion object {
+        val PENDING = RdpMicrophoneCaptureObservation(
+            RdpMicrophoneCaptureState.PENDING, false, 0, 0,
         )
     }
 }
@@ -251,6 +291,7 @@ interface RdpJniOperation {
     interface Listener {
         fun onSecurity(evidence: RdpJniSecurity)
         fun onRemoteAudio(observation: RdpRemoteAudioObservation) = Unit
+        fun onMicrophoneCapture(observation: RdpMicrophoneCaptureObservation) = Unit
         fun onFrame(frame: RdpNativeFrame)
         fun onDisconnected()
     }
@@ -287,6 +328,9 @@ private class RdpJniListenerProxy : RdpJniOperation.Listener {
     override fun onSecurity(evidence: RdpJniSecurity) { target?.onSecurity(evidence) }
     override fun onRemoteAudio(observation: RdpRemoteAudioObservation) {
         target?.onRemoteAudio(observation)
+    }
+    override fun onMicrophoneCapture(observation: RdpMicrophoneCaptureObservation) {
+        target?.onMicrophoneCapture(observation)
     }
     override fun onFrame(frame: RdpNativeFrame) { target?.onFrame(frame) ?: frame.close() }
     override fun onDisconnected() { target?.onDisconnected() }
@@ -383,6 +427,7 @@ class RdpFreeRdpSession internal constructor(
     private var currentLayout = DisplayLayout(request.display.width, request.display.height, 1)
     private var acknowledgedGeometry: DisplayedGeometry? = null
     private var remoteAudioObservation = RdpRemoteAudioObservation.PENDING
+    private var microphoneCaptureObservation = RdpMicrophoneCaptureObservation.PENDING
     private var terminal = false
     private var acknowledging = false
     private var effectInFlight = false
@@ -457,6 +502,43 @@ class RdpFreeRdpSession internal constructor(
         }
     }
 
+    override fun onMicrophoneCapture(observation: RdpMicrophoneCaptureObservation) {
+        val invalid = synchronized(stateLock) {
+            if (terminal || !plan.microphone) return
+            val previous = microphoneCaptureObservation
+            if (observation == previous) return
+            val validState = when (previous.state) {
+                RdpMicrophoneCaptureState.PENDING -> observation.state in setOf(
+                    RdpMicrophoneCaptureState.OPENED, RdpMicrophoneCaptureState.CAPTURED,
+                    RdpMicrophoneCaptureState.SENT, RdpMicrophoneCaptureState.CLOSED,
+                    RdpMicrophoneCaptureState.FAILED,
+                )
+                RdpMicrophoneCaptureState.OPENED -> observation.state in setOf(
+                    RdpMicrophoneCaptureState.CAPTURED, RdpMicrophoneCaptureState.SENT,
+                    RdpMicrophoneCaptureState.CLOSED, RdpMicrophoneCaptureState.FAILED,
+                )
+                RdpMicrophoneCaptureState.CAPTURED,
+                RdpMicrophoneCaptureState.SENT -> observation.state in setOf(
+                    RdpMicrophoneCaptureState.CAPTURED, RdpMicrophoneCaptureState.SENT,
+                    RdpMicrophoneCaptureState.CLOSED, RdpMicrophoneCaptureState.FAILED,
+                )
+                RdpMicrophoneCaptureState.CLOSED,
+                RdpMicrophoneCaptureState.FAILED -> false
+            }
+            if (!validState || observation.capturedCount < previous.capturedCount ||
+                observation.acceptedCount < previous.acceptedCount ||
+                observation.state == RdpMicrophoneCaptureState.PENDING) {
+                true
+            } else {
+                microphoneCaptureObservation = observation
+                false
+            }
+        }
+        if (invalid || observation.state == RdpMicrophoneCaptureState.FAILED) {
+            terminate(RdpJniPhase.FAILED, "channelUnavailable")
+        }
+    }
+
     fun audioObservation(): RdpRemoteAudioObservation = synchronized(stateLock) {
         if (!plan.audio) failRdp("channelUnavailable")
         if (phase !in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
@@ -465,6 +547,17 @@ class RdpFreeRdpSession internal constructor(
         }
         remoteAudioObservation
     }
+
+    fun microphoneObservation(): RdpMicrophoneCaptureObservation = synchronized(stateLock) {
+        if (!plan.microphone) failRdp("channelUnavailable")
+        if (phase !in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
+            microphoneCaptureObservation.state != RdpMicrophoneCaptureState.FAILED) {
+            failRdp("staleSession")
+        }
+        microphoneCaptureObservation
+    }
+
+    internal val microphoneRequested: Boolean get() = plan.microphone
 
     override fun onFrame(frame: RdpNativeFrame) {
         val code = synchronized(stateLock) {

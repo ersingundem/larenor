@@ -274,7 +274,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertEqual(client["with"]["emulator-boot-timeout"], 300)
         self.assertIs(client["with"]["disable-linux-hw-accel"], False)
         script = client["with"]["script"]
-        self.assertEqual(script, "python3 tool/f62_packaged_acceptance.py")
+        self.assertEqual(script, "adb emu avd hostmicon\npython3 tool/f62_packaged_acceptance.py")
         runner = (ROOT / "tool/f62_packaged_acceptance.py").read_text()
         self.assertIn("cwd=ROOT / \"android\"", runner)
         self.assertIn("materialized_gradle_command", runner)
@@ -286,7 +286,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn('"RDP_ACCEPTANCE_XORG_OUTPUT"', runner)
         self.assertIn('"--output",', runner)
         self.assertIn('"--mode",', runner)
-        self.assertIn('"ownedShadowChannelsAndAudioQueue"', runner)
+        self.assertIn('"ownedShadowChannelsAudioAndMicrophone"', runner)
         self.assertIn('"remoteAudioQueueCompletion": True', runner)
         self.assertIn('"physicalAudioAudibility"', runner)
         self.assertIn('"enabledClientToRemoteClipboard"', runner)

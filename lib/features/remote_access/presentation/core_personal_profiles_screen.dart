@@ -41,10 +41,12 @@ class CorePersonalProfilesScreen extends ConsumerStatefulWidget {
     super.key,
     required this.isCurrent,
     required this.onBack,
+    this.onRdpMicrophonePermissionPromptChanged,
   });
 
   final bool Function() isCurrent;
   final VoidCallback onBack;
+  final ValueChanged<bool>? onRdpMicrophonePermissionPromptChanged;
 
   @override
   ConsumerState<CorePersonalProfilesScreen> createState() =>
@@ -401,6 +403,8 @@ class _CorePersonalProfilesScreenState
             profile: sessionProfile,
             securityStore: _rdpSessionStore!,
             isCurrent: _sessionCurrent,
+            onMicrophonePermissionPromptChanged:
+                widget.onRdpMicrophonePermissionPromptChanged,
             onBack: close,
           ),
         (RemoteProtocol.vnc, PersonalSessionResource.desktop) =>

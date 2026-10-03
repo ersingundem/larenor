@@ -1,0 +1,307 @@
+--- a/server/shadow/shadow_larenor_channels.c
++++ b/server/shadow/shadow_larenor_channels.c
+@@ -22,6 +22,7 @@
+ #include <freerdp/server/cliprdr.h>
+ #include <freerdp/server/disp.h>
+ #include <freerdp/server/rdpsnd.h>
++#include <freerdp/server/audin.h>
+ #include <winpr/assert.h>
+ #include <winpr/crt.h>
+ #include <winpr/synch.h>
+@@ -49,6 +50,15 @@
+ 	CRITICAL_SECTION lock;
+ 	int phaseFd;
+ 	int audioArmFd;
++	int microphoneArmFd;
++	char microphoneWitnessPath[PATH_MAX];
++	BYTE microphoneArm[73];
++	size_t microphoneArmLength;
++	UINT32 microphoneFlags;
++	UINT32 microphonePackets;
++	UINT32 microphoneMatchingPackets;
++	UINT32 microphonePreArmNonzero;
++	UINT32 microphoneErrors;
+ 	HANDLE audioThread;
+ 	char witnessPath[PATH_MAX];
+ 	char audioWitnessPath[PATH_MAX];
+@@ -152,6 +162,11 @@
+ {
+ 	const char* path = getenv("LARENOR_F62_CHANNEL_WITNESS");
+ 	const char* audioPath = getenv("LARENOR_F62_AUDIO_WITNESS");
++	const char* microphonePath = getenv("LARENOR_F62_MICROPHONE_WITNESS");
++	if (!microphonePath || microphonePath[0] != '/' ||
++	    strnlen(microphonePath, sizeof(state->microphoneWitnessPath)) >=
++	        sizeof(state->microphoneWitnessPath) - 3U)
++		return FALSE;
+ 	if (!path || (path[0] != '/') || !audioPath || (audioPath[0] != '/') ||
+ 	    (strnlen(path, sizeof(state->witnessPath)) >= (sizeof(state->witnessPath) - 3U)) ||
+ 	    (strnlen(audioPath, sizeof(state->audioWitnessPath)) >=
+@@ -161,7 +176,8 @@
+ 	    !parse_bounded_uint32("LARENOR_F62_EXPECT_HEIGHT", 200U, 8192U, &state->expectedHeight) ||
+ 	    !parse_private_fd("LARENOR_F62_CHANNEL_PHASE_FD", &state->phaseFd) ||
+ 	    !parse_private_fd("LARENOR_F62_AUDIO_ARM_FD", &state->audioArmFd) ||
+-	    !copy_private_nonce(state))
++	    !copy_private_nonce(state) ||
++	    !parse_private_fd("LARENOR_F62_MICROPHONE_ARM_FD", &state->microphoneArmFd))
+ 		return FALSE;
+ 	const LONG ordinal = InterlockedIncrement(&g_authenticatedClientOrdinal);
+ 	if ((ordinal < 1) || (ordinal > 2))
+@@ -171,7 +187,10 @@
+ 	                                   path, (long)ordinal);
+ 	const int audioLength = snprintf(state->audioWitnessPath, sizeof(state->audioWitnessPath),
+ 	                                 "%s.%ld", audioPath, (long)ordinal);
+-	return (channelLength > 0) && ((size_t)channelLength < sizeof(state->witnessPath)) &&
++	const int microphoneLength = snprintf(state->microphoneWitnessPath,
++	    sizeof(state->microphoneWitnessPath), "%s.%ld", microphonePath, (long)ordinal);
++	return microphoneLength > 0 &&
++	       (size_t)microphoneLength < sizeof(state->microphoneWitnessPath) && (channelLength > 0) && ((size_t)channelLength < sizeof(state->witnessPath)) &&
+ 	       (audioLength > 0) && ((size_t)audioLength < sizeof(state->audioWitnessPath));
+ }
+ 
+@@ -556,6 +575,152 @@
+ 	(void)close(fd);
+ }
+ 
++
++/* Private host proof: actual AUDIN data, never device-open/submission alone. */
++static void microphone_arm(LarenorOwnedChannels* state)
++{
++	if (state->ordinal != 1U || state->microphoneArmFd < 0 ||
++	    state->microphoneErrors != 0U || (state->microphoneFlags & 1U))
++		return;
++	for (;;)
++	{
++		const ssize_t count = read(state->microphoneArmFd,
++		    &state->microphoneArm[state->microphoneArmLength],
++		    sizeof(state->microphoneArm) - state->microphoneArmLength);
++		if (count < 0)
++		{
++			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
++				return;
++			state->microphoneErrors = 1U;
++			break;
++		}
++		if (count == 0)
++		{
++			if (state->microphoneArmLength == 72U &&
++			    memcmp(state->microphoneArm, "LRNMIC01", 8U) == 0 &&
++			    memcmp(&state->microphoneArm[8], state->audioNonce, 64U) == 0 &&
++			    state->microphonePreArmNonzero == 0U)
++				state->microphoneFlags |= 1U;
++			else
++				state->microphoneErrors = 1U;
++			break;
++		}
++		state->microphoneArmLength += (size_t)count;
++		if (state->microphoneArmLength > 72U)
++		{
++			state->microphoneErrors = 1U;
++			break;
++		}
++	}
++	(void)close(state->microphoneArmFd);
++	state->microphoneArmFd = -1;
++	SecureZeroMemory(state->microphoneArm, sizeof(state->microphoneArm));
++}
++
++void shadow_larenor_microphone_data(rdpShadowClient* client,
++    const AUDIO_FORMAT* format, const wStream* samples)
++{
++	if (!client || !client->larenorOwnedChannels)
++		return;
++	LarenorOwnedChannels* state = client->larenorOwnedChannels;
++	EnterCriticalSection(&state->lock);
++	microphone_arm(state);
++	const size_t size = samples ? Stream_GetRemainingLength(samples) : 0U;
++	if (!format || !samples || format->wFormatTag != WAVE_FORMAT_PCM ||
++	    format->nChannels != 2U || format->nSamplesPerSec != 44100U ||
++	    format->wBitsPerSample != 16U || format->nBlockAlign != 4U ||
++	    size < 128U || size > 16384U || size % 4U != 0U ||
++	    state->microphonePackets >= 60000U)
++	{
++		state->microphoneErrors = 1U;
++		LeaveCriticalSection(&state->lock);
++		return;
++	}
++	state->microphonePackets++;
++	const BYTE* data = Stream_Pointer(samples);
++	const size_t frames = size / 4U;
++	UINT32 nonzero = 0U;
++	UINT32 amplitudeMatches = 0U;
++	UINT32 crossings = 0U;
++	int previousSign = 0;
++	for (size_t frame = 0; frame < frames; frame++)
++	{
++		const size_t offset = frame * 4U;
++		const INT16 sample = (INT16)((UINT16)data[offset] | ((UINT16)data[offset + 1U] << 8U));
++		const INT32 magnitude = sample < 0 ? -(INT32)sample : (INT32)sample;
++		if (magnitude > 32)
++			nonzero++;
++		if (magnitude >= 3000 && magnitude <= 14000)
++			amplitudeMatches++;
++		const int sign = sample > 32 ? 1 : sample < -32 ? -1 : 0;
++		if (sign != 0)
++		{
++			if (previousSign != 0 && sign != previousSign)
++				crossings++;
++			previousSign = sign;
++		}
++	}
++	if (!(state->microphoneFlags & 1U))
++	{
++		if (nonzero > 0U)
++			state->microphonePreArmNonzero = 1U;
++	}
++	else if (state->ordinal == 1U && state->microphoneErrors == 0U)
++	{
++		/* Period is bound to this fixture nonce; no raw PCM enters the receipt. */
++		unsigned int prefix = 0U;
++		for (size_t index = 0; index < 4U; index++)
++		{
++			const char value = state->audioNonce[index];
++			prefix = prefix * 16U + (unsigned int)(value <= '9' ? value - '0' : value - 'a' + 10);
++		}
++		const UINT32 period = 32U + prefix % 64U;
++		const UINT32 expectedCrossings = (UINT32)(frames * 2U / period);
++		if (nonzero * 5U >= frames * 4U && amplitudeMatches * 2U >= frames &&
++		    crossings + 2U >= expectedCrossings && crossings <= expectedCrossings + 2U)
++		{
++			if (state->microphoneMatchingPackets < 60000U)
++				state->microphoneMatchingPackets++;
++			if (!(state->microphoneFlags & 2U))
++			{
++				emit_phase(state, "LRNMIC01");
++				state->microphoneFlags |= 2U;
++			}
++		}
++	}
++	LeaveCriticalSection(&state->lock);
++}
++
++static void write_microphone_witness(LarenorOwnedChannels* state)
++{
++	BYTE data[64] = { 0 };
++	memcpy(data, "LRNF62M1", 8U);
++	EnterCriticalSection(&state->lock);
++	write_uint32_le(data, 8U, 1U);
++	write_uint32_le(data, 12U, sizeof(data));
++	write_uint32_le(data, 16U, state->ordinal);
++	write_uint32_le(data, 20U, state->microphoneFlags);
++	write_uint32_le(data, 24U, state->microphonePackets);
++	write_uint32_le(data, 28U, state->microphoneMatchingPackets);
++	write_uint32_le(data, 32U, state->microphonePreArmNonzero);
++	write_uint32_le(data, 36U, state->microphoneErrors);
++	LeaveCriticalSection(&state->lock);
++	const int fd = open(state->microphoneWitnessPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
++	if (fd < 0)
++		return;
++	size_t offset = 0U;
++	while (offset < sizeof(data))
++	{
++		const ssize_t count = write(fd, &data[offset], sizeof(data) - offset);
++		if (count <= 0)
++			break;
++		offset += (size_t)count;
++	}
++	if (offset == sizeof(data))
++		(void)fsync(fd);
++	(void)close(fd);
++}
++
+ static void write_witness(LarenorOwnedChannels* state)
+ {
+ 	BYTE data[64] = { 0 };
+@@ -596,6 +761,7 @@
+ 		return CHANNEL_RC_NO_MEMORY;
+ 	state->phaseFd = -1;
+ 	state->audioArmFd = -1;
++	state->microphoneArmFd = -1;
+ 	InitializeCriticalSection(&state->lock);
+ 	if (!load_private_configuration(state))
+ 		goto fail;
+@@ -664,6 +830,10 @@
+ 		record_audio_error(state);
+ 		write_audio_witness(state);
+ 	}
++	if (state->microphoneWitnessPath[0])
++		write_microphone_witness(state);
++	if (state->microphoneArmFd >= 0)
++		(void)close(state->microphoneArmFd);
+ 	if (state->phaseFd >= 0)
+ 		(void)close(state->phaseFd);
+ 	if (state->audioArmFd >= 0)
+@@ -689,6 +859,10 @@
+ 	}
+ 	write_witness(state);
+ 	write_audio_witness(state);
++	if (state->microphoneWitnessPath[0])
++		write_microphone_witness(state);
++	if (state->microphoneArmFd >= 0)
++		(void)close(state->microphoneArmFd);
+ 	if (state->phaseFd >= 0)
+ 		(void)close(state->phaseFd);
+ 	if (state->audioArmFd >= 0)
+--- a/server/shadow/shadow_larenor_channels.h
++++ b/server/shadow/shadow_larenor_channels.h
+@@ -4,6 +4,7 @@
+ 
+ #include <freerdp/server/shadow.h>
+ #include <freerdp/server/rdpsnd.h>
++#include <freerdp/server/audin.h>
+ 
+ WINPR_ATTR_NODISCARD UINT shadow_larenor_channels_init(rdpShadowClient* client);
+ void shadow_larenor_channels_free(rdpShadowClient* client);
+@@ -11,4 +12,7 @@
+ void shadow_larenor_audio_confirmed(rdpShadowClient* client);
+ void shadow_larenor_audio_stop(rdpShadowClient* client);
+ 
++void shadow_larenor_microphone_data(rdpShadowClient* client,
++    const AUDIO_FORMAT* format, const wStream* samples);
++
+ #endif
+--- a/server/shadow/shadow_audin.c
++++ b/server/shadow/shadow_audin.c
+@@ -23,6 +23,9 @@
+ #include "shadow.h"
+ 
+ #include "shadow_audin.h"
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++#include "shadow_larenor_channels.h"
++#endif
+ #include <freerdp/server/server-common.h>
+ 
+ #if defined(CHANNEL_AUDIN_SERVER)
+@@ -49,6 +52,9 @@
+ 	if (!client->mayInteract)
+ 		return CHANNEL_RC_OK;
+ 
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	shadow_larenor_microphone_data(client, audin_server_get_negotiated_format(client->audin), data->Data);
++#endif
+ 	if (!IFCALLRESULT(TRUE, subsystem->AudinServerReceiveSamples, subsystem, client,
+ 	                  audin_server_get_negotiated_format(client->audin), data->Data))
+ 		return ERROR_INTERNAL_ERROR;
+@@ -72,6 +78,15 @@
+ 
+ 	audin->Data = AudinServerData;
+ 
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	/* Exact PCM lets the owned host validate real input without retaining audio. */
++	const AUDIO_FORMAT format = {
++		.wFormatTag = WAVE_FORMAT_PCM, .nChannels = 2U, .nSamplesPerSec = 44100U,
++		.nAvgBytesPerSec = 176400U, .nBlockAlign = 4U, .wBitsPerSample = 16U
++	};
++	if (!audin_server_set_formats(client->audin, 1, &format))
++		goto fail;
++#else
+ 	if (client->subsystem->audinFormats)
+ 	{
+ 		if (client->subsystem->nAudinFormats > SSIZE_MAX)
+@@ -87,6 +102,7 @@
+ 			goto fail;
+ 	}
+ 
++#endif
+ 	return TRUE;
+ fail:
+ 	audin_server_context_free(audin);

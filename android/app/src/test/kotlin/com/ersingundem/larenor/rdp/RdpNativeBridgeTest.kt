@@ -1,5 +1,6 @@
 package com.ersingundem.larenor.rdp
 
+import android.app.AppOpsManager
 import android.app.Application
 import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
@@ -11,6 +12,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -57,7 +59,7 @@ class RdpNativeBridgeTest {
             RdpFreeRdpPackage.SOURCE_COMMIT,
             RdpFreeRdpPackage.SOURCE_SHA256,
             "x86_64",
-            3,
+            4,
             emptySet(),
         )
 
@@ -107,12 +109,16 @@ class RdpNativeBridgeTest {
         fun audio(observation: RdpRemoteAudioObservation) {
             listener.onRemoteAudio(observation)
         }
+
+        fun microphone(observation: RdpMicrophoneCaptureObservation) {
+            listener.onMicrophoneCapture(observation)
+        }
     }
 
     private class OpenClipboardBridge(
         val bridge: RdpNativeBridge,
         val runtime: ClipboardRuntime,
-        private val activity: org.robolectric.android.controller.ActivityController<android.app.Activity>,
+        val activity: org.robolectric.android.controller.ActivityController<android.app.Activity>,
     ) : AutoCloseable {
         override fun close() {
             bridge.dispose()
@@ -132,7 +138,7 @@ class RdpNativeBridgeTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                3,
+                4,
                 emptySet(),
             )
 
@@ -173,7 +179,7 @@ class RdpNativeBridgeTest {
             val gatewayPassword = ByteArray(0)
             val opening = Result()
             bridge.onMethodCall(MethodCall("open", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "request" to request(), "requestId" to REQUEST_ID,
                 "password" to password, "gatewayPassword" to gatewayPassword,
             )), opening)
@@ -219,7 +225,7 @@ class RdpNativeBridgeTest {
         openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
             val unsupported = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "key",
@@ -231,7 +237,7 @@ class RdpNativeBridgeTest {
 
             val supported = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "key",
@@ -249,7 +255,7 @@ class RdpNativeBridgeTest {
             fixture.runtime.frame(1)
             val ack = Result()
             fixture.bridge.onMethodCall(MethodCall("ackFrame", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "frameSequence" to 1L,
             )), ack)
@@ -257,7 +263,7 @@ class RdpNativeBridgeTest {
 
             val accepted = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "absolutePointer",
@@ -280,14 +286,14 @@ class RdpNativeBridgeTest {
             fixture.runtime.frame(1)
             val ack = Result()
             fixture.bridge.onMethodCall(MethodCall("ackFrame", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "frameSequence" to 1L,
             )), ack)
             assertNull(ack.error)
             val stale = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "verticalWheel",
@@ -307,13 +313,13 @@ class RdpNativeBridgeTest {
         openClipboardBridge(RdpClipboardMode.DISABLED, audio = true).use { fixture ->
             val pending = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
             )), pending)
             assertNull(pending.error)
             assertEquals(
                 mapOf(
-                    "schemaVersion" to 3,
+                    "schemaVersion" to 4,
                     "requestId" to REQUEST_ID,
                     "state" to "pending",
                     "deviceOpen" to false,
@@ -331,7 +337,7 @@ class RdpNativeBridgeTest {
             )
             val acceptedOnly = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
             )), acceptedOnly)
             assertNull(acceptedOnly.error)
@@ -345,7 +351,7 @@ class RdpNativeBridgeTest {
             )
             val observed = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
             )), observed)
             @Suppress("UNCHECKED_CAST")
@@ -354,7 +360,7 @@ class RdpNativeBridgeTest {
 
             val foreign = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to FOREIGN_REQUEST_ID,
             )), foreign)
             assertEquals("staleSession", foreign.error)
@@ -367,14 +373,14 @@ class RdpNativeBridgeTest {
         openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
             val unavailable = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
             )), unavailable)
             assertEquals("channelUnavailable", unavailable.error)
 
             val stillCurrent = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "key",
@@ -387,11 +393,198 @@ class RdpNativeBridgeTest {
             fixture.bridge.setWindowFocused(false)
             val background = Result()
             fixture.bridge.onMethodCall(MethodCall("audioObservation", mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "requestId" to REQUEST_ID,
             )), background)
             assertEquals("foregroundRequired", background.error)
             assertEquals(1, fixture.runtime.allInputs.size)
+        }
+    }
+
+    @Test
+    fun microphonePermissionIsExplicitCancellableAndPromptFocusLossIsNotAReceipt() {
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
+            .windowFocusChanged(true)
+        val bridge = RdpNativeBridge(activity.get(), Messenger(), ClipboardRuntime(
+            availableCapabilities(microphone = true),
+        ))
+        try {
+            bridge.setResumed(true)
+            bridge.onListen(REQUEST_ID, Sink())
+            val requested = Result()
+            bridge.onMethodCall(MethodCall("requestMicrophonePermission", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), requested)
+            assertEquals(false, requested.done)
+            val permission = Shadows.shadowOf(activity.get()).lastRequestedPermission
+            assertArrayEquals(arrayOf(android.Manifest.permission.RECORD_AUDIO), permission.requestedPermissions)
+            assertEquals(RdpMicrophonePermissionBroker.REQUEST_CODE, permission.requestCode)
+
+            bridge.setWindowFocused(false)
+            bridge.setResumed(false)
+            assertEquals(false, requested.done)
+            Shadows.shadowOf(activity.get().application).grantPermissions(
+                android.Manifest.permission.RECORD_AUDIO,
+            )
+            assertTrue(bridge.onRequestPermissionsResult(
+                RdpMicrophonePermissionBroker.REQUEST_CODE,
+                arrayOf(android.Manifest.permission.RECORD_AUDIO),
+                intArrayOf(android.content.pm.PackageManager.PERMISSION_GRANTED),
+            ))
+            assertEquals(false, requested.done)
+            bridge.setResumed(true)
+            bridge.setWindowFocused(true)
+            assertEquals(mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+                "granted" to true,
+            ), requested.value)
+
+            Shadows.shadowOf(activity.get().application).denyPermissions(
+                android.Manifest.permission.RECORD_AUDIO,
+            )
+            val backgrounded = Result()
+            bridge.onMethodCall(MethodCall("requestMicrophonePermission", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), backgrounded)
+            bridge.setStopped()
+            assertEquals("cancelled", backgrounded.error)
+
+            Shadows.shadowOf(activity.get().application).denyPermissions(
+                android.Manifest.permission.RECORD_AUDIO,
+            )
+            val pending = Result()
+            bridge.onMethodCall(MethodCall("requestMicrophonePermission", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), pending)
+            val cancelled = Result()
+            bridge.onMethodCall(MethodCall("cancelMicrophonePermission", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), cancelled)
+            assertEquals("cancelled", pending.error)
+            assertNull(cancelled.error)
+            assertNull(cancelled.value)
+            assertTrue(bridge.onRequestPermissionsResult(
+                RdpMicrophonePermissionBroker.REQUEST_CODE,
+                arrayOf(android.Manifest.permission.RECORD_AUDIO),
+                intArrayOf(android.content.pm.PackageManager.PERMISSION_GRANTED),
+            ))
+            assertEquals("cancelled", pending.error)
+
+            val password = "secret".encodeToByteArray()
+            val gatewayPassword = "private".encodeToByteArray()
+            val missing = Result()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "schemaVersion" to 4,
+                "request" to request(microphone = true),
+                "requestId" to REQUEST_ID,
+                "password" to password,
+                "gatewayPassword" to gatewayPassword,
+            )), missing)
+            assertEquals("microphonePermissionRequired", missing.error)
+            assertTrue(password.all { it == 0.toByte() })
+            assertTrue(gatewayPassword.all { it == 0.toByte() })
+        } finally {
+            bridge.dispose()
+            activity.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    fun microphonePermissionRevocationObservesOnlyOwnedRecordAudioAppOp() {
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
+            .windowFocusChanged(true)
+        Shadows.shadowOf(activity.get().application).grantPermissions(
+            android.Manifest.permission.RECORD_AUDIO,
+        )
+        val revocations = AtomicInteger()
+        val broker = RdpMicrophonePermissionBroker(activity.get(), revocations::incrementAndGet)
+        try {
+            Shadows.shadowOf(activity.get().application).denyPermissions(
+                android.Manifest.permission.RECORD_AUDIO,
+            )
+            broker.onAppOpChanged(AppOpsManager.OPSTR_CAMERA, activity.get().packageName)
+            broker.onAppOpChanged(AppOpsManager.OPSTR_RECORD_AUDIO, "foreign.invalid")
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(0, revocations.get())
+
+            broker.onAppOpChanged(
+                AppOpsManager.OPSTR_RECORD_AUDIO,
+                activity.get().packageName,
+            )
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, revocations.get())
+
+            broker.dispose()
+            broker.onAppOpChanged(
+                AppOpsManager.OPSTR_RECORD_AUDIO,
+                activity.get().packageName,
+            )
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(1, revocations.get())
+        } finally {
+            broker.dispose()
+            activity.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    fun microphoneObservationNeedsPermissionExactOwnerAndActualSubmission() {
+        openClipboardBridge(
+            RdpClipboardMode.DISABLED,
+            microphone = true,
+        ).use { fixture ->
+            fixture.runtime.microphone(RdpMicrophoneCaptureObservation(
+                RdpMicrophoneCaptureState.OPENED, true, 0, 0,
+            ))
+            fixture.runtime.microphone(RdpMicrophoneCaptureObservation(
+                RdpMicrophoneCaptureState.CAPTURED, true, 1, 0,
+            ))
+            val captured = Result()
+            fixture.bridge.onMethodCall(MethodCall("microphoneObservation", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), captured)
+            assertEquals(mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+                "state" to "captured",
+                "deviceOpen" to true,
+                "capturedCount" to 1L,
+                "acceptedCount" to 0L,
+            ), captured.value)
+
+            fixture.runtime.microphone(RdpMicrophoneCaptureObservation(
+                RdpMicrophoneCaptureState.SENT, true, 1, 1,
+            ))
+            val sent = Result()
+            fixture.bridge.onMethodCall(MethodCall("microphoneObservation", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), sent)
+            @Suppress("UNCHECKED_CAST")
+            assertEquals(1L, (sent.value as Map<String, Any>)["acceptedCount"])
+
+            val foreign = Result()
+            fixture.bridge.onMethodCall(MethodCall("microphoneObservation", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to FOREIGN_REQUEST_ID,
+            )), foreign)
+            assertEquals("staleSession", foreign.error)
+
+            Shadows.shadowOf(fixture.activity.get().application).denyPermissions(
+                android.Manifest.permission.RECORD_AUDIO,
+            )
+            val revoked = Result()
+            fixture.bridge.onMethodCall(MethodCall("microphoneObservation", mapOf(
+                "schemaVersion" to 4,
+                "requestId" to REQUEST_ID,
+            )), revoked)
+            assertEquals("staleSession", revoked.error)
         }
     }
 
@@ -432,10 +625,14 @@ class RdpNativeBridgeTest {
     private fun openClipboardBridge(
         mode: RdpClipboardMode,
         audio: Boolean = false,
+        microphone: Boolean = false,
     ): OpenClipboardBridge {
-        val runtime = ClipboardRuntime(availableCapabilities(audio))
+        val runtime = ClipboardRuntime(availableCapabilities(audio, microphone))
         val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
             .windowFocusChanged(true)
+        if (microphone) Shadows.shadowOf(activity.get().application).grantPermissions(
+            android.Manifest.permission.RECORD_AUDIO,
+        )
         val bridge = RdpNativeBridge(activity.get(), Messenger(), runtime)
         bridge.setResumed(true)
         bridge.onListen(REQUEST_ID, Sink())
@@ -444,15 +641,15 @@ class RdpNativeBridgeTest {
         assertNull(activated.error)
         val opened = Result()
         bridge.onMethodCall(MethodCall("open", mapOf(
-            "schemaVersion" to 3,
-            "request" to request(mode, audio), "requestId" to REQUEST_ID,
+            "schemaVersion" to 4,
+            "request" to request(mode, audio, microphone), "requestId" to REQUEST_ID,
             "password" to "secret".encodeToByteArray(), "gatewayPassword" to ByteArray(0),
         )), opened)
         await(opened)
         assertNull(opened.error)
         assertEquals(
             mapOf(
-                "schemaVersion" to 3,
+                "schemaVersion" to 4,
                 "unicodeTextInput" to true,
                 "relativePointer" to true,
             ),
@@ -467,7 +664,7 @@ class RdpNativeBridgeTest {
         channel: String = "clipboard",
         requestId: String = REQUEST_ID,
     ) = mapOf<String, Any?>(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "requestId" to requestId,
         "sequence" to sequence,
         "kind" to "channel",
@@ -484,8 +681,11 @@ class RdpNativeBridgeTest {
         throw AssertionError("Timed out waiting for RDP bridge result")
     }
 
-    private fun availableCapabilities(audio: Boolean = false) = mapOf<String, Any?>(
-        "schemaVersion" to 3,
+    private fun availableCapabilities(
+        audio: Boolean = false,
+        microphone: Boolean = false,
+    ) = mapOf<String, Any?>(
+        "schemaVersion" to 4,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
@@ -499,6 +699,7 @@ class RdpNativeBridgeTest {
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
             "audio" to audio,
+            "microphone" to microphone,
             "files" to false,
         ),
     )
@@ -506,8 +707,9 @@ class RdpNativeBridgeTest {
     private fun request(
         mode: RdpClipboardMode = RdpClipboardMode.DISABLED,
         audio: Boolean = false,
+        microphone: Boolean = false,
     ) = mapOf<String, Any?>(
-        "schemaVersion" to 3,
+        "schemaVersion" to 4,
         "requestId" to REQUEST_ID,
         "targetHost" to "fixture.invalid",
         "targetPort" to 3389,
@@ -527,6 +729,7 @@ class RdpNativeBridgeTest {
             RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
         },
         "audio" to audio,
+        "microphone" to microphone,
         "files" to false,
     )
 

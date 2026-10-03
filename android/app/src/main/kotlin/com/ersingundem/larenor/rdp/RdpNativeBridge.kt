@@ -1,5 +1,6 @@
 package com.ersingundem.larenor.rdp
 
+import android.app.Activity
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -16,7 +17,7 @@ import java.util.concurrent.Executors
 internal object RdpJniRuntimeLoader {
     fun load(context: Context): RdpJniRuntime? = try {
         val type = Class.forName("com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime")
-        type.getConstructor(Context::class.java).newInstance(context.applicationContext) as RdpJniRuntime
+        type.getConstructor(Context::class.java).newInstance(context) as RdpJniRuntime
     } catch (_: LinkageError) {
         null
     } catch (_: ReflectiveOperationException) {
@@ -27,9 +28,9 @@ internal object RdpJniRuntimeLoader {
 }
 
 class RdpNativeBridge(
-    context: Context,
+    private val activity: Activity,
     messenger: BinaryMessenger,
-    runtime: RdpJniRuntime? = RdpJniRuntimeLoader.load(context),
+    runtime: RdpJniRuntime? = RdpJniRuntimeLoader.load(activity),
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor { runnable ->
@@ -39,11 +40,13 @@ class RdpNativeBridge(
     private val events = EventChannel(messenger, EVENTS)
     private val runtime = runtime
     private val adapter = RdpNativeAdapter(RdpFreeRdpBackend(runtime))
+    private val microphonePermission = RdpMicrophonePermissionBroker(activity, ::permissionRevoked)
     private var sink: EventChannel.EventSink? = null
-    private var resumed = false
-    private var focused = true
-    private var disposed = false
-    private var requestId: String? = null
+    @Volatile private var resumed = false
+    @Volatile private var focused = true
+    @Volatile private var disposed = false
+    @Volatile private var requestId: String? = null
+    @Volatile private var microphonePermissionRevision = 0L
     private var networkBusy = false
     @Volatile private var session: RdpFreeRdpSession? = null
 
@@ -55,12 +58,21 @@ class RdpNativeBridge(
     fun setResumed(value: Boolean) {
         if (disposed) return
         resumed = value
-        if (!value) retire()
+        if (!value) {
+            retire()
+        }
+    }
+
+    fun setStopped() {
+        if (disposed) return
+        requestId?.let(microphonePermission::cancel)
+        retire()
     }
 
     fun setWindowFocused(value: Boolean) {
         if (disposed) return
         focused = value
+        microphonePermission.setWindowFocused(value)
         if (!value) retire()
     }
 
@@ -75,6 +87,7 @@ class RdpNativeBridge(
 
     override fun onCancel(arguments: Any?) {
         if (arguments == requestId) {
+            microphonePermission.cancel(arguments as String)
             retire()
             sink = null
         }
@@ -83,6 +96,7 @@ class RdpNativeBridge(
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (disposed) return error(result, "engineUnavailable")
         try {
+            retireMicrophoneIfPermissionMissing()
             when (call.method) {
                 "capabilities" -> {
                     if (call.arguments != null) fail("invalidRequest")
@@ -101,14 +115,23 @@ class RdpNativeBridge(
                 "resize" -> resize(call.arguments, result)
                 "ackFrame" -> ack(call.arguments, result)
                 "audioObservation" -> audioObservation(call.arguments, result)
+                "microphoneObservation" -> microphoneObservation(call.arguments, result)
+                "requestMicrophonePermission" -> requestMicrophonePermission(call.arguments, result)
+                "cancelMicrophonePermission" -> cancelMicrophonePermission(call.arguments, result)
                 "cancel" -> cancel(call.arguments, result)
                 else -> result.notImplemented()
             }
         } catch (failure: RdpNativeFailure) {
-            if (call.method !in setOf("capabilities", "inspect", "audioObservation")) retire()
+            if (call.method !in setOf(
+                    "capabilities", "inspect", "audioObservation", "microphoneObservation",
+                    "requestMicrophonePermission", "cancelMicrophonePermission",
+                )) retire()
             error(result, failure.code)
         } catch (_: Exception) {
-            if (call.method !in setOf("capabilities", "audioObservation")) retire()
+            if (call.method !in setOf(
+                    "capabilities", "audioObservation", "microphoneObservation",
+                    "requestMicrophonePermission", "cancelMicrophonePermission",
+                )) retire()
             error(result, "connectionFailed")
         }
     }
@@ -149,38 +172,82 @@ class RdpNativeBridge(
     }
 
     private fun open(raw: Any?, result: MethodChannel.Result) {
-        requireForeground()
-        if (session != null || networkBusy) fail("busy")
-        val value = map(raw, setOf("schemaVersion", "request", "requestId", "password", "gatewayPassword"))
-        if (value["schemaVersion"] != 3) fail("invalidRequest")
-        val id = value["requestId"] as? String ?: fail("invalidRequest")
-        if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
-        val request = RdpNativeRequest.parse(value["request"])
-        if (request.requestId != id) fail("invalidRequest")
-        val passwordBytes = value["password"] as? ByteArray ?: fail("invalidSecrets")
-        val gatewayBytes = value["gatewayPassword"] as? ByteArray ?: fail("invalidSecrets")
-        val password = decode(passwordBytes, false)
-        val gateway = decode(gatewayBytes, true)
-        passwordBytes.fill(0)
-        gatewayBytes.fill(0)
+        val callerPassword = (raw as? Map<*, *>)?.get("password") as? ByteArray
+        val callerGateway = (raw as? Map<*, *>)?.get("gatewayPassword") as? ByteArray
+        val value = try {
+            map(raw, setOf("schemaVersion", "request", "requestId", "password", "gatewayPassword"))
+        } catch (failure: Exception) {
+            callerPassword?.fill(0)
+            callerGateway?.fill(0)
+            throw failure
+        }
+        val passwordBytes = callerPassword ?: run {
+            callerGateway?.fill(0)
+            fail("invalidSecrets")
+        }
+        val gatewayBytes = callerGateway ?: run {
+            passwordBytes.fill(0)
+            fail("invalidSecrets")
+        }
+        var decodedPassword: CharArray? = null
+        var decodedGateway: CharArray? = null
+        val parsed = try {
+            requireForeground()
+            if (session != null || networkBusy) fail("busy")
+            if (value["schemaVersion"] != 4) fail("invalidRequest")
+            val id = value["requestId"] as? String ?: fail("invalidRequest")
+            if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
+            val request = RdpNativeRequest.parse(value["request"])
+            if (request.requestId != id) fail("invalidRequest")
+            if (request.microphone && !microphonePermission.granted()) {
+                fail("microphonePermissionRequired")
+            }
+            decodedPassword = decode(passwordBytes, false)
+            decodedGateway = decode(gatewayBytes, true)
+            Triple(id, request, microphonePermissionRevision)
+        } catch (failure: Exception) {
+            decodedPassword?.fill('\u0000')
+            decodedGateway?.fill('\u0000')
+            throw failure
+        } finally {
+            passwordBytes.fill(0)
+            gatewayBytes.fill(0)
+        }
+        val (id, request, permissionRevision) = parsed
+        val password = requireNotNull(decodedPassword)
+        val gateway = requireNotNull(decodedGateway)
         networkBusy = true
         try {
             worker.execute {
                 try {
+                    if (request.microphone && (!foreground() ||
+                            !microphonePermission.granted() ||
+                            permissionRevision != microphonePermissionRevision)) {
+                        fail("microphonePermissionRequired")
+                    }
                     val secrets = RdpNativeSecrets.take(password, gateway.takeIf { request.gateway != null })
                     if (request.gateway == null) gateway.fill('\u0000')
                     val observer = Observer(id)
                     val opened = adapter.open(request, secrets, observer) as RdpFreeRdpSession
+                    if (request.microphone && (!foreground() ||
+                            !microphonePermission.granted() ||
+                            permissionRevision != microphonePermissionRevision)) {
+                        opened.close()
+                        fail("microphonePermissionRequired")
+                    }
                     session = opened
                     observer.flush()
                     main.post {
                         networkBusy = false
-                        if (!foreground() || requestId != id) {
+                        if (!foreground() || requestId != id || request.microphone &&
+                            (!microphonePermission.granted() ||
+                                permissionRevision != microphonePermissionRevision)) {
                             opened.close()
+                            if (session === opened) session = null
                             error(result, "staleSession")
                         } else {
                             result.success(mapOf(
-                                "schemaVersion" to 3,
+                                "schemaVersion" to 4,
                                 "unicodeTextInput" to opened.unicodeInputSupported,
                                 "relativePointer" to opened.relativePointerSupported,
                             ))
@@ -226,7 +293,7 @@ class RdpNativeBridge(
                         "requestId" to id,
                         "kind" to "frame",
                         "payload" to mapOf(
-                            "schemaVersion" to 3,
+                            "schemaVersion" to 4,
                             "sequence" to frame.sequence,
                             "width" to frame.width,
                             "height" to frame.height,
@@ -264,7 +331,7 @@ class RdpNativeBridge(
                 setOf("schemaVersion", "requestId", "sequence", "kind", "physicalKey", "down"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "text"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "channel", "payload"))
-            if (value["schemaVersion"] != 3) fail("invalidRequest")
+            if (value["schemaVersion"] != 4) fail("invalidRequest")
             val current = session ?: fail("staleSession")
             val sequence = sequence(value["sequence"])
             val accepted = when (value["kind"]) {
@@ -320,7 +387,7 @@ class RdpNativeBridge(
     private fun resize(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "sequence", "display"))
-        if (value["schemaVersion"] != 3) fail("invalidRequest")
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
         ownedId(value)
         val display = map(value["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"))
         val width = integer(display["width"], 640, 8192)
@@ -346,7 +413,7 @@ class RdpNativeBridge(
     private fun ack(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "frameSequence"))
-        if (value["schemaVersion"] != 3) fail("invalidRequest")
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
         ownedId(value)
         val accepted = (session ?: fail("staleSession")).acknowledgeFrame(sequence(value["frameSequence"]))
         if (!accepted) fail(session?.failureCode ?: "staleSession")
@@ -356,10 +423,40 @@ class RdpNativeBridge(
     private fun audioObservation(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId"))
-        if (value["schemaVersion"] != 3) fail("invalidRequest")
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
         ownedId(value)
         val id = requestId ?: fail("staleSession")
         result.success((session ?: fail("staleSession")).audioObservation().toChannel(id))
+    }
+
+    private fun microphoneObservation(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        val value = map(raw, setOf("schemaVersion", "requestId"))
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        ownedId(value)
+        if (!microphonePermission.granted()) {
+            permissionRevoked()
+            fail("staleSession")
+        }
+        val id = requestId ?: fail("staleSession")
+        result.success((session ?: fail("staleSession")).microphoneObservation().toChannel(id))
+    }
+
+    private fun requestMicrophonePermission(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        if (session != null || networkBusy) fail("busy")
+        val value = map(raw, setOf("schemaVersion", "requestId"))
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        ownedId(value)
+        microphonePermission.request(requestId ?: fail("staleSession"), result)
+    }
+
+    private fun cancelMicrophonePermission(raw: Any?, result: MethodChannel.Result) {
+        val value = map(raw, setOf("schemaVersion", "requestId"))
+        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        ownedId(value)
+        microphonePermission.cancel(requestId ?: fail("staleSession"))
+        result.success(null)
     }
 
     private fun cancel(raw: Any?, result: MethodChannel.Result) {
@@ -400,10 +497,31 @@ class RdpNativeBridge(
         session = null
     }
 
+    private fun permissionRevoked() {
+        microphonePermissionRevision++
+        if (session?.microphoneRequested == true) retire()
+    }
+
+    private fun retireMicrophoneIfPermissionMissing() {
+        if (session?.microphoneRequested == true && !microphonePermission.granted()) {
+            permissionRevoked()
+        }
+    }
+
+    fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ): Boolean = microphonePermission.onRequestPermissionsResult(
+        requestCode, permissions, grantResults,
+    )
+
     fun dispose() {
         if (disposed) return
         disposed = true
+        requestId?.let(microphonePermission::cancel)
         retire()
+        microphonePermission.dispose()
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
         sink = null
@@ -419,7 +537,7 @@ class RdpNativeBridge(
 }
 
 internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
-    "schemaVersion" to 3,
+    "schemaVersion" to 4,
     "availability" to availability.name.lowercase(),
     "engineRevision" to engineRevision,
     "security" to mapOf(
@@ -451,7 +569,7 @@ internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
                 RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
             }
         },
-        "audio" to audio, "files" to files,
+        "audio" to audio, "microphone" to microphone, "files" to files,
     ),
 )
 

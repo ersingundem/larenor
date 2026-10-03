@@ -6,7 +6,7 @@ import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 
 Map<String, dynamic> fixture() =>
-    jsonDecode(File('contracts/rdp-client.v3.json').readAsStringSync())
+    jsonDecode(File('contracts/rdp-client.v4.json').readAsStringSync())
         as Map<String, dynamic>;
 
 Map<String, dynamic> packagedCapabilities({
@@ -22,6 +22,7 @@ Map<String, dynamic> packagedCapabilities({
     'clipboard': clipboardModes.any((value) => value != 'disabled'),
     'clipboardModes': clipboardModes,
     'audio': audio,
+    'microphone': true,
     'files': false,
   };
   return value;
@@ -37,6 +38,74 @@ const profile = RemoteProfile(
 );
 
 void main() {
+  test('v4 fixture binds the exact microphone permission receipt', () {
+    final request = fixture()['microphonePermissionRequest'] as Map;
+    final granted = fixture()['microphonePermissionGranted'] as Map;
+    expect(request.keys.toSet(), {'schemaVersion', 'requestId'});
+    expect(granted.keys.toSet(), {'schemaVersion', 'requestId', 'granted'});
+    expect(request['schemaVersion'], 4);
+    expect(granted['schemaVersion'], 4);
+    expect(granted['requestId'], request['requestId']);
+    expect(granted['granted'], isTrue);
+  });
+
+  test(
+    'microphone observation is exact, monotonic and not a remote effect',
+    () {
+      Map<String, Object?> packet({
+        String state = 'pending',
+        bool open = false,
+        int captured = 0,
+        int accepted = 0,
+      }) => {
+        'schemaVersion': 4,
+        'requestId': 'fixture-request',
+        'state': state,
+        'deviceOpen': open,
+        'capturedCount': captured,
+        'acceptedCount': accepted,
+      };
+      RdpMicrophoneObservation parse(Object? value) =>
+          RdpMicrophoneObservation.fromJson(
+            value,
+            requestId: 'fixture-request',
+          );
+      final pending = parse(packet());
+      final opened = parse(packet(state: 'opened', open: true));
+      final captured = parse(
+        packet(state: 'captured', open: true, captured: 1),
+      );
+      final sent = parse(
+        packet(state: 'sent', open: true, captured: 2, accepted: 1),
+      );
+      final closed = parse(packet(state: 'closed', captured: 2, accepted: 1));
+      expect(opened.follows(pending), isTrue);
+      expect(opened.follows(opened), isTrue);
+      expect(captured.follows(pending), isTrue);
+      expect(captured.hasSubmittedAudio, isFalse);
+      expect(sent.follows(captured), isTrue);
+      expect(sent.hasSubmittedAudio, isTrue);
+      expect(closed.follows(sent), isTrue);
+      expect(sent.follows(closed), isFalse);
+      for (final value in [
+        {...packet(), 'schemaVersion': 3},
+        {...packet(), 'requestId': 'another-session'},
+        {
+          ...packet(),
+          'rawAudio': [1],
+        },
+        packet(state: 'opened', open: true, captured: 1),
+        packet(state: 'captured', open: true),
+        packet(state: 'sent', open: true, captured: 1),
+        packet(state: 'closed', open: true),
+        packet(captured: 1, accepted: 2),
+        packet(captured: 9007199254740992),
+      ]) {
+        expect(() => parse(value), throwsA(isA<RdpFailure>()));
+      }
+    },
+  );
+
   test(
     'audio observation is exact, bounded and playback requires completion',
     () {
@@ -46,7 +115,7 @@ void main() {
         int accepted = 0,
         int completed = 0,
       }) => {
-        'schemaVersion': 3,
+        'schemaVersion': 4,
         'requestId': 'fixture-request',
         'state': state,
         'deviceOpen': open,
@@ -153,6 +222,7 @@ void main() {
     expect(available.supportsNla, isTrue);
     expect(available.supportsExternalDisplay, isTrue);
     expect(available.supportsIme, isTrue);
+    expect(available.supportsMicrophone, isTrue);
     expect(unavailable.canConnect, isFalse);
     expect(unavailable.engineRevision, isNull);
     expect(
@@ -164,7 +234,7 @@ void main() {
     );
   });
 
-  test('session defaults deny clipboard audio and files', () {
+  test('session defaults deny clipboard audio microphone and files', () {
     const request = RdpSessionRequest(
       profile: profile,
       display: RdpDisplaySpec(
@@ -179,6 +249,7 @@ void main() {
     expect(request.channels, RdpChannelPolicy.lockedDown);
     expect(request.channels.clipboard, isFalse);
     expect(request.channels.audio, isFalse);
+    expect(request.channels.microphone, isFalse);
     expect(request.channels.files, isFalse);
     expect(request.display.pixelCount, 4096000);
     request.validate(

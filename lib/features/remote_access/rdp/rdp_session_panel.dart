@@ -39,11 +39,13 @@ class RdpSessionPanel extends ConsumerStatefulWidget {
     required this.isCurrent,
     required this.onBack,
     this.securityStore,
+    this.onMicrophonePermissionPromptChanged,
   });
   final RemoteProfile profile;
   final bool Function() isCurrent;
   final VoidCallback onBack;
   final RdpSecurityStore? securityStore;
+  final ValueChanged<bool>? onMicrophonePermissionPromptChanged;
   @override
   ConsumerState<RdpSessionPanel> createState() => _RdpSessionPanelState();
 }
@@ -83,6 +85,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   WindowPolicyBridge? _fullscreenBridge;
   bool _consumeFullscreenEscapeRelease = false;
   Timer? _fullscreenEscapeTimer;
+  bool _reportedMicrophonePermissionPrompt = false;
+
+  void _reportMicrophonePermissionPrompt(bool value) {
+    if (_reportedMicrophonePermissionPrompt == value) return;
+    _reportedMicrophonePermissionPrompt = value;
+    widget.onMicrophonePermissionPromptChanged?.call(value);
+  }
 
   WindowDisplayIdentity? _loadedDisplayIdentity() {
     final state = ref.read(windowPolicySnapshotProvider);
@@ -90,12 +99,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     return state.requireValue.displayIdentity;
   }
 
-  bool _current() {
+  bool _current({bool allowMicrophonePrompt = false}) {
     try {
+      final ownsPermissionPrompt =
+          allowMicrophonePrompt &&
+          _controller?.microphonePermissionPending == true;
       if (_retired ||
           !mounted ||
-          !_resumed ||
-          !_focused ||
+          (!_resumed && !ownsPermissionPrompt) ||
+          (!_focused && !ownsPermissionPrompt) ||
           !widget.isCurrent() ||
           !identical(
             _container,
@@ -119,7 +131,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       if (!state.hasValue || state.isLoading || state.hasError) return false;
       final value = state.requireValue;
       return !value.supported ||
-          value.isResumed && value.hasWindowFocus && !value.isPictureInPicture;
+          (value.isResumed || ownsPermissionPrompt) &&
+              (value.hasWindowFocus || ownsPermissionPrompt) &&
+              !value.isPictureInPicture;
     } catch (_) {
       return false;
     }
@@ -180,9 +194,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       credentialVault: _security,
       engineFactory: _factory!,
       isCurrent: () =>
-          _current() &&
+          _current(allowMicrophonePrompt: true) &&
           displayIdentity != null &&
           _loadedDisplayIdentity() == displayIdentity,
+      isInteractive: _current,
       display: RdpDisplaySpec.fromViewport(
         widthPixels: (size.width * media.devicePixelRatio).round(),
         heightPixels: (size.height * media.devicePixelRatio).round(),
@@ -283,6 +298,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         displayMode: _settings.displayMode,
         keyboardLayout: _settings.keyboardLayout,
         clipboardMode: _settings.clipboardMode,
+        microphone: _settings.microphone,
       );
       value.validate();
       await _security!.saveSettings(widget.profile, value, isCurrent: _current);
@@ -302,6 +318,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
 
   void _changed() {
     if (!mounted) return;
+    _reportMicrophonePermissionPrompt(
+      _controller?.microphonePermissionPending == true,
+    );
     final phase = _controller?.phase;
     if (phase != _observedSessionPhase) {
       _observedSessionPhase = phase;
@@ -645,12 +664,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }
 
   void _ownerChanged() {
-    if (!_current()) _retire();
+    if (!_current(allowMicrophonePrompt: true)) _retire();
   }
 
   void _retire() {
     if (_retired) return;
     _retired = true;
+    _reportMicrophonePermissionPrompt(false);
     _retireFullscreen(notify: false);
     _password.clear();
     _gatewayPassword.clear();
@@ -666,18 +686,27 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _resumed = state == AppLifecycleState.resumed;
-    if (!_resumed) _retire();
+    if (!_resumed &&
+        !(state == AppLifecycleState.inactive &&
+            _controller?.microphonePermissionPending == true)) {
+      _retire();
+    }
   }
 
   @override
   void didChangeViewFocus(ui.ViewFocusEvent event) {
     if (event.viewId != View.of(context).viewId) return;
     _focused = event.state == ui.ViewFocusState.focused;
-    if (!_focused) _retire();
+    if (_focused) {
+      _controller?.resumeMicrophonePermission();
+    } else if (_controller?.microphonePermissionPending != true) {
+      _retire();
+    }
   }
 
   @override
   void dispose() {
+    _reportMicrophonePermissionPrompt(false);
     WidgetsBinding.instance.removeObserver(this);
     _fullscreenEscapeTimer?.cancel();
     _retireFullscreen(notify: false);
@@ -731,8 +760,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           next.hasError ||
           value == null ||
           value.supported &&
-              (!value.isResumed ||
-                  !value.hasWindowFocus ||
+              ((!value.isResumed &&
+                      _controller?.microphonePermissionPending != true) ||
+                  !value.hasWindowFocus &&
+                      _controller?.microphonePermissionPending != true ||
                   value.isPictureInPicture)) {
         _retire();
       } else if (_controllerDisplayIdentity != value.displayIdentity) {
@@ -901,6 +932,54 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                             ],
                           ),
                         ),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      Localizations.localeOf(context)
+                                                  .languageCode ==
+                                              'tr'
+                                          ? 'Mikrofon yönlendirmesi'
+                                          : 'Microphone redirection',
+                                    ),
+                                  ),
+                                  CupertinoSwitch(
+                                    key: const ValueKey(
+                                      'rdp-microphone-enable',
+                                    ),
+                                    value: _settings.microphone,
+                                    onChanged:
+                                        _current() &&
+                                            _settingsLoaded &&
+                                            !_settingsBusy &&
+                                            (_settings.microphone ||
+                                                c
+                                                        .capabilities
+                                                        ?.supportsMicrophone !=
+                                                    false)
+                                        ? (value) => setState(
+                                            () => _settings = _settings
+                                                .copyWith(microphone: value),
+                                          )
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                Localizations.localeOf(context).languageCode ==
+                                        'tr'
+                                    ? 'Bağlanırken Android mikrofon izni istenir. Yalnızca açıkça etkinleştirilen oturum yakalama başlatabilir.'
+                                    : 'Android microphone permission is requested when connecting. Capture can start only for an explicitly enabled session.',
+                              ),
+                            ],
+                          ),
+                        ),
                         for (final value in RdpClipboardMode.values.where(
                           (value) =>
                               value == RdpClipboardMode.disabled ||
@@ -1028,6 +1107,68 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                                               : l.rdpAudioEnabled,
                                       },
                                 key: const ValueKey('rdp-audio-status'),
+                              ),
+                              Text(
+                                !_settings.microphone
+                                    ? Localizations.localeOf(context)
+                                                  .languageCode ==
+                                              'tr'
+                                          ? 'Mikrofon kapalı'
+                                          : 'Microphone off'
+                                    : c.microphonePermissionPending
+                                    ? Localizations.localeOf(context)
+                                                  .languageCode ==
+                                              'tr'
+                                          ? 'Mikrofon izni bekleniyor'
+                                          : 'Waiting for microphone permission'
+                                    : switch (c.microphoneObservation?.state) {
+                                        RdpMicrophoneState.opened =>
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tr'
+                                              ? 'Mikrofon açık; ses bekleniyor'
+                                              : 'Microphone open; waiting for audio',
+                                        RdpMicrophoneState.captured =>
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tr'
+                                              ? 'Mikrofon sesi yakalandı'
+                                              : 'Microphone audio captured',
+                                        RdpMicrophoneState.sent =>
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tr'
+                                              ? 'Mikrofon sesi uzak kanala gönderildi'
+                                              : 'Microphone audio sent to the remote channel',
+                                        RdpMicrophoneState.closed =>
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tr'
+                                              ? 'Mikrofon kanalı kapandı'
+                                              : 'Microphone channel closed',
+                                        RdpMicrophoneState.failed =>
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tr'
+                                              ? 'Mikrofon kullanılamıyor'
+                                              : 'Microphone unavailable',
+                                        _ =>
+                                          c.phase == RdpSessionPhase.failed ||
+                                                  c.phase ==
+                                                      RdpSessionPhase
+                                                          .unsupported
+                                              ? Localizations.localeOf(context)
+                                                            .languageCode ==
+                                                        'tr'
+                                                    ? 'Mikrofon kullanılamıyor'
+                                                    : 'Microphone unavailable'
+                                              : Localizations.localeOf(context)
+                                                        .languageCode ==
+                                                    'tr'
+                                              ? 'Mikrofon etkin; bağlantı bekleniyor'
+                                              : 'Microphone enabled; waiting for the session',
+                                      },
+                                key: const ValueKey('rdp-microphone-status'),
                               ),
                               Text(l.rdpFilesOff),
                               const SizedBox(height: 8),

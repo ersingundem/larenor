@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,7 @@ import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 import '../remote_profiles_ui_fixture.dart';
+import '../core_personal_profiles_test_support.dart';
 import 'rdp_models_test.dart' show fixture, packagedCapabilities;
 
 const _defaultWindow = WindowPolicySnapshot(
@@ -96,7 +98,8 @@ class UiChannel
         RdpChannel,
         RdpFrameChannel,
         RdpNegotiatedInputChannel,
-        RdpAudioPlaybackChannel {
+        RdpAudioPlaybackChannel,
+        RdpMicrophoneCaptureChannel {
   UiChannel({required this.supportsUnicodeInput}) {
     _frames = StreamController<RdpFrame>.broadcast(
       onListen: () {
@@ -117,12 +120,32 @@ class UiChannel
   Future<RdpAudioObservation> audioObservation() async {
     audioReads++;
     return RdpAudioObservation.fromJson({
-      'schemaVersion': 3,
+      'schemaVersion': 4,
       'requestId': 'ui-fixture',
       'state': audioState,
       'deviceOpen': audioState == 'deviceOpen' || audioState == 'playing',
       'acceptedCount': acceptedAudio,
       'completedCount': completedAudio,
+    }, requestId: 'ui-fixture');
+  }
+
+  int microphoneReads = 0;
+  String microphoneState = 'pending';
+  int capturedMicrophone = 0, acceptedMicrophone = 0;
+  @override
+  Future<RdpMicrophoneObservation> microphoneObservation() async {
+    microphoneReads++;
+    return RdpMicrophoneObservation.fromJson({
+      'schemaVersion': 4,
+      'requestId': 'ui-fixture',
+      'state': microphoneState,
+      'deviceOpen': const {
+        'opened',
+        'captured',
+        'sent',
+      }.contains(microphoneState),
+      'capturedCount': capturedMicrophone,
+      'acceptedCount': acceptedMicrophone,
     }, requestId: 'ui-fixture');
   }
 
@@ -203,15 +226,20 @@ class UiChannel
   }
 }
 
-class UiEngine implements RdpEngine {
+class UiEngine implements RdpMicrophonePermissionEngine {
   UiEngine({
     this.supportsIme = false,
     this.supportsResize = true,
     this.supportsAudio = false,
+    this.supportsMicrophone = false,
   });
   final bool supportsIme;
   final bool supportsResize;
   final bool supportsAudio;
+  final bool supportsMicrophone;
+  bool permissionGranted = true;
+  Completer<bool>? permissionReply;
+  int permissionRequests = 0, permissionCancels = 0;
   late final channel = UiChannel(supportsUnicodeInput: supportsIme);
   final requests = <RdpSessionRequest>[];
   int capabilityReads = 0;
@@ -221,6 +249,8 @@ class UiEngine implements RdpEngine {
   }) async {
     capabilityReads++;
     final packet = packagedCapabilities(ime: supportsIme, audio: supportsAudio);
+    (packet['channels']! as Map<String, Object?>)['microphone'] =
+        supportsMicrophone;
     (packet['display']! as Map<String, Object?>)['dynamicResolution'] =
         supportsResize;
     return RdpCapabilities.fromJson(packet);
@@ -250,6 +280,21 @@ class UiEngine implements RdpEngine {
 
   @override
   void close() {}
+
+  @override
+  Future<bool> requestMicrophonePermission({
+    required bool Function() isCurrent,
+  }) async {
+    permissionRequests++;
+    final granted =
+        await (permissionReply?.future ??
+            Future<bool>.value(permissionGranted));
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return granted;
+  }
+
+  @override
+  void cancelMicrophonePermission() => permissionCancels++;
 }
 
 class HeldCapabilityEngine extends UiEngine {
@@ -369,6 +414,172 @@ void main() {
         tester.widget<CupertinoSwitch>(key('rdp-audio-enable')).value,
         isFalse,
       );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'microphone opt-in persists and reports capture separately from submission',
+    (tester) async {
+      final engine = UiEngine(supportsMicrophone: true), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      expect(
+        tester.widget<CupertinoSwitch>(key('rdp-microphone-enable')).value,
+        isFalse,
+      );
+      await press(tester, 'rdp-microphone-enable');
+      await press(tester, 'rdp-settings-save');
+      await connectRdp(tester);
+      expect(engine.permissionRequests, 1);
+      expect(engine.requests.last.channels.microphone, isTrue);
+      expect(engine.channel.microphoneReads, 1);
+      await tester.ensureVisible(key('rdp-microphone-status'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Microphone enabled; waiting for the session'),
+        findsOneWidget,
+      );
+      engine.channel.microphoneState = 'captured';
+      engine.channel.capturedMicrophone = 1;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Microphone audio captured'), findsOneWidget);
+      expect(
+        find.text('Microphone audio sent to the remote channel'),
+        findsNothing,
+      );
+      engine.channel.microphoneState = 'sent';
+      engine.channel.capturedMicrophone = 2;
+      engine.channel.acceptedMicrophone = 1;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Microphone audio sent to the remote channel'),
+        findsOneWidget,
+      );
+      await press(tester, 'rdp-back');
+      await press(tester, 'remote-rdp-open');
+      expect(
+        tester.widget<CupertinoSwitch>(key('rdp-microphone-enable')).value,
+        isTrue,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'owned permission focus handoff waits, while real background retires',
+    (tester) async {
+      final permission = Completer<bool>();
+      final engine = UiEngine(supportsMicrophone: true)
+        ..permissionReply = permission;
+      final remoteUi = RemoteUi();
+      await remoteUi.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, remoteUi);
+      await press(tester, 'rdp-microphone-enable');
+      await press(tester, 'rdp-settings-save');
+      await press(tester, 'rdp-check');
+      expect(engine.permissionRequests, 1);
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.unfocused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      permission.complete(true);
+      await tester.pump();
+      expect(engine.requests, isEmpty);
+      expect(key('rdp-session-panel'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.focused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(key('rdp-password'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(engine.requests, isEmpty);
+      expect(engine.permissionCancels, greaterThanOrEqualTo(1));
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'Core-managed permission focus handoff waits without relaxing background',
+    (tester) async {
+      final permission = Completer<bool>();
+      final engine = UiEngine(supportsMicrophone: true)
+        ..permissionReply = permission;
+      final core = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = profileJson(protocol: 'rdp');
+      await core.account.initialize();
+      addTearDown(core.account.dispose);
+      final remoteUi = RemoteUi();
+      await remoteUi.mount(
+        tester,
+        width: 1280,
+        serverAccount: core.account,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      remoteUi.windows.add(_defaultWindow);
+      await tester.pump();
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-rdp-open-$profileId');
+      await press(tester, 'rdp-microphone-enable');
+      await press(tester, 'rdp-settings-save');
+      await press(tester, 'rdp-check');
+      expect(engine.permissionRequests, 1);
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.unfocused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      permission.complete(true);
+      await tester.pump();
+      expect(engine.requests, isEmpty);
+      expect(key('core-rdp-$profileId'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.focused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(key('rdp-trust'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(engine.requests, isEmpty);
+      expect(engine.permissionCancels, greaterThanOrEqualTo(1));
       await tester.pumpWidget(const SizedBox());
     },
   );
