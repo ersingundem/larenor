@@ -45,10 +45,19 @@ def test_failure_classifier_is_closed(phase: str, raw: bytes, expected: str) -> 
     assert expected in probe.BUILD_FAILURE_CODES
 
 
-def test_failed_build_writes_only_source_bound_receipt(tmp_path: Path) -> None:
+def test_failed_build_writes_only_source_bound_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     probe, owned = modules()
+    revision = "a" * 40
+    monkeypatch.setattr(probe, "source_revision", lambda _: revision)
     command = tmp_path / "compiler"
-    command.write_text("#!/bin/sh\nprintf '%s\\n' 'owned.c:4:2: fatal error: header.h: No such file or directory'\nexit 7\n")
+    command.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' '/private/host/shadow_owned_rdpdr.c:507:10: error: "
+        "struct secret has no member named private_token'\n"
+        "exit 7\n"
+    )
     command.chmod(0o700)
     log = tmp_path / "compile.log"
     receipt = tmp_path / "failure.json"
@@ -59,14 +68,19 @@ def test_failed_build_writes_only_source_bound_receipt(tmp_path: Path) -> None:
         )
     value = json.loads(receipt.read_text())
     assert set(value) == probe.BUILD_FAILURE_RECEIPT_KEYS
-    assert value["runnerSourceRevision"] == probe.source_revision(ROOT)
+    assert value["runnerSourceRevision"] == revision
     assert value["phase"] == "compile"
-    assert value["failureCode"] == "missingHeader"
+    assert value["schemaVersion"] == 2
+    assert value["failureCode"] == "compilerError"
+    assert value["compilerSource"] == "ownedRdpdr"
+    assert value["compilerLine"] == 507
+    assert value["compilerErrorClass"] == "missingMember"
     assert value["exitCode"] == 7
     assert value["featureAccepted"] is False
     encoded = receipt.read_text()
-    assert "owned.c" not in encoded
-    assert "header.h" not in encoded
+    assert "shadow_owned_rdpdr.c" not in encoded
+    assert "private_token" not in encoded
+    assert "/private/host" not in encoded
     assert receipt.stat().st_mode & 0o777 == 0o600
     assert log.stat().st_mode & 0o777 == 0o600
 
@@ -81,6 +95,87 @@ def test_successful_build_does_not_create_failure_receipt(tmp_path: Path) -> Non
         [str(command)], cwd=tmp_path, log=tmp_path / "compile.log", timeout=5,
         phase="compile", failure_receipt=receipt,
     )
+    assert not receipt.exists()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    (
+        (
+            b"/tmp/private/shadow_owned_rdpdr.c:507:10: error: "
+            b"struct private has no member named secret",
+            ("ownedRdpdr", 507, "missingMember"),
+        ),
+        (
+            b"/tmp/private/shadow_channels.c:44:3: error: call to undeclared "
+            b"function 'private_secret'",
+            ("shadowChannels", 44, "undeclaredIdentifier"),
+        ),
+        (
+            b"/tmp/private/shadow.h:139:2: error: incompatible pointer types "
+            b"from private hostname",
+            ("shadowPublicHeader", 139, "incompatibleType"),
+        ),
+        (
+            b"/tmp/private/shadow_owned_rdpdr.c:9999:2: error: private out of bounds",
+            (None, None, None),
+        ),
+        (
+            b"/tmp/private/unreviewed.c:3:2: error: private source",
+            (None, None, None),
+        ),
+        (
+            b"/tmp/private/shadow_owned_rdpdr.c:507:2: error:",
+            (None, None, None),
+        ),
+        (
+            b"undefined reference to `private_secret'",
+            (None, None, "linkUndefined"),
+        ),
+    ),
+)
+def test_compiler_diagnostic_is_finite_source_bound(
+    raw: bytes, expected: tuple[str | None, int | None, str | None]
+) -> None:
+    probe, _ = modules()
+    assert probe._compiler_diagnostic(raw) == expected
+
+
+def test_compiler_diagnostic_handles_non_ascii_without_decode() -> None:
+    probe, _ = modules()
+    raw = (
+        b"/tmp/private/shadow_owned_rdpdr.c:353:7: error: too few arguments "
+        b"for private \xff symbol"
+    )
+    assert probe._compiler_diagnostic(raw) == ("ownedRdpdr", 353, "callSignature")
+
+
+@pytest.mark.parametrize(
+    "diagnostic",
+    (
+        ("ownedRdpdr", 554, "other"),
+        ("ownedRdpdr", 507, None),
+        (None, None, "missingMember"),
+        ("ownedRdpdr", 507, "linkUndefined"),
+    ),
+)
+def test_failure_receipt_rejects_unbound_compiler_tuple(
+    tmp_path: Path,
+    diagnostic: tuple[str | None, int | None, str | None],
+) -> None:
+    probe, _ = modules()
+    log = tmp_path / "compile.log"
+    log.write_bytes(b"private diagnostic input")
+    receipt = tmp_path / "failure.json"
+    with pytest.raises(probe.ProbeError):
+        probe._write_build_failure(
+            receipt,
+            phase="compile",
+            failure_code="compilerError",
+            exit_code=1,
+            log=log,
+            compiler_diagnostic=diagnostic,
+        )
     assert not receipt.exists()
 
 
@@ -141,3 +236,21 @@ def test_failure_receipt_rejects_boolean_exit_code(tmp_path: Path, invalid_exit:
             exit_code=invalid_exit, log=log,
         )
     assert not receipt.exists()
+
+
+def test_truncated_compiler_message_does_not_publish_a_tuple():
+    probe, _ = modules()
+    raw = b"/private/source/shadow_owned_rdpdr.c:507:2: error: " + b"x" * 513 + b"\n"
+    assert probe._compiler_diagnostic(raw) == (None, None, None)
+
+
+def test_missing_line_in_bound_source_tuple_fails_closed(tmp_path):
+    probe, _ = modules()
+    log = tmp_path / "compile.log"
+    log.write_bytes(b"private input")
+    with pytest.raises(probe.ProbeError):
+        probe._write_build_failure(
+            tmp_path / "failure.json", phase="compile", failure_code="compilerError",
+            exit_code=1, log=log, compiler_diagnostic=("ownedRdpdr", None, "other"),
+        )
+    assert not (tmp_path / "failure.json").exists()

@@ -6158,7 +6158,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact3f231 Linux37138370042 Gateway/auth build geçti; FreeRDP compile/compilerError exit1. Closed source-bound receipt doğrulandı; owned cleanup artık geçti. Pinned C/API neden incelemesi sürüyor; aynı SHA rerun yok. Native5 yerel bileşim kabul değildir. Public Android senaryosu gerçek Flutter messenger/codec2 ve25contract geçti; gerçek Gateway/RDPDR/SAF/audio/mic etkileri açık. SAF4 önceki drain/cleanup hatalarını kapattı; UNKNOWN persistence failure sonrası duplicate callback için SAF5 dar onarımı doğrulanıyor. Final required CI açık."
+      "reason": "Exact3f231 Linux37138370042 Gateway/auth build geçti; FreeRDP compile/compilerError exit1. Closed source-bound receipt doğrulandı; owned cleanup artık geçti. Pinned C/API ve iki patched unit syntax kontrolü geçti; hosted compiler nedeni kanıtlanmadı. Yeni closed source-enum/bounded-line/error-class tanısı root51test/8subtest+Ruff geçti; değişmiş exact probe sırada, aynı SHA rerun yok. Native5 yerel bileşim kabul değildir. Public Android senaryosu gerçek Flutter messenger/codec2 ve25contract geçti; gerçek Gateway/RDPDR/SAF/audio/mic etkileri açık. SAF4 önceki drain/cleanup hatalarını kapattı; UNKNOWN persistence failure sonrası duplicate callback için SAF5 dar onarımı doğrulanıyor. Final required CI açık."
     },
     {
       "id": "F61",

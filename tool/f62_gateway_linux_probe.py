@@ -80,7 +80,8 @@ PUBLIC_RECEIPT_KEYS = {
 BUILD_FAILURE_RECEIPT_KEYS = {
     "schemaVersion", "runnerSourceRevision", "sourceRevision", "sourceArchiveSha256",
     "targetPatchSha256", "sourceManifestSha256", "phase", "failureCode",
-    "exitCode", "logSha256", "featureAccepted",
+    "exitCode", "logSha256", "compilerSource", "compilerLine",
+    "compilerErrorClass", "featureAccepted",
 }
 BUILD_FAILURE_CODES = frozenset(
     {
@@ -90,6 +91,21 @@ BUILD_FAILURE_CODES = frozenset(
     }
 )
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_COMPILER_SOURCES = {
+    b"shadow_owned_rdpdr.c": ("ownedRdpdr", 553),
+    b"shadow_owned_rdpdr.h": ("ownedRdpdrHeader", 18),
+    b"shadow_channels.c": ("shadowChannels", 66),
+    b"shadow_channels.h": ("shadowChannelsHeader", 45),
+    b"shadow_client.c": ("shadowClient", 3128),
+    b"shadow.h": ("shadowPublicHeader", 438),
+}
+_COMPILER_ERROR_CLASSES = frozenset(
+    {
+        "missingHeader", "undeclaredIdentifier", "missingMember",
+        "incompatibleType", "callSignature", "syntaxError", "linkUndefined",
+        "other",
+    }
+)
 _IN_CLOSE_WRITE = 0x00000008
 _IN_CLOEXEC = 0x00080000
 _IN_NONBLOCK = 0x00000800
@@ -193,6 +209,42 @@ def _classify_build_failure(phase: str, raw: bytes) -> str:
     return "commandFailed"
 
 
+def _compiler_diagnostic(raw: bytes) -> tuple[str | None, int | None, str | None]:
+    """Reduce private compiler output to a fixed, source-bound diagnostic tuple."""
+    if b"undefined reference to" in raw or b"collect2: error:" in raw:
+        return None, None, "linkUndefined"
+    pattern = re.compile(
+        rb"(?:^|\n)(?:[^\r\n:]+[/\\])?(?P<file>[A-Za-z0-9_.-]+):"
+        rb"(?P<line>[0-9]{1,6}):[0-9]{1,6}: (?:fatal )?error: "
+        rb"(?P<message>[^\r\n]{1,512})(?=\r?\n|$)"
+    )
+    for match in pattern.finditer(raw):
+        bound = _COMPILER_SOURCES.get(match.group("file"))
+        if bound is None:
+            continue
+        source, maximum = bound
+        line = int(match.group("line"))
+        if not 1 <= line <= maximum:
+            continue
+        message = match.group("message").lower()
+        if b"no such file or directory" in message:
+            error_class = "missingHeader"
+        elif b"undeclared" in message or b"not declared" in message:
+            error_class = "undeclaredIdentifier"
+        elif b"no member named" in message or b"has no member named" in message:
+            error_class = "missingMember"
+        elif b"incompatible" in message or b"conflicting types" in message:
+            error_class = "incompatibleType"
+        elif b"too few arguments" in message or b"too many arguments" in message:
+            error_class = "callSignature"
+        elif b"expected" in message:
+            error_class = "syntaxError"
+        else:
+            error_class = "other"
+        return source, line, error_class
+    return None, None, None
+
+
 def _write_build_failure(
     path: pathlib.Path,
     *,
@@ -200,15 +252,28 @@ def _write_build_failure(
     failure_code: str,
     exit_code: int | None,
     log: pathlib.Path,
+    compiler_diagnostic: tuple[str | None, int | None, str | None] = (None, None, None),
 ) -> None:
+    compiler_source, compiler_line, compiler_error_class = compiler_diagnostic
+    source_line_bounds = {value[0]: value[1] for value in _COMPILER_SOURCES.values()}
     if (
         phase not in ("configure", "compile")
         or failure_code not in BUILD_FAILURE_CODES
         or (exit_code is not None and (type(exit_code) is not int or exit_code == 0 or not -255 <= exit_code <= 255))
+        or compiler_source not in ({value[0] for value in _COMPILER_SOURCES.values()} | {None})
+        or (compiler_line is not None and (type(compiler_line) is not int or compiler_line < 1))
+        or (compiler_source is not None and (compiler_line is None or compiler_line > source_line_bounds[compiler_source]))
+        or compiler_error_class not in (_COMPILER_ERROR_CLASSES | {None})
+        or ((compiler_source is None) != (compiler_line is None))
+        or (compiler_source is not None and compiler_error_class in (None, "linkUndefined"))
+        or (compiler_source is None and compiler_error_class not in (None, "linkUndefined"))
+        or (compiler_error_class == "linkUndefined" and failure_code != "linkerError")
+        or (failure_code not in ("compilerError", "missingHeader", "linkerError") and
+            compiler_diagnostic != (None, None, None))
     ):
         fail("invalidBuildFailureReceipt")
     value = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "runnerSourceRevision": source_revision(pathlib.Path(__file__).resolve().parents[1]),
         "sourceRevision": FREERDP_REVISION,
         "sourceArchiveSha256": FREERDP_ARCHIVE_SHA256,
@@ -218,6 +283,9 @@ def _write_build_failure(
         "failureCode": failure_code,
         "exitCode": exit_code,
         "logSha256": owned.sha256(log),
+        "compilerSource": compiler_source,
+        "compilerLine": compiler_line,
+        "compilerErrorClass": compiler_error_class,
         "featureAccepted": False,
     }
     if set(value) != BUILD_FAILURE_RECEIPT_KEYS:
@@ -264,10 +332,16 @@ def _run_build(
             )
             fail("freerdpBuildLogTooLarge")
         if process.returncode != 0:
-            failure_code = _classify_build_failure(phase, log.read_bytes())
+            raw = log.read_bytes()
+            failure_code = _classify_build_failure(phase, raw)
             _write_build_failure(
                 failure_receipt, phase=phase, failure_code=failure_code,
                 exit_code=process.returncode, log=log,
+                compiler_diagnostic=(
+                    _compiler_diagnostic(raw)
+                    if failure_code in ("compilerError", "missingHeader", "linkerError")
+                    else (None, None, None)
+                ),
             )
             fail("freerdpBuildFailed")
     finally:
