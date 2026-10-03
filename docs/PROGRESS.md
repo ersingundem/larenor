@@ -31,6 +31,8 @@ Değişmiş RI5 [exact9a85 Sunshine37127353767](https://github.com/ersingundem/l
 
 Değişmiş kaynak kabul koşuları bir kez başlatıldı: [Sunshine exact79506 / 37128656191](https://github.com/ersingundem/larenor/actions/runs/37128656191) ve [RDP exactf201 / 37128695877](https://github.com/ersingundem/larenor/actions/runs/37128695877). İkisi başarısız tamamlandı: F60 ownedInputEffects kontrol yanıtı, F62 host effect-control sırası. Canonical source/validator/hash root tarafından doğrulandı; F62 receiptte named sayılar bulunmadığından 1/1/0/0 iddia edilmez. [Yeni hata ve teslim sınırı](testing/native-strict-7950-f201-failure-2026-10-03.md). Kabul sayaçları artmadı.
 
+3 Ekim F60 XI2 dinleyici düzeltmesi: uzun event akışına yanlış uygulanmış toplam64KiB komut kotası kaldırıldı;4KiB satır sınırı, exact readiness ve iki hareket/düğme kapısı korundu. Root **80 test/72 subtest**, Ruff temiz. Bu kaynak kusuru eski touchListener hatasıyla uyumludur; eski koşunun tek nedeni kanıtlanmış değildir. Gerçek changed-source Android yayın kabulü ve main merge açık. [Dar kaynak kanıtı](testing/f60-active-stream-xi2-listener-2026-10-03.md).
+
 ## Güncel durum ayrımı
 
 F60 phase bridge tanısı root **74/74** stream/workflow ve Ruff geçti. Kayıp

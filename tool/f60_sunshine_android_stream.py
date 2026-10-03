@@ -111,7 +111,26 @@ _PHASE_BRIDGE_STAGES = frozenset({
     "disconnectReady", "disconnectPairing", "sunshineStop", "disconnectArm",
     "endOfStream", "cleanup",
 })
-_PHASE_BRIDGE_ERRORS = frozenset({"none", "timeout", "io", "contract", "unclassified"})
+_XI2_POINTER_START_ERRORS = frozenset({
+    "xi2Start",
+    "xi2ReadinessTimeout",
+    "xi2Probe",
+    "xi2LineFormat",
+    "xi2LineSize",
+    "xi2ChildExit",
+    "xi2ReadIo",
+})
+_XI2_POINTER_EFFECT_ERRORS = frozenset({
+    "xi2LineFormat",
+    "xi2LineSize",
+    "xi2ChildExit",
+    "xi2ReadIo",
+    "xi2EffectTimeout",
+})
+_XI2_POINTER_ERRORS = _XI2_POINTER_START_ERRORS | _XI2_POINTER_EFFECT_ERRORS
+_PHASE_BRIDGE_ERRORS = frozenset(
+    {"none", "timeout", "io", "contract", "unclassified"}
+) | _XI2_POINTER_ERRORS
 
 
 def _validate_phase_bridge_observation(observation: Mapping[str, object]) -> None:
@@ -125,6 +144,19 @@ def _validate_phase_bridge_observation(observation: Mapping[str, object]) -> Non
         or type(observation["error"]) is not str
         or observation["error"] not in _PHASE_BRIDGE_ERRORS
         or (observation["state"] == "failed") != (observation["error"] != "none")
+        or (
+            observation["error"] in _XI2_POINTER_ERRORS
+            and not (
+                (
+                    observation["stage"] == "touchListener"
+                    and observation["error"] in _XI2_POINTER_START_ERRORS
+                )
+                or (
+                    observation["stage"] == "touchEffect"
+                    and observation["error"] in _XI2_POINTER_EFFECT_ERRORS
+                )
+            )
+        )
         or (observation["state"] == "complete" and observation["stage"] != "endOfStream")
     ):
         raise StreamAcceptanceFailure("private phase bridge observation is invalid")
@@ -260,6 +292,16 @@ _STAGE_LINES = (
 
 class StreamAcceptanceFailure(RuntimeError):
     """A secret-free, fail-closed stream acceptance error."""
+
+
+class Xi2PointerWitnessFailure(StreamAcceptanceFailure):
+    """A closed, provider-free failure from the owned XI2 pointer witness."""
+
+    def __init__(self, public_code: str) -> None:
+        if public_code not in _XI2_POINTER_ERRORS:
+            raise ValueError("owned XI2 pointer failure code is invalid")
+        super().__init__("owned XI2 pointer witness failed")
+        self.public_code = public_code
 
 
 @dataclass(frozen=True)
@@ -853,7 +895,7 @@ class Xi2PointerWitness:
                 start_new_session=True,
             )
         except (OSError, subprocess.SubprocessError) as error:
-            raise StreamAcceptanceFailure("owned XI2 pointer witness could not start") from error
+            raise Xi2PointerWitnessFailure("xi2Start") from error
         self._thread = threading.Thread(
             target=self._read, name="f60-xi2-pointer-witness", daemon=True
         )
@@ -861,9 +903,15 @@ class Xi2PointerWitness:
         deadline = time.monotonic() + self._readiness_timeout
         probe_index = 0
         while not self._ready.is_set():
-            if self._done.is_set() or time.monotonic() >= deadline:
+            if self._done.is_set():
+                failure = self._failure
                 self.close()
-                raise StreamAcceptanceFailure("owned XI2 pointer listener is not ready")
+                if isinstance(failure, Xi2PointerWitnessFailure):
+                    raise failure
+                raise Xi2PointerWitnessFailure("xi2ChildExit")
+            if time.monotonic() >= deadline:
+                self.close()
+                raise Xi2PointerWitnessFailure("xi2ReadinessTimeout")
             x, y = XI2_READY_POSITIONS[probe_index % len(XI2_READY_POSITIONS)]
             probe_index += 1
             with self._lock:
@@ -872,7 +920,7 @@ class Xi2PointerWitness:
                 self._readiness_probe(x, y)
             except BaseException as error:
                 self.close()
-                raise StreamAcceptanceFailure("owned XI2 pointer listener is not ready") from error
+                raise Xi2PointerWitnessFailure("xi2Probe") from error
             self._ready.wait(min(0.1, max(0.0, deadline - time.monotonic())))
         with self._lock:
             # Readiness probes are never Android input evidence.
@@ -883,14 +931,16 @@ class Xi2PointerWitness:
             self._collect_effects = True
 
     def _consume_line(self, line: bytes) -> None:
-        if not line.endswith(b"\n") or len(line) > XI2_LINE_BYTES:
-            raise StreamAcceptanceFailure("owned XI2 pointer observation is malformed")
+        if len(line) > XI2_LINE_BYTES:
+            raise Xi2PointerWitnessFailure("xi2LineSize")
+        if not line.endswith(b"\n"):
+            raise Xi2PointerWitnessFailure("xi2LineFormat")
         if line.startswith(b"EVENT"):
             # Any event boundary invalidates fields belonging to the prior event.
             self._event = None
             match = re.fullmatch(rb"EVENT type [0-9]+ \(([A-Za-z]+)\)\n", line)
             if match is None:
-                raise StreamAcceptanceFailure("owned XI2 pointer observation is malformed")
+                raise Xi2PointerWitnessFailure("xi2LineFormat")
             self._event = match.group(1)
             return
         root = re.fullmatch(
@@ -907,7 +957,10 @@ class Xi2PointerWitness:
                 ):
                     self._ready.set()
             else:
-                self._positions.add(position)
+                # Only the fact that two distinct positions were observed is
+                # required. Do not retain an unbounded active-stream trace.
+                if len(self._positions) < 2:
+                    self._positions.add(position)
         detail = re.fullmatch(rb"\s+detail: ([0-9]+)\n", line)
         if self._collect_effects and detail is not None and int(detail.group(1)) == PRIMARY_BUTTON:
             if self._event == b"ButtonPress":
@@ -925,18 +978,19 @@ class Xi2PointerWitness:
     def _read(self) -> None:
         try:
             assert self._process is not None and self._process.stdout is not None
-            total = 0
             while True:
                 line = self._process.stdout.readline(XI2_LINE_BYTES + 1)
                 if line == b"":
+                    if not self.observed:
+                        raise Xi2PointerWitnessFailure("xi2ChildExit")
                     break
-                total += len(line)
-                if total > MAX_COMMAND_OUTPUT:
-                    raise StreamAcceptanceFailure("owned XI2 pointer observation is too large")
                 with self._lock:
                     self._consume_line(line)
                 if self.observed:
                     return
+        except OSError as error:
+            self._failure = Xi2PointerWitnessFailure("xi2ReadIo")
+            self._failure.__cause__ = error
         except BaseException as error:
             self._failure = error
         finally:
@@ -944,9 +998,13 @@ class Xi2PointerWitness:
 
     def wait(self, timeout_seconds: float = CONTROL_TIMEOUT_SECONDS) -> None:
         if not self._done.wait(timeout_seconds):
-            raise StreamAcceptanceFailure("owned XI2 pointer effect was not observed")
-        if self._failure is not None or not self.observed:
-            raise StreamAcceptanceFailure("owned XI2 pointer effect was not observed")
+            raise Xi2PointerWitnessFailure("xi2EffectTimeout")
+        if isinstance(self._failure, Xi2PointerWitnessFailure):
+            raise self._failure
+        if self._failure is not None:
+            raise Xi2PointerWitnessFailure("xi2ReadIo") from self._failure
+        if not self.observed:
+            raise Xi2PointerWitnessFailure("xi2ChildExit")
 
     def close(self) -> None:
         process = self._process
@@ -1040,7 +1098,8 @@ class PhaseControlBridge:
         if self._failure is not None:
             return
         kind = (
-            "timeout" if isinstance(error, (TimeoutError, subprocess.TimeoutExpired))
+            error.public_code if isinstance(error, Xi2PointerWitnessFailure)
+            else "timeout" if isinstance(error, (TimeoutError, subprocess.TimeoutExpired))
             else "io" if isinstance(error, OSError)
             else "contract" if isinstance(error, (StreamAcceptanceFailure, HostFailure))
             else "unclassified"

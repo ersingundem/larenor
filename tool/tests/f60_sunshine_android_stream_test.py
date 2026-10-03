@@ -739,6 +739,26 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         valid = {"stage": "touchListener", "state": "failed", "error": "contract"}
         diagnostic = {**stream._static_failure("instrumentation_report_missing"), "phaseBridge": valid}
         stream._validate_failure_diagnostic(diagnostic)
+        for xi2_error in stream._XI2_POINTER_START_ERRORS:
+            stream._validate_phase_bridge_observation(
+                {"stage": "touchListener", "state": "failed", "error": xi2_error}
+            )
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                stream._validate_phase_bridge_observation(
+                    {"stage": "audioInjection", "state": "failed", "error": xi2_error}
+                )
+        for xi2_error in stream._XI2_POINTER_EFFECT_ERRORS:
+            stream._validate_phase_bridge_observation(
+                {"stage": "touchEffect", "state": "failed", "error": xi2_error}
+            )
+        for stage, xi2_error in (
+            ("touchListener", "xi2EffectTimeout"),
+            ("touchEffect", "xi2Probe"),
+        ):
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                stream._validate_phase_bridge_observation(
+                    {"stage": stage, "state": "failed", "error": xi2_error}
+                )
         for invalid in (
             {**valid, "stage": "private value"},
             {**valid, "stage": []},
@@ -752,6 +772,33 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             with self.subTest(fields=sorted(invalid)):
                 with self.assertRaises(stream.StreamAcceptanceFailure):
                     stream._validate_failure_diagnostic({**diagnostic, "phaseBridge": invalid})
+
+    def test_phase_bridge_preserves_only_closed_xi2_failure_code(self) -> None:
+        class Gamepad:
+            def disarm(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            owned = _Owned(root)
+            tone = root / "tone.wav"
+            stream.write_owned_tone(tone)
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce="a" * 64,
+                paired_client_uuid=lambda: None,
+                gamepad=Gamepad(),
+                tone=tone,
+                timeout_seconds=1,
+            )
+            bridge._set_stage("touchListener")
+            bridge._record_failure(stream.Xi2PointerWitnessFailure("xi2LineSize"))
+            self.assertEqual(
+                {"stage": "touchListener", "state": "failed", "error": "xi2LineSize"},
+                bridge.public_observation(),
+            )
+            self.assertNotIn("provider", json.dumps(bridge.public_observation()))
+            bridge.close()
 
     def test_post_gradle_phase_wait_failure_has_own_code_and_preserves_original_error(self) -> None:
         failure = stream.StreamAcceptanceFailure("private phase failure")
@@ -1005,7 +1052,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 writer.close()
                 reader.close()
 
-    def test_pointer_listener_fails_closed_when_probe_is_never_observed(self) -> None:
+    def test_pointer_listener_reports_child_exit_before_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             owned = _Owned(Path(temporary))
             process = _PointerProcess(io.BytesIO(b"\xffowned-device\n"))
@@ -1015,10 +1062,49 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                     readiness_probe=lambda _x, _y: None,
                     readiness_timeout_seconds=0.05,
                 )
-                with self.assertRaisesRegex(
-                    stream.StreamAcceptanceFailure, "listener is not ready"
-                ):
+                with self.assertRaises(stream.Xi2PointerWitnessFailure) as raised:
                     witness.start()
+                self.assertEqual("xi2ChildExit", raised.exception.public_code)
+
+    def test_pointer_stream_does_not_apply_command_output_cap_or_retain_trace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            noise = b"owned active-stream device metadata\n" * (
+                stream.MAX_COMMAND_OUTPUT // 36 + 2
+            )
+            self.assertGreater(len(noise), stream.MAX_COMMAND_OUTPUT)
+            witness = stream.Xi2PointerWitness(owned)
+            witness._collect_effects = True
+            witness._process = _PointerProcess(io.BytesIO(
+                noise
+                + b"EVENT type 6 (Motion)\n    root: 10.00/20.00\n"
+                + b"EVENT type 6 (Motion)\n    root: 40.00/60.00\n"
+                + b"EVENT type 6 (Motion)\n    root: 80.00/90.00\n"
+                + b"EVENT type 4 (ButtonPress)\n    detail: 1\n"
+                + b"EVENT type 5 (ButtonRelease)\n    detail: 1\n"
+            ))
+            witness._read()
+            witness.wait(1)
+            self.assertTrue(witness.observed)
+            self.assertEqual(2, len(witness._positions))
+
+    def test_pointer_stream_reports_closed_format_size_and_exit_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            cases = (
+                (b"EVENT type 6 (Motion)", "xi2LineFormat"),
+                (b"x" * (stream.XI2_LINE_BYTES + 1) + b"\n", "xi2LineSize"),
+                (b"owned device list\n", "xi2ChildExit"),
+            )
+            for body, expected in cases:
+                with self.subTest(expected=expected):
+                    witness = stream.Xi2PointerWitness(owned)
+                    witness._collect_effects = True
+                    witness._process = _PointerProcess(io.BytesIO(body))
+                    witness._read()
+                    with self.assertRaises(stream.Xi2PointerWitnessFailure) as raised:
+                        witness.wait(1)
+                    self.assertEqual(expected, raised.exception.public_code)
 
     def test_pointer_parser_resets_on_unknown_event_and_rejects_truncation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

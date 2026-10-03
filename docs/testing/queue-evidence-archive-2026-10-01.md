@@ -246,6 +246,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Actual upstream SQLite HTTPS0 round-trip oldguard RED;43native tests/0skip GREEN; canonical v3 package and AndroidTestcompile314task passed"
+  },
+  {
+    "node": "F60",
+    "kind": "review",
+    "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
+    "commit": "092a9727a329be235bf08a07a69874b89980ba12",
+    "state": "completed",
+    "result": "passed",
+    "label": "Pinned primary DB/Game/NvHTTP confirm zero discovery sentinel and unchanged certificate pin; root XML/task evidence inspected; actual runtime separate"
   }
 ]
 ```

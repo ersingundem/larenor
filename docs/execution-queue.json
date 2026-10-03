@@ -5475,7 +5475,8 @@
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
         "docs/testing/f60-owned-input-probe-2026-10-03.md",
-        "docs/testing/f60-phase-bridge-observation-2026-10-03.md"
+        "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
+        "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5575,14 +5576,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact691 canonical original1/1/0/0 firstStreamOutput; closed dispatch beforeIssue/IllegalArgumentException/none, leaseAbsentOrUnreadable; no accepted runtime receipt"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
-          "commit": "092a9727a329be235bf08a07a69874b89980ba12",
-          "state": "completed",
-          "result": "passed",
-          "label": "Pinned primary DB/Game/NvHTTP confirm zero discovery sentinel and unchanged certificate pin; root XML/task evidence inspected; actual runtime separate"
         },
         {
           "kind": "ci",
@@ -5743,10 +5736,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact549 strict37131893719 failed: original named1/1/0/0 ownedInputEffects; phaseBridge touchListener/failed/contract, pairedClientObserved. Canonical1150B SHAa09f1191b1f607e7223066968e272b4e45302c4115da116d21300da7edebd528 validated source/named/classes/package source identity. Listener cause open; no blind rerun or acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
+          "commit": "7736683371a6b955a0d4f04a0ba4f9460a9246f0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen XI2 repair on773 base independently integrated: root80tests/72subtests and scoped Ruff passed. Long-lived pointer stream removes cumulative command cap, retains4KiB lines/exact readiness and bounded2positions; closed XI2 error codes. Actual changed-source Android stream and exclusive old cause unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact549 strict Sunshine37131893719 başarısız: original named1/1/0/0 ownedInputEffects; phaseBridge touchListener/failed/contract. Root canonical1150B source/named/classes/package-source/hash doğruladı. İlk frame/ses sonrası gerçek XI2 dinleyici sınırı dar incelemede; temiz Xvfb probe stream kabulü sayılmaz. Aynı SHA rerun yok. İki yaşam/girdi/kapanış kabulü açık; kabul veya merge yok."
+      "reason": "Exact549 strict37131893719 başarısız: original1/1/0/0 ownedInputEffects, touchListener/failed/contract. XI2 uzun akışına yanlış toplam64KiB kotası kaynakla doğrulandı ve dar düzeltme root80test/72subtest+Ruff geçti; gerçek girdi kabulü gevşetilmedi. Eski hatanın tek nedeni kanıtlanmadı. Değişmiş kaynak gerçek iki oturum/yayın/girdi/kapanış kabulünü bekliyor; aynı SHA rerun, kabul veya merge yok."
     },
     {
       "id": "G11",
