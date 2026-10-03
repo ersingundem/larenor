@@ -1145,6 +1145,37 @@ def cleanup_command(args) -> None:
     )
 
 
+def prepare_workspace_cleanup(args) -> None:
+    """Restore removal permission only within this exact owned disposable root."""
+    require_owned_linux()
+    workspace = pathlib.Path(args.workspace)
+    private_dir(workspace)
+    for current, directories, files in os.walk(workspace, topdown=False, followlinks=False):
+        parent = pathlib.Path(current)
+        for name in files:
+            path = parent / name
+            info = path.lstat()
+            if info.st_uid != os.getuid():
+                fail("cleanupOwnershipChanged")
+            if stat.S_ISLNK(info.st_mode):
+                continue
+            if not stat.S_ISREG(info.st_mode):
+                fail("cleanupTypeChanged")
+            os.chmod(path, 0o600, follow_symlinks=False)
+        for name in directories:
+            path = parent / name
+            info = path.lstat()
+            if info.st_uid != os.getuid():
+                fail("cleanupOwnershipChanged")
+            if stat.S_ISLNK(info.st_mode):
+                continue
+            if not stat.S_ISDIR(info.st_mode):
+                fail("cleanupTypeChanged")
+            os.chmod(path, 0o700, follow_symlinks=False)
+    os.chmod(workspace, 0o700, follow_symlinks=False)
+    print(json.dumps({"state": "cleanupPrepared"}, separators=(",", ":")))
+
+
 def run(args) -> None:
     require_owned_linux()
     workspace = pathlib.Path(args.workspace)
@@ -1791,6 +1822,8 @@ def main():
     c = sp.add_parser("cleanup")
     c.add_argument("--workspace", required=True)
     c.add_argument("--cleanup-state", required=True)
+    pc = sp.add_parser("prepare-cleanup")
+    pc.add_argument("--workspace", required=True)
     sp.add_parser("self-test")
     args = ap.parse_args()
     try:
@@ -1800,6 +1833,8 @@ def main():
             run(args)
         elif args.command == "cleanup":
             cleanup_command(args)
+        elif args.command == "prepare-cleanup":
+            prepare_workspace_cleanup(args)
         else:
             self_test()
     except (FixtureError, ValueError, json.JSONDecodeError, UnicodeError, OSError) as e:

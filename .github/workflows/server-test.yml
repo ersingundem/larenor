@@ -141,12 +141,27 @@ jobs:
           LARENOR_F62_OWNED_RDGW: required
         run: |
           set -euo pipefail
+          if test -f "$LARENOR_F62_PROBE_ROOT/freerdp-build-failure.json"; then
+            install -m 600 "$LARENOR_F62_PROBE_ROOT/freerdp-build-failure.json" \
+              "$GITHUB_WORKSPACE/test-results/f62-gateway-build-failure.json"
+          fi
           if test -f "$LARENOR_F62_PROBE_ROOT/run/cleanup-state.json"; then
             python3 -B tool/f62_rdpgw_owned_fixture.py cleanup \
               --workspace "$LARENOR_F62_PROBE_ROOT" \
               --cleanup-state "$LARENOR_F62_PROBE_ROOT/run/cleanup-state.json"
           fi
+          python3 -B tool/f62_rdpgw_owned_fixture.py prepare-cleanup \
+            --workspace "$LARENOR_F62_PROBE_ROOT"
           rm -rf --one-file-system "$LARENOR_F62_PROBE_ROOT"
+
+      - name: Preserve only the closed build failure receipt
+        if: failure() && hashFiles('test-results/f62-gateway-build-failure.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-build-failure
+          path: test-results/f62-gateway-build-failure.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Preserve only the closed non-acceptance receipt
         if: success()

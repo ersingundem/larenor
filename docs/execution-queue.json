@@ -6158,7 +6158,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exact950 Gateway Linux37137081865 endpoint build ve cleanup adımında başarısız; yeni hata dar tanıda. Private native5/Flutter/Core kapıları geçti, kabul değildir. Root dosya durumunun asynchronous drain sonrası prepared takılmasını EN/TR4RED→4GREEN ve full75test/analyze ile düzeltti. SAF3 incelemesi gerçek bridge.dispose native drain bypass, UI thread block, timeout executor leak ve COMPLETE cleanup→prepare yarışı buldu; SAF4 onarımı özel kaynakta aktif. Gerçek Gateway/RDPDR/SAF/audio/mic ve final required CI açık."
+      "reason": "Exact950 Gateway Linux37137081865 Gateway/auth build geçti, FreeRDP build failed; configure/compile eski logdan ayrılmıyor. Go read-only module cleanup ayrıca düştü. Root closed source-bound build tanısı+owned cleanup 37test/8subtest+14selftest/Ruff/actionlint geçti; değişmiş exact Linux koşusu sırada. Native5/Flutter/Core yerel sonuçları kabul değildir. F62 UI async drain status75test/analyze geçti. SAF4 production dispose/drain, timeout threads ve COMPLETE cleanup yarışını onarıyor. Gerçek Gateway/RDPDR/SAF/audio/mic ve final required CI açık."
     },
     {
       "id": "F61",

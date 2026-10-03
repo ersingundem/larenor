@@ -77,6 +77,18 @@ PUBLIC_RECEIPT_KEYS = {
     "runtimeAccepted",
     "featureAccepted",
 }
+BUILD_FAILURE_RECEIPT_KEYS = {
+    "schemaVersion", "runnerSourceRevision", "sourceRevision", "sourceArchiveSha256",
+    "targetPatchSha256", "sourceManifestSha256", "phase", "failureCode",
+    "exitCode", "logSha256", "featureAccepted",
+}
+BUILD_FAILURE_CODES = frozenset(
+    {
+        "timeout", "logTooLarge", "missingDependency", "configurationError",
+        "missingHeader", "compilerError", "linkerError", "resourceTerminated",
+        "commandFailed",
+    }
+)
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _IN_CLOSE_WRITE = 0x00000008
 _IN_CLOEXEC = 0x00080000
@@ -159,8 +171,63 @@ def _safe_extract_freerdp(
     return source
 
 
+def _classify_build_failure(phase: str, raw: bytes) -> str:
+    if phase == "configure":
+        if (
+            b"Could NOT find" in raw
+            or b"No package '" in raw
+            or b"Could not find a package configuration file provided by" in raw
+        ):
+            return "missingDependency"
+        if b"CMake Error" in raw:
+            return "configurationError"
+        return "commandFailed"
+    if b"fatal error:" in raw and b"No such file or directory" in raw:
+        return "missingHeader"
+    if re.search(rb":[0-9]+:[0-9]+: error:", raw):
+        return "compilerError"
+    if b"undefined reference to" in raw or b"collect2: error:" in raw:
+        return "linkerError"
+    if b"Killed" in raw or b"out of memory" in raw.lower():
+        return "resourceTerminated"
+    return "commandFailed"
+
+
+def _write_build_failure(
+    path: pathlib.Path,
+    *,
+    phase: str,
+    failure_code: str,
+    exit_code: int | None,
+    log: pathlib.Path,
+) -> None:
+    if (
+        phase not in ("configure", "compile")
+        or failure_code not in BUILD_FAILURE_CODES
+        or (exit_code is not None and (type(exit_code) is not int or exit_code == 0 or not -255 <= exit_code <= 255))
+    ):
+        fail("invalidBuildFailureReceipt")
+    value = {
+        "schemaVersion": 1,
+        "runnerSourceRevision": source_revision(pathlib.Path(__file__).resolve().parents[1]),
+        "sourceRevision": FREERDP_REVISION,
+        "sourceArchiveSha256": FREERDP_ARCHIVE_SHA256,
+        "targetPatchSha256": TARGET_PATCH_SHA256,
+        "sourceManifestSha256": TARGET_MANIFEST_SHA256,
+        "phase": phase,
+        "failureCode": failure_code,
+        "exitCode": exit_code,
+        "logSha256": owned.sha256(log),
+        "featureAccepted": False,
+    }
+    if set(value) != BUILD_FAILURE_RECEIPT_KEYS:
+        fail("invalidBuildFailureReceipt")
+    _write_private_json(path, value)
+
+
 def _run_build(
-    argv: list[str], *, cwd: pathlib.Path, log: pathlib.Path, timeout: int
+    argv: list[str], *, cwd: pathlib.Path, log: pathlib.Path, timeout: int,
+    phase: str, failure_receipt: pathlib.Path,
 ) -> None:
     if not argv or not pathlib.Path(argv[0]).is_absolute():
         fail("nonAbsoluteCommand")
@@ -168,6 +235,7 @@ def _run_build(
     fd = os.open(
         log, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600
     )
+    timed_out = False
     try:
         with os.fdopen(fd, "wb", closefd=True) as stream:
             try:
@@ -181,11 +249,26 @@ def _run_build(
                     timeout=timeout,
                     check=False,
                 )
-            except subprocess.TimeoutExpired as error:
-                raise ProbeError("freerdpBuildTimeout") from error
+            except subprocess.TimeoutExpired:
+                timed_out = True
+        if timed_out:
+            _write_build_failure(
+                failure_receipt, phase=phase, failure_code="timeout",
+                exit_code=None, log=log,
+            )
+            raise ProbeError("freerdpBuildTimeout")
         if log.stat().st_size > 8 * 1024 * 1024:
+            _write_build_failure(
+                failure_receipt, phase=phase, failure_code="logTooLarge",
+                exit_code=process.returncode or None, log=log,
+            )
             fail("freerdpBuildLogTooLarge")
         if process.returncode != 0:
+            failure_code = _classify_build_failure(phase, log.read_bytes())
+            _write_build_failure(
+                failure_receipt, phase=phase, failure_code=failure_code,
+                exit_code=process.returncode, log=log,
+            )
             fail("freerdpBuildFailed")
     finally:
         os.chmod(log, 0o600)
@@ -317,7 +400,12 @@ def build_freerdp(args: argparse.Namespace) -> None:
     build = workspace / "cmake-build"
     build.mkdir(mode=0o700)
     args_cmake = _cmake_arguments(source, build)
-    _run_build(args_cmake, cwd=workspace, log=workspace / "configure.log", timeout=360)
+    build_failure = workspace / "freerdp-build-failure.json"
+    owned.private_regular(build_failure, absent=True)
+    _run_build(
+        args_cmake, cwd=workspace, log=workspace / "configure.log", timeout=360,
+        phase="configure", failure_receipt=build_failure,
+    )
     _run_build(
         [
             "/usr/bin/cmake",
@@ -332,6 +420,8 @@ def build_freerdp(args: argparse.Namespace) -> None:
         cwd=workspace,
         log=workspace / "compile.log",
         timeout=600,
+        phase="compile",
+        failure_receipt=build_failure,
     )
     shadow = build / "server" / "shadow" / "cli" / "freerdp-shadow-cli"
     client = build / "client" / "X11" / "xfreerdp"
