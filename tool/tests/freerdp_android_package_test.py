@@ -15,12 +15,14 @@ from tool.freerdp_android_package import (
     PackageError,
     REQUIRED_EVENT_LISTENER_API,
     REQUIRED_FREERDP_API,
+    REQUIRED_REMOTE_AUDIO_CONSTANTS,
     load_lock,
     package_receipt,
     verify_apk,
     verify_certificate_patch,
     verify_clipboard_patch,
     verify_display_pointer_patch,
+    verify_remote_audio_patch,
     verify_install,
     verify_source,
 )
@@ -33,10 +35,10 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
     def test_repository_lock_is_exact_and_matches_runtime_gate(self):
         lock = load_lock()
         self.assertEqual(lock["source"]["version"], "3.31.1")
-        self.assertEqual(lock["jniSchema"], 2)
+        self.assertEqual(lock["jniSchema"], 3)
         self.assertEqual(
             lock["engineRevision"],
-            "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2",
+            "freerdp-3.31.1-63b948ca-display-pointer-audio-v3",
         )
         self.assertEqual(lock["supportedAbis"], ["arm64-v8a", "x86_64"])
         self.assertEqual(lock["defaultChannels"], [])
@@ -46,6 +48,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "android/freerdp-certificate-pem.patch",
                 "android/freerdp-clipboard-utf8.patch",
                 "android/freerdp-display-pointer-v2.patch",
+                "android/freerdp-remote-audio-v3.patch",
             ],
         )
         self.assertEqual(
@@ -59,7 +62,10 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
         )
         self.assertEqual(
             REQUIRED_EVENT_LISTENER_API,
-            (("OnDisplayControlReady", "(J)V"),),
+            (
+                ("OnDisplayControlReady", "(J)V"),
+                ("OnRemoteAudioPlayback", "(JZJJI)V"),
+            ),
         )
         self.assertEqual(
             lock["requiredNativeEvidence"],
@@ -71,6 +77,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
                 "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
                 "OnDisplayControlReady",
+                "OnRemoteAudioPlayback",
             ],
         )
 
@@ -497,6 +504,156 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "missing_java_contract"):
                 package_receipt(wrong_callback, "x86_64", lock)
 
+            stale_audio = root / "stale-audio.aar"
+            self._aar(
+                stale_audio,
+                lock,
+                "x86_64",
+                event_listener_api=(
+                    (0x0001, "OnDisplayControlReady", "(J)V"),
+                ),
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(stale_audio, "x86_64", lock)
+
+            wrong_audio_state = root / "wrong-audio-state.aar"
+            constants = dict(REQUIRED_REMOTE_AUDIO_CONSTANTS)
+            constants["REMOTE_AUDIO_BUFFER_COMPLETED"] = 2
+            self._aar(
+                wrong_audio_state,
+                lock,
+                "x86_64",
+                remote_audio_constants=constants,
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(wrong_audio_state, "x86_64", lock)
+
+    def test_remote_audio_patch_is_bounded_causal_and_lifecycle_bound(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            verify_remote_audio_patch(root)
+
+            io_source = root / "channels/rdpsnd/client/opensles/opensl_io.c"
+            io_source.write_text(io_source.read_text().replace(
+                "GetTickCount64() + 2000ULL", "GetTickCount64() + INFINITE", 1
+            ))
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
+    def test_remote_audio_patch_rejects_enqueue_and_teardown_shortcuts(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            io_source = root / "channels/rdpsnd/client/opensles/opensl_io.c"
+            text = io_source.read_text()
+            offset = text.index("int android_AudioOut(")
+            tail = text[offset:].replace(
+                "if (result != SL_RESULT_SUCCESS)",
+                "if (FALSE)",
+                1,
+            )
+            io_source.write_text(text[:offset] + tail)
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            io_source = root / "channels/rdpsnd/client/opensles/opensl_io.c"
+            io_source.write_text(io_source.read_text().replace(
+                "if (!p->closing && p->head)", "if (p->head)", 1
+            ))
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
+    def test_remote_audio_patch_rejects_wrong_public_state_contract(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            java = root / (
+                "client/Android/Studio/freeRDPCore/src/main/java/"
+                "com/freerdp/freerdpcore/services/LibFreeRDP.java"
+            )
+            java.write_text(java.read_text().replace(
+                "REMOTE_AUDIO_BUFFER_COMPLETED = 3",
+                "REMOTE_AUDIO_BUFFER_COMPLETED = 2",
+                1,
+            ))
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
+    def test_remote_audio_patch_serializes_publication_and_fails_counter_exhaustion(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            plugin = root / "channels/rdpsnd/client/opensles/rdpsnd_opensles.c"
+            plugin.write_text(plugin.read_text().replace(
+                "opensles->acceptedCount >= LARENOR_JS_SAFE_COUNTER_MAX",
+                "FALSE",
+                1,
+            ))
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            plugin = root / "channels/rdpsnd/client/opensles/rdpsnd_opensles.c"
+            text = plugin.read_text()
+            publish = (
+                "\tif (publish)\n"
+                "\t\trdpsnd_opensles_publish(opensles, deviceOpen, acceptedCount, completedCount,\n"
+                "\t\t                        publishedState);\n"
+                "\tLeaveCriticalSection(&opensles->observerLock);\n"
+            )
+            unlocked = (
+                "\tLeaveCriticalSection(&opensles->observerLock);\n"
+                "\tif (publish)\n"
+                "\t\trdpsnd_opensles_publish(opensles, deviceOpen, acceptedCount, completedCount,\n"
+                "\t\t                        publishedState);\n"
+            )
+            self.assertIn(publish, text)
+            plugin.write_text(text.replace(publish, unlocked, 1))
+            with self.assertRaisesRegex(PackageError, "invalid_remote_audio_patch"):
+                verify_remote_audio_patch(root)
+
     def _source(self, path, lock):
         with tarfile.open(path, "w:gz") as archive:
             for name, digest in lock["reviewedFiles"].items():
@@ -551,6 +708,16 @@ BOOL android_event_queue_init(freerdp* inst)
             "android_disp.c": (
                 "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
             ),
+            "opensl_io.c": (
+                "channels/rdpsnd/client/opensles/opensl_io.c"
+            ),
+            "opensl_io.h": (
+                "channels/rdpsnd/client/opensles/opensl_io.h"
+            ),
+            "rdpsnd_opensles.c": (
+                "channels/rdpsnd/client/opensles/rdpsnd_opensles.c"
+            ),
+            "event.h": "include/freerdp/event.h",
         }
         for source_name, target_name in relative.items():
             target = root / target_name
@@ -566,6 +733,7 @@ BOOL android_event_queue_init(freerdp* inst)
         native_evidence=True,
         java_api=None,
         event_listener_api=None,
+        remote_audio_constants=None,
     ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
@@ -582,6 +750,19 @@ BOOL android_event_queue_init(freerdp* inst)
                         self._class_file(
                             "com/freerdp/freerdpcore/services/LibFreeRDP",
                             methods,
+                            tuple(
+                                (
+                                    0x0001 | 0x0008 | 0x0010,
+                                    field,
+                                    "I",
+                                    value,
+                                )
+                                for field, value in (
+                                    REQUIRED_REMOTE_AUDIO_CONSTANTS
+                                    if remote_audio_constants is None
+                                    else remote_audio_constants
+                                ).items()
+                            ),
                         ),
                     )
                 elif name == EVENT_LISTENER_CLASS:
@@ -615,26 +796,47 @@ BOOL android_event_queue_init(freerdp* inst)
                 archive.writestr(f"jni/{second}/extra.so", self._elf(62))
 
     @staticmethod
-    def _class_file(class_name, method_specs):
-        utf8_values = [class_name, "java/lang/Object"]
-        for _access, name, descriptor in method_specs:
-            utf8_values.extend((name, descriptor))
+    def _class_file(class_name, method_specs, field_specs=()):
         constants = []
-        for value in utf8_values:
+
+        def utf8(value):
             encoded = value.encode("utf-8")
             constants.append(b"\x01" + struct.pack(">H", len(encoded)) + encoded)
-        constants.insert(1, b"\x07" + struct.pack(">H", 1))
-        constants.insert(3, b"\x07" + struct.pack(">H", 3))
+            return len(constants)
+
+        def class_info(name_index):
+            constants.append(b"\x07" + struct.pack(">H", name_index))
+            return len(constants)
+
+        def integer(value):
+            constants.append(b"\x03" + struct.pack(">i", value))
+            return len(constants)
+
+        class_name_index = utf8(class_name)
+        this_class_index = class_info(class_name_index)
+        object_name_index = utf8("java/lang/Object")
+        super_class_index = class_info(object_name_index)
+        constant_value_index = utf8("ConstantValue") if field_specs else None
+        field_indexes = []
+        for access, name, descriptor, value in field_specs:
+            field_indexes.append(
+                (access, utf8(name), utf8(descriptor), integer(value))
+            )
+        method_indexes = []
+        for access, name, descriptor in method_specs:
+            method_indexes.append((access, utf8(name), utf8(descriptor)))
+
         payload = bytearray(b"\xca\xfe\xba\xbe")
         payload += struct.pack(">HHH", 0, 52, len(constants) + 1)
         payload += b"".join(constants)
-        payload += struct.pack(">HHHH", 0x0021, 2, 4, 0)
-        payload += struct.pack(">H", 0)
-        payload += struct.pack(">H", len(method_specs))
-        next_index = 5
-        for access, _name, _descriptor in method_specs:
-            payload += struct.pack(">HHHH", access, next_index, next_index + 1, 0)
-            next_index += 2
+        payload += struct.pack(">HHHH", 0x0021, this_class_index, super_class_index, 0)
+        payload += struct.pack(">H", len(field_indexes))
+        for access, name_index, descriptor_index, value_index in field_indexes:
+            payload += struct.pack(">HHHH", access, name_index, descriptor_index, 1)
+            payload += struct.pack(">HIH", constant_value_index, 2, value_index)
+        payload += struct.pack(">H", len(method_indexes))
+        for access, name_index, descriptor_index in method_indexes:
+            payload += struct.pack(">HHHH", access, name_index, descriptor_index, 0)
         payload += struct.pack(">H", 0)
         return bytes(payload)
 

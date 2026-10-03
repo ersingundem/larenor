@@ -24,6 +24,18 @@ class ClipboardMethods extends MethodChannel {
   }
 }
 
+class AudioMethods extends MethodChannel {
+  AudioMethods(this.onAudio) : super('rdp-test-methods');
+  final Future<Object?> Function(Map) onAudio;
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    if (method == 'audioObservation') {
+      return await onAudio(arguments as Map) as T?;
+    }
+    return super.invokeMethod<T>(method, arguments);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const methods = MethodChannel('rdp-test-methods');
@@ -46,7 +58,7 @@ void main() {
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
         'open' => {
-          'schemaVersion': 2,
+          'schemaVersion': 3,
           'unicodeTextInput': true,
           'relativePointer': true,
         },
@@ -71,6 +83,7 @@ void main() {
     RdpMethodChannelEngine engine, {
     bool Function()? current,
     bool enabled = true,
+    bool audio = false,
   }) => engine.open(
     RdpSessionRequest(
       profile: profile,
@@ -86,10 +99,155 @@ void main() {
             ? RdpClipboardMode.clientToRemote
             : RdpClipboardMode.disabled,
       ),
-      channels: RdpChannelPolicy(clipboard: enabled),
+      channels: RdpChannelPolicy(clipboard: enabled, audio: audio),
     ),
     credential: const RdpCredential(password: 'temporary'),
     isCurrent: current ?? () => true,
+  );
+
+  test('audio readback binds exact request, serializes reads and requires completion', () async {
+    var reads = 0;
+    Map? arguments;
+    final reply = Completer<Object?>();
+    final engine = RdpMethodChannelEngine(
+      methods: AudioMethods((value) {
+        reads++;
+        arguments = value;
+        return reply.future;
+      }),
+      events: events,
+    );
+    final channel =
+        await openClipboard(engine, audio: true) as RdpAudioPlaybackChannel;
+    final first = channel.audioObservation(),
+        second = channel.audioObservation();
+    await Future<void>.delayed(Duration.zero);
+    final id =
+        (calls.singleWhere((v) => v.method == 'open').arguments
+            as Map)['requestId'];
+    expect(arguments, {'schemaVersion': 3, 'requestId': id});
+    expect(reads, 1);
+    reply.complete({
+      'schemaVersion': 3,
+      'requestId': id,
+      'state': 'playing',
+      'deviceOpen': true,
+      'acceptedCount': 1,
+      'completedCount': 0,
+    });
+    expect((await first).hasCompletedPlayback, isFalse);
+    expect(await second, await first);
+    expect(calls.where((v) => v.method == 'input'), isEmpty);
+    channel.close();
+  });
+
+  test('audio off has zero query and stale or foreign audio cannot become evidence', () async {
+    var reads = 0, current = true;
+    final reply = Completer<Object?>();
+    final methodsWithAudio = AudioMethods((value) {
+      reads++;
+      return reply.future;
+    });
+    final offEngine = RdpMethodChannelEngine(
+      methods: methodsWithAudio,
+      events: events,
+    );
+    final off = await openClipboard(offEngine) as RdpAudioPlaybackChannel;
+    await expectLater(off.audioObservation(), throwsA(isA<RdpFailure>()));
+    expect(reads, 0);
+    off.close();
+    final engine = RdpMethodChannelEngine(
+      methods: methodsWithAudio,
+      events: events,
+    );
+    final channel = await openClipboard(
+      engine,
+      audio: true,
+      current: () => current,
+    ) as RdpAudioPlaybackChannel;
+    final awaiting = channel.audioObservation();
+    final rejected = expectLater(awaiting, throwsA(isA<RdpFailure>()));
+    current = false;
+    reply.complete({
+      'schemaVersion': 3,
+      'requestId': 'foreign',
+      'state': 'playing',
+      'deviceOpen': true,
+      'acceptedCount': 1,
+      'completedCount': 1,
+    });
+    await rejected;
+    expect(reads, 1);
+    await channel.done;
+  });
+
+  test('audio counter rollback fails closed without an audio effect', () async {
+    var reads = 0;
+    final engine = RdpMethodChannelEngine(
+      methods: AudioMethods(
+        (value) async => {
+          'schemaVersion': 3,
+          'requestId': value['requestId'],
+          'state': 'playing',
+          'deviceOpen': true,
+          'acceptedCount': 2,
+          'completedCount': reads++ == 0 ? 2 : 1,
+        },
+      ),
+      events: events,
+    );
+    final channel =
+        await openClipboard(engine, audio: true) as RdpAudioPlaybackChannel;
+    expect((await channel.audioObservation()).hasCompletedPlayback, isTrue);
+    await expectLater(channel.audioObservation(), throwsA(isA<RdpFailure>()));
+    await channel.done;
+    expect(calls.where((v) => v.method == 'input'), isEmpty);
+  });
+
+  test(
+    'closing a stuck audio query cancels its owned deadline and late reply',
+    () {
+      fakeAsync((clock) {
+        final native = Completer<Object?>();
+        final engine = RdpMethodChannelEngine(
+          methods: AudioMethods((_) => native.future),
+          events: events,
+        );
+        RdpAudioPlaybackChannel? channel;
+        unawaited(
+          openClipboard(engine, audio: true).then((value) {
+            channel = value as RdpAudioPlaybackChannel;
+          }),
+        );
+        clock.flushMicrotasks();
+        expect(channel, isNotNull);
+        var retired = false;
+        unawaited(
+          channel!.audioObservation().then<void>(
+            (_) => fail('late playback'),
+            onError: (Object error) {
+              retired = error is RdpFailure;
+            },
+          ),
+        );
+        clock.flushMicrotasks();
+        expect(clock.nonPeriodicTimerCount, 1);
+        channel!.close();
+        clock.flushMicrotasks();
+        expect(retired, isTrue);
+        expect(clock.nonPeriodicTimerCount, 0);
+        native.complete({
+          'schemaVersion': 3,
+          'requestId': 'stale',
+          'state': 'playing',
+          'deviceOpen': true,
+          'acceptedCount': 1,
+          'completedCount': 1,
+        });
+        clock.flushMicrotasks();
+        expect(clock.nonPeriodicTimerCount, 0);
+      });
+    },
   );
 
   Future<RdpFrame> deliverFrame(
@@ -110,7 +268,7 @@ void main() {
         'requestId': requestId,
         'kind': 'frame',
         'payload': {
-          'schemaVersion': 2,
+          'schemaVersion': 3,
           'sequence': sequence,
           'width': width,
           'height': height,
@@ -357,7 +515,7 @@ void main() {
             call.method == 'input' && (call.arguments as Map)['kind'] == 'ime',
       );
       expect(ime.arguments, {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'requestId': arguments['requestId'],
         'sequence': 1,
         'kind': 'ime',
@@ -388,7 +546,7 @@ void main() {
             'width': 640,
             'height': 480,
             'stride': 2560,
-            'schemaVersion': 2,
+            'schemaVersion': 3,
             'displayLayoutRevision': 1,
             'pixels': pixels,
           },
@@ -418,7 +576,7 @@ void main() {
         'requestId': id,
         'kind': 'frame',
         'payload': {
-          'schemaVersion': 2,
+          'schemaVersion': 3,
           'sequence': 1,
           'width': 640,
           'height': 480,
@@ -548,7 +706,7 @@ void main() {
         calls.add(call);
         if (call.method == 'open') {
           return {
-            'schemaVersion': 2,
+            'schemaVersion': 3,
             'unicodeTextInput': true,
             'relativePointer': false,
           };

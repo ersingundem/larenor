@@ -92,7 +92,11 @@ class UiTrust implements RdpTrustStore {
 }
 
 class UiChannel
-    implements RdpChannel, RdpFrameChannel, RdpNegotiatedInputChannel {
+    implements
+        RdpChannel,
+        RdpFrameChannel,
+        RdpNegotiatedInputChannel,
+        RdpAudioPlaybackChannel {
   UiChannel({required this.supportsUnicodeInput}) {
     _frames = StreamController<RdpFrame>.broadcast(
       onListen: () {
@@ -106,6 +110,22 @@ class UiChannel
   }
   @override
   final bool supportsUnicodeInput;
+  int audioReads = 0;
+  String audioState = 'pending';
+  int acceptedAudio = 0, completedAudio = 0;
+  @override
+  Future<RdpAudioObservation> audioObservation() async {
+    audioReads++;
+    return RdpAudioObservation.fromJson({
+      'schemaVersion': 3,
+      'requestId': 'ui-fixture',
+      'state': audioState,
+      'deviceOpen': audioState == 'deviceOpen' || audioState == 'playing',
+      'acceptedCount': acceptedAudio,
+      'completedCount': completedAudio,
+    }, requestId: 'ui-fixture');
+  }
+
   @override
   bool get supportsRelativePointer => false;
   final doneCompleter = Completer<void>();
@@ -184,9 +204,14 @@ class UiChannel
 }
 
 class UiEngine implements RdpEngine {
-  UiEngine({this.supportsIme = false, this.supportsResize = true});
+  UiEngine({
+    this.supportsIme = false,
+    this.supportsResize = true,
+    this.supportsAudio = false,
+  });
   final bool supportsIme;
   final bool supportsResize;
+  final bool supportsAudio;
   late final channel = UiChannel(supportsUnicodeInput: supportsIme);
   final requests = <RdpSessionRequest>[];
   int capabilityReads = 0;
@@ -195,7 +220,7 @@ class UiEngine implements RdpEngine {
     required bool Function() isCurrent,
   }) async {
     capabilityReads++;
-    final packet = packagedCapabilities(ime: supportsIme);
+    final packet = packagedCapabilities(ime: supportsIme, audio: supportsAudio);
     (packet['display']! as Map<String, Object?>)['dynamicResolution'] =
         supportsResize;
     return RdpCapabilities.fromJson(packet);
@@ -300,6 +325,54 @@ Future<void> showFrame(
 }
 
 void main() {
+  testWidgets(
+    'remote sound is explicit per profile and reports native completion only',
+    (tester) async {
+      final engine = UiEngine(supportsAudio: true), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      expect(
+        tester.widget<CupertinoSwitch>(key('rdp-audio-enable')).value,
+        isFalse,
+      );
+      await press(tester, 'rdp-audio-enable');
+      await connectRdp(tester);
+      expect(engine.requests.last.channels.audio, isTrue);
+      expect(
+        tester.widget<CupertinoSwitch>(key('rdp-audio-enable')).onChanged,
+        isNull,
+      );
+      await tester.ensureVisible(key('rdp-audio-status'));
+      await tester.pumpAndSettle();
+      expect(find.text('Audio: Waiting for remote sound'), findsOneWidget);
+      engine.channel.audioState = 'playing';
+      engine.channel.acceptedAudio = 1;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Audio: Waiting for remote sound'), findsOneWidget);
+      expect(find.text('Audio: Remote sound played'), findsNothing);
+      engine.channel.completedAudio = 1;
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Audio: Remote sound played'), findsOneWidget);
+      final reads = engine.channel.audioReads;
+      await press(tester, 'rdp-back');
+      await tester.pump(const Duration(seconds: 6));
+      expect(engine.channel.audioReads, reads);
+      await press(tester, 'remote-rdp-open');
+      expect(
+        tester.widget<CupertinoSwitch>(key('rdp-audio-enable')).value,
+        isFalse,
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   void useAndroidWindowChannel(
     Future<Object?> Function(MethodCall call) handler,
   ) {

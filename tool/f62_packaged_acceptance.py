@@ -32,12 +32,14 @@ if __package__:
     )
     from .f62_owned_shadow_channels import (
         FixtureError,
+        AUDIO_PATCH_SHA256 as SHADOW_AUDIO_PATCH_SHA256,
         PATCH_SHA256 as SHADOW_PATCH_SHA256,
         SHADOW_CLI_RELATIVE,
         SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
         SOURCE_SHA256 as SHADOW_SOURCE_SHA256,
         SOURCE_VERSION as SHADOW_SOURCE_VERSION,
         read_lifetimes,
+        read_audio_lifetimes,
         verify_patched_source,
     )
 else:
@@ -51,12 +53,14 @@ else:
     )
     from f62_owned_shadow_channels import (
         FixtureError,
+        AUDIO_PATCH_SHA256 as SHADOW_AUDIO_PATCH_SHA256,
         PATCH_SHA256 as SHADOW_PATCH_SHA256,
         SHADOW_CLI_RELATIVE,
         SOURCE_COMMIT as SHADOW_SOURCE_COMMIT,
         SOURCE_SHA256 as SHADOW_SOURCE_SHA256,
         SOURCE_VERSION as SHADOW_SOURCE_VERSION,
         read_lifetimes,
+        read_audio_lifetimes,
         verify_patched_source,
     )
 
@@ -73,6 +77,8 @@ _TARGET_DIMENSIONS = (1024, 768)
 _CHANNEL_PHASE_DISP = b"LRNDISP1"
 _CHANNEL_PHASE_CLIP = b"LRNCLIP1"
 _CHANNEL_PHASE_BYTES = len(_CHANNEL_PHASE_DISP) + len(_CHANNEL_PHASE_CLIP)
+_AUDIO_ARM_MAGIC = b"LRNAUD01"
+_AUDIO_ARM_BYTES = 72
 _CLIPBOARD_MARKER_COLOR = "#8f3c72"
 _SHADOW_PORT = 3390
 _MAX_SHADOW_LOG_BYTES = 1024 * 1024
@@ -99,6 +105,7 @@ _TEST_LIFECYCLE_STAGES = (
     "firstSessionOpen",
     "firstSecurityWait",
     "initialFrameWait",
+    "audioEffectWait",
     "keySubmission",
     "resizeSubmission",
     "resizedFrameWait",
@@ -203,7 +210,7 @@ _TEST_BODY_MARKER = re.compile(
     + r")$"
 )
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "23584f02f01a4e8fe74ac0e9e92a57d32b842ab33992cb81f4d1cedc28450292"
+    "cb2ac89e882aee2cce81eb63da5a34b74be2a9cd70d587bcb032aeb57601b134"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -437,12 +444,19 @@ def acceptance_receipt(
             "enabledClientToRemoteClipboard",
             "enabledDisplayControl",
             "disabledClipboardTransfers",
+            "enabledRemoteAudioPackets",
+            "disabledRemoteAudioPackets",
+            "audioWaveConfirmations",
             "authenticatedLifetimes",
             "shadowBinarySha256",
         }
         or channel_evidence["enabledClientToRemoteClipboard"] is not True
         or channel_evidence["enabledDisplayControl"] is not True
         or channel_evidence["disabledClipboardTransfers"] != 0
+        or channel_evidence["enabledRemoteAudioPackets"] != 1
+        or channel_evidence["disabledRemoteAudioPackets"] != 0
+        or type(channel_evidence["audioWaveConfirmations"]) is not int
+        or not 0 <= channel_evidence["audioWaveConfirmations"] <= 8
         or channel_evidence["authenticatedLifetimes"] != 2
         or type(channel_evidence["shadowBinarySha256"]) is not str
         or _DIGEST.fullmatch(channel_evidence["shadowBinarySha256"]) is None
@@ -460,8 +474,9 @@ def acceptance_receipt(
             "sourceCommit": SHADOW_SOURCE_COMMIT,
             "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
             "patchSha256": SHADOW_PATCH_SHA256,
+            "audioPatchSha256": SHADOW_AUDIO_PATCH_SHA256,
         },
-        "scope": "ownedShadowChannels",
+        "scope": "ownedShadowChannelsAndAudioQueue",
         "evidence": {
             "tlsNlaSpki": True,
             "initialFramebuffer": {"width": 1280, "height": 800, "nonzero": True},
@@ -473,10 +488,11 @@ def acceptance_receipt(
             },
             "frameAcknowledgementsAtLeast": 2,
             "channels": channel_evidence,
+            "remoteAudioQueueCompletion": True,
             "cleanClose": True,
         },
         "unsupportedOrUnproven": [
-            "ime", "remoteToClientClipboard",
+            "ime", "remoteToClientClipboard", "physicalAudioAudibility",
         ],
         "result": "passed",
         "tests": 1,
@@ -878,6 +894,7 @@ def failure_receipt(
             "sourceCommit": SHADOW_SOURCE_COMMIT,
             "sourceArchiveSha256": SHADOW_SOURCE_SHA256,
             "patchSha256": SHADOW_PATCH_SHA256,
+            "audioPatchSha256": SHADOW_AUDIO_PATCH_SHA256,
         },
         "result": "failed",
         "diagnostic": diagnostic,
@@ -1710,7 +1727,9 @@ def _wait_shadow_ready(
 def _start_owned_shadow(
     runner_temp: Path,
     witness_base: Path,
-) -> tuple[subprocess.Popen[bytes], int, str, int, Path, int]:
+    audio_witness_base: Path,
+    diagnostic_nonce: str,
+) -> tuple[subprocess.Popen[bytes], int, int, str, int, Path, int]:
     binary_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BINARY", "")
     source_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_SOURCE", "")
     build_raw = os.environ.get("RDP_ACCEPTANCE_SHADOW_BUILD", "")
@@ -1737,12 +1756,15 @@ def _start_owned_shadow(
         _shadow_port_open()
         or witness_base.exists()
         or any(Path(f"{witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
+        or audio_witness_base.exists()
+        or any(Path(f"{audio_witness_base}.{ordinal}").exists() for ordinal in (1, 2, 3))
     ):
         raise BaselineFailure(
             "host_channel_fixture_unavailable",
             "owned channel fixture state was not empty",
         )
     read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    audio_read_fd, audio_write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
     log_path = witness_base.parent / "shadow.log"
     try:
         log_fd = os.open(
@@ -1753,6 +1775,8 @@ def _start_owned_shadow(
     except OSError as error:
         os.close(read_fd)
         os.close(write_fd)
+        os.close(audio_read_fd)
+        os.close(audio_write_fd)
         raise BaselineFailure(
             "host_channel_fixture_unavailable",
             "owned channel fixture diagnostic log could not be created",
@@ -1767,6 +1791,9 @@ def _start_owned_shadow(
         "WLOG_LEVEL": "INFO",
         "LARENOR_F62_CHANNEL_WITNESS": str(witness_base),
         "LARENOR_F62_CHANNEL_PHASE_FD": str(write_fd),
+        "LARENOR_F62_AUDIO_WITNESS": str(audio_witness_base),
+        "LARENOR_F62_AUDIO_ARM_FD": str(audio_read_fd),
+        "LARENOR_F62_AUDIO_NONCE": diagnostic_nonce,
         "LARENOR_F62_EXPECT_WIDTH": str(_TARGET_DIMENSIONS[0]),
         "LARENOR_F62_EXPECT_HEIGHT": str(_TARGET_DIMENSIONS[1]),
     })
@@ -1783,7 +1810,7 @@ def _start_owned_shadow(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            pass_fds=(write_fd,),
+            pass_fds=(write_fd, audio_read_fd),
             start_new_session=True,
         )
         if _owned_regular_sha256(
@@ -1795,6 +1822,8 @@ def _start_owned_shadow(
             )
         os.close(write_fd)
         write_fd = -1
+        os.close(audio_read_fd)
+        audio_read_fd = -1
         if process.stdout is None:
             raise BaselineFailure(
                 "host_channel_fixture_unavailable",
@@ -1802,11 +1831,12 @@ def _start_owned_shadow(
             )
         os.set_blocking(process.stdout.fileno(), False)
         log_size = _wait_shadow_ready(process, log_fd)
-        return process, read_fd, binary_digest, log_fd, log_path, log_size
+        return process, read_fd, audio_write_fd, binary_digest, log_fd, log_path, log_size
     except (OSError, subprocess.SubprocessError):
         if process is not None:
             _stop_owned_process(process)
         os.close(read_fd)
+        os.close(audio_write_fd)
         os.close(log_fd)
         raise BaselineFailure(
             "host_channel_fixture_unavailable",
@@ -1816,11 +1846,14 @@ def _start_owned_shadow(
         if process is not None:
             _stop_owned_process(process)
         os.close(read_fd)
+        os.close(audio_write_fd)
         os.close(log_fd)
         raise
     finally:
         if write_fd >= 0:
             os.close(write_fd)
+        if audio_read_fd >= 0:
+            os.close(audio_read_fd)
 
 
 def _mark_clipboard_effect() -> None:
@@ -1846,7 +1879,34 @@ def _mark_clipboard_effect() -> None:
         )
 
 
-def _channel_evidence(witness_base: Path, *, timeout: float = 10) -> dict[str, object]:
+def _arm_owned_audio(fd: int, diagnostic_nonce: str) -> None:
+    if _DIAGNOSTIC_NONCE.fullmatch(diagnostic_nonce) is None:
+        raise BaselineFailure(
+            "host_channel_witness_invalid", "owned audio arm identity was invalid"
+        )
+    payload = _AUDIO_ARM_MAGIC + diagnostic_nonce.encode("ascii")
+    if len(payload) != _AUDIO_ARM_BYTES:
+        raise BaselineFailure(
+            "host_channel_witness_invalid", "owned audio arm identity was invalid"
+        )
+    try:
+        written = os.write(fd, payload)
+    except OSError as error:
+        raise BaselineFailure(
+            "host_channel_witness_invalid", "owned audio arm could not be delivered"
+        ) from error
+    if written != len(payload):
+        raise BaselineFailure(
+            "host_channel_witness_invalid", "owned audio arm could not be delivered"
+        )
+
+
+def _channel_evidence(
+    witness_base: Path,
+    audio_witness_base: Path,
+    *,
+    timeout: float = 10,
+) -> dict[str, object]:
     first = Path(f"{witness_base}.1")
     second = Path(f"{witness_base}.2")
     deadline = time.monotonic() + timeout
@@ -1860,6 +1920,19 @@ def _channel_evidence(witness_base: Path, *, timeout: float = 10) -> dict[str, o
         raise BaselineFailure(
             "host_channel_witness_invalid",
             "owned channel terminal witness was invalid",
+        ) from None
+    audio_first = Path(f"{audio_witness_base}.1")
+    audio_second = Path(f"{audio_witness_base}.2")
+    while time.monotonic() < deadline and not (audio_first.exists() and audio_second.exists()):
+        time.sleep(0.05)
+    try:
+        audio = read_audio_lifetimes(audio_witness_base)
+        audio_enabled = audio["enabled"]
+        audio_disabled = audio["disabled"]
+    except (FixtureError, OSError):
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned audio terminal witness was invalid",
         ) from None
     if not (
         enabled["schemaVersion"] == 2
@@ -1891,6 +1964,9 @@ def _channel_evidence(witness_base: Path, *, timeout: float = 10) -> dict[str, o
         "enabledClientToRemoteClipboard": True,
         "enabledDisplayControl": True,
         "disabledClipboardTransfers": 0,
+        "enabledRemoteAudioPackets": audio_enabled["acceptedCount"],
+        "disabledRemoteAudioPackets": audio_disabled["acceptedCount"],
+        "audioWaveConfirmations": audio_enabled["waveConfirmations"],
         "authenticatedLifetimes": 2,
     }
 
@@ -2035,6 +2111,7 @@ def _run_owned_shadow_baseline(
     gradle: subprocess.Popen[bytes] | None = None
     shadow: subprocess.Popen[bytes] | None = None
     phase_fd: int | None = None
+    audio_arm_fd: int | None = None
     shadow_log_fd: int | None = None
     shadow_log_path: Path | None = None
     shadow_log_size = 0
@@ -2052,15 +2129,22 @@ def _run_owned_shadow_baseline(
         private = Path(temporary)
         private.chmod(0o700)
         witness_base = private / "terminal-witness"
+        audio_witness_base = private / "audio-terminal-witness"
         try:
             (
                 shadow,
                 phase_fd,
+                audio_arm_fd,
                 shadow_binary_digest,
                 shadow_log_fd,
                 shadow_log_path,
                 shadow_log_size,
-            ) = _start_owned_shadow(runner_temp, witness_base)
+            ) = _start_owned_shadow(
+                runner_temp,
+                witness_base,
+                audio_witness_base,
+                diagnostic_nonce,
+            )
             selector.register(phase_fd, selectors.EVENT_READ, "phase")
             if shadow.stdout is None:
                 raise BaselineFailure(
@@ -2099,6 +2183,7 @@ def _run_owned_shadow_baseline(
             phases: list[bytes] = []
             resized = False
             clip_marked = False
+            audio_armed = False
             gradle_finished_at: float | None = None
             while True:
                 remaining = deadline - time.monotonic()
@@ -2130,8 +2215,9 @@ def _run_owned_shadow_baseline(
                         and phase_buffer == b""
                         and resized
                         and clip_marked
+                        and audio_armed
                     ):
-                        evidence = _channel_evidence(witness_base)
+                        evidence = _channel_evidence(witness_base, audio_witness_base)
                         evidence["shadowBinarySha256"] = shadow_binary_digest
                         final_stage, final_evidence = (
                             lifecycle.observe_after_host_exit()
@@ -2209,6 +2295,16 @@ def _run_owned_shadow_baseline(
                                     "owned channel phase order was invalid",
                                 )
                             phases.append(phase)
+                if not audio_armed and lifecycle.last_stage() == "audioEffectWait":
+                    if audio_arm_fd is None:
+                        raise BaselineFailure(
+                            "host_channel_witness_invalid",
+                            "owned audio arm pipe was unavailable",
+                        )
+                    _arm_owned_audio(audio_arm_fd, diagnostic_nonce)
+                    os.close(audio_arm_fd)
+                    audio_arm_fd = None
+                    audio_armed = True
                 if key_witness.complete and phases and not resized:
                     _resize_owned_display()
                     resized = True
@@ -2281,6 +2377,8 @@ def _run_owned_shadow_baseline(
                 _stop_owned_process(shadow)
             if phase_fd is not None:
                 os.close(phase_fd)
+            if audio_arm_fd is not None:
+                os.close(audio_arm_fd)
             if shadow_log_fd is not None:
                 os.close(shadow_log_fd)
 

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart' show Uint8List;
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
@@ -42,10 +44,30 @@ class Trust implements RdpTrustStore {
   }
 }
 
-class Channel implements RdpFrameChannel, RdpNegotiatedInputChannel {
+class Channel
+    implements
+        RdpFrameChannel,
+        RdpNegotiatedInputChannel,
+        RdpAudioPlaybackChannel {
   Channel({this.supportsUnicodeInput = true});
   @override
   final bool supportsUnicodeInput;
+  int audioReads = 0;
+  Completer<RdpAudioObservation>? audioReply;
+  @override
+  Future<RdpAudioObservation> audioObservation() async {
+    audioReads++;
+    return audioReply?.future ??
+        RdpAudioObservation.fromJson({
+          'schemaVersion': 3,
+          'requestId': 'fixture',
+          'state': 'pending',
+          'deviceOpen': false,
+          'acceptedCount': 0,
+          'completedCount': 0,
+        }, requestId: 'fixture');
+  }
+
   @override
   bool get supportsRelativePointer => true;
   @override
@@ -96,14 +118,17 @@ class Engine implements RdpEngine {
     this.supportsNla = true,
     this.clientRequiresNla = true,
     this.supportsClipboard = false,
+    this.supportsAudio = false,
     this.negotiatedUnicodeInput = true,
   });
   final bool available, supportsNla, clientRequiresNla;
   final bool supportsClipboard;
+  final bool supportsAudio;
   final bool negotiatedUnicodeInput;
   late final channel = Channel(supportsUnicodeInput: negotiatedUnicodeInput);
   int inspections = 0, opens = 0, closes = 0;
   String? passwordSeen;
+  RdpSessionRequest? lastRequest;
   Completer<RdpCertificateProbe>? delayed;
   @override
   Future<RdpCapabilities> capabilities({
@@ -118,8 +143,14 @@ class Engine implements RdpEngine {
       ...raw,
       if (available)
         'security': {...raw['security'] as Map, 'nla': supportsNla},
-      if (available && supportsClipboard)
-        'channels': packagedCapabilities()['channels'],
+      if (available)
+        'channels': {
+          ...(supportsClipboard
+                  ? packagedCapabilities()['channels']
+                  : raw['channels'])
+              as Map,
+          'audio': supportsAudio,
+        },
     });
   }
 
@@ -147,6 +178,7 @@ class Engine implements RdpEngine {
   }) async {
     if (credential == null) throw const RdpFailure('invalid_credential');
     opens++;
+    lastRequest = request;
     passwordSeen = credential.password;
     return channel;
   }
@@ -234,6 +266,123 @@ class DelayedVault extends Vault {
 }
 
 void main() {
+  test('dispose with stuck audio leaves no polling or deadline timer', () {
+    fakeAsync((clock) {
+      final engine = Engine(supportsAudio: true);
+      final reply = engine.channel.audioReply =
+          Completer<RdpAudioObservation>();
+      final c = RdpSessionController(
+        profile: profile,
+        trust: Trust()
+          ..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
+        credentialVault: Vault()
+          ..value = const RdpCredential(password: 'one-time'),
+        engineFactory: () => engine,
+        isCurrent: () => true,
+        display: const RdpDisplaySpec(width: 640, height: 480),
+        remoteAudio: true,
+      );
+      unawaited(c.connect());
+      clock.flushMicrotasks();
+      expect(c.phase, RdpSessionPhase.connected);
+      expect(engine.channel.audioReads, 1);
+      expect(clock.nonPeriodicTimerCount, 1);
+      c.dispose();
+      clock.flushMicrotasks();
+      expect(clock.nonPeriodicTimerCount, 0);
+      reply.complete(
+        RdpAudioObservation.fromJson({
+          'schemaVersion': 3,
+          'requestId': 'fixture',
+          'state': 'playing',
+          'deviceOpen': true,
+          'acceptedCount': 1,
+          'completedCount': 1,
+        }, requestId: 'fixture'),
+      );
+      clock.flushMicrotasks();
+      expect(c.audioObservation, isNull);
+      expect(clock.nonPeriodicTimerCount, 0);
+    });
+  });
+  RdpSessionController audioController(
+    Engine engine, {
+    bool enabled = true,
+    bool Function()? current,
+  }) => RdpSessionController(
+    profile: profile,
+    trust: Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
+    engineFactory: () => engine,
+    isCurrent: current ?? () => true,
+    display: const RdpDisplaySpec(width: 640, height: 480),
+    remoteAudio: enabled,
+  );
+
+  test(
+    'remote audio is opt-in and unsupported audio fails before inspection',
+    () async {
+      final unsupported = Engine();
+      final denied = audioController(unsupported);
+      await denied.connect();
+      expect(denied.error, 'audio_unavailable');
+      expect(unsupported.inspections, 0);
+      expect(unsupported.opens, 0);
+      denied.dispose();
+      final enabled = Engine(supportsAudio: true);
+      final c = audioController(enabled, enabled: false);
+      await connectWithPassword(c);
+      expect(enabled.lastRequest!.channels.audio, isFalse);
+      expect(enabled.channel.audioReads, 0);
+      c.dispose();
+    },
+  );
+
+  test(
+    'pending audio is not playback and late retired read cannot publish',
+    () async {
+      var current = true;
+      final engine = Engine(supportsAudio: true);
+      final pending = engine.channel.audioReply =
+          Completer<RdpAudioObservation>();
+      final c = audioController(engine, current: () => current);
+      await connectWithPassword(c);
+      expect(engine.lastRequest!.channels.audio, isTrue);
+      expect(engine.channel.audioReads, 1);
+      expect(c.audioObservation, isNull);
+      current = false;
+      pending.complete(
+        RdpAudioObservation.fromJson({
+          'schemaVersion': 3,
+          'requestId': 'fixture',
+          'state': 'playing',
+          'deviceOpen': true,
+          'acceptedCount': 1,
+          'completedCount': 1,
+        }, requestId: 'fixture'),
+      );
+      await flush();
+      expect(c.phase, RdpSessionPhase.closed);
+      expect(c.audioObservation, isNull);
+      expect(engine.channel.audioReads, 1);
+      c.dispose();
+    },
+  );
+
+  test(
+    'enabled audio keeps a pending baseline until native playback',
+    () async {
+      final engine = Engine(supportsAudio: true);
+      final c = audioController(engine);
+      await connectWithPassword(c);
+      await flush();
+      expect(c.audioObservation!.state, RdpAudioState.pending);
+      expect(c.audioObservation!.hasCompletedPlayback, isFalse);
+      c.dispose();
+      await flush();
+      expect(engine.channel.audioReads, 1);
+    },
+  );
+
   RdpSessionController clipboardController(
     RdpEngine Function() engineFactory, {
     bool Function()? current,

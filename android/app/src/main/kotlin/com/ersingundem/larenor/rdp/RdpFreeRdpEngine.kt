@@ -18,14 +18,14 @@ object RdpFreeRdpPackage {
     const val VERSION = "3.31.1"
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
-    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2"
+    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-display-pointer-audio-v3"
     // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
     internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
     internal const val TLS_PROTOCOL = "TLSv1.2"
     val SUPPORTED_ABIS = setOf("arm64-v8a", "x86_64")
 
     internal fun capabilities(): Map<String, Any?> = mapOf(
-        "schemaVersion" to 2,
+        "schemaVersion" to 3,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
@@ -56,7 +56,7 @@ object RdpFreeRdpPackage {
         // No remote clipboard callback is exposed to the Client yet.
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
-            "audio" to false,
+            "audio" to true,
             "files" to false,
         ),
     )
@@ -67,12 +67,54 @@ object RdpFreeRdpPackage {
             identity.sourceCommit == SOURCE_COMMIT &&
             identity.sourceSha256 == SOURCE_SHA256 &&
             identity.abi in SUPPORTED_ABIS &&
-            identity.jniSchema == 2 &&
+            identity.jniSchema == 3 &&
             identity.enabledChannels.isEmpty()
 }
 
 enum class RdpJniPhase { CONNECTING, ACTIVE, AWAITING_FRAME_ACK, CANCELLED, FAILED }
 enum class RdpJniChannel { CLIPBOARD, AUDIO, FILES }
+
+enum class RdpRemoteAudioState { PENDING, DEVICE_OPEN, PLAYING, CLOSED, FAILED }
+
+data class RdpRemoteAudioObservation(
+    val state: RdpRemoteAudioState,
+    val deviceOpen: Boolean,
+    val acceptedCount: Long,
+    val completedCount: Long,
+) {
+    init {
+        if (acceptedCount !in 0..RdpFreeRdpSession.MAX_REVISION ||
+            completedCount !in 0..acceptedCount ||
+            deviceOpen != (state == RdpRemoteAudioState.DEVICE_OPEN ||
+                state == RdpRemoteAudioState.PLAYING) ||
+            state == RdpRemoteAudioState.PENDING &&
+            (acceptedCount != 0L || completedCount != 0L) ||
+            state == RdpRemoteAudioState.PLAYING && acceptedCount == 0L) {
+            failRdp("channelUnavailable")
+        }
+    }
+
+    internal fun toChannel(requestId: String): Map<String, Any> = mapOf(
+        "schemaVersion" to 3,
+        "requestId" to requestId,
+        "state" to when (state) {
+            RdpRemoteAudioState.PENDING -> "pending"
+            RdpRemoteAudioState.DEVICE_OPEN -> "deviceOpen"
+            RdpRemoteAudioState.PLAYING -> "playing"
+            RdpRemoteAudioState.CLOSED -> "closed"
+            RdpRemoteAudioState.FAILED -> "failed"
+        },
+        "deviceOpen" to deviceOpen,
+        "acceptedCount" to acceptedCount,
+        "completedCount" to completedCount,
+    )
+
+    companion object {
+        val PENDING = RdpRemoteAudioObservation(
+            RdpRemoteAudioState.PENDING, false, 0, 0,
+        )
+    }
+}
 
 data class RdpJniSecurity(
     val minimumTlsProtocol: String,
@@ -208,6 +250,7 @@ class RdpNativeFrame private constructor(
 interface RdpJniOperation {
     interface Listener {
         fun onSecurity(evidence: RdpJniSecurity)
+        fun onRemoteAudio(observation: RdpRemoteAudioObservation) = Unit
         fun onFrame(frame: RdpNativeFrame)
         fun onDisconnected()
     }
@@ -242,6 +285,9 @@ interface RdpJniRuntime {
 private class RdpJniListenerProxy : RdpJniOperation.Listener {
     var target: RdpJniOperation.Listener? = null
     override fun onSecurity(evidence: RdpJniSecurity) { target?.onSecurity(evidence) }
+    override fun onRemoteAudio(observation: RdpRemoteAudioObservation) {
+        target?.onRemoteAudio(observation)
+    }
     override fun onFrame(frame: RdpNativeFrame) { target?.onFrame(frame) ?: frame.close() }
     override fun onDisconnected() { target?.onDisconnected() }
 }
@@ -336,6 +382,7 @@ class RdpFreeRdpSession internal constructor(
     private var lastFrameSequence = 0L
     private var currentLayout = DisplayLayout(request.display.width, request.display.height, 1)
     private var acknowledgedGeometry: DisplayedGeometry? = null
+    private var remoteAudioObservation = RdpRemoteAudioObservation.PENDING
     private var terminal = false
     private var acknowledging = false
     private var effectInFlight = false
@@ -372,6 +419,51 @@ class RdpFreeRdpSession internal constructor(
             }
         }
         if (code != null) terminate(RdpJniPhase.FAILED, code) else observer.onSecurity()
+    }
+
+    override fun onRemoteAudio(observation: RdpRemoteAudioObservation) {
+        val invalid = synchronized(stateLock) {
+            if (terminal || !plan.audio) return
+            val previous = remoteAudioObservation
+            if (observation == previous) return
+            val validState = when (previous.state) {
+                RdpRemoteAudioState.PENDING -> observation.state in setOf(
+                    RdpRemoteAudioState.DEVICE_OPEN, RdpRemoteAudioState.FAILED,
+                )
+                RdpRemoteAudioState.DEVICE_OPEN -> observation.state in setOf(
+                    RdpRemoteAudioState.PLAYING, RdpRemoteAudioState.CLOSED,
+                    RdpRemoteAudioState.FAILED,
+                )
+                RdpRemoteAudioState.PLAYING -> observation.state in setOf(
+                    RdpRemoteAudioState.PLAYING, RdpRemoteAudioState.CLOSED,
+                    RdpRemoteAudioState.FAILED,
+                )
+                RdpRemoteAudioState.CLOSED -> observation.state in setOf(
+                    RdpRemoteAudioState.DEVICE_OPEN, RdpRemoteAudioState.FAILED,
+                )
+                RdpRemoteAudioState.FAILED -> false
+            }
+            if (!validState || observation.acceptedCount < previous.acceptedCount ||
+                observation.completedCount < previous.completedCount ||
+                observation.state == RdpRemoteAudioState.PENDING) {
+                true
+            } else {
+                remoteAudioObservation = observation
+                false
+            }
+        }
+        if (invalid || observation.state == RdpRemoteAudioState.FAILED) {
+            terminate(RdpJniPhase.FAILED, "channelUnavailable")
+        }
+    }
+
+    fun audioObservation(): RdpRemoteAudioObservation = synchronized(stateLock) {
+        if (!plan.audio) failRdp("channelUnavailable")
+        if (phase !in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
+            remoteAudioObservation.state != RdpRemoteAudioState.FAILED) {
+            failRdp("staleSession")
+        }
+        remoteAudioObservation
     }
 
     override fun onFrame(frame: RdpNativeFrame) {
@@ -539,8 +631,9 @@ class RdpFreeRdpSession internal constructor(
     fun channel(sequence: Long, channel: RdpJniChannel, payload: ByteArray): Boolean {
         val allowed = when (channel) {
             RdpJniChannel.CLIPBOARD -> plan.clipboardMode != RdpClipboardMode.DISABLED
-            RdpJniChannel.AUDIO -> plan.audio
-            RdpJniChannel.FILES -> plan.files
+            // rdpsnd and RDPDR are connection-time plugins. They are never
+            // represented as arbitrary payload injection through this API.
+            RdpJniChannel.AUDIO, RdpJniChannel.FILES -> false
         }
         if (!allowed || payload.isEmpty() || payload.size > MAX_CHANNEL_BYTES) {
             payload.fill(0)

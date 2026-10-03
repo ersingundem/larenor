@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2",
+  "engineRevision": "freerdp-3.31.1-63b948ca-display-pointer-audio-v3",
   "source": {
     "version": "3.31.1",
     "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
@@ -19,7 +19,11 @@
     "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.h": "ea9862465b7ef4e55ff92fe96903ff44c25b7f25",
     "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.h": "c58d3633863d39df0c19ac34daa7e9652d826162",
     "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c": "c76f8e5852a2aced64ebf9cf8a8d334869d0ef4e",
-    "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h": "a72a7050a2f8b400a2a897c51f57d06a12f44208"
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h": "a72a7050a2f8b400a2a897c51f57d06a12f44208",
+    "channels/rdpsnd/client/opensles/opensl_io.c": "a5a79cb1359a26eb3ed966bb60d2c3eaa9e0ffc4",
+    "channels/rdpsnd/client/opensles/opensl_io.h": "f303d2145b523a85e5243dc644a4810318afdd8d",
+    "channels/rdpsnd/client/opensles/rdpsnd_opensles.c": "70762eedf1e839fe7a40fb51555d9233b5143327",
+    "include/freerdp/event.h": "f1cd9bd663c836885a8c88480241f723dfce754e"
   },
   "patches": [
     {
@@ -33,6 +37,10 @@
     {
       "path": "android/freerdp-display-pointer-v2.patch",
       "sha256": "749ccab1c74a47adec311f67b7464de94703026d6ddb7530e62e1656d8f9b3d4"
+    },
+    {
+      "path": "android/freerdp-remote-audio-v3.patch",
+      "sha256": "d0c6a07304bbdda398d5238d40bf8ae90996660a211e5f380a7f50bc90b89142"
     }
   ],
   "toolchain": {
@@ -47,7 +55,7 @@
     "arm64-v8a",
     "x86_64"
   ],
-  "jniSchema": 2,
+  "jniSchema": 3,
   "defaultChannels": [],
   "requiredLibraries": [
     "libfreerdp-android.so",
@@ -72,6 +80,7 @@
     "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1relative_1cursor_1event",
     "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
     "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
-    "OnDisplayControlReady"
+    "OnDisplayControlReady",
+    "OnRemoteAudioPlayback"
   ]
 }

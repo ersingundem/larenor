@@ -28,7 +28,9 @@
         "tool/f62_owned_shadow_channels.py",
         "tool/patches/f62-owned-shadow-channels.patch",
         "tool/tests/f62_owned_shadow_channels_test.py",
-        "android/freerdp-display-pointer-v2.patch"
+        "android/freerdp-display-pointer-v2.patch",
+        "android/freerdp-remote-audio-v3.patch",
+        "tool/patches/f62-owned-shadow-audio.patch"
       ]
     }
   },
@@ -87,7 +89,7 @@
         },
         {
           "name": "Apply reviewed SPKI and standard Unicode JNI patches",
-          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch .\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
+          "run": "set -euo pipefail\ncd \"$RUNNER_TEMP/freerdp-source\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch\"\ngit apply --check \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\ngit apply \"$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch\"\npython3 \"$GITHUB_WORKSPACE/tool/freerdp_android_package.py\" verify-patch .\ncat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'\n<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" />\nEOF\n"
         },
         {
           "name": "Preflight an owned resizable Xorg display",

@@ -30,6 +30,7 @@ class RdpSessionController extends ChangeNotifier {
     required this.display,
     this.credentialVault,
     this.settings = const RdpProfileSettings(),
+    this.remoteAudio = false,
     this.connectTimeout = const Duration(seconds: 45),
   });
   final RemoteProfile profile;
@@ -39,6 +40,7 @@ class RdpSessionController extends ChangeNotifier {
   final RdpDisplaySpec display;
   final RdpCredentialVault? credentialVault;
   final RdpProfileSettings settings;
+  final bool remoteAudio;
   final Duration connectTimeout;
 
   RdpSessionPhase phase = RdpSessionPhase.idle;
@@ -47,6 +49,9 @@ class RdpSessionController extends ChangeNotifier {
   String? error;
   bool supportsUnicodeInput = false;
   bool supportsRelativePointer = false;
+  RdpAudioObservation? audioObservation;
+  Timer? _audioTimer;
+  RdpAudioRead? _audioRead;
   RdpFrameGeometry? _acknowledgedGeometry;
   int _displayGeneration = 0, _displayLayoutRevision = 1;
   RdpDisplaySpec? _requestedDisplay;
@@ -125,6 +130,11 @@ class RdpSessionController extends ChangeNotifier {
   }
 
   void _closeResources() {
+    _audioRead?.cancel();
+    _audioRead = null;
+    _audioTimer?.cancel();
+    _audioTimer = null;
+    audioObservation = null;
     _timer?.cancel();
     _timer = null;
     if (_certificateDecision?.isCompleted == false) {
@@ -227,6 +237,9 @@ class RdpSessionController extends ChangeNotifier {
     if (!found.supportsNla) {
       throw const RdpFailure('nla_unsupported');
     }
+    if (remoteAudio && !found.supportsAudio) {
+      throw const RdpFailure('audio_unavailable');
+    }
     await trust.checkProfile(profile, isCurrent: () => _current(generation));
     final probe = await engine.inspect(
       profile,
@@ -281,6 +294,7 @@ class RdpSessionController extends ChangeNotifier {
       settings: settings,
       channels: RdpChannelPolicy(
         clipboard: settings.clipboardMode != RdpClipboardMode.disabled,
+        audio: remoteAudio,
       ),
     );
     request.validate(found);
@@ -295,6 +309,9 @@ class RdpSessionController extends ChangeNotifier {
       _check(generation);
     }
     _channel = channel;
+    if (remoteAudio && channel is! RdpAudioPlaybackChannel) {
+      throw const RdpFailure('audio_unavailable');
+    }
     supportsUnicodeInput =
         channel is RdpNegotiatedInputChannel && channel.supportsUnicodeInput;
     supportsRelativePointer =
@@ -305,6 +322,7 @@ class RdpSessionController extends ChangeNotifier {
     _timer = null;
     phase = RdpSessionPhase.connected;
     _publish();
+    if (remoteAudio) unawaited(_readAudio(generation, channel));
     unawaited(
       channel.done.then(
         (_) {
@@ -315,6 +333,50 @@ class RdpSessionController extends ChangeNotifier {
         },
       ),
     );
+  }
+
+  Future<void> _readAudio(int generation, RdpChannel channel) async {
+    if (!_current(generation)) {
+      if (generation == _generation && !_disposed) retire();
+      return;
+    }
+    if (phase != RdpSessionPhase.connected ||
+        !identical(channel, _channel) ||
+        channel is! RdpAudioPlaybackChannel) {
+      return;
+    }
+    try {
+      final read = _audioRead = RdpAudioRead(channel.audioObservation());
+      final value = await read.future;
+      if (identical(_audioRead, read)) _audioRead = null;
+      if (!_current(generation)) {
+        if (generation == _generation && !_disposed) retire();
+        return;
+      }
+      if (!identical(channel, _channel)) return;
+      final previous = audioObservation;
+      if (previous != null && !value.follows(previous)) {
+        throw const RdpFailure('invalid_response');
+      }
+      audioObservation = value;
+      if (value != previous) _publish();
+      if (_current(generation) &&
+          phase == RdpSessionPhase.connected &&
+          value.state != RdpAudioState.failed) {
+        // Schedule after the bounded read settles; never overlap observations
+        // or send an audio command, replay, or reconnect from this readback.
+        _audioTimer = Timer(const Duration(seconds: 1), () {
+          _audioTimer = null;
+          unawaited(_readAudio(generation, channel));
+        });
+      }
+    } catch (value) {
+      if (_current(generation) && identical(channel, _channel)) {
+        _finish(code: value is RdpFailure ? value.code : 'audio_unavailable');
+      } else if (generation == _generation && !_disposed) {
+        retire();
+      }
+    }
   }
 
   Future<void> trustCertificate() async {

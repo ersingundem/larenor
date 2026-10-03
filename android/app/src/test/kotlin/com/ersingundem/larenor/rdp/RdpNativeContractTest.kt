@@ -23,7 +23,7 @@ class RdpNativeContractTest {
     }
 
     private fun available() = mapOf<String, Any?>(
-        "schemaVersion" to 2,
+        "schemaVersion" to 3,
         "availability" to "available",
         "engineRevision" to "freerdp-fixture-1",
         "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to true),
@@ -37,7 +37,7 @@ class RdpNativeContractTest {
     )
 
     private fun request(overrides: Map<String, Any?> = emptyMap()) = mapOf<String, Any?>(
-        "schemaVersion" to 2,
+        "schemaVersion" to 3,
         "requestId" to "11111111-1111-4111-8111-111111111111",
         "targetHost" to "desktop.home.arpa",
         "targetPort" to 3389,

@@ -66,6 +66,78 @@ int _integer(
 
 enum RdpEngineAvailability { unavailable, available }
 
+enum RdpAudioState { pending, deviceOpen, playing, closed, failed }
+
+/// Finite counters from this session's native audio device. A server wave
+/// confirmation or an accepted buffer alone does not prove playback.
+class RdpAudioObservation {
+  const RdpAudioObservation._({
+    required this.state,
+    required this.deviceOpen,
+    required this.acceptedCount,
+    required this.completedCount,
+  });
+  final RdpAudioState state;
+  final bool deviceOpen;
+  final int acceptedCount, completedCount;
+  bool get hasCompletedPlayback => deviceOpen && completedCount > 0;
+
+  factory RdpAudioObservation.fromJson(
+    Object? raw, {
+    required String requestId,
+  }) {
+    final value = _object(raw, {
+      'schemaVersion',
+      'requestId',
+      'state',
+      'deviceOpen',
+      'acceptedCount',
+      'completedCount',
+    });
+    if (value['schemaVersion'] != 3 || value['requestId'] != requestId) {
+      _invalid();
+    }
+    final state = RdpAudioState.values
+        .where((v) => v.name == value['state'])
+        .firstOrNull;
+    if (state == null) _invalid();
+    final deviceOpen = _bool(value, 'deviceOpen');
+    final accepted = _integer(value, 'acceptedCount', max: 9007199254740991);
+    final completed = _integer(value, 'completedCount', max: accepted);
+    if (deviceOpen !=
+            (state == RdpAudioState.deviceOpen ||
+                state == RdpAudioState.playing) ||
+        state == RdpAudioState.pending && (accepted != 0 || completed != 0) ||
+        state == RdpAudioState.playing && accepted == 0) {
+      _invalid();
+    }
+    return RdpAudioObservation._(
+      state: state,
+      deviceOpen: deviceOpen,
+      acceptedCount: accepted,
+      completedCount: completed,
+    );
+  }
+
+  bool follows(RdpAudioObservation previous) =>
+      acceptedCount >= previous.acceptedCount &&
+      completedCount >= previous.completedCount &&
+      (previous.state != RdpAudioState.failed || state == previous.state) &&
+      (state != RdpAudioState.pending ||
+          previous.state == RdpAudioState.pending);
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpAudioObservation &&
+      state == other.state &&
+      deviceOpen == other.deviceOpen &&
+      acceptedCount == other.acceptedCount &&
+      completedCount == other.completedCount;
+  @override
+  int get hashCode =>
+      Object.hash(state, deviceOpen, acceptedCount, completedCount);
+}
+
 class RdpCapabilities {
   const RdpCapabilities._({
     required this.availability,
@@ -135,7 +207,7 @@ class RdpCapabilities {
       'input',
       'channels',
     });
-    if (value['schemaVersion'] != 2) _invalid();
+    if (value['schemaVersion'] != 3) _invalid();
     final availability = switch (value['availability']) {
       'available' => RdpEngineAvailability.available,
       'unavailable' => RdpEngineAvailability.unavailable,

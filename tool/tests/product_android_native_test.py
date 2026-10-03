@@ -232,6 +232,7 @@ class ProductAndroidNativeTest(unittest.TestCase):
             "freerdp-certificate-pem.patch",
             "freerdp-clipboard-utf8.patch",
             "freerdp-display-pointer-v2.patch",
+            "freerdp-remote-audio-v3.patch",
         ):
             self.assertIn(f'git apply --check "$GITHUB_WORKSPACE/android/{patch_name}"', freerdp_build)
             self.assertIn(f'git apply "$GITHUB_WORKSPACE/android/{patch_name}"', freerdp_build)

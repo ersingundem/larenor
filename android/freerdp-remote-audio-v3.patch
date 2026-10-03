@@ -1,0 +1,860 @@
+diff --git a/channels/rdpsnd/client/opensles/opensl_io.c b/channels/rdpsnd/client/opensles/opensl_io.c
+index a5a79cb..2e9bb37 100644
+--- a/channels/rdpsnd/client/opensles/opensl_io.c
++++ b/channels/rdpsnd/client/opensles/opensl_io.c
+@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+ 
+ #include <winpr/assert.h>
++#include <winpr/sysinfo.h>
+ 
+ #include "rdpsnd_main.h"
+ #include "opensl_io.h"
+@@ -239,10 +240,9 @@ static SLresult openSLPlayOpen(OPENSL_STREAM* p)
+ 	return SL_RESULT_SUCCESS;
+ }
+ 
+-// close the OpenSL IO and destroy the audio engine
+-static void openSLDestroyEngine(OPENSL_STREAM* p)
++// destroy the audio player before releasing callback-owned state
++static void openSLDestroyPlayer(OPENSL_STREAM* p)
+ {
+-	// destroy buffer queue audio player object, and invalidate all associated interfaces
+ 	if (p->bqPlayerObject != nullptr)
+ 	{
+ 		(*p->bqPlayerObject)->Destroy(p->bqPlayerObject);
+@@ -252,15 +252,17 @@ static void openSLDestroyEngine(OPENSL_STREAM* p)
+ 		p->bqPlayerBufferQueue = nullptr;
+ 		p->bqPlayerEffectSend = nullptr;
+ 	}
++}
+ 
+-	// destroy output mix object, and invalidate all associated interfaces
++// destroy the output mix and engine after callbacks have quiesced
++static void openSLDestroyEngine(OPENSL_STREAM* p)
++{
+ 	if (p->outputMixObject != nullptr)
+ 	{
+ 		(*p->outputMixObject)->Destroy(p->outputMixObject);
+ 		p->outputMixObject = nullptr;
+ 	}
+ 
+-	// destroy engine object, and invalidate all associated interfaces
+ 	if (p->engineObject != nullptr)
+ 	{
+ 		(*p->engineObject)->Destroy(p->engineObject);
+@@ -269,64 +271,231 @@ static void openSLDestroyEngine(OPENSL_STREAM* p)
+ 	}
+ }
+ 
+-// open the android audio device for and/or output
+-OPENSL_STREAM* android_OpenAudioDevice(int sr, int outchannels, int bufferframes)
++static void opensl_notify(OPENSL_STREAM* p, UINT32 fixedState)
++{
++	if (p && p->observer)
++		p->observer(p->observerContext, fixedState);
++}
++
++static void opensl_mark_failed(OPENSL_STREAM* p)
+ {
+-	OPENSL_STREAM* p;
+-	p = (OPENSL_STREAM*)calloc(1, sizeof(OPENSL_STREAM));
++	BOOL notify = FALSE;
++
++	if (!p || !p->lockInitialized)
++		return;
++
++	EnterCriticalSection(&p->lock);
++	if (!p->closing)
++	{
++		p->closing = TRUE;
++		notify = TRUE;
++		if (p->closingEvent)
++			SetEvent(p->closingEvent);
++		if (p->availableEvent)
++			SetEvent(p->availableEvent);
++	}
++	LeaveCriticalSection(&p->lock);
++
++	if (notify)
++		opensl_notify(p, FREERDP_REMOTE_AUDIO_FAILED);
++}
++
++static void opensl_free_buffers(OPENSL_STREAM* p)
++{
++	OPENSL_BUFFER_NODE* node = p->head;
++	while (node)
++	{
++		OPENSL_BUFFER_NODE* next = node->next;
++		free(node->data);
++		free(node);
++		node = next;
++	}
++	p->head = nullptr;
++	p->tail = nullptr;
++	p->queueCount = 0;
++}
++
++static BOOL opensl_initialize_lifetime(OPENSL_STREAM* p)
++{
++	InitializeCriticalSection(&p->lock);
++	p->lockInitialized = TRUE;
++	p->availableEvent = CreateEvent(nullptr, TRUE, TRUE, nullptr);
++	p->closingEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
++	p->callbacksIdleEvent = CreateEvent(nullptr, TRUE, TRUE, nullptr);
++	return p->availableEvent && p->closingEvent && p->callbacksIdleEvent;
++}
++
++// open the android audio device for output
++OPENSL_STREAM* android_OpenAudioDevice(int sr, int outchannels, int bufferframes,
++                                      OPENSL_PLAYBACK_OBSERVER observer, void* observerContext)
++{
++	OPENSL_STREAM* p = (OPENSL_STREAM*)calloc(1, sizeof(OPENSL_STREAM));
+ 
+ 	if (!p)
+ 		return nullptr;
+ 
+-	p->queuesize = bufferframes;
+-	p->outchannels = outchannels;
+-	p->sr = sr;
+-
+-	if (openSLCreateEngine(p) != SL_RESULT_SUCCESS)
++	if ((bufferframes <= 0) || !opensl_initialize_lifetime(p))
+ 	{
+-		android_CloseAudioDevice(p);
++		(void)android_CloseAudioDevice(p);
+ 		return nullptr;
+ 	}
+ 
+-	if (openSLPlayOpen(p) != SL_RESULT_SUCCESS)
++	p->queuesize = (unsigned int)bufferframes;
++	p->outchannels = (unsigned int)outchannels;
++	p->sr = (unsigned int)sr;
++	p->observer = observer;
++	p->observerContext = observerContext;
++
++	if (openSLCreateEngine(p) != SL_RESULT_SUCCESS)
+ 	{
+-		android_CloseAudioDevice(p);
++		(void)android_CloseAudioDevice(p);
+ 		return nullptr;
+ 	}
+ 
+-	p->queue = Queue_New(TRUE, -1, -1);
+-
+-	if (!p->queue)
++	if (openSLPlayOpen(p) != SL_RESULT_SUCCESS)
+ 	{
+-		android_CloseAudioDevice(p);
++		(void)android_CloseAudioDevice(p);
+ 		return nullptr;
+ 	}
+ 
+ 	return p;
+ }
+ 
+-// close the android audio device
+-void android_CloseAudioDevice(OPENSL_STREAM* p)
++// close the android audio device while retaining the complete parent graph until callbacks finish
++BOOL android_CloseAudioDevice(OPENSL_STREAM* p)
+ {
+ 	if (p == nullptr)
+-		return;
++		return TRUE;
+ 
+-	openSLDestroyEngine(p);
++	if (p->lockInitialized)
++	{
++		EnterCriticalSection(&p->lock);
++		p->closing = TRUE;
++		if (p->closingEvent)
++			SetEvent(p->closingEvent);
++		if (p->availableEvent)
++			SetEvent(p->availableEvent);
++		LeaveCriticalSection(&p->lock);
++	}
+ 
+-	if (p->queue)
+-		Queue_Free(p->queue);
++	if (p->bqPlayerPlay)
++		(void)(*p->bqPlayerPlay)->SetPlayState(p->bqPlayerPlay, SL_PLAYSTATE_STOPPED);
++	if (p->bqPlayerBufferQueue)
++		(void)(*p->bqPlayerBufferQueue)->Clear(p->bqPlayerBufferQueue);
+ 
++	/*
++	 * Android's OpenSL lifecycle guarantees that destroying the player prevents
++	 * new buffer-queue callbacks. Existing callbacks remain protected by the
++	 * callbacksIdleEvent refcount below.
++	 */
++	openSLDestroyPlayer(p);
++
++	BOOL failurePublished = FALSE;
++	while (p->callbacksIdleEvent)
++	{
++		const DWORD status = WaitForSingleObject(p->callbacksIdleEvent, 2000);
++		if (status == WAIT_OBJECT_0)
++			break;
++		if (!failurePublished)
++		{
++			opensl_notify(p, FREERDP_REMOTE_AUDIO_FAILED);
++			failurePublished = TRUE;
++		}
++		if (status == WAIT_FAILED)
++			Sleep(2000);
++	}
++
++	if (p->lockInitialized)
++	{
++		EnterCriticalSection(&p->lock);
++		opensl_free_buffers(p);
++		LeaveCriticalSection(&p->lock);
++	}
++
++	openSLDestroyEngine(p);
++	if (p->availableEvent)
++		CloseHandle(p->availableEvent);
++	if (p->closingEvent)
++		CloseHandle(p->closingEvent);
++	if (p->callbacksIdleEvent)
++		CloseHandle(p->callbacksIdleEvent);
++	if (p->lockInitialized)
++		DeleteCriticalSection(&p->lock);
+ 	free(p);
++	return TRUE;
+ }
+ 
+-// this callback handler is called every time a buffer finishes playing
++// this callback handler is called every time an accepted buffer finishes playing
+ static void bqPlayerCallback(SLAndroidSimpleBufferQueueItf bq, void* context)
+ {
++	WINPR_UNUSED(bq);
+ 	OPENSL_STREAM* p = (OPENSL_STREAM*)context;
+-	WINPR_ASSERT(p);
+-	WINPR_ASSERT(p->queue);
+-	void* data = Queue_Dequeue(p->queue);
+-	free(data);
++	OPENSL_BUFFER_NODE* node = nullptr;
++	BOOL completed = FALSE;
++
++	if (!p || !p->lockInitialized)
++		return;
++
++	EnterCriticalSection(&p->lock);
++	p->callbacksActive++;
++	ResetEvent(p->callbacksIdleEvent);
++
++	if (!p->closing && p->head)
++	{
++		node = p->head;
++		p->head = node->next;
++		if (p->head)
++			p->head->previous = nullptr;
++		else
++			p->tail = nullptr;
++		node->next = nullptr;
++		node->previous = nullptr;
++		p->queueCount--;
++		SetEvent(p->availableEvent);
++		completed = TRUE;
++	}
++	LeaveCriticalSection(&p->lock);
++
++	if (completed)
++	{
++		opensl_notify(p, FREERDP_REMOTE_AUDIO_BUFFER_COMPLETED);
++		free(node->data);
++		free(node);
++	}
++
++	EnterCriticalSection(&p->lock);
++	WINPR_ASSERT(p->callbacksActive > 0);
++	p->callbacksActive--;
++	if (p->callbacksActive == 0)
++		SetEvent(p->callbacksIdleEvent);
++	LeaveCriticalSection(&p->lock);
++}
++
++static BOOL opensl_wait_for_slot(OPENSL_STREAM* p)
++{
++	const ULONGLONG deadline = GetTickCount64() + 2000ULL;
++	HANDLE handles[2] = { p->closingEvent, p->availableEvent };
++
++	for (;;)
++	{
++		DWORD timeout = 0;
++		const ULONGLONG now = GetTickCount64();
++		if (now >= deadline)
++			return FALSE;
++		timeout = (DWORD)(deadline - now);
++
++		const DWORD status = WaitForMultipleObjects(2, handles, FALSE, timeout);
++		if (status == WAIT_OBJECT_0)
++			return FALSE;
++		if (status != WAIT_OBJECT_0 + 1)
++			return FALSE;
++
++		EnterCriticalSection(&p->lock);
++		const BOOL available = !p->closing && (p->queueCount < p->queuesize);
++		LeaveCriticalSection(&p->lock);
++		if (available)
++			return TRUE;
++	}
+ }
+ 
+ // puts a buffer of size samples to the device
+@@ -334,31 +503,73 @@ int android_AudioOut(OPENSL_STREAM* p, const short* buffer, int size)
+ {
+ 	WINPR_ASSERT(p);
+ 	WINPR_ASSERT(buffer);
+-	WINPR_ASSERT(size > 0);
+ 
+-	HANDLE ev = Queue_Event(p->queue);
+-	/* Assure, that the queue is not full. */
+-	if (p->queuesize <= Queue_Count(p->queue) && WaitForSingleObject(ev, INFINITE) == WAIT_FAILED)
++	if ((size <= 0) || !p->lockInitialized || !opensl_wait_for_slot(p))
+ 	{
+-		DEBUG_SND("WaitForSingleObject failed!");
++		opensl_mark_failed(p);
+ 		return -1;
+ 	}
+ 
+-	void* data = calloc(size, sizeof(short));
++	OPENSL_BUFFER_NODE* node = (OPENSL_BUFFER_NODE*)calloc(1, sizeof(OPENSL_BUFFER_NODE));
++	if (!node)
++	{
++		opensl_mark_failed(p);
++		return -1;
++	}
++	node->data = calloc((size_t)size, sizeof(short));
++	if (!node->data)
++	{
++		free(node);
++		opensl_mark_failed(p);
++		return -1;
++	}
++	memcpy(node->data, buffer, (size_t)size * sizeof(short));
+ 
+-	if (!data)
++	EnterCriticalSection(&p->lock);
++	if (p->closing || (p->queueCount >= p->queuesize) || !p->bqPlayerBufferQueue)
+ 	{
+-		DEBUG_SND("unable to allocate a buffer");
++		LeaveCriticalSection(&p->lock);
++		free(node->data);
++		free(node);
++		opensl_mark_failed(p);
+ 		return -1;
+ 	}
+ 
+-	memcpy(data, buffer, size * sizeof(short));
+-	if (!Queue_Enqueue(p->queue, data))
++	node->previous = p->tail;
++	if (p->tail)
++		p->tail->next = node;
++	else
++		p->head = node;
++	p->tail = node;
++	p->queueCount++;
++	if (p->queueCount >= p->queuesize)
++		ResetEvent(p->availableEvent);
++
++	const SLresult result = (*p->bqPlayerBufferQueue)
++	                            ->Enqueue(p->bqPlayerBufferQueue, node->data,
++	                                      sizeof(short) * (size_t)size);
++	if (result != SL_RESULT_SUCCESS)
+ 	{
+-		free(data);
++		if (node->previous)
++			node->previous->next = nullptr;
++		else
++			p->head = nullptr;
++		p->tail = node->previous;
++		p->queueCount--;
++		SetEvent(p->availableEvent);
++		LeaveCriticalSection(&p->lock);
++		free(node->data);
++		free(node);
++		opensl_mark_failed(p);
+ 		return -1;
+ 	}
+-	(*p->bqPlayerBufferQueue)->Enqueue(p->bqPlayerBufferQueue, data, sizeof(short) * size);
++
++	/*
++	 * Publish acceptance before releasing the lock, so an immediate OpenSL
++	 * callback cannot publish completion first.
++	 */
++	opensl_notify(p, FREERDP_REMOTE_AUDIO_BUFFER_ACCEPTED);
++	LeaveCriticalSection(&p->lock);
+ 	return size;
+ }
+ 
+diff --git a/channels/rdpsnd/client/opensles/opensl_io.h b/channels/rdpsnd/client/opensles/opensl_io.h
+index f303d21..2b0f2b7 100644
+--- a/channels/rdpsnd/client/opensles/opensl_io.h
++++ b/channels/rdpsnd/client/opensles/opensl_io.h
+@@ -34,14 +34,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ #include <SLES/OpenSLES_Android.h>
+ #include <stdlib.h>
+ #include <winpr/synch.h>
++#include <winpr/wtypes.h>
+ 
+ #include <freerdp/api.h>
++#include <freerdp/event.h>
+ 
+ #ifdef __cplusplus
+ extern "C"
+ {
+ #endif
+ 
++	typedef void (*OPENSL_PLAYBACK_OBSERVER)(void* context, UINT32 fixedState);
++
++	typedef struct opensl_buffer_node
++	{
++		void* data;
++		struct opensl_buffer_node* previous;
++		struct opensl_buffer_node* next;
++	} OPENSL_BUFFER_NODE;
++
+ 	typedef struct
+ 	{
+ 		// engine interfaces
+@@ -62,18 +73,31 @@ extern "C"
+ 		unsigned int sr;
+ 
+ 		unsigned int queuesize;
+-		wQueue* queue;
++		CRITICAL_SECTION lock;
++		BOOL lockInitialized;
++		BOOL closing;
++		UINT32 callbacksActive;
++		OPENSL_BUFFER_NODE* head;
++		OPENSL_BUFFER_NODE* tail;
++		size_t queueCount;
++		HANDLE availableEvent;
++		HANDLE closingEvent;
++		HANDLE callbacksIdleEvent;
++		OPENSL_PLAYBACK_OBSERVER observer;
++		void* observerContext;
+ 	} OPENSL_STREAM;
+ 
+ 	/*
+ 	Open the audio device with a given sampling rate (sr), output channels and IO buffer size
+ 	in frames. Returns a handle to the OpenSL stream
+ 	*/
+-	FREERDP_LOCAL OPENSL_STREAM* android_OpenAudioDevice(int sr, int outchannels, int bufferframes);
++	FREERDP_LOCAL OPENSL_STREAM* android_OpenAudioDevice(int sr, int outchannels, int bufferframes,
++	                                                    OPENSL_PLAYBACK_OBSERVER observer,
++	                                                    void* observerContext);
+ 	/*
+ 	Close the audio device
+ 	*/
+-	FREERDP_LOCAL void android_CloseAudioDevice(OPENSL_STREAM* p);
++	FREERDP_LOCAL BOOL android_CloseAudioDevice(OPENSL_STREAM* p);
+ 	/*
+ 	Write a buffer to the OpenSL stream *p, of size samples. Returns the number of samples written.
+ 	*/
+diff --git a/channels/rdpsnd/client/opensles/rdpsnd_opensles.c b/channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+index 70762ee..0fa8463 100644
+--- a/channels/rdpsnd/client/opensles/rdpsnd_opensles.c
++++ b/channels/rdpsnd/client/opensles/rdpsnd_opensles.c
+@@ -34,6 +34,8 @@
+ #include <winpr/collections.h>
+ 
+ #include <freerdp/types.h>
++#include <freerdp/event.h>
++#include <freerdp/freerdp.h>
+ #include <freerdp/channels/log.h>
+ 
+ #include "opensl_io.h"
+@@ -55,8 +57,123 @@ typedef struct
+ 	UINT32 rate;
+ 	UINT32 channels;
+ 	int format;
++	CRITICAL_SECTION observerLock;
++	BOOL observerLockInitialized;
++	BOOL deviceOpen;
++	BOOL failed;
++	UINT64 acceptedCount;
++	UINT64 completedCount;
+ } rdpsndopenslesPlugin;
+ 
++#define LARENOR_JS_SAFE_COUNTER_MAX 9007199254740991ULL
++
++static void rdpsnd_opensles_publish(rdpsndopenslesPlugin* opensles, BOOL deviceOpen,
++                                    UINT64 acceptedCount, UINT64 completedCount,
++                                    UINT32 fixedState)
++{
++	rdpContext* context = freerdp_rdpsnd_get_context(opensles->device.rdpsnd);
++	if (!context || !context->pubSub)
++		return;
++
++	RemoteAudioPlaybackEventArgs event = WINPR_C_ARRAY_INIT;
++	EventArgsInit(&event, "rdpsnd-opensles");
++	event.deviceOpen = deviceOpen;
++	event.acceptedCount = acceptedCount;
++	event.completedCount = completedCount;
++	event.fixedState = fixedState;
++	(void)PubSub_OnRemoteAudioPlayback(context->pubSub, context, &event);
++}
++
++static void rdpsnd_opensles_observe(void* context, UINT32 fixedState)
++{
++	rdpsndopenslesPlugin* opensles = (rdpsndopenslesPlugin*)context;
++	BOOL publish = FALSE;
++	BOOL failChannel = FALSE;
++	BOOL deviceOpen = FALSE;
++	UINT64 acceptedCount = 0;
++	UINT64 completedCount = 0;
++	UINT32 publishedState = fixedState;
++
++	if (!opensles || !opensles->observerLockInitialized)
++		return;
++
++	EnterCriticalSection(&opensles->observerLock);
++	switch (fixedState)
++	{
++		case FREERDP_REMOTE_AUDIO_DEVICE_OPENED:
++			if (!opensles->failed)
++			{
++				opensles->deviceOpen = TRUE;
++				publish = TRUE;
++			}
++			break;
++		case FREERDP_REMOTE_AUDIO_BUFFER_ACCEPTED:
++			if (!opensles->failed && opensles->deviceOpen)
++			{
++				if (opensles->acceptedCount >= LARENOR_JS_SAFE_COUNTER_MAX)
++				{
++					opensles->failed = TRUE;
++					opensles->deviceOpen = FALSE;
++					publishedState = FREERDP_REMOTE_AUDIO_FAILED;
++					failChannel = TRUE;
++				}
++				else
++					opensles->acceptedCount++;
++				publish = TRUE;
++			}
++			break;
++		case FREERDP_REMOTE_AUDIO_BUFFER_COMPLETED:
++			if (!opensles->failed && opensles->deviceOpen)
++			{
++				if ((opensles->completedCount >= LARENOR_JS_SAFE_COUNTER_MAX) ||
++				    (opensles->completedCount >= opensles->acceptedCount))
++				{
++					opensles->failed = TRUE;
++					opensles->deviceOpen = FALSE;
++					publishedState = FREERDP_REMOTE_AUDIO_FAILED;
++					failChannel = TRUE;
++				}
++				else
++					opensles->completedCount++;
++				publish = TRUE;
++			}
++			break;
++		case FREERDP_REMOTE_AUDIO_DEVICE_CLOSED:
++			if (!opensles->failed)
++			{
++				opensles->deviceOpen = FALSE;
++				publish = TRUE;
++			}
++			break;
++		case FREERDP_REMOTE_AUDIO_FAILED:
++			if (!opensles->failed)
++			{
++				opensles->failed = TRUE;
++				opensles->deviceOpen = FALSE;
++				publish = TRUE;
++				failChannel = TRUE;
++			}
++			break;
++		default:
++			break;
++	}
++	deviceOpen = opensles->deviceOpen;
++	acceptedCount = opensles->acceptedCount;
++	completedCount = opensles->completedCount;
++	if (publish)
++		rdpsnd_opensles_publish(opensles, deviceOpen, acceptedCount, completedCount,
++		                        publishedState);
++	LeaveCriticalSection(&opensles->observerLock);
++
++	if (failChannel)
++	{
++		rdpContext* rdpContext = freerdp_rdpsnd_get_context(opensles->device.rdpsnd);
++		if (rdpContext)
++			setChannelError(rdpContext, ERROR_INTERNAL_ERROR,
++			                "OpenSL playback lifecycle failed");
++	}
++}
++
+ static int rdpsnd_opensles_volume_to_millibel(unsigned short level, int max)
+ {
+ 	const int min = SL_MILLIBEL_MIN;
+@@ -92,18 +209,36 @@ static bool rdpsnd_opensles_check_handle(const rdpsndopenslesPlugin* hdl)
+ 
+ static BOOL rdpsnd_opensles_set_volume(rdpsndDevicePlugin* device, UINT32 volume);
+ 
+-static int rdpsnd_opensles_set_params(rdpsndopenslesPlugin* opensles)
++static BOOL rdpsnd_opensles_close_stream(rdpsndopenslesPlugin* opensles)
+ {
+-	DEBUG_SND("opensles=%p", (void*)opensles);
++	if (!opensles->stream)
++		return TRUE;
++	if (!android_CloseAudioDevice(opensles->stream))
++	{
++		rdpsnd_opensles_observe(opensles, FREERDP_REMOTE_AUDIO_FAILED);
++		return FALSE;
++	}
++	opensles->stream = nullptr;
++	rdpsnd_opensles_observe(opensles, FREERDP_REMOTE_AUDIO_DEVICE_CLOSED);
++	return TRUE;
++}
+ 
+-	if (!rdpsnd_opensles_check_handle(opensles))
+-		return 0;
++static BOOL rdpsnd_opensles_set_params(rdpsndopenslesPlugin* opensles)
++{
++	DEBUG_SND("opensles=%p", (void*)opensles);
+ 
+-	if (opensles->stream)
+-		android_CloseAudioDevice(opensles->stream);
++	if (!opensles || opensles->failed || !rdpsnd_opensles_close_stream(opensles))
++		return FALSE;
+ 
+-	opensles->stream = android_OpenAudioDevice(opensles->rate, opensles->channels, 20);
+-	return 0;
++	opensles->stream = android_OpenAudioDevice(opensles->rate, opensles->channels, 20,
++	                                           rdpsnd_opensles_observe, opensles);
++	if (!opensles->stream)
++	{
++		rdpsnd_opensles_observe(opensles, FREERDP_REMOTE_AUDIO_FAILED);
++		return FALSE;
++	}
++	rdpsnd_opensles_observe(opensles, FREERDP_REMOTE_AUDIO_DEVICE_OPENED);
++	return TRUE;
+ }
+ 
+ static BOOL rdpsnd_opensles_set_format(rdpsndDevicePlugin* device, const AUDIO_FORMAT* format,
+@@ -127,7 +262,7 @@ static BOOL rdpsnd_opensles_set_format(rdpsndDevicePlugin* device, const AUDIO_F
+ 	}
+ 
+ 	opensles->latency = latency;
+-	return (rdpsnd_opensles_set_params(opensles) == 0);
++	return rdpsnd_opensles_set_params(opensles);
+ }
+ 
+ static BOOL rdpsnd_opensles_open(rdpsndDevicePlugin* device, const AUDIO_FORMAT* format,
+@@ -139,16 +274,9 @@ static BOOL rdpsnd_opensles_open(rdpsndDevicePlugin* device, const AUDIO_FORMAT*
+ 
+ 	if (rdpsnd_opensles_check_handle(opensles))
+ 		return TRUE;
+-
+-	opensles->stream = android_OpenAudioDevice(opensles->rate, opensles->channels, 20);
+-	WINPR_ASSERT(opensles->stream);
+-
+-	if (!opensles->stream)
+-		WLog_ERR(TAG, "android_OpenAudioDevice failed");
+-	else
+-		rdpsnd_opensles_set_volume(device, opensles->volume);
+-
+-	return rdpsnd_opensles_set_format(device, format, latency);
++	if (!format || !rdpsnd_opensles_set_format(device, format, latency))
++		return FALSE;
++	return rdpsnd_opensles_set_volume(device, opensles->volume);
+ }
+ 
+ static void rdpsnd_opensles_close(rdpsndDevicePlugin* device)
+@@ -159,8 +287,7 @@ static void rdpsnd_opensles_close(rdpsndDevicePlugin* device)
+ 	if (!rdpsnd_opensles_check_handle(opensles))
+ 		return;
+ 
+-	android_CloseAudioDevice(opensles->stream);
+-	opensles->stream = nullptr;
++	(void)rdpsnd_opensles_close_stream(opensles);
+ }
+ 
+ static void rdpsnd_opensles_free(rdpsndDevicePlugin* device)
+@@ -168,8 +295,11 @@ static void rdpsnd_opensles_free(rdpsndDevicePlugin* device)
+ 	rdpsndopenslesPlugin* opensles = (rdpsndopenslesPlugin*)device;
+ 	DEBUG_SND("opensles=%p", (void*)opensles);
+ 	WINPR_ASSERT(opensles);
+-	WINPR_ASSERT(opensles->device_name);
++	if (opensles->stream && !rdpsnd_opensles_close_stream(opensles))
++		return;
+ 	free(opensles->device_name);
++	if (opensles->observerLockInitialized)
++		DeleteCriticalSection(&opensles->observerLock);
+ 	free(opensles);
+ }
+ 
+@@ -273,7 +403,10 @@ static UINT rdpsnd_opensles_play(rdpsndDevicePlugin* device, const BYTE* data, s
+ 	ret = android_AudioOut(opensles->stream, src.s, size / 2);
+ 
+ 	if (ret < 0)
++	{
+ 		WLog_ERR(TAG, "android_AudioOut failed (%d)", ret);
++		return 0;
++	}
+ 
+ 	return 10; /* TODO: Get real latencry in [ms] */
+ }
+@@ -338,6 +471,8 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE opensles_freerdp_rdpsnd_client_subsystem_entr
+ 
+ 	if (!opensles)
+ 		return CHANNEL_RC_NO_MEMORY;
++	InitializeCriticalSection(&opensles->observerLock);
++	opensles->observerLockInitialized = TRUE;
+ 
+ 	opensles->device.Open = rdpsnd_opensles_open;
+ 	opensles->device.FormatSupported = rdpsnd_opensles_format_supported;
+@@ -368,6 +503,8 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE opensles_freerdp_rdpsnd_client_subsystem_entr
+ 	DEBUG_SND("success");
+ 	return CHANNEL_RC_OK;
+ outstrdup:
++	if (opensles->observerLockInitialized)
++		DeleteCriticalSection(&opensles->observerLock);
+ 	free(opensles);
+ 	return error;
+ }
+diff --git a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+index 8e0f269..ab0047b 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -220,6 +220,22 @@ static BOOL android_desktop_resize(rdpContext* context)
+ 	return TRUE;
+ }
+ 
++static void android_OnRemoteAudioPlaybackEventHandler(
++    void* context, const RemoteAudioPlaybackEventArgs* event)
++{
++	rdpContext* rdp = (rdpContext*)context;
++	if (!rdp || !rdp->instance || !event)
++		return;
++	freerdp_callback("OnRemoteAudioPlayback", "(JZJJI)V", (jlong)rdp->instance,
++	                 (jboolean)(event->deviceOpen ? JNI_TRUE : JNI_FALSE),
++	                 (jlong)event->acceptedCount, (jlong)event->completedCount,
++	                 (jint)event->fixedState);
++}
++
++static wEventType androidRemoteAudioEvents[] = {
++	DEFINE_EVENT_ENTRY(RemoteAudioPlayback),
++};
++
+ static BOOL android_pre_connect(freerdp* instance)
+ {
+ 	WINPR_ASSERT(instance);
+@@ -230,6 +246,10 @@ static BOOL android_pre_connect(freerdp* instance)
+ 	if (!settings)
+ 		return FALSE;
+ 
++	if (!PubSub_FindEventType(instance->context->pubSub, "RemoteAudioPlayback"))
++		PubSub_AddEventTypes(instance->context->pubSub, androidRemoteAudioEvents,
++		                     ARRAYSIZE(androidRemoteAudioEvents));
++
+ 	/* Larenor verifies an SPKI SHA-256 pin itself.  A printable certificate
+ 	 * fingerprint is insufficient for that contract, so require the exact PEM
+ 	 * certificate in both normal and changed-certificate callbacks. */
+@@ -254,6 +274,18 @@ static BOOL android_pre_connect(freerdp* instance)
+ 		return FALSE;
+ 	}
+ 
++	rc = PubSub_SubscribeRemoteAudioPlayback(instance->context->pubSub,
++	                                         android_OnRemoteAudioPlaybackEventHandler);
++	if (rc != CHANNEL_RC_OK)
++	{
++		PubSub_UnsubscribeChannelDisconnected(instance->context->pubSub,
++		                                      android_OnChannelDisconnectedEventHandler);
++		PubSub_UnsubscribeChannelConnected(instance->context->pubSub,
++		                                   android_OnChannelConnectedEventHandler);
++		WLog_ERR(TAG, "Could not subscribe to remote audio lifecycle handler [%08X]", rc);
++		return FALSE;
++	}
++
+ 	freerdp_callback("OnPreConnect", "(J)V", (jlong)instance);
+ 	return TRUE;
+ }
+@@ -489,6 +521,8 @@ static void android_post_final_disconnect(freerdp* instance)
+ 	                                   android_OnChannelConnectedEventHandler);
+ 	PubSub_UnsubscribeChannelDisconnected(instance->context->pubSub,
+ 	                                      android_OnChannelDisconnectedEventHandler);
++	PubSub_UnsubscribeRemoteAudioPlayback(instance->context->pubSub,
++	                                     android_OnRemoteAudioPlaybackEventHandler);
+ }
+ 
+ static BOOL android_authenticate_int(freerdp* instance, char** username, char** password,
+diff --git a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+index 584b6f2..39dcd76 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+@@ -49,6 +49,11 @@ public class LibFreeRDP
+ 	// Keep in sync with android_freerdp.c.
+ 	public static final int EXPERIMENTAL_REMOTEAPP = 0;
+ 	public static final int EXPERIMENTAL_CAMERA = 1;
++	public static final int REMOTE_AUDIO_DEVICE_OPENED = 1;
++	public static final int REMOTE_AUDIO_BUFFER_ACCEPTED = 2;
++	public static final int REMOTE_AUDIO_BUFFER_COMPLETED = 3;
++	public static final int REMOTE_AUDIO_DEVICE_CLOSED = 4;
++	public static final int REMOTE_AUDIO_FAILED = 5;
+ 
+ 	private static boolean tryLoad(String[] libraries)
+ 	{
+@@ -639,6 +644,15 @@ public class LibFreeRDP
+ 			listener.OnDisplayControlReady(inst);
+ 	}
+ 
++	private static void OnRemoteAudioPlayback(long inst, boolean deviceOpen,
++	                                          long acceptedCount, long completedCount,
++	                                          int fixedState)
++	{
++		if (listener != null)
++			listener.OnRemoteAudioPlayback(inst, deviceOpen, acceptedCount, completedCount,
++			                               fixedState);
++	}
++
+ 	private static void OnConnectionFailure(long inst)
+ 	{
+ 		if (listener != null)
+@@ -896,6 +910,12 @@ public class LibFreeRDP
+ 		{
+ 		}
+ 
++		default void OnRemoteAudioPlayback(long instance, boolean deviceOpen,
++		                                  long acceptedCount, long completedCount,
++		                                  int fixedState)
++		{
++		}
++
+ 		void OnConnectionFailure(long instance);
+ 
+ 		void OnDisconnecting(long instance);
+diff --git a/include/freerdp/event.h b/include/freerdp/event.h
+index f1cd9bd..91b0892 100644
+--- a/include/freerdp/event.h
++++ b/include/freerdp/event.h
+@@ -35,6 +35,12 @@ extern "C"
+ #define FREERDP_WINDOW_STATE_FULLSCREEN 3
+ #define FREERDP_WINDOW_STATE_ACTIVE 4
+ 
++#define FREERDP_REMOTE_AUDIO_DEVICE_OPENED 1
++#define FREERDP_REMOTE_AUDIO_BUFFER_ACCEPTED 2
++#define FREERDP_REMOTE_AUDIO_BUFFER_COMPLETED 3
++#define FREERDP_REMOTE_AUDIO_DEVICE_CLOSED 4
++#define FREERDP_REMOTE_AUDIO_FAILED 5
++
+ 	DEFINE_EVENT_BEGIN(WindowStateChange)
+ 	int state;
+ 	DEFINE_EVENT_END(WindowStateChange)
+@@ -154,6 +160,13 @@ extern "C"
+ 	                            */
+ 	DEFINE_EVENT_END(StateChanged)
+ 
++	DEFINE_EVENT_BEGIN(RemoteAudioPlayback)
++	BOOL deviceOpen;
++	UINT64 acceptedCount;
++	UINT64 completedCount;
++	UINT32 fixedState;
++	DEFINE_EVENT_END(RemoteAudioPlayback)
++
+ #ifdef __cplusplus
+ }
+ #endif

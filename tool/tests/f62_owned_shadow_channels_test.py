@@ -258,11 +258,79 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             self.assertIn("-DWITH_KRB5=OFF", calls[0][0])
             self.assertIn("-DCHANNEL_CLIPRDR_SERVER=ON", calls[0][0])
             self.assertIn("-DCHANNEL_DISP_SERVER=ON", calls[0][0])
+            self.assertIn("-DCHANNEL_RDPSND=ON", calls[0][0])
+            self.assertIn("-DCHANNEL_RDPSND_SERVER=ON", calls[0][0])
             self.assertEqual(calls[1][0][-3:], ["freerdp-shadow-cli", "--parallel", "2"])
             self.assertEqual(executable, build / subject.SHADOW_CLI_RELATIVE)
             self.assertEqual(log.stat().st_mode & 0o777, 0o600)
             self.assertNotIn("source", calls[0][1]["env"])
             self.assertFalse(failure_receipt.exists())
+
+    def test_audio_patch_binds_fixed_pcm_arm_and_cleanup_order(self):
+        self.assertEqual(subject.sha256(subject.AUDIO_PATCH_PATH), subject.AUDIO_PATCH_SHA256)
+        patch = subject.AUDIO_PATCH_PATH.read_text(encoding="utf-8")
+        self.assertIn('memcmp(arm, "LRNAUD01", 8U)', patch)
+        self.assertIn("WAVE_FORMAT_PCM, 2, 44100, 176400, 4, 16", patch)
+        self.assertIn("LARENOR_AUDIO_FRAMES 2205U", patch)
+        channels = patch.split("--- a/server/shadow/shadow_channels.c", 1)[1].split(
+            "--- a/server/shadow/shadow_client.c", 1
+        )[0]
+        stop_index = channels.index("+\tshadow_larenor_audio_stop(client);")
+        rdpsnd_index = channels.index("shadow_client_rdpsnd_uninit(client);", stop_index)
+        free_index = channels.index("+\tshadow_larenor_channels_free(client);", rdpsnd_index)
+        self.assertLess(
+            stop_index,
+            rdpsnd_index,
+        )
+        self.assertLess(
+            rdpsnd_index,
+            free_index,
+        )
+
+    def test_audio_lifetimes_require_one_enabled_send_and_disabled_zero(self):
+        def audio_record(ordinal, flags, activations, arm, sends, accepted, confirms, frames, errors):
+            return struct.pack(
+                "<8sII9I12s",
+                subject.AUDIO_WITNESS_MAGIC,
+                1,
+                subject.AUDIO_WITNESS_SIZE,
+                ordinal,
+                flags,
+                activations,
+                arm,
+                sends,
+                accepted,
+                confirms,
+                frames,
+                errors,
+                b"\0" * 12,
+            )
+
+        enabled_flags = (
+            subject.AUDIO_FLAG_JOINED | subject.AUDIO_FLAG_ACTIVATED |
+            subject.AUDIO_FLAG_ARMED | subject.AUDIO_FLAG_SEND_ACCEPTED
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary) / "audio"
+            first = audio_record(1, enabled_flags, 1, 1, 1, 1, 0, 2205, 0)
+            second = audio_record(2, 0, 0, 0, 0, 0, 0, 0, 0)
+            for ordinal, value in ((1, first), (2, second)):
+                path = Path(f"{base}.{ordinal}")
+                path.write_bytes(value)
+                path.chmod(0o600)
+            result = subject.read_audio_lifetimes(base)
+            self.assertTrue(result["enabled"]["sendAccepted"])
+            self.assertEqual(result["disabled"]["acceptedCount"], 0)
+
+            Path(f"{base}.1").write_bytes(
+                audio_record(1, enabled_flags, 1, 1, 1, 1, 0, 2204, 0)
+            )
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_audio_lifetimes"):
+                subject.read_audio_lifetimes(base)
+
+            Path(f"{base}.1").write_bytes(first + b"x")
+            with self.assertRaisesRegex(subject.FixtureError, "invalid_audio_witness"):
+                subject.read_audio_lifetimes(base)
 
     def test_configure_failure_publishes_only_canonical_bounded_diagnostic(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -305,6 +373,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             self.assertEqual(result["upstreamSourceRevision"], subject.SOURCE_COMMIT)
             self.assertEqual(result["sourceSha256"], subject.SOURCE_SHA256)
             self.assertEqual(result["patchSha256"], subject.PATCH_SHA256)
+            self.assertEqual(result["audioPatchSha256"], subject.AUDIO_PATCH_SHA256)
             self.assertIsNone(result["sourceLocation"])
             self.assertRegex(result["privateLogSha256"], r"^[0-9a-f]{64}$")
             self.assertNotIn("SecretKit", receipt.read_text(encoding="ascii"))

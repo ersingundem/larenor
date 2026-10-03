@@ -50,6 +50,37 @@ abstract interface class RdpNegotiatedInputChannel implements RdpChannel {
   bool get supportsRelativePointer;
 }
 
+abstract interface class RdpAudioPlaybackChannel implements RdpChannel {
+  Future<RdpAudioObservation> audioObservation();
+}
+
+/// An owned read deadline: retirement cancels its timer and resolves waiters.
+/// A late native reply remains handled but cannot revive the cancelled read.
+class RdpAudioRead {
+  RdpAudioRead(Future<RdpAudioObservation> source) {
+    _deadline = Timer(const Duration(seconds: 5), () {
+      _fail(const RdpFailure('timed_out'));
+    });
+    unawaited(
+      source.then<void>((value) {
+        if (_completion.isCompleted) return;
+        _deadline?.cancel();
+        _completion.complete(value);
+      }, onError: (Object error, StackTrace stack) => _fail(error, stack)),
+    );
+  }
+  final _completion = Completer<RdpAudioObservation>();
+  Timer? _deadline;
+  Future<RdpAudioObservation> get future => _completion.future;
+  void _fail(Object error, [StackTrace? stack]) {
+    if (_completion.isCompleted) return;
+    _deadline?.cancel();
+    _completion.completeError(error, stack);
+  }
+
+  void cancel() => _fail(const RdpFailure('retired'));
+}
+
 abstract interface class RdpEngine {
   Future<RdpCapabilities> capabilities({required bool Function() isCurrent});
   Future<RdpCertificateProbe> inspect(
@@ -73,7 +104,7 @@ class UnsupportedRdpEngine implements RdpEngine {
   }) async {
     if (!isCurrent()) throw const RdpFailure('retired');
     return RdpCapabilities.fromJson({
-      "schemaVersion": 2,
+      "schemaVersion": 3,
       "availability": "unavailable",
       "engineRevision": null,
       "security": {
@@ -270,7 +301,11 @@ class RdpMethodChannelEngine implements RdpEngine {
   }
 }
 
-class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
+class _RdpMethodChannel
+    implements
+        RdpFrameChannel,
+        RdpNegotiatedInputChannel,
+        RdpAudioPlaybackChannel {
   _RdpMethodChannel({
     required this.methods,
     required this.events,
@@ -295,6 +330,10 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
   bool _hasFrameConsumer = false;
   bool _closed = false;
   bool _clipboardEnabled = false;
+  bool _audioEnabled = false;
+  RdpAudioObservation? _lastAudio;
+  Future<RdpAudioObservation>? _audioInFlight;
+  RdpAudioRead? _audioRead;
 
   @override
   bool supportsUnicodeInput = false;
@@ -326,6 +365,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
 
   Future<void> open(RdpSessionRequest request, RdpCredential credential) async {
     _requestedDisplay = request.display;
+    _audioEnabled = request.channels.audio;
     _clipboardEnabled =
         request.settings.clipboardMode == RdpClipboardMode.clientToRemote &&
         request.channels.clipboard;
@@ -342,7 +382,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
     try {
       await methods.invokeMethod<void>('activate', {'requestId': requestId});
       final response = await methods.invokeMethod<Object?>('open', {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'request': _request(request),
         'requestId': requestId,
         'password': password,
@@ -353,7 +393,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
         'unicodeTextInput',
         'relativePointer',
       });
-      if (parsed['schemaVersion'] != 2 ||
+      if (parsed['schemaVersion'] != 3 ||
           parsed['unicodeTextInput'] is! bool ||
           parsed['relativePointer'] is! bool) {
         throw const RdpFailure('invalid_response');
@@ -369,7 +409,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
   }
 
   Map<String, Object?> _request(RdpSessionRequest value) => {
-    'schemaVersion': 2,
+    'schemaVersion': 3,
     'requestId': requestId,
     'targetHost': value.profile.host,
     'targetPort': value.profile.port,
@@ -390,6 +430,57 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
     'audio': value.channels.audio,
     'files': value.channels.files,
   };
+
+  @override
+  Future<RdpAudioObservation> audioObservation() {
+    if (_closed || !isCurrent()) {
+      return Future.error(const RdpFailure('retired'));
+    }
+    if (!_audioEnabled) {
+      return Future.error(const RdpFailure('audio_unavailable'));
+    }
+    final pending = _audioInFlight;
+    if (pending != null) return pending;
+    final read = _audioRead = RdpAudioRead(_readAudio());
+    final querying = read.future.then(
+      (value) {
+        if (identical(_audioRead, read)) {
+          _audioRead = null;
+          _audioInFlight = null;
+        }
+        return value;
+      },
+      onError: (Object error, StackTrace stack) {
+        if (identical(_audioRead, read)) {
+          _audioRead = null;
+          _audioInFlight = null;
+        }
+        close();
+        Error.throwWithStackTrace(error, stack);
+      },
+    );
+    _audioInFlight = querying;
+    return querying;
+  }
+
+  Future<RdpAudioObservation> _readAudio() async {
+    try {
+      final raw = await methods.invokeMethod<Object?>('audioObservation', {
+        'schemaVersion': 3,
+        'requestId': requestId,
+      });
+      if (_closed || !isCurrent()) throw const RdpFailure('retired');
+      final value = RdpAudioObservation.fromJson(raw, requestId: requestId);
+      final previous = _lastAudio;
+      if (previous != null && !value.follows(previous)) {
+        throw const RdpFailure('invalid_response');
+      }
+      _lastAudio = value;
+      return value;
+    } on PlatformException catch (error) {
+      throw RdpFailure(_failure(error.code));
+    }
+  }
 
   void _event(Object? raw) {
     if (_closed || !isCurrent()) {
@@ -419,7 +510,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
             stride = frame['stride'],
             revision = frame['displayLayoutRevision'],
             pixels = frame['pixels'];
-        if (frame['schemaVersion'] != 2 ||
+        if (frame['schemaVersion'] != 3 ||
             sequence is! int ||
             width is! int ||
             height is! int ||
@@ -477,7 +568,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
     try {
       final response = await methods
           .invokeMethod<Object?>(method, {
-            'schemaVersion': 2,
+            'schemaVersion': 3,
             'requestId': requestId,
             'sequence': sequence,
             ...event,
@@ -575,7 +666,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
       if (sequence == null) return false;
       final response = await methods
           .invokeMethod<Object?>('input', {
-            'schemaVersion': 2,
+            'schemaVersion': 3,
             'requestId': requestId,
             'sequence': sequence,
             'kind': 'channel',
@@ -636,7 +727,7 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
     try {
       final reply = await methods
           .invokeMethod<Object?>('ackFrame', {
-            'schemaVersion': 2,
+            'schemaVersion': 3,
             'requestId': requestId,
             'frameSequence': pending.sequence,
           })
@@ -668,6 +759,9 @@ class _RdpMethodChannel implements RdpFrameChannel, RdpNegotiatedInputChannel {
   void close() {
     if (_closed) return;
     _closed = true;
+    _audioRead?.cancel();
+    _audioRead = null;
+    _lastAudio = null;
     final pending = _pendingFrame;
     pending?.bgra.fillRange(0, pending.bgra.length, 0);
     _pendingFrame = null;
@@ -699,6 +793,7 @@ String _failure(String code) => switch (code) {
   'tlsRequired' => 'tls_required',
   'certificatePinningRequired' => 'certificate_changed',
   'nlaUnavailable' => 'nla_unsupported',
+  'channelUnavailable' => 'audio_unavailable',
   'invalidSecrets' => 'invalid_credential',
   'cancelled' || 'staleSession' || 'foregroundRequired' => 'retired',
   'timedOut' => 'timed_out',

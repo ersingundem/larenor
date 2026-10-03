@@ -89,6 +89,76 @@ class RdpFreeRdpEngineTest {
     }
 
     @Test
+    fun remoteAudioObservationIsStagedBeforeAuthAndRequiresCompletedPlaybackEvidence() {
+        val fixture = Fixture(audio = true)
+        val session = fixture.open()
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.DEVICE_OPEN, true, 0, 0),
+        )
+        reject("staleSession") { session.audioObservation() }
+
+        fixture.operation.secure(RdpJniSecurity("TLSv1.3", true, PIN))
+        assertEquals(RdpRemoteAudioState.DEVICE_OPEN, session.audioObservation().state)
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.PLAYING, true, 1, 0),
+        )
+        assertEquals(0, session.audioObservation().completedCount)
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.PLAYING, true, 1, 1),
+        )
+        assertEquals(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.PLAYING, true, 1, 1),
+            session.audioObservation(),
+        )
+    }
+
+    @Test
+    fun remoteAudioLifecycleCanCloseAndReopenButRegressionOrFailureRetires() {
+        val fixture = Fixture(audio = true)
+        val session = fixture.active()
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.DEVICE_OPEN, true, 0, 0),
+        )
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.PLAYING, true, 2, 1),
+        )
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.CLOSED, false, 2, 1),
+        )
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.DEVICE_OPEN, true, 2, 1),
+        )
+        assertEquals(RdpRemoteAudioState.DEVICE_OPEN, session.audioObservation().state)
+
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.PLAYING, true, 1, 1),
+        )
+        assertEquals(RdpJniPhase.FAILED, session.phase)
+        assertEquals("channelUnavailable", session.failureCode)
+        assertEquals(1, fixture.operation.closes)
+
+        val failedFixture = Fixture(audio = true)
+        val failed = failedFixture.open()
+        failedFixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.FAILED, false, 0, 0),
+        )
+        assertEquals(RdpJniPhase.FAILED, failed.phase)
+        assertEquals(RdpRemoteAudioState.FAILED, failed.audioObservation().state)
+    }
+
+    @Test
+    fun disabledAudioHasNoObservationOrGenericPayloadPath() {
+        val fixture = Fixture()
+        val session = fixture.active()
+        fixture.operation.audio(
+            RdpRemoteAudioObservation(RdpRemoteAudioState.DEVICE_OPEN, true, 0, 0),
+        )
+        reject("channelUnavailable") { session.audioObservation() }
+        assertFalse(session.channel(1, RdpJniChannel.AUDIO, byteArrayOf(1)))
+        assertEquals(0, fixture.operation.inputs)
+    }
+
+    @Test
     fun unsupportedUsbKeyboardUsageIsNonFatalAndDoesNotConsumeSequence() {
         val fixture = Fixture()
         val session = fixture.active()
@@ -470,6 +540,7 @@ class RdpFreeRdpEngineTest {
         private val resizeAccepted: Boolean = true,
         private val externalDisplay: Boolean = false,
         private val dynamicResize: Boolean = true,
+        private val audio: Boolean = false,
     ) {
         lateinit var operation: Operation
         private val runtime = object : RdpJniRuntime {
@@ -478,10 +549,16 @@ class RdpFreeRdpEngineTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                2,
+                3,
                 emptySet(),
             )
-            override fun capabilities() = capabilityMap
+            override fun capabilities() = if (!audio) capabilityMap else capabilityMap + (
+                "channels" to mapOf(
+                    "clipboardModes" to listOf("disabled", "clientToRemote"),
+                    "audio" to true,
+                    "files" to false,
+                )
+            )
             override fun create(
                 request: RdpNativeRequest,
                 plan: RdpNativeNegotiated,
@@ -497,7 +574,7 @@ class RdpFreeRdpEngineTest {
 
         fun open(): RdpFreeRdpSession {
             val request = RdpNativeRequest.parse(
-                request(clipboard, externalDisplay, dynamicResize),
+                request(clipboard, externalDisplay, dynamicResize, audio),
             )
             return RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
                 request,
@@ -545,6 +622,7 @@ class RdpFreeRdpEngineTest {
         override fun close() { closes++ }
         override fun detach() { listener = null }
         fun secure(value: RdpJniSecurity) { listener?.onSecurity(value) }
+        fun audio(value: RdpRemoteAudioObservation) { listener?.onRemoteAudio(value) }
         fun frame(value: RdpNativeFrame) { listener?.onFrame(value) ?: value.close() }
         fun disconnected() { listener?.onDisconnected() }
     }
@@ -554,7 +632,7 @@ class RdpFreeRdpEngineTest {
         private const val OTHER_PIN = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
         fun availableCapabilities() = mapOf<String, Any?>(
-            "schemaVersion" to 2,
+            "schemaVersion" to 3,
             "availability" to "available",
             "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
             "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false),
@@ -567,8 +645,9 @@ class RdpFreeRdpEngineTest {
             clipboard: RdpClipboardMode = RdpClipboardMode.DISABLED,
             externalDisplay: Boolean = false,
             dynamicResize: Boolean = true,
+            audio: Boolean = false,
         ) = mapOf<String, Any?>(
-            "schemaVersion" to 2,
+            "schemaVersion" to 3,
             "requestId" to "11111111-1111-4111-8111-111111111111",
             "targetHost" to "fixture.invalid",
             "targetPort" to 3389,
@@ -584,7 +663,7 @@ class RdpFreeRdpEngineTest {
                 RdpClipboardMode.CLIENT_TO_REMOTE -> "clientToRemote"
                 RdpClipboardMode.BIDIRECTIONAL -> "bidirectional"
             },
-            "audio" to false,
+            "audio" to audio,
             "files" to false,
         )
 
@@ -601,5 +680,14 @@ class RdpFreeRdpEngineTest {
         ) = RdpFreeRdpSession.DisplayedGeometry(
             frameSequence, width, height, displayLayoutRevision,
         )
+
+        fun reject(code: String, action: () -> Unit) {
+            try {
+                action()
+                fail("Expected $code")
+            } catch (failure: RdpNativeFailure) {
+                assertEquals(code, failure.code)
+            }
+        }
     }
 }

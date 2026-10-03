@@ -88,9 +88,14 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         )
         self.assertLess(
             patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"'),
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch"'),
+        )
+        self.assertLess(
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch"'),
             patch.index('freerdp_android_package.py" verify-patch'),
         )
         self.assertIn('git apply --check "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"', patch)
+        self.assertIn('git apply --check "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch"', patch)
         self.assertIn('freerdp_android_package.py" verify-patch .', patch)
 
     def test_owned_channels_use_exact_source_built_cli_before_android_build(self):
@@ -117,8 +122,10 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         for required in (
             "android/freerdp-clipboard-utf8.patch",
             "android/freerdp-display-pointer-v2.patch",
+            "android/freerdp-remote-audio-v3.patch",
             "tool/f62_owned_shadow_channels.py",
             "tool/patches/f62-owned-shadow-channels.patch",
+            "tool/patches/f62-owned-shadow-audio.patch",
         ):
             self.assertIn(required, paths)
 
@@ -279,7 +286,9 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         self.assertIn('"RDP_ACCEPTANCE_XORG_OUTPUT"', runner)
         self.assertIn('"--output",', runner)
         self.assertIn('"--mode",', runner)
-        self.assertIn('"ownedShadowChannels"', runner)
+        self.assertIn('"ownedShadowChannelsAndAudioQueue"', runner)
+        self.assertIn('"remoteAudioQueueCompletion": True', runner)
+        self.assertIn('"physicalAudioAudibility"', runner)
         self.assertIn('"enabledClientToRemoteClipboard"', runner)
         self.assertIn('"enabledDisplayControl"', runner)
         self.assertIn('"disabledClipboardTransfers"', runner)

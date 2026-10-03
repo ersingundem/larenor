@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prepare and verify the pinned FreeRDP owned-shadow channel fixture."""
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
@@ -25,6 +27,7 @@ else:
 
 ROOT = Path(__file__).resolve().parents[1]
 PATCH_PATH = ROOT / "tool/patches/f62-owned-shadow-channels.patch"
+AUDIO_PATCH_PATH = ROOT / "tool/patches/f62-owned-shadow-audio.patch"
 SOURCE_URL = (
     "https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/"
     "freerdp-3.31.1.tar.gz"
@@ -40,6 +43,7 @@ SOURCE_FILES = {
     "server/shadow/CMakeLists.txt": "ee5841906ba41048d35b73359596020b63d2eaaa15293bfd39111f2ab3897f22",
     "server/shadow/shadow_channels.c": "c347e80f6e086d60f8f3f10d130129b4d562169429f131c1efd3c951b1b09645",
     "server/shadow/shadow_client.c": "d4accb9fa930e2fcbfc356ad4f6208589df8702a2f79dc4b41e8cb6b2fd56b30",
+    "server/shadow/shadow_rdpsnd.c": "659297a7d9da017546a956a3acdf9b5ec437409af4cf2a63794ad050713c4d46",
 }
 PATCHED_FILES = {
     "channels/disp/server/disp_main.c": "64ae2952307acbf8e74e3670102362a81323f69ae98d881b909d1eaee1de654f",
@@ -52,8 +56,27 @@ PATCHED_FILES = {
     "server/shadow/shadow_larenor_channels.h": "af7fcfca177f3eb3c5db7bbb910cd74c3fd0a3470c4b68c86eebaeeb805e0b56",
 }
 PATCH_SHA256 = "58e198fb1b12d8627132a53eac491d29154cc322210415f422d061b4a321c59d"
+AUDIO_PATCH_SHA256 = "21251283bf48bcbcac564c6f23d08e029d2883bf918722a6f5a1a6fde4c687c5"
+AUDIO_PATCHED_FILES = {
+    "server/shadow/shadow_channels.c": "b22db71d11aa6d5f405a6cad7fec47be31ad2bdfb1aa11fc2489ce993bd65f7c",
+    "server/shadow/shadow_client.c": "0da0cec3f6b9e5a909b3da89ecb34a9a5ee33d78f77ee0498f6d53c005a950ee",
+    "server/shadow/shadow_larenor_channels.c": "56d38abe118f5be62a6293221d868e88c01d4d43fb0a110a3e2c22b3b34dae93",
+    "server/shadow/shadow_larenor_channels.h": "af8d0480341af9a5fe697ed2673197c7a8b9aa324b19306cc72be98ea334e957",
+    "server/shadow/shadow_rdpsnd.c": "3641cc8fded3889e1b4201b78e76f554c19aa2e03c5e6286037f5ca969df77f3",
+}
+FINAL_PATCHED_FILES = {**PATCHED_FILES, **AUDIO_PATCHED_FILES}
 WITNESS_MAGIC = b"LRNF62C2"
 WITNESS_SIZE = 64
+AUDIO_WITNESS_MAGIC = b"LRNF62A1"
+AUDIO_WITNESS_SIZE = 64
+AUDIO_FLAG_JOINED = 0x00000001
+AUDIO_FLAG_ACTIVATED = 0x00000002
+AUDIO_FLAG_ARMED = 0x00000004
+AUDIO_FLAG_SEND_ACCEPTED = 0x00000008
+AUDIO_KNOWN_FLAGS = (
+    AUDIO_FLAG_JOINED | AUDIO_FLAG_ACTIVATED | AUDIO_FLAG_ARMED | AUDIO_FLAG_SEND_ACCEPTED
+)
+AUDIO_FRAMES = 2205
 MAX_ARCHIVE_SIZE = 32 * 1024 * 1024
 MAX_EXPANDED_SIZE = 256 * 1024 * 1024
 MAX_MEMBER_SIZE = 32 * 1024 * 1024
@@ -76,6 +99,7 @@ DIAGNOSTIC_SOURCE_PATHS = (
     "server/shadow/shadow_channels.c",
     "server/shadow/shadow_client.c",
     "server/shadow/shadow_larenor_channels.c",
+    "server/shadow/shadow_rdpsnd.c",
     "winpr/CMakeLists.txt",
     "winpr/libwinpr/sspi/CMakeLists.txt",
     "winpr/libwinpr/utils/CMakeLists.txt",
@@ -245,11 +269,11 @@ def _extract_verified(archive: Path, output: Path):
             os.close(archive_fd)
 
 
-def _verified_patch_bytes(patch: Path) -> bytes:
+def _verified_patch_bytes(patch: Path, expected_digest: str) -> bytes:
     fd = None
     try:
         fd, metadata = _open_regular(patch, max_size=1024 * 1024)
-        require(_sha256_fd(fd) == PATCH_SHA256, "patch_digest_mismatch")
+        require(_sha256_fd(fd) == expected_digest, "patch_digest_mismatch")
         os.lseek(fd, 0, os.SEEK_SET)
         data = os.read(fd, metadata.st_size + 1)
         require(len(data) == metadata.st_size, "patch_digest_mismatch")
@@ -259,10 +283,18 @@ def _verified_patch_bytes(patch: Path) -> bytes:
             os.close(fd)
 
 
-def verify_patched_source(source: Path, patch: Path = PATCH_PATH):
+def verify_patched_source(
+    source: Path,
+    patch: Path = PATCH_PATH,
+    audio_patch: Path | None = None,
+):
     require(source.is_dir() and not source.is_symlink(), "invalid_prepared_source")
-    _verified_patch_bytes(patch)
-    for relative, expected in PATCHED_FILES.items():
+    _verified_patch_bytes(patch, PATCH_SHA256)
+    selected_audio_patch = AUDIO_PATCH_PATH if audio_patch is None and patch == PATCH_PATH else audio_patch
+    if selected_audio_patch is not None:
+        _verified_patch_bytes(selected_audio_patch, AUDIO_PATCH_SHA256)
+    expected_files = FINAL_PATCHED_FILES if selected_audio_patch is not None else PATCHED_FILES
+    for relative, expected in expected_files.items():
         path = source / relative
         try:
             fd, _ = _open_regular(path, max_size=MAX_MEMBER_SIZE)
@@ -275,10 +307,20 @@ def verify_patched_source(source: Path, patch: Path = PATCH_PATH):
                 del fd
 
 
-def prepare_source(archive: Path, output: Path, patch: Path = PATCH_PATH):
+def prepare_source(
+    archive: Path,
+    output: Path,
+    patch: Path = PATCH_PATH,
+    audio_patch: Path | None = None,
+):
     require(not output.exists() and not output.is_symlink(), "output_must_not_exist")
     verify_source(archive)
-    patch_bytes = _verified_patch_bytes(patch)
+    patch_bytes = _verified_patch_bytes(patch, PATCH_SHA256)
+    selected_audio_patch = AUDIO_PATCH_PATH if audio_patch is None and patch == PATCH_PATH else audio_patch
+    audio_patch_bytes = (
+        _verified_patch_bytes(selected_audio_patch, AUDIO_PATCH_SHA256)
+        if selected_audio_patch is not None else None
+    )
     _extract_verified(archive, output)
     try:
         run = subprocess.run(
@@ -292,7 +334,19 @@ def prepare_source(archive: Path, output: Path, patch: Path = PATCH_PATH):
             check=False,
         )
         require(run.returncode == 0, "patch_apply_failed")
-        verify_patched_source(output, patch)
+        if audio_patch_bytes is not None:
+            audio_run = subprocess.run(
+                ["/usr/bin/patch", "-N", "-p1"],
+                cwd=output,
+                input=audio_patch_bytes,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "LANG": "C"},
+                timeout=30,
+                check=False,
+            )
+            require(audio_run.returncode == 0, "patch_apply_failed")
+        verify_patched_source(output, patch, selected_audio_patch)
     except Exception:
         shutil.rmtree(output, ignore_errors=True)
         raise
@@ -417,6 +471,7 @@ def _write_failure_receipt(log: Path, output: Path, *, stage: str, code: str, cm
         "upstreamSourceRevision": SOURCE_COMMIT,
         "sourceSha256": SOURCE_SHA256,
         "patchSha256": PATCH_SHA256,
+        "audioPatchSha256": AUDIO_PATCH_SHA256,
         "cmakeInstalled": cmake.is_file() and not cmake.is_symlink(),
         "privateLogSha256": digest,
         "sourceLocation": _diagnostic_location(_fatal_diagnostic_block(stage, data)),
@@ -493,6 +548,8 @@ def build_fixture(
         "-DCHANNEL_CLIPRDR_SERVER=ON",
         "-DCHANNEL_DISP=ON",
         "-DCHANNEL_DISP_SERVER=ON",
+        "-DCHANNEL_RDPSND=ON",
+        "-DCHANNEL_RDPSND_SERVER=ON",
         "-DCHANNEL_DRDYNVC=ON",
         "-DCHANNEL_DRDYNVC_SERVER=ON",
         "-DWITH_SHADOW=ON",
@@ -668,6 +725,105 @@ def read_lifetimes(base: Path):
     return {"schemaVersion": 2, "enabled": first, "disabled": second}
 
 
+def parse_audio_witness(path: Path):
+    try:
+        fd, metadata = _open_regular(
+            path, max_size=AUDIO_WITNESS_SIZE, exact_mode=0o600
+        )
+        require(metadata.st_size == AUDIO_WITNESS_SIZE, "invalid_audio_witness")
+        data = os.read(fd, AUDIO_WITNESS_SIZE + 1)
+    except FixtureError as error:
+        raise FixtureError("invalid_audio_witness") from error
+    finally:
+        if "fd" in locals():
+            os.close(fd)
+    require(len(data) == AUDIO_WITNESS_SIZE, "invalid_audio_witness")
+    (
+        magic,
+        version,
+        size,
+        ordinal,
+        flags,
+        activations,
+        arm_records,
+        send_calls,
+        accepted,
+        confirmations,
+        frames,
+        errors,
+        reserved,
+    ) = struct.unpack("<8sII9I12s", data)
+    counts = (
+        activations,
+        arm_records,
+        send_calls,
+        accepted,
+        confirmations,
+        errors,
+    )
+    require(
+        magic == AUDIO_WITNESS_MAGIC
+        and version == 1
+        and size == AUDIO_WITNESS_SIZE
+        and ordinal in (1, 2)
+        and flags & ~AUDIO_KNOWN_FLAGS == 0
+        and all(value <= MAX_CHANNEL_EVENTS for value in counts)
+        and frames <= AUDIO_FRAMES
+        and reserved == b"\0" * len(reserved),
+        "invalid_audio_witness",
+    )
+    return {
+        "schemaVersion": 1,
+        "ordinal": ordinal,
+        "joined": bool(flags & AUDIO_FLAG_JOINED),
+        "activated": bool(flags & AUDIO_FLAG_ACTIVATED),
+        "armed": bool(flags & AUDIO_FLAG_ARMED),
+        "sendAccepted": bool(flags & AUDIO_FLAG_SEND_ACCEPTED),
+        "activations": activations,
+        "armRecords": arm_records,
+        "sendCalls": send_calls,
+        "acceptedCount": accepted,
+        "waveConfirmations": confirmations,
+        "frames": frames,
+        "audioErrors": errors,
+    }
+
+
+def read_audio_lifetimes(base: Path):
+    require(not base.exists() and not base.is_symlink(), "invalid_audio_lifetimes")
+    third = Path(f"{base}.3")
+    require(not third.exists() and not third.is_symlink(), "invalid_audio_lifetimes")
+    enabled = parse_audio_witness(Path(f"{base}.1"))
+    disabled = parse_audio_witness(Path(f"{base}.2"))
+    require(
+        enabled["ordinal"] == 1
+        and enabled["joined"]
+        and enabled["activated"]
+        and enabled["armed"]
+        and enabled["sendAccepted"]
+        and enabled["activations"] == 1
+        and enabled["armRecords"] == 1
+        and enabled["sendCalls"] == 1
+        and enabled["acceptedCount"] == 1
+        and enabled["frames"] == AUDIO_FRAMES
+        and enabled["audioErrors"] == 0
+        and disabled["ordinal"] == 2
+        and not disabled["joined"]
+        and not disabled["activated"]
+        and not disabled["armed"]
+        and not disabled["sendAccepted"]
+        and disabled["activations"] == 0
+        and disabled["armRecords"] == 0
+        and disabled["sendCalls"] == 0
+        and disabled["acceptedCount"] == 0
+        and disabled["waveConfirmations"] == 0
+        and disabled["frames"] == 0
+        and disabled["audioErrors"] == 0,
+        "invalid_audio_lifetimes",
+    )
+    return {"schemaVersion": 1, "enabled": enabled, "disabled": disabled}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
@@ -689,6 +845,8 @@ def main(argv=None):
     witness.add_argument("path", type=Path)
     lifetimes = commands.add_parser("verify-lifetimes")
     lifetimes.add_argument("base", type=Path)
+    audio_lifetimes = commands.add_parser("verify-audio-lifetimes")
+    audio_lifetimes.add_argument("base", type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "fetch":
@@ -710,6 +868,8 @@ def main(argv=None):
             print(json.dumps(read_witness(args.path), sort_keys=True))
         elif args.command == "verify-lifetimes":
             print(json.dumps(read_lifetimes(args.base), sort_keys=True))
+        elif args.command == "verify-audio-lifetimes":
+            print(json.dumps(read_audio_lifetimes(args.base), sort_keys=True))
         return 0
     except FixtureError as error:
         print(f"F62 owned shadow channels error: {error}", file=sys.stderr)

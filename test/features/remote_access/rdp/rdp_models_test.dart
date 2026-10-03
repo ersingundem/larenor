@@ -6,11 +6,12 @@ import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 
 Map<String, dynamic> fixture() =>
-    jsonDecode(File('contracts/rdp-client.v2.json').readAsStringSync())
+    jsonDecode(File('contracts/rdp-client.v3.json').readAsStringSync())
         as Map<String, dynamic>;
 
 Map<String, dynamic> packagedCapabilities({
   bool ime = false,
+  bool audio = false,
   List<String> clipboardModes = const ['disabled', 'clientToRemote'],
 }) {
   final value = jsonDecode(
@@ -20,7 +21,7 @@ Map<String, dynamic> packagedCapabilities({
   value['channels'] = <String, Object?>{
     'clipboard': clipboardModes.any((value) => value != 'disabled'),
     'clipboardModes': clipboardModes,
-    'audio': false,
+    'audio': audio,
     'files': false,
   };
   return value;
@@ -36,6 +37,60 @@ const profile = RemoteProfile(
 );
 
 void main() {
+  test(
+    'audio observation is exact, bounded and playback requires completion',
+    () {
+      Map<String, Object?> packet({
+        String state = 'pending',
+        bool open = false,
+        int accepted = 0,
+        int completed = 0,
+      }) => {
+        'schemaVersion': 3,
+        'requestId': 'fixture-request',
+        'state': state,
+        'deviceOpen': open,
+        'acceptedCount': accepted,
+        'completedCount': completed,
+      };
+      RdpAudioObservation parse(Object? value) =>
+          RdpAudioObservation.fromJson(value, requestId: 'fixture-request');
+      final baseline = parse(packet());
+      final accepted = parse(packet(state: 'playing', open: true, accepted: 1));
+      final completed = parse(
+        packet(state: 'playing', open: true, accepted: 1, completed: 1),
+      );
+      expect(accepted.follows(baseline), isTrue);
+      expect(accepted.hasCompletedPlayback, isFalse);
+      expect(completed.hasCompletedPlayback, isTrue);
+      expect(accepted.follows(completed), isFalse);
+      final closed = parse(packet(state: 'closed', accepted: 1, completed: 1));
+      expect(closed.hasCompletedPlayback, isFalse);
+      expect(closed.follows(completed), isTrue);
+      expect(completed.follows(closed), isTrue);
+      final failed = parse(packet(state: 'failed', accepted: 1, completed: 1));
+      expect(completed.follows(failed), isFalse);
+      for (final value in [
+        {...packet(), 'schemaVersion': 2},
+        {...packet(), 'requestId': 'another-session'},
+        {
+          ...packet(),
+          'pcm': [0],
+        },
+        {...packet(), 'state': 'serverConfirmed'},
+        {...packet(), 'deviceOpen': 1},
+        packet(accepted: -1),
+        packet(accepted: 9007199254740992),
+        packet(completed: 1),
+        packet(state: 'playing', open: true),
+        packet(state: 'deviceOpen'),
+        packet(state: 'closed', open: true),
+        packet(accepted: 1),
+      ]) {
+        expect(() => parse(value), throwsA(isA<RdpFailure>()));
+      }
+    },
+  );
   test(
     'clipboard text validates UTF-8 bytes without replacing invalid text',
     () {

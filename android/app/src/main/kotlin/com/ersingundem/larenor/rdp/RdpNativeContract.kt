@@ -104,7 +104,7 @@ class RdpNativeCapabilities private constructor(
     companion object {
         fun parse(value: Any?): RdpNativeCapabilities {
             val root = strictMap(value, setOf("schemaVersion", "availability", "engineRevision", "security", "display", "input", "channels"), "invalidCapabilities")
-            if (root["schemaVersion"] != 2) fail("invalidCapabilities")
+            if (root["schemaVersion"] != 3) fail("invalidCapabilities")
             val availability = when (root["availability"]) {
                 "available" -> RdpNativeAvailability.AVAILABLE
                 "unavailable" -> RdpNativeAvailability.UNAVAILABLE
@@ -227,7 +227,7 @@ class RdpNativeRequest private constructor(
 
         fun parse(value: Any?): RdpNativeRequest {
             val root = strictMap(value, requestKeys, "invalidRequest")
-            if (root["schemaVersion"] != 2) fail("invalidRequest")
+            if (root["schemaVersion"] != 3) fail("invalidRequest")
             val requestId = text(root["requestId"], 36, 36, "invalidRequest")
             if (!Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}").matches(requestId)) fail("invalidRequest")
             val gateway = root["gateway"]?.let {
@@ -362,7 +362,7 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
     var openCalls = 0
         private set
     override fun capabilities() = RdpNativeCapabilities.parse(mapOf(
-        "schemaVersion" to 2, "availability" to "unavailable", "engineRevision" to null,
+        "schemaVersion" to 3, "availability" to "unavailable", "engineRevision" to null,
         "security" to mapOf("tls" to false, "certificatePinning" to false, "nla" to false, "rdGateway" to false),
         "display" to mapOf(
             "dynamicResolution" to false, "externalDisplay" to false,

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "Larenor kalıcı yürütme kuyruğu",
-  "updatedAt": "2026-10-01",
+  "updatedAt": "2026-10-03",
   "selectedFeatures": [
     "F01",
     "F02",
@@ -5507,14 +5507,6 @@
           "label": "Exacta703 completedFAILED atactual connectedDebugAndroidTest; preflight/engine/installpassed, fixedouterreason ownedSunshineAndroidstreamfailed; no retained namedcounts/frame/stage receipt, preciseassertioncauseunproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md",
-          "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root 42/42 diagnostic/workflow checks and actionlint; source-hash stage map and descriptor-bound bounded XML; no hosted stream acceptance"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36808021320",
           "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
@@ -5737,10 +5729,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent source/package/closed-shape/canonical validation confirms gameVisible before missing connectionStarted; no sole native/surface/HTTP cause or runtime acceptance claimed"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37121179343",
+          "commit": "5122bc61fa67a2723751388b52a6e21404e94796",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact5122 FAILED original1/1/0/0 firstStreamOutput; surfaceCreated/positiveSurfaceChanged/stageStarted/stageCompleted/stageFailed true, connectionStarted false; pairedClientObserved, leaseGameVisible, timeout/unknown_effect. Rootcanonical1561B artifact11274220421 SHA606cf18c1151f8acadd633595c4300f4b8dc5433b7edd0b50b104f1e42bfbe65; no sole cause claimed."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Normal Başlat launch→verified→fresh stream ve Game-owned spinner claim düzeltmeleri root11+1/48native/AndroidTest compile ile tamamlandı. Exacta8/run36835162847 başarısız tamamlandı: original1/1/0/0 firstStreamOutput; bridge pairedClientObserved, lease gameVisible, dispatch timeout/runtime unknown_effect. Root canonical1397B artifact11149980532 kimlik/hash/closed schema doğruladı. Oyun Activity sahipliği kurulmuş; gerekli connectionStarted 30sn içinde gözlenmemiş. Surface/HTTP/native start/callback sınırlarından hangisinin neden olduğu kanıtlanmadı. Gerçek frame/PCM/input/iki yaşam/close kabulü açık; aynıSHA kör rerun yok. Son birleşik CI ve gerçek receiver MANUAL ayrı; CI bekliyor/done sayılmaz. Yeni exact-token altı gerçek Game callback tanısı root46JVM, AndroidTestcompile,54runner/36subtest ve10workflow/12subtest ile geçti; yalnız failure-only yerel kanıt, strict runtime kabulü değildir."
+      "reason": "Yeniden çalışılıyor. Normal Başlat launch→verified→fresh stream ve Game-owned spinner claim düzeltmeleri root11+1/48native/AndroidTest compile ile tamamlandı. Exacta8/run36835162847 başarısız tamamlandı: original1/1/0/0 firstStreamOutput; bridge pairedClientObserved, lease gameVisible, dispatch timeout/runtime unknown_effect. Root canonical1397B artifact11149980532 kimlik/hash/closed schema doğruladı. Oyun Activity sahipliği kurulmuş; gerekli connectionStarted 30sn içinde gözlenmemiş. Surface/HTTP/native start/callback sınırlarından hangisinin neden olduğu kanıtlanmadı. Gerçek frame/PCM/input/iki yaşam/close kabulü açık; aynıSHA kör rerun yok. Son birleşik CI ve gerçek receiver MANUAL ayrı; CI bekliyor/done sayılmaz. Yeni exact-token altı gerçek Game callback tanısı root46JVM, AndroidTestcompile,54runner/36subtest ve10workflow/12subtest ile geçti; yalnız failure-only yerel kanıt, strict runtime kabulü değildir. Exact5122/run37121179343 original1/1/0/0 başarısız: surface/stageStarted/stageCompleted/stageFailed=true, connectionStarted=false; rootcanonical1561B doğrulandı. Bağlantı hata sınırı incelemede. Post-connection ownedtone yarışı ayrı düzeltiliyor; bu koşunun nedeni olduğu iddia edilmez."
     },
     {
       "id": "G11",
@@ -5948,14 +5948,6 @@
           "label": "Canonical original1test/1failure/0error/0skip; unclassified exception/no owned frames/serverResizeRequested=false; exact cause unproved, arm64 package passed"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
-          "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root34/34 runner/parser checks; actual required-native AndroidTest compile278tasks; fixed last-entered enum diagnostic only, strict runtime acceptance unchanged"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36811909218",
           "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
@@ -6138,10 +6130,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent pinned-source/package/peer-CAPS, exactdisplayedgeometry, fullscreen, two-lifetime fixture review; resize/ACK race deterministic regression passed; initial layout cannot satisfy resize; no provider effect or OS scale acceptance claimed"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37121180943",
+          "commit": "5122bc61fa67a2723751388b52a6e21404e94796",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact5122 arm64 package SUCCESS/x86 strict runtime FAILED original1/1/0/0 testBody firstSessionOpen/RdpNativeFailure; ownedMarker available/invalid/writerunknown, shadow live exitnull, resizefalse. Rootcanonical1519B artifact11273861293 SHA504c747b041dd28761fb3cb0d15edff0fcbee5b5cef0ae0d008e50e6da6db258; no sole cause claimed."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Keyboard/Türkçe/Unicode, window lease ve fit/fill dilimleri yerel kapıları geçti. 01e5 schema2/fullscreen/relative pointer/wheel yazılımı root81Flutter/analyze, exactreceipteddualABI paket,44RDP+46Moonlight JVM (0skip/failure/error), AndroidTest derleme ve106portable/83subtest ile doğrulandı. Peer DISP CAPS sonrası initial layout; ACKed-frame/resize yarışları ve doğru yüzde-scale çitleri kapandı. Ses/mikrofon/gerçekSAF/Gateway üretim yazılımı hâlâ açık; capability=false kapanış değildir. Exact42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; provider poll live,rootcanonical1667B doğrulandı. Yeni cold-frame/DISP düzeltmeleri eski hatanın kesin nedeni olarak sunulmaz. Değişmiş kaynak strict TLS/NLA/frame/ACK/input/DISP/clipboard/iki yaşam/close kabulü henüz yok. Fiziksel Windows/Huawei/DeX MANUAL ve son birleşik requiredCI ayrı; CI bekliyor/done sayılmaz."
+      "reason": "Yeniden çalışılıyor. Keyboard/Türkçe/Unicode, window lease ve fit/fill dilimleri yerel kapıları geçti. 01e5 schema2/fullscreen/relative pointer/wheel yazılımı root81Flutter/analyze, exactreceipteddualABI paket,44RDP+46Moonlight JVM (0skip/failure/error), AndroidTest derleme ve106portable/83subtest ile doğrulandı. Peer DISP CAPS sonrası initial layout; ACKed-frame/resize yarışları ve doğru yüzde-scale çitleri kapandı. Ses/mikrofon/gerçekSAF/Gateway üretim yazılımı hâlâ açık; capability=false kapanış değildir. Exact42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; provider poll live,rootcanonical1667B doğrulandı. Yeni cold-frame/DISP düzeltmeleri eski hatanın kesin nedeni olarak sunulmaz. Değişmiş kaynak strict TLS/NLA/frame/ACK/input/DISP/clipboard/iki yaşam/close kabulü henüz yok. Fiziksel Windows/Huawei/DeX MANUAL ve son birleşik requiredCI ayrı; CI bekliyor/done sayılmaz. Exact5122/run37121180943 arm64 package passed,x86 original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure başarısız; rootcanonical1519B doğrulandı, alt neden açık. Schema3 Client/actualdualABI OpenSL paketi/ownedPCM düzeneği yerelde tamamlandı: root91Flutter/analyze,56RDP JVM+AndroidTest compile,158portable/94subtest geçti. Hosted PCM completion hâlâ açık; mikrofon/SAF/Gateway yazılımı sonraki bağımlı dilimler."
     },
     {
       "id": "F61",
@@ -6419,10 +6419,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact42be arm64 passed; x86 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; ownedShadowProcess live/exitCodenull; root canonical1667B artifact11149613819 verified; precise cause unproved"
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37121144283",
+          "commit": "5122bc61fa67a2723751388b52a6e21404e94796",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact5122 Security workflow completed SUCCESS; narrow Security only, final combined required CI and strict runtime/function gates remain separate"
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 sürüyor. Audio3 üretim dilimi aktif; ikinciFINAL başlamadı."
     },
     {
       "id": "FINAL.UI",

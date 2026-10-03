@@ -125,6 +125,8 @@ jobs:
             git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"
             git apply --check "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"
             git apply "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"
+            git apply --check "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch"
+            git apply "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch"
             python3 "$GITHUB_WORKSPACE/tool/freerdp_android_package.py" verify-patch .
             cat > client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -162,6 +164,7 @@ jobs:
             "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch" \
             "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch" \
             "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch" \
+            "$GITHUB_WORKSPACE/android/freerdp-remote-audio-v3.patch" \
             "$RUNNER_TEMP/product-native-inputs/freerdp/"
 
       - name: Compose and reverify the complete product native package

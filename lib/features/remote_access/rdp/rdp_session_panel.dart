@@ -71,6 +71,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   bool _resumed = true, _focused = true, _retired = false;
   WindowDisplayIdentity? _controllerDisplayIdentity;
   bool _clipboardBusy = false;
+  bool _remoteAudioRequested = false;
   RdpClipboardSendResult? _clipboardNotice;
   RdpSessionPhase? _observedSessionPhase;
   int _sessionRevision = 0;
@@ -189,6 +190,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         externalDisplay: displayIdentity?.isExternalDisplay ?? false,
       ),
       settings: _settings,
+      remoteAudio: _remoteAudioRequested,
     );
   }
 
@@ -855,6 +857,50 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               ),
                             ),
                           ),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: Text(l.rdpRemoteSound)),
+                                  Semantics(
+                                    label: l.rdpRemoteSound,
+                                    child: CupertinoSwitch(
+                                      key: const ValueKey('rdp-audio-enable'),
+                                      value: _remoteAudioRequested,
+                                      onChanged:
+                                          _current() &&
+                                              (c.phase ==
+                                                      RdpSessionPhase.idle ||
+                                                  c.phase ==
+                                                      RdpSessionPhase.closed ||
+                                                  c.phase ==
+                                                      RdpSessionPhase.failed) &&
+                                              (_remoteAudioRequested ||
+                                                  c
+                                                          .capabilities
+                                                          ?.supportsAudio !=
+                                                      false)
+                                          ? (value) => setState(() {
+                                              _remoteAudioRequested = value;
+                                              _replaceController(
+                                                displayIdentity:
+                                                    displayIdentity,
+                                                force: true,
+                                              );
+                                            })
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(l.rdpRemoteSoundHint),
+                            ],
+                          ),
+                        ),
                         for (final value in RdpClipboardMode.values.where(
                           (value) =>
                               value == RdpClipboardMode.disabled ||
@@ -957,7 +1003,32 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                                 RdpClipboardMode.bidirectional =>
                                   l.rdpClipboardBidirectional,
                               }),
-                              Text(l.rdpAudioOff),
+                              Text(
+                                !_remoteAudioRequested
+                                    ? l.rdpAudioOff
+                                    : switch (c.audioObservation?.state) {
+                                        RdpAudioState.closed =>
+                                          l.rdpAudioClosed,
+                                        RdpAudioState.failed =>
+                                          l.rdpAudioUnavailable,
+                                        _ =>
+                                          c.phase == RdpSessionPhase.failed ||
+                                                  c.phase ==
+                                                      RdpSessionPhase
+                                                          .unsupported
+                                              ? l.rdpAudioUnavailable
+                                              : c
+                                                        .audioObservation
+                                                        ?.hasCompletedPlayback ==
+                                                    true
+                                              ? l.rdpAudioPlaying
+                                              : c.phase ==
+                                                    RdpSessionPhase.connected
+                                              ? l.rdpAudioWaiting
+                                              : l.rdpAudioEnabled,
+                                      },
+                                key: const ValueKey('rdp-audio-status'),
+                              ),
                               Text(l.rdpFilesOff),
                               const SizedBox(height: 8),
                               Text(l.rdpChannelsHint),

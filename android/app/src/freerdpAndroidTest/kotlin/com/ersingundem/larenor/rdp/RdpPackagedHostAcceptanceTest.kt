@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,7 +74,7 @@ class RdpPackagedHostAcceptanceTest {
             assertTrue(capabilities.verticalWheel)
             assertEquals(setOf(100, 140, 180), capabilities.deviceScaleFactors)
             assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
-            assertTrue(!capabilities.audio && !capabilities.files)
+            assertTrue(capabilities.audio && !capabilities.files)
 
             diagnostic.enter("providerInspection")
             val inspected = runtime.inspect(host, port, username)
@@ -92,6 +93,7 @@ class RdpPackagedHostAcceptanceTest {
                 width = 1280,
                 height = 800,
                 clipboardMode = "clientToRemote",
+                audio = true,
             )
             val security = CountDownLatch(1)
             val frameReady = ArrayBlockingQueue<Unit>(8)
@@ -133,6 +135,18 @@ class RdpPackagedHostAcceptanceTest {
                 assertRenderedPixels(initial, 1280, 800)
                 assertEquals(1L, initial.displayLayoutRevision)
                 assertTrue(session.acknowledgeFrame(initial.sequence))
+
+                val audioBaseline = session.audioObservation()
+                assertEquals(RdpRemoteAudioState.PENDING, audioBaseline.state)
+                assertFalse(audioBaseline.deviceOpen)
+                assertEquals(0L, audioBaseline.acceptedCount)
+                assertEquals(0L, audioBaseline.completedCount)
+                diagnostic.enter("audioEffectWait")
+                val audio = awaitRemoteAudio(session, audioBaseline, 30)
+                assertEquals(RdpRemoteAudioState.PLAYING, audio.state)
+                assertTrue(audio.deviceOpen)
+                assertTrue(audio.acceptedCount >= audio.completedCount)
+                assertTrue(audio.completedCount >= audioBaseline.completedCount + 1L)
 
                 // The host runner observes this exact software HID key pair through XI2.
                 // It changes the owned Xorg output only after the patched server observes
@@ -205,6 +219,7 @@ class RdpPackagedHostAcceptanceTest {
                 width = 1024,
                 height = 768,
                 clipboardMode = "disabled",
+                audio = false,
             )
             val disabledSecurity = CountDownLatch(1)
             val disabledFrames = ArrayBlockingQueue<Unit>(8)
@@ -238,6 +253,10 @@ class RdpPackagedHostAcceptanceTest {
                 val frame = awaitFrame(disabled, disabledFrames, 1024, 768, 30)
                 assertRenderedPixels(frame, 1024, 768)
                 assertTrue(disabled.acknowledgeFrame(frame.sequence))
+                val unavailable = assertThrows(RdpNativeFailure::class.java) {
+                    disabled.audioObservation()
+                }
+                assertEquals("channelUnavailable", unavailable.code)
                 diagnostic.enter("disabledClipboardCheck")
                 val rejected = "must-not-cross-disabled-channel".encodeToByteArray()
                 diagnoseStage(::RdpOwnedDisabledClipboardFailure) {
@@ -273,9 +292,10 @@ class RdpPackagedHostAcceptanceTest {
         width: Int,
         height: Int,
         clipboardMode: String,
+        audio: Boolean,
     ): RdpNativeRequest = RdpNativeRequest.parse(
         mapOf(
-            "schemaVersion" to 2,
+            "schemaVersion" to 3,
             "requestId" to requestId,
             "targetHost" to host,
             "targetPort" to port,
@@ -294,10 +314,29 @@ class RdpPackagedHostAcceptanceTest {
             ),
             "keyboardLayout" to "us",
             "clipboardMode" to clipboardMode,
-            "audio" to false,
+            "audio" to audio,
             "files" to false,
         ),
     )
+
+    private fun awaitRemoteAudio(
+        session: RdpFreeRdpSession,
+        baseline: RdpRemoteAudioObservation,
+        timeoutSeconds: Long,
+    ): RdpRemoteAudioObservation {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        while (System.nanoTime() < deadline) {
+            val observation = session.audioObservation()
+            if (
+                observation.state == RdpRemoteAudioState.PLAYING &&
+                observation.deviceOpen &&
+                observation.completedCount >= baseline.completedCount + 1L &&
+                observation.acceptedCount >= observation.completedCount
+            ) return observation
+            Thread.sleep(25)
+        }
+        throw AssertionError("owned remote audio queue completion was not observed")
+    }
 
     private fun awaitFrame(
         session: RdpFreeRdpSession,
@@ -613,6 +652,7 @@ private val OWNED_LIFECYCLE_STAGES = setOf(
     "firstSessionOpen",
     "firstSecurityWait",
     "initialFrameWait",
+    "audioEffectWait",
     "keySubmission",
     "resizeSubmission",
     "resizedFrameWait",

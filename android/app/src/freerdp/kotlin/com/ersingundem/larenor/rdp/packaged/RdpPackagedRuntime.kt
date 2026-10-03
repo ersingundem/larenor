@@ -21,6 +21,8 @@ import com.ersingundem.larenor.rdp.RdpNativeFrame
 import com.ersingundem.larenor.rdp.RdpKeyboardLayout
 import com.ersingundem.larenor.rdp.RdpNativeNegotiated
 import com.ersingundem.larenor.rdp.RdpNativeRequest
+import com.ersingundem.larenor.rdp.RdpRemoteAudioObservation
+import com.ersingundem.larenor.rdp.RdpRemoteAudioState
 import com.freerdp.freerdpcore.application.GlobalApp
 import com.freerdp.freerdpcore.application.SessionState
 import com.freerdp.freerdpcore.services.LibFreeRDP
@@ -54,7 +56,7 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         sourceCommit = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256 = RdpFreeRdpPackage.SOURCE_SHA256,
         abi = Build.SUPPORTED_ABIS.firstOrNull { it in RdpFreeRdpPackage.SUPPORTED_ABIS }.orEmpty(),
-        jniSchema = 2,
+        jniSchema = 3,
         enabledChannels = emptySet(),
     )
 
@@ -100,6 +102,13 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         if (required.any { (name, arity) -> publicStatic.none { it.name == name && it.parameterCount == arity } }) {
             unavailable()
         }
+        if (LibFreeRDP.REMOTE_AUDIO_DEVICE_OPENED != 1 ||
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_ACCEPTED != 2 ||
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_COMPLETED != 3 ||
+            LibFreeRDP.REMOTE_AUDIO_DEVICE_CLOSED != 4 ||
+            LibFreeRDP.REMOTE_AUDIO_FAILED != 5) {
+            unavailable()
+        }
     }
 }
 
@@ -126,13 +135,29 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
     }
     fun detach(instance: Long) { operations.remove(instance) }
     fun release(instance: Long) {
-        detach(instance)
         runCatching { LibFreeRDP.cancelConnection(instance) }
-        cleanup.execute { runCatching { GlobalApp.freeSession(instance) } }
+        cleanup.execute {
+            try {
+                runCatching { GlobalApp.freeSession(instance) }
+            } finally {
+                detach(instance)
+            }
+        }
     }
     override fun OnPreConnect(instance: Long) = Unit
     override fun OnConnectionSuccess(instance: Long) { operations[instance]?.connected() }
     override fun OnDisplayControlReady(instance: Long) { operations[instance]?.displayControlReady(instance) }
+    override fun OnRemoteAudioPlayback(
+        instance: Long,
+        deviceOpen: Boolean,
+        acceptedCount: Long,
+        completedCount: Long,
+        fixedState: Int,
+    ) {
+        operations[instance]?.remoteAudioPlayback(
+            instance, deviceOpen, acceptedCount, completedCount, fixedState,
+        )
+    }
     override fun OnConnectionFailure(instance: Long) { operations[instance]?.failed() }
     override fun OnDisconnecting(instance: Long) = Unit
     override fun OnDisconnected(instance: Long) { operations[instance]?.disconnected() }
@@ -141,6 +166,13 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
 private interface FreeRdpConnection {
     fun connected()
     fun displayControlReady(instance: Long) = Unit
+    fun remoteAudioPlayback(
+        instance: Long,
+        deviceOpen: Boolean,
+        acceptedCount: Long,
+        completedCount: Long,
+        fixedState: Int,
+    ) = Unit
     fun failed()
     fun disconnected()
 }
@@ -381,6 +413,71 @@ internal class RdpInitialDisplayGate(private val expectedInstance: Long) {
     }
 }
 
+internal class RdpRemoteAudioGate(
+    private val expectedInstance: Long,
+    private val requested: Boolean,
+) {
+    sealed interface Update {
+        data class Accepted(val observation: RdpRemoteAudioObservation) : Update
+        data object Invalid : Update
+        data object Ignored : Update
+    }
+
+    private var retired = false
+    private var latest = RdpRemoteAudioObservation.PENDING
+
+    @Synchronized fun observe(
+        instance: Long,
+        deviceOpen: Boolean,
+        acceptedCount: Long,
+        completedCount: Long,
+        fixedState: Int,
+    ): Update {
+        if (!requested || instance != expectedInstance) return Update.Ignored
+        val state = when (fixedState) {
+            LibFreeRDP.REMOTE_AUDIO_DEVICE_OPENED -> RdpRemoteAudioState.DEVICE_OPEN
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_ACCEPTED,
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_COMPLETED -> RdpRemoteAudioState.PLAYING
+            LibFreeRDP.REMOTE_AUDIO_DEVICE_CLOSED -> RdpRemoteAudioState.CLOSED
+            LibFreeRDP.REMOTE_AUDIO_FAILED -> RdpRemoteAudioState.FAILED
+            else -> return Update.Invalid
+        }
+        val observation = try {
+            RdpRemoteAudioObservation(state, deviceOpen, acceptedCount, completedCount)
+        } catch (_: RdpNativeFailure) {
+            return Update.Invalid
+        }
+        // Saturated JS-safe counters can legitimately publish another callback
+        // with the same bounded snapshot. It carries no new evidence.
+        if (observation == latest) return Update.Ignored
+        val causalCounter = when (fixedState) {
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_ACCEPTED -> acceptedCount > latest.acceptedCount
+            LibFreeRDP.REMOTE_AUDIO_BUFFER_COMPLETED -> completedCount > latest.completedCount
+            else -> true
+        }
+        if (!causalCounter) return Update.Invalid
+        if (retired) {
+            if (state == RdpRemoteAudioState.CLOSED &&
+                acceptedCount >= latest.acceptedCount &&
+                completedCount >= latest.completedCount) {
+                latest = observation
+            }
+            return Update.Ignored
+        }
+        if (acceptedCount < latest.acceptedCount || completedCount < latest.completedCount) {
+            return Update.Invalid
+        }
+        latest = observation
+        return Update.Accepted(observation)
+    }
+
+    @Synchronized fun retire() {
+        retired = true
+    }
+
+    @Synchronized fun retainedForTest(): RdpRemoteAudioObservation = latest
+}
+
 private class FreeRdpOperation(
     context: Context,
     private val request: RdpNativeRequest,
@@ -402,6 +499,10 @@ private class FreeRdpOperation(
     private var lastButtons = 0
     private val frameDelivery = RdpFrameDeliveryGate()
     @Volatile private var initialDisplayGate: RdpInitialDisplayGate? = null
+    @Volatile private var remoteAudioGate: RdpRemoteAudioGate? = null
+    private val audioDelivery = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "larenor-rdp-audio").apply { isDaemon = true }
+    }
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
         if (request.gateway != null) return false
@@ -418,8 +519,10 @@ private class FreeRdpOperation(
                 request.keyboardLayout,
                 request.display.desktopScaleFactor,
                 request.display.deviceScaleFactor,
+                request.audio,
             ))
             initialDisplayGate = RdpInitialDisplayGate(instance)
+            remoteAudioGate = RdpRemoteAudioGate(instance, request.audio)
             connect()
             await(45) && securityPublished.await(5, TimeUnit.SECONDS) &&
                 !terminal.get() && securityGate.canDeliverFrames()
@@ -470,6 +573,38 @@ private class FreeRdpOperation(
 
     override fun displayControlReady(instance: Long) {
         applyInitialDisplay(initialDisplayGate?.peerCaps(instance))
+    }
+
+    override fun remoteAudioPlayback(
+        instance: Long,
+        deviceOpen: Boolean,
+        acceptedCount: Long,
+        completedCount: Long,
+        fixedState: Int,
+    ) {
+        when (val update = remoteAudioGate?.observe(
+            instance, deviceOpen, acceptedCount, completedCount, fixedState,
+        ) ?: RdpRemoteAudioGate.Update.Ignored) {
+            RdpRemoteAudioGate.Update.Ignored -> Unit
+            RdpRemoteAudioGate.Update.Invalid -> dispatchAudioFailure()
+            is RdpRemoteAudioGate.Update.Accepted -> dispatchAudio(update.observation)
+        }
+    }
+
+    private fun dispatchAudio(observation: RdpRemoteAudioObservation) {
+        runCatching {
+            audioDelivery.execute {
+                if (!terminal.get()) listener?.onRemoteAudio(observation)
+            }
+        }
+    }
+
+    private fun dispatchAudioFailure() {
+        runCatching {
+            audioDelivery.execute {
+                if (!terminal.get()) failed()
+            }
+        }
     }
 
     private fun applyInitialDisplay(dispatch: RdpInitialDisplayGate.Dispatch?) {
@@ -641,9 +776,11 @@ private class FreeRdpOperation(
     }
     @Synchronized override fun close() {
         initialDisplayGate?.retire()
+        remoteAudioGate?.retire()
         securityGate.close()
         frameDelivery.close()
         listener = null
+        audioDelivery.shutdownNow()
         bitmap?.recycle(); bitmap = null
         password?.fill('\u0000'); gatewayPassword?.fill('\u0000')
         super.close()
@@ -779,6 +916,7 @@ internal fun packagedConnectionUri(
     keyboardLayout: RdpKeyboardLayout = RdpKeyboardLayout.AUTOMATIC,
     desktopScaleFactor: Int = 100,
     deviceScaleFactor: Int = 100,
+    audio: Boolean = false,
 ): Uri {
     val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
     return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
@@ -790,6 +928,10 @@ internal fun packagedConnectionUri(
         .appendQueryParameter("scale-device", deviceScaleFactor.toString())
         .appendQueryParameter("dynamic-resolution", "+")
         .appendQueryParameter("clipboard", if (clipboard) "+" else "-")
+        .appendQueryParameter("audio-mode", if (audio) "0" else "2")
+        .apply {
+            if (audio) appendQueryParameter("sound", "sys:opensles")
+        }
         .appendQueryParameter("kbd", when (keyboardLayout) {
             RdpKeyboardLayout.AUTOMATIC -> "unicode:on"
             RdpKeyboardLayout.TURKISH_Q -> "layout:1055,unicode:on"

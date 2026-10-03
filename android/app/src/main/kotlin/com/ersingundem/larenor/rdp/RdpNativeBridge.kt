@@ -100,14 +100,15 @@ class RdpNativeBridge(
                 "input" -> input(call.arguments, result)
                 "resize" -> resize(call.arguments, result)
                 "ackFrame" -> ack(call.arguments, result)
+                "audioObservation" -> audioObservation(call.arguments, result)
                 "cancel" -> cancel(call.arguments, result)
                 else -> result.notImplemented()
             }
         } catch (failure: RdpNativeFailure) {
-            if (call.method != "capabilities" && call.method != "inspect") retire()
+            if (call.method !in setOf("capabilities", "inspect", "audioObservation")) retire()
             error(result, failure.code)
         } catch (_: Exception) {
-            if (call.method != "capabilities") retire()
+            if (call.method !in setOf("capabilities", "audioObservation")) retire()
             error(result, "connectionFailed")
         }
     }
@@ -151,7 +152,7 @@ class RdpNativeBridge(
         requireForeground()
         if (session != null || networkBusy) fail("busy")
         val value = map(raw, setOf("schemaVersion", "request", "requestId", "password", "gatewayPassword"))
-        if (value["schemaVersion"] != 2) fail("invalidRequest")
+        if (value["schemaVersion"] != 3) fail("invalidRequest")
         val id = value["requestId"] as? String ?: fail("invalidRequest")
         if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
         val request = RdpNativeRequest.parse(value["request"])
@@ -179,7 +180,7 @@ class RdpNativeBridge(
                             error(result, "staleSession")
                         } else {
                             result.success(mapOf(
-                                "schemaVersion" to 2,
+                                "schemaVersion" to 3,
                                 "unicodeTextInput" to opened.unicodeInputSupported,
                                 "relativePointer" to opened.relativePointerSupported,
                             ))
@@ -225,7 +226,7 @@ class RdpNativeBridge(
                         "requestId" to id,
                         "kind" to "frame",
                         "payload" to mapOf(
-                            "schemaVersion" to 2,
+                            "schemaVersion" to 3,
                             "sequence" to frame.sequence,
                             "width" to frame.width,
                             "height" to frame.height,
@@ -263,7 +264,7 @@ class RdpNativeBridge(
                 setOf("schemaVersion", "requestId", "sequence", "kind", "physicalKey", "down"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "text"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "channel", "payload"))
-            if (value["schemaVersion"] != 2) fail("invalidRequest")
+            if (value["schemaVersion"] != 3) fail("invalidRequest")
             val current = session ?: fail("staleSession")
             val sequence = sequence(value["sequence"])
             val accepted = when (value["kind"]) {
@@ -319,7 +320,7 @@ class RdpNativeBridge(
     private fun resize(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "sequence", "display"))
-        if (value["schemaVersion"] != 2) fail("invalidRequest")
+        if (value["schemaVersion"] != 3) fail("invalidRequest")
         ownedId(value)
         val display = map(value["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"))
         val width = integer(display["width"], 640, 8192)
@@ -345,11 +346,20 @@ class RdpNativeBridge(
     private fun ack(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "frameSequence"))
-        if (value["schemaVersion"] != 2) fail("invalidRequest")
+        if (value["schemaVersion"] != 3) fail("invalidRequest")
         ownedId(value)
         val accepted = (session ?: fail("staleSession")).acknowledgeFrame(sequence(value["frameSequence"]))
         if (!accepted) fail(session?.failureCode ?: "staleSession")
         result.success(null)
+    }
+
+    private fun audioObservation(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        val value = map(raw, setOf("schemaVersion", "requestId"))
+        if (value["schemaVersion"] != 3) fail("invalidRequest")
+        ownedId(value)
+        val id = requestId ?: fail("staleSession")
+        result.success((session ?: fail("staleSession")).audioObservation().toChannel(id))
     }
 
     private fun cancel(raw: Any?, result: MethodChannel.Result) {
@@ -409,7 +419,7 @@ class RdpNativeBridge(
 }
 
 internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
-    "schemaVersion" to 2,
+    "schemaVersion" to 3,
     "availability" to availability.name.lowercase(),
     "engineRevision" to engineRevision,
     "security" to mapOf(

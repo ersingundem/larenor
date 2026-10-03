@@ -1,0 +1,576 @@
+--- a/server/shadow/shadow_channels.c
++++ b/server/shadow/shadow_channels.c
+@@ -27,6 +27,11 @@
+ 
+ UINT shadow_client_channels_post_connect(rdpShadowClient* client)
+ {
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	if (shadow_larenor_channels_init(client) != CHANNEL_RC_OK)
++		return ERROR_NOT_READY;
++#endif
++
+ 	if (WTSVirtualChannelManagerIsChannelJoined(client->vcm, ENCOMSP_SVC_CHANNEL_NAME))
+ 	{
+ 		if (shadow_client_encomsp_init(client) < 0)
+@@ -51,22 +56,20 @@
+ 	if (shadow_client_rdpgfx_init(client) < 0)
+ 		return ERROR_NOT_READY;
+ 
+-#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
+-	if (shadow_larenor_channels_init(client) != CHANNEL_RC_OK)
+-		return ERROR_NOT_READY;
+-#endif
+-
+ 	return CHANNEL_RC_OK;
+ }
+ 
+ void shadow_client_channels_free(rdpShadowClient* client)
+ {
+ #if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
+-	shadow_larenor_channels_free(client);
++	shadow_larenor_audio_stop(client);
+ #endif
+ 	shadow_client_rdpgfx_uninit(client);
+ 	shadow_client_audin_uninit(client);
+ 	shadow_client_rdpsnd_uninit(client);
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	shadow_larenor_channels_free(client);
++#endif
+ 	shadow_client_remdesk_uninit(client);
+ 	shadow_client_encomsp_uninit(client);
+ }
+--- a/server/shadow/shadow_client.c
++++ b/server/shadow/shadow_client.c
+@@ -37,6 +37,7 @@
+ #include "shadow.h"
+ #if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
+ #include "shadow_larenor_channels.h"
++#include "shadow_rdpsnd.h"
+ #endif
+ 
+ #define TAG CLIENT_TAG("shadow")
+@@ -245,6 +246,8 @@
+ 		ArrayList_Remove(server->clients, (void*)client);
+ 
+ #if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	shadow_larenor_audio_stop(client);
++	shadow_client_rdpsnd_uninit(client);
+ 	shadow_larenor_channels_free(client);
+ #endif
+ 	shadow_encoder_free(client->encoder);
+--- a/server/shadow/shadow_larenor_channels.c
++++ b/server/shadow/shadow_larenor_channels.c
+@@ -10,6 +10,7 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <limits.h>
++#include <poll.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -20,6 +21,7 @@
+ #include <freerdp/channels/disp.h>
+ #include <freerdp/server/cliprdr.h>
+ #include <freerdp/server/disp.h>
++#include <freerdp/server/rdpsnd.h>
+ #include <winpr/assert.h>
+ #include <winpr/crt.h>
+ #include <winpr/synch.h>
+@@ -32,6 +34,13 @@
+ #define LARENOR_FLAG_INITIAL_DISP 0x00000004U
+ #define LARENOR_PHASE_DISP 0x00000001U
+ #define LARENOR_PHASE_CLIPBOARD 0x00000002U
++#define LARENOR_AUDIO_FLAG_JOINED 0x00000001U
++#define LARENOR_AUDIO_FLAG_ACTIVATED 0x00000002U
++#define LARENOR_AUDIO_FLAG_ARMED 0x00000004U
++#define LARENOR_AUDIO_FLAG_SEND_ACCEPTED 0x00000008U
++#define LARENOR_AUDIO_FRAMES 2205U
++#define LARENOR_AUDIO_ARM_SIZE 72U
++#define LARENOR_AUDIO_POLL_MILLISECONDS 100
+ 
+ typedef struct
+ {
+@@ -39,7 +48,11 @@
+ 	DispServerContext* disp;
+ 	CRITICAL_SECTION lock;
+ 	int phaseFd;
++	int audioArmFd;
++	HANDLE audioThread;
+ 	char witnessPath[PATH_MAX];
++	char audioWitnessPath[PATH_MAX];
++	char audioNonce[65];
+ 	UINT32 expectedWidth;
+ 	UINT32 expectedHeight;
+ 	UINT32 ordinal;
+@@ -51,6 +64,17 @@
+ 	UINT32 emptyResponses;
+ 	UINT32 displayLayouts;
+ 	UINT32 channelErrors;
++	BOOL audioStopping;
++	BOOL audioActivated;
++	RdpsndServerContext* audioContext;
++	UINT32 audioFlags;
++	UINT32 audioActivations;
++	UINT32 audioArmRecords;
++	UINT32 audioSendCalls;
++	UINT32 audioSendAccepted;
++	UINT32 audioWaveConfirms;
++	UINT32 audioFrames;
++	UINT32 audioErrors;
+ } LarenorOwnedChannels;
+ 
+ static volatile LONG g_authenticatedClientOrdinal = 0;
+@@ -85,43 +109,70 @@
+ 	return TRUE;
+ }
+ 
+-static BOOL load_private_configuration(LarenorOwnedChannels* state)
++static BOOL parse_private_fd(const char* name, int* duplicate)
+ {
+-	const char* path = getenv("LARENOR_F62_CHANNEL_WITNESS");
+-	const char* phaseFd = getenv("LARENOR_F62_CHANNEL_PHASE_FD");
+ 	char* end = nullptr;
+-	if (!path || (path[0] != '/') ||
+-	    (strnlen(path, sizeof(state->witnessPath)) >= (sizeof(state->witnessPath) - 3U)))
++	const char* raw = getenv(name);
++	if (!raw || !raw[0])
+ 		return FALSE;
+-	if (!parse_bounded_uint32("LARENOR_F62_EXPECT_WIDTH", 200U, 8192U, &state->expectedWidth) ||
+-	    !parse_bounded_uint32("LARENOR_F62_EXPECT_HEIGHT", 200U, 8192U, &state->expectedHeight))
+-		return FALSE;
+-	if (!phaseFd || !phaseFd[0])
+-		return FALSE;
+ 	errno = 0;
+-	const long parsedFd = strtol(phaseFd, &end, 10);
+-	if ((errno != 0) || !end || (*end != '\0') || (parsedFd < 3) || (parsedFd > 1024))
++	const long parsed = strtol(raw, &end, 10);
++	if ((errno != 0) || !end || (*end != '\0') || (parsed < 3) || (parsed > 1024))
+ 		return FALSE;
+-	state->phaseFd = fcntl((int)parsedFd, F_DUPFD, 3);
+-	if (state->phaseFd < 0)
++	*duplicate = fcntl((int)parsed, F_DUPFD, 3);
++	if (*duplicate < 0)
+ 		return FALSE;
+-	if (fcntl(state->phaseFd, F_SETFD, FD_CLOEXEC) != 0)
++	if (fcntl(*duplicate, F_SETFD, FD_CLOEXEC) != 0)
+ 		return FALSE;
+ 	struct stat descriptor = { 0 };
+-	if ((fstat(state->phaseFd, &descriptor) != 0) || !S_ISFIFO(descriptor.st_mode))
++	if ((fstat(*duplicate, &descriptor) != 0) || !S_ISFIFO(descriptor.st_mode))
+ 		return FALSE;
+-	const int descriptorFlags = fcntl(state->phaseFd, F_GETFL, 0);
+-	if ((descriptorFlags < 0) ||
+-	    (fcntl(state->phaseFd, F_SETFL, descriptorFlags | O_NONBLOCK) != 0))
++	const int descriptorFlags = fcntl(*duplicate, F_GETFL, 0);
++	return (descriptorFlags >= 0) &&
++	       (fcntl(*duplicate, F_SETFL, descriptorFlags | O_NONBLOCK) == 0);
++}
++
++static BOOL copy_private_nonce(LarenorOwnedChannels* state)
++{
++	const char* raw = getenv("LARENOR_F62_AUDIO_NONCE");
++	if (!raw || (strnlen(raw, sizeof(state->audioNonce)) != 64U))
++		return FALSE;
++	for (size_t index = 0; index < 64U; index++)
++	{
++		const char value = raw[index];
++		if (!((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f')))
++			return FALSE;
++	}
++	memcpy(state->audioNonce, raw, 64U);
++	state->audioNonce[64] = '\0';
++	return TRUE;
++}
++
++static BOOL load_private_configuration(LarenorOwnedChannels* state)
++{
++	const char* path = getenv("LARENOR_F62_CHANNEL_WITNESS");
++	const char* audioPath = getenv("LARENOR_F62_AUDIO_WITNESS");
++	if (!path || (path[0] != '/') || !audioPath || (audioPath[0] != '/') ||
++	    (strnlen(path, sizeof(state->witnessPath)) >= (sizeof(state->witnessPath) - 3U)) ||
++	    (strnlen(audioPath, sizeof(state->audioWitnessPath)) >=
++	     (sizeof(state->audioWitnessPath) - 3U)))
++		return FALSE;
++	if (!parse_bounded_uint32("LARENOR_F62_EXPECT_WIDTH", 200U, 8192U, &state->expectedWidth) ||
++	    !parse_bounded_uint32("LARENOR_F62_EXPECT_HEIGHT", 200U, 8192U, &state->expectedHeight) ||
++	    !parse_private_fd("LARENOR_F62_CHANNEL_PHASE_FD", &state->phaseFd) ||
++	    !parse_private_fd("LARENOR_F62_AUDIO_ARM_FD", &state->audioArmFd) ||
++	    !copy_private_nonce(state))
+ 		return FALSE;
+ 	const LONG ordinal = InterlockedIncrement(&g_authenticatedClientOrdinal);
+ 	if ((ordinal < 1) || (ordinal > 2))
+ 		return FALSE;
+ 	state->ordinal = (UINT32)ordinal;
+-	if (snprintf(state->witnessPath, sizeof(state->witnessPath), "%s.%ld", path,
+-	             (long)ordinal) < 0)
+-		return FALSE;
+-	return TRUE;
++	const int channelLength = snprintf(state->witnessPath, sizeof(state->witnessPath), "%s.%ld",
++	                                   path, (long)ordinal);
++	const int audioLength = snprintf(state->audioWitnessPath, sizeof(state->audioWitnessPath),
++	                                 "%s.%ld", audioPath, (long)ordinal);
++	return (channelLength > 0) && ((size_t)channelLength < sizeof(state->witnessPath)) &&
++	       (audioLength > 0) && ((size_t)audioLength < sizeof(state->audioWitnessPath));
+ }
+ 
+ static void increment_bounded(UINT32* value, UINT32* errors)
+@@ -304,6 +355,207 @@
+ 	return context->DisplayControlCaps(context);
+ }
+ 
++static void record_audio_error(LarenorOwnedChannels* state)
++{
++	if (state->audioErrors < LARENOR_MAX_CHANNEL_EVENTS)
++		state->audioErrors++;
++}
++
++static DWORD WINAPI audio_worker(LPVOID argument)
++{
++	LarenorOwnedChannels* state = (LarenorOwnedChannels*)argument;
++	BYTE arm[LARENOR_AUDIO_ARM_SIZE + 1U] = { 0 };
++	size_t armLength = 0;
++	for (;;)
++	{
++		EnterCriticalSection(&state->lock);
++		const BOOL stopping = state->audioStopping;
++		LeaveCriticalSection(&state->lock);
++		if (stopping)
++			return 0;
++
++		struct pollfd descriptor = { .fd = state->audioArmFd, .events = POLLIN | POLLHUP };
++		const int status = poll(&descriptor, 1, LARENOR_AUDIO_POLL_MILLISECONDS);
++		if (status < 0)
++		{
++			if (errno == EINTR)
++				continue;
++			EnterCriticalSection(&state->lock);
++			record_audio_error(state);
++			LeaveCriticalSection(&state->lock);
++			return 0;
++		}
++		if (status == 0)
++			continue;
++		const ssize_t received = read(state->audioArmFd, &arm[armLength], sizeof(arm) - armLength);
++		if (received < 0)
++		{
++			if ((errno == EAGAIN) || (errno == EWOULDBLOCK) || (errno == EINTR))
++				continue;
++			EnterCriticalSection(&state->lock);
++			record_audio_error(state);
++			LeaveCriticalSection(&state->lock);
++			return 0;
++		}
++		if (received == 0)
++		{
++			EnterCriticalSection(&state->lock);
++			if (armLength != LARENOR_AUDIO_ARM_SIZE)
++				record_audio_error(state);
++			LeaveCriticalSection(&state->lock);
++			break;
++		}
++		armLength += (size_t)received;
++		if (armLength > LARENOR_AUDIO_ARM_SIZE)
++		{
++			EnterCriticalSection(&state->lock);
++			record_audio_error(state);
++			LeaveCriticalSection(&state->lock);
++			return 0;
++		}
++		/* A valid arm is an exact record followed by EOF.  Continue polling so
++		 * a separately written trailing byte cannot be accepted as a record. */
++	}
++
++	EnterCriticalSection(&state->lock);
++	const BOOL exact = (armLength == LARENOR_AUDIO_ARM_SIZE) &&
++	                   (memcmp(arm, "LRNAUD01", 8U) == 0) &&
++	                   (memcmp(&arm[8], state->audioNonce, 64U) == 0);
++	if (!exact || state->audioArmRecords != 0U)
++	{
++		record_audio_error(state);
++		LeaveCriticalSection(&state->lock);
++		return 0;
++	}
++	state->audioArmRecords = 1U;
++	state->audioFlags |= LARENOR_AUDIO_FLAG_ARMED;
++	LeaveCriticalSection(&state->lock);
++
++	RdpsndServerContext* context = nullptr;
++	for (;;)
++	{
++		EnterCriticalSection(&state->lock);
++		const BOOL stopping = state->audioStopping;
++		if (state->audioActivated)
++			context = state->audioContext;
++		LeaveCriticalSection(&state->lock);
++		if (stopping || context)
++			break;
++		Sleep(LARENOR_AUDIO_POLL_MILLISECONDS);
++	}
++	if (!context)
++		return 0;
++
++	INT16 samples[LARENOR_AUDIO_FRAMES * 2U] = { 0 };
++	for (size_t index = 0; index < ARRAYSIZE(samples); index += 2U)
++	{
++		const INT16 value = ((index / 2U) % 44U < 22U) ? 4096 : -4096;
++		samples[index] = value;
++		samples[index + 1U] = value;
++	}
++	EnterCriticalSection(&state->lock);
++	state->audioSendCalls = 1U;
++	LeaveCriticalSection(&state->lock);
++	const UINT rc = context->SendSamples(context, samples, LARENOR_AUDIO_FRAMES, 1U);
++	SecureZeroMemory(samples, sizeof(samples));
++	EnterCriticalSection(&state->lock);
++	if (rc == CHANNEL_RC_OK)
++	{
++		state->audioSendAccepted = 1U;
++		state->audioFrames = LARENOR_AUDIO_FRAMES;
++		state->audioFlags |= LARENOR_AUDIO_FLAG_SEND_ACCEPTED;
++	}
++	else
++		record_audio_error(state);
++	LeaveCriticalSection(&state->lock);
++	return 0;
++}
++
++void shadow_larenor_audio_activated(rdpShadowClient* client, RdpsndServerContext* context)
++{
++	if (!client || !context || !client->larenorOwnedChannels)
++		return;
++	LarenorOwnedChannels* state = (LarenorOwnedChannels*)client->larenorOwnedChannels;
++	EnterCriticalSection(&state->lock);
++	if (state->audioStopping || (state->ordinal != 1U) ||
++	    (state->audioActivations != 0U) ||
++	    !context->src_format ||
++	    (context->src_format->wFormatTag != WAVE_FORMAT_PCM) ||
++	    (context->src_format->nChannels != 2U) ||
++	    (context->src_format->nSamplesPerSec != 44100U) ||
++	    (context->src_format->wBitsPerSample != 16U))
++	{
++		record_audio_error(state);
++		LeaveCriticalSection(&state->lock);
++		return;
++	}
++	state->audioActivations = 1U;
++	state->audioActivated = TRUE;
++	state->audioContext = context;
++	state->audioFlags |= LARENOR_AUDIO_FLAG_ACTIVATED;
++	LeaveCriticalSection(&state->lock);
++}
++
++void shadow_larenor_audio_confirmed(rdpShadowClient* client)
++{
++	if (!client || !client->larenorOwnedChannels)
++		return;
++	LarenorOwnedChannels* state = (LarenorOwnedChannels*)client->larenorOwnedChannels;
++	EnterCriticalSection(&state->lock);
++	increment_bounded(&state->audioWaveConfirms, &state->audioErrors);
++	LeaveCriticalSection(&state->lock);
++}
++
++void shadow_larenor_audio_stop(rdpShadowClient* client)
++{
++	if (!client || !client->larenorOwnedChannels)
++		return;
++	LarenorOwnedChannels* state = (LarenorOwnedChannels*)client->larenorOwnedChannels;
++	EnterCriticalSection(&state->lock);
++	state->audioStopping = TRUE;
++	LeaveCriticalSection(&state->lock);
++	if (state->audioThread)
++	{
++		(void)WaitForSingleObject(state->audioThread, INFINITE);
++		(void)CloseHandle(state->audioThread);
++		state->audioThread = nullptr;
++	}
++}
++
++static void write_audio_witness(LarenorOwnedChannels* state)
++{
++	BYTE data[64] = { 0 };
++	memcpy(data, "LRNF62A1", 8U);
++	EnterCriticalSection(&state->lock);
++	write_uint32_le(data, 8U, 1U);
++	write_uint32_le(data, 12U, sizeof(data));
++	write_uint32_le(data, 16U, state->ordinal);
++	write_uint32_le(data, 20U, state->audioFlags);
++	write_uint32_le(data, 24U, state->audioActivations);
++	write_uint32_le(data, 28U, state->audioArmRecords);
++	write_uint32_le(data, 32U, state->audioSendCalls);
++	write_uint32_le(data, 36U, state->audioSendAccepted);
++	write_uint32_le(data, 40U, state->audioWaveConfirms);
++	write_uint32_le(data, 44U, state->audioFrames);
++	write_uint32_le(data, 48U, state->audioErrors);
++	LeaveCriticalSection(&state->lock);
++
++	const int fd = open(state->audioWitnessPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
++	if (fd < 0)
++		return;
++	size_t offset = 0;
++	while (offset < sizeof(data))
++	{
++		const ssize_t written = write(fd, &data[offset], sizeof(data) - offset);
++		if (written <= 0)
++			break;
++		offset += (size_t)written;
++	}
++	if (offset == sizeof(data))
++		(void)fsync(fd);
++	(void)close(fd);
++}
++
+ static void write_witness(LarenorOwnedChannels* state)
+ {
+ 	BYTE data[64] = { 0 };
+@@ -343,15 +595,20 @@
+ 	if (!state)
+ 		return CHANNEL_RC_NO_MEMORY;
+ 	state->phaseFd = -1;
++	state->audioArmFd = -1;
+ 	InitializeCriticalSection(&state->lock);
+ 	if (!load_private_configuration(state))
+ 		goto fail;
+ 
+ 	const BOOL clipboardJoined =
+ 	    WTSVirtualChannelManagerIsChannelJoined(client->vcm, CLIPRDR_SVC_CHANNEL_NAME);
+-	if (((state->ordinal == 1U) && !clipboardJoined) ||
+-	    ((state->ordinal == 2U) && clipboardJoined))
++	const BOOL audioJoined =
++	    WTSVirtualChannelManagerIsChannelJoined(client->vcm, RDPSND_CHANNEL_NAME);
++	if (((state->ordinal == 1U) && (!clipboardJoined || !audioJoined)) ||
++	    ((state->ordinal == 2U) && (clipboardJoined || audioJoined)))
+ 		goto fail;
++	if (audioJoined)
++		state->audioFlags |= LARENOR_AUDIO_FLAG_JOINED;
+ 
+ 	if (clipboardJoined)
+ 	{
+@@ -378,6 +635,15 @@
+ 		goto fail;
+ 
+ 	client->larenorOwnedChannels = state;
++	if (state->ordinal == 1U)
++	{
++		state->audioThread = CreateThread(nullptr, 0, audio_worker, state, 0, nullptr);
++		if (!state->audioThread)
++		{
++			client->larenorOwnedChannels = nullptr;
++			goto fail;
++		}
++	}
+ 	return CHANNEL_RC_OK;
+ 
+ fail:
+@@ -393,8 +659,15 @@
+ 		record_error(state);
+ 		write_witness(state);
+ 	}
++	if (state->audioWitnessPath[0])
++	{
++		record_audio_error(state);
++		write_audio_witness(state);
++	}
+ 	if (state->phaseFd >= 0)
+ 		(void)close(state->phaseFd);
++	if (state->audioArmFd >= 0)
++		(void)close(state->audioArmFd);
+ 	DeleteCriticalSection(&state->lock);
+ 	free(state);
+ 	return ERROR_NOT_READY;
+@@ -405,6 +678,7 @@
+ 	if (!client || !client->larenorOwnedChannels)
+ 		return;
+ 	LarenorOwnedChannels* state = (LarenorOwnedChannels*)client->larenorOwnedChannels;
++	shadow_larenor_audio_stop(client);
+ 	client->larenorOwnedChannels = nullptr;
+ 	if (state->disp)
+ 		disp_server_context_free(state->disp);
+@@ -414,8 +688,11 @@
+ 		cliprdr_server_context_free(state->cliprdr);
+ 	}
+ 	write_witness(state);
++	write_audio_witness(state);
+ 	if (state->phaseFd >= 0)
+ 		(void)close(state->phaseFd);
++	if (state->audioArmFd >= 0)
++		(void)close(state->audioArmFd);
+ 	DeleteCriticalSection(&state->lock);
+ 	free(state);
+ }
+--- a/server/shadow/shadow_larenor_channels.h
++++ b/server/shadow/shadow_larenor_channels.h
+@@ -3,8 +3,12 @@
+ #define FREERDP_SERVER_SHADOW_LARENOR_CHANNELS_H
+ 
+ #include <freerdp/server/shadow.h>
++#include <freerdp/server/rdpsnd.h>
+ 
+ WINPR_ATTR_NODISCARD UINT shadow_larenor_channels_init(rdpShadowClient* client);
+ void shadow_larenor_channels_free(rdpShadowClient* client);
++void shadow_larenor_audio_activated(rdpShadowClient* client, RdpsndServerContext* context);
++void shadow_larenor_audio_confirmed(rdpShadowClient* client);
++void shadow_larenor_audio_stop(rdpShadowClient* client);
+ 
+ #endif
+--- a/server/shadow/shadow_rdpsnd.c
++++ b/server/shadow/shadow_rdpsnd.c
+@@ -29,9 +29,28 @@
+ #include "shadow.h"
+ 
+ #include "shadow_rdpsnd.h"
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++#include "shadow_larenor_channels.h"
++#endif
+ 
+ #define TAG SERVER_TAG("shadow")
+ 
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++static AUDIO_FORMAT g_larenorOwnedPcmSource = {
++	WAVE_FORMAT_PCM, 2, 44100, 176400, 4, 16, 0, nullptr
++};
++
++static UINT rdpsnd_confirmed(RdpsndServerContext* context, BYTE confirmBlockNum,
++                             UINT16 timestamp)
++{
++	WINPR_UNUSED(confirmBlockNum);
++	WINPR_UNUSED(timestamp);
++	WINPR_ASSERT(context);
++	shadow_larenor_audio_confirmed((rdpShadowClient*)context->data);
++	return CHANNEL_RC_OK;
++}
++#endif
++
+ static void rdpsnd_activated(RdpsndServerContext* context)
+ {
+ 	WINPR_ASSERT(context);
+@@ -41,9 +60,18 @@
+ 		{
+ 			if (audio_format_compatible(&context->server_formats[j], &context->client_formats[i]))
+ 			{
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++				if ((context->server_formats[j].wFormatTag != WAVE_FORMAT_PCM) ||
++				    (context->client_formats[i].wFormatTag != WAVE_FORMAT_PCM))
++					continue;
++#endif
+ 				const UINT rc = context->SelectFormat(context, WINPR_ASSERTING_INT_CAST(UINT16, i));
+ 				if (rc != CHANNEL_RC_OK)
+ 					WLog_WARN(TAG, "SelectFormat failed with %" PRIu32, rc);
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++				else
++					shadow_larenor_audio_activated((rdpShadowClient*)context->data, context);
++#endif
+ 				return;
+ 			}
+ 		}
+@@ -77,6 +105,11 @@
+ 	if (rdpsnd->num_server_formats > 0)
+ 		rdpsnd->src_format = &rdpsnd->server_formats[0];
+ 
++#if defined(WITH_LARENOR_F62_OWNED_CHANNELS)
++	rdpsnd->src_format = &g_larenorOwnedPcmSource;
++	rdpsnd->latency = 50U;
++	rdpsnd->ConfirmBlock = rdpsnd_confirmed;
++#endif
+ 	rdpsnd->Activated = rdpsnd_activated;
+ 
+ 	const UINT error = rdpsnd->Initialize(rdpsnd, TRUE);

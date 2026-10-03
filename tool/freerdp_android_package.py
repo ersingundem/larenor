@@ -31,7 +31,17 @@ REQUIRED_FREERDP_API = (
     ("sendMonitorLayout", "(JII)Z"),
     ("sendMonitorLayout", "(JIIII)Z"),
 )
-REQUIRED_EVENT_LISTENER_API = (("OnDisplayControlReady", "(J)V"),)
+REQUIRED_EVENT_LISTENER_API = (
+    ("OnDisplayControlReady", "(J)V"),
+    ("OnRemoteAudioPlayback", "(JZJJI)V"),
+)
+REQUIRED_REMOTE_AUDIO_CONSTANTS = {
+    "REMOTE_AUDIO_DEVICE_OPENED": 1,
+    "REMOTE_AUDIO_BUFFER_ACCEPTED": 2,
+    "REMOTE_AUDIO_BUFFER_COMPLETED": 3,
+    "REMOTE_AUDIO_DEVICE_CLOSED": 4,
+    "REMOTE_AUDIO_FAILED": 5,
+}
 
 
 class PackageError(ValueError):
@@ -68,7 +78,7 @@ def load_lock(path=LOCK_PATH):
         "requiredLibraries", "requiredClasses", "requiredJniSymbols",
         "requiredNativeEvidence",
     }, "invalid_lock")
-    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 2,
+    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 3,
              "invalid_lock")
     source = value["source"]
     _require(set(source) == {"version", "commit", "url", "sha256"},
@@ -81,7 +91,7 @@ def load_lock(path=LOCK_PATH):
         "freerdp-3.31.1.tar.gz"
     ), "invalid_lock")
     reviewed = value["reviewedFiles"]
-    _require(type(reviewed) is dict and len(reviewed) == 12 and
+    _require(type(reviewed) is dict and len(reviewed) == 16 and
              all(type(name) is str and HEX40.fullmatch(digest or "")
                  for name, digest in reviewed.items()), "invalid_lock")
     patches = value["patches"]
@@ -99,12 +109,16 @@ def load_lock(path=LOCK_PATH):
                 "path": "android/freerdp-display-pointer-v2.patch",
                 "sha256": _sha256(ROOT / "android/freerdp-display-pointer-v2.patch"),
             },
+            {
+                "path": "android/freerdp-remote-audio-v3.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-remote-audio-v3.patch"),
+            },
         ]
     except OSError as error:
         raise PackageError("invalid_lock") from error
     _require(
         type(patches) is list
-        and len(patches) == 3
+        and len(patches) == 4
         and patches == expected_patches,
         "invalid_lock",
     )
@@ -147,6 +161,7 @@ def load_lock(path=LOCK_PATH):
                 "freerdp_1send_1monitor_1layout"
             ),
             "OnDisplayControlReady",
+            "OnRemoteAudioPlayback",
         ],
         "invalid_lock",
     )
@@ -308,6 +323,8 @@ def verify_display_pointer_patch(source_root):
         "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
         "freerdp_1send_1relative_1cursor_1event"
     )
+
+
     query_symbol = (
         "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
         "freerdp_1is_1relative_1mouse_1input_1supported"
@@ -428,6 +445,117 @@ def verify_display_pointer_patch(source_root):
         "invalid_display_pointer_patch",
     )
 
+def verify_remote_audio_patch(source_root):
+    root = source_root.resolve()
+    base = root / "client/Android/Studio/freeRDPCore/src/main"
+    paths = {
+        "java": base / "java/com/freerdp/freerdpcore/services/LibFreeRDP.java",
+        "native": base / "cpp/android_freerdp.c",
+        "event": root / "include/freerdp/event.h",
+        "io_h": root / "channels/rdpsnd/client/opensles/opensl_io.h",
+        "io_c": root / "channels/rdpsnd/client/opensles/opensl_io.c",
+        "plugin": root / "channels/rdpsnd/client/opensles/rdpsnd_opensles.c",
+    }
+    try:
+        source = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
+    except OSError as error:
+        raise PackageError("invalid_remote_audio_patch") from error
+
+    java = source["java"]
+    native = source["native"]
+    event = source["event"]
+    io_h = source["io_h"]
+    io_c = source["io_c"]
+    plugin = source["plugin"]
+    close_start = io_c.find("BOOL android_CloseAudioDevice(")
+    callback_start = io_c.find("static void bqPlayerCallback(", close_start)
+    close = io_c[close_start:callback_start]
+    wait_start = io_c.find("static BOOL opensl_wait_for_slot(", callback_start)
+    output_start = io_c.find("int android_AudioOut(", wait_start)
+    output_end = io_c.find("int android_GetOutputMute(", output_start)
+    output = io_c[output_start:output_end]
+    callback = io_c[callback_start:wait_start]
+    observe_start = plugin.find("static void rdpsnd_opensles_observe(")
+    observe_end = plugin.find(
+        "static int rdpsnd_opensles_volume_to_millibel", observe_start
+    )
+    observe = plugin[observe_start:observe_end]
+    java_constants = {
+        "REMOTE_AUDIO_DEVICE_OPENED": 1,
+        "REMOTE_AUDIO_BUFFER_ACCEPTED": 2,
+        "REMOTE_AUDIO_BUFFER_COMPLETED": 3,
+        "REMOTE_AUDIO_DEVICE_CLOSED": 4,
+        "REMOTE_AUDIO_FAILED": 5,
+    }
+    _require(
+        all(
+            java.count(f"public static final int {name} = {value};") == 1
+            for name, value in java_constants.items()
+        )
+        and java.count("private static void OnRemoteAudioPlayback(") == 1
+        and "long acceptedCount, long completedCount," in java
+        and "listener.OnRemoteAudioPlayback(inst, deviceOpen, acceptedCount, completedCount," in java
+        and java.count("default void OnRemoteAudioPlayback(long instance, boolean deviceOpen,") == 1
+        and all(
+            event.count(f"#define FREERDP_{name} {value}") == 1
+            for name, value in java_constants.items()
+        )
+        and "DEFINE_EVENT_BEGIN(RemoteAudioPlayback)" in event
+        and "BOOL deviceOpen;" in event
+        and "UINT64 acceptedCount;" in event
+        and "UINT64 completedCount;" in event
+        and "UINT32 fixedState;" in event
+        and "OPENSL_PLAYBACK_OBSERVER" in io_h
+        and "HANDLE closingEvent;" in io_h
+        and "HANDLE callbacksIdleEvent;" in io_h
+        and "BOOL android_CloseAudioDevice(OPENSL_STREAM* p);" in io_h
+        and "INFINITE" not in io_c
+        and "GetTickCount64() + 2000ULL" in io_c
+        and "WaitForMultipleObjects(2, handles, FALSE, timeout)" in io_c
+        and close_start >= 0
+        and callback_start > close_start
+        and close.find("p->closing = TRUE;")
+        < close.find("SL_PLAYSTATE_STOPPED")
+        < close.find("Clear(p->bqPlayerBufferQueue)")
+        < close.find("openSLDestroyPlayer(p)")
+        < close.find("WaitForSingleObject(p->callbacksIdleEvent, 2000)")
+        < close.find("opensl_free_buffers(p)")
+        < close.find("openSLDestroyEngine(p)")
+        and "while (p->callbacksIdleEvent)" in close
+        and "FREERDP_REMOTE_AUDIO_FAILED" in close
+        and "return FALSE;" not in close
+        and "if (!p->closing && p->head)" in callback
+        and callback.find("FREERDP_REMOTE_AUDIO_BUFFER_COMPLETED")
+        < callback.find("p->callbacksActive--")
+        and output_start >= 0
+        and output_end > output_start
+        and "const SLresult result" in output
+        and "result != SL_RESULT_SUCCESS" in output
+        and output.find("->Enqueue(")
+        < output.find("result != SL_RESULT_SUCCESS")
+        < output.find("FREERDP_REMOTE_AUDIO_BUFFER_ACCEPTED")
+        and "opensl_mark_failed(p);" in output
+        and "LARENOR_JS_SAFE_COUNTER_MAX 9007199254740991ULL" in plugin
+        and "freerdp_rdpsnd_get_context(opensles->device.rdpsnd)" in plugin
+        and "PubSub_OnRemoteAudioPlayback" in plugin
+        and observe_start >= 0
+        and observe_end > observe_start
+        and "opensles->acceptedCount >= LARENOR_JS_SAFE_COUNTER_MAX" in observe
+        and "opensles->completedCount >= LARENOR_JS_SAFE_COUNTER_MAX" in observe
+        and "opensles->completedCount >= opensles->acceptedCount" in observe
+        and observe.find("rdpsnd_opensles_publish(")
+        < observe.find("LeaveCriticalSection(&opensles->observerLock)")
+        and "setChannelError(rdpContext, ERROR_INTERNAL_ERROR" in plugin
+        and "android_OpenAudioDevice(opensles->rate, opensles->channels, 20," in plugin
+        and "FREERDP_REMOTE_AUDIO_DEVICE_OPENED" in plugin
+        and "FREERDP_REMOTE_AUDIO_DEVICE_CLOSED" in plugin
+        and "DEFINE_EVENT_ENTRY(RemoteAudioPlayback)" in native
+        and "PubSub_AddEventTypes(instance->context->pubSub, androidRemoteAudioEvents" in native
+        and "PubSub_SubscribeRemoteAudioPlayback" in native
+        and "PubSub_UnsubscribeRemoteAudioPlayback" in native
+        and native.count('freerdp_callback("OnRemoteAudioPlayback", "(JZJJI)V"') == 1,
+        "invalid_remote_audio_patch",
+    )
 
 class _ClassReader:
     def __init__(self, data):
@@ -466,7 +594,7 @@ def _skip_class_members(reader, count):
         _skip_class_attributes(reader, reader.u2())
 
 
-def _class_methods(data):
+def _class_contract(data):
     _require(type(data) is bytes and 16 <= len(data) <= 16 * 1024 * 1024,
              "invalid_java_contract")
     reader = _ClassReader(data)
@@ -485,7 +613,9 @@ def _class_methods(data):
                 constants[index] = reader.take(size).decode("utf-8")
             except UnicodeDecodeError as error:
                 raise PackageError("invalid_java_contract") from error
-        elif tag in (3, 4):
+        elif tag == 3:
+            constants[index] = struct.unpack(">i", reader.take(4))[0]
+        elif tag == 4:
             reader.take(4)
         elif tag in (5, 6):
             reader.take(8)
@@ -504,7 +634,35 @@ def _class_methods(data):
     reader.u2()
     reader.u2()
     reader.take(reader.u2() * 2)
-    _skip_class_members(reader, reader.u2())
+    fields = set()
+    for _ in range(reader.u2()):
+        access = reader.u2()
+        name_index = reader.u2()
+        descriptor_index = reader.u2()
+        _require(
+            0 < name_index < constant_count
+            and 0 < descriptor_index < constant_count
+            and type(constants[name_index]) is str
+            and type(constants[descriptor_index]) is str,
+            "invalid_java_contract",
+        )
+        constant = None
+        for _ in range(reader.u2()):
+            attribute_index = reader.u2()
+            size = reader.u4()
+            _require(
+                0 < attribute_index < constant_count
+                and type(constants[attribute_index]) is str,
+                "invalid_java_contract",
+            )
+            if constants[attribute_index] == "ConstantValue":
+                _require(size == 2, "invalid_java_contract")
+                value_index = reader.u2()
+                _require(0 < value_index < constant_count, "invalid_java_contract")
+                constant = constants[value_index]
+            else:
+                reader.take(size)
+        fields.add((constants[name_index], constants[descriptor_index], access, constant))
     methods = set()
     for _ in range(reader.u2()):
         access = reader.u2()
@@ -521,6 +679,11 @@ def _class_methods(data):
         _skip_class_attributes(reader, reader.u2())
     _skip_class_attributes(reader, reader.u2())
     _require(reader.offset == len(data), "invalid_java_contract")
+    return methods, fields
+
+
+def _class_methods(data):
+    methods, _fields = _class_contract(data)
     return methods
 
 
@@ -553,6 +716,20 @@ def _verify_event_listener_api(data):
             "missing_java_contract",
         )
 
+
+def _verify_remote_audio_constants(data):
+    _methods, fields = _class_contract(data)
+    for name, value in REQUIRED_REMOTE_AUDIO_CONSTANTS.items():
+        matching = [
+            (access, constant)
+            for field, descriptor, access, constant in fields
+            if field == name and descriptor == "I"
+        ]
+        _require(
+            matching == [(0x0001 | 0x0008 | 0x0010, value)],
+            "missing_java_contract",
+        )
+
 def package_receipt(aar, abi, lock):
     _require(abi in lock["supportedAbis"], "unsupported_abi")
     _require(aar.is_file() and aar.stat().st_size <= 512 * 1024 * 1024,
@@ -569,6 +746,7 @@ def package_receipt(aar, abi, lock):
                 _require(all(name in class_names for name in lock["requiredClasses"]),
                          "missing_java_contract")
                 _verify_freerdp_api(jar.read(FREERDP_CLASS))
+                _verify_remote_audio_constants(jar.read(FREERDP_CLASS))
                 _verify_event_listener_api(jar.read(EVENT_LISTENER_CLASS))
             native = [name for name in names if name.startswith("jni/") and
                       name.endswith(".so")]
@@ -715,6 +893,7 @@ def main(argv=None):
             verify_certificate_patch(native)
             verify_clipboard_patch(native)
             verify_display_pointer_patch(args.source)
+            verify_remote_audio_patch(args.source)
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")

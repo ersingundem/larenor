@@ -126,3 +126,31 @@ these local checkpoints for current routing, without upgrading acceptance.
   }
 ]
 ```
+
+
+## 3 October exact5122 runtime dispatch
+
+Older non-CI local records are preserved below; every CI record remains live.
+
+```json
+[
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md",
+    "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root 42/42 diagnostic/workflow checks and actionlint; source-hash stage map and descriptor-bound bounded XML; no hosted stream acceptance"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+    "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root34/34 runner/parser checks; actual required-native AndroidTest compile278tasks; fixed last-entered enum diagnostic only, strict runtime acceptance unchanged"
+  }
+]
+```

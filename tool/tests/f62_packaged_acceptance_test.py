@@ -16,6 +16,9 @@ CHANNEL_EVIDENCE_BASE = {
     "enabledClientToRemoteClipboard": True,
     "enabledDisplayControl": True,
     "disabledClipboardTransfers": 0,
+    "enabledRemoteAudioPackets": 1,
+    "disabledRemoteAudioPackets": 0,
+    "audioWaveConfirmations": 1,
     "authenticatedLifetimes": 2,
 }
 CHANNEL_EVIDENCE = {
@@ -44,6 +47,17 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             f'{xml}</testsuites>'
         )
 
+    def test_audio_arm_is_exact_nonce_bound_single_pipe_record(self):
+        read_fd, write_fd = os.pipe()
+        try:
+            runner._arm_owned_audio(write_fd, "d" * 64)
+            self.assertEqual(os.read(read_fd, 73), b"LRNAUD01" + b"d" * 64)
+            with self.assertRaises(runner.BaselineFailure):
+                runner._arm_owned_audio(write_fd, "D" * 64)
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
     def test_owned_host_package_versions_are_bounded_and_explicit(self):
         values = {
             "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
@@ -71,12 +85,13 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         self.assertEqual(receipt["ownedHostPackages"], versions)
         self.assertEqual(receipt["sourceRevision"], "a" * 40)
         self.assertEqual(receipt["packageReceiptSha256"], "b" * 64)
-        self.assertEqual(receipt["scope"], "ownedShadowChannels")
+        self.assertEqual(receipt["scope"], "ownedShadowChannelsAndAudioQueue")
         self.assertEqual(receipt["ownedShadowFixture"], {
             "version": runner.SHADOW_SOURCE_VERSION,
             "sourceCommit": runner.SHADOW_SOURCE_COMMIT,
             "sourceArchiveSha256": runner.SHADOW_SOURCE_SHA256,
             "patchSha256": runner.SHADOW_PATCH_SHA256,
+            "audioPatchSha256": runner.SHADOW_AUDIO_PATCH_SHA256,
         })
         self.assertEqual(receipt["evidence"]["rdpKeyEffect"], {
             "usbHidUsage": "KeyA", "xi2PressRelease": True,
@@ -86,8 +101,9 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             "width": 1024, "height": 768, "nonzero": True,
         })
         self.assertEqual(receipt["evidence"]["channels"], CHANNEL_EVIDENCE)
+        self.assertTrue(receipt["evidence"]["remoteAudioQueueCompletion"])
         self.assertEqual(receipt["unsupportedOrUnproven"], [
-            "ime", "remoteToClientClipboard",
+            "ime", "remoteToClientClipboard", "physicalAudioAudibility",
         ])
         self.assertEqual(
             {key: receipt[key] for key in ("tests", "skipped", "failures", "errors")},
@@ -224,6 +240,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         lifecycle = SimpleNamespace(
             start=lambda: None,
             stop=lambda: None,
+            last_stage=lambda: "audioEffectWait",
             last_evidence=lambda: marker_evidence,
             observe_after_host_exit=lambda: (None, marker_evidence),
         )
@@ -233,7 +250,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner,
                     "_start_owned_shadow",
                     return_value=(
-                        shadow, 8, "c" * 64, 9,
+                        shadow, 8, 10, "c" * 64, 9,
                         Path(temporary) / "shadow.log", 0,
                     ),
                 ),
@@ -250,6 +267,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(runner, "_append_private_log", return_value=0),
                 mock.patch.object(runner, "_server_resize_requested", return_value=True),
                 mock.patch.object(runner, "_stop_owned_process"),
+                mock.patch.object(runner.os, "write", return_value=72) as audio_write,
                 mock.patch.object(runner.os, "close"),
             ):
                 self.assertEqual(
@@ -261,6 +279,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 )
         resize.assert_called_once_with()
         marker.assert_called_once_with()
+        self.assertEqual(audio_write.call_args.args, (10, b"LRNAUD01" + b"d" * 64))
 
     def test_terminal_channel_witness_requires_enabled_effects_and_disabled_zero_transfer(self):
         enabled = {
@@ -289,14 +308,31 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary) / "witness"
+            audio_base = Path(temporary) / "audio-witness"
             Path(f"{base}.1").touch()
             Path(f"{base}.2").touch()
-            with mock.patch.object(
-                runner, "read_lifetimes",
-                return_value={"schemaVersion": 2,
-            "initialDisplayAccepted": True, "enabled": enabled, "disabled": disabled},
+            Path(f"{audio_base}.1").touch()
+            Path(f"{audio_base}.2").touch()
+            audio_enabled = {
+                "acceptedCount": 1, "waveConfirmations": 1,
+            }
+            audio_disabled = {"acceptedCount": 0}
+            with (
+                mock.patch.object(
+                    runner, "read_lifetimes",
+                    return_value={"schemaVersion": 2,
+                        "initialDisplayAccepted": True,
+                        "enabled": enabled, "disabled": disabled},
+                ),
+                mock.patch.object(
+                    runner, "read_audio_lifetimes",
+                    return_value={"schemaVersion": 1,
+                        "enabled": audio_enabled, "disabled": audio_disabled},
+                ),
             ):
-                self.assertEqual(runner._channel_evidence(base), CHANNEL_EVIDENCE_BASE)
+                self.assertEqual(
+                    runner._channel_evidence(base, audio_base), CHANNEL_EVIDENCE_BASE,
+                )
             for bad in (
                 {**enabled, "clipboardEffect": False},
                 {**enabled, "initialDisplayAccepted": False},
@@ -315,9 +351,16 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     {"schemaVersion": 2,
             "initialDisplayAccepted": True, "enabled": enabled, "disabled": bad}
                 )
-                with mock.patch.object(runner, "read_lifetimes", return_value=pair):
+                with (
+                    mock.patch.object(runner, "read_lifetimes", return_value=pair),
+                    mock.patch.object(
+                        runner, "read_audio_lifetimes",
+                        return_value={"schemaVersion": 1,
+                            "enabled": audio_enabled, "disabled": audio_disabled},
+                    ),
+                ):
                     with self.assertRaises(runner.BaselineFailure):
-                        runner._channel_evidence(base)
+                        runner._channel_evidence(base, audio_base)
 
     def test_owned_shadow_process_uses_exact_binary_sam_pipe_and_two_witness_base(self):
         def portable_owned_pipe2(flags):
@@ -346,6 +389,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             sam.write_bytes(b"owned-private-sam")
             sam.chmod(0o600)
             witness = root / "terminal-witness"
+            audio_witness = root / "audio-terminal-witness"
             with (
                 mock.patch.dict(
                     os.environ,
@@ -366,8 +410,11 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ) as pipe2,
             ):
                 (
-                    returned, read_fd, digest, log_fd, log_path, log_size,
-                ) = runner._start_owned_shadow(root, witness)
+                    returned, read_fd, audio_write_fd, digest,
+                    log_fd, log_path, log_size,
+                ) = runner._start_owned_shadow(
+                    root, witness, audio_witness, "d" * 64,
+                )
             try:
                 self.assertIs(returned, process)
                 self.assertEqual(log_path, root / "shadow.log")
@@ -382,17 +429,23 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ])
                 environment = popen.call_args.kwargs["env"]
                 self.assertEqual(environment["LARENOR_F62_CHANNEL_WITNESS"], str(witness))
+                self.assertEqual(environment["LARENOR_F62_AUDIO_WITNESS"], str(audio_witness))
+                self.assertEqual(environment["LARENOR_F62_AUDIO_NONCE"], "d" * 64)
                 self.assertEqual(environment["LARENOR_F62_EXPECT_WIDTH"], "1024")
                 self.assertEqual(environment["LARENOR_F62_EXPECT_HEIGHT"], "768")
                 self.assertEqual(
                     popen.call_args.kwargs["pass_fds"],
-                    (int(environment["LARENOR_F62_CHANNEL_PHASE_FD"]),),
+                    (
+                        int(environment["LARENOR_F62_CHANNEL_PHASE_FD"]),
+                        int(environment["LARENOR_F62_AUDIO_ARM_FD"]),
+                    ),
                 )
                 ready.assert_called_once_with(process, log_fd)
                 verify_source.assert_called_once_with(source)
-                pipe2.assert_called_once_with(os.O_CLOEXEC | os.O_NONBLOCK)
+                self.assertEqual(pipe2.call_count, 2)
             finally:
                 os.close(read_fd)
+                os.close(audio_write_fd)
                 os.close(log_fd)
 
             alias = root / "shadow-alias"
@@ -947,7 +1000,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 ) as cleanup,
                 mock.patch.object(
                     runner, "_start_owned_shadow",
-                    return_value=(shadow, 8, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
+                    return_value=(shadow, 8, 10, "c" * 64, 9, Path(temporary) / "shadow.log", 0),
                 ),
                 mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, Gradle()]),
                 mock.patch.object(runner.selectors, "DefaultSelector", return_value=selector),
@@ -1045,7 +1098,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(
                     runner, "_start_owned_shadow",
                     return_value=(
-                        shadow, 8, "c" * 64, 9,
+                        shadow, 8, 10, "c" * 64, 9,
                         Path(temporary) / "shadow.log", 0,
                     ),
                 ),
