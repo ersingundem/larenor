@@ -6,7 +6,7 @@
 
 3 Ekim mikrofon4: varsayılan kapalı seçim, exact izin/foreground/AppOps sahipliği ve gerçek AUDIN capture/submission, verified çift ABI ürün paketiyle **125 native / 105 Flutter / 128 portatif** test ve actual AndroidTest **315 task** derlemesini geçti. Hosted mikrofon etkisi henüz kanıtlanmadı; F62 gerçek SAF/Gateway ve runtime eksikleri nedeniyle yeniden çalışılıyor. Sayaçlar değişmedi. [Birleşik dar kanıt](testing/f62-owned-microphone-composed-2026-10-03.md).
 
-Değişmiş mikrofon4 kaynak için [exact06ef RDP37125727523](https://github.com/ersingundem/larenor/actions/runs/37125727523) bir kez başlatıldı: arm64 package geçti, x86 owned host başarısız. Source-bound dar hata incelemesi sürüyor; mikrofon etkisi kabul edilmedi.
+Değişmiş mikrofon4 kaynak için [exact06ef RDP37125727523](https://github.com/ersingundem/larenor/actions/runs/37125727523) bir kez başlatıldı: arm64 package geçti, x86 owned host başarısız. Canonical original1/1/0/0 ve source/hash doğrulandı; kesin başarısız aşama bilinmiyor. Tanı kaydına bağımlı arm yolu ayrıldı: **78/78** runner/workflow, Ruff ve actual AndroidTest derlemesi geçti. Mikrofon etkisi kabul edilmedi; değişmiş kaynak hosted kapısı açık. [Effect-control kanıtı](testing/f62-owned-effect-control-2026-10-03.md).
 
 3 Ekim Sunshine RI5 source/package dilimi tamamlandı: açık matching uygulama gerçek
 `resume` ile korunur; provider launch/resume ve Game aynı process-private tek

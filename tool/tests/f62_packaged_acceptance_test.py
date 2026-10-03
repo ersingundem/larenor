@@ -65,6 +65,148 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             os.close(read_fd)
             os.close(write_fd)
 
+    def test_effect_control_record_is_exact_source_test_nonce_and_phase_bound(self):
+        nonce = "d" * 64
+        source = "a" * 64
+        audio = runner._owned_effect_control_record(nonce, "audio", source)
+        microphone = runner._owned_effect_control_record(
+            nonce, "microphone", source,
+        )
+
+        self.assertEqual(len(audio), runner._EFFECT_CONTROL_BYTES)
+        self.assertEqual(
+            runner._decode_owned_effect_control_record(
+                audio, nonce=nonce, phase="audio", source_sha256=source,
+            ),
+            "audio",
+        )
+        self.assertEqual(
+            runner._decode_owned_effect_control_record(
+                microphone,
+                nonce=nonce,
+                phase="microphone",
+                source_sha256=source,
+            ),
+            "microphone",
+        )
+        for forged in (
+            audio + b"x",
+            audio.replace(b"d" * 64, b"e" * 64, 1),
+            audio.replace(b"a" * 64, b"b" * 64, 1),
+            audio.replace(runner._OWNED_TEST_DIGEST.encode("ascii"), b"f" * 64),
+            microphone,
+        ):
+            self.assertIsNone(
+                runner._decode_owned_effect_control_record(
+                    forged,
+                    nonce=nonce,
+                    phase="audio",
+                    source_sha256=source,
+                ),
+            )
+
+    def test_effect_control_phase_machine_rejects_wrong_order_and_replay(self):
+        machine = runner._OwnedEffectControlPhases()
+        self.assertEqual(machine.accept("audio"), "audio")
+        with self.assertRaisesRegex(
+            runner.BaselineFailure, "owned effect control.*replayed",
+        ):
+            machine.accept("audio")
+
+        wrong_order = runner._OwnedEffectControlPhases()
+        with self.assertRaisesRegex(
+            runner.BaselineFailure, "owned effect control.*order",
+        ):
+            wrong_order.accept("microphone")
+
+        ordered = runner._OwnedEffectControlPhases()
+        self.assertEqual(ordered.accept("audio"), "audio")
+        self.assertEqual(ordered.accept("microphone"), "microphone")
+        with self.assertRaisesRegex(
+            runner.BaselineFailure, "owned effect control.*replayed",
+        ):
+            ordered.accept("microphone")
+
+    def test_effect_control_channel_consumes_real_fixed_records_without_diagnostics(self):
+        nonce = "d" * 64
+        source = runner._CLASSIFICATION_SOURCE_SHA256
+        records = {
+            runner._owned_effect_control_filename(nonce, "audio"):
+                runner._owned_effect_control_record(nonce, "audio", source),
+        }
+
+        def run(arguments, **_kwargs):
+            if "test" in arguments:
+                index = arguments.index("test")
+                filename = arguments[index + 2]
+                return SimpleNamespace(
+                    returncode=0 if filename in records else 1,
+                    stdout=b"",
+                )
+            if "dd" in arguments:
+                index = arguments.index("dd")
+                filename = arguments[index + 1].removeprefix("if=")
+                return SimpleNamespace(returncode=0, stdout=records[filename])
+            if "rm" in arguments:
+                index = arguments.index("rm")
+                records.pop(arguments[index + 2], None)
+                return SimpleNamespace(returncode=0, stdout=b"")
+            raise AssertionError(arguments)
+
+        phases = runner._OwnedEffectControlPhases()
+        with (
+            mock.patch.object(runner, "_classification_source_matches", return_value=True),
+            mock.patch.object(runner, "_adb_path", return_value=Path("/owned/adb")),
+            mock.patch.object(
+                runner, "_test_lifecycle_adb_prefix", return_value=["/owned/adb"],
+            ),
+            mock.patch.object(runner.subprocess, "run", side_effect=run),
+        ):
+            self.assertEqual(
+                runner._poll_owned_effect_control(nonce, phases), "audio",
+            )
+            self.assertEqual(records, {})
+            records[runner._owned_effect_control_filename(nonce, "microphone")] = (
+                runner._owned_effect_control_record(nonce, "microphone", source)
+            )
+            self.assertEqual(
+                runner._poll_owned_effect_control(nonce, phases), "microphone",
+            )
+            self.assertEqual(records, {})
+
+    def test_effect_control_channel_rejects_invalid_record_before_host_arm(self):
+        nonce = "d" * 64
+        filename = runner._owned_effect_control_filename(nonce, "audio")
+        invalid = runner._owned_effect_control_record(
+            nonce, "audio", runner._CLASSIFICATION_SOURCE_SHA256,
+        )[:-1] + b"x"
+
+        def run(arguments, **_kwargs):
+            if "test" in arguments:
+                index = arguments.index("test")
+                return SimpleNamespace(
+                    returncode=0 if arguments[index + 2] == filename else 1,
+                    stdout=b"",
+                )
+            if "dd" in arguments:
+                return SimpleNamespace(returncode=0, stdout=invalid)
+            raise AssertionError(arguments)
+
+        with (
+            mock.patch.object(runner, "_classification_source_matches", return_value=True),
+            mock.patch.object(runner, "_adb_path", return_value=Path("/owned/adb")),
+            mock.patch.object(
+                runner, "_test_lifecycle_adb_prefix", return_value=["/owned/adb"],
+            ),
+            mock.patch.object(runner.subprocess, "run", side_effect=run),
+        ):
+            with self.assertRaisesRegex(
+                runner.BaselineFailure, "owned effect control record was invalid",
+            ):
+                runner._poll_owned_effect_control(
+                    nonce, runner._OwnedEffectControlPhases(),
+                )
+
     def test_owned_host_package_versions_are_bounded_and_explicit(self):
         values = {
             "RDP_ACCEPTANCE_WINPR_PACKAGE_VERSION": "3.8.0+dfsg-3build3",
@@ -221,6 +363,7 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             def select(self, *, timeout):
                 values = (
                     SimpleNamespace(fd=7, data="xi2"),
+                    SimpleNamespace(fd=7, data="shadow"),
                     SimpleNamespace(fd=8, data="phase"),
                     SimpleNamespace(fd=8, data="phase"),
                     SimpleNamespace(fd=8, data="phase"),
@@ -239,22 +382,23 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             b"\xe2\x8e\xa1 Virtual core keyboard id=3\n"
             b"EVENT type 13 (RawKeyPress)\n    detail: 38\n"
             b"EVENT type 14 (RawKeyRelease)\n    detail: 38\n",
+            b"owned-shadow-progress",
             runner._CHANNEL_PHASE_MICROPHONE,
             runner._CHANNEL_PHASE_DISP,
             runner._CHANNEL_PHASE_CLIP,
         ))
         evidence = CHANNEL_EVIDENCE.copy()
         marker_evidence = runner._OwnedMarkerEvidence(
-            "available", "observed", "observed", stage="complete",
+            "available", "invalid", "unknown",
         )
-        stages = iter(("audioEffectWait", "microphoneEffectWait"))
         lifecycle = SimpleNamespace(
             start=lambda: None,
             stop=lambda: None,
-            last_stage=lambda: next(stages, "microphoneEffectWait"),
+            last_stage=lambda: None,
             last_evidence=lambda: marker_evidence,
             observe_after_host_exit=lambda: (None, marker_evidence),
         )
+        controls = iter(("audio", "microphone", None, None))
         with tempfile.TemporaryDirectory() as temporary:
             with (
                 mock.patch.object(
@@ -268,6 +412,10 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                 mock.patch.object(runner.subprocess, "Popen", side_effect=[xinput, gradle]),
                 mock.patch.object(
                     runner, "_OwnedLifecycleObserver", return_value=lifecycle,
+                ),
+                mock.patch.object(
+                    runner, "_poll_owned_effect_control",
+                    side_effect=lambda *_args, **_kwargs: next(controls, None),
                 ),
                 mock.patch.object(runner, "_cleanup_test_lifecycle_stage"),
                 mock.patch.object(runner.selectors, "DefaultSelector", return_value=Selector()),
@@ -2663,6 +2811,11 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertIn(
                 "-Pandroid.testInstrumentationRunnerArguments."
                 f"rdpDiagnosticNonce={'d' * 64}",
+                command,
+            )
+            self.assertIn(
+                "-Pandroid.testInstrumentationRunnerArguments."
+                f"rdpControlSourceSha256={runner._CLASSIFICATION_SOURCE_SHA256}",
                 command,
             )
             self.assertFalse(report.exists())

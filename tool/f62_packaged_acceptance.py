@@ -87,6 +87,15 @@ _CHANNEL_PHASES = [_CHANNEL_PHASE_MICROPHONE, _CHANNEL_PHASE_DISP, _CHANNEL_PHAS
 _CHANNEL_PHASE_BYTES = 24
 _AUDIO_ARM_MAGIC = b"LRNAUD01"
 _AUDIO_ARM_BYTES = 72
+_EFFECT_CONTROL_MAGIC = b"LRNCTL01"
+_EFFECT_CONTROL_PHASE_CODES = {
+    "audio": b"AUDARM01",
+    "microphone": b"MICARM01",
+}
+_OWNED_TEST_DIGEST = (
+    "784cd21e527c4b3bac1eef254097cdaf5cc3ef8d4f41d4b4473c61724bb69fbb"
+)
+_EFFECT_CONTROL_BYTES = 208
 _CLIPBOARD_MARKER_COLOR = "#8f3c72"
 _SHADOW_PORT = 3390
 _MAX_SHADOW_LOG_BYTES = 1024 * 1024
@@ -247,7 +256,7 @@ def _valid_open_boundaries(value: object) -> bool:
 
 
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "06292978ae81a92b40a187ed2ec4555fdb3fae2503b99218fbd8da3fa2e70396"
+    "6fa2825ecb455cf30dc1d4412bc75cc30a1417df0a3029862dbc66e193daeaa0"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -1145,6 +1154,199 @@ def _test_lifecycle_filename(nonce: str) -> str:
     if _DIAGNOSTIC_NONCE.fullmatch(nonce) is None:
         raise ValueError("invalid packaged RDP diagnostic nonce")
     return f"files/f62-owned-stage-{nonce}"
+
+
+def _owned_effect_control_filename(nonce: str, phase: str) -> str:
+    if _DIAGNOSTIC_NONCE.fullmatch(nonce) is None:
+        raise ValueError("invalid packaged RDP effect-control nonce")
+    if phase not in _EFFECT_CONTROL_PHASE_CODES:
+        raise ValueError("invalid packaged RDP effect-control phase")
+    return f"files/f62-owned-arm-{nonce}-{phase}"
+
+
+def _owned_effect_control_record(
+    nonce: str,
+    phase: str,
+    source_sha256: str,
+) -> bytes:
+    _owned_effect_control_filename(nonce, phase)
+    if _DIGEST.fullmatch(source_sha256) is None:
+        raise ValueError("invalid packaged RDP effect-control source")
+    record = b"".join((
+        _EFFECT_CONTROL_MAGIC,
+        _EFFECT_CONTROL_PHASE_CODES[phase],
+        nonce.encode("ascii"),
+        source_sha256.encode("ascii"),
+        _OWNED_TEST_DIGEST.encode("ascii"),
+    ))
+    if len(record) != _EFFECT_CONTROL_BYTES:
+        raise AssertionError("invalid packaged RDP effect-control record")
+    return record
+
+
+def _decode_owned_effect_control_record(
+    record: bytes,
+    *,
+    nonce: str,
+    phase: str,
+    source_sha256: str,
+) -> str | None:
+    try:
+        expected = _owned_effect_control_record(nonce, phase, source_sha256)
+    except ValueError:
+        return None
+    return phase if record == expected else None
+
+
+class _OwnedEffectControlPhases:
+    """Accept the two exact one-shot effect controls in causal order."""
+
+    def __init__(self) -> None:
+        self._accepted: list[str] = []
+
+    @property
+    def accepted(self) -> tuple[str, ...]:
+        return tuple(self._accepted)
+
+    def accept(self, phase: str) -> str:
+        if phase in self._accepted:
+            raise BaselineFailure(
+                "host_channel_witness_invalid",
+                "owned effect control was replayed",
+            )
+        expected = (
+            "audio" if not self._accepted
+            else "microphone" if self._accepted == ["audio"]
+            else None
+        )
+        if phase != expected:
+            raise BaselineFailure(
+                "host_channel_witness_invalid",
+                "owned effect control order was invalid",
+            )
+        self._accepted.append(phase)
+        return phase
+
+
+def _read_owned_effect_control_file(
+    nonce: str,
+    phase: str,
+    *,
+    deadline: float,
+) -> bytes | None:
+    filename = _owned_effect_control_filename(nonce, phase)
+    adb = _adb_path()
+    if adb is None:
+        return None
+    prefix = _test_lifecycle_adb_prefix(adb)
+    if prefix is None:
+        return None
+
+    def invoke(arguments: list[str]) -> subprocess.CompletedProcess[bytes] | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            return subprocess.run(
+                [*prefix, "exec-out", "run-as", _TEST_PACKAGE, *arguments],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=remaining,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    exists = invoke(["test", "-e", filename])
+    if exists is None or exists.returncode == 1:
+        return None
+    if exists.returncode != 0:
+        return None
+    result = invoke(["dd", f"if={filename}", "bs=209", "count=1"])
+    if result is None or result.returncode != 0:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control could not be read",
+        )
+    return result.stdout
+
+
+def _poll_owned_effect_control(
+    nonce: str,
+    phases: _OwnedEffectControlPhases,
+    *,
+    timeout: float = 0.5,
+) -> str | None:
+    """Consume at most one exact control without consulting diagnostics."""
+    if not _classification_source_matches():
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned effect control source was unavailable",
+        )
+    deadline = time.monotonic() + max(0.0, timeout)
+    records = {
+        phase: _read_owned_effect_control_file(
+            nonce, phase, deadline=deadline,
+        )
+        for phase in _EFFECT_CONTROL_PHASE_CODES
+    }
+    present = [phase for phase, record in records.items() if record is not None]
+    if not present:
+        return None
+    expected = "audio" if not phases.accepted else "microphone"
+    if present != [expected]:
+        # Simultaneous first controls, a retained prior record, or a repeated
+        # phase are all non-causal. None may arm a host effect.
+        candidate = present[0]
+        phases.accept(candidate)
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control order was invalid",
+        )
+    raw = records[expected]
+    if raw is None or _decode_owned_effect_control_record(
+        raw,
+        nonce=nonce,
+        phase=expected,
+        source_sha256=_CLASSIFICATION_SOURCE_SHA256,
+    ) is None:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control record was invalid",
+        )
+    accepted = phases.accept(expected)
+    filename = _owned_effect_control_filename(nonce, expected)
+    adb = _adb_path()
+    prefix = None if adb is None else _test_lifecycle_adb_prefix(adb)
+    if prefix is None:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control could not be consumed",
+        )
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control could not be consumed",
+        )
+    try:
+        removed = subprocess.run(
+            [*prefix, "shell", "run-as", _TEST_PACKAGE, "rm", "-f", filename],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=remaining,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        removed = None
+    if removed is None or removed.returncode != 0:
+        raise BaselineFailure(
+            "host_channel_witness_invalid",
+            "owned effect control could not be consumed",
+        )
+    return accepted
 
 
 class _ObservedLifecycleStage(str):
@@ -2335,6 +2537,7 @@ def _run_owned_shadow_baseline(
             audio_armed = False
             microphone_armed = False
             microphone_acknowledged = False
+            effect_controls = _OwnedEffectControlPhases()
             gradle_finished_at: float | None = None
             while True:
                 remaining = deadline - time.monotonic()
@@ -2452,7 +2655,12 @@ def _run_owned_shadow_baseline(
                                         "owned microphone effect preceded its arm")
                                 _acknowledge_microphone_effect(diagnostic_nonce)
                                 microphone_acknowledged = True
-                if not audio_armed and lifecycle.last_stage() == "audioEffectWait":
+                control = _poll_owned_effect_control(
+                    diagnostic_nonce,
+                    effect_controls,
+                    timeout=min(0.5, max(0.0, deadline - time.monotonic())),
+                )
+                if not audio_armed and control == "audio":
                     if audio_arm_fd is None:
                         raise BaselineFailure(
                             "host_channel_witness_invalid",
@@ -2462,7 +2670,7 @@ def _run_owned_shadow_baseline(
                     os.close(audio_arm_fd)
                     audio_arm_fd = None
                     audio_armed = True
-                if not microphone_armed and lifecycle.last_stage() == "microphoneEffectWait":
+                if not microphone_armed and control == "microphone":
                     if microphone_arm_fd is None:
                         raise BaselineFailure("host_channel_witness_invalid",
                             "owned microphone arm pipe was unavailable")
@@ -2595,6 +2803,8 @@ def main() -> int:
                     f"-Pandroid.testInstrumentationRunnerArguments.rdpPassword={password}",
                     "-Pandroid.testInstrumentationRunnerArguments."
                     f"rdpDiagnosticNonce={diagnostic_nonce}",
+                    "-Pandroid.testInstrumentationRunnerArguments."
+                    f"rdpControlSourceSha256={_CLASSIFICATION_SOURCE_SHA256}",
                 ],
                 runner_temp=runner_temp,
                 diagnostic_nonce=diagnostic_nonce,

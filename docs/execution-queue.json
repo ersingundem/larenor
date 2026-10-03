@@ -5877,7 +5877,8 @@
         "docs/testing/f62-owned-microphone-composed-2026-10-03.md",
         "docs/testing/f62-microphone-client-2026-10-03.md",
         "docs/testing/f62-microphone-native-consumer-2026-10-03.md",
-        "docs/testing/f62-microphone-package-2026-10-03.md"
+        "docs/testing/f62-microphone-package-2026-10-03.md",
+        "docs/testing/f62-owned-effect-control-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -5993,14 +5994,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact6bbe arm64package passed; x86 original1/1/0/0 still unclassified/no owned frame/body/lifecycle marker,resizefalse; canonical artifact11145584314 root verified, no runtime acceptance"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
-          "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root67 runner/workflow checks, pinned Ruff, required-native AndroidTest compile278; bounded source/nonce body marker, original XML/success unchanged; no local instrumentation acceptance"
         },
         {
           "kind": "review",
@@ -6145,10 +6138,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen SAF grant5 slice: root94RDP JVM/0skip/error/failure and actual AndroidTest compile; final18SAF JVM passed after replay/revocation and256record/4096URI capacity repair. Shared179Flutter/analyze and exact16-path hashes independently verified. Real files/Gateway remain false; no hosted transfer acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-effect-control-2026-10-03.md",
+          "commit": "79506adaeb2246b233118368cc7b5006b015e9f7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen effect-control slice on 79506 base: root78 runner/workflow tests, scoped Ruff and actual required-native AndroidTest compile passed; four-source manifest unchanged. Exact one-shot source/test/nonce-bound audio then mic controls consume before effect; invalid diagnostic cannot suppress arming. Hosted effects remain unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Mikrofon4 gerçek çift ABI paketi, local125native/105Flutter/128portable ve actual315task compile geçti. Exact06ef/run37125727523 arm64 package passed; x86 original1/1/0/0 failed, canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 doğrulandı; marker invalid, shadow live, resizefalse, kesin aşama/kök neden bilinmiyor. Tanı/effect-control ayrımı dar düzeltmesi hazırlanıyor; failed koşu rerun edilmedi. SAF grant5/clientSettings3 tamamlandı: encrypted permission ledger, exact authority/picker, replay/crash/revoke ve256record sınırı; root94RDP/compile, son18SAF/0skip,179Flutter/analyze geçti. Bu yerel grant alt dilimi dosya aktarımı değildir: filesfalse; private mirror, native asyncdrain/quota, explicit SAF save/readback ve RD Gateway hâlâ açık. F62 CI bekliyor/done sayılmaz; gerçek cihaz/ses kalitesi MANUAL ayrı. Eski9551 source-bound failure korunur."
+      "reason": "Yeniden çalışılıyor. Mikrofon4 gerçek çift ABI paketi, local125native/105Flutter/128portable ve actual315task compile geçti. Exact06ef/run37125727523 arm64 package passed; x86 original1/1/0/0 failed, canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 doğrulandı; marker invalid, shadow live, resizefalse, kesin aşama/kök neden bilinmiyor. Tanı/effect-control ayrımı tamamlandı: root78/Ruff ve actual AndroidTest compile geçti; exact source/test/nonce-bound tek kullanımlık arm, tanıdan bağımsız. Failed koşu rerun edilmedi; değişmiş kaynak hosted etkisi açık. SAF grant5/clientSettings3 tamamlandı: encrypted permission ledger, exact authority/picker, replay/crash/revoke ve256record sınırı; root94RDP/compile, son18SAF/0skip,179Flutter/analyze geçti. Bu yerel grant alt dilimi dosya aktarımı değildir: filesfalse; private mirror, native asyncdrain/quota, explicit SAF save/readback ve RD Gateway hâlâ açık. F62 CI bekliyor/done sayılmaz; gerçek cihaz/ses kalitesi MANUAL ayrı. Eski9551 source-bound failure korunur."
     },
     {
       "id": "F61",
@@ -6438,7 +6439,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Tarihsel exact721 broad dört Server shardı/Flutter/aggregate/emulator/APK/native/host geçti; F08 leaf observer ve Serveraggregate failed; değişmişa8/run36835138089 F08Linux/CoreUID IPC/cgroup passed. Exact5122 Security37121144283 passed; final combined required CI yerine geçmez. F60 exact9551/run37123578040 ve F62/run37123504468 original1/1/0/0 failed, source-bound canonical kimlikleri korunur. F60 RI5 source/paket düzeltmesi root55Moonlight+78RDP+13hazırlananSAF=146native/0skip/error/failure, actual compile315task ve88portable geçti; exact9a85/run37127353767 provider öncesi stale package identity ile FAILED; root86/Ruff identity düzeltmesi geçti, gerçek stream kabulü açık. F62 microphone4 local125native/105Flutter/128portable passed; exact06ef/run37125727523 x86 owned host gate FAILED; source-bound kanıt incelemesi sürüyor, arm64 package geçti. SAF grant5 lifecycle/crash/revocation local94RDP/son18SAF ve179Flutter geçti; gerçek mirror/asyncdrain/readback/quota ve RD Gateway açık. Yerel grant tam transfer sayılmaz. Reader yarışı düzeltilmesi önceki provider hatasının tek nedeni iddia edilmez. İkinci FINAL başlamaz; finalHEAD CI ve MANUAL ayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Tarihsel exact721 broad dört Server shardı/Flutter/aggregate/emulator/APK/native/host geçti; F08 leaf observer ve Serveraggregate failed; değişmişa8/run36835138089 F08Linux/CoreUID IPC/cgroup passed. Exact5122 Security37121144283 passed; final combined required CI yerine geçmez. F60 exact9551/run37123578040 ve F62/run37123504468 original1/1/0/0 failed, source-bound canonical kimlikleri korunur. F60 RI5 source/paket düzeltmesi root55Moonlight+78RDP+13hazırlananSAF=146native/0skip/error/failure, actual compile315task ve88portable geçti; exact9a85/run37127353767 provider öncesi stale package identity ile FAILED; root86/Ruff identity düzeltmesi geçti, gerçek stream kabulü açık. F62 microphone4 local125native/105Flutter/128portable passed; exact06ef/run37125727523 x86 owned host gate FAILED; source-bound canonical doğrulandı, arm64 package geçti. Tanıdan bağımsız effect-control root78/Ruff/actual AndroidTest compile geçti; hosted etki kabulü açık. SAF grant5 lifecycle/crash/revocation local94RDP/son18SAF ve179Flutter geçti; gerçek mirror/asyncdrain/readback/quota ve RD Gateway açık. Yerel grant tam transfer sayılmaz. Reader yarışı düzeltilmesi önceki provider hatasının tek nedeni iddia edilmez. İkinci FINAL başlamaz; finalHEAD CI ve MANUAL ayrı."
     },
     {
       "id": "FINAL.UI",

@@ -183,6 +183,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Independent v3 API/receipt/cancellation fences review and real open-socket newline RED-to-GREEN; old v2 failure cause remains unproved"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
+    "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root67 runner/workflow checks, pinned Ruff, required-native AndroidTest compile278; bounded source/nonce body marker, original XML/success unchanged; no local instrumentation acceptance"
   }
 ]
 ```

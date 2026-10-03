@@ -45,10 +45,16 @@ class RdpPackagedHostAcceptanceTest {
         diagnoseOwnedTestBody { entered, registerFailureMarker ->
             val arguments = InstrumentationRegistry.getArguments()
             val diagnosticNonce = arguments.required("rdpDiagnosticNonce")
+            val controlSourceSha256 = arguments.required("rdpControlSourceSha256")
             val context = ApplicationProvider.getApplicationContext<Context>()
             val diagnostic = OwnedLifecycleDiagnostic(
                 AtomicLifecycleStorage(context, diagnosticNonce),
                 entered,
+            )
+            val effectControl = OwnedEffectControl(
+                AtomicEffectControlStorage(context, diagnosticNonce),
+                diagnosticNonce,
+                controlSourceSha256,
             )
             registerFailureMarker(diagnostic::bodyFailure)
             diagnostic.enter("testInitialization")
@@ -158,6 +164,7 @@ class RdpPackagedHostAcceptanceTest {
                 assertEquals(0L, audioBaseline.acceptedCount)
                 assertEquals(0L, audioBaseline.completedCount)
                 diagnostic.enter("audioEffectWait")
+                effectControl.armAudio()
                 val audio = awaitRemoteAudio(session, audioBaseline, 30)
                 assertEquals(RdpRemoteAudioState.PLAYING, audio.state)
                 assertTrue(audio.deviceOpen)
@@ -167,6 +174,7 @@ class RdpPackagedHostAcceptanceTest {
                 diagnostic.enter("microphoneOpenWait")
                 val microphoneBaseline = awaitMicrophoneOpen(session, 30)
                 diagnostic.enter("microphoneEffectWait")
+                effectControl.armMicrophone()
                 awaitMicrophoneHostEffect(context, diagnosticNonce, session, microphoneBaseline, 30)
 
                 // The host runner observes this exact software HID key pair through XI2.
@@ -307,6 +315,7 @@ class RdpPackagedHostAcceptanceTest {
                 assertTrue(disabledPassword.all { it == '\u0000' })
             }
             diagnostic.enter("complete")
+            effectControl.remove()
             diagnostic.remove()
             }
         }
@@ -698,6 +707,76 @@ internal interface LifecycleStorage {
     fun remove()
 }
 
+internal interface EffectControlStorage {
+    fun write(phase: String, record: ByteArray)
+    fun remove()
+}
+
+internal class AtomicEffectControlStorage(
+    context: Context,
+    nonce: String,
+) : EffectControlStorage {
+    private val files = OWNED_EFFECT_CONTROL_PHASES.associateWith { phase ->
+        AtomicFile(File(context.filesDir, "f62-owned-arm-$nonce-$phase"))
+    }
+
+    override fun write(phase: String, record: ByteArray) {
+        val file = checkNotNull(files[phase])
+        check(!file.baseFile.exists())
+        var output: FileOutputStream? = null
+        try {
+            val stream = file.startWrite()
+            output = stream
+            stream.write(record)
+            stream.fd.sync()
+            file.finishWrite(stream)
+            output = null
+        } catch (failure: Exception) {
+            output?.let { stream ->
+                runCatching { file.failWrite(stream) }
+            }
+            throw failure
+        }
+    }
+
+    override fun remove() = files.values.forEach { it.delete() }
+}
+
+internal class OwnedEffectControl(
+    private val storage: EffectControlStorage,
+    private val nonce: String,
+    private val sourceSha256: String,
+) {
+    private var accepted = 0
+
+    init {
+        require(Regex("[0-9a-f]{64}").matches(nonce))
+        require(Regex("[0-9a-f]{64}").matches(sourceSha256))
+    }
+
+    fun armAudio() = arm("audio")
+
+    fun armMicrophone() = arm("microphone")
+
+    fun remove() = storage.remove()
+
+    private fun arm(phase: String) {
+        check(accepted < OWNED_EFFECT_CONTROL_PHASES.size)
+        check(OWNED_EFFECT_CONTROL_PHASES[accepted] == phase)
+        val phaseCode = checkNotNull(OWNED_EFFECT_CONTROL_CODES[phase])
+        val record = buildString(OWNED_EFFECT_CONTROL_BYTES) {
+            append("LRNCTL01")
+            append(phaseCode)
+            append(nonce)
+            append(sourceSha256)
+            append(OWNED_EFFECT_CONTROL_TEST_DIGEST)
+        }.encodeToByteArray()
+        check(record.size == OWNED_EFFECT_CONTROL_BYTES)
+        storage.write(phase, record)
+        accepted += 1
+    }
+}
+
 internal class AtomicLifecycleStorage(context: Context, nonce: String) : LifecycleStorage {
     private val file: AtomicFile
 
@@ -844,6 +923,15 @@ private val OWNED_LIFECYCLE_STAGES = setOf(
     "credentialValidation",
     "complete",
 )
+
+private val OWNED_EFFECT_CONTROL_PHASES = listOf("audio", "microphone")
+private val OWNED_EFFECT_CONTROL_CODES = mapOf(
+    "audio" to "AUDARM01",
+    "microphone" to "MICARM01",
+)
+private const val OWNED_EFFECT_CONTROL_TEST_DIGEST =
+    "784cd21e527c4b3bac1eef254097cdaf5cc3ef8d4f41d4b4473c61724bb69fbb"
+private const val OWNED_EFFECT_CONTROL_BYTES = 208
 
 private val OWNED_BODY_THROWABLE_CLASSES = setOf(
     "com.ersingundem.larenor.rdp.RdpNativeFailure",
