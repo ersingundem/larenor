@@ -5741,13 +5741,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37136853828",
           "commit": "15ba7702ba6290d606dbf7cac9114719b15052c8",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact15ba full changed-source strict packaged Android Sunshine stream acceptance running after actual Linux observer handoff proof. Original named effects/counts/package/source receipt required; no acceptance promotion before terminal validation."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact15ba strict stream failed before instrumentation: owned host process exited before pinned API readiness. No named acceptance count or artifact was produced. Raw private job log SHA80b60776b9dadcf475a50cd630af476106f1545718ec98f15e0bc9ab30abc1da; no same-SHA rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact847 strict37134249192 xi2ChildExit; çakışan XInput seçimi için sıralı handoff82test geçti. Kısa exact5a715 probe37135929910 keyListener aşamasında başarısız; xmodmap paketini açıkça kuran yeni workflow ve finite tanı83test+Ruff geçti. Değişmiş Linux probe ve gerçek Android iki yaşam/yayın/girdi/kapanış kabulü açık. Aynı SHA rerun, kabul veya merge yok."
+      "reason": "Exact15ba Linux observer37136733239 geçti: overlap xi2ChildExit ve sıralı keyboard/pointer/button handoff kanıtlandı. Full strict37136853828 instrumentation öncesi owned Sunshine API readiness process exit ile başarısız; named test/acceptance receipt oluşmadı. Bounded startup tanısı eklenecek; kök neden doğrulanmadan aynı SHA rerun veya kabul yok. Gerçek iki yaşam/yayın/girdi/kapanış kapısı açık."
     },
     {
       "id": "G11",
@@ -6021,14 +6021,6 @@
           "label": "Exact42be arm64 passed; x86 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; ownedShadowProcess live/exitCodenull; root canonical1667B artifact11149613819 verified; precise cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f62-42be-provider-failure-2026-10-01.md",
-          "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root exact revision, source/package/fixture and closed canonical validation; provider live poll does not prove transport cause, Unicode OS text effect or Dart frame-stream failure"
-        },
-        {
           "kind": "test",
           "ref": "docs/testing/f62-owned-fullscreen-window-lease-2026-10-01.md",
           "commit": "d66b0afc165424d6cc3fcd847ada1c1bd094dc50",
@@ -6155,10 +6147,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact15ba owned Gateway Linux probe failed before runtime: Build pinned endpoints stageunsafeArchive. Job111242689243 log SHAaeb7baa7042c2c067086b3f01456f119dc34b01e9a299c435233f153858ff03b. Exact archive member diagnosis and narrow changed-source repair pending; no blind rerun or acceptance."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37137081865",
+          "commit": "950eda1458fe0fd82d7d31b9186edf10f2cc2edd",
+          "state": "completed",
+          "result": "failed",
+          "label": "Changed exact950 Linux Gateway probe failed in pinned endpoint build and cleanup. Root-directory archive fix passed30tests/15subtests; new failure is under source-bound diagnosis. No runtime/Android acceptance; no same-SHA rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf201 RDP37128695877 FAILED; x86 effect-control sırası ve host etkileri açık. Private native5 actual iki ABI doğrulandı; root177native/0skip+AndroidTest compile315,145Flutter/analyze,Core25 ve portable22 geçti. Bağımsız incelemenin Gateway probe erişim açığı root13native+23tablet ile kapandı; SAF readback kurtarma ve durable secret cleanup düzeltiliyor. Gerçek Gateway/RDPDR/SAF ve audio/mic kabulü açık; private/yerel kanıt kabul değildir."
+      "reason": "Exact950 Gateway Linux37137081865 endpoint build ve cleanup adımında başarısız; yeni hata dar tanıda. Private native5/Flutter/Core kapıları geçti, kabul değildir. Root dosya durumunun asynchronous drain sonrası prepared takılmasını EN/TR4RED→4GREEN ve full75test/analyze ile düzeltti. SAF3 incelemesi gerçek bridge.dispose native drain bypass, UI thread block, timeout executor leak ve COMPLETE cleanup→prepare yarışı buldu; SAF4 onarımı özel kaynakta aktif. Gerçek Gateway/RDPDR/SAF/audio/mic ve final required CI açık."
     },
     {
       "id": "F61",

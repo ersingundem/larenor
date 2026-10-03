@@ -71,3 +71,15 @@ Android SAF upload/save/readback are still pending. Product `rdGateway` and
 F62 stays `reworking`. Accepted totals stay 35/127 tasks and 3/63 selected
 features; FINAL.FUNCTION stays active. No next final or merge is permitted by
 these local results.
+
+## Durable retirement follow-up
+
+The exact five-source followup4 freeze was independently cleared and composed into the private root project. Its bounded deletion-only retirement index is persisted/read back before Core profile PATCH or DELETE. A fresh complete Core inventory preserves equal-revision secrets, retires only the indexed old secret after a higher revision or deletion, and rejects lower/malformed inventories. All six root Gateway admission guards remain unchanged. Root then passed 45 composed vault/tablet tests (21+24), private log SHA-256 `c87a0e3977c941673d46c5ae352bd34e717612e34d2eff0b10339c33b57ba6ab`; four-file analysis clean, log `4df41e5aaea8d711dc4a9f49ed8bb9b35189ff318c5c2beda35636ac41d09fef`. These are secure-storage/Core lifecycle test fixtures, not Android keystore process-death or live Gateway acceptance.
+
+SAF followup2 passed 23 focused tests but independent review found two blocking gaps: manager executor termination did not prove native writer/drain completion; a cold COMPLETE ledger could admit a successor before durable mirror cleanup. Followup3 must close both with pending-native-drain and direct cold-COMPLETE-to-prepare regressions before root composition. Native5 source admission and feature acceptance remain closed.
+
+## File receipt status propagation
+
+The ordinary panel previously remained Prepared after its exact native close/drain returned sealed or unknown. Four EN/TR widget regressions failed on that stale text (private log `3eb3307fcee2a01610545c57f26e60fb123b5f042a6f4e6479c990aa82f0d044`). The controller now publishes the asynchronous exact-owner receipt only if its generation/scope remains current; the panel exposes localized real status. Sealed enables explicit Save; unknown does not. No automatic SAF writes occur. The focused four tests passed (`aaaaf5da4a6ce876aa4bafaf0cccf5186f099252709c31c20de41ea359c864d2`); all 75 panel/controller/schema6 tests passed (`56cdf174ecb4cbb6a758b475269511b509d7edb391a61f8b1df043ed03de9861`); five-item analysis was clean (`2f3d9f58cdf59b5e2a1d87d354abcca5874e2b98679348cc5732e30c9c8b582e`). These use UI/MethodChannel fixtures and do not establish actual Gateway, native RDPDR, or Android provider acceptance.
+
+SAF followup3's 27 focused tests do not clear production retirement: independent review found that bridge.dispose retires/nulls the session before the coordinator's native-drain proof, synchronous close could block Activity cleanup, a timed-out callback leaves non-daemon executors running, and same-process COMPLETE cleanup can race a new prepare. A fourth private follow-up must close these through the real bridge path before composition/admission.

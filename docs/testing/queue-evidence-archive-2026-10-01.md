@@ -362,3 +362,20 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+3 October changed exact950eda fixture archive (CI retained):
+
+```json
+[
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/f62-42be-provider-failure-2026-10-01.md",
+    "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root exact revision, source/package/fixture and closed canonical validation; provider live poll does not prove transport cause, Unicode OS text effect or Dart frame-stream failure"
+  }
+]
+```
