@@ -2,6 +2,8 @@
 
 **Son durum: 3 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 69 iş CI bekliyor. F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
+**Teslim sırası:** FINAL.FUNCTION kabulü ve mevcut dalın exact HEAD zorunlu yeşil CI doğrulaması tamamlanınca `codex/project-completion-100` main’e birleşir. FINAL.UI güncel main’den açılan ayrı tek dalda başlar; diğer final maddeleri yine sırayla yürütülür. Henüz merge veya UI dalı açılmadı.
+
 3 Ekim exact `9551e73782fdfcfb4a1308e1d01522858ec8d494` [strict Sunshine37123578040](https://github.com/ersingundem/larenor/actions/runs/37123578040) ve [strict RDP37123504468](https://github.com/ersingundem/larenor/actions/runs/37123504468) başarısız tamamlandı; ikisinin original named sonucu1/1/0/0 ve canonical source/validator/hash kimliği doğrulandı. Sunshine RTSP handshake aşamasında: launch/resume farklı RI anahtarı üretiyor, gerçek kaynak düzeltmesi hazırlanıyor. RDP arm64 package geçti; x86 firstSessionOpen/RdpNativeFailure, tanı marker invalid. Dar reader yarışı düzeltmesi sağlayıcı kök nedeninin tek başına kanıtı değildir. Mikrofon4 yerel ürün dilimi tamamlandı; root125native/105Flutter/128portable ve actual AndroidTest315task geçti, owned host kabulü açık. F60/F62 ve FINAL.FUNCTION açık, sayaçlar değişmedi. [Exact terminal kanıt](testing/native-strict-9551-failure-2026-10-03.md).
 
 3 Ekim mikrofon4: varsayılan kapalı seçim, exact izin/foreground/AppOps sahipliği ve gerçek AUDIN capture/submission, verified çift ABI ürün paketiyle **125 native / 105 Flutter / 128 portatif** test ve actual AndroidTest **315 task** derlemesini geçti. Hosted mikrofon etkisi henüz kanıtlanmadı; F62 gerçek SAF/Gateway ve runtime eksikleri nedeniyle yeniden çalışılıyor. Sayaçlar değişmedi. [Birleşik dar kanıt](testing/f62-owned-microphone-composed-2026-10-03.md).
@@ -20,6 +22,8 @@ kalır ve sayaçlar artmaz. [Birleşik kanıt](testing/f60-launch-key-composed-2
 Değişmiş RI5 [exact9a85 Sunshine37127353767](https://github.com/ersingundem/larenor/actions/runs/37127353767) provider öncesi başarısız: kabul aracı eski embed-v4 kimliğini beklediği için actual embed-v5 paketi reddetti. Ortak strict paket kaynağına bağlanan dar düzeltme **86/86** test ve Ruff geçti. Bu koşu yayın başlatmadı; gerçek yayın kabulü açık. [Kimlik düzeltmesi](testing/f60-ri5-acceptance-identity-2026-10-03.md).
 
 3 Ekim SAF grant5/clientSettings3 alt dilimi tamamlandı: exact platform picker, şifreli izin kaydı, aynı isteğin replay/revocation kontrolü ve ayarlar yaşam döngüsü bağlandı. Root **94 RDP JVM + son 18 SAF / 0 atlama-hata**, actual AndroidTest derlemesi ve **179 Flutter / temiz analiz** kanıtını doğruladı. Gerçek dosya mirror/async drain/quota/explicit save/readback ve Gateway açık; F62 yeniden çalışılıyor, sayaçlar artmadı. [Native kanıt](testing/f62-saf-grants-native-2026-10-03.md), [istemci kanıtı](testing/f62-saf-client-2026-10-03.md).
+
+Değişmiş kaynak kabul koşuları bir kez başlatıldı: [Sunshine exact79506 / 37128656191](https://github.com/ersingundem/larenor/actions/runs/37128656191) ve [RDP exactf201 / 37128695877](https://github.com/ersingundem/larenor/actions/runs/37128695877). Sonuçlar bekleniyor; kabul sayaçları artmadı.
 
 ## Güncel durum ayrımı
 

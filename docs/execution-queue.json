@@ -5541,14 +5541,6 @@
           "label": "Exact362 embed-v3 canonical1test/0failure/0error/0skip,2fresh production NSD lifetimes; bounded receipt root verified;streamAccepted=false"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-pin-transport-observation-2026-10-01.md",
-          "commit": "e5e89192a396b5b3508692f6ffec817ed78b665d",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root60stream/discovery+10workflow passed;fixed transport stages and exact owned child reaping;strict actual runtime acceptance separate"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36816571516",
           "commit": "31f152c20cea3fde5b58b84b781be45564e90a54",
@@ -5739,10 +5731,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen identity repair on 0cb base: root86 discovery/stream/workflow tests and Ruff0.14.1 clean. Strict shared package lock replaces stale acceptance constant; current5 accepted, old4 rejected; actual AAR/source/class binding retained. Hosted stream acceptance open."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37128656191",
+          "commit": "79506adaeb2246b233118368cc7b5006b015e9f7",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed identity source exact79506 dispatched once; actual Sunshine launch/resume/RTSP/frame/nonzeroPCM/input/two lifetimes/close gate pending. Old pre-provider and RTSP failures retained; no same-SHA rerun or acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. RI5 gerçek paket/consumer dilimi yerelde tamamlandı: provider launch ve matching-app resume aynı tek kullanımlık RI key/ID ile Game bağlantısına aktarılır; açık matching uygulama kapatılmaz. Exact binding/session/quality sahipliği, timeout, concurrent one-use, wipe ve geç eski publish/successor çitleri var. Root actual dualABI v5 AAR+microphone4 ürününü doğruladı;55Moonlight+78RDP+13hazırlananSAF=146JVM/0skip/error/failure, actual AndroidTest compile315task,88portable ve Ruff geçti;1227-source manifest değişmedi. Exact9551/run37123578040 FAILED original1/1/0/0 rtspHandshake sonucu korunur; RI farkı source-confirmed composition eksikliğidir, eski sağlayıcı hatasının tek nedeni iddia edilmez. Değişmiş exact kaynak strict launch/RTSP/frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli. F60 CI bekliyor/done sayılmaz; fiziksel receiver MANUAL ayrı. Exact9a85/run37127353767 provider öncesi eski v4 kabul sabiti nedeniyle FAILED; artifact yok. Root86 ve Ruff ile ortak strict lock kimliği düzeltildi; değişmiş kaynakta gerçek stream kabulü açık."
+      "reason": "Yeniden çalışılıyor. RI5 gerçek paket/consumer dilimi yerelde tamamlandı: provider launch ve matching-app resume aynı tek kullanımlık RI key/ID ile Game bağlantısına aktarılır; açık matching uygulama kapatılmaz. Exact binding/session/quality sahipliği, timeout, concurrent one-use, wipe ve geç eski publish/successor çitleri var. Root actual dualABI v5 AAR+microphone4 ürününü doğruladı;55Moonlight+78RDP+13hazırlananSAF=146JVM/0skip/error/failure, actual AndroidTest compile315task,88portable ve Ruff geçti;1227-source manifest değişmedi. Exact9551/run37123578040 FAILED original1/1/0/0 rtspHandshake sonucu korunur; RI farkı source-confirmed composition eksikliğidir, eski sağlayıcı hatasının tek nedeni iddia edilmez. Değişmiş exact kaynak strict launch/RTSP/frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli. F60 CI bekliyor/done sayılmaz; fiziksel receiver MANUAL ayrı. Exact9a85/run37127353767 provider öncesi eski v4 kabul sabiti nedeniyle FAILED; artifact yok. Root86 ve Ruff ile ortak strict lock kimliği düzeltildi; değişmiş kaynakta gerçek stream kabulü açık. Değişmiş exact79506ada/run37128656191 bir kez başlatıldı; gerçek runtime kabulü bekleniyor."
     },
     {
       "id": "G11",
@@ -5996,14 +5996,6 @@
           "label": "Exact6bbe arm64package passed; x86 original1/1/0/0 still unclassified/no owned frame/body/lifecycle marker,resizefalse; canonical artifact11145584314 root verified, no runtime acceptance"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
-          "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent final ACK: host exit does not prove Android writer exit; no premature nonce cleanup, bounded shared deadline/cache fences and source-bound initial-frame/body observations; strict acceptance unchanged"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36831825081",
           "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
@@ -6146,10 +6138,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen effect-control slice on 79506 base: root78 runner/workflow tests, scoped Ruff and actual required-native AndroidTest compile passed; four-source manifest unchanged. Exact one-shot source/test/nonce-bound audio then mic controls consume before effect; invalid diagnostic cannot suppress arming. Hosted effects remain unproved."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37128695877",
+          "commit": "f201ecf9b7a181cd6a85d5e1f74fe9681a84d2a8",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed effect-control source exactf201 dispatched once; dual-ABI package plus original strict owned frame/ACK/key/DISP/clipboard/audio/microphone/two lifetimes/close gate pending. Prior failure retained; no acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Mikrofon4 gerçek çift ABI paketi, local125native/105Flutter/128portable ve actual315task compile geçti. Exact06ef/run37125727523 arm64 package passed; x86 original1/1/0/0 failed, canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 doğrulandı; marker invalid, shadow live, resizefalse, kesin aşama/kök neden bilinmiyor. Tanı/effect-control ayrımı tamamlandı: root78/Ruff ve actual AndroidTest compile geçti; exact source/test/nonce-bound tek kullanımlık arm, tanıdan bağımsız. Failed koşu rerun edilmedi; değişmiş kaynak hosted etkisi açık. SAF grant5/clientSettings3 tamamlandı: encrypted permission ledger, exact authority/picker, replay/crash/revoke ve256record sınırı; root94RDP/compile, son18SAF/0skip,179Flutter/analyze geçti. Bu yerel grant alt dilimi dosya aktarımı değildir: filesfalse; private mirror, native asyncdrain/quota, explicit SAF save/readback ve RD Gateway hâlâ açık. F62 CI bekliyor/done sayılmaz; gerçek cihaz/ses kalitesi MANUAL ayrı. Eski9551 source-bound failure korunur."
+      "reason": "Yeniden çalışılıyor. Mikrofon4 gerçek çift ABI paketi, local125native/105Flutter/128portable ve actual315task compile geçti. Exact06ef/run37125727523 arm64 package passed; x86 original1/1/0/0 failed, canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 doğrulandı; marker invalid, shadow live, resizefalse, kesin aşama/kök neden bilinmiyor. Tanı/effect-control ayrımı tamamlandı: root78/Ruff ve actual AndroidTest compile geçti; exact source/test/nonce-bound tek kullanımlık arm, tanıdan bağımsız. Failed koşu rerun edilmedi; değişmiş kaynak hosted etkisi açık. SAF grant5/clientSettings3 tamamlandı: encrypted permission ledger, exact authority/picker, replay/crash/revoke ve256record sınırı; root94RDP/compile, son18SAF/0skip,179Flutter/analyze geçti. Bu yerel grant alt dilimi dosya aktarımı değildir: filesfalse; private mirror, native asyncdrain/quota, explicit SAF save/readback ve RD Gateway hâlâ açık. F62 CI bekliyor/done sayılmaz; gerçek cihaz/ses kalitesi MANUAL ayrı. Eski9551 source-bound failure korunur. Değişmiş exactf201ecf9/run37128695877 bir kez başlatıldı; gerçek runtime kabulü bekleniyor."
     },
     {
       "id": "F61",
@@ -6248,12 +6248,13 @@
         "docs/PROGRESS.md",
         "docs/testing/native-strict-9551-failure-2026-10-03.md"
       ],
-      "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır.",
+      "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
         "F01–F63 ve ürün işlerinin her biri giriş noktası, yetki, mutlu yol, boş/yükleniyor/hata durumu, iptal, zaman aşımı, yeniden deneme, yeniden başlatma ve geri kazanma davranışlarıyla işlevsel envanterde tek tek doğrulanır; eksikler küçük izlenebilir düzeltmelere dönüştürülür.",
         "Client, Core, Home Assistant ve desteklenen medya/ağ/altyapı adaptörlerinin sürüm, şema, kimlik, yaşam döngüsü ve capability uyumu doğrulanır; eski veri geçişi, çoklu ev/hesap değişimi, çevrimdışı durum ve geç yanıtlar güvenli ve anlaşılır sonuç verir.",
         "Her özellik gerçek navigasyondan erişilebilir, amacı ve mevcut durumu anlaşılır, gerekli ayarlar ve geri bildirimler tamamlanmış, EN/TR metinleri tutarlı ve gereksiz adım tekrarı kaldırılmış halde kullanılabilir olur; yanıltıcı başarı, ölü düğme ve erişilemeyen işlev kalmaz.",
-        "İşlev envanteri ile kaynak, API sözleşmeleri ve kuyruk bire bir eşleştirilir; hedefli testler, gerçekçi entegrasyon senaryoları ve bağımsız inceleme tam head üzerinde geçmeden bu kapı tamamlanmış sayılmaz."
+        "İşlev envanteri ile kaynak, API sözleşmeleri ve kuyruk bire bir eşleştirilir; hedefli testler, gerçekçi entegrasyon senaryoları ve bağımsız inceleme tam head üzerinde geçmeden bu kapı tamamlanmış sayılmaz.",
+        "Bu dal main’e yalnız FINAL.FUNCTION kabulü, tüm bağımlılık kanıtları ve exact HEAD zorunlu yeşil CI doğrulandıktan sonra birleştirilir; merge sonrası main ancestry doğrulanır. FINAL.UI güncel main’den ayrı tek dalda yürütülür."
       ],
       "requiredEvidence": [
         "test",
@@ -6456,7 +6457,7 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/PROGRESS.md"
       ],
-      "scope": "Tüm seçili yazılım tamamlanınca; bu kapı tamamlanmadan yeni final README görseli yok.",
+      "scope": "FINAL.FUNCTION kabulü ve tamamlanma dalının yeşil CI ile main’e birleşmesinden sonra güncel main’den ayrı tek UI dalında yürütülür. UI bitmeden sonraki FINAL başlamaz; bu kapı tamamlanmadan final README görseli yok.",
       "acceptance": [
         "Dashboard/Media/Settings/Server ortak renk-tipografi-kart-form-dialog; gerçek akış, EN/TR 2× metin, klavye/TalkBack ve değişken DeX penceresi; tek slogan korunur."
       ],
@@ -6467,7 +6468,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": null
+      "reason": "Önce FINAL.FUNCTION ve mevcut tamamlanma dalının exact HEAD zorunlu yeşil CI ile main’e birleşmesi; ardından güncel main’den ayrı tek FINAL.UI dalı. Henüz başlanmadı."
     },
     {
       "id": "FINAL.AUDIT",
@@ -6855,7 +6856,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Tüm FINAL adımları sırayla kabul edildikten sonra başlayacak; ara PR açılmayacak, mevcut tamamlanma dalında commit/push ve son yeşil CI merge yapılacak."
+      "reason": "Tüm FINAL adımları sırayla kabul edildikten sonra başlayacak. FINAL.FUNCTION sonrası mevcut tamamlanma dalı yeşil CI ile main’e birleşir; FINAL.UI ayrı tek dalda yürütülür. Sonraki teslimler kendi exact HEAD kabul kapılarıyla ilerler; ev cihazlarında yazma yetkisi varsayılmaz."
     }
   ]
 }

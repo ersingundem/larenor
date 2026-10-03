@@ -192,6 +192,24 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root67 runner/workflow checks, pinned Ruff, required-native AndroidTest compile278; bounded source/nonce body marker, original XML/success unchanged; no local instrumentation acceptance"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-pin-transport-observation-2026-10-01.md",
+    "commit": "e5e89192a396b5b3508692f6ffec817ed78b665d",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root60stream/discovery+10workflow passed;fixed transport stages and exact owned child reaping;strict actual runtime acceptance separate"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/f62-owned-body-failure-marker-2026-10-01.md",
+    "commit": "03f6773ad2d8b02b026714f27bcceff9b5a66eb0",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent final ACK: host exit does not prove Android writer exit; no premature nonce cleanup, bounded shared deadline/cache fences and source-bound initial-frame/body observations; strict acceptance unchanged"
   }
 ]
 ```
