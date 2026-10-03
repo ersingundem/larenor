@@ -10,7 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tool'))
 
-from android_ci_scope import decide_scope, is_android_relevant
+from android_ci_scope import decide_scope, is_android_relevant  # noqa: E402
 
 
 class AndroidCiScopeTest(unittest.TestCase):
@@ -41,9 +41,9 @@ class AndroidCiScopeTest(unittest.TestCase):
             changed_files=lambda *_args: paths,
         ), (False, 'android-inputs-unchanged'))
 
-    def test_server_and_documentation_only_changes_reuse_android_evidence(self):
+    def test_ordinary_server_tests_and_documentation_reuse_android_evidence(self):
         for paths in (
-            ('server/larenor_server/app.py', 'server/tests/test_app.py'),
+            ('server/tests/test_app.py', 'server/tests/test_database.py'),
             ('docs/PROGRESS.md', 'README.md', 'LICENSE'),
         ):
             with self.subTest(paths=paths):
@@ -52,6 +52,29 @@ class AndroidCiScopeTest(unittest.TestCase):
                     head_sha='b' * 40,
                     changed_files=lambda *_args, value=paths: value,
                 ), (False, 'android-inputs-unchanged'))
+
+    def test_f54_native_core_compatibility_inputs_always_run(self):
+        paths = (
+            'server/larenor_server/app.py',
+            'server/larenor_server/local_notifications/service.py',
+            'server/tests/support/f54_native_service_acceptance.py',
+            'server/tests/conftest.py',
+            'server/tests/test_cli.py',
+            'server/pyproject.toml',
+            'server/uv.lock',
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(is_android_relevant(path))
+                self.assertEqual(decide_scope(
+                    event_name='pull_request', base_sha='a' * 40,
+                    head_sha='b' * 40,
+                    changed_files=lambda *_args, value=path: (value,),
+                ), (True, 'android-input-changed'))
+
+        # An unrelated Server test remains inside the reviewed reuse boundary.
+        self.assertFalse(is_android_relevant(
+            'server/tests/test_unrelated_server_behavior.py'))
 
     def test_progress_policy_only_changes_reuse_android_evidence(self):
         paths = (

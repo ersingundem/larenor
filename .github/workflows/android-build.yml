@@ -194,7 +194,7 @@ jobs:
   build-debug-apk:
     needs: build-product-native-engines
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -291,6 +291,49 @@ jobs:
         working-directory: android
         run: ./gradlew :app:testDebugUnitTest
 
+      - name: Retain broad JVM proof before the selected F54 clean task
+        if: always() && steps.android_scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import shutil
+          destination = Path(os.environ['RUNNER_TEMP']) / 'larenor-broad-jvm-proof'
+          for name, source in (
+              ('reports', Path('build/app/reports/tests/testDebugUnitTest')),
+              ('results', Path('build/app/test-results/testDebugUnitTest')),
+          ):
+              if source.is_dir():
+                  shutil.copytree(source, destination / name)
+          PY
+
+      - name: Prepare isolated tooling for actual F54 delivery
+        if: steps.android_scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -m venv "$RUNNER_TEMP/larenor-f54-tools"
+          "$RUNNER_TEMP/larenor-f54-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
+          echo "$RUNNER_TEMP/larenor-f54-tools/bin" >> "$GITHUB_PATH"
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/larenor-f54-venv" >> "$GITHUB_ENV"
+          echo "UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/larenor-f54-python" >> "$GITHUB_ENV"
+
+      - name: Install the reviewed F54 Core dependency lock
+        if: steps.android_scope.outputs.run == 'true'
+        working-directory: server
+        run: uv sync --locked --no-editable --python 3.12.14
+
+      - name: Require normal HTTPS Core and actual WorkManager delivery
+        if: steps.android_scope.outputs.run == 'true'
+        working-directory: server
+        env:
+          LARENOR_PRODUCT_NATIVE_ENGINES: required
+        run: |
+          set -euo pipefail
+          umask 077
+          uv run --locked --no-sync python tests/support/f54_native_service_acceptance.py
+
       - name: Preserve native test evidence
         id: test_evidence
         if: always() && steps.android_scope.outputs.run == 'true'
@@ -299,6 +342,7 @@ jobs:
         with:
           name: android-native-test-evidence
           path: |
+            ${{ runner.temp }}/larenor-broad-jvm-proof/
             build/app/reports/tests/testDebugUnitTest/
             build/app/test-results/testDebugUnitTest/
           if-no-files-found: ignore

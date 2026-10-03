@@ -19,7 +19,7 @@ _SHA = re.compile(r"^[0-9a-f]{40}$")
 _REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _RESULTS = {
     "server": ("SHARD_RESULT",),
-    "flutter": ("STATIC_RESULT", "TEST_RESULT"),
+    "flutter": ("STATIC_RESULT", "TEST_RESULT", "CORE_RESULT"),
     "native": ("SCOPE_RESULT", "MATRIX_RESULT"),
 }
 

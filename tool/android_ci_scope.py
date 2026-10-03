@@ -47,6 +47,19 @@ SAFE_SKIP_PATTERNS = (
     'tool/tests/execution_queue_test.py',
 )
 
+# The required F54 native acceptance starts a real authenticated Core and then
+# exercises the Android WorkManager client against it. Changes to production
+# Core code or to the fixture's exact dependency closure must therefore run the
+# Android/native job even though ordinary Server-only changes can reuse it.
+NATIVE_CORE_COMPATIBILITY_PATTERNS = (
+    'server/larenor_server/**',
+    'server/tests/support/f54_native_service_acceptance.py',
+    'server/tests/conftest.py',
+    'server/tests/test_cli.py',
+    'server/pyproject.toml',
+    'server/uv.lock',
+)
+
 
 def is_android_relevant(path: str) -> bool:
     """Return false only for a small reviewed set of non-Client paths."""
@@ -58,6 +71,9 @@ def is_android_relevant(path: str) -> bool:
             or '/../' in normalized
             or any(ord(character) < 32 or ord(character) == 127
                    for character in normalized)):
+        return True
+    if any(fnmatch.fnmatchcase(normalized, pattern)
+           for pattern in NATIVE_CORE_COMPATIBILITY_PATTERNS):
         return True
     return not any(fnmatch.fnmatchcase(normalized, pattern)
                    for pattern in SAFE_SKIP_PATTERNS)

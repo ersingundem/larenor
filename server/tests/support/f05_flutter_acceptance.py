@@ -4,7 +4,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import threading
@@ -12,6 +11,11 @@ import threading
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from conftest import auth, ready, server as core_fixture
 from support.installed_core_tcp import InstalledCoreTcp
+from support.named_flutter_acceptance import run_named_flutter
+
+
+TEST_FILE = "test/features/home_workflows/home_workflow_normal_core_test.dart"
+TEST_NAME = "real Client completes and reconciles a durable workflow across restart"
 
 
 class _HomeAssistant:
@@ -132,15 +136,21 @@ def _configure(fixture, upstream, output):
 
 def _flutter(fixture, phase, fixture_file):
     with InstalledCoreTcp(fixture[0]) as tcp:
-        return subprocess.run([
-            "flutter", "test", "--no-pub",
-            "test/features/home_workflows/home_workflow_normal_core_test.dart",
-        ], env={
-            **os.environ,
-            "LARENOR_F05_CORE_URL": f"http://127.0.0.1:{tcp.port}",
-            "LARENOR_F05_PHASE": phase,
-            "LARENOR_F05_FIXTURE": str(fixture_file),
-        }, cwd=Path(__file__).resolve().parents[3], timeout=120, check=False).returncode
+        counts = run_named_flutter(
+            test_file=TEST_FILE,
+            test_name=TEST_NAME,
+            env={
+                **os.environ,
+                "LARENOR_F05_CORE_URL": f"http://127.0.0.1:{tcp.port}",
+                "LARENOR_F05_PHASE": phase,
+                "LARENOR_F05_FIXTURE": str(fixture_file),
+            },
+            cwd=Path(__file__).resolve().parents[3],
+            log_path=fixture_file.parent / f"f05-{phase}.machine.jsonl",
+            timeout_seconds=120,
+        )
+        print(f"F05 {phase}: named1 passed1 failures0 errors0 skipped0")
+        return 0 if counts["passed"] == 1 else 1
 
 
 def main():
@@ -169,7 +179,7 @@ def main():
                 ("GET", f"/api/states/{upstream.entity_id}"),
             ]
             if methods != expected:
-                raise RuntimeError(f"unexpected_upstream_calls:{methods!r}")
+                raise RuntimeError("unexpected_upstream_calls")
             if any(call[2] != f"Bearer {upstream.token}" for call in upstream.calls):
                 raise RuntimeError("unexpected_upstream_authority")
     finally:

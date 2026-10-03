@@ -32,3 +32,5 @@ değişmedi. [Yeni exact hata kanıtları](native-strict-7950-f201-failure-2026-
 Eski CI hataları korunuyor; aynı kaynak körlemesine rerun edilmiyor. Fiziksel
 cihaz/gerçek ev servisi/hesap kapıları MANUAL kayıtlarında açık kalır. Probe,
 controller testi veya private port, özellik kabulünün yerine geçmez.
+
+Named F04/F05/F19/F20/F54 actual Client/Core matrix and F54 actual Android delivery are registered in required CI; root policy40 tests and local named lifetimes passed. Hosted final-source result remains open. [Bounded registration proof](required-normal-core-ci-2026-10-03.md).

@@ -3279,10 +3279,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent frozen two-path acceptance review CLEAR for production controller/store lifetime, preserved trusted bytes, uncertain writes and fail-closed revision limits; not full platform/CI/feature acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/required-normal-core-ci-2026-10-03.md",
+          "commit": "24941bbd245cf23122b589c0451e2149e46eac31",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root22 CI policy/workflow and18 strict runner tests passed; fixed actual Client/Core matrix registered fail-closed in required aggregate. Root named local lifetimes recorded separately; hosted exact-source CI/feature acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Production Client checkpoint failure regressions5/5 root ortak kaynakta geçti: corrupt/oversize/extra-key/read failure, sign-out/dispose sonrası geç callback, failed/uncertain write, stale/max revision trusted-state koruması. İki strict actual Flutter/normal-Core pin/rotate/restart yaşamı ve independent CLEAR; production guardlar düzeltme gerektirmedi. Final-source named required CI kayıt/sonucu ve kabul bağımlılıkları açık. Physical secure-store MANUAL ve platform in-flight write belirsizliği ayrı. Kanıt: docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md."
+      "reason": "Production Client checkpoint failure regressions5/5 root ortak kaynakta geçti: corrupt/oversize/extra-key/read failure, sign-out/dispose sonrası geç callback, failed/uncertain write, stale/max revision trusted-state koruması. İki strict actual Flutter/normal-Core pin/rotate/restart yaşamı ve independent CLEAR; production guardlar düzeltme gerektirmedi. Final-source named required CI sonucu ve kabul bağımlılıkları açık. Physical secure-store MANUAL ve platform in-flight write belirsizliği ayrı. Kanıt: docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md."
     },
     {
       "id": "F06",
@@ -3384,9 +3392,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/required-normal-core-ci-2026-10-03.md",
+          "commit": "24941bbd245cf23122b589c0451e2149e46eac31",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root22 CI policy/workflow and18 strict runner tests passed; fixed actual Client/Core matrix registered fail-closed in required aggregate. Root named local lifetimes recorded separately; hosted exact-source CI/feature acceptance open."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Gerçek Flutter HomeWorkflowAccountApi→normal TCP Core→owned HA iki yaşamında explicit approval ve causal provider readback completed oldu; exact create/approval replay ve ayrı pre-dispatch cancel restart boyunca yalnız bir HA POST yaptı. İki independent gerçek runner, 7 F05 Server, focused Flutter 2+runner-only skip ve analyze geçti; root F05/F36/F21/F54/Core context toplam 80 Server testini doğruladı. Process-loss/unknown physical outcome, late/cancel/revocation/corruption/limits focused kapıları korunur. Geniş exact HEAD CI ve gerçek household partial-effect MANUAL açık. Kanıt: docs/testing/f05-normal-core-home-workflow-2026-09-30.md. Yeni routing incelemesi: named production runner required CI grafiğine bağlı değil; kayıt ve exact final-source review/CI açık. docs/testing/final-function-routing-audit-2026-10-03.md."
+      "reason": "Strict actual normal-Core Flutter create/restart iki yaşam root üzerinde geçti; named machine sonuçları1pass/0fail/error/skip. F04/F05/F19/F20/F54 matrix required analyze-test aggregate içine kayıtlı; final-source hosted sonucu ve kabul bağımlılıkları açık. Kanıt: docs/testing/required-normal-core-ci-2026-10-03.md."
     },
     {
       "id": "G02",
@@ -3564,9 +3581,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/required-normal-core-ci-2026-10-03.md",
+          "commit": "24941bbd245cf23122b589c0451e2149e46eac31",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root22 CI policy/workflow and18 strict runner tests passed; fixed actual Client/Core matrix registered fail-closed in required aggregate. Root named local lifetimes recorded separately; hosted exact-source CI/feature acceptance open."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Normal HTTPS Core→actual WorkManager scheduler/production Worker iki executionı sealed restart/dedupe ve gerçek server DELETE revoke sonrası credential/owned-alert clear ile geçti. Yanlış remoteMessaging FGS/custom boot yolu kaldırıldı; unique immediate+15dk periodic, max3 transient retry, iki ek catch-up page, exact 401/403/410 retirement ve 409 renewal ayrımı tamamlandı. Async enqueue failure yalnız exact current leaseye recovery yazar; eski callback yeni authorityyi bozmaz. Root actual native1pass, 5 TLS CLI ve 2 overlay testi; agent14 Kotlin, 34 Flutter+1 fixture skip, iki foreground normalCore lifetime ve scoped analyze geçti. Geniş exact HEAD CI, fiziksel permission/reboot/Doze/OEM/Keystore ve trusted operator hostname MANUAL açık. Kanıt: docs/testing/f54-normal-core-native-delivery-2026-09-30.md. Yeni routing incelemesi: named production runner required CI grafiğine bağlı değil; kayıt ve exact final-source review/CI açık. docs/testing/final-function-routing-audit-2026-10-03.md."
+      "reason": "Strict actual normal-Core Flutter create/restart iki yaşam root üzerinde geçti; named machine sonuçları1pass/0fail/error/skip. F04/F05/F19/F20/F54 matrix required analyze-test aggregate içine kayıtlı; final-source hosted sonucu ve kabul bağımlılıkları açık. F54 normal HTTPS Core/actual WorkManager Android gate required build-debug-apk içine bağlandı; Core/runtime/fixture lock değişiklikleri bu gatei atlayamaz. Physical secure-store/OEM MANUAL ayrı. Kanıt: docs/testing/required-normal-core-ci-2026-10-03.md."
     },
     {
       "id": "F53",
@@ -3786,6 +3812,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent read-only exact production three-file SHA review CLEAR for packaged single-process dispatch; no P1/P2. Physical provider effects and multiprocess semantics not claimed."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/required-normal-core-ci-2026-10-03.md",
+          "commit": "24941bbd245cf23122b589c0451e2149e46eac31",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root22 CI policy/workflow and18 strict runner tests passed; fixed actual Client/Core matrix registered fail-closed in required aggregate. Root named local lifetimes recorded separately; hosted exact-source CI/feature acceptance open."
         }
       ],
       "completionCommit": null,
@@ -4198,10 +4232,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent exact frozen five-path acceptance review CLEAR for source/target me/context cancellation, profile limit zero-I/O, duplicate restore and normal Core catalog isolation. Physical homes/Jellyfin/secure hardware and final exactCI are unproved."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/required-normal-core-ci-2026-10-03.md",
+          "commit": "24941bbd245cf23122b589c0451e2149e46eac31",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root22 CI policy/workflow and18 strict runner tests passed; fixed actual Client/Core matrix registered fail-closed in required aggregate. Root named local lifetimes recorded separately; hosted exact-source CI/feature acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Sekiz actual Flutter→iki normal Core yaşamı root ortak kaynakta geçti: ayrı kaynak/hedef me/context cancel/geç cevap, negative authority, duplicate restore, profil data/search/cache izolasyonu ve restart. Gerçek16-profile UI/controller/store sınırı2/2 ve independent CLEAR; guard aktif session/generation/APIyi değiştirmeden zero-I/O reddeder. Uygulama/odaklı yazılım doğrulaması tamamlandı; registered named final-source CI ve F16/F20/F54 kabul bağımlılıkları açık. Physical home/secure-store MANUAL ayrı. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md."
+      "reason": "Sekiz actual Flutter→iki normal Core yaşamı root ortak kaynakta geçti: ayrı kaynak/hedef me/context cancel/geç cevap, negative authority, duplicate restore, profil data/search/cache izolasyonu ve restart. Gerçek16-profile UI/controller/store sınırı2/2 ve independent CLEAR; guard aktif session/generation/APIyi değiştirmeden zero-I/O reddeder. Uygulama/odaklı yazılım doğrulaması tamamlandı; registered named final-source CI sonucu ve F16/F20/F54 kabul bağımlılıkları açık. Physical home/secure-store MANUAL ayrı. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "G06",

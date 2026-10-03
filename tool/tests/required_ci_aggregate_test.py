@@ -38,7 +38,8 @@ class RequiredCiAggregateTest(unittest.TestCase):
 
         self.assertTrue(decide("server", {"SHARD_RESULT": "success"}, forbidden))
         self.assertTrue(decide("flutter", {
-            "STATIC_RESULT": "success", "TEST_RESULT": "success"}, forbidden))
+            "STATIC_RESULT": "success", "TEST_RESULT": "success",
+            "CORE_RESULT": "success"}, forbidden))
         self.assertTrue(decide("native", {
             "SCOPE_RESULT": "success", "RUN_NATIVE": "false",
             "MATRIX_RESULT": "skipped"}, forbidden))
@@ -65,7 +66,8 @@ class RequiredCiAggregateTest(unittest.TestCase):
     def test_only_cancelled_superseded_runs_avoid_false_failure(self):
         cancelled = (
             ("server", {"SHARD_RESULT": "cancelled"}),
-            ("flutter", {"STATIC_RESULT": "cancelled", "TEST_RESULT": "success"}),
+            ("flutter", {"STATIC_RESULT": "cancelled", "TEST_RESULT": "success",
+                         "CORE_RESULT": "success"}),
             ("native", {"SCOPE_RESULT": "cancelled", "RUN_NATIVE": "",
                         "MATRIX_RESULT": "cancelled"}),
         )
@@ -75,6 +77,19 @@ class RequiredCiAggregateTest(unittest.TestCase):
                 self.assertFalse(decide(kind, statuses, lambda: False))
                 self.assertFalse(decide(kind, statuses,
                                         lambda: (_ for _ in ()).throw(OSError())))
+
+    def test_named_core_missing_skipped_or_failed_cannot_pass_broad_flutter(self):
+        for result in (None, "", "skipped", "failure", "unknown", "cancelled"):
+            with self.subTest(core=result):
+                statuses = {"STATIC_RESULT": "success", "TEST_RESULT": "success"}
+                if result is not None:
+                    statuses["CORE_RESULT"] = result
+                self.assertFalse(decide("flutter", statuses, lambda: False))
+                if result != "cancelled":
+                    self.assertFalse(decide("flutter", statuses, lambda: True))
+        self.assertTrue(decide("flutter", {
+            "STATIC_RESULT": "success", "TEST_RESULT": "success",
+            "CORE_RESULT": "cancelled"}, lambda: True))
 
     def test_exact_pr_head_query_is_bounded_and_fail_closed(self):
         with tempfile.TemporaryDirectory() as root:

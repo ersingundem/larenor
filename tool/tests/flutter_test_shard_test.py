@@ -9,7 +9,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tool"))
 
-from flutter_test_shard import discover, partitions, select
+from flutter_test_shard import discover, partitions, select  # noqa: E402
 
 
 class FlutterTestShardTest(unittest.TestCase):
@@ -55,7 +55,10 @@ class FlutterTestShardTest(unittest.TestCase):
     def test_workflow_preserves_required_gate_and_isolated_evidence(self):
         workflow = (ROOT / ".github/workflows/analyze-test.yml").read_text()
         self.assertIn("  analyze-test:", workflow)
-        self.assertIn("needs: [static-analysis, flutter-test]", workflow)
+        self.assertIn(
+            "needs: [static-analysis, flutter-test, normal-core-acceptance]",
+            workflow,
+        )
         self.assertIn("shard: [0, 1, 2, 3]", workflow)
         self.assertIn("fail-fast: false", workflow)
         self.assertIn("name: test-evidence-" + chr(36) + "{{ matrix.shard }}", workflow)

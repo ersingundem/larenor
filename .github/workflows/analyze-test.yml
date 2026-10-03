@@ -105,9 +105,58 @@ jobs:
           echo "::warning::Shard artifact upload failed; inspect this job's test log."
           echo 'A shard artifact was unavailable; its test result still controls this job.' >> "$GITHUB_STEP_SUMMARY"
 
+  normal-core-acceptance:
+    name: normal-core-${{ matrix.feature }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        feature: [f04, f05, f19, f20, f54]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Require the exact acceptance source
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - name: Prepare isolated pinned Python tooling
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/larenor-core-tools"
+          "$RUNNER_TEMP/larenor-core-tools/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: uv==0.12.10
+          echo "$RUNNER_TEMP/larenor-core-tools/bin" >> "$GITHUB_PATH"
+          echo "UV_PROJECT_ENVIRONMENT=$RUNNER_TEMP/larenor-core-venv" >> "$GITHUB_ENV"
+          echo "UV_PYTHON_INSTALL_DIR=$RUNNER_TEMP/larenor-core-python" >> "$GITHUB_ENV"
+      - name: Install the reviewed Server dependency lock
+        working-directory: server
+        run: uv sync --locked --no-editable --python 3.12.14
+      - name: Exercise the named real Client and normal Core lifetimes
+        working-directory: server
+        env:
+          FEATURE: ${{ matrix.feature }}
+        run: |
+          set -euo pipefail
+          case "$FEATURE" in
+            f04) runner=tests/support/f04_flutter_acceptance.py ;;
+            f05) runner=tests/support/f05_flutter_acceptance.py ;;
+            f19) runner=tests/support/f19_flutter_acceptance.py ;;
+            f20) runner=tests/support/f20_flutter_acceptance.py ;;
+            f54) runner=tests/support/f54_flutter_acceptance.py ;;
+            *) exit 1 ;;
+          esac
+          uv run --locked --no-sync python "$runner"
+
   analyze-test:
     if: always()
-    needs: [static-analysis, flutter-test]
+    needs: [static-analysis, flutter-test, normal-core-acceptance]
     permissions:
       contents: read
       pull-requests: read
@@ -121,5 +170,6 @@ jobs:
         env:
           STATIC_RESULT: ${{ needs.static-analysis.result }}
           TEST_RESULT: ${{ needs.flutter-test.result }}
+          CORE_RESULT: ${{ needs.normal-core-acceptance.result }}
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tool/required_ci_aggregate.py flutter

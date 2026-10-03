@@ -1,9 +1,7 @@
 """Actual F54 Flutter Client through normal Core TCP and durable restart."""
 
-import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 
@@ -11,9 +9,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from conftest import auth, login, ready, server as core_fixture
 from support.installed_core_tcp import InstalledCoreTcp
+from support.named_flutter_acceptance import run_named_flutter
 
 
 PASSWORD = "Synthetic new password 2026"
+TEST_FILE = (
+    "test/features/local_notifications/local_notification_normal_core_test.dart"
+)
+TEST_NAME = (
+    "real Client persists the subscription and deduplicates a safe tap after restart"
+)
 
 
 def _root(app):
@@ -37,7 +42,7 @@ def _event(recipient, *, key, public):
 def _publish(client, admin, root, body):
     response = client.post(root + "/events", headers=auth(admin), json=body)
     if response.status_code != 201:
-        raise RuntimeError("notification_publish_failed:" + response.text)
+        raise RuntimeError("notification_publish_failed")
     return response.json()["notification"]
 
 
@@ -81,14 +86,9 @@ def main():
                     )
 
                 with InstalledCoreTcp(app) as tcp:
-                    result = subprocess.run(
-                        [
-                            "flutter",
-                            "test",
-                            "--no-pub",
-                            "test/features/local_notifications/"
-                            "local_notification_normal_core_test.dart",
-                        ],
+                    counts = run_named_flutter(
+                        test_file=TEST_FILE,
+                        test_name=TEST_NAME,
                         env={
                             **os.environ,
                             "LARENOR_F54_CORE_URL": f"http://127.0.0.1:{tcp.port}",
@@ -96,11 +96,14 @@ def main():
                             "LARENOR_F54_STORE_FILE": str(store),
                         },
                         cwd=Path(__file__).resolve().parents[3],
-                        timeout=120,
-                        check=False,
+                        log_path=directory / f"f54-{phase}.machine.jsonl",
+                        timeout_seconds=120,
                     )
-                    if result.returncode:
-                        return result.returncode
+                    print(
+                        f"F54 {phase}: named1 passed1 failures0 errors0 skipped0"
+                    )
+                    if counts["passed"] != 1:
+                        return 1
 
                 with app.state.core.db.connection() as connection:
                     rows = connection.execute(
