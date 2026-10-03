@@ -18,22 +18,29 @@ object RdpFreeRdpPackage {
     const val VERSION = "3.31.1"
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
-    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4"
+    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-remote-access-v5"
     // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
     internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
     internal const val TLS_PROTOCOL = "TLSv1.2"
     val SUPPORTED_ABIS = setOf("arm64-v8a", "x86_64")
 
-    internal fun capabilities(): Map<String, Any?> = mapOf(
-        "schemaVersion" to 4,
+    // Product admission stays closed until source-bound Gateway/RDPDR effect evidence exists.
+    internal fun capabilities(): Map<String, Any?> = capabilityMap(ownedChannels = false)
+
+    // Only the exact AAR-backed runtime exposes this compiled path. The product
+    // MethodChannel wraps it in RdpProductFeatureBackend; AndroidTest exercises
+    // the same real backend directly without injecting capability values.
+    internal fun compiledCapabilities(): Map<String, Any?> = capabilityMap(ownedChannels = true)
+
+    private fun capabilityMap(ownedChannels: Boolean): Map<String, Any?> = mapOf(
+        "schemaVersion" to 6,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
             "tls" to true,
             "certificatePinning" to true,
             "nla" to true,
-            // A separate gateway SPKI is not yet represented by the Client contract.
-            "rdGateway" to false,
+            "rdGateway" to ownedChannels,
         ),
         "display" to mapOf(
             "dynamicResolution" to true,
@@ -58,7 +65,7 @@ object RdpFreeRdpPackage {
             "clipboardModes" to listOf("disabled", "clientToRemote"),
             "audio" to true,
             "microphone" to true,
-            "files" to false,
+            "files" to ownedChannels,
         ),
     )
 
@@ -68,7 +75,7 @@ object RdpFreeRdpPackage {
             identity.sourceCommit == SOURCE_COMMIT &&
             identity.sourceSha256 == SOURCE_SHA256 &&
             identity.abi in SUPPORTED_ABIS &&
-            identity.jniSchema == 4 &&
+            identity.jniSchema == 5 &&
             identity.enabledChannels.isEmpty()
 }
 
@@ -96,8 +103,8 @@ data class RdpRemoteAudioObservation(
         }
     }
 
-    internal fun toChannel(requestId: String): Map<String, Any> = mapOf(
-        "schemaVersion" to 4,
+    internal fun toChannel(requestId: String, schemaVersion: Int = 4): Map<String, Any> = mapOf(
+        "schemaVersion" to schemaVersion,
         "requestId" to requestId,
         "state" to when (state) {
             RdpRemoteAudioState.PENDING -> "pending"
@@ -140,8 +147,8 @@ data class RdpMicrophoneCaptureObservation(
         }
     }
 
-    internal fun toChannel(requestId: String): Map<String, Any> = mapOf(
-        "schemaVersion" to 4,
+    internal fun toChannel(requestId: String, schemaVersion: Int = 4): Map<String, Any> = mapOf(
+        "schemaVersion" to schemaVersion,
         "requestId" to requestId,
         "state" to state.name.lowercase(),
         "deviceOpen" to deviceOpen,
@@ -160,6 +167,29 @@ data class RdpJniSecurity(
     val minimumTlsProtocol: String,
     val nla: Boolean,
     val certificateFingerprint: String,
+    val gatewayCertificatePinned: Boolean = false,
+)
+
+/**
+ * A cancellable enrollment operation.  The operation owns every mutable
+ * credential copy until run() returns or close() wins.  It never publishes a
+ * URI, host credential, PEM body, or authenticated-session claim.
+ */
+interface RdpJniCertificateProbeOperation : AutoCloseable {
+    fun run(): RdpJniCertificateProbe
+    /** Enrollment may publish only after its exact native graph is drained. */
+    fun closeAndAwaitDrain(): Boolean {
+        close()
+        return true
+    }
+    override fun close()
+}
+
+data class RdpJniGatewayEndpoint(
+    val host: String,
+    val port: Int,
+    val username: String,
+    val domain: String,
 )
 
 /** An aborted certificate probe records policy and a presented pin, never login success. */
@@ -307,6 +337,8 @@ interface RdpJniOperation {
     fun acknowledgeFrame(sequence: Long): Boolean
     /** Called only after the contract has returned to ACTIVE following an ack. */
     fun resumeFrames(): Boolean = true
+    /** True only when this exact operation's native writers and context are fully drained. */
+    fun closeAndAwaitDrain(): Boolean = false
     fun close()
     fun detach()
 }
@@ -316,11 +348,35 @@ interface RdpJniRuntime {
     fun capabilities(): Map<String, Any?>
     fun inspect(host: String, port: Int, username: String): RdpJniCertificateProbe =
         failRdp("engineUnavailable")
+    fun inspectGateway(
+        targetHost: String,
+        targetPort: Int,
+        targetUsername: String,
+        gateway: RdpJniGatewayEndpoint,
+    ): RdpJniCertificateProbeOperation = failRdp("gatewayUnavailable")
+    fun inspectTargetThroughGateway(
+        targetHost: String,
+        targetPort: Int,
+        targetUsername: String,
+        targetDomain: String,
+        gateway: RdpNativeGateway,
+        gatewayPassword: CharArray,
+    ): RdpJniCertificateProbeOperation = failRdp("gatewayUnavailable")
     fun create(
         request: RdpNativeRequest,
         plan: RdpNativeNegotiated,
         listener: RdpJniOperation.Listener,
     ): RdpJniOperation
+
+    fun create(
+        request: RdpNativeRequest,
+        plan: RdpNativeNegotiated,
+        listener: RdpJniOperation.Listener,
+        fileTransfer: RdpNativeFileTransferEndpoint?,
+    ): RdpJniOperation {
+        if (fileTransfer != null) failRdp("channelUnavailable")
+        return create(request, plan, listener)
+    }
 }
 
 private class RdpJniListenerProxy : RdpJniOperation.Listener {
@@ -386,6 +442,46 @@ class RdpFreeRdpBackend(private val runtime: RdpJniRuntime?) : RdpNativeBackend 
         }
         return session
     }
+
+    override fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver,
+        fileTransfer: RdpNativeFileTransferEndpoint?,
+    ): RdpNativeSession {
+        val candidate = runtime ?: failRdp("engineUnavailable")
+        val capabilities = verifiedCapabilities ?: failRdp("engineUnavailable")
+        if (negotiated.engineRevision != RdpFreeRdpPackage.ENGINE_REVISION) {
+            failRdp("engineUnavailable")
+        }
+        if (request.files != (fileTransfer != null) ||
+            fileTransfer != null && (
+                fileTransfer.sessionRequestId != request.requestId ||
+                    fileTransfer.sessionRevision != request.sessionRevision ||
+                    fileTransfer.transferId != request.fileTransferId
+                )
+        ) failRdp("channelUnavailable")
+        val proxy = RdpJniListenerProxy()
+        val operation = try {
+            candidate.create(request, negotiated, proxy, fileTransfer)
+        } catch (_: LinkageError) {
+            failRdp("engineUnavailable")
+        } catch (_: Exception) {
+            failRdp("connectionFailed")
+        }
+        val session = RdpFreeRdpSession(
+            request, negotiated, capabilities, operation, observer, fileTransfer,
+        )
+        proxy.target = session
+        try {
+            session.start(secrets)
+        } catch (failure: Exception) {
+            session.close()
+            throw failure
+        }
+        return session
+    }
 }
 
 class RdpFreeRdpSession internal constructor(
@@ -394,7 +490,9 @@ class RdpFreeRdpSession internal constructor(
     private val capabilities: RdpNativeCapabilities,
     private val operation: RdpJniOperation,
     private val observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+    override val fileTransferEndpoint: RdpNativeFileTransferEndpoint? = null,
 ) : RdpNativeSession, RdpJniOperation.Listener {
+    override val schemaVersion: Int get() = request.schemaVersion
     private data class DisplayLayout(
         val width: Int,
         val height: Int,
@@ -848,6 +946,17 @@ class RdpFreeRdpSession internal constructor(
 
     override fun close() {
         terminate(RdpJniPhase.CANCELLED, null)
+    }
+
+    override fun closeAndAwaitNativeDrain(): Boolean {
+        terminate(RdpJniPhase.CANCELLED, null)
+        return try {
+            operation.closeAndAwaitDrain()
+        } catch (_: LinkageError) {
+            false
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun terminate(next: RdpJniPhase, code: String?) {

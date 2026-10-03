@@ -1,6 +1,7 @@
 """Account-owned remote profile metadata; no credential or session authority."""
 import json
 import itertools
+import secrets
 
 import pytest
 from conftest import auth, login, ready
@@ -96,6 +97,104 @@ def test_account_and_home_isolation_survive_restart(server):
     with TestClient(create_app(settings)) as restarted:
         assert read(restarted, admin, base, identity, 1).json()['profile'] == own
         assert restarted.get(base, headers=auth(member)).json()['profiles'] == [theirs]
+
+
+def test_rdp_security_profile_is_encrypted_closed_and_restart_stable(server):
+    app, client, settings, _ = server
+    pair = ready(server)
+    base = paths(app)
+    current = authority(client, pair, base)
+    body = {
+        **payload(
+            protocol='rdp', port=3389, username='target-user',
+            rdp={
+                'domain': 'TARGET',
+                'certificateFingerprint':
+                    'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                'gateway': {
+                    'host': 'gateway.internal.example',
+                    'port': 443,
+                    'username': 'gateway-user',
+                    'domain': 'GATEWAY',
+                    'certificateFingerprint':
+                        'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+                },
+            },
+        ),
+        'requestId': 'a' * 32,
+        'expectedAccountRevision': current['accountRevision'],
+        'expectedCollectionRevision': current['collectionRevision'],
+    }
+    created = client.post(base, headers=auth(pair), json=body)
+    assert created.status_code == 201, created.text
+    replay = client.post(base, headers=auth(pair), json=body)
+    assert replay.status_code == 201
+    assert replay.json() == created.json()
+    profile = created.json()['profile']
+    assert profile['rdp'] == body['rdp']
+    assert not any(key in json.dumps(profile).lower()
+                   for key in ('password', 'gatewaypassword', 'token', 'secret'))
+
+    with app.state.core.db.transaction() as connection:
+        row = connection.execute(
+            'SELECT ciphertext FROM personal_profile_records WHERE owner_id=? AND id=?',
+            (pair['user']['id'], profile['ref']['id']),
+        ).fetchone()
+    assert row is not None
+    ciphertext = bytes(row['ciphertext'])
+    for private in (
+            b'TARGET', b'gateway.internal.example', b'gateway-user',
+            b'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'):
+        assert private not in ciphertext
+
+    with TestClient(create_app(settings)) as restarted:
+        restored = read(
+            restarted, pair, base, profile['ref']['id'], profile['revision'],
+        )
+        assert restored.status_code == 200
+        assert restored.json()['profile'] == profile
+
+
+def test_rdp_security_rejects_other_protocols_unknowns_and_credentials(server):
+    app, client, _, _ = server
+    pair = ready(server)
+    base = paths(app)
+    security = {
+        'domain': 'TARGET',
+        'certificateFingerprint':
+            'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'gateway': {
+            'host': 'gateway.internal.example',
+            'port': 443,
+            'username': 'gateway-user',
+            'domain': 'GATEWAY',
+            'certificateFingerprint':
+                'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        },
+    }
+    candidates = [
+        payload(rdp=security),
+        payload(protocol='vnc', port=5900, rdp=security),
+        payload(protocol='rdp', port=3389, rdp={**security, 'password': 'private'}),
+        payload(protocol='rdp', port=3389, rdp={
+            **security,
+            'gateway': {**security['gateway'], 'gatewayPassword': 'private'},
+        }),
+        payload(protocol='rdp', port=3389, rdp={
+            **security,
+            'gateway': {**security['gateway'], 'future': True},
+        }),
+    ]
+    for index, candidate in enumerate(candidates, start=1):
+        current = authority(client, pair, base)
+        response = client.post(base, headers=auth(pair), json={
+            **candidate,
+            'requestId': f'{index:032x}',
+            'expectedAccountRevision': current['accountRevision'],
+            'expectedCollectionRevision': current['collectionRevision'],
+        })
+        assert response.status_code == 400
+    assert client.get(base, headers=auth(pair)).json()['profiles'] == []
 
 
 def test_optimistic_revision_and_bounded_validation_are_fail_closed(server, monkeypatch):
@@ -332,7 +431,7 @@ def test_openapi_exposes_only_typed_account_profile_metadata(server):
         'PersonalProfileResponse')
     create_schema = schema['components']['schemas']['CreatePersonalProfileRequest']
     assert set(create_schema['properties']) == {
-        'label', 'protocol', 'host', 'port', 'username', 'requestId',
+        'label', 'protocol', 'host', 'port', 'username', 'rdp', 'requestId',
         'expectedAccountRevision', 'expectedCollectionRevision'}
     assert create_schema['additionalProperties'] is False
     assert not any(word in json.dumps(create_schema).lower()
@@ -405,3 +504,163 @@ def test_additive_migration_preserves_existing_accounts_and_sessions(server):
             '/api/v1/admin/users', headers=auth(admin)).json() == before
         assert next_client.get(
             paths(restarted), headers=auth(member)).json()['profiles'] == []
+
+
+def test_normal_rdp_gateway_patch_rotation_removal_and_delete_are_durable(server):
+    app, client, settings, _ = server
+    pair = ready(server)
+    base = paths(app)
+    original = create(client, pair, base, protocol='rdp', port=3389,
+                      username='target-user')
+    assert 'rdp' not in original
+    target_pin = 'SHA256:' + 'A' * 43
+    gateway_pin = 'SHA256:' + 'C' * 42 + 'E'
+    security = {
+        'domain': 'TARGET', 'certificateFingerprint': target_pin,
+        'gateway': {
+            'host': 'gateway.internal.example', 'port': 443,
+            'username': 'gateway-user', 'domain': 'GATEWAY',
+            'certificateFingerprint': gateway_pin,
+        },
+    }
+    current = authority(client, pair, base)
+    update = {
+        **payload(protocol='rdp', port=3389, username='target-user', rdp=security),
+        'requestId': request_id(),
+        'expectedAccountRevision': current['accountRevision'],
+        'expectedCollectionRevision': current['collectionRevision'],
+        'expectedRevision': original['revision'],
+    }
+    url = base + '/' + original['ref']['id']
+    changed = client.patch(url, headers=auth(pair), json=update)
+    assert changed.status_code == 200
+    enrolled = changed.json()['profile']
+    assert enrolled['rdp'] == security
+    assert enrolled['revision'] == original['revision'] + 1
+    replay = client.patch(url, headers=auth(pair), json=update)
+    assert replay.status_code == 200 and replay.json() == changed.json()
+    stale = client.patch(url, headers=auth(pair), json={
+        **update, 'requestId': request_id(), 'label': 'Stale update',
+    })
+    assert stale.status_code == 409
+    assert client.get(base, headers=auth(pair)).json()['profiles'] == [enrolled]
+    with TestClient(create_app(settings)) as restarted:
+        assert read(restarted, pair, base, enrolled['ref']['id'],
+                    enrolled['revision']).json()['profile'] == enrolled
+        current = authority(restarted, pair, base)
+        rotated_security = {**security, 'gateway': {
+            **security['gateway'], 'certificateFingerprint': 'SHA256:' + 'D' * 42 + 'E',
+        }}
+        rotated = restarted.patch(url, headers=auth(pair), json={
+            **update, 'rdp': rotated_security, 'requestId': request_id(),
+            'expectedRevision': enrolled['revision'],
+            'expectedCollectionRevision': current['collectionRevision'],
+        })
+        assert rotated.status_code == 200
+        rotation = rotated.json()['profile']
+        assert rotation['rdp'] == rotated_security
+        current = authority(restarted, pair, base)
+        removed = restarted.patch(url, headers=auth(pair), json={
+            **update, 'rdp': {**security, 'gateway': None},
+            'requestId': request_id(), 'expectedRevision': rotation['revision'],
+            'expectedCollectionRevision': current['collectionRevision'],
+        })
+        assert removed.status_code == 200
+        direct = removed.json()['profile']
+        assert direct['rdp'] == {**security, 'gateway': None}
+        assert direct['revision'] == rotation['revision'] + 1
+        current = authority(restarted, pair, base)
+        deleted = restarted.delete(url, headers=auth(pair), params={
+            'requestId': request_id(), 'expectedRevision': direct['revision'],
+            'expectedAccountRevision': current['accountRevision'],
+            'expectedCollectionRevision': current['collectionRevision'],
+        })
+        assert deleted.status_code == 200
+        assert restarted.get(base, headers=auth(pair)).json()['profiles'] == []
+    with TestClient(create_app(settings)) as after_delete:
+        assert after_delete.get(base, headers=auth(pair)).json()['profiles'] == []
+
+
+@pytest.mark.parametrize(('protocol', 'port'), [('ssh', 22), ('vnc', 5900), ('rdp', 3389)])
+def test_legacy_profile_public_keys_survive_create_read_replay_and_restart(
+        server, protocol, port):
+    app, client, settings, _ = server
+    pair = ready(server)
+    base = paths(app)
+    current = authority(client, pair, base)
+    body = {
+        **payload(protocol=protocol, port=port),
+        'requestId': request_id(),
+        'expectedAccountRevision': current['accountRevision'],
+        'expectedCollectionRevision': current['collectionRevision'],
+    }
+    created = client.post(base, headers=auth(pair), json=body)
+    assert created.status_code == 201
+    profile = created.json()['profile']
+    # Shipped clients use a closed decoder for these seven public keys.
+    assert set(profile) == {'ref', 'revision', 'label', 'protocol', 'host', 'port', 'username'}
+    replay = client.post(base, headers=auth(pair), json=body)
+    assert replay.status_code == 201 and replay.json() == created.json()
+    assert read(client, pair, base, profile['ref']['id'], 1).json()['profile'] == profile
+    assert client.get(base, headers=auth(pair)).json()['profiles'] == [profile]
+    with TestClient(create_app(settings)) as restarted:
+        assert read(restarted, pair, base, profile['ref']['id'], 1).json()['profile'] == profile
+        assert restarted.get(base, headers=auth(pair)).json()['profiles'] == [profile]
+
+
+@pytest.mark.parametrize('action', ['create', 'update'])
+def test_legacy_encrypted_request_receipt_replays_after_security_contract_upgrade(server, action):
+    app, client, settings, _ = server
+    pair = ready(server)
+    base = paths(app)
+    target = None
+    url = base
+    method = client.post
+    status = 201
+    if action == 'update':
+        profile = create(client, pair, base)
+        target = profile['ref']['id']
+        url += '/' + target
+        method = client.patch
+        status = 200
+    current = authority(client, pair, base)
+    body = {
+        **payload(label='Legacy request'), 'requestId': request_id(),
+        'expectedAccountRevision': current['accountRevision'],
+        'expectedCollectionRevision': current['collectionRevision'],
+    }
+    if action == 'update':
+        body['expectedRevision'] = profile['revision']
+    response = method(url, headers=auth(pair), json=body)
+    assert response.status_code == status
+    repository = app.state.core.personal_profiles
+    # A receipt issued by the shipped seven-field contract hashes the request
+    # without a new optional security key. Bind its ciphertext to that old AAD.
+    legacy_hash = repository._request_hash(action, target, body)
+    with app.state.core.db.transaction() as connection:
+        row = connection.execute(
+            'SELECT * FROM personal_profile_receipts WHERE request_id=?',
+            (body['requestId'],),
+        ).fetchone()
+        plain = repository._cipher.decrypt(
+            row['nonce'], row['ciphertext'], repository._receipt_aad(
+                row['owner_id'], row['family_id'], row['request_id'],
+                action, row['request_hash']),
+        )
+        nonce = secrets.token_bytes(12)
+        ciphertext = repository._cipher.encrypt(
+            nonce, plain, repository._receipt_aad(
+                row['owner_id'], row['family_id'], row['request_id'], action, legacy_hash),
+        )
+        connection.execute(
+            'UPDATE personal_profile_receipts SET request_hash=?,nonce=?,ciphertext=? WHERE sequence=?',
+            (legacy_hash, nonce, ciphertext, row['sequence']),
+        )
+    replay = method(url, headers=auth(pair), json=body)
+    assert replay.status_code == status
+    assert replay.json() == response.json()
+    with TestClient(create_app(settings)) as restarted:
+        replay = getattr(restarted, 'post' if action == 'create' else 'patch')(
+            url, headers=auth(pair), json=body,
+        )
+        assert replay.status_code == status and replay.json() == response.json()

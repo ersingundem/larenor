@@ -3,7 +3,6 @@ package com.ersingundem.larenor.rdp
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.system.Os
 import android.util.AtomicFile
 import android.util.Base64
 import java.io.ByteArrayOutputStream
@@ -57,6 +56,7 @@ internal class RdpSafGrantStore(
     context: Context,
     private val testKeyProvider: ((Boolean) -> SecretKey)? = null,
     rootOverride: File? = null,
+    private val permissions: RdpSafPrivatePermissions = RdpSafPrivatePermissions.ANDROID,
 ) {
     companion object {
         const val MAX_PER_AUTHORITY = 32
@@ -104,12 +104,12 @@ internal class RdpSafGrantStore(
         var stream: java.io.FileOutputStream? = null
         try {
             stream = atomic.startWrite()
-            Os.fchmod(stream.fd, 0b110_000_000)
+            permissions.descriptor.setMode(stream.fd, RDP_SAF_PRIVATE_FILE_MODE)
             stream.write(envelope)
             stream.fd.sync()
             atomic.finishWrite(stream)
             stream = null
-            Os.chmod(fileForTest.absolutePath, 0b110_000_000)
+            permissions.path.setMode(fileForTest.absolutePath, RDP_SAF_PRIVATE_FILE_MODE)
         } catch (_: Exception) {
             if (stream != null) atomic.failWrite(stream)
             unavailable()
@@ -260,11 +260,11 @@ internal class RdpSafGrantStore(
         try {
             if (!root.exists() && !root.mkdirs()) unavailable()
             if (!root.isDirectory || Files.isSymbolicLink(root.toPath())) unavailable()
-            Os.chmod(root.absolutePath, 0b111_000_000)
+            permissions.path.setMode(root.absolutePath, RDP_SAF_PRIVATE_DIRECTORY_MODE)
             if (fileForTest.exists() && (Files.isSymbolicLink(fileForTest.toPath()) || !fileForTest.isFile)) {
                 unavailable()
             }
-            if (existing) Os.chmod(fileForTest.absolutePath, 0b110_000_000)
+            if (existing) permissions.path.setMode(fileForTest.absolutePath, RDP_SAF_PRIVATE_FILE_MODE)
         } catch (failure: RdpSafFailure) {
             throw failure
         } catch (_: Exception) {

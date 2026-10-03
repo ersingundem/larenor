@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Run all Server gates, F08 cgroup, host worker proofs, one F60 owned-provider gate, or the F62 Gateway probe"
+        description: "Run all Server gates, one F60 owned-provider gate, or one registered F62 Gateway gate"
         required: true
         default: all
         type: choice
@@ -26,6 +26,8 @@ on:
           - f60-stream
           - f60-input-probe
           - f62-gateway-probe
+          - f62-gateway-android-direct
+          - f62-gateway-android-public
 
 permissions:
   contents: read
@@ -35,6 +37,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  f62-gateway-android-direct:
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f62-gateway-android-direct'
+    uses: ./.github/workflows/f62-gateway-android-direct.yml
+    with:
+      scenario: direct
+
+  f62-gateway-android-public:
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f62-gateway-android-public'
+    uses: ./.github/workflows/f62-gateway-android-direct.yml
+    with:
+      scenario: public
+
   f62-gateway-linux-probe:
     name: f62-gateway-linux-probe
     if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f62-gateway-probe'

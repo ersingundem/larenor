@@ -33,7 +33,7 @@ void main() {
       expect(value.keyboardLayout, RdpKeyboardLayout.turkishQ);
       expect(value.clipboardMode, RdpClipboardMode.clientToRemote);
       expect(value.microphone, isFalse);
-      expect(value.toJson()['version'], 3);
+      expect(value.toJson()['version'], 4);
       expect(value.toJson()['microphone'], isFalse);
       expect(value.fileTransferGrant, isNull);
       expect(value.toJson(), isNot(contains('password')));
@@ -81,7 +81,7 @@ void main() {
     }
   });
 
-  test('v3 settings persist only an opaque exact SAF grant receipt', () {
+  test('v3 migrates SAF grant and v4 adds only public gateway domain', () {
     const grant = RdpFileTransferGrant(
       id: '0123456789abcdef0123456789abcdef',
       revision: 7,
@@ -100,12 +100,14 @@ void main() {
       'fileTransferGrantRevision': 7,
     });
     expect(value.fileTransferGrant, grant);
+    expect(value.gatewayDomain, isEmpty);
     expect(value.toJson(), {
-      'version': 3,
+      'version': 4,
       'domain': '',
       'gatewayHost': null,
       'gatewayPort': 443,
       'gatewayUsername': '',
+      'gatewayDomain': '',
       'displayMode': 'fitWindow',
       'keyboardLayout': 'automatic',
       'clipboardMode': 'disabled',
@@ -128,6 +130,14 @@ void main() {
         throwsA(isA<RdpFailure>()),
       );
     }
+    final gateway = RdpProfileSettings.fromJson({
+      ...value.toJson(),
+      'gatewayHost': 'gateway.home.arpa',
+      'gatewayUsername': 'gateway-user',
+      'gatewayDomain': 'EDGE',
+    });
+    expect(gateway.gatewayDomain, 'EDGE');
+    expect(gateway.toJson().toString(), isNot(contains('password')));
   });
 
   test('SAF authority digest binds namespace profile and profile revision', () {

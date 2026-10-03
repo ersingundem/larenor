@@ -6043,7 +6043,8 @@
         "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
         "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md",
         "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
-        "docs/testing/f62-linker-diagnostic-2026-10-03.md"
+        "docs/testing/f62-linker-diagnostic-2026-10-03.md",
+        "docs/testing/f62-native5-composed-integration-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6210,22 +6211,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/testing/f62-effect-control-read-2026-10-03.md",
-          "commit": "a3f01b5fa888e4ef665cbfe842ae8a79a65e1696",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen reader repair on a3f01 base: root73 packaged runner+11workflow=84passed and Ruff0.14.1 clean. One bounded device read distinguishes absent/unavailable; exact removal before phase advance; actual local shell/failed-remove regressions. Android/provider effects unproved."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-native5-composed-local-2026-10-03.md",
-          "commit": "847b1f576ebab39ab92c9cd008c036a817672188",
-          "state": "completed",
-          "result": "passed",
-          "label": "Private actual composition root177native/0skip+AndroidTest compile315,145Flutter/26-file analyze,Core25+Ruff,portable22/27subtests; actual twoABI source/API/ELF/receipt verified. Review found Gateway probe admission, SAF recovery and durable secret cleanup gaps. Root admission13native+23tablet passed; remaining fixes/real hosted effects open. Local only, no acceptance."
-        },
-        {
-          "kind": "test",
           "ref": "docs/testing/f62-owned-gateway-linux-probe-2026-10-03.md",
           "commit": "5a71559a14d7e3d9e4fbb65e50fe86edcc36698c",
           "state": "completed",
@@ -6311,6 +6296,22 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact0cad changed-source Linux probe terminal failed at build. Canonical schema4 diagnostic independent review pending; transport/RDPDR steps skipped. No same-SHA rerun or acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-native5-composed-integration-2026-10-03.md",
+          "commit": "96b18d724d4886b0462922c70946a5e6f06d4378",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen reviewed working tree on exact96b18: root200JVM/201Flutter/313task AndroidTest, integrated121portable/Core+32subtests and installed actual dualABI native5 verified; Ruff/actionlint clean. Gateway/files false; real Linux/Android/DIRECT/PUBLIC/audio/mic/full acceptance open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f62-native5-composed-integration-2026-10-03.md",
+          "commit": "96b18d724d4886b0462922c70946a5e6f06d4378",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent native5/SAF/schema6 scoped source review CLEAR; root117path union/109changed hashes and retained root collisions verified. Review SHA121e0d47642abd33e72d755ae4512134d8b34c9fe74fc2790e3e566be149fb3f; does not admit feature or main merge."
         }
       ],
       "completionCommit": null,

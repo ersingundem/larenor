@@ -495,3 +495,34 @@ Only oldest non-CI records moved; all CI records retained.
   }
 ]
 ```
+
+## 3 October integrated native5 source proof
+
+Only oldest non-CI evidence archived; all CI records remain in queue.
+
+```json
+[
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-effect-control-read-2026-10-03.md",
+      "commit": "a3f01b5fa888e4ef665cbfe842ae8a79a65e1696",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen reader repair on a3f01 base: root73 packaged runner+11workflow=84passed and Ruff0.14.1 clean. One bounded device read distinguishes absent/unavailable; exact removal before phase advance; actual local shell/failed-remove regressions. Android/provider effects unproved."
+    }
+  },
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-native5-composed-local-2026-10-03.md",
+      "commit": "847b1f576ebab39ab92c9cd008c036a817672188",
+      "state": "completed",
+      "result": "passed",
+      "label": "Private actual composition root177native/0skip+AndroidTest compile315,145Flutter/26-file analyze,Core25+Ruff,portable22/27subtests; actual twoABI source/API/ELF/receipt verified. Review found Gateway probe admission, SAF recovery and durable secret cleanup gaps. Root admission13native+23tablet passed; remaining fixes/real hosted effects open. Local only, no acceptance."
+    }
+  }
+]
+```

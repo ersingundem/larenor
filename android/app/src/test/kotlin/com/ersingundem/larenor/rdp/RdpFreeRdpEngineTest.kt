@@ -595,7 +595,7 @@ class RdpFreeRdpEngineTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                4,
+                5,
                 emptySet(),
             )
             override fun capabilities() = if (!audio && !microphone) capabilityMap else capabilityMap + (

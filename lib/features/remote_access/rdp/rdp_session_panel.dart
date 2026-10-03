@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
@@ -19,6 +20,11 @@ import '../data/remote_profiles.dart';
 import 'rdp_display_geometry.dart';
 import 'rdp_engine.dart';
 import 'rdp_models.dart';
+import 'rdp_schema6_controller.dart';
+import 'rdp_schema6_engine.dart';
+import 'rdp_schema6_models.dart';
+import 'rdp_schema6_security_store.dart';
+import 'rdp_schema6_session_authority.dart';
 import 'rdp_security_store.dart';
 import 'rdp_session_controller.dart';
 
@@ -31,6 +37,43 @@ final rdpSecurityStoreProvider = Provider<RdpSecurityStore>(
 final rdpTrustStoreProvider = Provider<RdpTrustStore>(
   (ref) => ref.watch(rdpSecurityStoreProvider),
 );
+final rdpSchema6TransferPortProvider = Provider<RdpSchema6TransferPort>(
+  (_) => RdpSchema6MethodChannelTransferPort(),
+);
+final rdpSchema6SessionOwnerFactoryProvider =
+    Provider<RdpSchema6SessionOwner Function(int)>((_) {
+      final random = Random.secure();
+      return (revision) => RdpSchema6SessionOwner(
+        requestId: _schema6Uuid(random),
+        revision: revision,
+      );
+    });
+final rdpSchema6SecretVaultProvider = Provider<RdpSchema6CurrentSecretVault>(
+  (_) => RdpSchema6SecureSecretVault(),
+);
+final rdpGatewayEnrollmentEngineFactoryProvider =
+    Provider<RdpGatewayEnrollmentEngine Function()>(
+      (_) => RdpSchema6MethodChannelGatewayEngine.new,
+    );
+
+// UI admission comes from the product capability boundary, independently of
+// the compiled package's support. Pending/error observations stay unavailable.
+final rdpGatewayEnrollmentAdmittedProvider = FutureProvider.autoDispose<bool>((
+  ref,
+) async {
+  final engine = ref.watch(rdpEngineFactoryProvider)();
+  var current = true;
+  ref.onDispose(() {
+    current = false;
+    engine.close();
+  });
+  try {
+    final capabilities = await engine.capabilities(isCurrent: () => current);
+    return current && capabilities.canConnect && capabilities.supportsRdGateway;
+  } catch (_) {
+    return false;
+  }
+});
 
 class RdpSessionPanel extends ConsumerStatefulWidget {
   const RdpSessionPanel({
@@ -40,6 +83,10 @@ class RdpSessionPanel extends ConsumerStatefulWidget {
     required this.isCurrent,
     required this.onBack,
     this.securityStore,
+    this.coreSecurity,
+    this.schema6TransferPort,
+    this.schema6OwnerFactory,
+    this.schema6Secrets,
     this.onMicrophonePermissionPromptChanged,
     this.onFileTransferPickerChanged,
   });
@@ -48,6 +95,10 @@ class RdpSessionPanel extends ConsumerStatefulWidget {
   final bool Function() isCurrent;
   final VoidCallback onBack;
   final RdpSecurityStore? securityStore;
+  final RdpCoreSecurityProjection? coreSecurity;
+  final RdpSchema6TransferPort? schema6TransferPort;
+  final RdpSchema6SessionOwner Function(int revision)? schema6OwnerFactory;
+  final RdpSchema6CurrentSecretVault? schema6Secrets;
   final ValueChanged<bool>? onMicrophonePermissionPromptChanged;
   final ValueChanged<bool>? onFileTransferPickerChanged;
   @override
@@ -70,6 +121,9 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   RdpEngine Function()? _factory;
   RdpTrustStore? _trust;
   RdpSecurityStore? _security;
+  RdpSchema6TransferPort? _transferPort;
+  RdpSchema6SessionOwner Function(int)? _schema6OwnerFactory;
+  RdpSchema6CurrentSecretVault? _schema6Secrets;
   RdpProfileSettings _settings = const RdpProfileSettings();
   bool _settingsStarted = false, _settingsLoaded = false, _settingsBusy = false;
   bool _rememberCredential = false;
@@ -94,6 +148,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   bool _reportedFileTransferPicker = false;
   bool _fileTransferBusy = false;
   RdpFileTransferGrantState? _fileTransferGrantState;
+  bool _fileTransferSessionBusy = false;
+  RdpTransferState? _fileTransferSessionState;
 
   void _reportMicrophonePermissionPrompt(bool value) {
     if (_reportedMicrophonePermissionPrompt == value) return;
@@ -147,6 +203,20 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           !identical(
             _security,
             widget.securityStore ?? ref.read(rdpSecurityStoreProvider),
+          ) ||
+          !identical(
+            _transferPort,
+            widget.schema6TransferPort ??
+                ref.read(rdpSchema6TransferPortProvider),
+          ) ||
+          !identical(
+            _schema6OwnerFactory,
+            widget.schema6OwnerFactory ??
+                ref.read(rdpSchema6SessionOwnerFactoryProvider),
+          ) ||
+          !identical(
+            _schema6Secrets,
+            widget.schema6Secrets ?? ref.read(rdpSchema6SecretVaultProvider),
           )) {
         return false;
       }
@@ -189,6 +259,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _factory ??= ref.read(rdpEngineFactoryProvider);
     _trust ??= widget.securityStore ?? ref.read(rdpTrustStoreProvider);
     _security ??= widget.securityStore ?? ref.read(rdpSecurityStoreProvider);
+    _transferPort ??=
+        widget.schema6TransferPort ?? ref.read(rdpSchema6TransferPortProvider);
+    _schema6OwnerFactory ??=
+        widget.schema6OwnerFactory ??
+        ref.read(rdpSchema6SessionOwnerFactoryProvider);
+    _schema6Secrets ??=
+        widget.schema6Secrets ?? ref.read(rdpSchema6SecretVaultProvider);
     if (_controller == null) {
       _controller = _newController(displayIdentity: _loadedDisplayIdentity())
         ..addListener(_changed);
@@ -207,7 +284,11 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   void didUpdateWidget(covariant RdpSessionPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.securityStore, widget.securityStore) ||
-        !identical(oldWidget.profile, widget.profile)) {
+        !identical(oldWidget.profile, widget.profile) ||
+        oldWidget.coreSecurity != widget.coreSecurity ||
+        !identical(oldWidget.schema6TransferPort, widget.schema6TransferPort) ||
+        !identical(oldWidget.schema6OwnerFactory, widget.schema6OwnerFactory) ||
+        !identical(oldWidget.schema6Secrets, widget.schema6Secrets)) {
       _retire();
     }
   }
@@ -217,6 +298,20 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }) {
     _controllerDisplayIdentity = displayIdentity;
     final media = MediaQuery.of(context), size = media.size;
+    final grant = _settings.fileTransferGrant;
+    final transfer = grant == null
+        ? null
+        : RdpSchema6TransferCoordinator(
+            port: _transferPort!,
+            authority: _fileTransferAuthority(),
+            grant: grant,
+            isCurrent: _current,
+          );
+    final schema6 = transfer != null
+        ? RdpSchema6SessionAuthority(transfer: transfer, isCurrent: _current)
+        : widget.coreSecurity?.gateway != null
+        ? RdpSchema6SessionAuthority.gatewayOnly(isCurrent: _current)
+        : null;
     return RdpSessionController(
       profile: widget.profile,
       trust: _trust!,
@@ -237,6 +332,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         externalDisplay: displayIdentity?.isExternalDisplay ?? false,
       ),
       settings: _settings,
+      authoritativeSecurity: widget.coreSecurity,
+      schema6Authority: schema6,
+      schema6OwnerFactory: schema6 == null ? null : _schema6OwnerFactory,
+      schema6Secrets: widget.coreSecurity?.gateway == null
+          ? null
+          : _schema6Secrets,
+      schema6SecretScope: widget.coreSecurity?.gateway == null
+          ? null
+          : _schema6SecretScope(),
       remoteAudio: _remoteAudioRequested,
     );
   }
@@ -262,14 +366,33 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _gatewayUser.text = value.gatewayUsername;
   }
 
+  RdpProfileSettings _applyCoreSecurity(RdpProfileSettings value) {
+    final security = widget.coreSecurity;
+    if (security == null) return value;
+    final gateway = security.gateway?.endpoint;
+    return RdpProfileSettings(
+      domain: security.domain,
+      gatewayHost: gateway?.host,
+      gatewayPort: gateway?.port ?? 443,
+      gatewayUsername: gateway?.username ?? '',
+      gatewayDomain: gateway?.domain ?? '',
+      displayMode: value.displayMode,
+      keyboardLayout: value.keyboardLayout,
+      clipboardMode: value.clipboardMode,
+      microphone: value.microphone,
+      fileTransferGrant: value.fileTransferGrant,
+    );
+  }
+
   Future<void> _loadSettings() async {
     if (!_current()) return;
     try {
-      final value = await _security!.readSettings(
+      final stored = await _security!.readSettings(
         widget.profile,
         isCurrent: _current,
       );
       if (!_current()) return;
+      final value = _applyCoreSecurity(stored);
       _settings = value;
       _fillSettings(value);
       _settingsLoaded = true;
@@ -300,6 +423,12 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       _replaceController(displayIdentity: before);
     }
     if (!_settingsLoaded) await _loadSettings();
+    if (_settings.fileTransferGrant != null &&
+        _fileTransferGrantState != RdpFileTransferGrantState.active) {
+      _settingsNotice = 'failed';
+      if (mounted) setState(() {});
+      return;
+    }
     final after = _loadedDisplayIdentity();
     if (after == null || after != before) {
       _replaceController(displayIdentity: after);
@@ -326,12 +455,19 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       _settingsNotice = null;
     });
     try {
-      final gateway = _gatewayHost.text.trim();
+      final security = widget.coreSecurity;
+      final gateway = security?.gateway?.endpoint;
+      final enteredGateway = _gatewayHost.text.trim();
       final value = RdpProfileSettings(
-        domain: _domain.text.trim(),
-        gatewayHost: gateway.isEmpty ? null : normalizeRemoteHost(gateway),
-        gatewayPort: int.tryParse(_gatewayPort.text) ?? -1,
-        gatewayUsername: _gatewayUser.text.trim(),
+        domain: security?.domain ?? _domain.text.trim(),
+        gatewayHost:
+            gateway?.host ??
+            (enteredGateway.isEmpty
+                ? null
+                : normalizeRemoteHost(enteredGateway)),
+        gatewayPort: gateway?.port ?? int.tryParse(_gatewayPort.text) ?? -1,
+        gatewayUsername: gateway?.username ?? _gatewayUser.text.trim(),
+        gatewayDomain: gateway?.domain ?? _settings.gatewayDomain,
         displayMode: _settings.displayMode,
         keyboardLayout: _settings.keyboardLayout,
         clipboardMode: _settings.clipboardMode,
@@ -359,6 +495,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         widget.profile,
         profileRevision: widget.authorityRevision,
       );
+
+  RdpSchema6SecretScope _schema6SecretScope() {
+    final authority = _fileTransferAuthority();
+    return RdpSchema6SecretScope(
+      namespaceDigest: authority.namespaceDigest,
+      profileRef: authority.profileRef,
+      profileRevision: authority.profileRevision,
+    );
+  }
 
   Future<void> _reconcileFileTransferGrant() async {
     final controller = _controller;
@@ -503,6 +648,62 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     }
   }
 
+  Future<void> _observeFileTransferSession() async {
+    final controller = _controller;
+    if (!_current() ||
+        controller == null ||
+        _fileTransferSessionBusy ||
+        controller.fileTransferReceipt == null) {
+      return;
+    }
+    _fileTransferSessionBusy = true;
+    if (mounted) setState(() {});
+    try {
+      final observed = await controller.observeFileTransferSession();
+      if (!_current() || !identical(controller, _controller)) return;
+      _fileTransferSessionState = observed?.state;
+    } catch (_) {
+      if (_current() && identical(controller, _controller)) {
+        _fileTransferSessionState = RdpTransferState.unknown;
+        _settingsNotice = 'failed';
+      }
+    } finally {
+      _fileTransferSessionBusy = false;
+      if (_current() && mounted) setState(() {});
+    }
+  }
+
+  Future<void> _saveReceivedFiles() async {
+    final controller = _controller;
+    if (!_current() ||
+        controller == null ||
+        _fileTransferSessionBusy ||
+        controller.fileTransferReceipt?.state != RdpTransferState.sealed) {
+      return;
+    }
+    _fileTransferSessionBusy = true;
+    if (mounted) setState(() {});
+    try {
+      final saved = await controller.saveReceivedFiles();
+      if (!_current() || !identical(controller, _controller)) return;
+      _fileTransferSessionState = saved?.state;
+      if (saved?.state == RdpTransferState.saved) {
+        _replaceController(
+          displayIdentity: _loadedDisplayIdentity(),
+          force: true,
+        );
+      }
+    } catch (_) {
+      if (_current() && identical(controller, _controller)) {
+        _fileTransferSessionState = RdpTransferState.unknown;
+        _settingsNotice = 'failed';
+      }
+    } finally {
+      _fileTransferSessionBusy = false;
+      if (_current() && mounted) setState(() {});
+    }
+  }
+
   void _changed() {
     if (!mounted) return;
     _reportMicrophonePermissionPrompt(
@@ -510,6 +711,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     );
     _reportFileTransferPicker(_controller?.fileTransferPickerPending == true);
     final phase = _controller?.phase;
+    _fileTransferSessionState = _controller?.fileTransferReceipt?.state;
     if (phase != _observedSessionPhase) {
       _observedSessionPhase = phase;
       _sessionRevision++;
@@ -982,6 +1184,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       String label,
       TextEditingController controller, {
       TextInputType? type,
+      bool editable = true,
     }) => Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -992,7 +1195,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           CupertinoTextField(
             key: ValueKey(key),
             controller: controller,
-            enabled: _current() && !_settingsBusy,
+            enabled: editable && _current() && !_settingsBusy,
             autocorrect: false,
             enableSuggestions: false,
             keyboardType: type,
@@ -1037,11 +1240,17 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                     ),
                     SettingsSection(
                       children: [
-                        field('rdp-settings-domain', l.rdpDomain, _domain),
+                        field(
+                          'rdp-settings-domain',
+                          l.rdpDomain,
+                          _domain,
+                          editable: widget.coreSecurity == null,
+                        ),
                         field(
                           'rdp-settings-gateway-host',
                           l.rdpGatewayHost,
                           _gatewayHost,
+                          editable: widget.coreSecurity == null,
                           type: TextInputType.url,
                         ),
                         field(
@@ -1049,11 +1258,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                           l.rdpGatewayPort,
                           _gatewayPort,
                           type: TextInputType.number,
+                          editable: widget.coreSecurity == null,
                         ),
                         field(
                           'rdp-settings-gateway-user',
                           l.rdpGatewayUsername,
                           _gatewayUser,
+                          editable: widget.coreSecurity == null,
                         ),
                         for (final value in RdpDisplayMode.values)
                           action(
@@ -1232,7 +1443,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               RdpFileTransferGrantState.unknown => Localizations.localeOf(context).languageCode == 'tr' ? 'Klasör izni güvenle doğrulanamadı.' : 'Folder permission could not be verified safely.',
                               null => Localizations.localeOf(context).languageCode == 'tr' ? 'Aktarım klasörü seçilmedi.' : 'No transfer folder is selected.',
                             }} '
-                            '${Localizations.localeOf(context).languageCode == 'tr' ? 'Bu seçim yalnızca klasör iznini hazırlar; RDP dosya paylaşımı henüz etkin değildir.' : 'This only prepares folder permission; RDP file sharing is not enabled yet.'}',
+                            '${c.capabilities?.supportsFiles == true && _fileTransferGrantState == RdpFileTransferGrantState.active
+                                ? Localizations.localeOf(context).languageCode == 'tr'
+                                      ? 'Bu izin yalnızca sonraki açık RDP oturumunun özel aynasını hazırlar; sağlayıcıya yazma ayrıca onaylanır.'
+                                      : 'This grant prepares only the next explicit RDP session mirror; writing to the provider requires separate confirmation.'
+                                : Localizations.localeOf(context).languageCode == 'tr'
+                                ? 'Bu seçim yalnızca klasör iznini hazırlar; paketlenmiş RDP dosya paylaşımı henüz doğrulanmadı.'
+                                : 'This only prepares folder permission; packaged RDP file sharing is not verified yet.'}',
                           ),
                         ),
                         action(
@@ -1256,6 +1473,68 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               ? () => unawaited(_selectFileTransferTree())
                               : () => unawaited(_removeFileTransferGrant()),
                         ),
+                        if (_fileTransferSessionState case final state?) ...[
+                          Padding(
+                            key: const ValueKey(
+                              'rdp-file-transfer-session-state',
+                            ),
+                            padding: const EdgeInsets.all(20),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(switch (state) {
+                                RdpTransferState.prepared ||
+                                RdpTransferState.active =>
+                                  Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'tr'
+                                      ? 'Dosya aktarımı hâlâ özel çalışma alanında etkin.'
+                                      : 'File transfer is still active in the private workspace.',
+                                RdpTransferState.sealed =>
+                                  Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'tr'
+                                      ? 'Yerel aktarım kapandı. Alınan dosyalar yalnız açık Kaydet eylemiyle seçili klasöre yazılır.'
+                                      : 'The local transfer is closed. Received files are written to the selected folder only by an explicit Save action.',
+                                RdpTransferState.saved =>
+                                  Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'tr'
+                                      ? 'Alınan dosyaların boyut ve özet doğrulaması tamamlandı.'
+                                      : 'Received file size and digest verification completed.',
+                                RdpTransferState.unknown =>
+                                  Localizations.localeOf(context)
+                                              .languageCode ==
+                                          'tr'
+                                      ? 'Aktarımın kapanış sonucu bilinmiyor. Yeni oturum engellendi; yeniden göndermeden durumu denetleyin.'
+                                      : 'The transfer close outcome is unknown. A new session is blocked; check status without replaying it.',
+                              }),
+                            ),
+                          ),
+                          if (state == RdpTransferState.sealed)
+                            action(
+                              'rdp-file-transfer-save-received',
+                              Localizations.localeOf(context).languageCode ==
+                                      'tr'
+                                  ? 'Alınan dosyaları kaydet'
+                                  : 'Save received files',
+                              _fileTransferSessionBusy
+                                  ? null
+                                  : () => unawaited(_saveReceivedFiles()),
+                            ),
+                          if (state == RdpTransferState.unknown)
+                            action(
+                              'rdp-file-transfer-check-session',
+                              Localizations.localeOf(context).languageCode ==
+                                      'tr'
+                                  ? 'Aktarım durumunu denetle'
+                                  : 'Check transfer status',
+                              _fileTransferSessionBusy
+                                  ? null
+                                  : () => unawaited(
+                                      _observeFileTransferSession(),
+                                    ),
+                            ),
+                        ],
                         action(
                           'rdp-settings-save',
                           l.commonSave,
@@ -1400,7 +1679,18 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                                       },
                                 key: const ValueKey('rdp-microphone-status'),
                               ),
-                              Text(l.rdpFilesOff),
+                              Semantics(
+                                liveRegion: true,
+                                child: Text(switch (_fileTransferSessionState) {
+                                  RdpTransferState.prepared =>
+                                    l.rdpFilesPrepared,
+                                  RdpTransferState.active => l.rdpFilesActive,
+                                  RdpTransferState.sealed => l.rdpFilesSealed,
+                                  RdpTransferState.saved => l.rdpFilesSaved,
+                                  RdpTransferState.unknown => l.rdpFilesUnknown,
+                                  null => l.rdpFilesOff,
+                                }, key: const ValueKey('rdp-files-status')),
+                              ),
                               const SizedBox(height: 8),
                               Text(l.rdpChannelsHint),
                             ],
@@ -1987,4 +2277,16 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
       },
     ),
   );
+}
+
+String _schema6Uuid(Random random) {
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final encoded = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${encoded.substring(0, 8)}-${encoded.substring(8, 12)}-'
+      '${encoded.substring(12, 16)}-${encoded.substring(16, 20)}-'
+      '${encoded.substring(20)}';
 }

@@ -1,5 +1,6 @@
 import '../../server/domain/server_models.dart';
 import '../data/remote_profiles.dart';
+import '../rdp/rdp_schema6_models.dart';
 
 const _maximumRevision = 9223372036854775807;
 final _identity = RegExp(r'^[0-9a-f]{32}$');
@@ -93,6 +94,7 @@ final class CorePersonalProfile {
     required this.accountId,
     required this.profile,
     required this.revision,
+    required this.rdpSecurity,
   });
 
   factory CorePersonalProfile.fromJson(
@@ -101,7 +103,7 @@ final class CorePersonalProfile {
     required String expectedAccountId,
   }) {
     final value = serverObject(input);
-    const keys = {
+    const legacyKeys = {
       'ref',
       'revision',
       'label',
@@ -110,7 +112,13 @@ final class CorePersonalProfile {
       'port',
       'username',
     };
-    if (value.length != keys.length || !value.keys.toSet().containsAll(keys)) {
+    const securityKeys = {...legacyKeys, 'rdp'};
+    final keys = value.keys.toSet();
+    final legacyShape =
+        keys.length == legacyKeys.length && keys.containsAll(legacyKeys);
+    final securityShape =
+        keys.length == securityKeys.length && keys.containsAll(securityKeys);
+    if (!legacyShape && !securityShape) {
       throw const LarenorServerException('invalid_response');
     }
     final ref = serverObject(value['ref']);
@@ -144,11 +152,18 @@ final class CorePersonalProfile {
         'port': value['port'],
         'username': value['username'],
       });
+      final security = value.containsKey('rdp') && value['rdp'] != null
+          ? RdpCoreSecurityProjection.fromJson(value['rdp'])
+          : null;
+      if (profile.protocol != RemoteProtocol.rdp && security != null) {
+        throw const LarenorServerException('invalid_response');
+      }
       return CorePersonalProfile._(
         context: expectedContext,
         accountId: accountId,
         profile: profile,
         revision: _revision(value['revision']),
+        rdpSecurity: security,
       );
     } catch (_) {
       throw const LarenorServerException('invalid_response');
@@ -159,6 +174,7 @@ final class CorePersonalProfile {
   final String accountId;
   final RemoteProfile profile;
   final int revision;
+  final RdpCoreSecurityProjection? rdpSecurity;
   String get id => profile.id;
 
   @override

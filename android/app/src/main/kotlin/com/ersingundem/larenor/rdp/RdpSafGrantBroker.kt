@@ -15,6 +15,13 @@ internal interface RdpSafGrantHost {
     fun release(uri: Uri, flags: Int)
 }
 
+internal data class RdpSafResolvedActiveGrant(
+    val authorityId: String,
+    val grantId: String,
+    val grantRevision: Long,
+    internal val treeUri: Uri,
+)
+
 private class ActivityRdpSafGrantHost(private val activity: Activity) : RdpSafGrantHost {
     override fun launch(intent: Intent, requestCode: Int) {
         @Suppress("DEPRECATION")
@@ -271,6 +278,36 @@ internal class RdpSafGrantBroker(
             result.success(receipt(updated[index], request.requestId))
             updated
         }
+    }
+
+    /**
+     * Native-only resolver for a prepared transfer. The content URI stays inside the SAF
+     * implementation and must never cross MethodChannel, FreeRDP, receipts, or logs.
+     */
+    internal fun resolveActiveGrant(
+        authority: RdpSafAuthority,
+        grantId: String,
+        expectedGrantRevision: Long,
+    ): RdpSafResolvedActiveGrant {
+        if (Looper.myLooper() != handler.looper || disposed) unavailable()
+        val records = store.read()
+        val index = records.indexOfFirst { it.grantId == grantId }
+        if (index < 0) authorityChanged()
+        val existing = records[index]
+        if (existing.authority.authorityId != authority.authorityId ||
+            existing.grantRevision != expectedGrantRevision
+        ) authorityChanged()
+        val reconciled = reconcile(existing, records)
+        val updated = records.updated(index, reconciled)
+        if (updated != records) store.replace(updated)
+        if (reconciled.phase != RdpSafGrantPhase.ACTIVE) unavailable()
+        requirePermission(reconciled)
+        return RdpSafResolvedActiveGrant(
+            authorityId = reconciled.authority.authorityId,
+            grantId = reconciled.grantId,
+            grantRevision = reconciled.grantRevision,
+            treeUri = Uri.parse(reconciled.uri ?: unavailable()),
+        )
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {

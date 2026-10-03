@@ -55,6 +55,135 @@ private fun enumName(value: Any?, values: Set<String>, code: String): String {
     return result
 }
 
+internal data class RdpFileTransferPrepareRequest(
+    val requestId: String,
+    val authority: RdpSafAuthority,
+    val grantId: String,
+    val grantRevision: Long,
+    val sessionRequestId: String,
+    val sessionRevision: Long,
+)
+
+internal data class RdpFileTransferRequest(
+    val requestId: String,
+    val authority: RdpSafAuthority,
+    val grantId: String,
+    val grantRevision: Long,
+    val sessionRequestId: String,
+    val sessionRevision: Long,
+    val transferId: String,
+)
+
+internal object RdpFileTransferContract {
+    const val SCHEMA_VERSION = 6
+    private const val MAX_JS_SAFE_INTEGER = 9_007_199_254_740_991L
+    private val UUID = Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+    private val HEX_32 = Regex("^[0-9a-f]{32}$")
+
+    fun prepare(raw: Any?): RdpFileTransferPrepareRequest {
+        val value = exactMap(
+            raw,
+            setOf(
+                "schemaVersion", "requestId", "authority", "grantId", "grantRevision",
+                "sessionRequestId", "sessionRevision",
+            ),
+        )
+        schema(value)
+        return RdpFileTransferPrepareRequest(
+            requestId(value),
+            RdpSafContract.authority(value["authority"]),
+            grantId(value),
+            positiveLong(value["grantRevision"]),
+            sessionRequestId(value),
+            positiveLong(value["sessionRevision"]),
+        )
+    }
+
+    fun lifecycle(raw: Any?): RdpFileTransferRequest {
+        val value = exactMap(
+            raw,
+            setOf(
+                "schemaVersion", "requestId", "authority", "grantId", "grantRevision",
+                "sessionRequestId", "sessionRevision", "transferId",
+            ),
+        )
+        schema(value)
+        val transferId = value["transferId"] as? String ?: fail("invalidRequest")
+        if (!HEX_32.matches(transferId)) fail("invalidRequest")
+        return RdpFileTransferRequest(
+            requestId(value),
+            RdpSafContract.authority(value["authority"]),
+            grantId(value),
+            positiveLong(value["grantRevision"]),
+            sessionRequestId(value),
+            positiveLong(value["sessionRevision"]),
+            transferId,
+        )
+    }
+
+    fun receipt(
+        requestId: String,
+        authorityId: String,
+        grantId: String,
+        grantRevision: Long,
+        transferId: String,
+        state: String,
+    ): Map<String, Any> {
+        if (!UUID.matches(requestId) || !RdpSafContract.HEX_64.matches(authorityId) ||
+            !HEX_32.matches(grantId) || !HEX_32.matches(transferId) ||
+            grantRevision !in 1..MAX_JS_SAFE_INTEGER ||
+            state !in setOf("prepared", "active", "sealed", "saved", "unknown")
+        ) fail("invalidRequest")
+        return mapOf(
+            "schemaVersion" to SCHEMA_VERSION,
+            "requestId" to requestId,
+            "authorityId" to authorityId,
+            "grantId" to grantId,
+            "grantRevision" to grantRevision,
+            "transferId" to transferId,
+            "state" to state,
+        )
+    }
+
+    private fun schema(value: Map<*, *>) {
+        if (value["schemaVersion"] != SCHEMA_VERSION) fail("invalidRequest")
+    }
+
+    private fun requestId(value: Map<*, *>): String {
+        val result = value["requestId"] as? String ?: fail("invalidRequest")
+        if (!UUID.matches(result)) fail("invalidRequest")
+        return result
+    }
+
+    private fun sessionRequestId(value: Map<*, *>): String {
+        val result = value["sessionRequestId"] as? String ?: fail("invalidRequest")
+        if (!UUID.matches(result)) fail("invalidRequest")
+        return result
+    }
+
+    private fun grantId(value: Map<*, *>): String {
+        val result = value["grantId"] as? String ?: fail("invalidRequest")
+        if (!HEX_32.matches(result)) fail("invalidRequest")
+        return result
+    }
+
+    private fun positiveLong(raw: Any?): Long {
+        val result = when (raw) {
+            is Int -> raw.toLong()
+            is Long -> raw
+            else -> fail("invalidRequest")
+        }
+        if (result !in 1..MAX_JS_SAFE_INTEGER) fail("invalidRequest")
+        return result
+    }
+
+    private fun exactMap(raw: Any?, keys: Set<String>): Map<*, *> {
+        val result = raw as? Map<*, *> ?: fail("invalidRequest")
+        if (result.keys != keys) fail("invalidRequest")
+        return result
+    }
+}
+
 class RdpNativeImeText private constructor(val value: String) {
     override fun toString() = "RdpNativeImeText(<redacted>)"
 
@@ -106,7 +235,7 @@ class RdpNativeCapabilities private constructor(
     companion object {
         fun parse(value: Any?): RdpNativeCapabilities {
             val root = strictMap(value, setOf("schemaVersion", "availability", "engineRevision", "security", "display", "input", "channels"), "invalidCapabilities")
-            if (root["schemaVersion"] != 4) fail("invalidCapabilities")
+            if (root["schemaVersion"] !in setOf(4, 6)) fail("invalidCapabilities")
             val availability = when (root["availability"]) {
                 "available" -> RdpNativeAvailability.AVAILABLE
                 "unavailable" -> RdpNativeAvailability.UNAVAILABLE
@@ -181,7 +310,13 @@ class RdpNativeCapabilities private constructor(
     }
 }
 
-data class RdpNativeGateway(val host: String, val port: Int, val username: String)
+data class RdpNativeGateway(
+    val host: String,
+    val port: Int,
+    val username: String,
+    val domain: String,
+    val certificateFingerprint: String,
+)
 data class RdpNativeDisplay(
     val width: Int, val height: Int,
     val desktopScaleFactor: Int, val deviceScaleFactor: Int,
@@ -189,6 +324,7 @@ data class RdpNativeDisplay(
 )
 
 class RdpNativeRequest private constructor(
+    val schemaVersion: Int,
     val requestId: String,
     val targetHost: String,
     val targetPort: Int,
@@ -203,6 +339,8 @@ class RdpNativeRequest private constructor(
     val audio: Boolean,
     val microphone: Boolean,
     val files: Boolean,
+    val sessionRevision: Long?,
+    val fileTransferId: String?,
 ) {
     override fun toString() = "RdpNativeRequest(<redacted>)"
     fun publicSummary(): Map<String, Any> = mapOf(
@@ -217,8 +355,12 @@ class RdpNativeRequest private constructor(
     )
 
     companion object {
-        private val requestKeys = setOf("schemaVersion", "requestId", "targetHost", "targetPort", "username", "domain", "gateway", "certificateFingerprint", "requiresNla", "display", "keyboardLayout", "clipboardMode", "audio", "files")
-        private val microphoneRequestKeys = requestKeys + "microphone"
+        private val ordinaryRequestKeys = setOf(
+            "schemaVersion", "requestId", "targetHost", "targetPort", "username", "domain",
+            "gateway", "certificateFingerprint", "requiresNla", "display", "keyboardLayout",
+            "clipboardMode", "audio", "microphone", "files",
+        )
+        private val ownedRequestKeys = ordinaryRequestKeys + setOf("sessionRevision", "fileTransfer")
         private fun host(value: Any?): String {
             val host = text(value, 1, 253, "invalidRequest")
             if (Regex("[\\s/@\\\\?#%\\[\\]]").containsMatchIn(host)) fail("invalidRequest")
@@ -236,13 +378,32 @@ class RdpNativeRequest private constructor(
 
         fun parse(value: Any?): RdpNativeRequest {
             val root = value as? Map<*, *> ?: fail("invalidRequest")
-            if (root.keys != requestKeys && root.keys != microphoneRequestKeys) fail("invalidRequest")
-            if (root["schemaVersion"] != 4) fail("invalidRequest")
+            val schemaVersion = root["schemaVersion"] as? Int ?: fail("invalidRequest")
+            if (schemaVersion == 4 && root.keys != ordinaryRequestKeys ||
+                schemaVersion == 6 && root.keys != ownedRequestKeys ||
+                schemaVersion !in setOf(4, 6)
+            ) fail("invalidRequest")
             val requestId = text(root["requestId"], 36, 36, "invalidRequest")
             if (!Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}").matches(requestId)) fail("invalidRequest")
             val gateway = root["gateway"]?.let {
-                val map = strictMap(it, setOf("host", "port", "username"), "invalidRequest")
-                RdpNativeGateway(host(map["host"]), int(map, "port", 1, 65535, "invalidRequest"), text(map["username"], 0, 128, "invalidRequest"))
+                val keys = if (schemaVersion == 6) {
+                    setOf("host", "port", "username", "domain", "certificateFingerprint")
+                } else {
+                    setOf("host", "port", "username")
+                }
+                val map = strictMap(it, keys, "invalidRequest")
+                val gatewayFingerprint = if (schemaVersion == 6) {
+                    text(map["certificateFingerprint"], 50, 50, "invalidRequest").also {
+                        if (!Regex("SHA256:[A-Za-z0-9+/]{43}").matches(it)) fail("invalidRequest")
+                    }
+                } else ""
+                RdpNativeGateway(
+                    host(map["host"]),
+                    int(map, "port", 1, 65535, "invalidRequest"),
+                    text(map["username"], if (schemaVersion == 6) 1 else 0, 128, "invalidRequest"),
+                    if (schemaVersion == 6) text(map["domain"], 0, 128, "invalidRequest") else "",
+                    gatewayFingerprint,
+                )
             }
             val display = strictMap(root["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"), "invalidRequest")
             val width = int(display, "width", 640, 8192, "invalidRequest")
@@ -260,8 +421,26 @@ class RdpNativeRequest private constructor(
                 "clientToRemote" -> RdpClipboardMode.CLIENT_TO_REMOTE
                 else -> RdpClipboardMode.BIDIRECTIONAL
             }
+            val sessionRevision = if (schemaVersion == 6) {
+                exactPositiveLong(root["sessionRevision"])
+            } else null
+            val fileTransferId = if (schemaVersion == 6) {
+                root["fileTransfer"]?.let {
+                    val transfer = strictMap(it, setOf("transferId"), "invalidRequest")
+                    text(transfer["transferId"], 32, 32, "invalidRequest").also { id ->
+                        if (!RdpSafContract.HEX_32.matches(id)) fail("invalidRequest")
+                    }
+                }
+            } else null
+            val files = root["files"] as? Boolean ?: fail("invalidRequest")
+            if (schemaVersion == 4 && files ||
+                schemaVersion == 6 && files != (fileTransferId != null) ||
+                schemaVersion == 6 && !files && gateway == null) {
+                fail("channelUnavailable")
+            }
             return RdpNativeRequest(
-                requestId, host(root["targetHost"]), int(root, "targetPort", 1, 65535, "invalidRequest"),
+                schemaVersion, requestId,
+                host(root["targetHost"]), int(root, "targetPort", 1, 65535, "invalidRequest"),
                 text(root["username"], 1, 128, "invalidRequest"), text(root["domain"], 0, 128, "invalidRequest"), gateway,
                 fingerprint, root["requiresNla"] as? Boolean ?: fail("invalidRequest"),
                 RdpNativeDisplay(
@@ -273,9 +452,21 @@ class RdpNativeRequest private constructor(
                     bool(display, "externalDisplay", "invalidRequest"), bool(display, "dynamicResize", "invalidRequest")),
                 keyboard, clipboard,
                 root["audio"] as? Boolean ?: fail("invalidRequest"),
-                root["microphone"]?.let { it as? Boolean ?: fail("invalidRequest") } ?: false,
-                root["files"] as? Boolean ?: fail("invalidRequest"),
+                root["microphone"] as? Boolean ?: fail("invalidRequest"),
+                files,
+                sessionRevision,
+                fileTransferId,
             )
+        }
+
+        private fun exactPositiveLong(raw: Any?): Long {
+            val value = when (raw) {
+                is Int -> raw.toLong()
+                is Long -> raw
+                else -> fail("invalidRequest")
+            }
+            if (value !in 1..RdpSafContract.MAX_JS_SAFE_INTEGER) fail("invalidRequest")
+            return value
         }
     }
 }
@@ -353,7 +544,31 @@ class RdpNativeSecrets private constructor(
     }
 }
 
-interface RdpNativeSession { fun close() }
+data class RdpNativeFileTransferEndpoint(
+    val transferId: String,
+    val sessionRequestId: String,
+    val sessionRevision: Long,
+    internal val canonicalRoot: String,
+) {
+    init {
+        require(RdpSafContract.HEX_32.matches(transferId))
+        require(RdpFileTransferContract.run {
+            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+                .matches(sessionRequestId)
+        })
+        require(sessionRevision in 1..RdpSafContract.MAX_JS_SAFE_INTEGER)
+        require(canonicalRoot.isNotBlank())
+    }
+
+    override fun toString(): String = "RdpNativeFileTransferEndpoint(<redacted>)"
+}
+
+interface RdpNativeSession {
+    val schemaVersion: Int get() = 4
+    val fileTransferEndpoint: RdpNativeFileTransferEndpoint? get() = null
+    fun closeAndAwaitNativeDrain(): Boolean = false
+    fun close()
+}
 interface RdpNativeSessionObserver {
     fun onSecurity() = Unit
     fun onFrame() = Unit
@@ -369,13 +584,24 @@ interface RdpNativeBackend {
         secrets: RdpNativeSecrets,
         observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
     ): RdpNativeSession
+
+    fun open(
+        request: RdpNativeRequest,
+        negotiated: RdpNativeNegotiated,
+        secrets: RdpNativeSecrets,
+        observer: RdpNativeSessionObserver,
+        fileTransfer: RdpNativeFileTransferEndpoint?,
+    ): RdpNativeSession {
+        if (fileTransfer != null) fail("channelUnavailable")
+        return open(request, negotiated, secrets, observer)
+    }
 }
 
 class UnavailableRdpNativeBackend : RdpNativeBackend {
     var openCalls = 0
         private set
     override fun capabilities() = RdpNativeCapabilities.parse(mapOf(
-        "schemaVersion" to 4, "availability" to "unavailable", "engineRevision" to null,
+        "schemaVersion" to 6, "availability" to "unavailable", "engineRevision" to null,
         "security" to mapOf("tls" to false, "certificatePinning" to false, "nla" to false, "rdGateway" to false),
         "display" to mapOf(
             "dynamicResolution" to false, "externalDisplay" to false,
@@ -411,10 +637,18 @@ class RdpNativeAdapter(private val backend: RdpNativeBackend = UnavailableRdpNat
         request: RdpNativeRequest,
         secrets: RdpNativeSecrets,
         observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
+        fileTransfer: RdpNativeFileTransferEndpoint? = null,
     ): RdpNativeSession = try {
         secrets.requireGatewayShape(request.gateway != null)
         val negotiated = RdpNativeNegotiator.negotiate(request, backend.capabilities())
-        backend.open(request, negotiated, secrets, observer)
+        if (request.files != (fileTransfer != null) ||
+            fileTransfer != null && (
+                fileTransfer.sessionRequestId != request.requestId ||
+                    fileTransfer.sessionRevision != request.sessionRevision ||
+                    fileTransfer.transferId != request.fileTransferId
+                )
+        ) fail("channelUnavailable")
+        backend.open(request, negotiated, secrets, observer, fileTransfer)
     } catch (failure: RdpNativeFailure) {
         throw failure
     } catch (_: Exception) {

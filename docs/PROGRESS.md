@@ -37,6 +37,8 @@ Main/kabul denetimi: **35** kayıtlı scoped kabulün kod karşılıkları main�
 
 F60 [exact847 strict37134249192](https://github.com/ersingundem/larenor/actions/runs/37134249192) başarısız tamamlandı: `xi2ChildExit`. Sıralı gözlemci handoff düzeltmesi82test+Ruff geçti; Linux probe ve yeni Android yayın kabulü açık. Yerel sonuç kabul sayılmadı.
 
+Native5/SAF/schema6 incelenen kaynak tek dalda bütünleştirildi; root **121 portatif/Core test ve32subtest**, actual çift ABI ürün verify-installed, Ruff ve actionlint geçti. Önceki actual **200JVM/201Flutter/313task compile** kanıtı aynı kaynak manifestiyle doğrulandı. Ürün Gateway/files kapısı kapalı; Linux/Android gerçek etkiler ve final exact CI/kabul/merge açık. [Bileşim kanıtı](testing/f62-native5-composed-integration-2026-10-03.md).
+
 ## Güncel durum ayrımı
 
 F60 phase bridge tanısı root **74/74** stream/workflow ve Ruff geçti. Kayıp

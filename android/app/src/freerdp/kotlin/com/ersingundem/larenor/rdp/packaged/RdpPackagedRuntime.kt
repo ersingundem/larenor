@@ -18,13 +18,17 @@ import com.ersingundem.larenor.rdp.RdpJniOperation
 import com.ersingundem.larenor.rdp.RdpJniRuntime
 import com.ersingundem.larenor.rdp.RdpJniSecurity
 import com.ersingundem.larenor.rdp.RdpJniCertificateProbe
+import com.ersingundem.larenor.rdp.RdpJniCertificateProbeOperation
+import com.ersingundem.larenor.rdp.RdpJniGatewayEndpoint
 import com.ersingundem.larenor.rdp.RdpNativeDisplay
 import com.ersingundem.larenor.rdp.RdpNativeFailure
 import com.ersingundem.larenor.rdp.RdpNativeFrame
+import com.ersingundem.larenor.rdp.RdpNativeFileTransferEndpoint
 import com.ersingundem.larenor.rdp.RdpKeyboardLayout
 import com.ersingundem.larenor.rdp.RdpMicrophoneCaptureObservation
 import com.ersingundem.larenor.rdp.RdpNativeNegotiated
 import com.ersingundem.larenor.rdp.RdpNativeRequest
+import com.ersingundem.larenor.rdp.RdpNativeGateway
 import com.ersingundem.larenor.rdp.RdpRemoteAudioObservation
 import com.ersingundem.larenor.rdp.RdpRemoteAudioState
 import com.freerdp.freerdpcore.application.GlobalApp
@@ -63,11 +67,11 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         sourceCommit = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256 = RdpFreeRdpPackage.SOURCE_SHA256,
         abi = Build.SUPPORTED_ABIS.firstOrNull { it in RdpFreeRdpPackage.SUPPORTED_ABIS }.orEmpty(),
-        jniSchema = 4,
+        jniSchema = 5,
         enabledChannels = emptySet(),
     )
 
-    override fun capabilities(): Map<String, Any?> = RdpFreeRdpPackage.capabilities()
+    override fun capabilities(): Map<String, Any?> = RdpFreeRdpPackage.compiledCapabilities()
 
     override fun inspect(host: String, port: Int, username: String): RdpJniCertificateProbe {
         val probe = FreeRdpProbe(appContext, host, port, username)
@@ -78,11 +82,49 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         }
     }
 
+    override fun inspectGateway(
+        targetHost: String,
+        targetPort: Int,
+        targetUsername: String,
+        gateway: RdpJniGatewayEndpoint,
+    ): RdpJniCertificateProbeOperation = FreeRdpGatewayProbe(
+        appContext, targetHost, targetPort, targetUsername, gateway,
+    )
+
+    override fun inspectTargetThroughGateway(
+        targetHost: String,
+        targetPort: Int,
+        targetUsername: String,
+        targetDomain: String,
+        gateway: RdpNativeGateway,
+        gatewayPassword: CharArray,
+    ): RdpJniCertificateProbeOperation = FreeRdpTargetThroughGatewayProbe(
+        appContext, targetHost, targetPort, targetUsername, targetDomain,
+        gateway, gatewayPassword,
+    )
+
     override fun create(
         request: RdpNativeRequest,
         plan: RdpNativeNegotiated,
         listener: RdpJniOperation.Listener,
     ): RdpJniOperation {
+        if (request.files) throw RdpNativeFailure("channelUnavailable")
+        return create(request, plan, listener, null)
+    }
+
+    override fun create(
+        request: RdpNativeRequest,
+        plan: RdpNativeNegotiated,
+        listener: RdpJniOperation.Listener,
+        fileTransfer: RdpNativeFileTransferEndpoint?,
+    ): RdpJniOperation {
+        if (request.files != (fileTransfer != null) ||
+            fileTransfer != null && (
+                fileTransfer.sessionRequestId != request.requestId ||
+                    fileTransfer.sessionRevision != request.sessionRevision ||
+                    fileTransfer.transferId != request.fileTransferId
+                )
+        ) throw RdpNativeFailure("channelUnavailable")
         if (request.microphone && !microphoneAuthorized()) {
             throw RdpNativeFailure("microphonePermissionRequired")
         }
@@ -91,6 +133,7 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
             FreeRdpOperation(
                 appContext, request, plan, listener, diagnostic,
                 microphoneAuthorized = ::microphoneAuthorized,
+                fileTransfer = fileTransfer,
             )
         } catch (failure: LinkageError) {
             diagnostic.candidateCreateFailure()
@@ -131,6 +174,9 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
             "isRelativeMouseInputSupported" to 1,
             "sendClipboardData" to 2,
             "sendMonitorLayout" to 5,
+            "configureGateway" to 3,
+            "configureFileTransfer" to 2,
+            "freeInstanceDrained" to 2,
         )
         val publicStatic = LibFreeRDP::class.java.declaredMethods.filter {
             Modifier.isPublic(it.modifiers) && Modifier.isStatic(it.modifiers)
@@ -138,6 +184,10 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         if (required.any { (name, arity) -> publicStatic.none { it.name == name && it.parameterCount == arity } }) {
             unavailable()
         }
+        if (GlobalApp::class.java.methods.none {
+                it.name == "freeSessionDrained" && it.parameterCount == 2 &&
+                    it.returnType == java.lang.Boolean.TYPE
+            }) unavailable()
         if (LibFreeRDP.REMOTE_AUDIO_DEVICE_OPENED != 1 ||
             LibFreeRDP.REMOTE_AUDIO_BUFFER_ACCEPTED != 2 ||
             LibFreeRDP.REMOTE_AUDIO_BUFFER_COMPLETED != 3 ||
@@ -166,9 +216,72 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
     }
 }
 
+internal class RdpPackagedSessionOwnership(
+    private val drainTimeoutNanos: Long = TimeUnit.SECONDS.toNanos(
+        NATIVE_DRAIN_AWAIT_SECONDS,
+    ),
+    private val clock: () -> Long = System::nanoTime,
+) {
+    enum class State { AVAILABLE, ACTIVE, DRAINING, UNKNOWN }
+
+    init {
+        require(drainTimeoutNanos > 0)
+    }
+
+    private var state = State.AVAILABLE
+    private var owner = 0L
+    private var nextOwner = 1L
+    private var drainStartedNanos = 0L
+
+    @Synchronized fun reserve(): Long? {
+        if (state != State.AVAILABLE || nextOwner == Long.MAX_VALUE) return null
+        val token = nextOwner++
+        owner = token
+        state = State.ACTIVE
+        return token
+    }
+
+    @Synchronized fun abandon(token: Long): Boolean {
+        if (state != State.ACTIVE || owner != token) return false
+        owner = 0L
+        state = State.AVAILABLE
+        drainStartedNanos = 0L
+        return true
+    }
+
+    @Synchronized fun beginDrain(token: Long): Boolean {
+        if (state != State.ACTIVE || owner != token) return false
+        state = State.DRAINING
+        drainStartedNanos = clock()
+        return true
+    }
+
+    @Synchronized fun confirmDrained(token: Long, confirmed: () -> Unit): Boolean {
+        if (state != State.DRAINING || owner != token) return false
+        if (clock() - drainStartedNanos >= drainTimeoutNanos) {
+            state = State.UNKNOWN
+            return false
+        }
+        confirmed()
+        owner = 0L
+        state = State.AVAILABLE
+        drainStartedNanos = 0L
+        return true
+    }
+
+    @Synchronized fun unknown(token: Long): Boolean {
+        if (state != State.DRAINING || owner != token) return false
+        state = State.UNKNOWN
+        return true
+    }
+
+    @Synchronized fun snapshot(): State = state
+}
+
 private object FreeRdpRegistry : LibFreeRDP.EventListener {
     private val installed = AtomicBoolean(false)
     private val operations = ConcurrentHashMap<Long, FreeRdpConnection>()
+    private val ownership = RdpPackagedSessionOwnership()
     private val cleanup = Executors.newCachedThreadPool { runnable ->
         Thread(runnable, "larenor-rdp-cleanup").apply { isDaemon = true }
     }
@@ -187,14 +300,35 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
     fun attach(instance: Long, operation: FreeRdpConnection) {
         if (operations.putIfAbsent(instance, operation) != null) unavailable()
     }
+    fun reserve(): Long = ownership.reserve() ?: unavailable()
+    fun abandon(token: Long) { ownership.abandon(token) }
     fun detach(instance: Long) { operations.remove(instance) }
-    fun release(instance: Long) {
+    fun expire(instance: Long, owner: Long) {
+        if (ownership.unknown(owner)) operations[instance]?.drainUnknown()
+    }
+    fun release(instance: Long, owner: Long) {
+        if (!ownership.beginDrain(owner)) return
         runCatching { LibFreeRDP.cancelConnection(instance) }
         cleanup.execute {
-            try {
-                runCatching { GlobalApp.freeSession(instance) }
-            } finally {
-                detach(instance)
+            val operation = operations[instance]
+            val drained = try {
+                GlobalApp.freeSessionDrained(instance, NATIVE_DRAIN_TIMEOUT_MS)
+            } catch (_: Exception) {
+                false
+            } catch (_: LinkageError) {
+                false
+            }
+            if (drained) {
+                val timely = ownership.confirmDrained(owner) {
+                    operation?.drained()
+                    detach(instance)
+                }
+                if (!timely) operation?.drainUnknown()
+            } else {
+                // Keep the complete operation/session/context graph retained.
+                // A late native callback must never observe a freed parent.
+                ownership.unknown(owner)
+                operation?.drainUnknown()
             }
         }
     }
@@ -247,6 +381,8 @@ private interface FreeRdpConnection {
     ) = Unit
     fun failed()
     fun disconnected()
+    fun drained() = Unit
+    fun drainUnknown() = Unit
 }
 
 private abstract class BaseConnection(
@@ -258,21 +394,64 @@ private abstract class BaseConnection(
     protected val terminal = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
     protected val finished = CountDownLatch(1)
+    private val nativeDrainFinished = CountDownLatch(1)
+    @Volatile private var nativeDrainConfirmed = false
     protected var session: SessionState? = null
     protected var instance = 0L
+    private var nativeOwner = 0L
 
-    protected fun create(uri: Uri) {
-        val made = GlobalApp.createSession(uri, context)
-        session = made
-        instance = made.instance
-        made.uiEventListener = this
-        FreeRdpRegistry.attach(instance, this)
-        if (!LibFreeRDP.setConnectionInfo(context, instance, uri)) {
-            connectionInfoRejected()
-            close()
-            unavailable()
+    protected fun create(
+        uri: Uri,
+        gatewayHost: String? = null,
+        gatewayPort: Int? = null,
+        fileTransferRoot: String? = null,
+    ) {
+        val owner = FreeRdpRegistry.reserve()
+        nativeOwner = owner
+        try {
+            val made = GlobalApp.createSession(uri, context)
+            session = made
+            instance = made.instance
+            made.uiEventListener = this
+            FreeRdpRegistry.attach(instance, this)
+            if (!LibFreeRDP.setConnectionInfo(context, instance, uri)) {
+                connectionInfoRejected()
+                close()
+                unavailable()
+            }
+            if ((gatewayHost == null) != (gatewayPort == null) ||
+                gatewayHost != null && !LibFreeRDP.configureGateway(
+                    instance, gatewayHost, requireNotNull(gatewayPort),
+                )) {
+                connectionInfoRejected()
+                close()
+                unavailable()
+            }
+            if (fileTransferRoot != null && !LibFreeRDP.configureFileTransfer(
+                    instance, fileTransferRoot,
+                )
+            ) {
+                connectionInfoRejected()
+                close()
+                unavailable()
+            }
+            connectionInfoParsed()
+        } catch (failure: LinkageError) {
+            failedCreate(owner)
+            throw failure
+        } catch (failure: Exception) {
+            failedCreate(owner)
+            throw failure
         }
-        connectionInfoParsed()
+    }
+
+    private fun failedCreate(owner: Long) {
+        if (instance == 0L) {
+            FreeRdpRegistry.abandon(owner)
+            nativeOwner = 0L
+        } else {
+            close()
+        }
     }
 
     protected fun connect() {
@@ -295,12 +474,40 @@ private abstract class BaseConnection(
         if (!closed.compareAndSet(false, true)) return
         terminal.set(true)
         val value = instance
-        if (value != 0L) {
-            FreeRdpRegistry.release(value)
+        val owner = nativeOwner
+        if (value != 0L && owner != 0L) {
+            FreeRdpRegistry.release(value, owner)
+        } else if (owner != 0L) {
+            FreeRdpRegistry.abandon(owner)
+            nativeDrainConfirmed = true
+            nativeDrainFinished.countDown()
+        } else {
+            nativeDrainConfirmed = true
+            nativeDrainFinished.countDown()
         }
+        finished.countDown()
+    }
+
+    override fun drained() {
         session?.uiEventListener = null
         session = null
-        finished.countDown()
+        nativeDrainConfirmed = true
+        nativeDrainFinished.countDown()
+    }
+
+    override fun drainUnknown() {
+        // Deliberately retain session and listener references. The public
+        // operation is already terminal, but native cleanup is unconfirmed.
+        nativeDrainFinished.countDown()
+    }
+
+    protected fun closeAndAwaitNativeDrain(): Boolean {
+        close()
+        if (!nativeDrainFinished.await(NATIVE_DRAIN_AWAIT_SECONDS, TimeUnit.SECONDS)) {
+            FreeRdpRegistry.expire(instance, nativeOwner)
+            return false
+        }
+        return nativeDrainConfirmed
     }
 
     override fun connected() { finished.countDown() }
@@ -333,6 +540,153 @@ private abstract class BaseConnection(
 
     protected fun directPeer(host: String, port: Long, flags: Long): Boolean =
         packagedDirectPeerCertificate(this.host, this.port, host, port, flags)
+}
+
+private class FreeRdpGatewayProbe(
+    context: Context,
+    host: String,
+    port: Int,
+    username: String,
+    private val gateway: RdpJniGatewayEndpoint,
+) : BaseConnection(context, host, port, username), RdpJniCertificateProbeOperation {
+    @Volatile private var evidence: RdpJniCertificateProbe? = null
+
+    override fun run(): RdpJniCertificateProbe {
+        create(baseUri(640, 480, false), gateway.host, gateway.port)
+        connect()
+        if (!finished.await(20, TimeUnit.SECONDS)) close()
+        return evidence ?: probeFailure(RdpProbeOutcome.CONNECTION_FAILURE_BEFORE_CERTIFICATE)
+    }
+
+    override fun closeAndAwaitDrain(): Boolean = closeAndAwaitNativeDrain()
+
+    override fun OnAuthenticate(
+        username: StringBuilder,
+        domain: StringBuilder,
+        password: StringBuilder,
+    ) = false
+
+    override fun OnVerifyX509Certificate(
+        pem: ByteArray,
+        host: String,
+        port: Long,
+        flags: Long,
+    ): Int {
+        if (terminal.get() || !packagedPeerCertificate(
+                gateway.host, gateway.port, host, port, flags, gateway = true,
+            )) return 0
+        val pin = pinFromX509Certificate(pem) ?: return 0
+        evidence = RdpJniCertificateProbe(RdpFreeRdpPackage.TLS_PROTOCOL, true, pin)
+        finished.countDown()
+        // Enrollment is intentionally aborted before gateway authentication.
+        return 0
+    }
+
+    override fun OnVerifiyCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, flags: Long,
+    ) = 0
+
+    override fun OnVerifyChangedCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, oldSubject: String, oldIssuer: String,
+        oldFingerprint: String, flags: Long,
+    ) = 0
+}
+
+private class FreeRdpTargetThroughGatewayProbe(
+    context: Context,
+    host: String,
+    port: Int,
+    username: String,
+    @Suppress("unused") private val targetDomain: String,
+    private val gateway: RdpNativeGateway,
+    gatewayPassword: CharArray,
+) : BaseConnection(context, host, port, username), RdpJniCertificateProbeOperation {
+    private var gatewaySecret: CharArray? = gatewayPassword.copyOf()
+    @Volatile private var gatewayPinned = false
+    @Volatile private var evidence: RdpJniCertificateProbe? = null
+
+    init {
+        gatewayPassword.fill('\u0000')
+    }
+
+    override fun run(): RdpJniCertificateProbe {
+        try {
+            create(baseUri(640, 480, false), gateway.host, gateway.port)
+            connect()
+            if (!finished.await(20, TimeUnit.SECONDS)) close()
+            return evidence ?: probeFailure(RdpProbeOutcome.CONNECTION_FAILURE_BEFORE_CERTIFICATE)
+        } finally {
+            gatewaySecret?.fill('\u0000')
+            gatewaySecret = null
+        }
+    }
+
+    override fun closeAndAwaitDrain(): Boolean = closeAndAwaitNativeDrain()
+
+    override fun OnGatewayAuthenticate(
+        username: StringBuilder,
+        domain: StringBuilder,
+        password: StringBuilder,
+    ): Boolean {
+        if (terminal.get() || !gatewayPinned) return false
+        val secret = gatewaySecret ?: return false
+        username.setLength(0); username.append(gateway.username)
+        domain.setLength(0); domain.append(gateway.domain)
+        password.setLength(0); password.append(secret)
+        return true
+    }
+
+    override fun OnAuthenticate(
+        username: StringBuilder,
+        domain: StringBuilder,
+        password: StringBuilder,
+    ) = false
+
+    override fun OnVerifyX509Certificate(
+        pem: ByteArray,
+        host: String,
+        port: Long,
+        flags: Long,
+    ): Int {
+        if (terminal.get()) return 0
+        val isGateway = flags and CERTIFICATE_KIND_GATEWAY != 0L
+        if (isGateway) {
+            if (!packagedPeerCertificate(
+                    gateway.host, gateway.port, host, port, flags, gateway = true,
+                )) return 0
+            val pin = pinFromX509Certificate(pem) ?: return 0
+            if (pin != gateway.certificateFingerprint) return 0
+            gatewayPinned = true
+            return 1
+        }
+        if (!gatewayPinned || !packagedPeerCertificate(
+                this.host, this.port, host, port, flags, gateway = false,
+            )) return 0
+        val pin = pinFromX509Certificate(pem) ?: return 0
+        evidence = RdpJniCertificateProbe(RdpFreeRdpPackage.TLS_PROTOCOL, true, pin)
+        finished.countDown()
+        // Target enrollment stops before target credentials/NLA.
+        return 0
+    }
+
+    override fun OnVerifiyCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, flags: Long,
+    ) = 0
+
+    override fun OnVerifyChangedCertificateEx(
+        host: String, port: Long, commonName: String, subject: String, issuer: String,
+        fingerprint: String, oldSubject: String, oldIssuer: String,
+        oldFingerprint: String, flags: Long,
+    ) = 0
+
+    override fun close() {
+        gatewaySecret?.fill('\u0000')
+        gatewaySecret = null
+        super.close()
+    }
 }
 
 private class FreeRdpProbe(
@@ -695,6 +1049,7 @@ private class FreeRdpOperation(
     private var listener: RdpJniOperation.Listener?,
     private val openDiagnostic: RdpPackagedOpenDiagnosticRecorder,
     private val microphoneAuthorized: () -> Boolean,
+    private val fileTransfer: RdpNativeFileTransferEndpoint?,
 ) : BaseConnection(context, request.targetHost, request.targetPort, request.username), RdpJniOperation {
     @Volatile
     override var unicodeInputSupported = false
@@ -705,7 +1060,12 @@ private class FreeRdpOperation(
     private var password: CharArray? = null
     private var gatewayPassword: CharArray? = null
     private var bitmap: Bitmap? = null
-    private val securityGate = RdpAuthenticatedOutputGate(request.certificateFingerprint)
+    private val securityGate = RdpPackagedGatewaySecurityGate(
+        request.targetHost,
+        request.targetPort,
+        request.certificateFingerprint,
+        request.gateway,
+    )
     private var graphicsUpdated = false
     private val securityPublished = CountDownLatch(1)
     private var lastButtons = 0
@@ -725,10 +1085,6 @@ private class FreeRdpOperation(
         AtomicReference<RdpMicrophoneCaptureObservation?>(null)
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
-        if (request.gateway != null) {
-            openDiagnostic.localSetupRejected()
-            return false
-        }
         if (request.microphone && !microphoneAuthorized()) {
             openDiagnostic.localSetupRejected()
             return false
@@ -748,7 +1104,7 @@ private class FreeRdpOperation(
                 request.display.deviceScaleFactor,
                 request.audio,
                 request.microphone,
-            ))
+            ), request.gateway?.host, request.gateway?.port, fileTransfer?.canonicalRoot)
             initialDisplayGate = RdpInitialDisplayGate(instance)
             remoteAudioGate = RdpRemoteAudioGate(instance, request.audio)
             microphoneGate = RdpPackagedMicrophoneGate(instance, request.microphone)
@@ -778,10 +1134,26 @@ private class FreeRdpOperation(
     override fun connectRejected() = openDiagnostic.localSetupRejected()
 
     override fun OnAuthenticate(username: StringBuilder, domain: StringBuilder, password: StringBuilder): Boolean {
-        if (request.microphone && !microphoneAuthorized()) return false
+        if (request.microphone && !microphoneAuthorized() ||
+            !securityGate.canProvideTargetCredentials()) return false
         val secret = this.password ?: return false
         username.setLength(0); username.append(request.username)
         domain.setLength(0); domain.append(request.domain)
+        password.setLength(0); password.append(secret)
+        return true
+    }
+
+    override fun OnGatewayAuthenticate(
+        username: StringBuilder,
+        domain: StringBuilder,
+        password: StringBuilder,
+    ): Boolean {
+        if (terminal.get() || request.microphone && !microphoneAuthorized() ||
+            !securityGate.canProvideGatewayCredentials()) return false
+        val configured = request.gateway ?: return false
+        val secret = this.gatewayPassword ?: return false
+        username.setLength(0); username.append(configured.username)
+        domain.setLength(0); domain.append(configured.domain)
         password.setLength(0); password.append(secret)
         return true
     }
@@ -793,11 +1165,10 @@ private class FreeRdpOperation(
         flags: Long,
     ): Int {
         if (terminal.get() || request.microphone && !microphoneAuthorized()) return 0
-        if (!directPeer(host, port, flags)) return 0
         val pin = pinFromX509Certificate(pem) ?: return 0
         // This callback precedes CredSSP authentication. Keep only the accepted
         // pin here; OnConnectionSuccess is the authority for a live session.
-        return if (securityGate.certificate(pin)) {
+        return if (securityGate.certificate(host, port, flags, pin)) {
             openDiagnostic.certificateAccepted()
             1
         } else {
@@ -1134,6 +1505,8 @@ private class FreeRdpOperation(
         super.close()
     }
 
+    override fun closeAndAwaitDrain(): Boolean = closeAndAwaitNativeDrain()
+
 }
 
 internal data class RdpPointerWireEvent(val x: Int, val y: Int, val flags: Int)
@@ -1191,6 +1564,8 @@ private const val MAX_X509_PEM_BYTES = 64 * 1024
 private const val X509_PEM_BEGIN = "-----BEGIN CERTIFICATE-----"
 private const val X509_PEM_END = "-----END CERTIFICATE-----"
 private const val CERTIFICATE_KIND_GATEWAY = 0x20L
+private const val NATIVE_DRAIN_TIMEOUT_MS = 5_000
+private const val NATIVE_DRAIN_AWAIT_SECONDS = 6L
 private val POINTER_BUTTON_FLAGS = listOf(
     1 to PTR_BUTTON1,
     2 to PTR_BUTTON3,
@@ -1277,6 +1652,20 @@ internal fun packagedDirectPeerCertificate(
     flags: Long,
 ): Boolean = observedHost == expectedHost && observedPort == expectedPort.toLong() &&
     flags and CERTIFICATE_KIND_GATEWAY == 0L
+
+internal fun packagedPeerCertificate(
+    expectedHost: String,
+    expectedPort: Int,
+    observedHost: String,
+    observedPort: Long,
+    flags: Long,
+    gateway: Boolean,
+): Boolean {
+    val allowed = 0x02L or 0x20L or 0x80L or 0x100L or 0x200L
+    return observedHost == expectedHost && observedPort == expectedPort.toLong() &&
+        flags and (0x10L or 0x40L) == 0L && flags and allowed.inv() == 0L &&
+        (flags and CERTIFICATE_KIND_GATEWAY != 0L) == gateway
+}
 
 internal fun packagedMicrophoneAuthority(activity: Activity?): Boolean = activity != null &&
     !activity.isFinishing && !activity.isDestroyed && activity.hasWindowFocus() &&

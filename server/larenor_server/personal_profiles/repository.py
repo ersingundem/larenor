@@ -157,6 +157,10 @@ class PersonalProfileRepository:
         )
 
     def _request_hash(self, action, target_id, body):
+        if action in ('create', 'update') and body.get('rdp') is None:
+            # Absent optional security must keep the shipped request/AAD hash.
+            # Explicit null carries the same intent as an omitted security key.
+            body = {key: value for key, value in body.items() if key != 'rdp'}
         payload = json.dumps(
             [self.scope.coreId, self.scope.homeId, action, target_id, body],
             sort_keys=True, separators=(',', ':'), ensure_ascii=True,
@@ -179,7 +183,7 @@ class PersonalProfileRepository:
     def _profile_data(body):
         return StoredPersonalProfile.model_validate({
             name: getattr(body, name)
-            for name in ('label', 'protocol', 'host', 'port', 'username')
+            for name in ('label', 'protocol', 'host', 'port', 'username', 'rdp')
         })
 
     def _receipt_aad(self, owner_id, family_id, request_id, action,

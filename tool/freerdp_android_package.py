@@ -22,6 +22,7 @@ HEX40 = re.compile(r"[0-9a-f]{40}")
 HEX64 = re.compile(r"[0-9a-f]{64}")
 ABI_MACHINE = {"arm64-v8a": 183, "x86_64": 62}
 FREERDP_CLASS = "com/freerdp/freerdpcore/services/LibFreeRDP.class"
+GLOBAL_APP_CLASS = "com/freerdp/freerdpcore/application/GlobalApp.class"
 EVENT_LISTENER_CLASS = (
     "com/freerdp/freerdpcore/services/LibFreeRDP$EventListener.class"
 )
@@ -30,7 +31,11 @@ REQUIRED_FREERDP_API = (
     ("isRelativeMouseInputSupported", "(J)Z"),
     ("sendMonitorLayout", "(JII)Z"),
     ("sendMonitorLayout", "(JIIII)Z"),
+    ("configureGateway", "(JLjava/lang/String;I)Z"),
+    ("configureFileTransfer", "(JLjava/lang/String;)Z"),
+    ("freeInstanceDrained", "(JI)Z"),
 )
+REQUIRED_GLOBAL_APP_API = (("freeSessionDrained", "(JI)Z"),)
 REQUIRED_EVENT_LISTENER_API = (
     ("OnDisplayControlReady", "(J)V"),
     ("OnRemoteAudioPlayback", "(JZJJI)V"),
@@ -86,9 +91,9 @@ def load_lock(path=LOCK_PATH):
         "patches",
         "toolchain", "supportedAbis", "jniSchema", "defaultChannels",
         "requiredLibraries", "requiredClasses", "requiredJniSymbols",
-        "requiredNativeEvidence",
+        "requiredNativeEvidence", "requiredDriveEvidence",
     }, "invalid_lock")
-    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 4,
+    _require(value["schemaVersion"] == 1 and value["jniSchema"] == 5,
              "invalid_lock")
     source = value["source"]
     _require(set(source) == {"version", "commit", "url", "sha256"},
@@ -101,7 +106,7 @@ def load_lock(path=LOCK_PATH):
         "freerdp-3.31.1.tar.gz"
     ), "invalid_lock")
     reviewed = value["reviewedFiles"]
-    _require(type(reviewed) is dict and len(reviewed) == 22 and
+    _require(type(reviewed) is dict and len(reviewed) == 24 and
              all(type(name) is str and HEX40.fullmatch(digest or "")
                  for name, digest in reviewed.items()), "invalid_lock")
     patches = value["patches"]
@@ -131,12 +136,16 @@ def load_lock(path=LOCK_PATH):
                 "path": "android/freerdp-microphone-v4.patch",
                 "sha256": _sha256(ROOT / "android/freerdp-microphone-v4.patch"),
             },
+            {
+                "path": "android/freerdp-remote-access-v5.patch",
+                "sha256": _sha256(ROOT / "android/freerdp-remote-access-v5.patch"),
+            },
         ]
     except OSError as error:
         raise PackageError("invalid_lock") from error
     _require(
         type(patches) is list
-        and len(patches) == 6
+        and len(patches) == 7
         and patches == expected_patches,
         "invalid_lock",
     )
@@ -182,6 +191,29 @@ def load_lock(path=LOCK_PATH):
             "OnRemoteAudioPlayback",
             "OnVerifyX509Certificate",
             "OnMicrophoneCapture",
+            (
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
+                "freerdp_1configure_1gateway"
+            ),
+            (
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
+                "freerdp_1configure_1file_1transfer"
+            ),
+            (
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_"
+                "freerdp_1drain_1and_1free"
+            ),
+            "LrnXfer",
+            "/proc/self/fd/",
+        ],
+        "invalid_lock",
+    )
+    _require(
+        value["requiredDriveEvidence"] == [
+            "Larenor file transfer policy entered a terminal state",
+            "Larenor file transfer drive policy rejected registration",
+            "ToRemote",
+            "FromRemote",
         ],
         "invalid_lock",
     )
@@ -637,6 +669,175 @@ def verify_microphone_patch(source):
     )
 
 
+def verify_remote_access_patch(source_root):
+    root = source_root.resolve()
+    base = root / "client/Android/Studio/freeRDPCore/src/main"
+    paths = {
+        "java": base / "java/com/freerdp/freerdpcore/services/LibFreeRDP.java",
+        "global": base / "java/com/freerdp/freerdpcore/application/GlobalApp.java",
+        "native": base / "cpp/android_freerdp.c",
+        "context": base / "cpp/android_freerdp.h",
+        "cmake": root / "channels/drive/client/CMakeLists.txt",
+        "drive": root / "channels/drive/client/drive_main.c",
+        "policy": root / "channels/drive/client/drive_larenor.c",
+        "policy_h": root / "channels/drive/client/drive_larenor.h",
+    }
+    try:
+        value = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
+    except OSError as error:
+        raise PackageError("invalid_remote_access_patch") from error
+    java = value["java"]
+    global_app = value["global"]
+    native = value["native"]
+    context = value["context"]
+    drive = value["drive"]
+    policy = value["policy"]
+    policy_h = value["policy_h"]
+    gateway_start = native.find(
+        "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1gateway"
+    )
+    transfer_start = native.find(
+        "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1file_1transfer"
+    )
+    drain_start = native.find(
+        "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1drain_1and_1free"
+    )
+    connect_start = native.find(
+        "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1connect",
+        drain_start,
+    )
+    gateway = native[gateway_start:transfer_start]
+    transfer = native[transfer_start:drain_start]
+    drain = native[drain_start:connect_start]
+    begin_drain = java[java.find("private static InstanceLifecycle beginDrain("):
+                       java.find("private static int remainingMillis(")]
+    free_java = java[java.find("public static boolean freeInstanceDrained("):
+                     java.find("public static boolean connect(")]
+    free_global = global_app[global_app.find("static public boolean freeSessionDrained("):
+                             global_app.find("@Override public void onCreate()")]
+    register_start = drive.find("static UINT drive_register_drive_path(")
+    register_end = drive.find("static UINT handle_drive_path(", register_start)
+    registration = drive[register_start:register_end]
+    worker_start = drive.find("static DWORD WINAPI drive_thread_func(")
+    worker_end = drive.find("static UINT drive_irp_request(", worker_start)
+    worker = drive[worker_start:worker_end]
+    cleanup_start = drive.find("static UINT drive_free_int(DRIVE_DEVICE* drive)", worker_end)
+    free_start = drive.find("static UINT drive_free(DEVICE* device)", cleanup_start)
+    cleanup = drive[cleanup_start:free_start]
+    free_end = drive.find("static void drive_file_objfree(", free_start)
+    free_drive = drive[free_start:free_end]
+    _require(
+        gateway_start >= 0
+        and transfer_start > gateway_start
+        and drain_start > transfer_start
+        and connect_start > drain_start
+        and java.count("public static boolean configureGateway(long inst, String host, int port)") == 1
+        and java.count("public static boolean configureFileTransfer(long inst, String canonicalRoot)") == 1
+        and java.count("public static boolean freeInstanceDrained(long inst, int timeoutMs)") == 1
+        and java.count("private static native boolean freerdp_configure_gateway(long inst, String host, int port);") == 1
+        and java.count("private static native boolean freerdp_configure_file_transfer(long inst, String canonicalRoot);") == 1
+        and java.count("private static native boolean freerdp_drain_and_free(long inst, int timeoutMs);") == 1
+        and java.count("return callInstance(inst, () -> freerdp_configure_gateway(inst, host, port));") == 1
+        and "freerdp_configure_file_transfer(inst, canonicalRoot)" in java
+        and "mInstanceLifecycle.put(inst, new InstanceLifecycle());" in java
+        and "if (lifecycle.draining || lifecycle.nativeFreed)" in java
+        and "lifecycle.activeCalls++;" in java
+        and "lifecycle.activeCalls--;" in java
+        and "lifecycle.draining = true;" in begin_drain
+        and "if (currentThreadOwnsCall(inst))" in begin_drain
+        and "while (lifecycle.activeCalls > 0)" in begin_drain
+        and "lifecycle.wait(millis, nanos);" in begin_drain
+        and free_java.find("freerdp_drain_and_free(inst, nativeTimeoutMs)")
+        < free_java.find("lifecycle.nativeFreed = drained")
+        < free_java.find("mInstanceLifecycle.delete(inst)")
+        and "if (!drained || !timely)" in free_java
+        and global_app.count("static public boolean freeSessionDrained(long instance, int timeoutMs)") == 1
+        and "final SessionEventListener listener = sessionListeners.get(instance);" in global_app
+        and "if (sessionListeners.get(instance) != listener)" in global_app
+        and global_app.find("mainHandler.post(() -> {")
+        < global_app.find("if (sessionListeners.get(instance) != listener)")
+        < global_app.find("action.accept(listener)")
+        and free_global.find("LibFreeRDP.freeInstanceDrained(instance, timeoutMs)")
+        < free_global.find("sessionMap.remove(instance)")
+        and "if (sessionMap.get(instance) != session)" in free_global
+        and "CRITICAL_SECTION settingsLock;" in context
+        and "BOOL targetParsed;" in context
+        and "BOOL gatewayConfigured;" in context
+        and "BOOL fileTransferConfigured;" in context
+        and "char* noBackupRoot;" in context
+        and "int fileTransferRootFd;" in context
+        and "BOOL drainStarted;" in context
+        and "android_no_backup_root(env, context)" in native
+        and "ctx->targetParsed && !ctx->thread && !ctx->gatewayConfigured" in gateway
+        and "freerdp_set_gateway_usage_method(settings, TSC_PROXY_MODE_DIRECT)" in gateway
+        and "FreeRDP_GatewayUseSameCredentials, FALSE" in gateway
+        and "FreeRDP_GatewayHttpTransport, TRUE" in gateway
+        and "FreeRDP_GatewayRpcTransport, FALSE" in gateway
+        and "FreeRDP_GatewayUdpTransport, FALSE" in gateway
+        and "FreeRDP_GatewayArmTransport, FALSE" in gateway
+        and "FreeRDP_GatewayHttpUseWebsockets, FALSE" in gateway
+        and "FreeRDP_GatewayUsername, nullptr" in gateway
+        and "FreeRDP_GatewayPassword, nullptr" in gateway
+        and "android_open_transfer_root(ctx, root)" in transfer
+        and "freerdp_device_collection_find_type(settings, RDPDR_DTYP_FILESYSTEM)" in transfer
+        and 'snprintf(stableRoot, sizeof(stableRoot), "/proc/self/fd/%d", rootFd)' in transfer
+        and 'const char* args[] = { "LrnXfer", stableRoot };' in transfer
+        and "freerdp_device_collection_add(settings, device)" in transfer
+        and "FreeRDP_DeviceRedirection, TRUE" in transfer
+        and drain.find("ctx->drainStarted = TRUE;")
+        < drain.find("WaitForSingleObject(worker, (DWORD)timeoutMs)")
+        < drain.find("freerdp_client_context_free(inst->context)")
+        and "return JNI_FALSE;" in drain
+        and '#define LRN_DRIVE_NAME "LrnXfer"' in policy_h
+        and "#define LRN_MAX_FILES 32U" in policy_h
+        and "LRN_MAX_FILE_BYTES (UINT64_C(256) * 1024U * 1024U)" in policy_h
+        and "LRN_MAX_TOTAL_BYTES (UINT64_C(1024) * 1024U * 1024U)" in policy_h
+        and 'static const char prefix[] = "/proc/self/fd/";' in policy
+        and "F_DUPFD_CLOEXEC" in policy
+        and "lrn_same_inode(&first, &retained)" in policy
+        and "lrn_same_inode(&first, &last)" in policy
+        and "strcmp(second_target, resolved) == 0" in policy
+        and "AT_SYMLINK_NOFOLLOW" in policy
+        and "O_NOFOLLOW | O_CLOEXEC" in policy
+        and "scan->count > LRN_MAX_FILES" in policy
+        and "scan->total > LRN_MAX_TOTAL_BYTES" in policy
+        and "(uint64_t)state.st_size > LRN_MAX_FILE_BYTES" in policy
+        and "policy->poisoned = true;" in policy
+        and "lrn_drive_policy_begin_write" in drive
+        and "lrn_drive_policy_begin_resize" in drive
+        and "lrn_drive_policy_begin_rename" in drive
+        and "lrn_drive_policy_begin_metadata" in drive
+        and "lrn_drive_policy_begin_delete" in drive
+        and "lrn_drive_policy_validate_read" in drive
+        and "lrn_drive_policy_finish" in drive
+        and "lrn_drive_policy_abort" in drive
+        and "Larenor file transfer policy entered a terminal state" in drive
+        and "lrn_drive_policy_create(name, path, &drive->larenor)" in registration
+        and "RegisterDevice(pEntryPoints->devman, &drive->device)" in registration
+        and registration.find("drive->stopEvent = CreateEvent")
+        < registration.find("CreateThread")
+        < registration.rfind("RegisterDevice")
+        and "Publish only after all fallible worker resources exist." in registration
+        and registration.find("CreateThread failed!")
+        < registration.find("error = ERROR_INTERNAL_ERROR;", registration.find("CreateThread failed!"))
+        < registration.find("goto out_error;", registration.find("error = ERROR_INTERNAL_ERROR;", registration.find("CreateThread failed!")))
+        and "if (drive && drive->thread)" in registration
+        and "(void)drive_free(&drive->device);" in registration
+        and "HANDLE events[] = { drive->stopEvent, MessageQueue_Event(drive->IrpQueue) };" in worker
+        and "WaitForMultipleObjects(ARRAYSIZE(events), events, FALSE, INFINITE)" in worker
+        and worker.find("if (wait == WAIT_OBJECT_0)") < worker.find("MessageQueue_Peek")
+        and free_drive.find("SetEvent(drive->stopEvent)")
+        < free_drive.find("WaitForSingleObject(drive->thread, INFINITE)")
+        < free_drive.find("return drive_free_int(drive)")
+        and "lrn_drive_policy_free(drive->larenor)" in cleanup
+        and cleanup.find("CloseHandle(drive->thread)")
+        < cleanup.find("lrn_drive_policy_free(drive->larenor)")
+        and "drive_larenor.c" in value["cmake"],
+        "invalid_remote_access_patch",
+    )
+
+
+
 class _ClassReader:
     def __init__(self, data):
         self.data = data
@@ -782,6 +983,21 @@ def _verify_freerdp_api(data):
         )
 
 
+def _verify_global_app_api(data):
+    methods = _class_methods(data)
+    for name, descriptor in REQUIRED_GLOBAL_APP_API:
+        matching = [
+            access for method, value, access in methods
+            if method == name and value == descriptor
+        ]
+        _require(
+            len(matching) == 1
+            and matching[0] & 0x0001
+            and matching[0] & 0x0008,
+            "missing_java_contract",
+        )
+
+
 def _verify_event_listener_api(data):
     methods = _class_methods(data)
     for name, descriptor in REQUIRED_EVENT_LISTENER_API:
@@ -826,6 +1042,7 @@ def package_receipt(aar, abi, lock):
                 _require(all(name in class_names for name in lock["requiredClasses"]),
                          "missing_java_contract")
                 _verify_freerdp_api(jar.read(FREERDP_CLASS))
+                _verify_global_app_api(jar.read(GLOBAL_APP_CLASS))
                 _verify_fixed_constants(jar.read(FREERDP_CLASS), REQUIRED_REMOTE_AUDIO_CONSTANTS)
                 _verify_fixed_constants(jar.read(FREERDP_CLASS), REQUIRED_MICROPHONE_CONSTANTS)
                 _verify_event_listener_api(jar.read(EVENT_LISTENER_CLASS))
@@ -849,6 +1066,10 @@ def package_receipt(aar, abi, lock):
             audin_library = bundle.read(by_name["libfreerdp-client3.so"])
             _require(REQUIRED_AUDIN_NATIVE_EVIDENCE.encode() in audin_library,
                      "missing_audin_evidence")
+            _require(
+                all(item.encode() in audin_library for item in lock["requiredDriveEvidence"]),
+                "missing_drive_evidence",
+            )
             _require(all(symbol.encode() in primary for symbol in lock["requiredJniSymbols"]),
                      "missing_jni_symbol")
             _require(
@@ -980,6 +1201,7 @@ def main(argv=None):
             verify_remote_audio_patch(args.source)
             verify_always_pin_patch(args.source)
             verify_microphone_patch(args.source)
+            verify_remote_access_patch(args.source)
         elif args.command == "receipt":
             value = package_receipt(args.aar, args.abi, lock)
             args.output.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")

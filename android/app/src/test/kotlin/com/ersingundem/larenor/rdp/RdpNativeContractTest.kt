@@ -51,6 +51,7 @@ class RdpNativeContractTest {
         "keyboardLayout" to "turkishQ",
         "clipboardMode" to "clientToRemote",
         "audio" to false,
+        "microphone" to false,
         "files" to false,
     ) + overrides
 

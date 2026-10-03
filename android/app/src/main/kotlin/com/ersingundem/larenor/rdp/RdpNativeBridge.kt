@@ -46,7 +46,7 @@ class RdpNativeBridge internal constructor(
     private val methods = MethodChannel(messenger, METHODS)
     private val events = EventChannel(messenger, EVENTS)
     private val runtime = runtime
-    private val adapter = RdpNativeAdapter(RdpFreeRdpBackend(runtime))
+    private val adapter = RdpNativeAdapter(RdpProductFeatureBackend(RdpFreeRdpBackend(runtime)))
     private val microphonePermission = RdpMicrophonePermissionBroker(activity, ::permissionRevoked)
     private var sink: EventChannel.EventSink? = null
     @Volatile private var resumed = false
@@ -56,6 +56,15 @@ class RdpNativeBridge internal constructor(
     @Volatile private var microphonePermissionRevision = 0L
     private var networkBusy = false
     @Volatile private var session: RdpFreeRdpSession? = null
+    @Volatile private var pendingProbe: RdpJniCertificateProbeOperation? = null
+    private val openOwners = RdpOpenOwnerGate()
+    private val safTransfers = RdpSafTransferCoordinator(
+        activity = activity,
+        grants = safGrants,
+        foreground = ::foreground,
+        clearSession = { owned -> if (session === owned) session = null },
+        main = main,
+    )
 
     init {
         methods.setMethodCallHandler(this)
@@ -90,6 +99,7 @@ class RdpNativeBridge internal constructor(
             eventSink.error("invalidRequest", "RDP event owner rejected", null)
             return
         }
+        openOwners.invalidate()
         requestId = arguments
         sink = eventSink
     }
@@ -113,12 +123,21 @@ class RdpNativeBridge internal constructor(
                 }
                 "activate" -> {
                     requireForeground()
-                    val value = map(call.arguments, setOf("requestId"))
+                    val value = owned(
+                        call.arguments,
+                        setOf("requestId"),
+                        setOf("schemaVersion", "requestId"),
+                    )
                     val id = value["requestId"] as? String ?: fail("invalidRequest")
                     if (!UUID.matches(id) || requestId != id || sink == null) fail("staleSession")
+                    if (value.containsKey("schemaVersion") && value["schemaVersion"] != 6) {
+                        fail("invalidRequest")
+                    }
                     result.success(null)
                 }
                 "inspect" -> inspect(call.arguments, result)
+                "inspectGateway" -> inspectGateway(call.arguments, result)
+                "inspectTargetThroughGateway" -> inspectTargetThroughGateway(call.arguments, result)
                 "open" -> open(call.arguments, result)
                 "input" -> input(call.arguments, result)
                 "resize" -> resize(call.arguments, result)
@@ -132,19 +151,29 @@ class RdpNativeBridge internal constructor(
                 "activateFileTransferGrant" -> safGrants.activate(call.arguments, result)
                 "fileTransferGrantObservation" -> safGrants.observe(call.arguments, result)
                 "retireFileTransferGrant" -> safGrants.retire(call.arguments, result)
+                "prepareFileTransfer" -> safTransfers.prepare(call.arguments, result)
+                "fileTransferObservation" -> safTransfers.observe(call.arguments, result)
+                "drainFileTransfer" -> safTransfers.drain(call.arguments, result)
+                "saveReceivedFiles" -> safTransfers.save(call.arguments, result)
                 "cancel" -> cancel(call.arguments, result)
                 else -> result.notImplemented()
             }
         } catch (failure: RdpNativeFailure) {
             if (call.method !in setOf(
-                    "capabilities", "inspect", "audioObservation", "microphoneObservation",
+                    "capabilities", "inspect", "inspectGateway", "inspectTargetThroughGateway",
+                    "audioObservation", "microphoneObservation",
                     "requestMicrophonePermission", "cancelMicrophonePermission",
+                    "prepareFileTransfer", "fileTransferObservation", "drainFileTransfer",
+                    "saveReceivedFiles",
                 )) retire()
             error(result, failure.code)
         } catch (_: Exception) {
             if (call.method !in setOf(
-                    "capabilities", "audioObservation", "microphoneObservation",
+                    "capabilities", "inspectGateway", "inspectTargetThroughGateway",
+                    "audioObservation", "microphoneObservation",
                     "requestMicrophonePermission", "cancelMicrophonePermission",
+                    "prepareFileTransfer", "fileTransferObservation", "drainFileTransfer",
+                    "saveReceivedFiles",
                 )) retire()
             error(result, "connectionFailed")
         }
@@ -185,6 +214,122 @@ class RdpNativeBridge internal constructor(
         }
     }
 
+    private fun inspectGateway(raw: Any?, result: MethodChannel.Result) {
+        requireForeground()
+        if (!adapter.capabilities().rdGateway) fail("gatewayUnavailable")
+        if (networkBusy || session != null || pendingProbe != null) fail("busy")
+        val value = map(raw, setOf("schemaVersion", "requestId", "target", "gateway"))
+        if (value["schemaVersion"] != 6) fail("invalidRequest")
+        ownedId(value)
+        val id = requestId ?: fail("staleSession")
+        val target = enrollmentPeer(value["target"], includeDomain = false, includePin = false)
+        val gateway = enrollmentPeer(value["gateway"], includeDomain = true, includePin = false)
+        val endpoint = RdpJniGatewayEndpoint(
+            gateway.host, gateway.port, gateway.username, gateway.domain,
+        )
+        val operation = (runtime ?: fail("engineUnavailable")).inspectGateway(
+            target.host, target.port, target.username, endpoint,
+        )
+        runProbe(id, operation, "gateway", result)
+    }
+
+    private fun inspectTargetThroughGateway(raw: Any?, result: MethodChannel.Result) {
+        val callerSecret = (raw as? Map<*, *>)?.get("gatewayPassword") as? ByteArray
+        val value = try {
+            map(
+                raw,
+                setOf("schemaVersion", "requestId", "target", "gateway", "gatewayPassword"),
+            )
+        } catch (failure: Exception) {
+            callerSecret?.fill(0)
+            throw failure
+        }
+        val bytes = callerSecret ?: fail("invalidSecrets")
+        var secret: CharArray? = null
+        try {
+            requireForeground()
+            if (!adapter.capabilities().rdGateway) fail("gatewayUnavailable")
+            if (networkBusy || session != null || pendingProbe != null) fail("busy")
+            if (value["schemaVersion"] != 6) fail("invalidRequest")
+            ownedId(value)
+            val id = requestId ?: fail("staleSession")
+            val target = enrollmentPeer(value["target"], includeDomain = true, includePin = false)
+            val gateway = enrollmentPeer(value["gateway"], includeDomain = true, includePin = true)
+            secret = decode(bytes, false)
+            val operation = (runtime ?: fail("engineUnavailable")).inspectTargetThroughGateway(
+                target.host,
+                target.port,
+                target.username,
+                target.domain,
+                RdpNativeGateway(
+                    gateway.host,
+                    gateway.port,
+                    gateway.username,
+                    gateway.domain,
+                    requireNotNull(gateway.pin),
+                ),
+                requireNotNull(secret),
+            )
+            secret = null // operation consumed and wiped the exact mutable owner
+            runProbe(id, operation, "target", result)
+        } finally {
+            bytes.fill(0)
+            secret?.fill('\u0000')
+        }
+    }
+
+    private fun runProbe(
+        id: String,
+        operation: RdpJniCertificateProbeOperation,
+        kind: String,
+        result: MethodChannel.Result,
+    ) {
+        pendingProbe = operation
+        networkBusy = true
+        try {
+            worker.execute {
+                var evidence: RdpJniCertificateProbe? = null
+                var failureCode: String? = null
+                try {
+                    evidence = operation.run()
+                } catch (failure: RdpNativeFailure) {
+                    failureCode = failure.code
+                } catch (_: Exception) {
+                    failureCode = "connectionFailed"
+                }
+                val drained = try {
+                    operation.closeAndAwaitDrain()
+                } catch (_: LinkageError) {
+                    false
+                } catch (_: Exception) {
+                    false
+                }
+                if (!drained) failureCode = "connectionFailed"
+                main.post {
+                    val owned = pendingProbe === operation
+                    if (owned) pendingProbe = null
+                    networkBusy = false
+                    when {
+                        !owned || !foreground() || requestId != id ->
+                            error(result, "staleSession")
+                        failureCode != null -> error(result, requireNotNull(failureCode))
+                        else -> result.success(mapOf(
+                            "schemaVersion" to 6,
+                            "requestId" to id,
+                            "kind" to kind,
+                            "certificateFingerprint" to requireNotNull(evidence).certificateFingerprint,
+                        ))
+                    }
+                }
+            }
+        } catch (failure: RuntimeException) {
+            if (pendingProbe === operation) pendingProbe = null
+            networkBusy = false
+            operation.close()
+            throw failure
+        }
+    }
+
     private fun open(raw: Any?, result: MethodChannel.Result) {
         val callerPassword = (raw as? Map<*, *>)?.get("password") as? ByteArray
         val callerGateway = (raw as? Map<*, *>)?.get("gatewayPassword") as? ByteArray
@@ -208,17 +353,23 @@ class RdpNativeBridge internal constructor(
         val parsed = try {
             requireForeground()
             if (session != null || networkBusy) fail("busy")
-            if (value["schemaVersion"] != 4) fail("invalidRequest")
+            val wireSchema = value["schemaVersion"] as? Int ?: fail("invalidRequest")
+            if (wireSchema !in setOf(4, 6)) fail("invalidRequest")
             val id = value["requestId"] as? String ?: fail("invalidRequest")
             if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
             val request = RdpNativeRequest.parse(value["request"])
-            if (request.requestId != id) fail("invalidRequest")
+            if (request.requestId != id || request.schemaVersion != wireSchema) fail("invalidRequest")
             if (request.microphone && !microphonePermission.granted()) {
                 fail("microphonePermissionRequired")
             }
             decodedPassword = decode(passwordBytes, false)
             decodedGateway = decode(gatewayBytes, true)
-            Triple(id, request, microphonePermissionRevision)
+            OpenParameters(
+                id,
+                request,
+                microphonePermissionRevision,
+                safTransfers.endpointForOpen(request),
+            )
         } catch (failure: Exception) {
             decodedPassword?.fill('\u0000')
             decodedGateway?.fill('\u0000')
@@ -227,7 +378,9 @@ class RdpNativeBridge internal constructor(
             passwordBytes.fill(0)
             gatewayBytes.fill(0)
         }
-        val (id, request, permissionRevision) = parsed
+        val (id, request, permissionRevision, fileTransfer) = parsed
+        val ownerSink = sink ?: fail("staleSession")
+        val openOwner = openOwners.capture(ownerSink)
         val password = requireNotNull(decodedPassword)
         val gateway = requireNotNull(decodedGateway)
         networkBusy = true
@@ -242,41 +395,57 @@ class RdpNativeBridge internal constructor(
                     val secrets = RdpNativeSecrets.take(password, gateway.takeIf { request.gateway != null })
                     if (request.gateway == null) gateway.fill('\u0000')
                     val observer = Observer(id)
-                    val opened = adapter.open(request, secrets, observer) as RdpFreeRdpSession
-                    if (request.microphone && (!foreground() ||
-                            !microphonePermission.granted() ||
-                            permissionRevision != microphonePermissionRevision)) {
+                    val opened = adapter.open(
+                        request, secrets, observer, fileTransfer,
+                    ) as RdpFreeRdpSession
+                    if (!openOwnerCurrent(openOwner, id)) {
+                        failedOpenTransfer(fileTransfer)
                         opened.close()
-                        fail("microphonePermissionRequired")
+                        fail("staleSession")
                     }
-                    session = opened
-                    observer.flush()
                     main.post {
                         networkBusy = false
-                        if (!foreground() || requestId != id || request.microphone &&
-                            (!microphonePermission.granted() ||
-                                permissionRevision != microphonePermissionRevision)) {
-                            opened.close()
-                            if (session === opened) session = null
-                            error(result, "staleSession")
-                        } else {
+                        try {
+                            val published = openOwners.publishIfCurrent(openOwner, sink) {
+                                if (!foreground() || requestId != id) fail("staleSession")
+                                if (request.microphone && (!microphonePermission.granted() ||
+                                        permissionRevision != microphonePermissionRevision)) {
+                                    fail("microphonePermissionRequired")
+                                }
+                                // Bind all private owners before making the session visible.
+                                // Invalidation and this publication share one gate monitor.
+                                observer.bind(opened)
+                                safTransfers.sessionOpened(opened)
+                                session = opened
+                            }
+                            if (!published) fail("staleSession")
+                            observer.flush()
                             result.success(mapOf(
-                                "schemaVersion" to 4,
+                                "schemaVersion" to opened.schemaVersion,
                                 "unicodeTextInput" to opened.unicodeInputSupported,
                                 "relativePointer" to opened.relativePointerSupported,
                             ))
+                        } catch (failure: RdpNativeFailure) {
+                            rejectOpened(openOwner, ownerSink, opened, fileTransfer)
+                            error(result, failure.code)
+                        } catch (_: Exception) {
+                            rejectOpened(openOwner, ownerSink, opened, fileTransfer)
+                            error(result, "connectionFailed")
                         }
                     }
                 } catch (failure: RdpNativeFailure) {
+                    failedOpenTransfer(fileTransfer)
                     password.fill('\u0000'); gateway.fill('\u0000')
                     main.post { networkBusy = false; error(result, failure.code) }
                 } catch (_: Exception) {
+                    failedOpenTransfer(fileTransfer)
                     password.fill('\u0000'); gateway.fill('\u0000')
                     main.post { networkBusy = false; error(result, "connectionFailed") }
                 }
             }
         } catch (error: RuntimeException) {
             networkBusy = false
+            failedOpenTransfer(fileTransfer)
             password.fill('\u0000'); gateway.fill('\u0000')
             throw error
         }
@@ -284,6 +453,18 @@ class RdpNativeBridge internal constructor(
 
     private inner class Observer(private val id: String) : RdpNativeSessionObserver {
         @Volatile private var frameSignalled = false
+        @Volatile private var ownedSession: RdpFreeRdpSession? = null
+        private var closedSignalled = false
+        private var closedPosted = false
+
+        fun bind(opened: RdpFreeRdpSession) {
+            synchronized(this) {
+                if (ownedSession != null) fail("connectionFailed")
+                ownedSession = opened
+            }
+            dispatchClosed()
+        }
+
         override fun onFrame() {
             frameSignalled = true
             flush()
@@ -291,7 +472,8 @@ class RdpNativeBridge internal constructor(
 
         fun flush() {
             if (!frameSignalled) return
-            val current = session ?: return
+            val current = ownedSession ?: return
+            if (session !== current) return
             val frame = current.pendingFrame ?: return
             frameSignalled = false
             val pixels = ByteArray(frame.pixels.remaining())
@@ -307,7 +489,7 @@ class RdpNativeBridge internal constructor(
                         "requestId" to id,
                         "kind" to "frame",
                         "payload" to mapOf(
-                            "schemaVersion" to 4,
+                            "schemaVersion" to current.schemaVersion,
                             "sequence" to frame.sequence,
                             "width" to frame.width,
                             "height" to frame.height,
@@ -323,8 +505,20 @@ class RdpNativeBridge internal constructor(
         }
 
         override fun onClosed(code: String?) {
+            synchronized(this) { closedSignalled = true }
+            dispatchClosed()
+        }
+
+        private fun dispatchClosed() {
+            val closed = synchronized(this) {
+                val owned = ownedSession
+                if (!closedSignalled || closedPosted || owned == null) return
+                closedPosted = true
+                owned
+            }
             main.post {
-                if (requestId == id) {
+                if (requestId == id && session === closed) {
+                    safTransfers.nativeClosed(closed)
                     sink?.success(mapOf("requestId" to id, "kind" to "disconnected", "payload" to null))
                     session = null
                 }
@@ -345,8 +539,8 @@ class RdpNativeBridge internal constructor(
                 setOf("schemaVersion", "requestId", "sequence", "kind", "physicalKey", "down"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "text"),
                 setOf("schemaVersion", "requestId", "sequence", "kind", "channel", "payload"))
-            if (value["schemaVersion"] != 4) fail("invalidRequest")
             val current = session ?: fail("staleSession")
+            if (value["schemaVersion"] != current.schemaVersion) fail("invalidRequest")
             val sequence = sequence(value["sequence"])
             val accepted = when (value["kind"]) {
                 "absolutePointer" -> current.absolutePointer(
@@ -401,14 +595,15 @@ class RdpNativeBridge internal constructor(
     private fun resize(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "sequence", "display"))
-        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        val current = session ?: fail("staleSession")
+        if (value["schemaVersion"] != current.schemaVersion) fail("invalidRequest")
         ownedId(value)
         val display = map(value["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"))
         val width = integer(display["width"], 640, 8192)
         if (width % 2 != 0) fail("invalidRequest")
         val height = integer(display["height"], 480, 8192)
         if (width.toLong() * height > RdpNativeFrame.MAX_PIXELS) fail("invalidRequest")
-        val accepted = (session ?: fail("staleSession")).resize(
+        val accepted = current.resize(
             sequence(value["sequence"]),
             RdpNativeDisplay(
                 width, height,
@@ -427,9 +622,10 @@ class RdpNativeBridge internal constructor(
     private fun ack(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId", "frameSequence"))
-        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        val current = session ?: fail("staleSession")
+        if (value["schemaVersion"] != current.schemaVersion) fail("invalidRequest")
         ownedId(value)
-        val accepted = (session ?: fail("staleSession")).acknowledgeFrame(sequence(value["frameSequence"]))
+        val accepted = current.acknowledgeFrame(sequence(value["frameSequence"]))
         if (!accepted) fail(session?.failureCode ?: "staleSession")
         result.success(null)
     }
@@ -437,23 +633,25 @@ class RdpNativeBridge internal constructor(
     private fun audioObservation(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId"))
-        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        val current = session ?: fail("staleSession")
+        if (value["schemaVersion"] != current.schemaVersion) fail("invalidRequest")
         ownedId(value)
         val id = requestId ?: fail("staleSession")
-        result.success((session ?: fail("staleSession")).audioObservation().toChannel(id))
+        result.success(current.audioObservation().toChannel(id, current.schemaVersion))
     }
 
     private fun microphoneObservation(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         val value = map(raw, setOf("schemaVersion", "requestId"))
-        if (value["schemaVersion"] != 4) fail("invalidRequest")
+        val current = session ?: fail("staleSession")
+        if (value["schemaVersion"] != current.schemaVersion) fail("invalidRequest")
         ownedId(value)
         if (!microphonePermission.granted()) {
             permissionRevoked()
             fail("staleSession")
         }
         val id = requestId ?: fail("staleSession")
-        result.success((session ?: fail("staleSession")).microphoneObservation().toChannel(id))
+        result.success(current.microphoneObservation().toChannel(id, current.schemaVersion))
     }
 
     private fun requestMicrophonePermission(raw: Any?, result: MethodChannel.Result) {
@@ -474,9 +672,14 @@ class RdpNativeBridge internal constructor(
     }
 
     private fun cancel(raw: Any?, result: MethodChannel.Result) {
-        if (raw != null) {
-            val value = map(raw, setOf("requestId"))
+        val currentSchema = session?.schemaVersion
+        if (raw is Map<*, *> && raw.containsKey("schemaVersion")) {
+            val value = map(raw, setOf("schemaVersion", "requestId"))
+            if (value["schemaVersion"] != 6) fail("invalidRequest")
             ownedId(value)
+        } else {
+            if (currentSchema == 6) fail("invalidRequest")
+            raw?.let { owned(it, setOf("requestId")) }
         }
         retire()
         result.success(null)
@@ -506,9 +709,43 @@ class RdpNativeBridge internal constructor(
     private fun requireForeground() { if (!foreground()) fail("foregroundRequired") }
     private fun foreground() = !disposed && resumed && focused
 
+    private fun openOwnerCurrent(owner: RdpOpenOwnerGate.Lease, id: String): Boolean =
+        foreground() && requestId == id && openOwners.isCurrent(owner, sink)
+
     private fun retire() {
-        session?.close()
-        session = null
+        val retiring = openOwners.invalidate {
+            session.also { session = null }
+        }
+        pendingProbe?.close()
+        pendingProbe = null
+        retiring?.let {
+            safTransfers.transportRetiring(it)
+            it.close()
+        }
+    }
+
+    private fun failedOpenTransfer(endpoint: RdpNativeFileTransferEndpoint?) {
+        if (endpoint == null) return
+        session?.takeIf { it.fileTransferEndpoint?.transferId == endpoint.transferId }?.let {
+            safTransfers.transportRetiring(it)
+            it.close()
+            if (session === it) session = null
+        }
+        safTransfers.openFailed(endpoint)
+    }
+
+    private fun rejectOpened(
+        owner: RdpOpenOwnerGate.Lease,
+        ownerSink: EventChannel.EventSink,
+        opened: RdpFreeRdpSession,
+        endpoint: RdpNativeFileTransferEndpoint?,
+    ) {
+        openOwners.invalidateIfCurrent(owner, ownerSink) {
+            if (session === opened) session = null
+        }
+        safTransfers.transportRetiring(opened)
+        opened.close()
+        safTransfers.openFailed(endpoint)
     }
 
     private fun permissionRevoked() {
@@ -538,6 +775,7 @@ class RdpNativeBridge internal constructor(
         disposed = true
         requestId?.let(microphonePermission::cancel)
         retire()
+        safTransfers.close()
         microphonePermission.dispose()
         safGrants.dispose()
         methods.setMethodCallHandler(null)
@@ -552,6 +790,13 @@ class RdpNativeBridge internal constructor(
         const val EVENTS = "com.ersingundem.larenor/rdp-native-events"
         private val UUID = Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
     }
+
+    private data class OpenParameters(
+        val requestId: String,
+        val request: RdpNativeRequest,
+        val permissionRevision: Long,
+        val fileTransfer: RdpNativeFileTransferEndpoint?,
+    )
 }
 
 internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
@@ -609,6 +854,37 @@ private fun safeHost(raw: Any?): String {
     val value = safeText(raw, 1, 253)
     if (Regex("[\\s/@\\\\?#%\\[\\]]").containsMatchIn(value)) fail("invalidRequest")
     return value
+}
+
+private data class RdpEnrollmentPeer(
+    val host: String,
+    val port: Int,
+    val username: String,
+    val domain: String,
+    val pin: String?,
+)
+
+private fun enrollmentPeer(
+    raw: Any?,
+    includeDomain: Boolean,
+    includePin: Boolean,
+): RdpEnrollmentPeer {
+    val keys = buildSet {
+        add("host"); add("port"); add("username")
+        if (includeDomain) add("domain")
+        if (includePin) add("certificateFingerprint")
+    }
+    val value = map(raw, keys)
+    val pin = if (includePin) safeText(value["certificateFingerprint"], 50, 50).also {
+        if (!Regex("SHA256:[A-Za-z0-9+/]{43}").matches(it)) fail("invalidRequest")
+    } else null
+    return RdpEnrollmentPeer(
+        safeHost(value["host"]),
+        integer(value["port"], 1, 65535),
+        safeText(value["username"], if (includeDomain) 1 else 0, 128),
+        if (includeDomain) safeText(value["domain"], 0, 128) else "",
+        pin,
+    )
 }
 
 private fun integer(raw: Any?, min: Int, max: Int): Int {

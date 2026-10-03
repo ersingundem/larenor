@@ -3,6 +3,7 @@ import 'dart:math';
 import '../../server/data/larenor_server_api.dart';
 import '../../server/domain/server_models.dart';
 import '../data/remote_profiles.dart';
+import '../rdp/rdp_schema6_models.dart';
 import 'core_personal_profiles.dart';
 
 final class CorePersonalProfilesApi {
@@ -103,28 +104,39 @@ final class CorePersonalProfilesApi {
     if (observed.collectionRevision != authority.collectionRevision ||
         matches.length != 1 ||
         matches.single.revision != target.revision ||
-        !_sameFields(matches.single.profile, target.profile)) {
+        !_sameFields(matches.single.profile, target.profile) ||
+        matches.single.rdpSecurity != target.rdpSecurity) {
       throw const LarenorServerException('invalid_response');
     }
   });
 
   Future<CorePersonalProfileMutation> create(
     RemoteProfile desired,
-    CorePersonalProfilesSnapshot before,
-  ) => _operation(() async {
+    CorePersonalProfilesSnapshot before, {
+    RdpCoreSecurityProjection? rdp,
+  }) => _operation(() async {
     _snapshot(before);
+    if (rdp != null && desired.protocol != RemoteProtocol.rdp) {
+      throw const LarenorServerException('invalid_request');
+    }
     final body = await _api.request(
       'POST',
       _path,
       token: _token,
       body: {
-        ..._fields(desired),
+        ..._fields(desired, rdp: rdp),
         'requestId': _nextRequestId(),
         'expectedAccountRevision': before.authority.accountRevision,
         'expectedCollectionRevision': before.collectionRevision,
       },
     );
-    return _record(body, before: before, desired: desired, delta: 1);
+    return _record(
+      body,
+      before: before,
+      desired: desired,
+      delta: 1,
+      expectedRdp: rdp,
+    );
   });
 
   Future<CorePersonalProfileMutation> update(
@@ -142,7 +154,7 @@ final class CorePersonalProfilesApi {
       '$_path/${target.id}',
       token: _token,
       body: {
-        ..._fields(desired),
+        ..._fields(desired, rdp: target.rdpSecurity),
         'requestId': _nextRequestId(),
         'expectedAccountRevision': before.authority.accountRevision,
         'expectedCollectionRevision': before.collectionRevision,
@@ -155,6 +167,46 @@ final class CorePersonalProfilesApi {
       desired: desired,
       delta: changed ? 1 : 0,
       expectedId: target.id,
+      expectedRdp: target.rdpSecurity,
+    );
+    if (result.profile?.revision != target.revision + (changed ? 1 : 0)) {
+      throw const LarenorServerException('invalid_response');
+    }
+    return result;
+  });
+
+  Future<CorePersonalProfileMutation> updateRdpSecurity(
+    CorePersonalProfile target,
+    RdpCoreSecurityProjection security,
+    CorePersonalProfilesSnapshot before,
+  ) => _operation(() async {
+    _target(target, before);
+    if (target.profile.protocol != RemoteProtocol.rdp) {
+      throw const LarenorServerException('invalid_request');
+    }
+    final changed = target.rdpSecurity != security;
+    if (changed && target.revision == 9223372036854775807) {
+      throw const LarenorServerException('revision_conflict');
+    }
+    final body = await _api.request(
+      'PATCH',
+      '$_path/${target.id}',
+      token: _token,
+      body: {
+        ..._fields(target.profile, rdp: security),
+        'requestId': _nextRequestId(),
+        'expectedAccountRevision': before.authority.accountRevision,
+        'expectedCollectionRevision': before.collectionRevision,
+        'expectedRevision': target.revision,
+      },
+    );
+    final result = _record(
+      body,
+      before: before,
+      desired: target.profile,
+      delta: changed ? 1 : 0,
+      expectedId: target.id,
+      expectedRdp: security,
     );
     if (result.profile?.revision != target.revision + (changed ? 1 : 0)) {
       throw const LarenorServerException('invalid_response');
@@ -224,6 +276,7 @@ final class CorePersonalProfilesApi {
     required RemoteProfile desired,
     required int delta,
     String? expectedId,
+    Object? expectedRdp = _absent,
   }) {
     if (body == null ||
         body.length != 2 ||
@@ -239,6 +292,7 @@ final class CorePersonalProfilesApi {
     );
     if (expectedId != null && value.id != expectedId ||
         !_sameFields(value.profile, desired) ||
+        !identical(expectedRdp, _absent) && value.rdpSecurity != expectedRdp ||
         expectedId == null && value.revision != 1) {
       throw const LarenorServerException('invalid_response');
     }
@@ -286,7 +340,10 @@ final class CorePersonalProfilesApi {
     }
   }
 
-  Map<String, Object> _fields(RemoteProfile value) {
+  Map<String, Object?> _fields(
+    RemoteProfile value, {
+    required RdpCoreSecurityProjection? rdp,
+  }) {
     value.toJson();
     return {
       'label': value.name,
@@ -294,6 +351,7 @@ final class CorePersonalProfilesApi {
       'host': value.host,
       'port': value.port,
       'username': value.username,
+      'rdp': rdp?.toJson(),
     };
   }
 
@@ -307,3 +365,5 @@ final class CorePersonalProfilesApi {
   @override
   String toString() => 'CorePersonalProfilesApi(redacted)';
 }
+
+const _absent = Object();

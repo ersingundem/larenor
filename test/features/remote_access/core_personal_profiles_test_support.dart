@@ -165,7 +165,8 @@ class CoreProfilesFixture extends AdminFixture {
         record['protocol'] != body['protocol'] ||
         record['host'] != body['host'] ||
         record['port'] != body['port'] ||
-        record['username'] != body['username'];
+        record['username'] != body['username'] ||
+        convert.jsonEncode(record['rdp']) != convert.jsonEncode(body['rdp']);
     record = {
       ...record,
       'revision': request.method == 'POST'
@@ -176,6 +177,7 @@ class CoreProfilesFixture extends AdminFixture {
       'host': body['host'],
       'port': body['port'],
       'username': body['username'],
+      'rdp': body['rdp'],
     };
     final nextCollection = priorCollection + (changed ? 1 : 0);
     if (request.method == 'PATCH' && losePatchResponse) {

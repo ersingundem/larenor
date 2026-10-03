@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4",
+  "engineRevision": "freerdp-3.31.1-63b948ca-remote-access-v5",
   "source": {
     "version": "3.31.1",
     "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
@@ -29,7 +29,9 @@
     "channels/audin/client/opensles/audin_opensl_es.c": "52281aec2cef8ad5e6c2a07656469195cb443ef0",
     "channels/audin/client/opensles/opensl_io.c": "c4598a6342eeb2e8504520486258de7f779f99af",
     "channels/audin/client/opensles/opensl_io.h": "bdba57cabaa69e22dcec8ce15a467eeca2a94764",
-    "libfreerdp/crypto/tls.c": "f8d2d210c3a3ffb15219c9d22fa54a92db0ffffd"
+    "libfreerdp/crypto/tls.c": "f8d2d210c3a3ffb15219c9d22fa54a92db0ffffd",
+    "channels/drive/client/CMakeLists.txt": "4e239823bce8b0a5b28a38d179925e6ca85177fa",
+    "channels/drive/client/drive_main.c": "e0d548804a50bbb455ef07b986eb4c6c2f9407d9"
   },
   "patches": [
     {
@@ -55,6 +57,10 @@
     {
       "path": "android/freerdp-microphone-v4.patch",
       "sha256": "a244e5791e1d30ae02fc4222b412ee14182794f6d8d48be96f9071b277c66df2"
+    },
+    {
+      "path": "android/freerdp-remote-access-v5.patch",
+      "sha256": "0ff055e725c1436ccf2ad0bab461b8176d97ac190bd2fe1fb1ebcb52369485c1"
     }
   ],
   "toolchain": {
@@ -69,7 +75,7 @@
     "arm64-v8a",
     "x86_64"
   ],
-  "jniSchema": 4,
+  "jniSchema": 5,
   "defaultChannels": [],
   "requiredLibraries": [
     "libfreerdp-android.so",
@@ -97,6 +103,17 @@
     "OnDisplayControlReady",
     "OnRemoteAudioPlayback",
     "OnVerifyX509Certificate",
-    "OnMicrophoneCapture"
+    "OnMicrophoneCapture",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1gateway",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1file_1transfer",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1drain_1and_1free",
+    "LrnXfer",
+    "/proc/self/fd/"
+  ],
+  "requiredDriveEvidence": [
+    "Larenor file transfer policy entered a terminal state",
+    "Larenor file transfer drive policy rejected registration",
+    "ToRemote",
+    "FromRemote"
   ]
 }

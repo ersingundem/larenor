@@ -12,6 +12,7 @@ import 'package:larenor/core/window/window_policy_models.dart';
 import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_session_panel.dart';
 import 'package:larenor/features/remote_access/ssh/ssh_engine.dart';
@@ -55,7 +56,11 @@ class RemoteUi {
   final boundary = GlobalKey();
   final windows = StreamController<WindowPolicySnapshot>.broadcast(sync: true);
   String? clipboard;
-  bool failWrite = false, failSshDelete = false, failDesktopDelete = false;
+  bool failWrite = false,
+      failSchema6CurrentWrite = false,
+      failSchema6SecretDeleteOnce = false,
+      failSshDelete = false,
+      failDesktopDelete = false;
   Future<void> Function(String key)? afterRead;
   int get writes =>
       calls.where((c) => c == 'write:${RemoteProfilesStore.storageKey}').length;
@@ -67,6 +72,8 @@ class RemoteUi {
     bool pin = false,
     SshEngine Function()? sshEngine,
     RdpEngine Function()? rdpEngine,
+    RdpGatewayEnrollmentEngine Function()? gatewayEnrollmentEngine,
+    bool? gatewayEnrollmentAdmitted,
     RdpTrustStore? rdpTrust,
     ServerAccountController? serverAccount,
   }) async {
@@ -91,8 +98,18 @@ class RemoteUi {
                 if (failWrite && k == RemoteProfilesStore.storageKey) {
                   throw PlatformException(code: 'private');
                 }
+                if (failSchema6CurrentWrite &&
+                    k.startsWith('rdp_schema6_current_secret_v1_')) {
+                  values.remove(k);
+                  throw PlatformException(code: 'private');
+                }
                 return null;
               case 'delete':
+                if (failSchema6SecretDeleteOnce &&
+                    k?.startsWith('rdp_schema6_secret_v1_') == true) {
+                  failSchema6SecretDeleteOnce = false;
+                  throw PlatformException(code: 'private');
+                }
                 if (failSshDelete && k?.startsWith('ssh_') == true ||
                     failDesktopDelete &&
                         (k?.startsWith('rdp_') == true ||
@@ -139,6 +156,14 @@ class RemoteUi {
             rdpEngineFactoryProvider.overrideWithValue(rdpEngine),
           if (rdpTrust != null)
             rdpTrustStoreProvider.overrideWithValue(rdpTrust),
+          if (gatewayEnrollmentEngine != null)
+            rdpGatewayEnrollmentAdmittedProvider.overrideWith(
+              (ref) async => gatewayEnrollmentAdmitted ?? true,
+            ),
+          if (gatewayEnrollmentEngine != null)
+            rdpGatewayEnrollmentEngineFactoryProvider.overrideWithValue(
+              gatewayEnrollmentEngine,
+            ),
           if (serverAccount != null)
             serverAccountControllerProvider.overrideWithValue(serverAccount),
           windowPolicySnapshotProvider.overrideWith((ref) async* {

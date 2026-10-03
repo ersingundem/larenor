@@ -27,6 +27,7 @@ GO_VERSION = "go1.25.0"
 TARGET_REVISION = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
 TARGET_ARCHIVE_SHA = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
 TARGET_PATCH_SHA = "52b61d9ecfef7c8d047ee558177ab2b0b664294729a2035c5045041a183eafb4"
+TARGET_SOURCE_MANIFEST_SHA = "5a5ed427179aaad89b111c6b9bae9bc594b8c78abf7efb5e10c24ee09dfbf1f0"
 CLIENT_WITNESS_KEYS = {
     "schemaVersion",
     "nonce",
@@ -1017,6 +1018,49 @@ def validate_target_build_receipt(
     return value
 
 
+def validate_full_target_build_receipt(
+    path: pathlib.Path, target_binary: pathlib.Path
+) -> dict:
+    value = _read_private_json(path, 4096, "invalidTargetBuildReceipt")
+    expected = {
+        "schemaVersion", "sourceRevision", "sourceArchiveSha256",
+        "targetPatchSha256", "sourceManifestSha256", "cmakeArgumentsSha256",
+        "shadowBinarySha256", "xfreerdpBinarySha256", "witnessSchemaVersion",
+        "deviceName",
+    }
+    if (
+        set(value) != expected
+        or value.get("schemaVersion") != 1
+        or value.get("sourceRevision") != TARGET_REVISION
+        or value.get("sourceArchiveSha256") != TARGET_ARCHIVE_SHA
+        or value.get("targetPatchSha256") != TARGET_PATCH_SHA
+        or value.get("sourceManifestSha256") != TARGET_SOURCE_MANIFEST_SHA
+        or value.get("witnessSchemaVersion") != 2
+        or value.get("deviceName") != "LrnXfer"
+    ):
+        fail("invalidTargetBuildReceipt")
+    for key in (
+        "sourceArchiveSha256", "targetPatchSha256", "sourceManifestSha256",
+        "cmakeArgumentsSha256", "shadowBinarySha256", "xfreerdpBinarySha256",
+    ):
+        if not isinstance(value.get(key), str) or not _HEX64.fullmatch(value[key]):
+            fail("invalidTargetBuildReceipt")
+    if sha256(target_binary) != value["shadowBinarySha256"]:
+        fail("targetBinaryHashMismatch")
+    return value
+
+
+def _openssl_md4(openssl: pathlib.Path, password: str) -> bytes:
+    result = subprocess.run(
+        [str(openssl), "dgst", "-provider", "legacy", "-md4", "-binary"],
+        input=password.encode("utf-16le"), stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, check=False, timeout=10,
+    )
+    if result.returncode != 0 or len(result.stdout) != 16:
+        fail("targetCredentialSetupFailed")
+    return result.stdout
+
+
 def _journal_process(
     state: dict, kind: str, process: OwnedProcess, journal: pathlib.Path
 ) -> None:
@@ -1210,20 +1254,29 @@ def run(args) -> None:
         "/bin/kill",
     ):
         trusted_executable(pathlib.Path(tool))
-    target_argv = read_command(
-        canonical_under(pathlib.Path(args.target_command), workspace)
-    )
     client_argv = read_command(
         canonical_under(pathlib.Path(args.client_command), workspace)
     )
-    target_binary = canonical_under(pathlib.Path(target_argv[0]), workspace)
+    real_shadow = getattr(args, "shadow_binary", None) is not None
+    if real_shadow:
+        target_binary = canonical_under(pathlib.Path(args.shadow_binary), workspace)
+        target_argv = []
+    else:
+        target_argv = read_command(
+            canonical_under(pathlib.Path(args.target_command), workspace)
+        )
+        target_binary = canonical_under(pathlib.Path(target_argv[0]), workspace)
     private_regular(target_binary, executable=True)
-    validate_target_build_receipt(
-        canonical_under(pathlib.Path(args.target_build_receipt), workspace),
-        target_binary,
-    )
-    target_cert = canonical_under(pathlib.Path(args.target_cert), workspace)
-    private_regular(target_cert)
+    if real_shadow:
+        validate_full_target_build_receipt(
+            canonical_under(pathlib.Path(args.freerdp_build_receipt), workspace),
+            target_binary,
+        )
+    else:
+        validate_target_build_receipt(
+            canonical_under(pathlib.Path(args.target_build_receipt), workspace),
+            target_binary,
+        )
     run_dir = workspace / "run"
     run_dir.mkdir(mode=0o700)
     private_dir(run_dir)
@@ -1258,6 +1311,15 @@ def run(args) -> None:
     relay = None
     target_identity = run_dir / "target-identity.json"
     target_witness = run_dir / "target-witness.json"
+    target_home = run_dir / "target-home"
+    target_config = target_home / ".config" / "freerdp" / "shadow"
+    target_cert = target_config / "shadow.crt" if real_shadow else canonical_under(
+        pathlib.Path(args.target_cert), workspace
+    )
+    target_key = target_config / "shadow.key"
+    target_sam = run_dir / "target.sam"
+    if not real_shadow:
+        private_regular(target_cert)
     secret_files = [
         auth_cfg,
         gw_cfg,
@@ -1266,6 +1328,10 @@ def run(args) -> None:
         target_identity,
         target_witness,
     ]
+    cleanup_dirs = []
+    if real_shadow:
+        secret_files.extend([target_cert, target_key, target_sam])
+        cleanup_dirs.extend([target_config, target_config.parent, target_home / ".config", target_home])
     previous_handlers = {
         sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
     }
@@ -1276,6 +1342,26 @@ def run(args) -> None:
     for sig in previous_handlers:
         signal.signal(sig, interrupted)
     try:
+        if real_shadow:
+            target_config.mkdir(parents=True, mode=0o700)
+            cp = bounded_run(
+                [
+                    str(openssl), "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                    "-days", "1", "-subj", f"/CN={target_ip}", "-addext",
+                    f"subjectAltName=IP:{target_ip}", "-keyout", str(target_key),
+                    "-out", str(target_cert),
+                ],
+                timeout=30,
+            )
+            if cp.returncode:
+                fail("certificateCreateFailed")
+            os.chmod(target_cert, 0o600)
+            os.chmod(target_key, 0o600)
+            nt_hash = _openssl_md4(openssl, target_password)
+            write_private(
+                target_sam,
+                f"{target_user}:{target_domain}::{nt_hash.hex()}:::\n",
+            )
         cp = bounded_run(
             [
                 str(openssl),
@@ -1383,6 +1469,28 @@ def run(args) -> None:
                 "up",
             ]
         )
+        if real_shadow:
+            xvfb_binary = pathlib.Path("/usr/bin/Xvfb")
+            trusted_executable(xvfb_binary)
+            display_number = 90 + secrets.randbelow(30)
+            display = f":{display_number}"
+            display_socket = pathlib.Path(f"/tmp/.X11-unix/X{display_number}")
+            if display_socket.exists() or display_socket.is_symlink():
+                fail("displayAlreadyOwned")
+            xvfb = OwnedProcess(
+                [str(xvfb_binary), display, "-screen", "0", "1024x768x24",
+                 "-nolisten", "tcp", "-noreset", "-ac"],
+                cwd=run_dir,
+            )
+            processes.append(xvfb)
+            _journal_process(state, "xvfb", xvfb, journal)
+            wait_path(display_socket, time.monotonic() + 10)
+            target_argv = [
+                f"HOME={target_home}", f"XDG_CONFIG_HOME={target_home / '.config'}",
+                f"DISPLAY={display}", *target_argv, str(target_binary),
+                f"/port:{target_port}", f"/bind-address:{target_ip}", "/sec:nla",
+                f"/sam-file:{target_sam}", "/log-level:OFF", "/may-view", "/may-interact",
+            ]
         target_cmd = [
             "/usr/sbin/ip",
             "netns",
@@ -1484,6 +1592,7 @@ def run(args) -> None:
                     "gatewayPort": args.gateway_port,
                     "gatewayUsername": gateway_user,
                     "gatewayPassword": gateway_password,
+                    "gatewayDomain": "LARENOR",
                     "gatewayPin": tls_pin(openssl, gateway_cert),
                     "targetHost": target_ip,
                     "targetPort": target_port,
@@ -1623,6 +1732,11 @@ def run(args) -> None:
         for path in secret_files:
             try:
                 destroy_private_file(path)
+            except BaseException:
+                cleanup_ok = False
+        for directory in cleanup_dirs:
+            try:
+                directory.rmdir()
             except BaseException:
                 cleanup_ok = False
         try:
@@ -1819,6 +1933,21 @@ def main():
     r.add_argument("--expected-test-class", required=True)
     r.add_argument("--expected-test-name", required=True)
     r.add_argument("--public-receipt", required=True)
+    ra = sp.add_parser("run-android")
+    ra.add_argument("--workspace", required=True)
+    ra.add_argument("--build-receipt", required=True)
+    ra.add_argument("--gateway-binary", required=True)
+    ra.add_argument("--auth-binary", required=True)
+    ra.add_argument("--shadow-binary", required=True)
+    ra.add_argument("--freerdp-build-receipt", required=True)
+    ra.add_argument("--client-command", required=True)
+    ra.add_argument("--gateway-port", type=int, required=True)
+    ra.add_argument("--target-port", type=int, default=3390)
+    ra.add_argument("--client-timeout", type=int, default=900)
+    ra.add_argument("--expected-test-class", required=True)
+    ra.add_argument("--expected-test-name", required=True)
+    ra.add_argument("--public-receipt", required=True)
+    ra.set_defaults(target_command=None, target_build_receipt=None, target_cert=None)
     c = sp.add_parser("cleanup")
     c.add_argument("--workspace", required=True)
     c.add_argument("--cleanup-state", required=True)
@@ -1829,7 +1958,7 @@ def main():
     try:
         if args.command == "build":
             build(args)
-        elif args.command == "run":
+        elif args.command in ("run", "run-android"):
             run(args)
         elif args.command == "cleanup":
             cleanup_command(args)

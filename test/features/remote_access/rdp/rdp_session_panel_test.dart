@@ -14,6 +14,8 @@ import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_display_geometry.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_engine.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_models.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 import '../remote_profiles_ui_fixture.dart';
@@ -233,11 +235,13 @@ class UiEngine
     this.supportsResize = true,
     this.supportsAudio = false,
     this.supportsMicrophone = false,
+    this.supportsFiles = false,
   });
   final bool supportsIme;
   final bool supportsResize;
   final bool supportsAudio;
   final bool supportsMicrophone;
+  final bool supportsFiles;
   bool permissionGranted = true;
   Completer<bool>? permissionReply;
   int permissionRequests = 0, permissionCancels = 0;
@@ -263,6 +267,7 @@ class UiEngine
     final packet = packagedCapabilities(ime: supportsIme, audio: supportsAudio);
     (packet['channels']! as Map<String, Object?>)['microphone'] =
         supportsMicrophone;
+    (packet['channels']! as Map<String, Object?>)['files'] = supportsFiles;
     (packet['display']! as Map<String, Object?>)['dynamicResolution'] =
         supportsResize;
     return RdpCapabilities.fromJson(packet);
@@ -392,6 +397,68 @@ class UiEngine
   }
 }
 
+final class GatewayOwnedUiEngine extends UiEngine
+    implements RdpSchema6NativeSessionGateway {
+  GatewayOwnedUiEngine({super.supportsFiles});
+
+  RdpSchema6SessionBinding? binding;
+  RdpCredential? ownedCredential;
+
+  @override
+  Future<RdpChannel> openOwned(
+    RdpSessionRequest request, {
+    required RdpCredential credential,
+    required RdpSchema6SessionBinding binding,
+    required bool Function() isCurrent,
+  }) async {
+    if (!isCurrent()) throw const RdpFailure('retired');
+    requests.add(request);
+    this.binding = binding;
+    ownedCredential = credential;
+    channel.currentDisplay = request.display;
+    channel.displayLayoutRevision = 1;
+    return channel;
+  }
+}
+
+final class PanelGatewayEnrollmentEngine implements RdpGatewayEnrollmentEngine {
+  static const gatewayPin =
+      'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  static const targetPin = 'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+
+  @override
+  Future<RdpGatewayCertificateObservation> inspectGateway({
+    required RdpGatewayEndpoint target,
+    required RdpGatewayEndpoint gateway,
+    required bool Function() isCurrent,
+  }) async => const RdpGatewayCertificateObservation(
+    requestId: 'gateway-observation',
+    kind: RdpGatewayCertificateKind.gateway,
+    certificate: RdpCertificatePin(
+      algorithm: 'spki-sha256',
+      fingerprint: gatewayPin,
+    ),
+  );
+
+  @override
+  Future<RdpGatewayCertificateObservation> inspectTargetThroughGateway({
+    required RdpGatewayEndpoint target,
+    required RdpPinnedGatewayEndpoint gateway,
+    required RdpOwnedSecretBuffer gatewayPassword,
+    required bool Function() isCurrent,
+  }) async => const RdpGatewayCertificateObservation(
+    requestId: 'target-observation',
+    kind: RdpGatewayCertificateKind.target,
+    certificate: RdpCertificatePin(
+      algorithm: 'spki-sha256',
+      fingerprint: targetPin,
+    ),
+  );
+
+  @override
+  void close() {}
+}
+
 class HeldCapabilityEngine extends UiEngine {
   final release = Completer<void>();
 
@@ -465,6 +532,162 @@ Future<void> showFrame(
 }
 
 void main() {
+  testWidgets(
+    'normal Core Gateway session uses owned schema6 without a SAF grant',
+    (tester) async {
+      final engine = GatewayOwnedUiEngine();
+      final enrollment = PanelGatewayEnrollmentEngine();
+      final core = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await core.account.initialize();
+      addTearDown(core.account.dispose);
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        serverAccount: core.account,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+        gatewayEnrollmentEngine: () => enrollment,
+      );
+
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'gateway-secret',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      await press(tester, 'core-rdp-accept-target-save');
+
+      ui.windows.add(_defaultWindow);
+      await tester.pump();
+      await press(tester, 'core-profile-rdp-open-$profileId');
+      await press(tester, 'rdp-check');
+      await tester.enterText(key('rdp-password'), 'target-secret');
+      await press(tester, 'rdp-authenticate');
+
+      expect(engine.binding, isNotNull);
+      expect(engine.binding!.transfer, isNull);
+      expect(engine.requests.single.channels.files, isFalse);
+      expect(engine.ownedCredential?.password, 'target-secret');
+      expect(engine.ownedCredential?.gatewayPassword, 'gateway-secret');
+      expect(engine.fileTransferSelections, 0);
+      expect(engine.fileTransferActivations, 0);
+      expect(engine.fileTransferObservations, 0);
+      expect(engine.fileTransferRetirements, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  for (final locale in ['en', 'tr']) {
+    for (final finalState in [
+      RdpTransferState.sealed,
+      RdpTransferState.unknown,
+    ]) {
+      testWidgets(
+        'file status follows owned drain without extra user polling $locale ${finalState.name}',
+        (tester) async {
+          const methods = MethodChannel('com.ersingundem.larenor/rdp-native');
+          final calls = <String>[];
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(methods, (call) async {
+                calls.add(call.method);
+                final args = Map<Object?, Object?>.from(call.arguments as Map);
+                final wire = Map<Object?, Object?>.from(
+                  args['authority'] as Map,
+                );
+                final authority = RdpFileTransferAuthority(
+                  namespaceDigest: wire['namespaceDigest']! as String,
+                  profileRef: wire['profileRef']! as String,
+                  profileRevision: wire['profileRevision']! as int,
+                );
+                final state = switch (call.method) {
+                  'prepareFileTransfer' => RdpTransferState.prepared,
+                  'drainFileTransfer' => finalState,
+                  'saveReceivedFiles' => RdpTransferState.saved,
+                  _ => throw StateError('unexpected transfer method'),
+                };
+                return {
+                  'schemaVersion': 6,
+                  'requestId': args['requestId'],
+                  'authorityId': authority.authorityId,
+                  'grantId': args['grantId'],
+                  'grantRevision': args['grantRevision'],
+                  'transferId':
+                      args['transferId'] ?? 'fedcba9876543210fedcba9876543210',
+                  'state': state.name,
+                };
+              });
+          addTearDown(
+            () => TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger
+                .setMockMethodCallHandler(methods, null),
+          );
+          final engine = GatewayOwnedUiEngine(supportsFiles: true),
+              ui = RemoteUi();
+          await ui.mount(
+            tester,
+            width: 1280,
+            locale: locale,
+            rdpEngine: () => engine,
+            rdpTrust: UiTrust(),
+          );
+          await openRdp(tester, ui);
+          await press(tester, 'rdp-file-transfer-select');
+          await connectRdp(tester);
+          expect(engine.requests.single.channels.files, isTrue);
+          expect(calls, ['prepareFileTransfer']);
+          expect(
+            tester.widget<Text>(key('rdp-files-status')).data,
+            locale == 'tr' ? 'Dosyalar: Hazırlandı' : 'Files: Prepared',
+          );
+          await press(tester, 'rdp-disconnect');
+          await tester.pumpAndSettle();
+          expect(calls, ['prepareFileTransfer', 'drainFileTransfer']);
+          expect(
+            tester.widget<Text>(key('rdp-files-status')).data,
+            finalState == RdpTransferState.sealed
+                ? locale == 'tr'
+                      ? 'Dosyalar: Kapandı; kaydedilmeye hazır'
+                      : 'Files: Closed; ready to save'
+                : locale == 'tr'
+                ? 'Dosyalar: Durum bilinmiyor'
+                : 'Files: Status unknown',
+          );
+          expect(
+            key('rdp-file-transfer-save-received'),
+            finalState == RdpTransferState.sealed
+                ? findsOneWidget
+                : findsNothing,
+          );
+          expect(
+            calls.where((method) => method == 'saveReceivedFiles'),
+            isEmpty,
+          );
+          if (finalState == RdpTransferState.sealed) {
+            await press(tester, 'rdp-file-transfer-save-received');
+            expect(
+              calls.where((method) => method == 'saveReceivedFiles').length,
+              1,
+            );
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
+
   testWidgets(
     'remote sound is explicit per profile and reports native completion only',
     (tester) async {
@@ -737,13 +960,15 @@ void main() {
       );
       expect(
         find.textContaining(
-          'This only prepares folder permission; RDP file sharing is not enabled yet.',
+          'This only prepares folder permission; packaged RDP file sharing is not verified yet.',
         ),
         findsOneWidget,
       );
       expect(remoteUi.values.values.join(), isNot(contains('content://')));
       await connectRdp(tester);
-      expect(engine.requests.single.channels.files, isFalse);
+      // A prepared grant cannot silently enable files when the packaged
+      // engine still reports files=false.
+      expect(engine.requests, isEmpty);
       await tester.pumpWidget(const SizedBox());
     },
   );

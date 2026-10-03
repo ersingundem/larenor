@@ -93,7 +93,8 @@ class RdpPackagedHostAcceptanceTest {
             assertTrue(capabilities.verticalWheel)
             assertEquals(setOf(100, 140, 180), capabilities.deviceScaleFactors)
             assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
-            assertTrue(capabilities.audio && capabilities.microphone && !capabilities.files)
+            assertTrue(capabilities.audio && capabilities.microphone && capabilities.files)
+            assertTrue(capabilities.rdGateway)
 
             diagnostic.enter("providerInspection")
             val inspected = runtime.inspect(host, port, username)

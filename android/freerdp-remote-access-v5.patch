@@ -1,0 +1,2883 @@
+diff --git a/channels/drive/client/CMakeLists.txt b/channels/drive/client/CMakeLists.txt
+index 4e23982..4ea75c8 100644
+--- a/channels/drive/client/CMakeLists.txt
++++ b/channels/drive/client/CMakeLists.txt
+@@ -19,5 +19,9 @@ define_channel_client("drive")
+ 
+ set(${MODULE_PREFIX}_SRCS drive_file.c drive_file.h drive_main.c)
+ 
++if(ANDROID)
++	list(APPEND ${MODULE_PREFIX}_SRCS drive_larenor.c drive_larenor.h)
++endif()
++
+ set(${MODULE_PREFIX}_LIBS winpr freerdp)
+ add_channel_client_library(${MODULE_PREFIX} ${MODULE_NAME} ${CHANNEL_NAME} TRUE "DeviceServiceEntry")
+diff --git a/channels/drive/client/drive_larenor.c b/channels/drive/client/drive_larenor.c
+new file mode 100644
+index 0000000..4027465
+--- /dev/null
++++ b/channels/drive/client/drive_larenor.c
+@@ -0,0 +1,1074 @@
++#include "drive_larenor.h"
++
++#include <ctype.h>
++#include <dirent.h>
++#include <errno.h>
++#include <fcntl.h>
++#include <limits.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <unistd.h>
++
++#ifndef O_CLOEXEC
++#define O_CLOEXEC 0
++#endif
++#ifndef O_DIRECTORY
++#define O_DIRECTORY 0
++#endif
++#ifndef O_NOFOLLOW
++#define O_NOFOLLOW 0
++#endif
++
++typedef enum
++{
++	LRN_PATH_ROOT = 0,
++	LRN_PATH_TO_REMOTE,
++	LRN_PATH_FROM_REMOTE
++} LRN_PATH_KIND;
++
++typedef struct
++{
++	LRN_PATH_KIND kind;
++	bool file;
++	char relative[320];
++	char name[256];
++} LRN_PATH;
++
++typedef struct
++{
++	uint64_t count;
++	uint64_t total;
++} LRN_SCAN;
++
++struct lrn_drive_policy
++{
++	char root[PATH_MAX];
++	char endpoint[PATH_MAX];
++	int source_fd;
++	int root_fd;
++	int to_fd;
++	int from_fd;
++	uid_t uid;
++	gid_t gid;
++	pthread_mutex_t mutex;
++	bool poisoned;
++};
++
++static bool lrn_add_u64(uint64_t a, uint64_t b, uint64_t* result)
++{
++	if (!result || (UINT64_MAX - a < b))
++		return false;
++	*result = a + b;
++	return true;
++}
++
++static bool lrn_valid_utf8(const unsigned char* value, size_t length)
++{
++	size_t x = 0;
++	while (x < length)
++	{
++		const unsigned char c = value[x++];
++		if (c <= 0x7F)
++		{
++			if (c == 0)
++				return false;
++			continue;
++		}
++		unsigned needed = 0;
++		uint32_t code = 0;
++		if ((c & 0xE0) == 0xC0)
++		{
++			needed = 1;
++			code = c & 0x1F;
++			if (code < 2)
++				return false;
++		}
++		else if ((c & 0xF0) == 0xE0)
++		{
++			needed = 2;
++			code = c & 0x0F;
++		}
++		else if ((c & 0xF8) == 0xF0)
++		{
++			needed = 3;
++			code = c & 0x07;
++		}
++		else
++			return false;
++		if (x + needed > length)
++			return false;
++		for (unsigned y = 0; y < needed; y++)
++		{
++			const unsigned char next = value[x++];
++			if ((next & 0xC0) != 0x80)
++				return false;
++			code = (code << 6) | (next & 0x3F);
++		}
++		if ((needed == 2 && code < 0x800) || (needed == 3 && code < 0x10000) ||
++		    code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF))
++			return false;
++	}
++	return true;
++}
++
++static bool lrn_ascii_equal_fold(const char* left, const char* right)
++{
++	if (!left || !right)
++		return false;
++	while (*left && *right)
++	{
++		unsigned char a = (unsigned char)*left++;
++		unsigned char b = (unsigned char)*right++;
++		if (a >= 'A' && a <= 'Z')
++			a = (unsigned char)(a + ('a' - 'A'));
++		if (b >= 'A' && b <= 'Z')
++			b = (unsigned char)(b + ('a' - 'A'));
++		if (a != b)
++			return false;
++	}
++	return *left == '\0' && *right == '\0';
++}
++
++static bool lrn_virtual_name(const char* name)
++{
++	char base[16] = { 0 };
++	size_t x = 0;
++	while (name[x] && name[x] != '.' && x + 1 < sizeof(base))
++	{
++		base[x] = (char)toupper((unsigned char)name[x]);
++		x++;
++	}
++	base[x] = '\0';
++	if (strcmp(base, "CON") == 0 || strcmp(base, "PRN") == 0 || strcmp(base, "AUX") == 0 ||
++	    strcmp(base, "NUL") == 0)
++		return true;
++	if (strlen(base) == 4 &&
++	    ((strncmp(base, "COM", 3) == 0) || (strncmp(base, "LPT", 3) == 0)) &&
++	    base[3] >= '1' && base[3] <= '9')
++		return true;
++	return false;
++}
++
++static bool lrn_valid_name(const char* name)
++{
++	if (!name)
++		return false;
++	const size_t length = strlen(name);
++	if (length < 1 || length > 255 || strcmp(name, ".") == 0 || strcmp(name, "..") == 0 ||
++	    name[0] == '.' || name[length - 1] == ' ' || name[length - 1] == '.')
++		return false;
++	if (!lrn_valid_utf8((const unsigned char*)name, length) || lrn_virtual_name(name))
++		return false;
++	for (size_t x = 0; x < length; x++)
++	{
++		const unsigned char c = (unsigned char)name[x];
++		if (c < 0x20 || c == 0x7F || c == '/' || c == '\\' || c == ':' || c == '*' ||
++		    c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
++			return false;
++	}
++	return true;
++}
++
++static LRN_POLICY_RESULT lrn_parse_relative(const char* input, LRN_PATH* parsed)
++{
++	if (!input || !parsed)
++		return LRN_POLICY_INVALID_NAME;
++	memset(parsed, 0, sizeof(*parsed));
++	while (*input == '/' || *input == '\\')
++		input++;
++	const size_t length = strlen(input);
++	if (length >= sizeof(parsed->relative))
++		return LRN_POLICY_INVALID_NAME;
++	for (size_t x = 0; x < length; x++)
++		parsed->relative[x] = input[x] == '\\' ? '/' : input[x];
++	parsed->relative[length] = '\0';
++	if (length == 0)
++	{
++		parsed->kind = LRN_PATH_ROOT;
++		return LRN_POLICY_OK;
++	}
++	char* separator = strchr(parsed->relative, '/');
++	if (!separator)
++	{
++		if (strcmp(parsed->relative, "ToRemote") == 0)
++			parsed->kind = LRN_PATH_TO_REMOTE;
++		else if (strcmp(parsed->relative, "FromRemote") == 0)
++			parsed->kind = LRN_PATH_FROM_REMOTE;
++		else
++			return LRN_POLICY_INVALID_NAME;
++		return LRN_POLICY_OK;
++	}
++	if (strchr(separator + 1, '/') != NULL || separator[1] == '\0')
++		return LRN_POLICY_INVALID_NAME;
++	*separator = '\0';
++	if (strcmp(parsed->relative, "ToRemote") == 0)
++		parsed->kind = LRN_PATH_TO_REMOTE;
++	else if (strcmp(parsed->relative, "FromRemote") == 0)
++		parsed->kind = LRN_PATH_FROM_REMOTE;
++	else
++		return LRN_POLICY_INVALID_NAME;
++	if (!lrn_valid_name(separator + 1))
++		return LRN_POLICY_INVALID_NAME;
++	parsed->file = true;
++	memcpy(parsed->name, separator + 1, strlen(separator + 1) + 1);
++	*separator = '/';
++	return LRN_POLICY_OK;
++}
++
++static LRN_POLICY_RESULT lrn_parse_fullpath(const LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                           LRN_PATH* parsed)
++{
++	if (!policy || !fullpath)
++		return LRN_POLICY_INVALID_NAME;
++	const size_t root_length = strlen(policy->endpoint);
++	if (strncmp(fullpath, policy->endpoint, root_length) != 0)
++		return LRN_POLICY_ACCESS_DENIED;
++	if (fullpath[root_length] == '\0')
++		return lrn_parse_relative("", parsed);
++	if (fullpath[root_length] != '/')
++		return LRN_POLICY_ACCESS_DENIED;
++	return lrn_parse_relative(fullpath + root_length + 1, parsed);
++}
++
++static int lrn_dirfd(const LRN_DRIVE_POLICY* policy, LRN_PATH_KIND kind)
++{
++	if (!policy)
++		return -1;
++	if (kind == LRN_PATH_TO_REMOTE)
++		return policy->to_fd;
++	if (kind == LRN_PATH_FROM_REMOTE)
++		return policy->from_fd;
++	return policy->root_fd;
++}
++
++static bool lrn_owned_dir(int fd, uid_t uid)
++{
++	struct stat state = { 0 };
++	return fd >= 0 && fstat(fd, &state) == 0 && S_ISDIR(state.st_mode) && state.st_uid == uid &&
++	       (state.st_mode & 07777) == 0700;
++}
++
++static bool lrn_exact_entry(int fd, const char* name, const struct stat* expected)
++{
++	int copy = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++	if (copy < 0)
++		return false;
++	DIR* directory = fdopendir(copy);
++	if (!directory)
++	{
++		close(copy);
++		return false;
++	}
++	bool exact = false;
++	errno = 0;
++	for (struct dirent* entry = readdir(directory); entry; entry = readdir(directory))
++	{
++		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
++			continue;
++		struct stat state = { 0 };
++		if (fstatat(fd, entry->d_name, &state, AT_SYMLINK_NOFOLLOW) != 0)
++			break;
++		if (state.st_dev == expected->st_dev && state.st_ino == expected->st_ino)
++		{
++			exact = strcmp(entry->d_name, name) == 0;
++			break;
++		}
++	}
++	const bool clean = errno == 0;
++	closedir(directory);
++	return clean && exact;
++}
++
++static LRN_POLICY_RESULT lrn_no_name_alias(const LRN_DRIVE_POLICY* policy, const LRN_PATH* path)
++{
++	if (!policy || !path || !path->file)
++		return LRN_POLICY_OK;
++	const int fd = lrn_dirfd(policy, path->kind);
++	const int copy = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++	if (copy < 0)
++		return LRN_POLICY_IO_ERROR;
++	DIR* directory = fdopendir(copy);
++	if (!directory)
++	{
++		close(copy);
++		return LRN_POLICY_IO_ERROR;
++	}
++	LRN_POLICY_RESULT result = LRN_POLICY_OK;
++	errno = 0;
++	for (struct dirent* entry = readdir(directory); entry; entry = readdir(directory))
++	{
++		if (strcmp(entry->d_name, path->name) != 0 &&
++		    lrn_ascii_equal_fold(entry->d_name, path->name))
++		{
++			result = LRN_POLICY_ACCESS_DENIED;
++			break;
++		}
++	}
++	if (result == LRN_POLICY_OK && errno != 0)
++		result = LRN_POLICY_IO_ERROR;
++	closedir(directory);
++	return result;
++}
++
++static LRN_POLICY_RESULT lrn_stat_path(const LRN_DRIVE_POLICY* policy, const LRN_PATH* path,
++                                      struct stat* state, bool* exists)
++{
++	if (!policy || !path || !state || !exists)
++		return LRN_POLICY_IO_ERROR;
++	*exists = false;
++	if (!path->file)
++	{
++		const int fd = lrn_dirfd(policy, path->kind);
++		if (fstat(fd, state) != 0)
++			return LRN_POLICY_IO_ERROR;
++		*exists = true;
++		return LRN_POLICY_OK;
++	}
++	if (fstatat(lrn_dirfd(policy, path->kind), path->name, state, AT_SYMLINK_NOFOLLOW) != 0)
++	{
++		if (errno == ENOENT)
++			return LRN_POLICY_OK;
++		return LRN_POLICY_IO_ERROR;
++	}
++	if (!lrn_exact_entry(lrn_dirfd(policy, path->kind), path->name, state))
++		return LRN_POLICY_ACCESS_DENIED;
++	*exists = true;
++	return LRN_POLICY_OK;
++}
++
++static LRN_POLICY_RESULT lrn_scan_dir(const LRN_DRIVE_POLICY* policy, int fd, LRN_SCAN* scan)
++{
++	int copy = openat(fd, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++	if (copy < 0)
++		return LRN_POLICY_IO_ERROR;
++	DIR* directory = fdopendir(copy);
++	if (!directory)
++	{
++		close(copy);
++		return LRN_POLICY_IO_ERROR;
++	}
++	char names[LRN_MAX_FILES + 1][256] = { { 0 } };
++	size_t names_count = 0;
++	LRN_POLICY_RESULT result = LRN_POLICY_OK;
++	errno = 0;
++	for (struct dirent* entry = readdir(directory); entry; entry = readdir(directory))
++	{
++		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
++			continue;
++		if (!lrn_valid_name(entry->d_name) || names_count >= LRN_MAX_FILES + 1)
++		{
++			result = LRN_POLICY_ACCESS_DENIED;
++			break;
++		}
++		for (size_t x = 0; x < names_count; x++)
++		{
++			if (strcmp(names[x], entry->d_name) != 0 &&
++			    lrn_ascii_equal_fold(names[x], entry->d_name))
++			{
++				result = LRN_POLICY_ACCESS_DENIED;
++				break;
++			}
++		}
++		if (result != LRN_POLICY_OK)
++			break;
++		strncpy(names[names_count++], entry->d_name, sizeof(names[0]) - 1);
++		struct stat state = { 0 };
++		if (fstatat(fd, entry->d_name, &state, AT_SYMLINK_NOFOLLOW) != 0 ||
++		    !S_ISREG(state.st_mode) || state.st_uid != policy->uid || state.st_nlink != 1 ||
++		    (state.st_mode & 07777) != 0600 || state.st_size < 0)
++		{
++			result = LRN_POLICY_ACCESS_DENIED;
++			break;
++		}
++		if ((uint64_t)state.st_size > LRN_MAX_FILE_BYTES ||
++		    !lrn_add_u64(scan->total, (uint64_t)state.st_size, &scan->total))
++		{
++			result = LRN_POLICY_FILE_TOO_LARGE;
++			break;
++		}
++		scan->count++;
++		if (scan->count > LRN_MAX_FILES || scan->total > LRN_MAX_TOTAL_BYTES)
++		{
++			result = LRN_POLICY_DISK_FULL;
++			break;
++		}
++	}
++	if (result == LRN_POLICY_OK && errno != 0)
++		result = LRN_POLICY_IO_ERROR;
++	closedir(directory);
++	return result;
++}
++
++static LRN_POLICY_RESULT lrn_scan(const LRN_DRIVE_POLICY* policy, LRN_SCAN* scan)
++{
++	if (!policy || !scan)
++		return LRN_POLICY_IO_ERROR;
++	memset(scan, 0, sizeof(*scan));
++	LRN_POLICY_RESULT result = lrn_scan_dir(policy, policy->to_fd, scan);
++	if (result == LRN_POLICY_OK)
++		result = lrn_scan_dir(policy, policy->from_fd, scan);
++	return result;
++}
++
++static bool lrn_valid_root_shape(const char* root)
++{
++	static const char marker[] = "/rdp-saf-mirrors-v1/";
++	if (!root || root[0] != '/')
++		return false;
++	const char* found = NULL;
++	for (const char* cursor = strstr(root, marker); cursor; cursor = strstr(cursor + 1, marker))
++		found = cursor;
++	if (!found)
++		return false;
++	const char* digest = found + sizeof(marker) - 1;
++	for (size_t x = 0; x < 32; x++)
++	{
++		if (!((digest[x] >= '0' && digest[x] <= '9') ||
++		      (digest[x] >= 'a' && digest[x] <= 'f')))
++			return false;
++	}
++	return strcmp(digest + 32, "/root") == 0;
++}
++
++static bool lrn_same_inode(const struct stat* left, const struct stat* right);
++
++#if defined(ANDROID)
++static bool lrn_parse_proc_endpoint(const char* endpoint, int* descriptor)
++{
++	static const char prefix[] = "/proc/self/fd/";
++	if (!endpoint || !descriptor || strncmp(endpoint, prefix, sizeof(prefix) - 1) != 0)
++		return false;
++	const char* number = endpoint + sizeof(prefix) - 1;
++	if (*number == '\0' || (number[0] == '0' && number[1] != '\0'))
++		return false;
++	uint64_t value = 0;
++	for (const char* cursor = number; *cursor; cursor++)
++	{
++		if (*cursor < '0' || *cursor > '9' || value > ((uint64_t)INT_MAX / 10U))
++			return false;
++		value = value * 10U + (uint64_t)(*cursor - '0');
++		if (value > INT_MAX)
++			return false;
++	}
++	char canonical[64] = { 0 };
++	const int count = snprintf(canonical, sizeof(canonical), "%s%d", prefix, (int)value);
++	if (count < 1 || (size_t)count >= sizeof(canonical) || strcmp(endpoint, canonical) != 0)
++		return false;
++	*descriptor = (int)value;
++	return true;
++}
++
++static bool lrn_read_proc_target(const char* endpoint, char* target, size_t capacity)
++{
++	if (!endpoint || !target || capacity < 2)
++		return false;
++	const ssize_t length = readlink(endpoint, target, capacity - 1);
++	if (length < 1 || (size_t)length >= capacity - 1)
++		return false;
++	target[length] = '\0';
++	return target[0] == '/' && strstr(target, " (deleted)") == NULL;
++}
++
++static bool lrn_fd_is_controlled_directory(int descriptor)
++{
++	const int flags = fcntl(descriptor, F_GETFL);
++	const int fd_flags = fcntl(descriptor, F_GETFD);
++	return flags >= 0 && fd_flags >= 0 && (flags & O_DIRECTORY) != 0 &&
++	       (flags & O_ACCMODE) != O_WRONLY && (fd_flags & FD_CLOEXEC) != 0;
++}
++
++static bool lrn_resolve_proc_endpoint(const char* endpoint, int* source_fd, int* retained_fd,
++	                                  char* canonical_root, size_t capacity)
++{
++	int descriptor = -1;
++	if (!lrn_parse_proc_endpoint(endpoint, &descriptor) ||
++	    !lrn_fd_is_controlled_directory(descriptor))
++		return false;
++	struct stat first = { 0 };
++	struct stat path = { 0 };
++	struct stat retained = { 0 };
++	struct stat last = { 0 };
++	char target[PATH_MAX] = { 0 };
++	char resolved[PATH_MAX] = { 0 };
++	if (fstat(descriptor, &first) != 0 || !S_ISDIR(first.st_mode) ||
++	    !lrn_read_proc_target(endpoint, target, sizeof(target)) || !realpath(target, resolved) ||
++	    strcmp(target, resolved) != 0 || strlen(resolved) >= capacity ||
++	    lstat(resolved, &path) != 0 || !lrn_same_inode(&first, &path))
++		return false;
++	const int duplicate = fcntl(descriptor, F_DUPFD_CLOEXEC, 0);
++	if (duplicate < 0)
++		return false;
++	char second_target[PATH_MAX] = { 0 };
++	const bool valid = fstat(duplicate, &retained) == 0 && fstat(descriptor, &last) == 0 &&
++	                   lrn_same_inode(&first, &retained) && lrn_same_inode(&first, &last) &&
++	                   lrn_read_proc_target(endpoint, second_target, sizeof(second_target)) &&
++	                   strcmp(second_target, resolved) == 0 && lstat(resolved, &path) == 0 &&
++	                   lrn_same_inode(&first, &path);
++	if (!valid)
++	{
++		close(duplicate);
++		return false;
++	}
++	strcpy(canonical_root, resolved);
++	*source_fd = descriptor;
++	*retained_fd = duplicate;
++	return true;
++}
++#endif
++
++static bool lrn_owned_dir_path(const char* path, uid_t uid)
++{
++	struct stat state = { 0 };
++	return path && lstat(path, &state) == 0 && S_ISDIR(state.st_mode) && state.st_uid == uid &&
++	       (state.st_mode & 07777) == 0700;
++}
++
++static bool lrn_trusted_private_dir_path(const char* path, uid_t uid, gid_t gid)
++{
++	struct stat state = { 0 };
++	return path && lstat(path, &state) == 0 && S_ISDIR(state.st_mode) && state.st_uid == uid &&
++	       state.st_gid == gid && (state.st_mode & 0002) == 0;
++}
++
++static bool lrn_owned_root_chain(const char* root, uid_t uid, gid_t gid)
++{
++	char transfer[PATH_MAX] = { 0 };
++	char base[PATH_MAX] = { 0 };
++	char private_root[PATH_MAX] = { 0 };
++	const size_t root_length = strlen(root);
++	if (root_length < sizeof("/01234567890123456789012345678901/root") - 1 ||
++	    root_length >= sizeof(transfer))
++		return false;
++	memcpy(transfer, root, root_length - sizeof("/root") + 1);
++	if (strlen(transfer) >= sizeof(base))
++		return false;
++	strcpy(base, transfer);
++	char* slash = strrchr(base, '/');
++	if (!slash)
++		return false;
++	*slash = '\0';
++	if (strlen(base) >= sizeof(private_root))
++		return false;
++	strcpy(private_root, base);
++	slash = strrchr(private_root, '/');
++	if (!slash)
++		return false;
++	*slash = '\0';
++	return lrn_trusted_private_dir_path(private_root, uid, gid) && lrn_owned_dir_path(base, uid) &&
++	       lrn_owned_dir_path(transfer, uid) && lrn_owned_dir_path(root, uid);
++}
++
++static bool lrn_same_inode(const struct stat* left, const struct stat* right)
++{
++	return left && right && left->st_dev == right->st_dev && left->st_ino == right->st_ino;
++}
++
++static bool lrn_policy_dirs_current(const LRN_DRIVE_POLICY* policy)
++{
++	if (!policy || !lrn_owned_root_chain(policy->root, policy->uid, policy->gid) ||
++	    !lrn_owned_dir(policy->root_fd, policy->uid) ||
++	    !lrn_owned_dir(policy->to_fd, policy->uid) ||
++	    !lrn_owned_dir(policy->from_fd, policy->uid))
++		return false;
++	struct stat held_root = { 0 };
++	struct stat path_root = { 0 };
++	struct stat held_to = { 0 };
++	struct stat path_to = { 0 };
++	struct stat held_from = { 0 };
++	struct stat path_from = { 0 };
++	if (!(fstat(policy->root_fd, &held_root) == 0 && lstat(policy->root, &path_root) == 0 &&
++	       fstat(policy->to_fd, &held_to) == 0 &&
++	       fstatat(policy->root_fd, "ToRemote", &path_to, AT_SYMLINK_NOFOLLOW) == 0 &&
++	       fstat(policy->from_fd, &held_from) == 0 &&
++	       fstatat(policy->root_fd, "FromRemote", &path_from, AT_SYMLINK_NOFOLLOW) == 0 &&
++	       lrn_same_inode(&held_root, &path_root) && lrn_same_inode(&held_to, &path_to) &&
++	       lrn_same_inode(&held_from, &path_from)))
++		return false;
++#if defined(ANDROID)
++	struct stat source = { 0 };
++	char target[PATH_MAX] = { 0 };
++	if (policy->source_fd < 0 || !lrn_fd_is_controlled_directory(policy->source_fd) ||
++	    fstat(policy->source_fd, &source) != 0 || !lrn_same_inode(&held_root, &source) ||
++	    !lrn_read_proc_target(policy->endpoint, target, sizeof(target)) ||
++	    strcmp(target, policy->root) != 0)
++		return false;
++#endif
++	return true;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_create(const char* drive_name, const char* endpoint,
++                                          LRN_DRIVE_POLICY** out)
++{
++	if (!out)
++		return LRN_POLICY_IO_ERROR;
++	*out = NULL;
++	if (!drive_name || strcmp(drive_name, LRN_DRIVE_NAME) != 0)
++		return LRN_POLICY_INACTIVE;
++	if (!endpoint || strlen(endpoint) >= PATH_MAX)
++		return LRN_POLICY_ACCESS_DENIED;
++	char root[PATH_MAX] = { 0 };
++	int source_fd = -1;
++	int retained_fd = -1;
++#if defined(ANDROID)
++	if (!lrn_resolve_proc_endpoint(endpoint, &source_fd, &retained_fd, root, sizeof(root)))
++		return LRN_POLICY_ACCESS_DENIED;
++#else
++	if (!realpath(endpoint, root) || strcmp(endpoint, root) != 0)
++		return LRN_POLICY_ACCESS_DENIED;
++	retained_fd = open(root, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++	if (retained_fd < 0)
++		return LRN_POLICY_ACCESS_DENIED;
++#endif
++	if (!lrn_valid_root_shape(root))
++	{
++		close(retained_fd);
++		return LRN_POLICY_ACCESS_DENIED;
++	}
++	LRN_DRIVE_POLICY* policy = calloc(1, sizeof(*policy));
++	if (!policy)
++	{
++		close(retained_fd);
++		return LRN_POLICY_IO_ERROR;
++	}
++	policy->source_fd = source_fd;
++	policy->root_fd = retained_fd;
++	policy->to_fd = policy->from_fd = -1;
++	policy->uid = geteuid();
++	policy->gid = getegid();
++	if (!lrn_owned_root_chain(root, policy->uid, policy->gid))
++		goto fail;
++	strncpy(policy->root, root, sizeof(policy->root) - 1);
++	strncpy(policy->endpoint, endpoint, sizeof(policy->endpoint) - 1);
++	if (policy->root_fd < 0 || !lrn_owned_dir(policy->root_fd, policy->uid))
++		goto fail;
++	policy->to_fd = openat(policy->root_fd, "ToRemote", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++	policy->from_fd =
++	    openat(policy->root_fd, "FromRemote", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++	if (!lrn_owned_dir(policy->to_fd, policy->uid) || !lrn_owned_dir(policy->from_fd, policy->uid))
++		goto fail;
++	if (pthread_mutex_init(&policy->mutex, NULL) != 0)
++		goto fail;
++	LRN_SCAN scan = { 0 };
++	if (lrn_scan(policy, &scan) != LRN_POLICY_OK)
++	{
++		pthread_mutex_destroy(&policy->mutex);
++		goto fail;
++	}
++	*out = policy;
++	return LRN_POLICY_OK;
++
++fail:
++	if (policy->from_fd >= 0)
++		close(policy->from_fd);
++	if (policy->to_fd >= 0)
++		close(policy->to_fd);
++	if (policy->root_fd >= 0)
++		close(policy->root_fd);
++	free(policy);
++	return LRN_POLICY_ACCESS_DENIED;
++}
++
++void lrn_drive_policy_free(LRN_DRIVE_POLICY* policy)
++{
++	if (!policy)
++		return;
++	pthread_mutex_destroy(&policy->mutex);
++	close(policy->from_fd);
++	close(policy->to_fd);
++	close(policy->root_fd);
++	memset(policy, 0, sizeof(*policy));
++	free(policy);
++}
++
++bool lrn_drive_policy_active(const LRN_DRIVE_POLICY* policy)
++{
++	return policy != NULL;
++}
++
++bool lrn_drive_policy_terminal(LRN_DRIVE_POLICY* policy)
++{
++	if (!policy || pthread_mutex_lock(&policy->mutex) != 0)
++		return policy != NULL;
++	const bool terminal = policy->poisoned;
++	pthread_mutex_unlock(&policy->mutex);
++	return terminal;
++}
++
++static LRN_POLICY_RESULT lrn_guard_begin(LRN_DRIVE_POLICY* policy, LRN_MUTATION_KIND kind,
++	                                      const LRN_PATH* source, const LRN_PATH* target,
++	                                      LRN_POLICY_GUARD* guard, LRN_SCAN* scan)
++{
++	if (!policy || !source || !guard || !scan)
++		return LRN_POLICY_IO_ERROR;
++	memset(guard, 0, sizeof(*guard));
++	if (pthread_mutex_lock(&policy->mutex) != 0)
++		return LRN_POLICY_IO_ERROR;
++	guard->locked = true;
++	guard->policy = policy;
++	guard->kind = kind;
++	if (policy->poisoned)
++		return LRN_POLICY_TERMINAL;
++	if (!lrn_policy_dirs_current(policy))
++	{
++		policy->poisoned = true;
++		return LRN_POLICY_TERMINAL;
++	}
++	LRN_POLICY_RESULT result = lrn_scan(policy, scan);
++	if (result != LRN_POLICY_OK)
++	{
++		policy->poisoned = true;
++		return LRN_POLICY_TERMINAL;
++	}
++	guard->count_before = scan->count;
++	guard->total_before = scan->total;
++	strncpy(guard->source, source->relative, sizeof(guard->source) - 1);
++	if (target)
++		strncpy(guard->target, target->relative, sizeof(guard->target) - 1);
++	struct stat state = { 0 };
++	result = lrn_stat_path(policy, source, &state, &guard->source_existed);
++	if (result != LRN_POLICY_OK)
++		return result;
++	if (guard->source_existed)
++		guard->source_inode = (uint64_t)state.st_ino;
++	if (target)
++	{
++		result = lrn_stat_path(policy, target, &state, &guard->target_existed);
++		if (result != LRN_POLICY_OK)
++			return result;
++		if (guard->target_existed)
++			guard->target_inode = (uint64_t)state.st_ino;
++	}
++	return LRN_POLICY_OK;
++}
++
++static void lrn_guard_unlock(LRN_POLICY_GUARD* guard)
++{
++	if (guard && guard->locked)
++	{
++		pthread_mutex_unlock(&guard->policy->mutex);
++		guard->locked = false;
++	}
++}
++
++static LRN_POLICY_RESULT lrn_guard_fail(LRN_POLICY_GUARD* guard, LRN_POLICY_RESULT result)
++{
++	lrn_guard_unlock(guard);
++	return result;
++}
++
++static LRN_POLICY_RESULT lrn_projection(const LRN_SCAN* scan, uint64_t old_size,
++	                                     bool existed, uint64_t new_size, bool may_create)
++{
++	if (new_size > LRN_MAX_FILE_BYTES)
++		return LRN_POLICY_FILE_TOO_LARGE;
++	uint64_t count = scan->count + ((!existed && may_create) ? 1U : 0U);
++	if (count > LRN_MAX_FILES || scan->total < old_size)
++		return LRN_POLICY_DISK_FULL;
++	uint64_t total = scan->total - old_size;
++	if (!lrn_add_u64(total, new_size, &total) || total > LRN_MAX_TOTAL_BYTES)
++		return LRN_POLICY_DISK_FULL;
++	return LRN_POLICY_OK;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_create(LRN_DRIVE_POLICY* policy, const char* relative,
++	                                              bool write_requested, bool may_create,
++	                                              bool truncates, bool directory_requested,
++	                                              uint64_t allocation_size,
++	                                              LRN_POLICY_GUARD* guard)
++{
++	LRN_PATH path = { 0 };
++	LRN_POLICY_RESULT result = lrn_parse_relative(relative, &path);
++	if (result != LRN_POLICY_OK)
++		return result;
++	LRN_SCAN scan = { 0 };
++	result = lrn_guard_begin(policy, LRN_MUTATION_CREATE, &path, NULL, guard, &scan);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	if (!path.file)
++	{
++		if (write_requested || truncates || allocation_size != 0 || !guard->source_existed)
++			return lrn_guard_fail(guard, LRN_POLICY_ACCESS_DENIED);
++		return LRN_POLICY_OK;
++	}
++	if (directory_requested)
++		return lrn_guard_fail(guard, LRN_POLICY_ACCESS_DENIED);
++	if (path.kind == LRN_PATH_TO_REMOTE &&
++	    (write_requested || may_create || truncates || allocation_size != 0))
++		return lrn_guard_fail(guard, LRN_POLICY_ACCESS_DENIED);
++	result = lrn_no_name_alias(policy, &path);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	struct stat state = { 0 };
++	bool exists = false;
++	result = lrn_stat_path(policy, &path, &state, &exists);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	const uint64_t old_size = exists && S_ISREG(state.st_mode) ? (uint64_t)state.st_size : 0;
++	uint64_t projected = truncates ? 0 : old_size;
++	if (allocation_size > projected)
++		projected = allocation_size;
++	result = lrn_projection(&scan, old_size, exists, projected, may_create);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	return LRN_POLICY_OK;
++}
++
++static LRN_POLICY_RESULT lrn_begin_existing(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                          LRN_MUTATION_KIND kind, LRN_POLICY_GUARD* guard,
++	                                          LRN_PATH* path, LRN_SCAN* scan, struct stat* state)
++{
++	LRN_POLICY_RESULT result = lrn_parse_fullpath(policy, fullpath, path);
++	if (result != LRN_POLICY_OK || !path->file || path->kind != LRN_PATH_FROM_REMOTE)
++		return result == LRN_POLICY_OK ? LRN_POLICY_ACCESS_DENIED : result;
++	result = lrn_guard_begin(policy, kind, path, NULL, guard, scan);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	bool exists = false;
++	result = lrn_stat_path(policy, path, state, &exists);
++	if (result != LRN_POLICY_OK || !exists || !S_ISREG(state->st_mode))
++		return lrn_guard_fail(guard, result == LRN_POLICY_OK ? LRN_POLICY_ACCESS_DENIED : result);
++	return LRN_POLICY_OK;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_write(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                             uint64_t offset, uint64_t length,
++	                                             LRN_POLICY_GUARD* guard)
++{
++	LRN_PATH path = { 0 };
++	LRN_SCAN scan = { 0 };
++	struct stat state = { 0 };
++	LRN_POLICY_RESULT result =
++	    lrn_begin_existing(policy, fullpath, LRN_MUTATION_WRITE, guard, &path, &scan, &state);
++	if (result != LRN_POLICY_OK)
++		return result;
++	uint64_t end = 0;
++	if (!lrn_add_u64(offset, length, &end))
++		return lrn_guard_fail(guard, LRN_POLICY_FILE_TOO_LARGE);
++	const uint64_t projected = end > (uint64_t)state.st_size ? end : (uint64_t)state.st_size;
++	result = lrn_projection(&scan, (uint64_t)state.st_size, true, projected, false);
++	return result == LRN_POLICY_OK ? result : lrn_guard_fail(guard, result);
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_resize(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                              int64_t size, LRN_POLICY_GUARD* guard)
++{
++	if (size < 0)
++		return LRN_POLICY_INVALID_NAME;
++	LRN_PATH path = { 0 };
++	LRN_SCAN scan = { 0 };
++	struct stat state = { 0 };
++	LRN_POLICY_RESULT result =
++	    lrn_begin_existing(policy, fullpath, LRN_MUTATION_RESIZE, guard, &path, &scan, &state);
++	if (result != LRN_POLICY_OK)
++		return result;
++	result = lrn_projection(&scan, (uint64_t)state.st_size, true, (uint64_t)size, false);
++	return result == LRN_POLICY_OK ? result : lrn_guard_fail(guard, result);
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_rename(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                              const char* target_relative, bool replace,
++	                                              LRN_POLICY_GUARD* guard)
++{
++	LRN_PATH source = { 0 };
++	LRN_PATH target = { 0 };
++	LRN_POLICY_RESULT result = lrn_parse_fullpath(policy, fullpath, &source);
++	if (result != LRN_POLICY_OK || !source.file || source.kind != LRN_PATH_FROM_REMOTE)
++		return result == LRN_POLICY_OK ? LRN_POLICY_ACCESS_DENIED : result;
++	result = lrn_parse_relative(target_relative, &target);
++	if (result != LRN_POLICY_OK || !target.file || target.kind != LRN_PATH_FROM_REMOTE)
++		return result == LRN_POLICY_OK ? LRN_POLICY_ACCESS_DENIED : result;
++	if (strcmp(source.name, target.name) != 0 && lrn_ascii_equal_fold(source.name, target.name))
++		return LRN_POLICY_ACCESS_DENIED;
++	LRN_SCAN scan = { 0 };
++	result = lrn_guard_begin(policy, LRN_MUTATION_RENAME, &source, &target, guard, &scan);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	if (!guard->source_existed)
++		return lrn_guard_fail(guard, LRN_POLICY_ACCESS_DENIED);
++	result = lrn_no_name_alias(policy, &target);
++	if (result != LRN_POLICY_OK)
++		return lrn_guard_fail(guard, result);
++	if (guard->target_existed && !replace && strcmp(source.name, target.name) != 0)
++		return lrn_guard_fail(guard, LRN_POLICY_ACCESS_DENIED);
++	return LRN_POLICY_OK;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_metadata(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                                bool deleting, LRN_POLICY_GUARD* guard)
++{
++	(void)deleting;
++	LRN_PATH path = { 0 };
++	LRN_SCAN scan = { 0 };
++	struct stat state = { 0 };
++	return lrn_begin_existing(policy, fullpath, LRN_MUTATION_METADATA, guard, &path, &scan, &state);
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_delete(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                              LRN_POLICY_GUARD* guard)
++{
++	LRN_PATH path = { 0 };
++	LRN_SCAN scan = { 0 };
++	struct stat state = { 0 };
++	return lrn_begin_existing(policy, fullpath, LRN_MUTATION_DELETE, guard, &path, &scan, &state);
++}
++
++static LRN_POLICY_RESULT lrn_verify_relative(LRN_POLICY_GUARD* guard, const char* relative,
++	                                           const LRN_HANDLE_INFO* handle, bool enforce_mode)
++{
++	LRN_PATH path = { 0 };
++	LRN_POLICY_RESULT result = lrn_parse_relative(relative, &path);
++	if (result != LRN_POLICY_OK)
++		return result;
++	if (!path.file)
++	{
++		struct stat state = { 0 };
++		const int fd = lrn_dirfd(guard->policy, path.kind);
++		if (fstat(fd, &state) != 0 || !lrn_owned_dir(fd, guard->policy->uid) || !handle ||
++		    !handle->valid || !handle->directory || handle->volume != (uint32_t)state.st_dev ||
++		    handle->inode != (uint32_t)state.st_ino)
++			return LRN_POLICY_ACCESS_DENIED;
++		return LRN_POLICY_OK;
++	}
++	const int fd = openat(lrn_dirfd(guard->policy, path.kind), path.name,
++	                      O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
++	if (fd < 0)
++		return LRN_POLICY_ACCESS_DENIED;
++	if (enforce_mode && fchmod(fd, 0600) != 0)
++	{
++		close(fd);
++		return LRN_POLICY_IO_ERROR;
++	}
++	struct stat state = { 0 };
++	const int status = fstat(fd, &state);
++	close(fd);
++	if (status != 0 || !S_ISREG(state.st_mode) || state.st_uid != guard->policy->uid ||
++	    state.st_nlink != 1 || (state.st_mode & 07777) != 0600 || state.st_size < 0 ||
++	    !handle || !handle->valid || handle->directory || handle->links != 1 ||
++	    handle->volume != (uint32_t)state.st_dev || handle->inode != (uint32_t)state.st_ino ||
++	    handle->size != (uint64_t)state.st_size)
++		return LRN_POLICY_ACCESS_DENIED;
++	return LRN_POLICY_OK;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_verify_handle(LRN_POLICY_GUARD* guard,
++	                                               const LRN_HANDLE_INFO* handle,
++	                                               bool enforce_mode)
++{
++	if (!guard || !guard->locked)
++		return LRN_POLICY_IO_ERROR;
++	const char* relative = guard->kind == LRN_MUTATION_RENAME && guard->target[0]
++	                           ? guard->target
++	                           : guard->source;
++	return lrn_verify_relative(guard, relative, handle, enforce_mode);
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_verify_source_handle(LRN_POLICY_GUARD* guard,
++	                                                      const LRN_HANDLE_INFO* handle,
++	                                                      bool enforce_mode)
++{
++	if (!guard || !guard->locked)
++		return LRN_POLICY_IO_ERROR;
++	return lrn_verify_relative(guard, guard->source, handle, enforce_mode);
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_validate_read(LRN_DRIVE_POLICY* policy, const char* fullpath,
++	                                               const LRN_HANDLE_INFO* handle)
++{
++	LRN_PATH path = { 0 };
++	LRN_POLICY_RESULT result = lrn_parse_fullpath(policy, fullpath, &path);
++	if (result != LRN_POLICY_OK)
++		return result;
++	if (pthread_mutex_lock(&policy->mutex) != 0)
++		return LRN_POLICY_IO_ERROR;
++	if (policy->poisoned || !lrn_policy_dirs_current(policy))
++	{
++		policy->poisoned = true;
++		pthread_mutex_unlock(&policy->mutex);
++		return LRN_POLICY_TERMINAL;
++	}
++	LRN_SCAN scan = { 0 };
++	if (lrn_scan(policy, &scan) != LRN_POLICY_OK)
++	{
++		policy->poisoned = true;
++		pthread_mutex_unlock(&policy->mutex);
++		return LRN_POLICY_TERMINAL;
++	}
++	LRN_POLICY_GUARD guard = { .policy = policy, .locked = true };
++	strncpy(guard.source, path.relative, sizeof(guard.source) - 1);
++	result = lrn_verify_relative(&guard, guard.source, handle, false);
++	guard.locked = false;
++	pthread_mutex_unlock(&policy->mutex);
++	return result;
++}
++
++static bool lrn_same_state(LRN_POLICY_GUARD* guard)
++{
++	LRN_PATH source = { 0 };
++	LRN_PATH target = { 0 };
++	struct stat state = { 0 };
++	bool exists = false;
++	if (lrn_parse_relative(guard->source, &source) != LRN_POLICY_OK ||
++	    lrn_stat_path(guard->policy, &source, &state, &exists) != LRN_POLICY_OK ||
++	    exists != guard->source_existed ||
++	    (exists && (uint64_t)state.st_ino != guard->source_inode))
++		return false;
++	if (guard->target[0])
++	{
++		if (lrn_parse_relative(guard->target, &target) != LRN_POLICY_OK ||
++		    lrn_stat_path(guard->policy, &target, &state, &exists) != LRN_POLICY_OK ||
++		    exists != guard->target_existed ||
++		    (exists && (uint64_t)state.st_ino != guard->target_inode))
++			return false;
++	}
++	return true;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_finish(LRN_POLICY_GUARD* guard, bool mutation_succeeded,
++	                                        const LRN_HANDLE_INFO* handle)
++{
++	if (!guard || !guard->locked || !guard->policy)
++		return LRN_POLICY_IO_ERROR;
++	LRN_POLICY_RESULT result = LRN_POLICY_OK;
++	LRN_SCAN scan = { 0 };
++	if (!mutation_succeeded)
++		result = LRN_POLICY_TERMINAL;
++	else
++	{
++		result = lrn_scan(guard->policy, &scan);
++		if (result == LRN_POLICY_OK && guard->kind == LRN_MUTATION_DELETE)
++		{
++			LRN_PATH source = { 0 };
++			struct stat state = { 0 };
++			bool exists = false;
++			if (lrn_parse_relative(guard->source, &source) != LRN_POLICY_OK ||
++			    lrn_stat_path(guard->policy, &source, &state, &exists) != LRN_POLICY_OK || exists)
++				result = LRN_POLICY_TERMINAL;
++		}
++		else if (result == LRN_POLICY_OK)
++			result = lrn_drive_policy_verify_handle(guard, handle, true);
++	}
++	if (result != LRN_POLICY_OK)
++		guard->policy->poisoned = true;
++	lrn_guard_unlock(guard);
++	return result;
++}
++
++LRN_POLICY_RESULT lrn_drive_policy_abort(LRN_POLICY_GUARD* guard)
++{
++	if (!guard || !guard->locked || !guard->policy)
++		return LRN_POLICY_IO_ERROR;
++	LRN_SCAN scan = { 0 };
++	LRN_POLICY_RESULT result = lrn_scan(guard->policy, &scan);
++	if (result != LRN_POLICY_OK || scan.count != guard->count_before ||
++	    scan.total != guard->total_before || !lrn_same_state(guard))
++	{
++		guard->policy->poisoned = true;
++		result = LRN_POLICY_TERMINAL;
++	}
++	lrn_guard_unlock(guard);
++	return result;
++}
+diff --git a/channels/drive/client/drive_larenor.h b/channels/drive/client/drive_larenor.h
+new file mode 100644
+index 0000000..0cee207
+--- /dev/null
++++ b/channels/drive/client/drive_larenor.h
+@@ -0,0 +1,98 @@
++#ifndef FREERDP_CHANNEL_DRIVE_LARENOR_H
++#define FREERDP_CHANNEL_DRIVE_LARENOR_H
++
++#include <stdbool.h>
++#include <stddef.h>
++#include <stdint.h>
++
++#define LRN_DRIVE_NAME "LrnXfer"
++#define LRN_MAX_FILES 32U
++#define LRN_MAX_FILE_BYTES (UINT64_C(256) * 1024U * 1024U)
++#define LRN_MAX_TOTAL_BYTES (UINT64_C(1024) * 1024U * 1024U)
++
++typedef struct lrn_drive_policy LRN_DRIVE_POLICY;
++
++typedef enum
++{
++	LRN_POLICY_OK = 0,
++	LRN_POLICY_INACTIVE,
++	LRN_POLICY_ACCESS_DENIED,
++	LRN_POLICY_INVALID_NAME,
++	LRN_POLICY_FILE_TOO_LARGE,
++	LRN_POLICY_DISK_FULL,
++	LRN_POLICY_IO_ERROR,
++	LRN_POLICY_TERMINAL
++} LRN_POLICY_RESULT;
++
++typedef enum
++{
++	LRN_MUTATION_CREATE = 1,
++	LRN_MUTATION_WRITE,
++	LRN_MUTATION_RESIZE,
++	LRN_MUTATION_RENAME,
++	LRN_MUTATION_METADATA,
++	LRN_MUTATION_DELETE
++} LRN_MUTATION_KIND;
++
++typedef struct
++{
++	uint64_t volume;
++	uint64_t inode;
++	uint64_t size;
++	uint32_t links;
++	bool directory;
++	bool valid;
++} LRN_HANDLE_INFO;
++
++typedef struct
++{
++	LRN_DRIVE_POLICY* policy;
++	LRN_MUTATION_KIND kind;
++	char source[320];
++	char target[320];
++	uint64_t count_before;
++	uint64_t total_before;
++	uint64_t source_inode;
++	uint64_t target_inode;
++	bool source_existed;
++	bool target_existed;
++	bool locked;
++} LRN_POLICY_GUARD;
++
++LRN_POLICY_RESULT lrn_drive_policy_create(const char* drive_name, const char* endpoint,
++                                          LRN_DRIVE_POLICY** policy);
++void lrn_drive_policy_free(LRN_DRIVE_POLICY* policy);
++bool lrn_drive_policy_active(const LRN_DRIVE_POLICY* policy);
++bool lrn_drive_policy_terminal(LRN_DRIVE_POLICY* policy);
++
++LRN_POLICY_RESULT lrn_drive_policy_begin_create(LRN_DRIVE_POLICY* policy, const char* relative,
++                                                bool write_requested, bool may_create,
++                                                bool truncates, bool directory_requested,
++                                                uint64_t allocation_size,
++                                                LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_begin_write(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                               uint64_t offset, uint64_t length,
++                                               LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_begin_resize(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                                int64_t size, LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_begin_rename(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                                const char* target_relative, bool replace,
++                                                LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_begin_metadata(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                                  bool deleting, LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_begin_delete(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                                LRN_POLICY_GUARD* guard);
++
++LRN_POLICY_RESULT lrn_drive_policy_verify_handle(LRN_POLICY_GUARD* guard,
++                                                 const LRN_HANDLE_INFO* handle,
++                                                 bool enforce_mode);
++LRN_POLICY_RESULT lrn_drive_policy_verify_source_handle(LRN_POLICY_GUARD* guard,
++                                                        const LRN_HANDLE_INFO* handle,
++                                                        bool enforce_mode);
++LRN_POLICY_RESULT lrn_drive_policy_validate_read(LRN_DRIVE_POLICY* policy, const char* fullpath,
++                                                 const LRN_HANDLE_INFO* handle);
++LRN_POLICY_RESULT lrn_drive_policy_abort(LRN_POLICY_GUARD* guard);
++LRN_POLICY_RESULT lrn_drive_policy_finish(LRN_POLICY_GUARD* guard, bool mutation_succeeded,
++                                          const LRN_HANDLE_INFO* handle);
++
++#endif
+diff --git a/channels/drive/client/drive_main.c b/channels/drive/client/drive_main.c
+index e0d5488..548e715 100644
+--- a/channels/drive/client/drive_main.c
++++ b/channels/drive/client/drive_main.c
+@@ -29,6 +29,11 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifdef ANDROID
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#endif
+ 
+ #include <winpr/crt.h>
+ #include <winpr/assert.h>
+@@ -47,6 +52,9 @@
+ #include <freerdp/channels/rdpdr.h>
+ 
+ #include "drive_file.h"
++#ifdef ANDROID
++#include "drive_larenor.h"
++#endif
+ 
+ typedef struct
+ {
+@@ -64,6 +72,10 @@ typedef struct
+ 	DEVMAN* devman;
+ 
+ 	rdpContext* rdpcontext;
++#ifdef ANDROID
++	LRN_DRIVE_POLICY* larenor;
++	HANDLE stopEvent;
++#endif
+ } DRIVE_DEVICE;
+ 
+ static NTSTATUS drive_map_windows_err(DWORD fs_errno)
+@@ -137,6 +149,111 @@ static NTSTATUS drive_map_windows_err(DWORD fs_errno)
+ 	return rc;
+ }
+ 
++#ifdef ANDROID
++static NTSTATUS drive_larenor_status(LRN_POLICY_RESULT result)
++{
++	switch (result)
++	{
++		case LRN_POLICY_OK:
++		case LRN_POLICY_INACTIVE:
++			return STATUS_SUCCESS;
++		case LRN_POLICY_INVALID_NAME:
++			return STATUS_OBJECT_NAME_INVALID;
++		case LRN_POLICY_FILE_TOO_LARGE:
++			return STATUS_DISK_FULL;
++		case LRN_POLICY_DISK_FULL:
++			return STATUS_DISK_FULL;
++		case LRN_POLICY_ACCESS_DENIED:
++			return STATUS_ACCESS_DENIED;
++		case LRN_POLICY_IO_ERROR:
++		case LRN_POLICY_TERMINAL:
++		default:
++			return STATUS_UNSUCCESSFUL;
++	}
++}
++
++static BOOL drive_larenor_handle_info(const DRIVE_FILE* file, LRN_HANDLE_INFO* info)
++{
++	BY_HANDLE_FILE_INFORMATION native = WINPR_C_ARRAY_INIT;
++	if (!file || !info)
++		return FALSE;
++	ZeroMemory(info, sizeof(*info));
++	if (file->file_handle == INVALID_HANDLE_VALUE)
++	{
++		if (!file->is_dir || !file->fullpath)
++			return FALSE;
++		char* fullpath = ConvertWCharToUtf8Alloc(file->fullpath, nullptr);
++		if (!fullpath)
++			return FALSE;
++		const int descriptor = open(fullpath, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++		free(fullpath);
++		struct stat state = { 0 };
++		const BOOL valid = descriptor >= 0 && fstat(descriptor, &state) == 0 &&
++		                   S_ISDIR(state.st_mode);
++		if (descriptor >= 0)
++			close(descriptor);
++		if (!valid)
++			return FALSE;
++		info->volume = (uint32_t)state.st_dev;
++		info->inode = (uint32_t)state.st_ino;
++		info->size = (uint64_t)state.st_size;
++		info->links = (uint32_t)state.st_nlink;
++		info->directory = true;
++		info->valid = true;
++		return TRUE;
++	}
++	if (!GetFileInformationByHandle(file->file_handle, &native))
++		return FALSE;
++	info->volume = native.dwVolumeSerialNumber;
++	info->inode = native.nFileIndexLow;
++	info->size = ((uint64_t)native.nFileSizeHigh << 32U) | native.nFileSizeLow;
++	info->links = native.nNumberOfLinks;
++	info->directory = (native.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
++	info->valid = true;
++	return TRUE;
++}
++
++static BOOL drive_larenor_write_requested(uint32_t access)
++{
++	const uint32_t write = GENERIC_WRITE | DELETE | WRITE_DAC | WRITE_OWNER | FILE_WRITE_DATA |
++	                       FILE_APPEND_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES;
++	return (access & write) != 0;
++}
++
++static char* drive_larenor_path_utf8(const WCHAR* path, size_t length)
++{
++	if (!path && length > 0)
++		return nullptr;
++	for (size_t x = 0; x < length; x++)
++	{
++		if (path[x] == 0)
++			return nullptr;
++	}
++	return ConvertWCharNToUtf8Alloc(path, length, nullptr);
++}
++
++static char* drive_larenor_fullpath_utf8(const DRIVE_FILE* file)
++{
++	if (!file || !file->fullpath)
++		return nullptr;
++	return ConvertWCharToUtf8Alloc(file->fullpath, nullptr);
++}
++
++static LRN_POLICY_RESULT drive_larenor_validate_read(DRIVE_DEVICE* drive, DRIVE_FILE* file)
++{
++	if (!drive || !drive->larenor)
++		return LRN_POLICY_INACTIVE;
++	char* fullpath = drive_larenor_fullpath_utf8(file);
++	LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++	const LRN_POLICY_RESULT result =
++	    fullpath && drive_larenor_handle_info(file, &info)
++	        ? lrn_drive_policy_validate_read(drive->larenor, fullpath, &info)
++	        : LRN_POLICY_IO_ERROR;
++	free(fullpath);
++	return result;
++}
++#endif
++
+ static DRIVE_FILE* drive_get_file_by_id(DRIVE_DEVICE* drive, UINT32 id)
+ {
+ 	DRIVE_FILE* file = nullptr;
+@@ -157,6 +274,13 @@ static DRIVE_FILE* drive_get_file_by_id(DRIVE_DEVICE* drive, UINT32 id)
+ static UINT drive_process_irp_create(DRIVE_DEVICE* drive, IRP* irp)
+ {
+ 	BYTE Information = 0;
++#ifdef ANDROID
++	LRN_POLICY_GUARD guard = WINPR_C_ARRAY_INIT;
++	BOOL guarded = FALSE;
++	BOOL createMayMutate = FALSE;
++	BOOL writeRequested = FALSE;
++	char* relative = nullptr;
++#endif
+ 
+ 	WINPR_ASSERT(drive);
+ 	WINPR_ASSERT(irp);
+@@ -174,11 +298,46 @@ static UINT drive_process_irp_create(DRIVE_DEVICE* drive, IRP* irp)
+ 	const uint32_t CreateOptions = Stream_Get_UINT32(irp->input);
+ 	const uint32_t PathLength = Stream_Get_UINT32(irp->input);
+ 
+-	if (!Stream_CheckAndLogRequiredLength(TAG, irp->input, PathLength))
++	if ((PathLength % sizeof(WCHAR)) != 0 ||
++	    !Stream_CheckAndLogRequiredLength(TAG, irp->input, PathLength))
+ 		return ERROR_INVALID_DATA;
+ 
+ 	const WCHAR* path = Stream_ConstPointer(irp->input);
+ 	UINT32 FileId = irp->devman->id_sequence++;
++
++#ifdef ANDROID
++	if (drive->larenor)
++	{
++		relative = drive_larenor_path_utf8(path, PathLength / sizeof(WCHAR));
++		if (!relative)
++		{
++			irp->IoStatus = STATUS_OBJECT_NAME_INVALID;
++			FileId = 0;
++			goto out;
++		}
++		const BOOL mayCreate = (CreateDisposition == FILE_SUPERSEDE) ||
++		                       (CreateDisposition == FILE_CREATE) ||
++		                       (CreateDisposition == FILE_OPEN_IF) ||
++		                       (CreateDisposition == FILE_OVERWRITE_IF);
++		const BOOL truncates = (CreateDisposition == FILE_SUPERSEDE) ||
++		                       (CreateDisposition == FILE_OVERWRITE) ||
++		                       (CreateDisposition == FILE_OVERWRITE_IF);
++		writeRequested = drive_larenor_write_requested(DesiredAccess) ||
++		                 ((CreateOptions & FILE_DELETE_ON_CLOSE) != 0);
++		const LRN_POLICY_RESULT policy = lrn_drive_policy_begin_create(
++		    drive->larenor, relative, writeRequested, mayCreate,
++		    truncates, (CreateOptions & FILE_DIRECTORY_FILE) != 0, allocationSize, &guard);
++		if (policy != LRN_POLICY_OK)
++		{
++			irp->IoStatus = drive_larenor_status(policy);
++			FileId = 0;
++			goto out;
++		}
++		guarded = TRUE;
++		createMayMutate = mayCreate || truncates || (allocationSize > 0);
++	}
++#endif
++
+ 	DRIVE_FILE* file =
+ 	    drive_file_new(drive->path, path, PathLength / sizeof(WCHAR), FileId, DesiredAccess,
+ 	                   CreateDisposition, CreateOptions, FileAttributes, SharedAccess);
+@@ -188,15 +347,45 @@ static UINT drive_process_irp_create(DRIVE_DEVICE* drive, IRP* irp)
+ 		irp->IoStatus = drive_map_windows_err(GetLastError());
+ 		FileId = 0;
+ 		Information = 0;
++#ifdef ANDROID
++		if (guarded)
++		{
++			const LRN_POLICY_RESULT policy = createMayMutate
++			                                     ? lrn_drive_policy_finish(&guard, false, nullptr)
++			                                     : lrn_drive_policy_abort(&guard);
++			guarded = FALSE;
++			if (policy != LRN_POLICY_OK)
++				irp->IoStatus = drive_larenor_status(policy);
++		}
++#endif
+ 	}
+ 	else
+ 	{
+ 		void* key = (void*)(size_t)file->id;
++		BOOL complete = TRUE;
++
++#ifdef ANDROID
++		if (guarded)
++		{
++			LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++			const BOOL valid = drive_larenor_handle_info(file, &info);
++			const LRN_POLICY_RESULT policy = valid
++			                                     ? lrn_drive_policy_verify_handle(
++			                                           &guard, &info, writeRequested ||
++			                                               (CreateDisposition != FILE_OPEN))
++			                                     : LRN_POLICY_IO_ERROR;
++			if (policy != LRN_POLICY_OK)
++			{
++				irp->IoStatus = drive_larenor_status(policy);
++				complete = FALSE;
++			}
++		}
++#endif
+ 
+-		if (!ListDictionary_Add(drive->files, key, file))
++		if (complete && !ListDictionary_Add(drive->files, key, file))
+ 		{
+ 			WLog_ERR(TAG, "ListDictionary_Add failed!");
+-			return ERROR_INTERNAL_ERROR;
++			complete = FALSE;
+ 		}
+ 
+ 		switch (CreateDisposition)
+@@ -221,18 +410,58 @@ static UINT drive_process_irp_create(DRIVE_DEVICE* drive, IRP* irp)
+ 				break;
+ 		}
+ 
+-		if (allocationSize > 0)
++		if (complete && allocationSize > 0)
+ 		{
+ 			const BYTE buffer[] = { '\0' };
+ 			if (!drive_file_seek(file, allocationSize - sizeof(buffer)))
+-				return ERROR_INTERNAL_ERROR;
+-			if (!drive_file_write(file, buffer, sizeof(buffer)))
+-				return ERROR_INTERNAL_ERROR;
++				complete = FALSE;
++			if (complete && !drive_file_write(file, buffer, sizeof(buffer)))
++				complete = FALSE;
++		}
++
++#ifdef ANDROID
++		if (guarded)
++		{
++			LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++			const BOOL valid = complete && drive_larenor_handle_info(file, &info);
++			const LRN_POLICY_RESULT policy = valid
++			                                     ? lrn_drive_policy_finish(&guard, true, &info)
++			                                     : (createMayMutate
++			                                            ? lrn_drive_policy_finish(&guard, false, nullptr)
++			                                            : lrn_drive_policy_abort(&guard));
++			guarded = FALSE;
++			if (policy != LRN_POLICY_OK)
++			{
++				irp->IoStatus = drive_larenor_status(policy);
++				complete = FALSE;
++			}
++		}
++#endif
++		if (!complete)
++		{
++			if (ListDictionary_Contains(drive->files, key))
++				ListDictionary_Remove(drive->files, key);
++			else
++				(void)drive_file_free(file);
++			FileId = 0;
++			Information = 0;
++			if (irp->IoStatus == STATUS_SUCCESS)
++				irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 		}
+ 	}
+ 
++out:
+ 	Stream_Write_UINT32(irp->output, FileId);
+ 	Stream_Write_UINT8(irp->output, Information);
++#ifdef ANDROID
++	if (guarded)
++	{
++		const LRN_POLICY_RESULT policy = lrn_drive_policy_abort(&guard);
++		if (policy != LRN_POLICY_OK)
++			irp->IoStatus = drive_larenor_status(policy);
++	}
++	free(relative);
++#endif
+ 
+ 	return CHANNEL_RC_OK;
+ }
+@@ -256,8 +485,63 @@ static UINT drive_process_irp_close(DRIVE_DEVICE* drive, IRP* irp)
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 	else
+ 	{
++#ifdef ANDROID
++		NTSTATUS closeStatus = STATUS_SUCCESS;
++		BOOL protectedDelete = FALSE;
++#endif
++#ifdef ANDROID
++		LRN_POLICY_GUARD guard = WINPR_C_ARRAY_INIT;
++		BOOL guarded = FALSE;
++		if (drive->larenor &&
++		    (file->delete_pending || ((file->CreateOptions & FILE_DELETE_ON_CLOSE) != 0)))
++		{
++			char* fullpath = drive_larenor_fullpath_utf8(file);
++			LRN_POLICY_RESULT policy = fullpath
++			                               ? lrn_drive_policy_begin_delete(drive->larenor, fullpath,
++			                                                               &guard)
++			                               : LRN_POLICY_IO_ERROR;
++			free(fullpath);
++			if (policy == LRN_POLICY_OK)
++			{
++				guarded = TRUE;
++				protectedDelete = TRUE;
++				LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++				policy = drive_larenor_handle_info(file, &info)
++				             ? lrn_drive_policy_verify_handle(&guard, &info, true)
++				             : LRN_POLICY_IO_ERROR;
++			}
++			if (policy != LRN_POLICY_OK)
++			{
++				file->delete_pending = FALSE;
++				file->CreateOptions &= ~FILE_DELETE_ON_CLOSE;
++				irp->IoStatus = drive_larenor_status(policy);
++				if (guarded)
++				{
++					const LRN_POLICY_RESULT abort = lrn_drive_policy_abort(&guard);
++					if (abort != LRN_POLICY_OK)
++						irp->IoStatus = drive_larenor_status(abort);
++					guarded = FALSE;
++				}
++			}
++		}
++#endif
+ 		ListDictionary_Remove(drive->files, key);
++#ifdef ANDROID
++		closeStatus = drive_map_windows_err(GetLastError());
++#else
+ 		irp->IoStatus = drive_map_windows_err(GetLastError());
++#endif
++
++#ifdef ANDROID
++		if (guarded)
++		{
++			const LRN_POLICY_RESULT policy = lrn_drive_policy_finish(&guard, true, nullptr);
++			if (policy != LRN_POLICY_OK)
++				irp->IoStatus = drive_larenor_status(policy);
++		}
++		if (irp->IoStatus == STATUS_SUCCESS && !protectedDelete)
++			irp->IoStatus = closeStatus;
++#endif
+ 	}
+ 
+ 	Stream_Zero(irp->output, 5); /* Padding(5) */
+@@ -293,6 +577,22 @@ static UINT drive_process_irp_read(DRIVE_DEVICE* drive, IRP* irp)
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 		Length = 0;
+ 	}
++#ifdef ANDROID
++	else if (drive->larenor)
++	{
++		const LRN_POLICY_RESULT policy = drive_larenor_validate_read(drive, file);
++		if (policy != LRN_POLICY_OK)
++		{
++			irp->IoStatus = drive_larenor_status(policy);
++			Length = 0;
++		}
++		else if (!drive_file_seek(file, Offset))
++		{
++			irp->IoStatus = drive_map_windows_err(GetLastError());
++			Length = 0;
++		}
++	}
++#endif
+ 	else if (!drive_file_seek(file, Offset))
+ 	{
+ 		irp->IoStatus = drive_map_windows_err(GetLastError());
+@@ -335,6 +635,12 @@ static UINT drive_process_irp_write(DRIVE_DEVICE* drive, IRP* irp)
+ 	DRIVE_FILE* file = nullptr;
+ 	UINT32 Length = 0;
+ 	UINT64 Offset = 0;
++#ifdef ANDROID
++	LRN_POLICY_GUARD guard = WINPR_C_ARRAY_INIT;
++	BOOL guarded = FALSE;
++	BOOL attempted = FALSE;
++	char* fullpath = nullptr;
++#endif
+ 
+ 	WINPR_ASSERT(drive);
+ 	WINPR_ASSERT(irp);
+@@ -357,15 +663,74 @@ static UINT drive_process_irp_write(DRIVE_DEVICE* drive, IRP* irp)
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 		Length = 0;
+ 	}
+-	else if (!drive_file_seek(file, Offset))
+-	{
+-		irp->IoStatus = drive_map_windows_err(GetLastError());
+-		Length = 0;
+-	}
+-	else if (!drive_file_write(file, ptr, Length))
++	else
+ 	{
+-		irp->IoStatus = drive_map_windows_err(GetLastError());
+-		Length = 0;
++#ifdef ANDROID
++		if (drive->larenor)
++		{
++			fullpath = drive_larenor_fullpath_utf8(file);
++			LRN_POLICY_RESULT policy = fullpath
++			                               ? lrn_drive_policy_begin_write(drive->larenor, fullpath,
++			                                                              Offset, Length, &guard)
++			                               : LRN_POLICY_IO_ERROR;
++			if (policy == LRN_POLICY_OK)
++			{
++				guarded = TRUE;
++				LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++				policy = drive_larenor_handle_info(file, &info)
++				             ? lrn_drive_policy_verify_handle(&guard, &info, true)
++				             : LRN_POLICY_IO_ERROR;
++			}
++			if (policy != LRN_POLICY_OK)
++			{
++				irp->IoStatus = drive_larenor_status(policy);
++				Length = 0;
++				if (guarded)
++				{
++					const LRN_POLICY_RESULT abort = lrn_drive_policy_abort(&guard);
++					guarded = FALSE;
++					if (abort != LRN_POLICY_OK)
++						irp->IoStatus = drive_larenor_status(abort);
++				}
++				goto write_done;
++			}
++		}
++#endif
++		if (!drive_file_seek(file, Offset))
++		{
++			irp->IoStatus = drive_map_windows_err(GetLastError());
++			Length = 0;
++		}
++		else
++		{
++#ifdef ANDROID
++			attempted = TRUE;
++#endif
++			if (!drive_file_write(file, ptr, Length))
++			{
++				irp->IoStatus = drive_map_windows_err(GetLastError());
++				Length = 0;
++			}
++		}
++#ifdef ANDROID
++		if (guarded)
++		{
++			LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++			const BOOL valid = (irp->IoStatus == STATUS_SUCCESS) &&
++			                   drive_larenor_handle_info(file, &info);
++			const LRN_POLICY_RESULT policy =
++			    attempted ? lrn_drive_policy_finish(&guard, valid, valid ? &info : nullptr)
++			              : lrn_drive_policy_abort(&guard);
++			guarded = FALSE;
++			if (policy != LRN_POLICY_OK)
++			{
++				irp->IoStatus = drive_larenor_status(policy);
++				Length = 0;
++			}
++		}
++write_done:
++		free(fullpath);
++#endif
+ 	}
+ 
+ 	Stream_Write_UINT32(irp->output, Length);
+@@ -397,6 +762,16 @@ static UINT drive_process_irp_query_information(DRIVE_DEVICE* drive, IRP* irp)
+ 	{
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 	}
++#ifdef ANDROID
++	else if (drive->larenor)
++	{
++		const LRN_POLICY_RESULT policy = drive_larenor_validate_read(drive, file);
++		if (policy != LRN_POLICY_OK)
++			irp->IoStatus = drive_larenor_status(policy);
++		else if (!drive_file_query_information(file, FsInformationClass, irp->output))
++			irp->IoStatus = drive_map_windows_err(GetLastError());
++	}
++#endif
+ 	else if (!drive_file_query_information(file, FsInformationClass, irp->output))
+ 	{
+ 		irp->IoStatus = drive_map_windows_err(GetLastError());
+@@ -415,6 +790,13 @@ static UINT drive_process_irp_set_information(DRIVE_DEVICE* drive, IRP* irp)
+ 	DRIVE_FILE* file = nullptr;
+ 	UINT32 FsInformationClass = 0;
+ 	UINT32 Length = 0;
++#ifdef ANDROID
++	LRN_POLICY_GUARD guard = WINPR_C_ARRAY_INIT;
++	BOOL guarded = FALSE;
++	BOOL attempted = FALSE;
++	char* fullpath = nullptr;
++	char* target = nullptr;
++#endif
+ 
+ 	WINPR_ASSERT(drive);
+ 	WINPR_ASSERT(irp);
+@@ -427,15 +809,121 @@ static UINT drive_process_irp_set_information(DRIVE_DEVICE* drive, IRP* irp)
+ 	Stream_Read_UINT32(irp->input, FsInformationClass);
+ 	Stream_Read_UINT32(irp->input, Length);
+ 	Stream_Seek(irp->input, 24); /* Padding */
++	if (!Stream_CheckAndLogRequiredLength(TAG, irp->input, Length))
++		return ERROR_INVALID_DATA;
+ 	file = drive_get_file_by_id(drive, irp->FileId);
+ 
+ 	if (!file)
+ 	{
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 	}
+-	else if (!drive_file_set_information(file, FsInformationClass, Length, irp->input))
++	else
+ 	{
+-		irp->IoStatus = drive_map_windows_err(GetLastError());
++#ifdef ANDROID
++		if (drive->larenor)
++		{
++			const size_t payload = Stream_GetPosition(irp->input);
++			fullpath = drive_larenor_fullpath_utf8(file);
++			LRN_POLICY_RESULT policy = fullpath ? LRN_POLICY_OK : LRN_POLICY_IO_ERROR;
++			if (policy == LRN_POLICY_OK)
++			{
++				switch (FsInformationClass)
++				{
++					case FileEndOfFileInformation:
++					case FileAllocationInformation:
++						if (Length != 8 || !Stream_CheckAndLogRequiredLength(TAG, irp->input, 8))
++							policy = LRN_POLICY_INVALID_NAME;
++						else
++						{
++							const int64_t size = Stream_Get_INT64(irp->input);
++							policy = lrn_drive_policy_begin_resize(drive->larenor, fullpath, size,
++							                                       &guard);
++						}
++						break;
++					case FileRenameInformation:
++						if (Length < 6 || !Stream_CheckAndLogRequiredLength(TAG, irp->input, Length))
++							policy = LRN_POLICY_INVALID_NAME;
++						else
++						{
++							const BOOL replace = Stream_Get_UINT8(irp->input) != 0;
++							Stream_Seek_UINT8(irp->input);
++							const UINT32 nameLength = Stream_Get_UINT32(irp->input);
++							if ((nameLength & 1U) != 0 || nameLength != Length - 6U)
++								policy = LRN_POLICY_INVALID_NAME;
++							else
++							{
++								target = drive_larenor_path_utf8(
++								    Stream_ConstPointer(irp->input), nameLength / sizeof(WCHAR));
++								policy = target ? lrn_drive_policy_begin_rename(
++								                      drive->larenor, fullpath, target, replace, &guard)
++								                : LRN_POLICY_INVALID_NAME;
++							}
++						}
++						break;
++					case FileBasicInformation:
++						policy = Length == 36
++						             ? lrn_drive_policy_begin_metadata(drive->larenor, fullpath, false,
++						                                               &guard)
++						             : LRN_POLICY_INVALID_NAME;
++						break;
++					case FileDispositionInformation:
++						policy = Length <= 1
++						             ? lrn_drive_policy_begin_metadata(drive->larenor, fullpath, true,
++						                                               &guard)
++						             : LRN_POLICY_INVALID_NAME;
++						break;
++					default:
++						policy = LRN_POLICY_ACCESS_DENIED;
++						break;
++				}
++			}
++			if (guard.locked)
++				guarded = TRUE;
++			if (!Stream_SetPosition(irp->input, payload))
++				policy = LRN_POLICY_INVALID_NAME;
++			if (policy == LRN_POLICY_OK)
++			{
++				LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++				policy = drive_larenor_handle_info(file, &info)
++				             ? lrn_drive_policy_verify_source_handle(&guard, &info, true)
++				             : LRN_POLICY_IO_ERROR;
++			}
++			if (policy != LRN_POLICY_OK)
++			{
++				irp->IoStatus = drive_larenor_status(policy);
++				if (guarded)
++				{
++					const LRN_POLICY_RESULT abort = lrn_drive_policy_abort(&guard);
++					guarded = FALSE;
++					if (abort != LRN_POLICY_OK)
++						irp->IoStatus = drive_larenor_status(abort);
++				}
++				goto set_information_done;
++			}
++		}
++#endif
++#ifdef ANDROID
++		attempted = TRUE;
++#endif
++		if (!drive_file_set_information(file, FsInformationClass, Length, irp->input))
++			irp->IoStatus = drive_map_windows_err(GetLastError());
++#ifdef ANDROID
++		if (guarded)
++		{
++			LRN_HANDLE_INFO info = WINPR_C_ARRAY_INIT;
++			const BOOL valid = (irp->IoStatus == STATUS_SUCCESS) &&
++			                   drive_larenor_handle_info(file, &info);
++			const LRN_POLICY_RESULT policy =
++			    attempted ? lrn_drive_policy_finish(&guard, valid, valid ? &info : nullptr)
++			              : lrn_drive_policy_abort(&guard);
++			guarded = FALSE;
++			if (policy != LRN_POLICY_OK)
++				irp->IoStatus = drive_larenor_status(policy);
++		}
++set_information_done:
++		free(target);
++		free(fullpath);
++#endif
+ 	}
+ 
+ 	Stream_Write_UINT32(irp->output, Length);
+@@ -667,6 +1155,20 @@ static UINT drive_process_irp_query_directory(DRIVE_DEVICE* drive, IRP* irp)
+ 		irp->IoStatus = STATUS_UNSUCCESSFUL;
+ 		Stream_Write_UINT32(irp->output, 0); /* Length */
+ 	}
++#ifdef ANDROID
++	else if (drive->larenor)
++	{
++		const LRN_POLICY_RESULT policy = drive_larenor_validate_read(drive, file);
++		if (policy != LRN_POLICY_OK)
++		{
++			irp->IoStatus = drive_larenor_status(policy);
++			Stream_Write_UINT32(irp->output, 0); /* Length */
++		}
++		else if (!drive_file_query_directory(file, FsInformationClass, InitialQuery, path,
++		                                     PathLength / sizeof(WCHAR), irp->output))
++			irp->IoStatus = drive_map_windows_err(GetLastError());
++	}
++#endif
+ 	else if (!drive_file_query_directory(file, FsInformationClass, InitialQuery, path,
+ 	                                     PathLength / sizeof(WCHAR), irp->output))
+ 	{
+@@ -794,6 +1296,12 @@ static UINT drive_process_irp(DRIVE_DEVICE* drive, IRP* irp)
+ 			break;
+ 	}
+ 
++#ifdef ANDROID
++	if (drive->larenor && lrn_drive_policy_terminal(drive->larenor) && drive->rdpcontext)
++		setChannelError(drive->rdpcontext, ERROR_INTERNAL_ERROR,
++		                "Larenor file transfer policy entered a terminal state");
++#endif
++
+ 	return drive_evaluate(error, irp);
+ }
+ 
+@@ -827,12 +1335,25 @@ static DWORD WINAPI drive_thread_func(LPVOID arg)
+ 
+ 	while (1)
+ 	{
++#ifdef ANDROID
++		/* Shutdown must not depend on allocating a WMQ_QUIT queue entry. */
++		HANDLE events[] = { drive->stopEvent, MessageQueue_Event(drive->IrpQueue) };
++		const DWORD wait = WaitForMultipleObjects(ARRAYSIZE(events), events, FALSE, INFINITE);
++		if (wait == WAIT_OBJECT_0)
++			break;
++		if (wait != WAIT_OBJECT_0 + 1)
++		{
++			error = ERROR_INTERNAL_ERROR;
++			break;
++		}
++#else
+ 		if (!MessageQueue_Wait(drive->IrpQueue))
+ 		{
+ 			WLog_ERR(TAG, "MessageQueue_Wait failed!");
+ 			error = ERROR_INTERNAL_ERROR;
+ 			break;
+ 		}
++#endif
+ 
+ 		if (MessageQueue_Size(drive->IrpQueue) < 1)
+ 			continue;
+@@ -899,6 +1420,10 @@ static UINT drive_free_int(DRIVE_DEVICE* drive)
+ 
+ 	(void)CloseHandle(drive->thread);
+ 	ListDictionary_Free(drive->files);
++#ifdef ANDROID
++	lrn_drive_policy_free(drive->larenor);
++	(void)CloseHandle(drive->stopEvent);
++#endif
+ 	MessageQueue_Free(drive->IrpQueue);
+ 	Stream_Free(drive->device.data, TRUE);
+ 	free(drive->path);
+@@ -919,8 +1444,13 @@ static UINT drive_free(DEVICE* device)
+ 	if (!drive)
+ 		return ERROR_INVALID_PARAMETER;
+ 
++#ifdef ANDROID
++	if (drive->thread && (!SetEvent(drive->stopEvent) ||
++	    WaitForSingleObject(drive->thread, INFINITE) != WAIT_OBJECT_0))
++#else
+ 	if (MessageQueue_PostQuit(drive->IrpQueue, 0) &&
+ 	    (WaitForSingleObject(drive->thread, INFINITE) == WAIT_FAILED))
++#endif
+ 	{
+ 		error = GetLastError();
+ 		WLog_ERR(TAG, "WaitForSingleObject failed with error %" PRIu32 "", error);
+@@ -1038,6 +1568,16 @@ static UINT drive_register_drive_path(PDEVICE_SERVICE_ENTRY_POINTS pEntryPoints,
+ 			goto out_error;
+ 		}
+ 
++#ifdef ANDROID
++		const LRN_POLICY_RESULT policy = lrn_drive_policy_create(name, path, &drive->larenor);
++		if (policy != LRN_POLICY_OK && policy != LRN_POLICY_INACTIVE)
++		{
++			WLog_ERR(TAG, "Larenor file transfer drive policy rejected registration");
++			error = ERROR_ACCESS_DENIED;
++			goto out_error;
++		}
++#endif
++
+ 		drive->files = ListDictionary_New(TRUE);
+ 
+ 		if (!drive->files)
+@@ -1061,30 +1601,56 @@ static UINT drive_register_drive_path(PDEVICE_SERVICE_ENTRY_POINTS pEntryPoints,
+ 		WINPR_ASSERT(obj);
+ 		obj->fnObjectFree = drive_message_free;
+ 
++#ifndef ANDROID
+ 		if ((error = pEntryPoints->RegisterDevice(pEntryPoints->devman, &drive->device)))
+ 		{
+ 			WLog_ERR(TAG, "RegisterDevice failed with error %" PRIu32 "!", error);
+ 			goto out_error;
+ 		}
+ 		*pid = drive->device.id;
++#endif
+ 
+ 		drive->async = !freerdp_settings_get_bool(drive->rdpcontext->settings,
+ 		                                          FreeRDP_SynchronousStaticChannels);
+ 		if (drive->async)
+ 		{
++#ifdef ANDROID
++			drive->stopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
++			if (!drive->stopEvent)
++			{
++				error = CHANNEL_RC_NO_MEMORY;
++				goto out_error;
++			}
++			if (!(drive->thread = CreateThread(nullptr, 0, drive_thread_func, drive, 0, nullptr)))
++#else
+ 			if (!(drive->thread = CreateThread(nullptr, 0, drive_thread_func, drive,
+ 			                                   CREATE_SUSPENDED, nullptr)))
++#endif
+ 			{
+ 				WLog_ERR(TAG, "CreateThread failed!");
++				error = ERROR_INTERNAL_ERROR;
+ 				goto out_error;
+ 			}
+ 
++#ifndef ANDROID
+ 			ResumeThread(drive->thread);
++#endif
+ 		}
++#ifdef ANDROID
++		/* Publish only after all fallible worker resources exist. */
++		if ((error = pEntryPoints->RegisterDevice(pEntryPoints->devman, &drive->device)))
++			goto out_error;
++		*pid = drive->device.id;
++#endif
+ 	}
+ 
+ 	return CHANNEL_RC_OK;
+ out_error:
++#ifdef ANDROID
++	if (drive && drive->thread)
++		(void)drive_free(&drive->device);
++	else
++#endif
+ 	drive_free_int(drive);
+ 	return error;
+ }
+diff --git a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+index 017a96d..083c470 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -21,6 +21,10 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <errno.h>
++#include <limits.h>
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
+ 
+ #include <winpr/assert.h>
+ #include <winpr/crt.h>
+@@ -808,6 +812,8 @@ static BOOL android_client_new(freerdp* instance, rdpContext* context)
+ 	WINPR_ASSERT(instance);
+ 	WINPR_ASSERT(context);
+ 
++	((androidContext*)context)->fileTransferRootFd = -1;
++	InitializeCriticalSection(&((androidContext*)context)->settingsLock);
+ 	if (!android_event_queue_init(instance))
+ 		return FALSE;
+ 
+@@ -829,6 +835,14 @@ static void android_client_free(freerdp* instance, rdpContext* context)
+ 		return;
+ 
+ 	android_event_queue_uninit(instance);
++	if (((androidContext*)context)->fileTransferRootFd >= 0)
++	{
++		close(((androidContext*)context)->fileTransferRootFd);
++		((androidContext*)context)->fileTransferRootFd = -1;
++	}
++	free(((androidContext*)context)->noBackupRoot);
++	((androidContext*)context)->noBackupRoot = nullptr;
++	DeleteCriticalSection(&((androidContext*)context)->settingsLock);
+ }
+ 
+ static int RdpClientEntry(RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
+@@ -849,6 +863,42 @@ static int RdpClientEntry(RDP_CLIENT_ENTRY_POINTS* pEntryPoints)
+ 	return 0;
+ }
+ 
++/* Capture the application-owned base independently of any provider URI. */
++static char* android_no_backup_root(JNIEnv* env, jobject context)
++{
++	jclass contextClass = (*env)->GetObjectClass(env, context);
++	if (!contextClass || (*env)->ExceptionCheck(env))
++		return nullptr;
++	jmethodID directoryMethod = (*env)->GetMethodID(
++	    env, contextClass, "getNoBackupFilesDir", "()Ljava/io/File;");
++	jobject directory = directoryMethod ? (*env)->CallObjectMethod(env, context, directoryMethod)
++	                                  : nullptr;
++	jclass fileClass = directory ? (*env)->GetObjectClass(env, directory) : nullptr;
++	jmethodID pathMethod = fileClass ? (*env)->GetMethodID(
++	    env, fileClass, "getCanonicalPath", "()Ljava/lang/String;") : nullptr;
++	jstring path = pathMethod ? (*env)->CallObjectMethod(env, directory, pathMethod) : nullptr;
++	char* result = nullptr;
++	if (path && !(*env)->ExceptionCheck(env))
++	{
++		const char* raw = (*env)->GetStringUTFChars(env, path, nullptr);
++		if (raw)
++		{
++			char canonical[PATH_MAX];
++			struct stat info;
++			if (realpath(raw, canonical) && strcmp(raw, canonical) == 0 &&
++			    lstat(canonical, &info) == 0 && S_ISDIR(info.st_mode) &&
++			    info.st_uid == getuid() && info.st_gid == getgid() && (info.st_mode & 0002) == 0)
++				result = _strdup(canonical);
++			(*env)->ReleaseStringUTFChars(env, path, raw);
++		}
++	}
++	if (path) (*env)->DeleteLocalRef(env, path);
++	if (fileClass) (*env)->DeleteLocalRef(env, fileClass);
++	if (directory) (*env)->DeleteLocalRef(env, directory);
++	(*env)->DeleteLocalRef(env, contextClass);
++	return result;
++}
++
+ JNIEXPORT jlong JNICALL Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1new(
+     JNIEnv* env, jclass cls, jobject context)
+ {
+@@ -940,7 +990,12 @@ JNIEXPORT jlong JNICALL Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp
+ 
+ 	if (!ctx)
+ 		return (jlong) nullptr;
+-
++	((androidContext*)ctx)->noBackupRoot = android_no_backup_root(env, context);
++	if (!((androidContext*)ctx)->noBackupRoot)
++	{
++		freerdp_client_context_free(ctx);
++		return (jlong) nullptr;
++	}
+ 	return (jlong)ctx->instance;
+ }
+ 
+@@ -972,40 +1027,252 @@ Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1get_1last_1error_1stri
+ }
+ 
+ JNIEXPORT jboolean JNICALL
+-Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1parse_1arguments(JNIEnv* env, jclass cls,
+-                                                                           jlong instance,
+-                                                                           jobjectArray arguments)
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1parse_1arguments(
++    JNIEnv* env, jclass cls, jlong instance, jobjectArray arguments)
+ {
++	WINPR_UNUSED(cls);
+ 	freerdp* inst = (freerdp*)instance;
+-	int count;
+-	char** argv;
+-	DWORD status;
+-
+-	if (!inst || !inst->context)
++	if (!env || !inst || !inst->context || !arguments)
+ 		return JNI_FALSE;
+-
+-	count = (*env)->GetArrayLength(env, arguments);
+-	argv = calloc(count, sizeof(char*));
+-
++	const jsize count = (*env)->GetArrayLength(env, arguments);
++	if (count < 1 || count > 128 || (*env)->ExceptionCheck(env))
++		return JNI_FALSE;
++	char** argv = calloc((size_t)count, sizeof(char*));
+ 	if (!argv)
+-		return JNI_TRUE;
++		return JNI_FALSE;
++	BOOL copied = TRUE;
++	for (jsize i = 0; copied && i < count; i++)
++	{
++		jstring value = (jstring)(*env)->GetObjectArrayElement(env, arguments, i);
++		if (!value || (*env)->ExceptionCheck(env) || (*env)->GetStringUTFLength(env, value) > 8192)
++			copied = FALSE;
++		else
++		{
++			const char* raw = (*env)->GetStringUTFChars(env, value, nullptr);
++			if (!raw)
++				copied = FALSE;
++			else
++			{
++				argv[i] = _strdup(raw);
++				copied = argv[i] != nullptr;
++				(*env)->ReleaseStringUTFChars(env, value, raw);
++			}
++		}
++		if (value) (*env)->DeleteLocalRef(env, value);
++	}
++	androidContext* ctx = (androidContext*)inst->context;
++	BOOL accepted = FALSE;
++	EnterCriticalSection(&ctx->settingsLock);
++	if (copied && !ctx->targetParsed && !ctx->thread && !ctx->gatewayConfigured &&
++	    !ctx->fileTransferConfigured && !ctx->settingsFailed && !ctx->drainStarted)
++	{
++		const int status = freerdp_client_settings_parse_command_line(
++		    inst->context->settings, count, argv, FALSE);
++		accepted = status == 0;
++		ctx->targetParsed = accepted;
++		ctx->settingsFailed = !accepted;
++	}
++	LeaveCriticalSection(&ctx->settingsLock);
++	for (jsize i = 0; i < count; i++)
++	{
++		if (argv[i])
++		{
++			SecureZeroMemory(argv[i], strlen(argv[i]));
++			free(argv[i]);
++		}
++	}
++	free(argv);
++	return accepted ? JNI_TRUE : JNI_FALSE;
++}
++
++/* One-shot transport configuration. No credentials, URI options or fallback. */
++JNIEXPORT jboolean JNICALL
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1gateway(
++    JNIEnv* env, jclass cls, jlong instance, jstring hostname, jint port)
++{
++	freerdp* inst = (freerdp*)instance;
++	if (!env || !inst || !inst->context || !hostname || port < 1 || port > 65535)
++		return JNI_FALSE;
++	const char* host = (*env)->GetStringUTFChars(env, hostname, nullptr);
++	if (!host)
++		return JNI_FALSE;
++	BOOL valid = strlen(host) > 0 && strlen(host) <= 253;
++	for (const unsigned char* cursor = (const unsigned char*)host; valid && *cursor; cursor++)
++	{
++		valid = (*cursor >= 'a' && *cursor <= 'z') || (*cursor >= 'A' && *cursor <= 'Z') ||
++		        (*cursor >= '0' && *cursor <= '9') || *cursor == '.' || *cursor == '-' || *cursor == ':';
++	}
++	androidContext* ctx = (androidContext*)inst->context;
++	EnterCriticalSection(&ctx->settingsLock);
++	BOOL accepted = FALSE;
++	if (valid && ctx->targetParsed && !ctx->thread && !ctx->gatewayConfigured && !ctx->settingsFailed && !ctx->drainStarted)
++	{
++		ctx->gatewayConfigured = TRUE;
++		rdpSettings* settings = inst->context->settings;
++		accepted = freerdp_settings_set_string(settings, FreeRDP_GatewayHostname, host) &&
++		           freerdp_settings_set_uint32(settings, FreeRDP_GatewayPort, (UINT32)port) &&
++		           freerdp_set_gateway_usage_method(settings, TSC_PROXY_MODE_DIRECT) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayUseSameCredentials, FALSE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayHttpTransport, TRUE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayRpcTransport, FALSE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayUdpTransport, FALSE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayArmTransport, FALSE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayHttpUseWebsockets, FALSE) &&
++		           freerdp_settings_set_bool(settings, FreeRDP_GatewayHttpExtAuthSspiNtlm, FALSE) &&
++		           freerdp_settings_set_string(settings, FreeRDP_GatewayAccessToken, nullptr) &&
++		           freerdp_settings_set_string(settings, FreeRDP_GatewayHttpExtAuthBearer, nullptr) &&
++		           freerdp_settings_set_string(settings, FreeRDP_GatewayUsername, nullptr) &&
++		           freerdp_settings_set_string(settings, FreeRDP_GatewayDomain, nullptr) &&
++		           freerdp_settings_set_string(settings, FreeRDP_GatewayPassword, nullptr);
++		if (!accepted)
++			ctx->settingsFailed = TRUE;
++	}
++	LeaveCriticalSection(&ctx->settingsLock);
++	(*env)->ReleaseStringUTFChars(env, hostname, host);
++	return accepted ? JNI_TRUE : JNI_FALSE;
++}
+ 
+-	for (int i = 0; i < count; i++)
++/* Every managed directory is an exact UID-owned 0700 non-symlink. */
++static int android_open_private_child(int parent, const char* name)
++{
++	const int fd = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++	struct stat info;
++	if (fd < 0)
++		return -1;
++	if (fstat(fd, &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != getuid() ||
++	    (info.st_mode & 0777) != 0700)
+ 	{
+-		jstring str = (jstring)(*env)->GetObjectArrayElement(env, arguments, i);
+-		const char* raw = (*env)->GetStringUTFChars(env, str, 0);
+-		argv[i] = _strdup(raw);
+-		(*env)->ReleaseStringUTFChars(env, str, raw);
++		close(fd);
++		return -1;
+ 	}
++	return fd;
++}
+ 
+-	status =
+-	    freerdp_client_settings_parse_command_line(inst->context->settings, count, argv, FALSE);
++static int android_open_transfer_root(androidContext* ctx, const char* root)
++{
++	if (!ctx->noBackupRoot || !root)
++		return -1;
++	const size_t baseLength = strlen(ctx->noBackupRoot);
++	const char* prefix = "/rdp-saf-mirrors-v1/";
++	const size_t prefixLength = strlen(prefix);
++	const size_t rootLength = strlen(root);
++	if (rootLength != baseLength + prefixLength + 32U + 5U ||
++	    strncmp(root, ctx->noBackupRoot, baseLength) != 0 ||
++	    strncmp(root + baseLength, prefix, prefixLength) != 0 ||
++	    strcmp(root + baseLength + prefixLength + 32U, "/root") != 0)
++		return -1;
++	char transferId[33];
++	memcpy(transferId, root + baseLength + prefixLength, 32U);
++	transferId[32] = '\0';
++	for (size_t i = 0; i < 32U; i++)
++		if (!((transferId[i] >= '0' && transferId[i] <= '9') ||
++		      (transferId[i] >= 'a' && transferId[i] <= 'f')))
++			return -1;
++	char canonical[PATH_MAX];
++	if (!realpath(root, canonical) || strcmp(root, canonical) != 0)
++		return -1;
++	int base = open(ctx->noBackupRoot, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
++	if (base < 0)
++		return -1;
++	const int mirrors = android_open_private_child(base, "rdp-saf-mirrors-v1");
++	const int transfer = mirrors < 0 ? -1 : android_open_private_child(mirrors, transferId);
++	const int rootFd = transfer < 0 ? -1 : android_open_private_child(transfer, "root");
++	const int outbound = rootFd < 0 ? -1 : android_open_private_child(rootFd, "ToRemote");
++	const int inbound = rootFd < 0 ? -1 : android_open_private_child(rootFd, "FromRemote");
++	const BOOL valid = outbound >= 0 && inbound >= 0;
++	if (inbound >= 0) close(inbound);
++	if (outbound >= 0) close(outbound);
++	if (!valid && rootFd >= 0) close(rootFd);
++	if (transfer >= 0) close(transfer);
++	if (mirrors >= 0) close(mirrors);
++	close(base);
++	return valid ? rootFd : -1;
++}
+ 
+-	for (int i = 0; i < count; i++)
+-		free(argv[i]);
++/* Adds one drive bound to a held directory inode; no provider URI enters native. */
++JNIEXPORT jboolean JNICALL
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1file_1transfer(
++    JNIEnv* env, jclass cls, jlong instance, jstring canonicalRoot)
++{
++	WINPR_UNUSED(cls);
++	freerdp* inst = (freerdp*)instance;
++	if (!env || !inst || !inst->context || !canonicalRoot ||
++	    (*env)->GetStringUTFLength(env, canonicalRoot) >= PATH_MAX)
++		return JNI_FALSE;
++	const char* root = (*env)->GetStringUTFChars(env, canonicalRoot, nullptr);
++	if (!root)
++		return JNI_FALSE;
++	androidContext* ctx = (androidContext*)inst->context;
++	EnterCriticalSection(&ctx->settingsLock);
++	BOOL accepted = FALSE;
++	if (ctx->targetParsed && !ctx->thread && !ctx->fileTransferConfigured &&
++	    !ctx->settingsFailed && !ctx->drainStarted)
++	{
++		rdpSettings* settings = inst->context->settings;
++		const int rootFd = freerdp_device_collection_find_type(settings, RDPDR_DTYP_FILESYSTEM)
++		                       ? -1 : android_open_transfer_root(ctx, root);
++		if (rootFd >= 0)
++		{
++			ctx->fileTransferConfigured = TRUE;
++			ctx->fileTransferRootFd = rootFd;
++			char stableRoot[64];
++			const int pathLength = snprintf(stableRoot, sizeof(stableRoot), "/proc/self/fd/%d", rootFd);
++			if (pathLength < 1 || (size_t)pathLength >= sizeof(stableRoot))
++			{
++				ctx->settingsFailed = TRUE;
++				LeaveCriticalSection(&ctx->settingsLock);
++				(*env)->ReleaseStringUTFChars(env, canonicalRoot, root);
++				return JNI_FALSE;
++			}
++			const char* args[] = { "LrnXfer", stableRoot };
++			RDPDR_DEVICE* device = freerdp_device_new(RDPDR_DTYP_FILESYSTEM, 2U, args);
++			if (device)
++			{
++				accepted = freerdp_device_collection_add(settings, device);
++				if (!accepted) freerdp_device_free(device);
++			}
++			/* The explicit collection owns the one drive; never enable auto-drive discovery. */
++			accepted = accepted &&
++			           freerdp_settings_set_bool(settings, FreeRDP_DeviceRedirection, TRUE);
++			if (!accepted) ctx->settingsFailed = TRUE;
++		}
++	}
++	LeaveCriticalSection(&ctx->settingsLock);
++	(*env)->ReleaseStringUTFChars(env, canonicalRoot, root);
++	return accepted ? JNI_TRUE : JNI_FALSE;
++}
+ 
+-	free(argv);
+-	return (status == 0) ? JNI_TRUE : JNI_FALSE;
++/* A timeout retains the context and drive handles; it never claims close. */
++JNIEXPORT jboolean JNICALL
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1drain_1and_1free(
++    JNIEnv* env, jclass cls, jlong instance, jint timeoutMs)
++{
++	freerdp* inst = (freerdp*)instance;
++	if (!inst || !inst->context || timeoutMs < 1 || timeoutMs > 35000)
++		return JNI_FALSE;
++	androidContext* ctx = (androidContext*)inst->context;
++	EnterCriticalSection(&ctx->settingsLock);
++	if (ctx->drainStarted)
++	{
++		LeaveCriticalSection(&ctx->settingsLock);
++		return JNI_FALSE;
++	}
++	ctx->drainStarted = TRUE;
++	HANDLE worker = ctx->thread;
++	LeaveCriticalSection(&ctx->settingsLock);
++	if (worker)
++	{
++		ANDROID_EVENT* event = (ANDROID_EVENT*)android_event_disconnect_new();
++		if (event && !android_push_event(inst, event))
++			android_event_free(event);
++		freerdp_abort_connect_context(inst->context);
++		if (WaitForSingleObject(worker, (DWORD)timeoutMs) != WAIT_OBJECT_0)
++			return JNI_FALSE;
++		CloseHandle(worker);
++		ctx->thread = nullptr;
++	}
++	freerdp_client_context_free(inst->context);
++	return JNI_TRUE;
+ }
+ 
+ JNIEXPORT jboolean JNICALL Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1connect(
+@@ -1022,12 +1289,16 @@ JNIEXPORT jboolean JNICALL Java_com_freerdp_freerdpcore_services_LibFreeRDP_free
+ 
+ 	androidContext* ctx = (androidContext*)inst->context;
+ 
+-	if (!(ctx->thread = CreateThread(nullptr, 0, android_thread_func, inst, 0, nullptr)))
++	EnterCriticalSection(&ctx->settingsLock);
++	if (!ctx->targetParsed || ctx->thread || ctx->settingsFailed || ctx->drainStarted)
+ 	{
++		LeaveCriticalSection(&ctx->settingsLock);
+ 		return JNI_FALSE;
+ 	}
+-
+-	return JNI_TRUE;
++	ctx->thread = CreateThread(nullptr, 0, android_thread_func, inst, 0, nullptr);
++	const BOOL accepted = ctx->thread != nullptr;
++	LeaveCriticalSection(&ctx->settingsLock);
++	return accepted ? JNI_TRUE : JNI_FALSE;
+ }
+ 
+ JNIEXPORT jboolean JNICALL Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1disconnect(
+diff --git a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h
+index c4f5e73..ecd2022 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h
+@@ -29,6 +29,14 @@ typedef struct
+ 
+ 	ANDROID_EVENT_QUEUE* event_queue;
+ 	HANDLE thread;
++	CRITICAL_SECTION settingsLock;
++	BOOL targetParsed;
++	BOOL gatewayConfigured;
++	BOOL fileTransferConfigured;
++	char* noBackupRoot;
++	int fileTransferRootFd;
++	BOOL settingsFailed;
++	BOOL drainStarted;
+ 
+ 	BOOL is_connected;
+ 
+diff --git a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java
+index 8c82d6e..4f3bec4 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/application/GlobalApp.java
+@@ -70,7 +70,12 @@ public class GlobalApp extends Application implements LibFreeRDP.EventListener
+ 		final SessionEventListener listener = sessionListeners.get(instance);
+ 		if (listener == null)
+ 			return;
+-		mainHandler.post(() -> action.accept(listener));
++		mainHandler.post(() -> {
++			/* Retired or rebound instances cannot deliver a queued callback. */
++			if (sessionListeners.get(instance) != listener)
++				return;
++			action.accept(listener);
++		});
+ 	}
+ 
+ 	// timer for disconnecting sessions after the screen was turned off
+@@ -102,15 +107,27 @@ public class GlobalApp extends Application implements LibFreeRDP.EventListener
+ 	// RDP session handling
+ 	static public SessionState createSession(BookmarkBase bookmark, Context context)
+ 	{
+-		SessionState session = new SessionState(LibFreeRDP.newInstance(context), bookmark);
+-		sessionMap.put(session.getInstance(), session);
++		final long instance = LibFreeRDP.newInstance(context);
++		if (instance == 0)
++			return null;
++		SessionState session = new SessionState(instance, bookmark);
++		synchronized (sessionMap)
++		{
++			sessionMap.put(instance, session);
++		}
+ 		return session;
+ 	}
+ 
+ 	static public SessionState createSession(Uri openUri, Context context)
+ 	{
+-		SessionState session = new SessionState(LibFreeRDP.newInstance(context), openUri);
+-		sessionMap.put(session.getInstance(), session);
++		final long instance = LibFreeRDP.newInstance(context);
++		if (instance == 0)
++			return null;
++		SessionState session = new SessionState(instance, openUri);
++		synchronized (sessionMap)
++		{
++			sessionMap.put(instance, session);
++		}
+ 		return session;
+ 	}
+ 
+@@ -127,10 +144,35 @@ public class GlobalApp extends Application implements LibFreeRDP.EventListener
+ 
+ 	static public void freeSession(long instance)
+ 	{
+-		if (GlobalApp.sessionMap.containsKey(instance))
++		freeSessionDrained(instance, 35000);
++	}
++
++	/** Leaves the owned session reachable after an unconfirmed native drain. */
++	static public boolean freeSessionDrained(long instance, int timeoutMs)
++	{
++		final SessionState session;
++		synchronized (sessionMap)
+ 		{
+-			GlobalApp.sessionMap.remove(instance);
+-			LibFreeRDP.freeInstance(instance);
++			session = sessionMap.get(instance);
++		}
++		if (session == null)
++			return false;
++		synchronized (session)
++		{
++			synchronized (sessionMap)
++			{
++				if (sessionMap.get(instance) != session)
++					return false;
++			}
++			if (!LibFreeRDP.freeInstanceDrained(instance, timeoutMs))
++				return false;
++			synchronized (sessionMap)
++			{
++				if (sessionMap.get(instance) != session)
++					return false;
++				sessionMap.remove(instance);
++			}
++			return true;
+ 		}
+ 	}
+ 
+diff --git a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+index 23eafe9..559b815 100644
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+@@ -36,6 +36,135 @@ public class LibFreeRDP
+ 	private static boolean mHasCameraRedirection = false;
+ 
+ 	private static final LongSparseArray<Boolean> mInstanceState = new LongSparseArray<>();
++	private static final LongSparseArray<InstanceLifecycle> mInstanceLifecycle =
++	    new LongSparseArray<>();
++	private static final ThreadLocal<LongSparseArray<Integer>> mThreadInstanceCalls =
++	    ThreadLocal.withInitial(LongSparseArray::new);
++
++	private static final class InstanceLifecycle
++	{
++		int activeCalls;
++		boolean draining;
++		boolean nativeFreed;
++	}
++
++	@FunctionalInterface
++	private interface NativeBooleanCall
++	{
++		boolean invoke();
++	}
++
++	private static InstanceLifecycle beginInstanceCall(long inst)
++	{
++		if (inst == 0)
++			return null;
++		final InstanceLifecycle lifecycle;
++		synchronized (mInstanceLifecycle)
++		{
++			lifecycle = mInstanceLifecycle.get(inst);
++		}
++		if (lifecycle == null)
++			return null;
++		synchronized (lifecycle)
++		{
++			if (lifecycle.draining || lifecycle.nativeFreed)
++				return null;
++			lifecycle.activeCalls++;
++			final LongSparseArray<Integer> calls = mThreadInstanceCalls.get();
++			calls.put(inst, calls.get(inst, 0) + 1);
++			return lifecycle;
++		}
++	}
++
++	private static void finishInstanceCall(long inst, InstanceLifecycle lifecycle)
++	{
++		synchronized (lifecycle)
++		{
++			if (lifecycle.activeCalls <= 0)
++				throw new IllegalStateException("invalid native call lifecycle");
++			final LongSparseArray<Integer> calls = mThreadInstanceCalls.get();
++			final int depth = calls.get(inst, 0);
++			if (depth <= 0)
++				throw new IllegalStateException("invalid native call owner");
++			if (depth == 1)
++				calls.delete(inst);
++			else
++				calls.put(inst, depth - 1);
++			if (calls.size() == 0)
++				mThreadInstanceCalls.remove();
++			lifecycle.activeCalls--;
++			lifecycle.notifyAll();
++		}
++	}
++
++	private static boolean callInstance(long inst, NativeBooleanCall call)
++	{
++		final InstanceLifecycle lifecycle = beginInstanceCall(inst);
++		if (lifecycle == null)
++			return false;
++		try
++		{
++			return call.invoke();
++		}
++		finally
++		{
++			finishInstanceCall(inst, lifecycle);
++		}
++	}
++
++	private static boolean currentThreadOwnsCall(long inst)
++	{
++		final LongSparseArray<Integer> calls = mThreadInstanceCalls.get();
++		final boolean owned = calls.get(inst, 0) > 0;
++		if (calls.size() == 0)
++			mThreadInstanceCalls.remove();
++		return owned;
++	}
++
++	private static InstanceLifecycle beginDrain(long inst, long deadlineNanos)
++	{
++		final InstanceLifecycle lifecycle;
++		synchronized (mInstanceLifecycle)
++		{
++			lifecycle = mInstanceLifecycle.get(inst);
++		}
++		if (lifecycle == null)
++			return null;
++		synchronized (lifecycle)
++		{
++			if (lifecycle.draining || lifecycle.nativeFreed)
++				return null;
++			lifecycle.draining = true;
++			if (currentThreadOwnsCall(inst))
++				return null;
++			while (lifecycle.activeCalls > 0)
++			{
++				final long remainingNanos = deadlineNanos - System.nanoTime();
++				if (remainingNanos <= 0)
++					return null;
++				final long millis = remainingNanos / 1_000_000L;
++				final int nanos = (int)(remainingNanos % 1_000_000L);
++				try
++				{
++					lifecycle.wait(millis, nanos);
++				}
++				catch (InterruptedException e)
++				{
++					Thread.currentThread().interrupt();
++					return null;
++				}
++			}
++			return lifecycle;
++		}
++	}
++
++	private static int remainingMillis(long deadlineNanos)
++	{
++		final long remainingNanos = deadlineNanos - System.nanoTime();
++		if (remainingNanos <= 0)
++			return 0;
++		return (int)Math.min(35000L, Math.max(1L, (remainingNanos + 999_999L) / 1_000_000L));
++	}
+ 
+ 	public static final long VERIFY_CERT_FLAG_NONE = 0x00;
+ 	public static final long VERIFY_CERT_FLAG_LEGACY = 0x02;
+@@ -163,6 +292,12 @@ public class LibFreeRDP
+ 
+ 	private static native boolean freerdp_connect(long inst);
+ 
++	private static native boolean freerdp_configure_gateway(long inst, String host, int port);
++
++	private static native boolean freerdp_configure_file_transfer(long inst, String canonicalRoot);
++
++	private static native boolean freerdp_drain_and_free(long inst, int timeoutMs);
++
+ 	private static native boolean freerdp_disconnect(long inst);
+ 
+ 	private static native boolean freerdp_update_graphics(long inst, Bitmap bitmap, int x, int y,
+@@ -200,30 +335,78 @@ public class LibFreeRDP
+ 
+ 	public static long newInstance(Context context)
+ 	{
+-		return freerdp_new(context);
++		final long inst = freerdp_new(context);
++		if (inst == 0)
++			return 0;
++		final boolean duplicate;
++		synchronized (mInstanceLifecycle)
++		{
++			duplicate = mInstanceLifecycle.get(inst) != null;
++			if (!duplicate)
++				mInstanceLifecycle.put(inst, new InstanceLifecycle());
++		}
++		if (duplicate)
++		{
++			freerdp_free(inst);
++			return 0;
++		}
++		return inst;
+ 	}
+ 
+ 	public static void freeInstance(long inst)
+ 	{
++		freeInstanceDrained(inst, 35000);
++	}
++
++	/** Configures one exact HTTP gateway after parsing the target and before connect. */
++	public static boolean configureGateway(long inst, String host, int port)
++	{
++		if (host == null || host.isEmpty() || port < 1 || port > 65535)
++			return false;
++		return callInstance(inst, () -> freerdp_configure_gateway(inst, host, port));
++	}
++
++	/** Uses one private mirror only; SAF URIs are never RDP drive paths. */
++	public static boolean configureFileTransfer(long inst, String canonicalRoot)
++	{
++		if (canonicalRoot == null || canonicalRoot.isEmpty())
++			return false;
++		return callInstance(inst,
++		                    () -> freerdp_configure_file_transfer(inst, canonicalRoot));
++	}
++
++	/** True only after the native worker, channels and context have drained. */
++	public static boolean freeInstanceDrained(long inst, int timeoutMs)
++	{
++		if (timeoutMs < 1 || timeoutMs > 35000)
++			return false;
++		final long deadlineNanos = System.nanoTime() + timeoutMs * 1_000_000L;
++		final InstanceLifecycle lifecycle = beginDrain(inst, deadlineNanos);
++		if (lifecycle == null)
++			return false;
++		final int nativeTimeoutMs = remainingMillis(deadlineNanos);
++		if (nativeTimeoutMs == 0)
++			return false;
++		final boolean drained = freerdp_drain_and_free(inst, nativeTimeoutMs);
++		final boolean timely = System.nanoTime() <= deadlineNanos;
++		synchronized (lifecycle)
++		{
++			lifecycle.nativeFreed = drained;
++		}
++		if (!drained || !timely)
++			return false;
+ 		synchronized (mInstanceState)
+ 		{
+-			if (mInstanceState.get(inst, false))
+-			{
+-				freerdp_disconnect(inst);
+-			}
+-			while (mInstanceState.get(inst, false))
+-			{
+-				try
+-				{
+-					mInstanceState.wait();
+-				}
+-				catch (InterruptedException e)
+-				{
+-					throw new RuntimeException();
+-				}
+-			}
++			mInstanceState.delete(inst);
++			mInstanceState.notifyAll();
++		}
++		synchronized (mInstanceLifecycle)
++		{
++			if (mInstanceLifecycle.get(inst) != lifecycle)
++				return false;
++			mInstanceLifecycle.delete(inst);
+ 		}
+-		freerdp_free(inst);
++		return true;
+ 	}
+ 
+ 	public static boolean connect(long inst)
+@@ -235,7 +418,7 @@ public class LibFreeRDP
+ 				throw new RuntimeException("instance already connected");
+ 			}
+ 		}
+-		return freerdp_connect(inst);
++		return callInstance(inst, () -> freerdp_connect(inst));
+ 	}
+ 
+ 	public static boolean disconnect(long inst)
+@@ -244,7 +427,7 @@ public class LibFreeRDP
+ 		{
+ 			if (mInstanceState.get(inst, false))
+ 			{
+-				return freerdp_disconnect(inst);
++				return callInstance(inst, () -> freerdp_disconnect(inst));
+ 			}
+ 			return true;
+ 		}
+@@ -252,7 +435,7 @@ public class LibFreeRDP
+ 
+ 	public static boolean cancelConnection(long inst)
+ 	{
+-		return freerdp_disconnect(inst);
++		return callInstance(inst, () -> freerdp_disconnect(inst));
+ 	}
+ 
+ 	private static String addFlag(String name, boolean enabled)
+@@ -495,7 +678,7 @@ public class LibFreeRDP
+ 		args.add("/cert:ignore");
+ 		args.add("/log-level:" + debug.getDebugLevel());
+ 		String[] arrayArgs = args.toArray(new String[0]);
+-		return freerdp_parse_arguments(inst, arrayArgs);
++		return callInstance(inst, () -> freerdp_parse_arguments(inst, arrayArgs));
+ 	}
+ 
+ 	public static boolean setConnectionInfo(Context context, long inst, Uri openUri)
+@@ -562,53 +745,56 @@ public class LibFreeRDP
+ 		}
+ 
+ 		String[] arrayArgs = args.toArray(new String[0]);
+-		return freerdp_parse_arguments(inst, arrayArgs);
++		return callInstance(inst, () -> freerdp_parse_arguments(inst, arrayArgs));
+ 	}
+ 
+ 	public static boolean updateGraphics(long inst, Bitmap bitmap, int x, int y, int width,
+ 	                                     int height)
+ 	{
+-		return freerdp_update_graphics(inst, bitmap, x, y, width, height);
++		return callInstance(inst,
++		                    () -> freerdp_update_graphics(inst, bitmap, x, y, width, height));
+ 	}
+ 
+ 	public static boolean sendCursorEvent(long inst, int x, int y, int flags)
+ 	{
+-		return freerdp_send_cursor_event(inst, x, y, flags);
++		return callInstance(inst, () -> freerdp_send_cursor_event(inst, x, y, flags));
+ 	}
+ 
+ 	public static boolean sendRelativeCursorEvent(long inst, int deltaX, int deltaY, int flags)
+ 	{
+-		return freerdp_send_relative_cursor_event(inst, deltaX, deltaY, flags);
++		return callInstance(inst,
++		                    () -> freerdp_send_relative_cursor_event(inst, deltaX, deltaY, flags));
+ 	}
+ 
+ 	public static boolean isRelativeMouseInputSupported(long inst)
+ 	{
+-		return freerdp_is_relative_mouse_input_supported(inst);
++		return callInstance(inst, () -> freerdp_is_relative_mouse_input_supported(inst));
+ 	}
+ 
+ 	public static boolean sendKeyEvent(long inst, int keycode, boolean down)
+ 	{
+-		return freerdp_send_key_event(inst, keycode, down);
++		return callInstance(inst, () -> freerdp_send_key_event(inst, keycode, down));
+ 	}
+ 
+ 	public static boolean sendUnicodeKeyEvent(long inst, int keycode, boolean down)
+ 	{
+-		return freerdp_send_unicodekey_event(inst, keycode, down);
++		return callInstance(inst, () -> freerdp_send_unicodekey_event(inst, keycode, down));
+ 	}
+ 
+ 	public static boolean isUnicodeInputSupported(long inst)
+ 	{
+-		return freerdp_is_unicode_input_supported(inst);
++		return callInstance(inst, () -> freerdp_is_unicode_input_supported(inst));
+ 	}
+ 
+ 	public static boolean sendClipboardData(long inst, String data)
+ 	{
+-		return freerdp_send_clipboard_data(inst, data);
++		return callInstance(inst, () -> freerdp_send_clipboard_data(inst, data));
+ 	}
+ 
+ 	public static boolean sendClipboardImageData(long inst, byte[] data, String mimeType)
+ 	{
+-		return freerdp_send_clipboard_image_data(inst, data, mimeType);
++		return callInstance(inst,
++		                    () -> freerdp_send_clipboard_image_data(inst, data, mimeType));
+ 	}
+ 
+ 	public static boolean sendMonitorLayout(long inst, int width, int height)
+@@ -628,8 +814,10 @@ public class LibFreeRDP
+ 	public static boolean sendMonitorLayout(long inst, int width, int height,
+ 	                                        int desktopScaleFactor, int deviceScaleFactor)
+ 	{
+-		return freerdp_send_monitor_layout(inst, width, height, desktopScaleFactor,
+-		                                   deviceScaleFactor);
++		return callInstance(inst,
++		                    () -> freerdp_send_monitor_layout(inst, width, height,
++		                                                      desktopScaleFactor,
++		                                                      deviceScaleFactor));
+ 	}
+ 
+ 	private static void OnConnectionSuccess(long inst)

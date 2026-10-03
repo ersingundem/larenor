@@ -1,0 +1,424 @@
+name: F62 Gateway Android Registered Scenarios
+
+on:
+  workflow_call:
+    inputs:
+      scenario:
+        description: "Closed owned Android scenario: direct or public"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  registered-scenario:
+    name: f62-gateway-android-registered-scenario
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      LARENOR_F62_OWNED_RDGW: required
+      LARENOR_PRODUCT_NATIVE_ENGINES: required
+    steps:
+      - name: Bind one closed registered scenario
+        env:
+          REQUESTED_SCENARIO: ${{ inputs.scenario }}
+        run: |
+          set -euo pipefail
+          case "$REQUESTED_SCENARIO" in
+            direct)
+              scenario=direct
+              root_suffix=direct
+              test_class=com.ersingundem.larenor.rdp.RdpPackagedGatewaySafAcceptanceTest
+              test_name=gatewaySafProvesTwoHopPinsNlaAndRdpdrRoundTripAfterExplicitDrain
+              raw_receipt_name=f62-gateway-android-direct-raw-effect.json
+              joined_receipt_name=f62-gateway-android-direct-receipt.json
+              result_name=f62-gateway-android-direct-receipt.json
+              ;;
+            public)
+              scenario=public
+              root_suffix=public
+              test_class=com.ersingundem.larenor.rdp.RdpPackagedGatewaySafPublicBridgeAcceptanceTest
+              test_name=gatewaySafPublicMethodChannelPathProvesTwoPinsNlaRdpdrDrainAndSafReadback
+              raw_receipt_name=f62-gateway-android-public-raw-effect.json
+              joined_receipt_name=f62-gateway-android-public-receipt.json
+              result_name=f62-gateway-android-public-receipt.json
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+          {
+            echo "LARENOR_F62_SCENARIO=$scenario"
+            echo "LARENOR_F62_ROOT_SUFFIX=$root_suffix"
+            echo "LARENOR_F62_TEST_CLASS=$test_class"
+            echo "LARENOR_F62_TEST_NAME=$test_name"
+            echo "LARENOR_F62_RAW_RECEIPT_NAME=$raw_receipt_name"
+            echo "LARENOR_F62_JOINED_RECEIPT_NAME=$joined_receipt_name"
+            echo "LARENOR_F62_RESULT_NAME=$result_name"
+          } >> "$GITHUB_ENV"
+
+      - name: Require exact manual GitHub-hosted source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REPOSITORY" = ersingundem/larenor
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          case "$GITHUB_REF" in refs/heads/main|refs/heads/codex/project-completion-100) ;; *) exit 1;; esac
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Bind the checkout and initialize private paths
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          umask 077
+          root="$RUNNER_TEMP/larenor-f62-gateway-android-$LARENOR_F62_ROOT_SUFFIX"
+          install -d -m 700 "$root" "$root/native-inputs/freerdp" \
+            "$root/native-inputs/moonlight" "$root/product-native" \
+            "$root/hosted" "$GITHUB_WORKSPACE/test-results"
+          {
+            echo "LARENOR_F62_ANDROID_ROOT=$root"
+            echo "LARENOR_F62_GO=$root/go-root/go/bin/go"
+            echo "LARENOR_F62_FREERDP_ARCHIVE=$root/freerdp-3.31.1.tar.gz"
+            echo "GRADLE_USER_HOME=$root/gradle"
+          } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: >-
+            platform-tools platforms;android-37.0 build-tools;37.0.0
+            ndk;29.0.14206865 ndk;29.0.13113456 cmake;4.1.2
+
+      - name: Bind fractional Android 37 SDK to compileSdk 37
+        run: |
+          set -euo pipefail
+          platform_dir="$ANDROID_HOME/platforms"
+          test -d "$platform_dir/android-37.0"
+          if test ! -e "$platform_dir/android-37"; then
+            ln -s "$platform_dir/android-37.0" "$platform_dir/android-37"
+          fi
+          test -d "$platform_dir/android-37"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: "3.47.2"
+          cache: false
+
+      - name: Install exact available native and emulator prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          packages=(
+            build-essential cmake ninja-build pkg-config libssl-dev libpam0g-dev
+            zlib1g-dev libcjson-dev libx11-dev libx11-xcb-dev libxext-dev
+            libxinerama-dev libxcursor-dev libxdamage-dev libxfixes-dev
+            libxkbfile-dev libxrandr-dev libxi-dev libxrender-dev libxtst-dev
+            libxv-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev xvfb
+            iproute2 iptables util-linux curl ca-certificates
+          )
+          install_args=()
+          for package in "${packages[@]}"; do
+            candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
+            case "$candidate" in ""|"(none)") exit 1;; esac
+            install_args+=("$package=$candidate")
+          done
+          sudo apt-get install --yes --no-install-recommends "${install_args[@]}"
+          for argument in "${install_args[@]}"; do
+            package="${argument%%=*}"
+            version="${argument#*=}"
+            test "$(dpkg-query --show --showformat='${Version}' "$package")" = "$version"
+          done
+          test -c /dev/kvm
+          sudo chmod 0666 /dev/kvm
+          test -r /dev/kvm -a -w /dev/kvm
+
+      - name: Download and verify immutable native sources and Go
+        env:
+          GO_ARCHIVE_SHA256: 2852af0cb20a13139b3448992e69b868e50ed0f8a1e5940ee1de9e19a123b613
+          FREERDP_ARCHIVE_SHA256: 4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991
+          RDGW_ARCHIVE_SHA256: b96e24cddfdf4b6eee939dc1558734f29534c7e0ebae650858c8ba715a166907
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          install -d -m 700 "$root/go-root"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o "$root/go.tar.gz"
+          echo "$GO_ARCHIVE_SHA256  $root/go.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$root/go.tar.gz" --directory "$root/go-root" --no-same-owner
+          test "$("$LARENOR_F62_GO" version)" = 'go version go1.25.0 linux/amd64'
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz \
+            -o "$LARENOR_F62_FREERDP_ARCHIVE"
+          echo "$FREERDP_ARCHIVE_SHA256  $LARENOR_F62_FREERDP_ARCHIVE" | sha256sum --check --strict
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/bolkedebruin/rdpgw/archive/16cdaaf4dce6a6567ce9b612f14e71d0ca704148.tar.gz \
+            -o "$root/rdpgw.tar.gz"
+          echo "$RDGW_ARCHIVE_SHA256  $root/rdpgw.tar.gz" | sha256sum --check --strict
+          chmod 600 "$root"/*.tar.gz
+
+      - name: Build and receipt the exact Moonlight v5 package
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          python3 tool/moonlight_android_package.py verify-lock
+          git clone --no-checkout https://github.com/moonlight-stream/moonlight-android.git "$root/moonlight-source"
+          git -C "$root/moonlight-source" checkout --detach b48494cb96bff23d8886c4775cc4f39a1075495d
+          git -C "$root/moonlight-source" submodule update --init --recursive
+          python3 tool/moonlight_android_package.py verify-source "$root/moonlight-source"
+          python3 tool/moonlight_android_package.py build \
+            "$root/moonlight-source" "$root/moonlight-build" \
+            "$root/native-inputs/moonlight/moonlight-engine.aar" \
+            "$root/native-inputs/moonlight/receipt.json"
+          python3 tool/moonlight_android_package.py verify-install \
+            "$root/native-inputs/moonlight/moonlight-engine.aar" \
+            "$root/native-inputs/moonlight/receipt.json"
+          rm -rf --one-file-system "$root/moonlight-source" "$root/moonlight-build"
+
+      - name: Build and receipt both exact FreeRDP native5 ABIs
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          python3 tool/freerdp_android_package.py verify-lock
+          python3 tool/freerdp_android_package.py verify-source "$LARENOR_F62_FREERDP_ARCHIVE"
+          for abi in arm64-v8a x86_64; do
+            source="$root/freerdp-source-$abi"
+            install -d -m 700 "$source"
+            tar --extract --gzip --file "$LARENOR_F62_FREERDP_ARCHIVE" \
+              --directory "$source" --strip-components=1 --no-same-owner
+            for patch in \
+              freerdp-certificate-pem.patch freerdp-clipboard-utf8.patch \
+              freerdp-display-pointer-v2.patch freerdp-remote-audio-v3.patch \
+              freerdp-always-pin-v4.patch freerdp-microphone-v4.patch \
+              freerdp-remote-access-v5.patch; do
+              git -C "$source" apply --check "$GITHUB_WORKSPACE/android/$patch"
+              git -C "$source" apply "$GITHUB_WORKSPACE/android/$patch"
+            done
+            python3 tool/freerdp_android_package.py verify-patch "$source"
+            cat > "$source/client/Android/Studio/freeRDPCore/src/main/AndroidManifest.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+          EOF
+            cat > "$source/client/Android/Studio/release.properties" <<EOF
+          COMPILE_API=37
+          TARGET_API=37
+          MIN_API=29
+          TOOLS_VERSION=37.0.0
+          NDK_VERSION=29.0.13113456
+          CMAKE_VERSION=4.1.2
+          BUILD_UNIVERSAL=true
+          SPLIT_ENABLED=false
+          ABI_FILTERS=$abi
+          SPLIT_ARCHITECTURES=$abi
+          VERSION_NAME=3.31.1
+          VERSION_CODE=3031001
+          CMAKE_ARGUMENTS=-DWITH_FFMPEG=OFF;-DWITH_OPENH264=OFF;-DWITH_OPUS=OFF;-DWITH_WEBP=OFF;-DWITH_JPEG=OFF;-DWITH_PNG=OFF;-DWITH_CJSON=ON;-DWITH_OPENSSL=ON
+          EOF
+            (cd "$source/client/Android/Studio" && ./gradlew --no-daemon --max-workers=1 \
+              :freeRDPCore:assembleRelease)
+            aar="$source/client/Android/Studio/freeRDPCore/build/outputs/aar/freeRDPCore-release.aar"
+            cp "$aar" "$root/native-inputs/freerdp/freeRDPCore-$abi.aar"
+            python3 tool/freerdp_android_package.py receipt "$aar" --abi "$abi" \
+              --output "$root/native-inputs/freerdp/$abi-receipt.json"
+            python3 tool/freerdp_android_package.py verify-install \
+              "$root/native-inputs/freerdp/freeRDPCore-$abi.aar" \
+              "$root/native-inputs/freerdp/$abi-receipt.json"
+            rm -rf --one-file-system "$source"
+          done
+
+      - name: Install and verify the complete dual-native product
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          for destination in "$root/product-native/app" "$GITHUB_WORKSPACE/android/app"; do
+            python3 tool/product_android_native.py install --destination "$destination" \
+              --moonlight-aar "$root/native-inputs/moonlight/moonlight-engine.aar" \
+              --moonlight-receipt "$root/native-inputs/moonlight/receipt.json" \
+              --freerdp-arm64-aar "$root/native-inputs/freerdp/freeRDPCore-arm64-v8a.aar" \
+              --freerdp-arm64-receipt "$root/native-inputs/freerdp/arm64-v8a-receipt.json" \
+              --freerdp-x86-aar "$root/native-inputs/freerdp/freeRDPCore-x86_64.aar" \
+              --freerdp-x86-receipt "$root/native-inputs/freerdp/x86_64-receipt.json"
+            python3 tool/product_android_native.py verify-installed --destination "$destination"
+          done
+
+      - name: Build the exact product APK and one named AndroidTest APK
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          log="$root/android-build.log"
+          if ! {
+            flutter pub get --enforce-lockfile
+            dart run build_runner build --delete-conflicting-outputs
+            flutter build apk --debug --target-platform android-arm64,android-x64 --build-number "$(python3 tool/android_signing.py version-code)"
+            (cd android && ./gradlew --no-daemon --max-workers=1 \
+              :app:assembleDebugAndroidTest -x :app:compileFlutterBuildDebug)
+            python3 tool/product_android_native.py verify-apk \
+              build/app/outputs/flutter-apk/app-debug.apk \
+              --destination "$root/product-native/app"
+          } >"$log" 2>&1; then
+            python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ['LARENOR_F62_ANDROID_ROOT'])/'android-build-failure.json'
+          p.write_text(json.dumps({'schemaVersion':1,'stage':'androidBuild','featureAccepted':False},sort_keys=True,separators=(',',':'))+'\n')
+          p.chmod(0o600)
+          PY
+            exit 1
+          fi
+          chmod 600 "$log"
+          app=build/app/outputs/flutter-apk/app-debug.apk
+          test=build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          test -s "$app" -a -s "$test"
+          {
+            echo "LARENOR_F62_APP_APK=$GITHUB_WORKSPACE/$app"
+            echo "LARENOR_F62_TEST_APK=$GITHUB_WORKSPACE/$test"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare the source-bound registered client invocation
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          python3 -B tool/f62_gateway_android_hosted.py prepare \
+            --scenario "$LARENOR_F62_SCENARIO" \
+            --source "$GITHUB_WORKSPACE" --output "$root/hosted" \
+            --python "$(command -v python3)" --git "$(command -v git)" \
+            --adb "$ANDROID_HOME/platform-tools/adb" \
+            --compile-log "$root/android-build.log" \
+            --app-apk "$LARENOR_F62_APP_APK" --test-apk "$LARENOR_F62_TEST_APK" \
+            --product-native-dir "$root/product-native/app" \
+            --product-receipt "$root/product-native/app/product-native-receipt.json" \
+            --product-verifier "$GITHUB_WORKSPACE/tool/product_android_native.py" \
+            --fixture-source "$GITHUB_WORKSPACE/tool/f62_rdpgw_owned_fixture.py" \
+            --private-log "$root/hosted/instrumentation.log"
+
+      - name: Build exact owned Gateway and RDPDR target
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$LARENOR_F62_ANDROID_ROOT"
+          python3 -B tool/f62_rdpgw_owned_fixture.py self-test
+          python3 -B tool/f62_gateway_linux_probe.py self-test
+          python3 -B tool/f62_rdpgw_owned_fixture.py build \
+            --workspace "$root" --archive "$root/rdpgw.tar.gz" --go "$LARENOR_F62_GO"
+          python3 -B tool/f62_gateway_linux_probe.py build-freerdp \
+            --workspace "$root" --archive "$LARENOR_F62_FREERDP_ARCHIVE"
+
+      - name: Exercise the exact registered Android client through owned Gateway
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.34.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: default
+          profile: pixel_4
+          ram-size: 2048M
+          disk-size: 3072M
+          emulator-boot-timeout: 300
+          emulator-build: 13823996
+          emulator-options: >-
+            -no-window -gpu swangle_indirect -no-snapshot -no-boot-anim
+            -camera-back none -camera-front none
+          disable-animations: true
+          disable-spellchecker: true
+          disable-linux-hw-accel: false
+          script: |
+            set -euo pipefail
+            root="$LARENOR_F62_ANDROID_ROOT"
+            python3 -B tool/f62_rdpgw_owned_fixture.py run-android \
+              --workspace "$root" \
+              --build-receipt "$root/build-receipt.json" \
+              --gateway-binary "$root/build/bin/rdpgw" \
+              --auth-binary "$root/build/bin/rdpgw-auth" \
+              --shadow-binary "$root/cmake-build/server/shadow/cli/freerdp-shadow-cli" \
+              --freerdp-build-receipt "$root/freerdp-build-receipt.json" \
+              --client-command "$root/hosted/client-command.json" \
+              --gateway-port 49462 --target-port 3390 --client-timeout 900 \
+              --expected-test-class "$LARENOR_F62_TEST_CLASS" \
+              --expected-test-name "$LARENOR_F62_TEST_NAME" \
+              --public-receipt "$root/$LARENOR_F62_RAW_RECEIPT_NAME"
+            python3 -B tool/f62_gateway_android_hosted.py validate-receipt \
+              --scenario "$LARENOR_F62_SCENARIO" \
+              --receipt "$root/$LARENOR_F62_RAW_RECEIPT_NAME"
+            python3 -B tool/f62_gateway_android_hosted.py join-receipt \
+              --scenario "$LARENOR_F62_SCENARIO" \
+              --effect-receipt "$root/$LARENOR_F62_RAW_RECEIPT_NAME" \
+              --launcher-receipt "$root/hosted/launcher-receipt.json" \
+              --android-build-receipt "$root/hosted/android-build-receipt.json" \
+              --source-manifest "$root/hosted/source-manifest.json" \
+              --output "$root/$LARENOR_F62_JOINED_RECEIPT_NAME"
+            python3 -B tool/f62_gateway_android_hosted.py validate-joined-receipt \
+              --scenario "$LARENOR_F62_SCENARIO" \
+              --receipt "$root/$LARENOR_F62_JOINED_RECEIPT_NAME"
+            install -m 600 "$root/$LARENOR_F62_JOINED_RECEIPT_NAME" \
+              "$GITHUB_WORKSPACE/test-results/$LARENOR_F62_RESULT_NAME"
+
+      - name: Remove private native, network, descriptor, and emulator inputs
+        if: always()
+        run: |
+          set +e
+          root="$LARENOR_F62_ANDROID_ROOT"
+          if test -f "$root/android-build-failure.json"; then
+            install -m 600 "$root/android-build-failure.json" \
+              "$GITHUB_WORKSPACE/test-results/f62-gateway-android-build-failure.json"
+          fi
+          if test -f "$root/freerdp-build-failure.json"; then
+            install -m 600 "$root/freerdp-build-failure.json" \
+              "$GITHUB_WORKSPACE/test-results/f62-gateway-build-failure.json"
+          fi
+          if test -f "$root/run/cleanup-state.json"; then
+            python3 -B tool/f62_rdpgw_owned_fixture.py cleanup \
+              --workspace "$root" --cleanup-state "$root/run/cleanup-state.json"
+          fi
+          python3 -B tool/f62_rdpgw_owned_fixture.py prepare-cleanup --workspace "$root"
+          rm -rf --one-file-system "$root"
+          rm -rf android/app/moonlight android/app/freerdp android/app/product-native-receipt.json
+
+      - name: Preserve only the closed DIRECT joined receipt
+        if: success() && inputs.scenario == 'direct'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-android-direct
+          path: test-results/f62-gateway-android-direct-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve only the closed PUBLIC joined receipt
+        if: success() && inputs.scenario == 'public'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-android-public
+          path: test-results/f62-gateway-android-public-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve only the closed Android build failure receipt
+        if: failure() && hashFiles('test-results/f62-gateway-android-build-failure.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-android-build-failure
+          path: test-results/f62-gateway-android-build-failure.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve only the closed target build failure receipt
+        if: failure() && hashFiles('test-results/f62-gateway-build-failure.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-target-build-failure
+          path: test-results/f62-gateway-build-failure.json
+          if-no-files-found: error
+          retention-days: 14

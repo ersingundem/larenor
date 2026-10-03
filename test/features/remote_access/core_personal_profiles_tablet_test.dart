@@ -1,12 +1,540 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_engine.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_models.dart';
 import 'package:larenor/l10n/generated/app_localizations.dart';
 
 import 'core_personal_profiles_test_support.dart';
 import 'remote_profiles_ui_fixture.dart';
 
+final class _GatewayEnrollmentEngine implements RdpGatewayEnrollmentEngine {
+  static const gatewayPin =
+      'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  static const targetPin = 'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+  int gatewayInspections = 0, targetInspections = 0;
+  Uint8List? observedPassword;
+  Completer<void>? targetGate;
+
+  @override
+  Future<RdpGatewayCertificateObservation> inspectGateway({
+    required RdpGatewayEndpoint target,
+    required RdpGatewayEndpoint gateway,
+    required bool Function() isCurrent,
+  }) async {
+    expect(isCurrent(), isTrue);
+    gatewayInspections += 1;
+    return const RdpGatewayCertificateObservation(
+      requestId: 'gateway-observation',
+      kind: RdpGatewayCertificateKind.gateway,
+      certificate: RdpCertificatePin(
+        algorithm: 'spki-sha256',
+        fingerprint: gatewayPin,
+      ),
+    );
+  }
+
+  @override
+  Future<RdpGatewayCertificateObservation> inspectTargetThroughGateway({
+    required RdpGatewayEndpoint target,
+    required RdpPinnedGatewayEndpoint gateway,
+    required RdpOwnedSecretBuffer gatewayPassword,
+    required bool Function() isCurrent,
+  }) async {
+    expect(isCurrent(), isTrue);
+    expect(gateway.fingerprint, gatewayPin);
+    targetInspections += 1;
+    observedPassword = gatewayPassword.bytes;
+    await targetGate?.future;
+    return const RdpGatewayCertificateObservation(
+      requestId: 'target-observation',
+      kind: RdpGatewayCertificateKind.target,
+      certificate: RdpCertificatePin(
+        algorithm: 'spki-sha256',
+        fingerprint: targetPin,
+      ),
+    );
+  }
+
+  @override
+  void close() {}
+}
+
 void main() {
+  testWidgets(
+    'unadmitted Gateway exposes no enrollment or secret persistence',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+        gatewayEnrollmentAdmitted: false,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      expect(key('core-rdp-gateway-host'), findsNothing);
+      expect(key('core-rdp-gateway-password'), findsNothing);
+      expect(key('core-rdp-inspect-gateway'), findsNothing);
+      expect(key('core-rdp-accept-target-save'), findsNothing);
+      expect(engine.gatewayInspections, 0);
+      expect(engine.targetInspections, 0);
+      expect(
+        ui.values.keys.where((key) => key.startsWith('rdp_schema6_')),
+        isEmpty,
+      );
+      expect(fixture.record['rdp'], isNull);
+      expect(key('core-profile-save'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'two-stage Gateway enrollment stores separate device secret and public pins',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(key('core-rdp-target-domain'), 'TARGET');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-port'), '443');
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(key('core-rdp-gateway-domain'), 'EDGE');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'private-gateway-password',
+      );
+
+      await press(tester, 'core-rdp-inspect-gateway');
+      expect(engine.gatewayInspections, 1);
+      expect(find.text(_GatewayEnrollmentEngine.gatewayPin), findsOneWidget);
+      await press(tester, 'core-rdp-accept-gateway');
+      expect(engine.targetInspections, 1);
+      expect(find.text(_GatewayEnrollmentEngine.targetPin), findsOneWidget);
+      expect(
+        tester
+            .widget<CupertinoTextField>(key('core-rdp-gateway-password'))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(engine.observedPassword, isNotNull);
+      expect(engine.observedPassword, everyElement(0));
+
+      await press(tester, 'core-rdp-accept-target-save');
+      expect(key('core-profile-name'), findsNothing);
+      expect(fixture.record['rdp'], {
+        'domain': 'TARGET',
+        'certificateFingerprint': _GatewayEnrollmentEngine.targetPin,
+        'gateway': {
+          'host': 'gateway.internal.example',
+          'port': 443,
+          'username': 'gateway-user',
+          'domain': 'EDGE',
+          'certificateFingerprint': _GatewayEnrollmentEngine.gatewayPin,
+        },
+      });
+      final publicRecord = jsonEncode(fixture.record);
+      expect(publicRecord, isNot(contains('private-gateway-password')));
+      expect(publicRecord, isNot(contains('secretRef')));
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_current_secret_v1_'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        ui.values.values.any(
+          (value) => value.contains('private-gateway-password'),
+        ),
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'late target inspection after Core retirement cannot mutate or retain secret',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine()..targetGate = Completer<void>();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'retired-private-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      expect(engine.targetInspections, 1);
+      expect(engine.observedPassword, isNotNull);
+
+      await fixture.account.signOut();
+      await tester.pump();
+      engine.targetGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(fixture.patchCalls, 0);
+      expect(fixture.record['rdp'], isNull);
+      expect(engine.observedPassword, everyElement(0));
+      expect(
+        ui.values.keys.where((value) => value.startsWith('rdp_schema6_')),
+        isEmpty,
+      );
+      expect(find.text(_GatewayEnrollmentEngine.targetPin), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'completed target observation is wiped when its Core authority retires',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'private-gateway-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      expect(find.text(_GatewayEnrollmentEngine.targetPin), findsOneWidget);
+      expect(key('core-rdp-accept-target-save'), findsOneWidget);
+
+      await fixture.account.signOut();
+      await tester.pumpAndSettle();
+
+      expect(find.text(_GatewayEnrollmentEngine.targetPin), findsNothing);
+      expect(key('core-rdp-accept-target-save'), findsNothing);
+      expect(fixture.patchCalls, 0);
+      expect(fixture.record['rdp'], isNull);
+      expect(
+        ui.values.keys.where((value) => value.startsWith('rdp_schema6_')),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'new Gateway publication retires old scope and cleanup failure retries without Core replay',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'first-private-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      await press(tester, 'core-rdp-accept-target-save');
+      expect(fixture.patchCalls, 1);
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_secret_v1_'),
+        ),
+        hasLength(1),
+      );
+
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(key('core-rdp-gateway-domain'), 'EDGE-ROTATED');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'second-private-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      ui.failSchema6SecretDeleteOnce = true;
+      await press(tester, 'core-rdp-accept-target-save');
+
+      expect(fixture.patchCalls, 2);
+      await tester.scrollUntilVisible(
+        key('core-rdp-secret-cleanup-retry'),
+        240,
+        scrollable: find
+            .descendant(
+              of: key('core-profiles-scroll'),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(key('core-rdp-secret-cleanup-failed'), findsOneWidget);
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_current_secret_v1_'),
+        ),
+        hasLength(1),
+      );
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_secret_v1_'),
+        ),
+        hasLength(2),
+      );
+
+      await press(tester, 'core-rdp-secret-cleanup-retry');
+
+      expect(fixture.patchCalls, 2);
+      expect(key('core-rdp-secret-cleanup-failed'), findsNothing);
+      expect(key('core-profile-name'), findsNothing);
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_secret_v1_'),
+        ),
+        hasLength(1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('deleting a Core RDP profile retires its schema6 secret', (
+    tester,
+  ) async {
+    final fixture = CoreProfilesFixture()
+      ..familyId = 'd' * 32
+      ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+    await fixture.account.initialize();
+    addTearDown(fixture.account.dispose);
+    final engine = _GatewayEnrollmentEngine();
+    final ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 600,
+      scale: 2,
+      serverAccount: fixture.account,
+      gatewayEnrollmentEngine: () => engine,
+    );
+    await press(tester, 'remote-source-core-managed');
+    await press(tester, 'core-profile-$profileId');
+    await tester.enterText(
+      key('core-rdp-gateway-host'),
+      'gateway.internal.example',
+    );
+    await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+    await tester.enterText(
+      key('core-rdp-gateway-password'),
+      'private-gateway-password',
+    );
+    await press(tester, 'core-rdp-inspect-gateway');
+    await press(tester, 'core-rdp-accept-gateway');
+    await press(tester, 'core-rdp-accept-target-save');
+    expect(
+      ui.values.keys.where(
+        (value) => value.startsWith('rdp_schema6_current_secret_v1_'),
+      ),
+      hasLength(1),
+    );
+    expect(
+      ui.values.keys.where(
+        (value) => value.startsWith('rdp_schema6_secret_v1_'),
+      ),
+      hasLength(1),
+    );
+
+    await press(tester, 'core-profile-$profileId');
+    await press(tester, 'core-profile-delete');
+    await press(tester, 'core-profile-delete-confirm');
+
+    expect(fixture.deleteCalls, 1);
+    expect(key('core-profile-$profileId'), findsNothing);
+    expect(
+      ui.values.keys.where((value) => value.startsWith('rdp_schema6_')),
+      isEmpty,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'deleted Core profile resumes exact secret retirement after route restart',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'private-gateway-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      await press(tester, 'core-rdp-accept-target-save');
+      await press(tester, 'core-profile-$profileId');
+      await press(tester, 'core-profile-delete');
+      ui.failSchema6SecretDeleteOnce = true;
+      await press(tester, 'core-profile-delete-confirm');
+
+      expect(fixture.deleteCalls, 1);
+      expect(key('core-profile-local-cleanup-failed'), findsOneWidget);
+      expect(ui.values.keys.where(_schema6RetirementKey), hasLength(1));
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_secret_v1_'),
+        ),
+        hasLength(1),
+      );
+
+      await press(tester, 'core-profiles-back');
+      await press(tester, 'remote-source-core-managed');
+      await tester.pumpAndSettle();
+
+      expect(fixture.deleteCalls, 1);
+      expect(
+        ui.values.keys.where((value) => value.startsWith('rdp_schema6_')),
+        isEmpty,
+      );
+      expect(key('core-profile-$profileId'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'device secret publication failure never presents Core pins as ready',
+    (tester) async {
+      final fixture = CoreProfilesFixture()
+        ..familyId = 'd' * 32
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      addTearDown(fixture.account.dispose);
+      final engine = _GatewayEnrollmentEngine();
+      final ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 600,
+        scale: 2,
+        serverAccount: fixture.account,
+        gatewayEnrollmentEngine: () => engine,
+      );
+      await press(tester, 'remote-source-core-managed');
+      await press(tester, 'core-profile-$profileId');
+      await tester.enterText(
+        key('core-rdp-gateway-host'),
+        'gateway.internal.example',
+      );
+      await tester.enterText(key('core-rdp-gateway-user'), 'gateway-user');
+      await tester.enterText(
+        key('core-rdp-gateway-password'),
+        'private-gateway-password',
+      );
+      await press(tester, 'core-rdp-inspect-gateway');
+      await press(tester, 'core-rdp-accept-gateway');
+      ui.failSchema6CurrentWrite = true;
+      await press(tester, 'core-rdp-accept-target-save');
+
+      expect(fixture.patchCalls, 1);
+      expect(fixture.record['rdp'], isNotNull);
+      expect(key('core-profile-name'), findsOneWidget);
+      expect(key('core-rdp-gateway-enrollment-failed'), findsOneWidget);
+      expect(
+        ui.values.keys.where(
+          (value) => value.startsWith('rdp_schema6_current_secret_v1_'),
+        ),
+        isEmpty,
+      );
+      expect(engine.observedPassword, everyElement(0));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final locale in ['en', 'tr']) {
     testWidgets('Core session authority failure is visible in $locale', (
       tester,
@@ -335,3 +863,6 @@ void main() {
     });
   }
 }
+
+bool _schema6RetirementKey(String value) =>
+    value.startsWith('rdp_schema6_secret_retirements_v1_');

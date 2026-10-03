@@ -28,6 +28,7 @@ class RdpFreeRdpPackageTest {
             identity(sourceSha256 = "0".repeat(64)),
             identity(abi = "armeabi-v7a"),
             identity(jniSchema = 3),
+            identity(jniSchema = 4),
             identity(enabledChannels = setOf("cliprdr", "rdpsnd")),
         )
         mismatches.forEach { assertFalse(RdpFreeRdpPackage.verify(it)) }
@@ -54,7 +55,7 @@ class RdpFreeRdpPackageTest {
         sourceCommit: String = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256: String = RdpFreeRdpPackage.SOURCE_SHA256,
         abi: String = "x86_64",
-        jniSchema: Int = 4,
+        jniSchema: Int = 5,
         enabledChannels: Set<String> = emptySet(),
     ) = RdpFreeRdpIdentity(
         version = version,

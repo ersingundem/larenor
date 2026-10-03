@@ -6,6 +6,7 @@ import '../../health/data/connection_evidence.dart';
 import '../../server/data/server_account_controller.dart';
 import '../../server/domain/server_models.dart';
 import '../data/remote_profiles.dart';
+import '../rdp/rdp_schema6_models.dart';
 import 'core_personal_profiles.dart';
 import 'core_personal_profiles_api.dart';
 
@@ -169,8 +170,9 @@ final class CorePersonalProfilesController extends ChangeNotifier {
   Future<void> create(
     RemoteProfile desired, {
     required bool Function() ownerCurrent,
+    RdpCoreSecurityProjection? rdp,
   }) => _mutate(
-    (api, before) => api.create(desired, before),
+    (api, before) => api.create(desired, before, rdp: rdp),
     ownerCurrent: ownerCurrent,
   );
 
@@ -180,6 +182,15 @@ final class CorePersonalProfilesController extends ChangeNotifier {
     required bool Function() ownerCurrent,
   }) => _mutate(
     (api, before) => api.update(target, desired, before),
+    ownerCurrent: ownerCurrent,
+  );
+
+  Future<void> updateRdpSecurity(
+    CorePersonalProfile target,
+    RdpCoreSecurityProjection security, {
+    required bool Function() ownerCurrent,
+  }) => _mutate(
+    (api, before) => api.updateRdpSecurity(target, security, before),
     ownerCurrent: ownerCurrent,
   );
 
@@ -261,7 +272,8 @@ final class CorePersonalProfilesController extends ChangeNotifier {
                   item.profile.protocol == changed.profile.protocol &&
                   item.profile.host == changed.profile.host &&
                   item.profile.port == changed.profile.port &&
-                  item.profile.username == changed.profile.username,
+                  item.profile.username == changed.profile.username &&
+                  item.rdpSecurity == changed.rdpSecurity,
             )) {
           throw const LarenorServerException('invalid_response');
         }

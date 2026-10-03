@@ -6,6 +6,7 @@ import 'package:larenor/features/health/data/connection_evidence.dart';
 import 'package:larenor/features/remote_access/core/core_personal_profiles.dart';
 import 'package:larenor/features/remote_access/core/core_personal_profiles_controller.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_models.dart';
 import 'package:larenor/features/server/domain/server_models.dart';
 
 import 'core_personal_profiles_test_support.dart';
@@ -49,6 +50,204 @@ void main() {
     },
   );
 
+  test('Core RDP security is closed, optional, and protocol scoped', () {
+    final legacy = CorePersonalProfilesSnapshot.fromJson(
+      listJson(profileJson(protocol: 'rdp')),
+      expectedContext: context,
+      expectedAccountId: profileAccountId,
+    );
+    expect(legacy.profiles.single.rdpSecurity, isNull);
+
+    final securedRecord = profileJson(protocol: 'rdp')
+      ..['rdp'] = {
+        'domain': 'TARGET',
+        'certificateFingerprint':
+            'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'gateway': {
+          'host': 'gateway.internal.example',
+          'port': 443,
+          'username': 'gateway-user',
+          'domain': 'EDGE',
+          'certificateFingerprint':
+              'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        },
+      };
+    final secured = CorePersonalProfilesSnapshot.fromJson(
+      listJson(securedRecord),
+      expectedContext: context,
+      expectedAccountId: profileAccountId,
+    ).profiles.single;
+    expect(secured.rdpSecurity?.domain, 'TARGET');
+    expect(
+      secured.rdpSecurity?.gateway?.endpoint.host,
+      'gateway.internal.example',
+    );
+
+    final directRecord = profileJson(protocol: 'rdp')
+      ..['rdp'] = {
+        'domain': 'TARGET',
+        'certificateFingerprint':
+            'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        'gateway': null,
+      };
+    final direct = CorePersonalProfilesSnapshot.fromJson(
+      listJson(directRecord),
+      expectedContext: context,
+      expectedAccountId: profileAccountId,
+    ).profiles.single;
+    expect(direct.rdpSecurity?.domain, 'TARGET');
+    expect(direct.rdpSecurity?.gateway, isNull);
+
+    final nullSecurity = profileJson(protocol: 'ssh')..['rdp'] = null;
+    expect(
+      CorePersonalProfilesSnapshot.fromJson(
+        listJson(nullSecurity),
+        expectedContext: context,
+        expectedAccountId: profileAccountId,
+      ).profiles.single.rdpSecurity,
+      isNull,
+    );
+    for (final invalid in <Map<String, dynamic>>[
+      profileJson(protocol: 'ssh')..['rdp'] = securedRecord['rdp'],
+      profileJson(protocol: 'rdp')
+        ..['rdp'] = {
+          ...(securedRecord['rdp']! as Map<String, dynamic>),
+          'password': 'must-not-enter-Core',
+        },
+      profileJson(protocol: 'rdp')
+        ..['rdp'] = {
+          ...(securedRecord['rdp']! as Map<String, dynamic>),
+          'gateway': {
+            ...((securedRecord['rdp']! as Map<String, dynamic>)['gateway']!
+                as Map<String, dynamic>),
+            'secretRef': 'must-remain-device-only',
+          },
+        },
+    ]) {
+      expect(
+        () => CorePersonalProfilesSnapshot.fromJson(
+          listJson(invalid),
+          expectedContext: context,
+          expectedAccountId: profileAccountId,
+        ),
+        throwsA(isA<LarenorServerException>()),
+      );
+    }
+  });
+
+  test(
+    'ordinary Core profile edits preserve the exact public RDP projection',
+    () async {
+      final fixture = CoreProfilesFixture();
+      fixture.record = profileJson(protocol: 'rdp')
+        ..['rdp'] = {
+          'domain': 'TARGET',
+          'certificateFingerprint':
+              'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          'gateway': {
+            'host': 'gateway.internal.example',
+            'port': 443,
+            'username': 'gateway-user',
+            'domain': 'EDGE',
+            'certificateFingerprint':
+                'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+          },
+        };
+      await fixture.account.initialize();
+      final controller = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      controller.setVisible(true);
+      await _settle(controller);
+      final target = controller.profiles.single;
+      await controller.update(
+        target,
+        RemoteProfile(
+          id: target.id,
+          name: 'Renamed RDP target',
+          protocol: target.profile.protocol,
+          host: target.profile.host,
+          port: target.profile.port,
+          username: target.profile.username,
+        ),
+        ownerCurrent: () => true,
+      );
+      final body = jsonDecode(
+        fixture.calls.lastWhere((call) => call.method == 'PATCH').body,
+      ) as Map<String, dynamic>;
+      expect(body['rdp'], fixture.record['rdp']);
+      expect(
+        controller.profiles.single.rdpSecurity?.gateway?.endpoint.domain,
+        'EDGE',
+      );
+      controller.dispose();
+      fixture.account.dispose();
+    },
+  );
+
+  test(
+    'accepted target and gateway pins update only the closed public projection',
+    () async {
+      final fixture = CoreProfilesFixture()
+        ..record = (profileJson(protocol: 'rdp')..['rdp'] = null);
+      await fixture.account.initialize();
+      final controller = CorePersonalProfilesController(
+        account: fixture.account,
+        windowCurrent: () => true,
+        clock: () => fixture.now,
+      );
+      controller.setVisible(true);
+      await _settle(controller);
+      final target = controller.profiles.single;
+      final projection = RdpCoreSecurityProjection(
+        domain: 'TARGET',
+        certificateFingerprint:
+            'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        gateway: RdpCoreGatewaySecurity(
+          endpoint: RdpGatewayEndpoint(
+            host: 'gateway.internal.example',
+            port: 443,
+            username: 'gateway-user',
+            domain: 'EDGE',
+          ),
+          certificateFingerprint:
+              'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        ),
+      );
+
+      await controller.updateRdpSecurity(
+        target,
+        projection,
+        ownerCurrent: () => true,
+      );
+
+      expect(controller.mutationOutcome, CoreProfileMutationOutcome.saved);
+      expect(controller.profiles.single.revision, target.revision + 1);
+      expect(controller.profiles.single.rdpSecurity, projection);
+      final call = fixture.calls.lastWhere((value) => value.method == 'PATCH');
+      final body = jsonDecode(call.body) as Map<String, dynamic>;
+      expect(body['rdp'], projection.toJson());
+      expect(jsonEncode(body), isNot(contains('password')));
+      expect(jsonEncode(body), isNot(contains('secretRef')));
+      expect(body.keys.toSet(), {
+        'label',
+        'protocol',
+        'host',
+        'port',
+        'username',
+        'rdp',
+        'requestId',
+        'expectedAccountRevision',
+        'expectedCollectionRevision',
+        'expectedRevision',
+      });
+      controller.dispose();
+      fixture.account.dispose();
+    },
+  );
+
   test(
     'conflict preserves old data read-only until explicit verified refresh',
     () async {
@@ -88,6 +287,7 @@ void main() {
         'host',
         'port',
         'username',
+        'rdp',
         'requestId',
         'expectedAccountRevision',
         'expectedCollectionRevision',

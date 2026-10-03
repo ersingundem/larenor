@@ -59,7 +59,7 @@ class RdpNativeBridgeTest {
             RdpFreeRdpPackage.SOURCE_COMMIT,
             RdpFreeRdpPackage.SOURCE_SHA256,
             "x86_64",
-            4,
+            5,
             emptySet(),
         )
 
@@ -127,6 +127,65 @@ class RdpNativeBridgeTest {
     }
 
     @Test
+    fun productAdmissionRejectsBothGatewayProbesBeforeCompiledRuntimeAndWipesPassword() {
+        val inspections = AtomicInteger()
+        val compiled = ClipboardRuntime(availableCapabilities())
+        val runtime = object : RdpJniRuntime by compiled {
+            override fun capabilities() = availableCapabilities() + mapOf(
+                "security" to mapOf(
+                    "tls" to true, "certificatePinning" to true, "nla" to true,
+                    "rdGateway" to true,
+                ),
+            )
+            override fun inspectGateway(
+                targetHost: String, targetPort: Int, targetUsername: String,
+                gateway: RdpJniGatewayEndpoint,
+            ): RdpJniCertificateProbeOperation {
+                inspections.incrementAndGet()
+                throw AssertionError("Unadmitted probe reached compiled runtime")
+            }
+            override fun inspectTargetThroughGateway(
+                targetHost: String, targetPort: Int, targetUsername: String,
+                targetDomain: String, gateway: RdpNativeGateway, gatewayPassword: CharArray,
+            ): RdpJniCertificateProbeOperation {
+                inspections.incrementAndGet()
+                throw AssertionError("Unadmitted probe reached compiled runtime")
+            }
+        }
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
+            .windowFocusChanged(true)
+        val bridge = RdpNativeBridge(activity.get(), Messenger(), runtime)
+        try {
+            bridge.setResumed(true)
+            bridge.onListen(REQUEST_ID, Sink())
+            val activated = Result()
+            bridge.onMethodCall(MethodCall("activate", mapOf("requestId" to REQUEST_ID)), activated)
+            assertNull(activated.error)
+            val peer = mapOf("host" to "fixture.invalid", "port" to 443, "username" to "fixture")
+            val gatewayResult = Result()
+            bridge.onMethodCall(MethodCall("inspectGateway", mapOf(
+                "schemaVersion" to 6, "requestId" to REQUEST_ID,
+                "target" to peer, "gateway" to (peer + ("domain" to "TEST")),
+            )), gatewayResult)
+            assertEquals("gatewayUnavailable", gatewayResult.error)
+            val password = "private-gateway-password".encodeToByteArray()
+            val targetResult = Result()
+            bridge.onMethodCall(MethodCall("inspectTargetThroughGateway", mapOf(
+                "schemaVersion" to 6, "requestId" to REQUEST_ID,
+                "target" to (peer + ("domain" to "TEST")),
+                "gateway" to (peer + mapOf("domain" to "TEST", "certificateFingerprint" to PIN)),
+                "gatewayPassword" to password,
+            )), targetResult)
+            assertEquals("gatewayUnavailable", targetResult.error)
+            assertTrue(password.all { it == 0.toByte() })
+            assertEquals(0, inspections.get())
+        } finally {
+            bridge.dispose()
+            activity.pause().stop().destroy()
+        }
+    }
+
+    @Test
     fun blockedOpenRejectsSecondNetworkJobAndClosesSecretBuffers() {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -138,7 +197,7 @@ class RdpNativeBridgeTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                4,
+                5,
                 emptySet(),
             )
 
@@ -217,6 +276,94 @@ class RdpNativeBridgeTest {
             assertNull(result.error)
             assertEquals(listOf(expected.toList()), fixture.runtime.inputs.map(ByteArray::toList))
             assertTrue(payload.all { it == 0.toByte() })
+        }
+    }
+
+    @Test
+    fun cancelledBlockedOpenCannotPublishToReplacementEventOwner() {
+        assertBlockedOpenRetires { bridge ->
+            bridge.onCancel(REQUEST_ID)
+            bridge.onListen(FOREIGN_REQUEST_ID, Sink())
+        }
+    }
+
+    @Test
+    fun focusRestoreCannotReviveBlockedOpenOrDispatchInput() {
+        assertBlockedOpenRetires { bridge ->
+            bridge.setWindowFocused(false)
+            bridge.setWindowFocused(true)
+        }
+    }
+
+    private fun assertBlockedOpenRetires(retire: (RdpNativeBridge) -> Unit) {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val closes = AtomicInteger()
+        val inputs = AtomicInteger()
+        val publishedEvents = AtomicInteger()
+        val capturedSecret = AtomicReference<CharArray>()
+        val runtime = object : RdpJniRuntime {
+            override fun identity() = RdpFreeRdpIdentity(
+                RdpFreeRdpPackage.VERSION, RdpFreeRdpPackage.SOURCE_COMMIT,
+                RdpFreeRdpPackage.SOURCE_SHA256, "x86_64", 5, emptySet(),
+            )
+            override fun capabilities() = availableCapabilities()
+            override fun create(
+                request: RdpNativeRequest,
+                plan: RdpNativeNegotiated,
+                listener: RdpJniOperation.Listener,
+            ) = object : RdpJniOperation {
+                override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
+                    capturedSecret.set(password)
+                    listener.onSecurity(RdpJniSecurity("TLSv1.2", true, PIN))
+                    started.countDown()
+                    check(release.await(2, TimeUnit.SECONDS))
+                    return true
+                }
+                override fun input(sequence: Long, event: RdpJniInput): Boolean {
+                    inputs.incrementAndGet()
+                    return true
+                }
+                override fun resize(sequence: Long, display: RdpNativeDisplay) = true
+                override fun acknowledgeFrame(sequence: Long) = true
+                override fun close() { closes.incrementAndGet() }
+                override fun detach() = Unit
+            }
+        }
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).setup().visible()
+            .windowFocusChanged(true)
+        val bridge = RdpNativeBridge(activity.get(), Messenger(), runtime)
+        try {
+            bridge.setResumed(true)
+            bridge.onListen(REQUEST_ID, object : EventChannel.EventSink {
+                override fun success(event: Any?) { publishedEvents.incrementAndGet() }
+                override fun error(code: String, message: String?, details: Any?) { publishedEvents.incrementAndGet() }
+                override fun endOfStream() { publishedEvents.incrementAndGet() }
+            })
+            val opening = Result()
+            val bytes = "private-target".encodeToByteArray()
+            bridge.onMethodCall(MethodCall("open", mapOf(
+                "schemaVersion" to 4, "request" to request(), "requestId" to REQUEST_ID,
+                "password" to bytes, "gatewayPassword" to ByteArray(0),
+            )), opening)
+            assertTrue(started.await(1, TimeUnit.SECONDS))
+            assertTrue(bytes.all { it == 0.toByte() })
+            retire(bridge)
+            release.countDown()
+            await(opening)
+            assertEquals("staleSession", opening.error)
+            assertTrue(closes.get() >= 1)
+            assertEquals(0, publishedEvents.get())
+            val input = Result()
+            bridge.onMethodCall(MethodCall("input", clipboardInput("private".encodeToByteArray())), input)
+            await(input)
+            assertEquals("staleSession", input.error)
+            assertEquals(0, inputs.get())
+            assertTrue(capturedSecret.get().all { it == '\u0000' })
+        } finally {
+            release.countDown()
+            bridge.dispose()
+            activity.pause().stop().destroy()
         }
     }
 

@@ -27,21 +27,107 @@ class RdpSafGrantStoreTest {
         val raw = fixture.store.fileForTest.readBytes()
         assertFalse(raw.decodeToString().contains("content://"))
         assertEquals(listOf(record), fixture.reopen().read())
-        assertEquals(
-            setOf(
-                java.nio.file.attribute.PosixFilePermission.OWNER_READ,
-                java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
-            ),
-            Files.getPosixFilePermissions(fixture.store.fileForTest.toPath()),
+    }
+
+
+    @Test
+    fun permissionApplicatorRunsBeforeAtomicPayloadAndAfterFinalRename() {
+        val root = File(
+            RuntimeEnvironment.getApplication().cacheDir,
+            "rdp-saf-permission-order-${System.nanoTime()}",
         )
-        assertEquals(
-            setOf(
-                java.nio.file.attribute.PosixFilePermission.OWNER_READ,
-                java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
-                java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE,
-            ),
-            Files.getPosixFilePermissions(fixture.root.toPath()),
+        val events = mutableListOf<String>()
+        lateinit var store: RdpSafGrantStore
+        val permissions = RdpSafPrivatePermissions(
+            descriptor = RdpSafDescriptorPermission { _, mode ->
+                assertEquals(RDP_SAF_PRIVATE_FILE_MODE, mode)
+                val files = root.listFiles()?.filter { it.isFile }.orEmpty()
+                assertEquals(1, files.size)
+                assertTrue(files.single().name.endsWith(".new"))
+                assertEquals(0L, files.single().length())
+                assertFalse(store.fileForTest.exists())
+                events += "descriptor:file"
+            },
+            path = RdpSafPathPermission { path, mode ->
+                val value = File(path)
+                when (mode) {
+                    RDP_SAF_PRIVATE_DIRECTORY_MODE -> {
+                        assertEquals(root.canonicalFile, value.canonicalFile)
+                        assertTrue(value.isDirectory)
+                        events += "path:directory"
+                    }
+                    RDP_SAF_PRIVATE_FILE_MODE -> {
+                        assertEquals(store.fileForTest.canonicalFile, value.canonicalFile)
+                        assertTrue(value.isFile)
+                        assertTrue(value.length() > 0)
+                        assertFalse(File(root, "ledger.enc.new").exists())
+                        events += "path:file"
+                    }
+                    else -> fail("Unexpected mode $mode")
+                }
+            },
         )
+        val key = key()
+        store = RdpSafGrantStore(
+            RuntimeEnvironment.getApplication(),
+            testKeyProvider = { key },
+            rootOverride = root,
+            permissions = permissions,
+        )
+
+        store.replace(listOf(record()))
+
+        assertEquals(listOf("path:directory", "descriptor:file", "path:file"), events)
+        assertEquals(listOf(record()), RdpSafGrantStore(
+            RuntimeEnvironment.getApplication(),
+            testKeyProvider = { key },
+            rootOverride = root,
+        ).read())
+    }
+
+    @Test
+    fun permissionFailuresFailClosedWithoutPublishingOrDeletingDurableEvidence() {
+        val root = File(
+            RuntimeEnvironment.getApplication().cacheDir,
+            "rdp-saf-permission-failure-${System.nanoTime()}",
+        )
+        val key = key()
+        val descriptorFailure = RdpSafPrivatePermissions(
+            descriptor = RdpSafDescriptorPermission { _, _ -> throw IllegalStateException("denied") },
+            path = RdpSafPathPermission { _, _ -> },
+        )
+        val preWrite = RdpSafGrantStore(
+            RuntimeEnvironment.getApplication(),
+            testKeyProvider = { key },
+            rootOverride = root,
+            permissions = descriptorFailure,
+        )
+
+        rejectUnavailable { preWrite.replace(listOf(record())) }
+        assertFalse(preWrite.fileForTest.exists())
+        assertTrue(root.listFiles()?.none { it.isFile } != false)
+
+        val finalPathFailure = RdpSafPrivatePermissions(
+            descriptor = RdpSafDescriptorPermission { _, _ -> },
+            path = RdpSafPathPermission { path, mode ->
+                if (mode == RDP_SAF_PRIVATE_FILE_MODE && File(path).name == "ledger.enc") {
+                    throw IllegalStateException("denied")
+                }
+            },
+        )
+        val postRename = RdpSafGrantStore(
+            RuntimeEnvironment.getApplication(),
+            testKeyProvider = { key },
+            rootOverride = root,
+            permissions = finalPathFailure,
+        )
+        rejectUnavailable { postRename.replace(listOf(record())) }
+        assertTrue(postRename.fileForTest.isFile)
+        assertEquals(listOf(record()), RdpSafGrantStore(
+            RuntimeEnvironment.getApplication(),
+            testKeyProvider = { key },
+            rootOverride = root,
+        ).read())
     }
 
     @Test

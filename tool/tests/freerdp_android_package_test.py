@@ -12,9 +12,11 @@ import zipfile
 
 from tool.freerdp_android_package import (
     EVENT_LISTENER_CLASS,
+    GLOBAL_APP_CLASS,
     PackageError,
     REQUIRED_EVENT_LISTENER_API,
     REQUIRED_FREERDP_API,
+    REQUIRED_GLOBAL_APP_API,
     REQUIRED_MICROPHONE_CONSTANTS,
     REQUIRED_REMOTE_AUDIO_CONSTANTS,
     REQUIRED_AUDIN_NATIVE_EVIDENCE,
@@ -37,10 +39,10 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
     def test_repository_lock_is_exact_and_matches_runtime_gate(self):
         lock = load_lock()
         self.assertEqual(lock["source"]["version"], "3.31.1")
-        self.assertEqual(lock["jniSchema"], 4)
+        self.assertEqual(lock["jniSchema"], 5)
         self.assertEqual(
             lock["engineRevision"],
-            "freerdp-3.31.1-63b948ca-display-pointer-audio-microphone-v4",
+            "freerdp-3.31.1-63b948ca-remote-access-v5",
         )
         self.assertEqual(lock["supportedAbis"], ["arm64-v8a", "x86_64"])
         self.assertEqual(lock["defaultChannels"], [])
@@ -53,6 +55,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "android/freerdp-remote-audio-v3.patch",
                 "android/freerdp-always-pin-v4.patch",
                 "android/freerdp-microphone-v4.patch",
+                "android/freerdp-remote-access-v5.patch",
             ],
         )
         self.assertEqual(
@@ -62,6 +65,9 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 ("isRelativeMouseInputSupported", "(J)Z"),
                 ("sendMonitorLayout", "(JII)Z"),
                 ("sendMonitorLayout", "(JIIII)Z"),
+                ("configureGateway", "(JLjava/lang/String;I)Z"),
+                ("configureFileTransfer", "(JLjava/lang/String;)Z"),
+                ("freeInstanceDrained", "(JI)Z"),
             ),
         )
         self.assertEqual(
@@ -85,10 +91,15 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 "OnRemoteAudioPlayback",
                 "OnVerifyX509Certificate",
                 "OnMicrophoneCapture",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1gateway",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1configure_1file_1transfer",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1drain_1and_1free",
+                "LrnXfer",
+                "/proc/self/fd/",
             ],
         )
 
-    def test_schema4_receipt_rejects_v3_java_and_missing_audin_backend(self):
+    def test_schema5_receipt_rejects_old_java_missing_audin_and_drive_evidence(self):
         lock = load_lock()
         with tempfile.TemporaryDirectory() as directory:
             aar = Path(directory) / "old.aar"
@@ -104,6 +115,23 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
                 audin_evidence=False,
             )
             with self.assertRaisesRegex(PackageError, "missing_audin_evidence"):
+                package_receipt(aar, "arm64-v8a", lock)
+
+            self._aar(
+                aar, lock, "arm64-v8a",
+                java_api=tuple(
+                    (0x0001 | 0x0008 | 0x0100, method, descriptor)
+                    for method, descriptor in REQUIRED_FREERDP_API[:-1]
+                ),
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(aar, "arm64-v8a", lock)
+
+            self._aar(
+                aar, lock, "arm64-v8a",
+                drive_evidence=False,
+            )
+            with self.assertRaisesRegex(PackageError, "missing_drive_evidence"):
                 package_receipt(aar, "arm64-v8a", lock)
 
     def test_lock_rejects_tampered_or_reordered_reviewed_patches(self):
@@ -761,6 +789,7 @@ BOOL android_event_queue_init(freerdp* inst)
         remote_audio_constants=None,
         microphone_constants=None,
         audin_evidence=True,
+        drive_evidence=True,
     ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
@@ -795,6 +824,17 @@ BOOL android_event_queue_init(freerdp* inst)
                             ),
                         ),
                     )
+                elif name == GLOBAL_APP_CLASS:
+                    jar.writestr(
+                        name,
+                        self._class_file(
+                            "com/freerdp/freerdpcore/application/GlobalApp",
+                            tuple(
+                                (0x0001 | 0x0008, method, descriptor)
+                                for method, descriptor in REQUIRED_GLOBAL_APP_API
+                            ),
+                        ),
+                    )
                 elif name == EVENT_LISTENER_CLASS:
                     methods = event_listener_api
                     if methods is None:
@@ -823,6 +863,11 @@ BOOL android_event_queue_init(freerdp* inst)
                         payload += b"".join(item.encode() for item in evidence)
                 if name == "libfreerdp-client3.so" and audin_evidence:
                     payload += REQUIRED_AUDIN_NATIVE_EVIDENCE.encode()
+                    if drive_evidence:
+                        payload += b"".join(
+                            item.encode()
+                            for item in lock.get("requiredDriveEvidence", [])
+                        )
                 archive.writestr(f"jni/{abi}/{name}", payload)
             if second:
                 archive.writestr(f"jni/{second}/extra.so", self._elf(62))

@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../data/remote_profiles.dart';
 import 'rdp_engine.dart';
 import 'rdp_models.dart';
+import 'rdp_schema6_models.dart';
+import 'rdp_schema6_security_store.dart';
+import 'rdp_schema6_session_authority.dart';
 import 'rdp_security_store.dart';
 
 enum RdpSessionPhase {
@@ -31,9 +35,15 @@ class RdpSessionController extends ChangeNotifier {
     required this.display,
     this.credentialVault,
     this.settings = const RdpProfileSettings(),
+    this.authoritativeSecurity,
+    this.schema6Authority,
+    this.schema6OwnerFactory,
+    this.schema6Secrets,
+    this.schema6SecretScope,
     this.remoteAudio = false,
     this.connectTimeout = const Duration(seconds: 45),
-  });
+  }) : assert((schema6Authority == null) == (schema6OwnerFactory == null)),
+       assert((schema6Secrets == null) == (schema6SecretScope == null));
   final RemoteProfile profile;
   final RdpTrustStore trust;
   final RdpEngine Function() engineFactory;
@@ -42,6 +52,11 @@ class RdpSessionController extends ChangeNotifier {
   final RdpDisplaySpec display;
   final RdpCredentialVault? credentialVault;
   final RdpProfileSettings settings;
+  final RdpCoreSecurityProjection? authoritativeSecurity;
+  final RdpSchema6SessionAuthority? schema6Authority;
+  final RdpSchema6SessionOwner Function(int revision)? schema6OwnerFactory;
+  final RdpSchema6CurrentSecretVault? schema6Secrets;
+  final RdpSchema6SecretScope? schema6SecretScope;
   final bool remoteAudio;
   final Duration connectTimeout;
 
@@ -53,6 +68,7 @@ class RdpSessionController extends ChangeNotifier {
   bool supportsRelativePointer = false;
   RdpAudioObservation? audioObservation;
   RdpMicrophoneObservation? microphoneObservation;
+  RdpTransferReceipt? get fileTransferReceipt => schema6Authority?.receipt;
   bool microphonePermissionPending = false;
   bool fileTransferPickerPending = false;
   Timer? _audioTimer;
@@ -61,6 +77,7 @@ class RdpSessionController extends ChangeNotifier {
   RdpMicrophoneRead? _microphoneRead;
   Completer<bool>? _microphoneFocusDecision;
   Completer<bool>? _fileTransferFocusDecision;
+  RdpOwnedSecretBuffer? _pendingGatewaySecret;
   RdpFrameGeometry? _acknowledgedGeometry;
   int _displayGeneration = 0, _displayLayoutRevision = 1;
   RdpDisplaySpec? _requestedDisplay;
@@ -118,6 +135,7 @@ class RdpSessionController extends ChangeNotifier {
   Completer<void>? _opening;
   Timer? _timer;
   int _generation = 0;
+  int _schema6SessionRevision = 0;
   bool _retired = false, _disposed = false;
 
   bool _current(int generation) {
@@ -188,6 +206,8 @@ class RdpSessionController extends ChangeNotifier {
       _passwordDecision!.complete(null);
     }
     _passwordDecision = null;
+    _pendingGatewaySecret?.wipe();
+    _pendingGatewaySecret = null;
     if (_opening?.isCompleted == false) {
       _opening!.complete();
     }
@@ -212,6 +232,25 @@ class RdpSessionController extends ChangeNotifier {
         ? RdpSessionPhase.closed
         : RdpSessionPhase.failed;
     _publish();
+    final authority = schema6Authority;
+    if (!retired &&
+        authority?.hasFileTransfer == true &&
+        authority?.binding?.transfer != null) {
+      final generation = _generation;
+      void publishDrained() {
+        if (_current(generation)) _publish();
+      }
+
+      // The transport close starts the exact owner's asynchronous drain. Its
+      // final sealed/unknown receipt must reach the UI without another poll;
+      // retirement and disposal still fence any late completion.
+      unawaited(
+        authority!.closeAndDrain().then<void>(
+          (_) => publishDrained(),
+          onError: (_, _) => publishDrained(),
+        ),
+      );
+    }
   }
 
   Future<void> connect() {
@@ -286,46 +325,114 @@ class RdpSessionController extends ChangeNotifier {
     if (settings.microphone && !found.supportsMicrophone) {
       throw const RdpFailure('microphone_unavailable');
     }
+    final schema6 = schema6Authority;
+    if (schema6 != null &&
+        (schema6.hasFileTransfer && !found.supportsFiles ||
+            engine is! RdpSchema6NativeSessionGateway)) {
+      throw const RdpFailure('unsupported_request');
+    }
+    RdpSchema6SessionOwner? schema6Owner;
+    if (schema6 != null) {
+      if (_schema6SessionRevision >= 9007199254740991) {
+        throw const RdpFailure('retired');
+      }
+      schema6Owner = schema6OwnerFactory!(++_schema6SessionRevision);
+    }
     if (settings.microphone) {
-      await _requestMicrophonePermission(generation, engine);
+      await _requestMicrophonePermission(
+        generation,
+        engine,
+        owner: schema6Owner,
+      );
       _check(generation);
     }
     await trust.checkProfile(profile, isCurrent: () => _current(generation));
-    final probe = await engine.inspect(
-      profile,
-      isCurrent: () => _current(generation),
-    );
-    _check(generation);
-    probe.certificate.validate();
-    if (!probe.tlsCertificateObserved) {
-      throw const RdpFailure('tls_required');
-    }
-    if (!probe.clientRequiresNla) throw const RdpFailure('invalid_response');
-    final pinned = await trust.readPin(
-      profile,
-      isCurrent: () => _current(generation),
-    );
-    _check(generation);
-    if (pinned != null && pinned != probe.certificate) {
-      throw const RdpFailure('certificate_changed');
-    }
-    if (pinned == null) {
-      final decision = _certificateDecision = Completer<bool>();
-      pendingCertificate = probe.certificate;
-      phase = RdpSessionPhase.certificate;
-      _publish();
-      if (!await decision.future) {
-        throw const RdpFailure('certificate_rejected');
+    final authoritative = authoritativeSecurity;
+    final RdpCertificatePin targetCertificate;
+    if (authoritative != null) {
+      final gateway = authoritative.gateway;
+      if (settings.domain != authoritative.domain ||
+          settings.gatewayHost != gateway?.endpoint.host ||
+          settings.gatewayPort != (gateway?.endpoint.port ?? 443) ||
+          settings.gatewayUsername != (gateway?.endpoint.username ?? '') ||
+          settings.gatewayDomain != (gateway?.endpoint.domain ?? '')) {
+        throw const RdpFailure('profile_changed');
       }
+      targetCertificate = RdpCertificatePin(
+        algorithm: 'spki-sha256',
+        fingerprint: authoritative.certificateFingerprint,
+      )..validate();
+      if (gateway != null && !found.supportsRdGateway) {
+        throw const RdpFailure('gateway_unavailable');
+      }
+    } else {
+      final probe = await engine.inspect(
+        profile,
+        isCurrent: () => _current(generation),
+      );
       _check(generation);
-      _certificateDecision = null;
-      pendingCertificate = null;
+      probe.certificate.validate();
+      if (!probe.tlsCertificateObserved) {
+        throw const RdpFailure('tls_required');
+      }
+      if (!probe.clientRequiresNla) throw const RdpFailure('invalid_response');
+      final pinned = await trust.readPin(
+        profile,
+        isCurrent: () => _current(generation),
+      );
+      _check(generation);
+      if (pinned != null && pinned != probe.certificate) {
+        throw const RdpFailure('certificate_changed');
+      }
+      if (pinned == null) {
+        final decision = _certificateDecision = Completer<bool>();
+        pendingCertificate = probe.certificate;
+        phase = RdpSessionPhase.certificate;
+        _publish();
+        if (!await decision.future) {
+          throw const RdpFailure('certificate_rejected');
+        }
+        _check(generation);
+        _certificateDecision = null;
+        pendingCertificate = null;
+      }
+      targetCertificate = probe.certificate;
     }
     var credential = await credentialVault?.readCredential(
       profile,
       isCurrent: () => _current(generation),
     );
     _check(generation);
+    if (authoritative?.gateway != null &&
+        schema6Secrets != null &&
+        schema6SecretScope != null) {
+      final gatewaySecret = await schema6Secrets!.resolveCurrent(
+        scope: schema6SecretScope!,
+        kind: RdpSchema6SecretKind.gatewayPassword,
+        isCurrent: () => _current(generation),
+      );
+      if (gatewaySecret == null) {
+        credential = null;
+      } else if (credential == null) {
+        _pendingGatewaySecret?.wipe();
+        _pendingGatewaySecret = gatewaySecret;
+      } else {
+        final bytes = gatewaySecret.take();
+        try {
+          final gatewayPassword = utf8.decode(bytes, allowMalformed: false);
+          credential = RdpCredential(
+            password: credential.password,
+            gatewayPassword: gatewayPassword,
+          )..validate();
+        } on FormatException {
+          throw const RdpFailure('storage_failed');
+        } finally {
+          bytes.fillRange(0, bytes.length, 0);
+          gatewaySecret.wipe();
+        }
+      }
+      _check(generation);
+    }
     if (credential == null) {
       final decision = _passwordDecision = Completer<RdpCredential?>();
       phase = RdpSessionPhase.nlaRequired;
@@ -340,20 +447,33 @@ class RdpSessionController extends ChangeNotifier {
     final request = RdpSessionRequest(
       profile: profile,
       display: display,
-      certificateFingerprint: probe.certificate.fingerprint,
+      certificateFingerprint: targetCertificate.fingerprint,
+      gatewayCertificateFingerprint:
+          authoritative?.gateway?.certificateFingerprint,
       settings: settings,
       channels: RdpChannelPolicy(
         clipboard: settings.clipboardMode != RdpClipboardMode.disabled,
         audio: remoteAudio,
         microphone: settings.microphone,
+        files: schema6?.hasFileTransfer ?? false,
       ),
     );
     request.validate(found);
-    final channel = await engine.open(
-      request,
-      credential: credential,
-      isCurrent: () => _current(generation),
-    );
+    final RdpChannel channel;
+    if (schema6 == null) {
+      channel = await engine.open(
+        request,
+        credential: credential,
+        isCurrent: () => _current(generation),
+      );
+    } else {
+      channel = await schema6.open(
+        gateway: engine as RdpSchema6NativeSessionGateway,
+        request: request,
+        credential: credential,
+        owner: schema6Owner!,
+      );
+    }
     credential = null;
     if (!_current(generation)) {
       channel.close();
@@ -394,18 +514,31 @@ class RdpSessionController extends ChangeNotifier {
 
   Future<void> _requestMicrophonePermission(
     int generation,
-    RdpEngine engine,
-  ) async {
-    if (engine is! RdpMicrophonePermissionEngine) {
-      throw const RdpFailure('microphone_unavailable');
-    }
+    RdpEngine engine, {
+    RdpSchema6SessionOwner? owner,
+  }) async {
     final focus = _microphoneFocusDecision = Completer<bool>();
     microphonePermissionPending = true;
     _publish();
     try {
-      final granted = await engine.requestMicrophonePermission(
-        isCurrent: () => _current(generation),
-      );
+      final bool granted;
+      if (owner != null) {
+        if (engine is! RdpSchema6MicrophonePermissionEngine) {
+          throw const RdpFailure('microphone_unavailable');
+        }
+        final ownedEngine = engine as RdpSchema6MicrophonePermissionEngine;
+        granted = await ownedEngine.requestOwnedMicrophonePermission(
+          owner: owner,
+          isCurrent: () => _current(generation),
+        );
+      } else {
+        if (engine is! RdpMicrophonePermissionEngine) {
+          throw const RdpFailure('microphone_unavailable');
+        }
+        granted = await engine.requestMicrophonePermission(
+          isCurrent: () => _current(generation),
+        );
+      }
       _check(generation);
       if (!granted) throw const RdpFailure('microphone_permission_denied');
       if (!_interactionCurrent()) {
@@ -691,19 +824,52 @@ class RdpSessionController extends ChangeNotifier {
       return;
     }
     try {
+      var resolvedGatewayPassword = gatewayPassword;
+      final managedGateway = authoritativeSecurity?.gateway != null;
+      if (managedGateway) {
+        final pending = _pendingGatewaySecret;
+        if (pending == null) throw const RdpFailure('storage_failed');
+        _pendingGatewaySecret = null;
+        final gatewayBytes = pending.take();
+        try {
+          resolvedGatewayPassword = utf8.decode(
+            gatewayBytes,
+            allowMalformed: false,
+          );
+        } on FormatException {
+          throw const RdpFailure('storage_failed');
+        } finally {
+          gatewayBytes.fillRange(0, gatewayBytes.length, 0);
+          pending.wipe();
+        }
+      }
       final credential = RdpCredential(
         password: password,
-        gatewayPassword: gatewayPassword,
+        gatewayPassword: resolvedGatewayPassword,
       );
       credential.validate();
       if (remember) {
         final vault = credentialVault;
         if (vault == null) throw const RdpFailure('storage_failed');
-        await vault.saveCredential(
-          profile,
-          credential,
-          isCurrent: () => _current(generation),
-        );
+        final gatewaySecurity = authoritativeSecurity?.gateway;
+        final secretVault = schema6Secrets;
+        final secretScope = schema6SecretScope;
+        if (gatewaySecurity == null) {
+          await vault.saveCredential(
+            profile,
+            credential,
+            isCurrent: () => _current(generation),
+          );
+        } else {
+          if (secretVault == null || secretScope == null) {
+            throw const RdpFailure('storage_failed');
+          }
+          await vault.saveCredential(
+            profile,
+            RdpCredential(password: password),
+            isCurrent: () => _current(generation),
+          );
+        }
         _check(generation);
       }
       if (!decision.isCompleted) decision.complete(credential);
@@ -718,6 +884,11 @@ class RdpSessionController extends ChangeNotifier {
     if (_disposed ||
         _retired ||
         phase != RdpSessionPhase.failed && phase != RdpSessionPhase.closed) {
+      return;
+    }
+    if (schema6Authority?.hasFileTransfer == true) {
+      error = 'file_transfer_recovery_required';
+      _publish();
       return;
     }
     phase = RdpSessionPhase.idle;
@@ -846,7 +1017,24 @@ class RdpSessionController extends ChangeNotifier {
 
   void retire() {
     if (_retired || _disposed) return;
+    schema6Authority?.close();
     _finish(retired: true);
+  }
+
+  Future<RdpTransferReceipt?> observeFileTransferSession() async {
+    final authority = schema6Authority;
+    if (authority == null || !_current(_generation)) return null;
+    final value = await authority.observe();
+    _publish();
+    return value;
+  }
+
+  Future<RdpTransferReceipt?> saveReceivedFiles() async {
+    final authority = schema6Authority;
+    if (authority == null || !_current(_generation)) return null;
+    final value = await authority.saveReceived();
+    _publish();
+    return value;
   }
 
   @override
@@ -854,6 +1042,7 @@ class RdpSessionController extends ChangeNotifier {
     _disposed = true;
     _retired = true;
     _generation++;
+    schema6Authority?.close();
     _closeResources();
     super.dispose();
   }

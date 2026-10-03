@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_schema6_models.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 import 'rdp_models_test.dart' show fixture, profile;
@@ -49,6 +50,42 @@ class MicrophoneMethods extends MethodChannel {
   }
 }
 
+/// Captures the caller-owned byte lists before MethodCodec cloning so their
+/// post-invocation wipe is an actual ownership assertion.
+class OwnedOpenMethods extends MethodChannel {
+  OwnedOpenMethods(this.calls) : super('rdp-owned-open-methods');
+  final List<MethodCall> calls;
+
+  @override
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    calls.add(MethodCall(method, arguments));
+    final map = arguments as Map?;
+    final value = switch (method) {
+      'requestMicrophonePermission' => {
+        'schemaVersion': 4,
+        'requestId': map!['requestId'],
+        'granted': true,
+      },
+      'open' => {
+        'schemaVersion': map!['schemaVersion'],
+        'unicodeTextInput': true,
+        'relativePointer': true,
+      },
+      'microphoneObservation' => {
+        'schemaVersion': map!['schemaVersion'],
+        'requestId': map['requestId'],
+        'state': 'pending',
+        'deviceOpen': false,
+        'capturedCount': 0,
+        'acceptedCount': 0,
+      },
+      'activate' || 'cancel' => null,
+      _ => throw MissingPluginException(),
+    };
+    return value as T?;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const methods = MethodChannel('rdp-test-methods');
@@ -71,7 +108,7 @@ void main() {
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
         'open' => {
-          'schemaVersion': 4,
+          'schemaVersion': (call.arguments as Map)['schemaVersion'],
           'unicodeTextInput': true,
           'relativePointer': true,
         },
@@ -81,7 +118,7 @@ void main() {
           'granted': true,
         },
         'microphoneObservation' => {
-          'schemaVersion': 4,
+          'schemaVersion': (call.arguments as Map)['schemaVersion'],
           'requestId': (call.arguments as Map)['requestId'],
           'state': 'pending',
           'deviceOpen': false,
@@ -1144,4 +1181,224 @@ void main() {
       engine.close();
     },
   );
+
+  test('owned open uses one planned microphone and transfer owner', () async {
+    final ownedMethods = OwnedOpenMethods(calls);
+    final engine = RdpMethodChannelEngine(
+      methods: ownedMethods,
+      events: events,
+      isAndroid: true,
+    );
+    final owner = RdpSchema6SessionOwner(
+      requestId: '12345678-1234-4234-9234-123456789abc',
+      revision: 7,
+    );
+    final granted = await engine.requestOwnedMicrophonePermission(
+      owner: owner,
+      isCurrent: () => true,
+    );
+    expect(granted, isTrue);
+    final authority = RdpSecurityStore().fileTransferAuthority(
+      profile,
+      profileRevision: 9,
+    );
+    final binding = RdpSchema6SessionBinding(
+      owner: owner,
+      transfer: RdpTransferReceipt(
+        requestId: 'prepare',
+        authorityId: authority.authorityId,
+        grant: const RdpFileTransferGrant(
+          id: '0123456789abcdef0123456789abcdef',
+          revision: 3,
+        ),
+        transferId: 'fedcba9876543210fedcba9876543210',
+        state: RdpTransferState.prepared,
+      ),
+    );
+    final channel = await engine.openOwned(
+      RdpSessionRequest(
+        profile: profile,
+        display: const RdpDisplaySpec(width: 640, height: 480),
+        certificateFingerprint:
+            'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        gatewayCertificateFingerprint:
+            'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+        settings: const RdpProfileSettings(
+          gatewayHost: 'gateway.example',
+          gatewayUsername: 'gateway-user',
+          gatewayDomain: 'EDGE',
+          microphone: true,
+        ),
+        channels: const RdpChannelPolicy(
+          clipboard: false,
+          audio: false,
+          microphone: true,
+          files: true,
+        ),
+      ),
+      credential: const RdpCredential(
+        password: 'target-secret',
+        gatewayPassword: 'gateway-secret',
+      ),
+      binding: binding,
+      isCurrent: () => true,
+    );
+    final open = calls.singleWhere((call) => call.method == 'open');
+    final root = open.arguments as Map;
+    final request = root['request'] as Map;
+    expect(root['schemaVersion'], 6);
+    expect(root['requestId'], owner.requestId);
+    expect(request['requestId'], owner.requestId);
+    expect(request['sessionRevision'], owner.revision);
+    expect(request['fileTransfer'], {
+      'transferId': binding.transfer!.transferId,
+    });
+    expect(request['gateway'], {
+      'host': 'gateway.example',
+      'port': 443,
+      'username': 'gateway-user',
+      'domain': 'EDGE',
+      'certificateFingerprint':
+          'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+    });
+    expect(root['password'], everyElement(0));
+    expect(root['gatewayPassword'], everyElement(0));
+    final activate = calls.singleWhere((call) => call.method == 'activate');
+    expect(activate.arguments, {
+      'schemaVersion': 6,
+      'requestId': owner.requestId,
+    });
+    await (channel as RdpMicrophoneCaptureChannel).microphoneObservation();
+    expect(
+      calls
+          .singleWhere((call) => call.method == 'microphoneObservation')
+          .arguments,
+      {'schemaVersion': 6, 'requestId': owner.requestId},
+    );
+    channel.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.lastWhere((call) => call.method == 'cancel').arguments, {
+      'schemaVersion': 6,
+      'requestId': owner.requestId,
+    });
+    engine.close();
+  });
+
+  test(
+    'Gateway-only owned open uses schema6 without SAF transfer methods',
+    () async {
+      final ownedMethods = OwnedOpenMethods(calls);
+      final engine = RdpMethodChannelEngine(
+        methods: ownedMethods,
+        events: events,
+        isAndroid: true,
+      );
+      final owner = RdpSchema6SessionOwner(
+        requestId: '12345678-1234-4234-9234-123456789abc',
+        revision: 11,
+      );
+      final binding = RdpSchema6SessionBinding(owner: owner);
+
+      final channel = await engine.openOwned(
+        RdpSessionRequest(
+          profile: profile,
+          display: const RdpDisplaySpec(width: 640, height: 480),
+          certificateFingerprint:
+              'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          gatewayCertificateFingerprint:
+              'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+          settings: const RdpProfileSettings(
+            gatewayHost: 'gateway.example',
+            gatewayUsername: 'gateway-user',
+            gatewayDomain: 'EDGE',
+          ),
+          channels: const RdpChannelPolicy(
+            clipboard: false,
+            audio: false,
+            microphone: false,
+            files: false,
+          ),
+        ),
+        credential: const RdpCredential(
+          password: 'target-secret',
+          gatewayPassword: 'gateway-secret',
+        ),
+        binding: binding,
+        isCurrent: () => true,
+      );
+
+      final open = calls.singleWhere((call) => call.method == 'open');
+      final root = open.arguments as Map;
+      final request = root['request'] as Map;
+      expect(root['schemaVersion'], 6);
+      expect(root['requestId'], owner.requestId);
+      expect(request['sessionRevision'], owner.revision);
+      expect(request['files'], isFalse);
+      expect(request['fileTransfer'], isNull);
+      expect(request['gateway'], {
+        'host': 'gateway.example',
+        'port': 443,
+        'username': 'gateway-user',
+        'domain': 'EDGE',
+        'certificateFingerprint':
+            'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+      });
+      expect(
+        calls.where(
+          (call) => const {
+            'prepareFileTransfer',
+            'fileTransferObservation',
+            'drainFileTransfer',
+            'saveReceivedFiles',
+          }.contains(call.method),
+        ),
+        isEmpty,
+      );
+      expect(root['password'], everyElement(0));
+      expect(root['gatewayPassword'], everyElement(0));
+      channel.close();
+      await Future<void>.delayed(Duration.zero);
+      engine.close();
+    },
+  );
+
+  test('owned schema6 requires either Gateway or file transfer', () async {
+    final engine = RdpMethodChannelEngine(
+      methods: OwnedOpenMethods(calls),
+      events: events,
+      isAndroid: true,
+    );
+    final owner = RdpSchema6SessionOwner(
+      requestId: '12345678-1234-4234-9234-123456789abc',
+      revision: 12,
+    );
+    await expectLater(
+      engine.openOwned(
+        RdpSessionRequest(
+          profile: profile,
+          display: const RdpDisplaySpec(width: 640, height: 480),
+          certificateFingerprint:
+              'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          channels: const RdpChannelPolicy(
+            clipboard: false,
+            audio: false,
+            microphone: false,
+            files: false,
+          ),
+        ),
+        credential: const RdpCredential(password: 'target-secret'),
+        binding: RdpSchema6SessionBinding(owner: owner),
+        isCurrent: () => true,
+      ),
+      throwsA(
+        isA<RdpFailure>().having(
+          (value) => value.code,
+          'code',
+          'invalid_request',
+        ),
+      ),
+    );
+    expect(calls, isEmpty);
+    engine.close();
+  });
 }

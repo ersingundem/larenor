@@ -89,6 +89,7 @@ class RdpMicrophoneObservation {
   factory RdpMicrophoneObservation.fromJson(
     Object? raw, {
     required String requestId,
+    int schemaVersion = 4,
   }) {
     final value = _object(raw, {
       'schemaVersion',
@@ -98,7 +99,8 @@ class RdpMicrophoneObservation {
       'capturedCount',
       'acceptedCount',
     });
-    if (value['schemaVersion'] != 4 || value['requestId'] != requestId) {
+    if (value['schemaVersion'] != schemaVersion ||
+        value['requestId'] != requestId) {
       _invalid();
     }
     final state = RdpMicrophoneState.values
@@ -170,6 +172,7 @@ class RdpAudioObservation {
   factory RdpAudioObservation.fromJson(
     Object? raw, {
     required String requestId,
+    int schemaVersion = 4,
   }) {
     final value = _object(raw, {
       'schemaVersion',
@@ -179,7 +182,8 @@ class RdpAudioObservation {
       'acceptedCount',
       'completedCount',
     });
-    if (value['schemaVersion'] != 4 || value['requestId'] != requestId) {
+    if (value['schemaVersion'] != schemaVersion ||
+        value['requestId'] != requestId) {
       _invalid();
     }
     final state = RdpAudioState.values
@@ -639,6 +643,7 @@ class RdpProfileSettings {
     this.gatewayHost,
     this.gatewayPort = 443,
     this.gatewayUsername = '',
+    this.gatewayDomain = '',
     this.displayMode = RdpDisplayMode.fitWindow,
     this.keyboardLayout = RdpKeyboardLayout.automatic,
     this.clipboardMode = RdpClipboardMode.disabled,
@@ -650,6 +655,7 @@ class RdpProfileSettings {
   final String? gatewayHost;
   final int gatewayPort;
   final String gatewayUsername;
+  final String gatewayDomain;
   final RdpDisplayMode displayMode;
   final RdpKeyboardLayout keyboardLayout;
   final RdpClipboardMode clipboardMode;
@@ -669,6 +675,7 @@ class RdpProfileSettings {
     gatewayHost: gatewayHost,
     gatewayPort: gatewayPort,
     gatewayUsername: gatewayUsername,
+    gatewayDomain: gatewayDomain,
     displayMode: displayMode ?? this.displayMode,
     keyboardLayout: keyboardLayout ?? this.keyboardLayout,
     clipboardMode: clipboardMode ?? this.clipboardMode,
@@ -693,6 +700,7 @@ class RdpProfileSettings {
   void validate() {
     if (!_safeText(domain, 128) ||
         !_safeText(gatewayUsername, 128) ||
+        !_safeText(gatewayDomain, 128) ||
         gatewayPort < 1 ||
         gatewayPort > 65535) {
       _invalid('invalid_settings');
@@ -705,7 +713,7 @@ class RdpProfileSettings {
       } catch (_) {
         _invalid('invalid_settings');
       }
-    } else if (gatewayUsername.isNotEmpty) {
+    } else if (gatewayUsername.isNotEmpty || gatewayDomain.isNotEmpty) {
       _invalid('invalid_settings');
     }
     fileTransferGrant?.validate();
@@ -714,11 +722,12 @@ class RdpProfileSettings {
   Map<String, Object?> toJson() {
     validate();
     return {
-      'version': 3,
+      'version': 4,
       'domain': domain,
       'gatewayHost': gatewayHost,
       'gatewayPort': gatewayPort,
       'gatewayUsername': gatewayUsername,
+      'gatewayDomain': gatewayDomain,
       'displayMode': displayMode.name,
       'keyboardLayout': keyboardLayout.name,
       'clipboardMode': clipboardMode.name,
@@ -743,9 +752,10 @@ class RdpProfileSettings {
       'keyboardLayout',
       'clipboardMode',
       if (version >= 2) 'microphone',
-      if (version == 3) ...{'fileTransferGrantId', 'fileTransferGrantRevision'},
+      if (version >= 3) ...{'fileTransferGrantId', 'fileTransferGrantRevision'},
+      if (version >= 4) 'gatewayDomain',
     };
-    if (version != 1 && version != 2 && version != 3) {
+    if (version < 1 || version > 4) {
       _invalid('invalid_settings');
     }
     final value = _object(raw, keys);
@@ -753,11 +763,12 @@ class RdpProfileSettings {
         value['gatewayHost'] != null && value['gatewayHost'] is! String ||
         value['gatewayPort'] is! int ||
         value['gatewayUsername'] is! String ||
+        version >= 4 && value['gatewayDomain'] is! String ||
         version >= 2 && value['microphone'] is! bool) {
       _invalid('invalid_settings');
     }
-    final grantId = version == 3 ? value['fileTransferGrantId'] : null;
-    final grantRevision = version == 3
+    final grantId = version >= 3 ? value['fileTransferGrantId'] : null;
+    final grantRevision = version >= 3
         ? value['fileTransferGrantRevision']
         : null;
     if ((grantId == null) != (grantRevision == null) ||
@@ -784,6 +795,7 @@ class RdpProfileSettings {
       gatewayHost: value['gatewayHost'] as String?,
       gatewayPort: value['gatewayPort'] as int,
       gatewayUsername: value['gatewayUsername'] as String,
+      gatewayDomain: version >= 4 ? value['gatewayDomain'] as String : '',
       displayMode: parseDisplayMode(value['displayMode']),
       keyboardLayout: parse(value['keyboardLayout'], RdpKeyboardLayout.values),
       clipboardMode: parse(value['clipboardMode'], RdpClipboardMode.values),
@@ -806,6 +818,7 @@ class RdpProfileSettings {
       gatewayHost == other.gatewayHost &&
       gatewayPort == other.gatewayPort &&
       gatewayUsername == other.gatewayUsername &&
+      gatewayDomain == other.gatewayDomain &&
       displayMode == other.displayMode &&
       keyboardLayout == other.keyboardLayout &&
       clipboardMode == other.clipboardMode &&
@@ -818,6 +831,7 @@ class RdpProfileSettings {
     gatewayHost,
     gatewayPort,
     gatewayUsername,
+    gatewayDomain,
     displayMode,
     keyboardLayout,
     clipboardMode,
@@ -869,12 +883,14 @@ class RdpSessionRequest {
     required this.profile,
     required this.display,
     required this.certificateFingerprint,
+    this.gatewayCertificateFingerprint,
     this.settings = const RdpProfileSettings(),
     this.channels = RdpChannelPolicy.lockedDown,
   });
   final RemoteProfile profile;
   final RdpDisplaySpec display;
   final String certificateFingerprint;
+  final String? gatewayCertificateFingerprint;
   final RdpProfileSettings settings;
   final RdpChannelPolicy channels;
 
@@ -887,6 +903,9 @@ class RdpSessionRequest {
         (settings.gatewayHost != null && !capabilities.supportsRdGateway) ||
         !RegExp(r'^SHA256:[A-Za-z0-9+/]{43}$')
             .hasMatch(certificateFingerprint) ||
+        (gatewayCertificateFingerprint != null &&
+            !RegExp(r'^SHA256:[A-Za-z0-9+/]{43}$')
+                .hasMatch(gatewayCertificateFingerprint!)) ||
         channels.clipboard !=
             (settings.clipboardMode != RdpClipboardMode.disabled) ||
         (settings.clipboardMode != RdpClipboardMode.disabled &&
