@@ -136,17 +136,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         }
 
         def run(arguments, **_kwargs):
-            if "test" in arguments:
-                index = arguments.index("test")
-                filename = arguments[index + 2]
+            if "sh" in arguments:
+                filename = arguments[-1]
                 return SimpleNamespace(
-                    returncode=0 if filename in records else 1,
-                    stdout=b"",
+                    returncode=0 if filename in records else runner._EFFECT_CONTROL_ABSENT_EXIT,
+                    stdout=records.get(filename, b""),
                 )
-            if "dd" in arguments:
-                index = arguments.index("dd")
-                filename = arguments[index + 1].removeprefix("if=")
-                return SimpleNamespace(returncode=0, stdout=records[filename])
             if "rm" in arguments:
                 index = arguments.index("rm")
                 records.pop(arguments[index + 2], None)
@@ -182,14 +177,12 @@ class PackagedRdpReceiptTest(unittest.TestCase):
         )[:-1] + b"x"
 
         def run(arguments, **_kwargs):
-            if "test" in arguments:
-                index = arguments.index("test")
+            if "sh" in arguments:
+                present = arguments[-1] == filename
                 return SimpleNamespace(
-                    returncode=0 if arguments[index + 2] == filename else 1,
-                    stdout=b"",
+                    returncode=0 if present else runner._EFFECT_CONTROL_ABSENT_EXIT,
+                    stdout=invalid if present else b"",
                 )
-            if "dd" in arguments:
-                return SimpleNamespace(returncode=0, stdout=invalid)
             raise AssertionError(arguments)
 
         with (
@@ -2831,6 +2824,96 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             self.assertNotIn("d" * 64, payload)
             self.assertNotIn("disposable-password", payload)
 
+
+
+class EffectControlObservationTest(unittest.TestCase):
+    def read(self, response):
+        with (
+            mock.patch.object(runner, "_adb_path", return_value=Path("/owned/adb")),
+            mock.patch.object(runner, "_test_lifecycle_adb_prefix", return_value=["/owned/adb"]),
+            mock.patch.object(runner.subprocess, "run", return_value=response) as read,
+        ):
+            result = runner._read_owned_effect_control_file(
+                "d" * 64, "audio", deadline=time.monotonic() + 1,
+            )
+        read.assert_called_once()
+        return result
+
+    def test_transport_exit_one_is_unavailable_not_absent(self):
+        self.assertIs(self.read(SimpleNamespace(returncode=1, stdout=b"")),
+                      runner._EFFECT_CONTROL_UNAVAILABLE)
+
+    def test_only_exact_empty_absence_sentinel_is_absent(self):
+        self.assertIsNone(self.read(SimpleNamespace(returncode=44, stdout=b"")))
+        self.assertIs(self.read(SimpleNamespace(returncode=44, stdout=b"unexpected")),
+                      runner._EFFECT_CONTROL_UNAVAILABLE)
+
+    def test_actual_device_read_script_bounds_present_and_absent_records(self):
+        # Run the exact production shell body locally; this is not Android evidence.
+        import subprocess
+        actual_run = subprocess.run
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            filename = runner._owned_effect_control_filename("d" * 64, "audio")
+            target = root / filename
+            target.parent.mkdir()
+            target.write_bytes(b"x" * 300)
+            captured = []
+
+            def invoke(arguments, **kwargs):
+                captured.append(arguments)
+                index = arguments.index("sh")
+                return actual_run(["/bin/sh", *arguments[index + 1:]], cwd=root, **kwargs)
+
+            with (
+                mock.patch.object(runner, "_adb_path", return_value=Path("/owned/adb")),
+                mock.patch.object(runner, "_test_lifecycle_adb_prefix", return_value=["/owned/adb"]),
+                mock.patch.object(runner.subprocess, "run", side_effect=invoke),
+            ):
+                self.assertEqual(runner._read_owned_effect_control_file(
+                    "d" * 64, "audio", deadline=time.monotonic() + 1), b"x" * 209)
+                target.unlink()
+                self.assertIsNone(runner._read_owned_effect_control_file(
+                    "d" * 64, "audio", deadline=time.monotonic() + 1))
+            self.assertEqual(len(captured), 2)
+
+    def test_unavailable_audio_never_implies_early_microphone(self):
+        phases = runner._OwnedEffectControlPhases()
+        with (
+            mock.patch.object(runner, "_classification_source_matches", return_value=True),
+            mock.patch.object(runner, "_read_owned_effect_control_file",
+                              side_effect=[runner._EFFECT_CONTROL_UNAVAILABLE, b"present"]),
+        ):
+            with self.assertRaisesRegex(runner.BaselineFailure, "observation was unavailable") as raised:
+                runner._poll_owned_effect_control("d" * 64, phases)
+        self.assertEqual(raised.exception.code, "host_channel_fixture_unavailable")
+        self.assertEqual(phases.accepted, ())
+
+    def test_early_or_simultaneous_controls_leave_phase_state_unmodified(self):
+        for records, message in (([None, b"present"], "preceded audio"),
+                                 ([b"present", b"present"], "simultaneously present")):
+            phases = runner._OwnedEffectControlPhases()
+            with (
+                mock.patch.object(runner, "_classification_source_matches", return_value=True),
+                mock.patch.object(runner, "_read_owned_effect_control_file", side_effect=records),
+            ):
+                with self.assertRaisesRegex(runner.BaselineFailure, message):
+                    runner._poll_owned_effect_control("d" * 64, phases)
+            self.assertEqual(phases.accepted, ())
+
+    def test_failed_consumption_cannot_advance_or_arm_phase(self):
+        phases = runner._OwnedEffectControlPhases()
+        audio = runner._owned_effect_control_record("d" * 64, "audio", runner._CLASSIFICATION_SOURCE_SHA256)
+        with (
+            mock.patch.object(runner, "_classification_source_matches", return_value=True),
+            mock.patch.object(runner, "_read_owned_effect_control_file", side_effect=[audio, None]),
+            mock.patch.object(runner, "_adb_path", return_value=Path("/owned/adb")),
+            mock.patch.object(runner, "_test_lifecycle_adb_prefix", return_value=["/owned/adb"]),
+            mock.patch.object(runner.subprocess, "run", return_value=SimpleNamespace(returncode=1)),
+        ):
+            with self.assertRaisesRegex(runner.BaselineFailure, "could not be consumed"):
+                runner._poll_owned_effect_control("d" * 64, phases)
+        self.assertEqual(phases.accepted, ())
 
 if __name__ == "__main__":
     unittest.main()

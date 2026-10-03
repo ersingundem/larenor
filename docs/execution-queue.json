@@ -5473,7 +5473,8 @@
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
         "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
-        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
+        "docs/testing/f60-owned-input-probe-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5557,14 +5558,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact57f original1test/1failure/0error/0skip;pairedClientObserved then firstStreamOutput line223; stream native_observed assertion failed, actual command state/cause unproved"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-stream-command-observation-2026-10-01.md",
-          "commit": "c9fee6d7ed83807af7917c89b26a7315966ce6cb",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root59 runner/workflow tests; AndroidTest compile278tasks; fixed source-bound command enums only, strict native acceptance unchanged"
         },
         {
           "kind": "ci",
@@ -5741,10 +5734,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact79506 completed FAILED; canonical original1/1/0/0 ownedInputEffects/AssertionError source895/239 after first frame/nonzero audio. Root validated1074B SHA70c91e9917302b491f0ca957723d75b31ce7b8d0cf78b8454422ba49ba325ba1; touch_ready ACK failed before input dispatch. Real XI2 observer probe next; no acceptance/rerun."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37130637087",
+          "commit": "a3f01b5fa888e4ef665cbfe842ae8a79a65e1696",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exacta3f01 actual Ubuntu Xvfb/production XI2/XTest pointer+button probe passed; root finite source-bound receipt SHAee6c8d69c30b207793416e0e24dd6a5e2fc218e5ae5d7aa0b8f74e9fca149cf9 verified. featureAccepted=false; integrated Sunshine ACK/two-lifetime acceptance remains open."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact79506 / Sunshine37128656191 FAILED: ilk görüntü ve nonzero ses kontrolünden sonra ownedInputEffects aşamasında touch_ready yanıtı alınamadı. Android girdisi ve iki yaşam/kopuş/kapanış kabulü yok. Yeni aktif dar iş: production XI2 gözlemcisini disposable Linux Xvfb ile kanıtlayıp gerçek hatayı düzeltmek; aynı koşu rerun edilmiyor."
+      "reason": "Exact79506 strict37128656191 FAILED: ilk görüntü/nonzero ses sonrası touch_ready ACK yok, Android girdisi henüz dispatch edilmedi. Exacta3f01 gerçek Linux XI2 probe37130637087 listener/pointer/düğme kapısını geçti; featureAccepted=false. Aktif dar iş integrated phase bridge kayıp yanıtını kaynakla gözlemleyip düzeltmek. İki yaşam/girdi/kopuş/kapanış kabulü açık; aynı koşu rerun edilmiyor."
     },
     {
       "id": "G11",
@@ -5882,7 +5883,8 @@
         "docs/testing/f62-microphone-package-2026-10-03.md",
         "docs/testing/f62-owned-effect-control-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
-        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
+        "docs/testing/f62-effect-control-read-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6006,14 +6008,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact03f arm64 package passed; x86 original1/1/0/0 failed initialFrameWait/connectionFailed/sessionfailed, resizefalse. Root canonical1613B artifact11148012761 verified; marker invalid/writerunknown, precise cause unproved"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
-          "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
-          "state": "completed",
-          "result": "failed",
-          "label": "Independent exact721 explicit-plan review found missing basic keyboard/Unicode/IME/display/pointer/audio/microphone/SAF behavior and unsupported Gateway UI exposure; false capability alone is not completion"
         },
         {
           "kind": "test",
@@ -6150,10 +6144,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exactf201 completed FAILED; arm64 actual APK passed, x86 host_channel_witness_invalid/order invalid; no named counts in receipt. Root production/canonical1233B SHA4a027eea3f022fbfdfbd51e889bfb45e7ab1e87b2fa725ba0a4034b41ac7e988 replayed; effects and native5 SAF/Gateway acceptance open; no rerun."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-effect-control-read-2026-10-03.md",
+          "commit": "a3f01b5fa888e4ef665cbfe842ae8a79a65e1696",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen reader repair on a3f01 base: root73 packaged runner+11workflow=84passed and Ruff0.14.1 clean. One bounded device read distinguishes absent/unavailable; exact removal before phase advance; actual local shell/failed-remove regressions. Android/provider effects unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf201 / RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, original named sayılar yok. Aktif dar hata incelemesi sürüyor. SAF kaynak 14/14 actual Robolectric geçti; native v5 dosya kotası ve Java lifetime kaynakları dondu, actual Android ABI derlemesi sürüyor. Flutter gerçek MethodChannel/Save/Gateway bağlantısı ve owned host etkileri açık; private hazırlık kabul değildir."
+      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader düzeltmesi root84/84+Ruff geçti; gerçek host etkisi açık. Native5 actual iki ABI derleme geçti; karma ABI AAR reddedildi, tek ABI actual paket/receipt kapısı sürüyor. Private SAF14/14, Flutter108/108/scoped analyze ve Core19/19; Kotlin/native entegrasyon, normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
     },
     {
       "id": "F61",

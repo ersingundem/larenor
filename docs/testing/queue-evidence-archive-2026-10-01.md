@@ -210,6 +210,24 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Independent final ACK: host exit does not prove Android writer exit; no premature nonce cleanup, bounded shared deadline/cache fences and source-bound initial-frame/body observations; strict acceptance unchanged"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-stream-command-observation-2026-10-01.md",
+    "commit": "c9fee6d7ed83807af7917c89b26a7315966ce6cb",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root59 runner/workflow tests; AndroidTest compile278tasks; fixed source-bound command enums only, strict native acceptance unchanged"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
+    "commit": "721952a00d8ac02c5e6b2ada71211a579b8eb768",
+    "state": "completed",
+    "result": "failed",
+    "label": "Independent exact721 explicit-plan review found missing basic keyboard/Unicode/IME/display/pointer/audio/microphone/SAF behavior and unsupported Gateway UI exposure; false capability alone is not completion"
   }
 ]
 ```

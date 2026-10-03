@@ -96,6 +96,8 @@ _OWNED_TEST_DIGEST = (
     "784cd21e527c4b3bac1eef254097cdaf5cc3ef8d4f41d4b4473c61724bb69fbb"
 )
 _EFFECT_CONTROL_BYTES = 208
+_EFFECT_CONTROL_UNAVAILABLE = object()
+_EFFECT_CONTROL_ABSENT_EXIT = 44
 _CLIPBOARD_MARKER_COLOR = "#8f3c72"
 _SHADOW_PORT = 3390
 _MAX_SHADOW_LOG_BYTES = 1024 * 1024
@@ -1233,19 +1235,19 @@ def _read_owned_effect_control_file(
     phase: str,
     *,
     deadline: float,
-) -> bytes | None:
+) -> bytes | None | object:
     filename = _owned_effect_control_filename(nonce, phase)
     adb = _adb_path()
     if adb is None:
-        return None
+        return _EFFECT_CONTROL_UNAVAILABLE
     prefix = _test_lifecycle_adb_prefix(adb)
     if prefix is None:
-        return None
+        return _EFFECT_CONTROL_UNAVAILABLE
 
-    def invoke(arguments: list[str]) -> subprocess.CompletedProcess[bytes] | None:
+    def invoke(arguments: list[str]) -> subprocess.CompletedProcess[bytes] | object:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return None
+            return _EFFECT_CONTROL_UNAVAILABLE
         try:
             return subprocess.run(
                 [*prefix, "exec-out", "run-as", _TEST_PACKAGE, *arguments],
@@ -1256,19 +1258,21 @@ def _read_owned_effect_control_file(
                 timeout=remaining,
             )
         except (OSError, subprocess.TimeoutExpired):
-            return None
+            return _EFFECT_CONTROL_UNAVAILABLE
 
-    exists = invoke(["test", "-e", filename])
-    if exists is None or exists.returncode == 1:
+    # One device-side read avoids a separate test/dd race and distinguishes
+    # an absent record from run-as/ADB failure (which can also exit with 1).
+    result = invoke([
+        "sh", "-c",
+        'if [ ! -e "$1" ]; then exit 44; fi; exec dd if="$1" bs=209 count=1',
+        "larenor-effect-control", filename,
+    ])
+    if result is _EFFECT_CONTROL_UNAVAILABLE:
+        return _EFFECT_CONTROL_UNAVAILABLE
+    if result.returncode == _EFFECT_CONTROL_ABSENT_EXIT and not result.stdout:
         return None
-    if exists.returncode != 0:
-        return None
-    result = invoke(["dd", f"if={filename}", "bs=209", "count=1"])
-    if result is None or result.returncode != 0:
-        raise BaselineFailure(
-            "host_channel_witness_invalid",
-            "owned effect control could not be read",
-        )
+    if result.returncode != 0:
+        return _EFFECT_CONTROL_UNAVAILABLE
     return result.stdout
 
 
@@ -1291,18 +1295,33 @@ def _poll_owned_effect_control(
         )
         for phase in _EFFECT_CONTROL_PHASE_CODES
     }
+    if any(record is _EFFECT_CONTROL_UNAVAILABLE for record in records.values()):
+        raise BaselineFailure(
+            "host_channel_fixture_unavailable",
+            "owned effect control observation was unavailable",
+        )
     present = [phase for phase, record in records.items() if record is not None]
     if not present:
         return None
-    expected = "audio" if not phases.accepted else "microphone"
+    expected = (
+        "audio" if not phases.accepted
+        else "microphone" if phases.accepted == ("audio",)
+        else None
+    )
     if present != [expected]:
-        # Simultaneous first controls, a retained prior record, or a repeated
-        # phase are all non-causal. None may arm a host effect.
-        candidate = present[0]
-        phases.accept(candidate)
+        if not phases.accepted and present == ["microphone"]:
+            reason = "owned microphone effect control preceded audio"
+        elif not phases.accepted and present == ["audio", "microphone"]:
+            reason = "owned effect controls were simultaneously present before audio"
+        elif phases.accepted == ("audio",) and present == ["audio"]:
+            reason = "owned audio effect control was replayed before microphone"
+        elif phases.accepted == ("audio",) and present == ["audio", "microphone"]:
+            reason = "owned audio effect control persisted when microphone arrived"
+        else:
+            reason = "owned effect control was present after both phases completed"
         raise BaselineFailure(
             "host_channel_witness_invalid",
-            "owned effect control order was invalid",
+            reason,
         )
     raw = records[expected]
     if raw is None or _decode_owned_effect_control_record(
@@ -1315,7 +1334,6 @@ def _poll_owned_effect_control(
             "host_channel_witness_invalid",
             "owned effect control record was invalid",
         )
-    accepted = phases.accept(expected)
     filename = _owned_effect_control_filename(nonce, expected)
     adb = _adb_path()
     prefix = None if adb is None else _test_lifecycle_adb_prefix(adb)
@@ -1346,7 +1364,7 @@ def _poll_owned_effect_control(
             "host_channel_witness_invalid",
             "owned effect control could not be consumed",
         )
-    return accepted
+    return phases.accept(expected)
 
 
 class _ObservedLifecycleStage(str):
