@@ -87,7 +87,7 @@ def test_failed_build_writes_only_source_bound_receipt(
     assert set(value) == probe.BUILD_FAILURE_RECEIPT_KEYS
     assert value["runnerSourceRevision"] == revision
     assert value["phase"] == "compile"
-    assert value["schemaVersion"] == 3
+    assert value["schemaVersion"] == 4
     assert value["failureCode"] == "compilerError"
     assert value["compilerSource"] == "archiveSource"
     assert value["compilerLine"] == 4
@@ -96,6 +96,12 @@ def test_failed_build_writes_only_source_bound_receipt(
     assert value["compilerUnitSha256"] == source_index[
         "libfreerdp/core/transport.c"
     ][0]
+    assert value["linkTarget"] is None
+    assert value["linkUndefinedCount"] is None
+    assert value["linkUndefined"] == []
+    assert value["linkOriginSource"] is None
+    assert value["linkOriginLine"] is None
+    assert value["linkOriginSourceSha256"] is None
     assert value["exitCode"] == 7
     assert value["featureAccepted"] is False
     encoded = receipt.read_text()

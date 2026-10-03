@@ -81,7 +81,9 @@ BUILD_FAILURE_RECEIPT_KEYS = {
     "schemaVersion", "runnerSourceRevision", "sourceRevision", "sourceArchiveSha256",
     "targetPatchSha256", "sourceManifestSha256", "phase", "failureCode",
     "exitCode", "logSha256", "compilerSource", "compilerLine",
-    "compilerErrorClass", "compilerUnit", "compilerUnitSha256", "featureAccepted",
+    "compilerErrorClass", "compilerUnit", "compilerUnitSha256", "linkTarget",
+    "linkUndefinedCount", "linkUndefined", "linkOriginSource",
+    "linkOriginLine", "linkOriginSourceSha256", "featureAccepted",
 }
 BUILD_FAILURE_CODES = frozenset(
     {
@@ -109,6 +111,27 @@ _COMPILER_ERROR_CLASSES = frozenset(
         "incompatibleType", "callSignature", "syntaxError", "linkUndefined",
         "other",
     }
+)
+_LINK_TARGETS = frozenset({"shadowCli", "xFreeRdp", "multiple", "unknown"})
+_LINK_SYMBOL_CLASSES = frozenset(
+    {"ownedRdpdrApi", "x11External", "cryptoExternal", "other"}
+)
+_LINK_SYMBOL = re.compile(rb"[A-Za-z_][A-Za-z0-9_.$@?]{0,127}\Z")
+_LINK_TARGET_SUFFIXES = {
+    b"server/shadow/cli/freerdp-shadow-cli": "shadowCli",
+    b"client/X11/xfreerdp": "xFreeRdp",
+}
+_OWNED_RDPDR_SYMBOLS = frozenset(
+    {b"rdpdr_server_context_new", b"rdpdr_server_context_free"}
+)
+# These finite sets contain only identifiers referenced by the pinned FreeRDP
+# sources. They classify a hash; they never make a missing dependency causal.
+_X11_EXTERNAL_SYMBOLS = frozenset(
+    {b"XOpenDisplay", b"XCloseDisplay", b"XCreateWindow", b"XMapWindow"}
+)
+_CRYPTO_EXTERNAL_SYMBOLS = frozenset(
+    {b"SSL_new", b"SSL_free", b"SSL_CTX_new", b"EVP_sha256",
+     b"X509_free", b"ERR_get_error"}
 )
 _IN_CLOSE_WRITE = 0x00000008
 _IN_CLOEXEC = 0x00080000
@@ -372,6 +395,176 @@ def _compiler_diagnostic(
     return None, None, None, None, None
 
 
+def _link_symbol_class(symbol: bytes) -> str:
+    if symbol in _OWNED_RDPDR_SYMBOLS:
+        return "ownedRdpdrApi"
+    if symbol in _X11_EXTERNAL_SYMBOLS:
+        return "x11External"
+    if symbol in _CRYPTO_EXTERNAL_SYMBOLS:
+        return "cryptoExternal"
+    return "other"
+
+
+def _link_source_origin(
+    raw_path: bytes,
+    raw_line: bytes,
+    *,
+    source: pathlib.Path,
+    source_index: dict[str, tuple[str, int]],
+) -> tuple[str, int, str, str] | None:
+    try:
+        path_text = raw_path.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    candidate = pathlib.PurePosixPath(path_text)
+    if candidate.is_absolute():
+        try:
+            relative = candidate.relative_to(
+                pathlib.PurePosixPath(source.as_posix())
+            ).as_posix()
+        except ValueError:
+            return None
+    else:
+        relative = candidate.as_posix()
+    if (
+        _ARCHIVE_SOURCE_PATH.fullmatch(relative) is None
+        or ".." in pathlib.PurePosixPath(relative).parts
+    ):
+        return None
+    bound = source_index.get(relative)
+    if bound is None:
+        return None
+    try:
+        current = _source_identity(source / relative)
+    except (OSError, owned.FixtureError, ProbeError):
+        return None
+    if current != bound:
+        return None
+    line = int(raw_line)
+    if not 1 <= line <= bound[1]:
+        return None
+    return _SPECIAL_COMPILER_SOURCES.get(relative, "archiveSource"), line, bound[0], relative
+
+
+def _linker_diagnostic(
+    raw: bytes,
+    *,
+    source: pathlib.Path,
+    source_index: dict[str, tuple[str, int]],
+) -> tuple[
+    str, int | None, list[dict[str, str]],
+    str | None, int | None, str | None, str | None,
+]:
+    """Reduce private linker output without publishing symbols, paths, or messages."""
+    failed_targets: set[str] = set()
+    failed_seen = False
+    malformed = False
+    records: list[tuple[bytes, tuple[str, int, str, str] | None]] = []
+    source_record = re.compile(
+        rb"(?:/usr/bin/(?:ld|cc|c\+\+): )?"
+        rb"(?P<path>/?[A-Za-z0-9_.+@/-]{1,1024}):(?P<line>[0-9]{1,6})"
+        rb"(?::\(\.[A-Za-z_][A-Za-z0-9_.$@-]{0,191}"
+        rb"(?:\+0x[0-9A-Fa-f]{1,16})?\))?: "
+        rb"undefined reference to (?P<quoted>`[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"'[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"[A-Za-z_][A-Za-z0-9_.$@?]{0,127})\Z"
+    )
+    object_record = re.compile(
+        rb"(?:/usr/bin/(?:ld|cc|c\+\+): )?"
+        rb"[A-Za-z0-9_.+@/-]{1,512}(?:\([A-Za-z0-9_.+@/-]{1,192}\))?"
+        rb"(?::\(\.[A-Za-z_][A-Za-z0-9_.$@-]{0,191}"
+        rb"(?:\+0x[0-9A-Fa-f]{1,16})?\))?: "
+        rb"undefined reference to (?P<quoted>`[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"'[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"[A-Za-z_][A-Za-z0-9_.$@?]{0,127})\Z"
+    )
+    bare_record = re.compile(
+        rb"undefined reference to (?P<quoted>`[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"'[A-Za-z_][A-Za-z0-9_.$@?]{0,127}'|"
+        rb"[A-Za-z_][A-Za-z0-9_.$@?]{0,127})\Z"
+    )
+    for line in raw.splitlines():
+        if line.startswith(b"FAILED:"):
+            failed_seen = True
+            if not 8 <= len(line) <= 600 or not line.startswith(b"FAILED: "):
+                malformed = True
+                continue
+            outputs = line[8:].split()
+            matches: set[str] = set()
+            for output in outputs:
+                output_matches = {
+                    target
+                    for suffix, target in _LINK_TARGET_SUFFIXES.items()
+                    if output == suffix or output.endswith(b"/" + suffix)
+                }
+                if len(output_matches) != 1:
+                    malformed = True
+                matches.update(output_matches)
+            if not outputs:
+                malformed = True
+            failed_targets.update(matches)
+        if b"undefined reference to" not in line:
+            continue
+        if not 1 <= len(line) <= 1600:
+            malformed = True
+            continue
+        match = source_record.fullmatch(line)
+        object_match = object_record.fullmatch(line) if match is None else None
+        bare_match = (
+            bare_record.fullmatch(line)
+            if match is None and object_match is None
+            else None
+        )
+        parsed = match or object_match or bare_match
+        if parsed is None:
+            malformed = True
+            continue
+        quoted = parsed.group("quoted")
+        symbol = quoted[1:-1] if quoted[:1] in (b"`", b"'") else quoted
+        if _LINK_SYMBOL.fullmatch(symbol) is None:
+            malformed = True
+            continue
+        origin = None
+        if match is not None:
+            origin = _link_source_origin(
+                match.group("path"), match.group("line"),
+                source=source, source_index=source_index,
+            )
+        records.append((symbol, origin))
+    if malformed or not failed_seen or not records:
+        return "unknown", None, [], None, None, None, None
+    if failed_targets == {"shadowCli"}:
+        target = "shadowCli"
+    elif failed_targets == {"xFreeRdp"}:
+        target = "xFreeRdp"
+    elif failed_targets == {"shadowCli", "xFreeRdp"}:
+        target = "multiple"
+    else:
+        return "unknown", None, [], None, None, None, None
+    symbols: list[dict[str, str]] = []
+    seen: set[bytes] = set()
+    for symbol, _origin in records:
+        if symbol in seen:
+            continue
+        seen.add(symbol)
+        if len(symbols) < 4:
+            symbols.append(
+                {
+                    "symbolSha256": hashlib.sha256(symbol).hexdigest(),
+                    "symbolClass": _link_symbol_class(symbol),
+                }
+            )
+    origins = {origin for _symbol, origin in records if origin is not None}
+    if len(origins) == 1 and all(origin is not None for _symbol, origin in records):
+        origin_source, origin_line, origin_digest, origin_unit = next(iter(origins))
+    else:
+        origin_source = origin_line = origin_digest = origin_unit = None
+    return (
+        target, min(len(records), 255), symbols,
+        origin_source, origin_line, origin_digest, origin_unit,
+    )
+
+
 def _write_build_failure(
     path: pathlib.Path,
     *,
@@ -383,7 +576,13 @@ def _write_build_failure(
         str | None, int | None, str | None, str | None, str | None,
     ] = (None, None, None, None, None),
     compiler_index: dict[str, tuple[str, int]] | None = None,
+    link_diagnostic: tuple[
+        str | None, int | None, list[dict[str, str]],
+        str | None, int | None, str | None, str | None,
+    ] | None = None,
 ) -> None:
+    if link_diagnostic is None:
+        link_diagnostic = (None, None, [], None, None, None, None)
     (
         compiler_source,
         compiler_line,
@@ -398,6 +597,39 @@ def _write_build_failure(
         if compiler_unit is not None
         else None
     )
+    (
+        link_target,
+        link_undefined_count,
+        link_undefined,
+        link_origin_source,
+        link_origin_line,
+        link_origin_source_sha256,
+        link_origin_unit,
+    ) = link_diagnostic
+    link_origin_indexed = (
+        compiler_index.get(link_origin_unit) if link_origin_unit is not None else None
+    )
+    link_origin_special = (
+        _SPECIAL_COMPILER_SOURCES.get(link_origin_unit)
+        if link_origin_unit is not None
+        else None
+    )
+    link_symbols_valid = (
+        isinstance(link_undefined, list)
+        and len(link_undefined) <= 4
+        and all(
+            type(item) is dict
+            and set(item) == {"symbolSha256", "symbolClass"}
+            and isinstance(item["symbolSha256"], str)
+            and _HEX64.fullmatch(item["symbolSha256"]) is not None
+            and isinstance(item["symbolClass"], str)
+            and item["symbolClass"] in _LINK_SYMBOL_CLASSES
+            for item in link_undefined
+        )
+        and len({item["symbolSha256"] for item in link_undefined})
+        == len(link_undefined)
+    )
+    no_link_diagnostic = (None, None, [], None, None, None, None)
     if (
         phase not in ("configure", "compile")
         or failure_code not in BUILD_FAILURE_CODES
@@ -429,10 +661,64 @@ def _write_build_failure(
         or (compiler_error_class == "linkUndefined" and failure_code != "linkerError")
         or (failure_code not in ("compilerError", "missingHeader", "linkerError") and
             compiler_diagnostic != (None, None, None, None, None))
+        or not link_symbols_valid
+        or (failure_code != "linkerError" and link_diagnostic != no_link_diagnostic)
+        or (failure_code == "linkerError" and link_target not in _LINK_TARGETS)
+        or (failure_code == "linkerError" and compiler_error_class != "linkUndefined")
+        or (
+            failure_code == "linkerError"
+            and link_undefined_count is None
+            and (
+                link_target != "unknown"
+                or link_undefined
+                or any(
+                    value is not None
+                    for value in (
+                        link_origin_source,
+                        link_origin_line,
+                        link_origin_source_sha256,
+                        link_origin_unit,
+                    )
+                )
+            )
+        )
+        or (
+            link_undefined_count is not None
+            and (
+                type(link_undefined_count) is not int
+                or not 1 <= link_undefined_count <= 255
+                or not link_undefined
+                or link_target == "unknown"
+            )
+        )
+        or ((link_origin_source is None) != (link_origin_line is None))
+        or ((link_origin_source is None) != (link_origin_source_sha256 is None))
+        or ((link_origin_source is None) != (link_origin_unit is None))
+        or link_origin_source not in (
+            set(_SPECIAL_COMPILER_SOURCES.values()) | {"archiveSource", None}
+        )
+        or (link_origin_line is not None and (type(link_origin_line) is not int or link_origin_line < 1))
+        or (link_origin_source_sha256 is not None and _HEX64.fullmatch(link_origin_source_sha256) is None)
+        or (link_origin_unit is not None and _ARCHIVE_SOURCE_PATH.fullmatch(link_origin_unit) is None)
+        or (link_origin_unit is not None and ".." in pathlib.PurePosixPath(link_origin_unit).parts)
+        or (link_origin_source is not None and link_origin_indexed is None)
+        or (
+            link_origin_indexed is not None
+            and (
+                link_origin_line is None
+                or link_origin_line > link_origin_indexed[1]
+                or link_origin_source_sha256 != link_origin_indexed[0]
+            )
+        )
+        or (link_origin_source == "archiveSource" and link_origin_special is not None)
+        or (
+            link_origin_source not in (None, "archiveSource")
+            and link_origin_source != link_origin_special
+        )
     ):
         fail("invalidBuildFailureReceipt")
     value = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "runnerSourceRevision": source_revision(pathlib.Path(__file__).resolve().parents[1]),
         "sourceRevision": FREERDP_REVISION,
         "sourceArchiveSha256": FREERDP_ARCHIVE_SHA256,
@@ -447,6 +733,12 @@ def _write_build_failure(
         "compilerErrorClass": compiler_error_class,
         "compilerUnit": compiler_unit,
         "compilerUnitSha256": compiler_unit_sha256,
+        "linkTarget": link_target,
+        "linkUndefinedCount": link_undefined_count,
+        "linkUndefined": link_undefined,
+        "linkOriginSource": link_origin_source,
+        "linkOriginLine": link_origin_line,
+        "linkOriginSourceSha256": link_origin_source_sha256,
         "featureAccepted": False,
     }
     if set(value) != BUILD_FAILURE_RECEIPT_KEYS:
@@ -498,6 +790,7 @@ def _run_build(
             raw = log.read_bytes()
             failure_code = _classify_build_failure(phase, raw)
             compiler_diagnostic = (None, None, None, None, None)
+            link_diagnostic = (None, None, [], None, None, None, None)
             if failure_code in ("compilerError", "missingHeader", "linkerError"):
                 if compiler_source is None or compiler_index is None:
                     if failure_code == "linkerError":
@@ -506,11 +799,26 @@ def _run_build(
                     compiler_diagnostic = _compiler_diagnostic(
                         raw, source=compiler_source, source_index=compiler_index,
                     )
+                    if failure_code == "linkerError":
+                        try:
+                            link_diagnostic = _linker_diagnostic(
+                                raw, source=compiler_source,
+                                source_index=compiler_index,
+                            )
+                        except (OSError, owned.FixtureError, ProbeError, ValueError):
+                            link_diagnostic = (
+                                "unknown", None, [], None, None, None, None,
+                            )
+                if failure_code == "linkerError" and link_diagnostic[0] is None:
+                    link_diagnostic = (
+                        "unknown", None, [], None, None, None, None,
+                    )
             _write_build_failure(
                 failure_receipt, phase=phase, failure_code=failure_code,
                 exit_code=process.returncode, log=log,
                 compiler_diagnostic=compiler_diagnostic,
                 compiler_index=compiler_index,
+                link_diagnostic=link_diagnostic,
             )
             fail("freerdpBuildFailed")
     finally:
