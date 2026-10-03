@@ -6022,14 +6022,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/testing/f62-owned-fullscreen-window-lease-2026-10-01.md",
-          "commit": "d66b0afc165424d6cc3fcd847ada1c1bd094dc50",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root15 Flutter window/policy/guard and20 pure-Kotlin/JUnit passed; owner/display/session fences; fullscreen route/provider effect separate"
-        },
-        {
-          "kind": "test",
           "ref": "docs/testing/f62-fit-fill-native-rendering-2026-10-01.md",
           "commit": "61db4639bb05ad3ec3b9b3326be29bda1c6c8ff9",
           "state": "completed",
@@ -6155,10 +6147,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Changed exact950 Linux Gateway probe failed in pinned endpoint build and cleanup. Root-directory archive fix passed30tests/15subtests; new failure is under source-bound diagnosis. No runtime/Android acceptance; no same-SHA rerun."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37138370042",
+          "commit": "3f23132ffc4ac151ee2ad3f35fc9e274a3c0e573",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact3f231 Gateway/auth built; FreeRDP compile/compilerError exit1. Source-bound closed receipt SHAebf04c2cb4488dbb129c294269005db7e16efbbdb79c14d3618aab7ef1be8911, private compile-log SHA87c634cc2137d85f2a6cb055f051f2932b5a53bc890c40a525e7a8c1caeb452c. Owned cleanup passed. No Linux transport/Android effects; fixed source review before any new run."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact950 Gateway Linux37137081865 Gateway/auth build geçti, FreeRDP build failed; configure/compile eski logdan ayrılmıyor. Go read-only module cleanup ayrıca düştü. Root closed source-bound build tanısı+owned cleanup 37test/8subtest+14selftest/Ruff/actionlint geçti; değişmiş exact Linux koşusu sırada. Native5/Flutter/Core yerel sonuçları kabul değildir. F62 UI async drain status75test/analyze geçti. SAF4 production dispose/drain, timeout threads ve COMPLETE cleanup yarışını onarıyor. Gerçek Gateway/RDPDR/SAF/audio/mic ve final required CI açık."
+      "reason": "Exact3f231 Linux37138370042 Gateway/auth build geçti; FreeRDP compile/compilerError exit1. Closed source-bound receipt doğrulandı; owned cleanup artık geçti. Pinned C/API neden incelemesi sürüyor; aynı SHA rerun yok. Native5 yerel bileşim kabul değildir. Public Android senaryosu gerçek Flutter messenger/codec2 ve25contract geçti; gerçek Gateway/RDPDR/SAF/audio/mic etkileri açık. SAF4 önceki drain/cleanup hatalarını kapattı; UNKNOWN persistence failure sonrası duplicate callback için SAF5 dar onarımı doğrulanıyor. Final required CI açık."
     },
     {
       "id": "F61",

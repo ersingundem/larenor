@@ -379,3 +379,18 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+## Exact3f231 diagnostic update archive
+
+```json
+{
+  "node": "F62",
+  "kind": "test",
+  "ref": "docs/testing/f62-owned-fullscreen-window-lease-2026-10-01.md",
+  "commit": "d66b0afc165424d6cc3fcd847ada1c1bd094dc50",
+  "state": "completed",
+  "result": "passed",
+  "label": "Root15 Flutter window/policy/guard and20 pure-Kotlin/JUnit passed; owner/display/session fences; fullscreen route/provider effect separate"
+}
+```

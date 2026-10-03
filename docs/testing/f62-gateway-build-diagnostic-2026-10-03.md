@@ -56,3 +56,9 @@ does not mark F62 accepted. Root owns review, Git integration, and any changed-s
 Root review also binds the full completion-branch SHA in runnerSourceRevision, rejects Boolean exit codes, and removes the focused test's workstation-specific import fallback. No compile cause is inferred from the new diagnostic implementation.
 
 Root validation after composition: 37 focused runner/workflow/archive/diagnostic tests and eight subtests passed; fixture self-test 8/8 and probe self-test 6/6 passed. Scoped Ruff and actionlint were clean. The full source SHA is preserved in the failure record; none of these portable checks establishes real Linux or Android acceptance.
+
+## Exact changed-source result
+
+Run [37138370042](https://github.com/ersingundem/larenor/actions/runs/37138370042), job `111247471578`, tested exact `3f23132ffc4ac151ee2ad3f35fc9e274a3c0e573` and completed failed. The owned Gateway/auth build passed. The closed failure artifact identifies `phase=compile`, `failureCode=compilerError`, and `exitCode=1` for pinned FreeRDP `63b948ca5cb94307fd5444ee6e73927a41ccdab4`; it does not disclose or prove the individual compiler diagnostic. The cleanup step passed, independently confirming the narrow owned-permission repair. Transport and Android effect steps did not run.
+
+The downloaded 0600 receipt is 576 bytes, SHA-256 `ebf04c2cb4488dbb129c294269005db7e16efbbdb79c14d3618aab7ef1be8911`; its private compile-log binding is `87c634cc2137d85f2a6cb055f051f2932b5a53bc890c40a525e7a8c1caeb452c`. Root checked the closed keys, exact runner SHA, pinned archive/patch/manifest identities, and `featureAccepted=false`. Pinned C/API review precedes any changed-source run. This result cannot promote F62 or authorize merge.
