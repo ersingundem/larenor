@@ -5577,14 +5577,6 @@
           "label": "Exact691 canonical original1/1/0/0 firstStreamOutput; closed dispatch beforeIssue/IllegalArgumentException/none, leaseAbsentOrUnreadable; no accepted runtime receipt"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
-          "commit": "092a9727a329be235bf08a07a69874b89980ba12",
-          "state": "completed",
-          "result": "passed",
-          "label": "Actual upstream SQLite HTTPS0 round-trip oldguard RED;43native tests/0skip GREEN; canonical v3 package and AndroidTestcompile314task passed"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f60-persisted-https-port-2026-10-01.md",
           "commit": "092a9727a329be235bf08a07a69874b89980ba12",
@@ -5743,10 +5735,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen phase diagnostic slice on235 base: root74stream/workflow tests and Ruff passed; real private socket audio-timeout/XI2-start failure, cleanup primary cause, closed enums and host-wait receipt/rethrow regression. Strict success gates unchanged; runtime fix/acceptance unproved."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37131893719",
+          "commit": "54954a768a5c97e7844e94bdeb46c445f54958c0",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact549 changed phaseBridge diagnostic source: one strict owned Sunshine stream run37131893719 in progress; not a rerun of failed795. Required named zero-skip two-lifetime/input/cleanup acceptance remains open."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact79506 strict37128656191 FAILED: ilk frame/nonzero ses sonrası touch_ready ACK yok, Android girdisi henüz dispatch edilmedi. Exacta3f01 gerçek Linux XI2 probe37130637087 geçti; featureAccepted=false. Root74test/Ruff sınırlı phase bridge tanısı geçti; audio injection/XI2 startup/socket sınırı sonraki tek changed-source strict koşuda görülecek. İki yaşam/girdi/kopuş/kapanış kabulü açık; hata çözüldü sayılmadı."
+      "reason": "Exact549 strict Sunshine37131893719 tek changed-source koşu sürüyor; yeni bounded phaseBridge stage/state/error tanısı root74/74+Ruff geçti. Exacta3f01 Linux XI2 pointer/düğme probe geçti fakat featureAccepted=false. Eski795 ownedInputEffects/ACK hatası korunur. Gerçek yayın/girdi/iki yaşam ve kapanış kabulü açık; kabul veya merge yok."
     },
     {
       "id": "G11",
@@ -6156,7 +6156,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader düzeltmesi root84/84+Ruff geçti; gerçek host etkisi açık. Native5 actual tek arm64/x86 paketleri root strict source/API/ELF/receipt ve verify-install geçti; portable test ve Kotlin/Flutter ürün bileşimi açık. Private SAF14/14, Flutter108/108/analyze ve Core19/19; normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
+      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader root84/84+Ruff geçti; host etkisi açık. Native5 actual tek arm64/x86 paketleri source/API/ELF/receipt ve strict verify-install geçti. Root portatif22/22 replay geçti; Kotlin/Flutter ürün bileşimi açık. Private SAF14/14, Flutter108/108/analyze ve Core19/19; normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
     },
     {
       "id": "F61",
