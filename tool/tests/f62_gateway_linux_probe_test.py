@@ -59,6 +59,16 @@ class GatewayLinuxProbeTest(unittest.TestCase):
                 probe._private_source_copy(source, root / "drift", "0" * 64)
             self.assertFalse((root / "drift").exists())
 
+    def test_build_configuration_disables_xinput_without_dynamic_touch_channel(self):
+        arguments = probe._cmake_arguments(Path("/owned/source"), Path("/owned/build"))
+        self.assertIn("-DWITH_X11=ON", arguments)
+        self.assertIn("-DWITH_XI=OFF", arguments)
+        self.assertIn("-DCHANNEL_DRDYNVC=OFF", arguments)
+        self.assertIn("-DCHANNEL_RDPDR=ON", arguments)
+        self.assertIn("-DCHANNEL_RDPDR_CLIENT=ON", arguments)
+        self.assertIn("-DCHANNEL_RDPDR_SERVER=ON", arguments)
+        self.assertFalse(any(value.startswith("-DCHANNEL_RDPEI") for value in arguments))
+
     def test_source_binding_uses_v2_mirror_patch(self):
         patch = TOOL / "patches/f62-owned-shadow-rdpdr.patch"
         manifest = TOOL / "manifests/f62-owned-shadow-rdpdr-source.json"

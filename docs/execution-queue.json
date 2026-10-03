@@ -3700,7 +3700,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
       "acceptance": [
@@ -3712,9 +3713,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md",
+          "commit": "3f86082026624d8de6b13c037de203e0c938c158",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root exact3f860 supervised normal-Core TCP: named2Flutter lifetimes passed; server2passed/0failure/2existingwarnings. Private logs source-bound; concurrent/expiry/device/manual matrix and final CI/review/dependencies remain open."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Gerçek Flutter CoreHaApi→normal Core→owned HA iki yaşamında manual ownership sonrası attributed core_rule active_manual ile provider öncesi bastırıldı. Exact bir POST ve dört authenticated GET; restart/fresh Client durable manual receipt ve suppressed execution exact replay yeni POST üretmedi. External observation yalnız observed/nonauthoritative. 5 F04/F06 focused Server testi, analyze ve gerçek iki faz geçti; root F04/F26 toplam 9 testi doğruladı. Geniş exact HEAD CI ve gerçek ev eşzamanlı otomasyon MANUAL kabulü açık. Kanıt: docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md."
+      "reason": "Gerçek Flutter CoreHaApi→normal Core→owned HA iki yaşamında manual ownership sonrası attributed core_rule active_manual ile provider öncesi bastırıldı. Exact bir POST ve dört authenticated GET; restart/fresh Client durable manual receipt ve suppressed execution exact replay yeni POST üretmedi. External observation yalnız observed/nonauthoritative. 5 F04/F06 focused Server testi, analyze ve gerçek iki faz geçti; root F04/F26 toplam 9 testi doğruladı. Geniş exact HEAD CI ve gerçek ev eşzamanlı otomasyon MANUAL kabulü açık. Kanıt: docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md. Root exact3f860 named iki Flutter yaşamını yeniden doğruladı;2 Server testi geçti. Yerel test kanıtı eklendi;tam kabul/CI/main merge sayılmadı."
     },
     {
       "id": "F02",
@@ -4077,7 +4087,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Headscale yalnız bağlantı temeli; Larenor federasyonu, yetki ve eşitleme ayrıca geliştirilir.",
       "acceptance": [
@@ -4089,9 +4100,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md",
+          "commit": "3f86082026624d8de6b13c037de203e0c938c158",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root exact3f860 supervised two-Core TCP: named prepare+restart2Flutter lifetimes passed; independent identity/token/services and cross-home rejection, A-offline/B-recovery. Test filestore/owned Jellyfin only; final CI/review/dependencies/manual scope remains open."
+        }
+      ],
       "completionCommit": null,
-      "reason": "İki bağımsız normal TCP Core ve gerçek Flutter account/profile/services akışı iki ayrı Core/home/private service/token kapsamını, owned Jellyfin GET/System/Info exact probe ve cross-home authority reddini geçti. Client registry restart sonrası Core A fiziksel kapalıyken Core B çalışır, A failure profilleri silmez ve B recovery geçer. 47 Flutter, 177 Server ve gerçek iki faz geçerli; root runnerı bağımsız doğruladı. Geniş exact HEAD CI ve gerçek ev/Headscale/servis MANUAL koşulları açık. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md."
+      "reason": "İki bağımsız normal TCP Core ve gerçek Flutter account/profile/services akışı iki ayrı Core/home/private service/token kapsamını, owned Jellyfin GET/System/Info exact probe ve cross-home authority reddini geçti. Client registry restart sonrası Core A fiziksel kapalıyken Core B çalışır, A failure profilleri silmez ve B recovery geçer. 47 Flutter, 177 Server ve gerçek iki faz geçerli; root runnerı bağımsız doğruladı. Geniş exact HEAD CI ve gerçek ev/Headscale/servis MANUAL koşulları açık. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md. Root exact3f860 named iki Flutter yaşamını yeniden doğruladı;test filestore ve owned Jellyfin sınırı korunuyor. Yerel test kanıtı eklendi;tam kabul/CI/main merge sayılmadı."
     },
     {
       "id": "G06",
@@ -6000,7 +6020,8 @@
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
         "docs/testing/f62-effect-control-read-2026-10-03.md",
         "docs/testing/f62-native5-composed-local-2026-10-03.md",
-        "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md"
+        "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
+        "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6134,28 +6155,12 @@
           "label": "Exact42be arm64 passed; x86 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; ownedShadowProcess live/exitCodenull; root canonical1667B artifact11149613819 verified; precise cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f62-v2-owned-initial-display-2026-10-03.md",
-          "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent pinned-source/package/peer-CAPS, exactdisplayedgeometry, fullscreen, two-lifetime fixture review; resize/ACK race deterministic regression passed; initial layout cannot satisfy resize; no provider effect or OS scale acceptance claimed"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37121180943",
           "commit": "5122bc61fa67a2723751388b52a6e21404e94796",
           "state": "completed",
           "result": "failed",
           "label": "Exact5122 arm64 package SUCCESS/x86 strict runtime FAILED original1/1/0/0 testBody firstSessionOpen/RdpNativeFailure; ownedMarker available/invalid/writerunknown, shadow live exitnull, resizefalse. Rootcanonical1519B artifact11273861293 SHA504c747b041dd28761fb3cb0d15edff0fcbee5b5cef0ae0d008e50e6da6db258; no sole cause claimed."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-open-boundaries-2026-10-03.md",
-          "commit": "7a53e166844d4e124832b89ba8122c47ed42eb57",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen working tree on7a53 base: root65RDP JVM incl9exact open-diagnostic tests/0skip/failure/error; actual schema3 AndroidTest compile314tasks; root61runner/89subtests, composed225tools/184subtests; exact private22source manifest. No hosted runtime acceptance."
         },
         {
           "kind": "ci",
@@ -6268,10 +6273,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen workingtree on7e552base: root46archive-source diagnostic/probe/workflow tests+3subtests and Ruff passed; pinned archive unit digest/exactline bound, raw-message/path rejection, cleanup unchanged. No compiled provider or Android/feature acceptance; changed-source Linux probe next."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37140389792",
+          "commit": "3f86082026624d8de6b13c037de203e0c938c158",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact3f860 schema3 closed792B receipt SHA810af4d4bcadcebb9f6786bf5ea09b034b4c3a2d3aaa274e3bd9639817be6a1b: compile/compilerError exit1, pinned client/X11/xf_input.c:640/missingMember SHA33c01940440309d6f7a927228f2d85be40c91ad135fdd890605db62bb8f16880. Source-proven WITH_XI/RDPEI option mismatch; no provider/Android acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md",
+          "commit": "3f86082026624d8de6b13c037de203e0c938c158",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen configuration repair on exact3f860: root41probe/archive diagnostic tests+3subtests and Ruff passed. WITH_XI=OFF retains stock X11 and static RDPDR; target patch/source/archive/Android acceptance unchanged. Actual changed-source build/effects remain required."
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf0ded Linux37139430213 compile/compilerError exit1, cleanup geçti; unit/line/class null. Tüm pinned archive source-unit hash/line-bound tanısı root46test/3subtest+Ruff geçti; değişmiş exact Linux probe sırada, aynı SHA rerun yok. Private SAF5 RED→29GREEN; root197JVM iki0600 testi Robolectric chmod/fchmod no-op nedeniyle başarısız; syscall-order JVM ve gerçek Android mode kanıtı hazırlanıyor. DIRECT/PUBLIC gerçek Android/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
+      "reason": "Exact3f860 Linux37140389792 compile/compilerError exit1; source-bound client/X11/xf_input.c:640 missingMember tanısı doğrulandı. WITH_XI/RDPEI seçenek uyumsuzluğu dar WITH_XI=OFF düzeltmesi root41test/3subtest+Ruff geçti; değişmiş Linux build/effect koşusu sırada, aynı SHA rerun yok. Private native5/SAF5/izin birleşimi200JVM/0failure/error/skip ve actual AndroidTest313task compile geçti. Gerçek Android0600/0700/DIRECT/PUBLIC/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
     },
     {
       "id": "F61",

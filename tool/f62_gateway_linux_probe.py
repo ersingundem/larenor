@@ -562,6 +562,12 @@ def _cmake_arguments(source: pathlib.Path, build: pathlib.Path) -> list[str]:
         "-DWITH_CLIENT_COMMON=ON",
         "-DWITH_CLIENT_CHANNELS=ON",
         "-DWITH_X11=ON",
+        # XInput touch handling dereferences rdpClientContext.rdpei. That
+        # member only exists when the RDPEI dynamic channel is compiled, while
+        # this file-transfer probe deliberately disables DRDYNVC and RDPEI.
+        # Retain stock X11 keyboard, pointer and RDPDR paths without compiling
+        # the incompatible XInput touch path.
+        "-DWITH_XI=OFF",
         "-DWITH_SERVER=ON",
         "-DWITH_SERVER_CHANNELS=ON",
         "-DWITH_SHADOW=ON",

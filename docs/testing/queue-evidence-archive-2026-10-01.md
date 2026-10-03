@@ -424,3 +424,15 @@ Archived F62 record while retaining every CI record:
 ```json
 {"commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7", "kind": "test", "label": "Schema2 integrated: root81Flutter/all-RDP analyze, verifiedactualdualABI product;44RDP+46Moonlight JVM tests zero skips/failures/errors; AndroidTest compile;106portable/83subtests; hosted provider and audio/mic/SAF/Gateway remain open", "ref": "docs/testing/f62-native-display-pointer-v2-2026-10-01.md", "result": "passed", "state": "completed"}
 ```
+
+Archived F62 record while retaining every CI record:
+
+```json
+{"commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7", "kind": "review", "label": "Independent pinned-source/package/peer-CAPS, exactdisplayedgeometry, fullscreen, two-lifetime fixture review; resize/ACK race deterministic regression passed; initial layout cannot satisfy resize; no provider effect or OS scale acceptance claimed", "ref": "docs/testing/f62-v2-owned-initial-display-2026-10-03.md", "result": "passed", "state": "completed"}
+```
+
+Archived F62 record while retaining every CI record:
+
+```json
+{"commit": "7a53e166844d4e124832b89ba8122c47ed42eb57", "kind": "test", "label": "Frozen working tree on7a53 base: root65RDP JVM incl9exact open-diagnostic tests/0skip/failure/error; actual schema3 AndroidTest compile314tasks; root61runner/89subtests, composed225tools/184subtests; exact private22source manifest. No hosted runtime acceptance.", "ref": "docs/testing/f62-owned-open-boundaries-2026-10-03.md", "result": "passed", "state": "completed"}
+```

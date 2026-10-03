@@ -1,0 +1,9 @@
+# F62 Gateway Linux XInput build configuration
+
+Exact-source run `37140389792` at `3f86082026624d8de6b13c037de203e0c938c158` failed in the pinned FreeRDP compile. The closed, nonaccepting receipt bound `client/X11/xf_input.c` SHA-256 `33c01940440309d6f7a927228f2d85be40c91ad135fdd890605db62bb8f16880`, line 640, and the fixed class `missingMember`. The source line reads `xfc->common.rdpei`.
+
+This is a source-proven option mismatch. Pinned `client/X11/CMakeLists.txt` defaults `WITH_XI` on and defines `WITH_XI` when XInput is installed. The XInput-only touch functions in `xf_input.c` dereference `rdpClientContext.rdpei`. Pinned `include/freerdp/client.h` declares that member only under `CHANNEL_RDPEI_CLIENT`; otherwise the stable slot is `reserved2`. Pinned `channels/CMakeLists.txt` makes every dynamic channel, including RDPEI, depend on `CHANNEL_DRDYNVC`. The probe intentionally passes `CHANNEL_DRDYNVC=OFF`, so an Ubuntu runner that discovers XInput compiles the touch code without the RDPEI member.
+
+The Linux Gateway/RDPDR probe does not exercise XInput touch. It needs the stock X11 client for its window/session transport and the static RDPDR client for the exact `LrnXfer` drive. The narrow correction therefore retains `WITH_X11=ON`, `CHANNEL_RDPDR=ON`, `CHANNEL_RDPDR_CLIENT=ON`, and `CHANNEL_RDPDR_SERVER=ON`, while setting `WITH_XI=OFF`. Pinned `xf_event.c` keeps ordinary X11 motion, button, key-press, and key-release handlers independently of `WITH_XI`. The Android product touch implementation and its package are not built by this Linux fixture and are unchanged.
+
+The focused configuration regression requires the exact compatible option set and rejects any explicit RDPEI enablement. This is a build-configuration repair only. It does not change the target patch, source archive, RDPDR/NLA/file-effect contract, Android behavior, or acceptance status. A changed-source Linux build and the existing effect witness remain required.
