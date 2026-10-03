@@ -209,8 +209,35 @@ _TEST_BODY_MARKER = re.compile(
     + r";throwable=(" + "|".join(map(re.escape, sorted(_TEST_BODY_THROWABLE_TYPES)))
     + r")$"
 )
+_OPEN_BOOLEAN_KEYS = (
+    "connectionInfoParsed", "connectAccepted", "certificateAccepted",
+    "authenticatedConnectionSucceeded", "displayCapsObserved",
+    "initialLayoutAccepted", "securityPublished",
+)
+_OPEN_TERMINALS = frozenset({
+    "candidateCreateFailure", "localSetupRejected", "connectionFailureCallback",
+    "disconnectedCallback", "retired", "timeout",
+})
+_OPEN_STAGES = frozenset({"firstSessionOpen", "secondSessionOpen"})
+_NATIVE_FAILURE_TYPE = "com.ersingundem.larenor.rdp.RdpNativeFailure"
+
+
+def _valid_open_boundaries(value: object) -> bool:
+    return (
+        type(value) is dict
+        and set(value) == {*_OPEN_BOOLEAN_KEYS, "terminal", "timeout", "safeCode"}
+        and all(type(value[key]) is bool for key in _OPEN_BOOLEAN_KEYS)
+        and type(value["timeout"]) is bool
+        and type(value["terminal"]) is str
+        and value["terminal"] in _OPEN_TERMINALS
+        and value["timeout"] == (value["terminal"] == "timeout")
+        and type(value["safeCode"]) is str
+        and value["safeCode"] in {"connectionFailed", "engineUnavailable"}
+    )
+
+
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "cb2ac89e882aee2cce81eb63da5a34b74be2a9cd70d587bcb032aeb57601b134"
+    "d757674537550dc871bb8a428ba684f209908bdbf3354036d7b11e24f880afb0"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -713,10 +740,12 @@ def failure_receipt(
     marker_availability = diagnostic.get("ownedMarkerAvailability")
     has_shadow_process = "ownedShadowProcess" in diagnostic
     shadow_process = diagnostic.get("ownedShadowProcess")
+    has_open_boundaries = "openBoundaries" in diagnostic
+    open_boundaries = diagnostic.get("openBoundaries")
     diagnostic_shape = set(diagnostic) - {
         "serverResizeRequested", "testLifecycleStage", "initialFrameObservation",
         "initialFrameTerminal", "testBodyFailure", "ownedBodyFailure",
-        "ownedMarkerAvailability", "ownedShadowProcess",
+        "ownedMarkerAvailability", "ownedShadowProcess", "openBoundaries",
     }
     if ((has_resize_requested and type(resize_requested) is not bool)
             or (has_test_lifecycle_stage
@@ -818,6 +847,16 @@ def failure_receipt(
                 not in _TEST_BODY_THROWABLE_TYPES):
             raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     elif exception_type == _TEST_BODY_FAILURE_TYPE:
+        raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
+    if has_open_boundaries and (
+            not _valid_open_boundaries(open_boundaries)
+            or not has_test_body_failure
+            or not has_owned_body_failure
+            or test_body_failure != owned_body_failure
+            or test_body_failure["lifecycleStage"] not in _OPEN_STAGES
+            or test_body_failure["throwableClass"] != _NATIVE_FAILURE_TYPE
+            or counts != {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+            or not _classification_source_matches()):
         raise AcceptanceFailure("packaged RDP public diagnostics are invalid")
     initial_kind = _INITIAL_FRAME_FAILURE_KINDS.get(exception_type)
     if has_initial_frame_observation and (
@@ -1114,6 +1153,13 @@ class _ObservedBodyFailure(str):
         return value
 
 
+class _ObservedOpenFailure(_ObservedBodyFailure):
+    def __new__(cls, stage: str, boundaries: dict[str, object]):
+        value = super().__new__(cls, stage, _NATIVE_FAILURE_TYPE)
+        value.open_boundaries = boundaries
+        return value
+
+
 @dataclass(frozen=True)
 class _OwnedMarkerEvidence:
     channel: str
@@ -1122,6 +1168,7 @@ class _OwnedMarkerEvidence:
     stage: str | None = None
     body_failure: dict[str, str] | None = None
     initial_frame_observation: dict[str, object] | None = None
+    open_boundaries: dict[str, object] | None = None
 
     def availability(self) -> dict[str, str]:
         return {
@@ -1142,7 +1189,9 @@ def _merge_owned_marker_evidence(
     if observed.record == "observed":
         if (previous.body_failure is not None
                 and (previous.stage != observed.stage
-                     or previous.body_failure != observed.body_failure)):
+                     or previous.body_failure != observed.body_failure)
+                or previous.open_boundaries is not None
+                and previous.open_boundaries != observed.open_boundaries):
             return _OwnedMarkerEvidence("available", "invalid", "unknown")
         return observed
     if previous.record == "observed":
@@ -1209,6 +1258,21 @@ def _decode_test_lifecycle_marker(
     except UnicodeDecodeError:
         return None, None
     parts = value.split("|")
+    if len(parts) == 7 and parts[:2] == ["openFailure", "v1"]:
+        if raw != value.encode("ascii"):
+            return None, None
+        _, _, stage, safe_code, bits, terminal, raw_timeout = parts
+        if (stage not in _OPEN_STAGES or re.fullmatch(r"[01]{7}", bits) is None
+                or raw_timeout not in {"0", "1"}):
+            return None, None
+        boundaries = {
+            **dict(zip(_OPEN_BOOLEAN_KEYS, (bit == "1" for bit in bits))),
+            "terminal": terminal, "timeout": raw_timeout == "1",
+            "safeCode": safe_code,
+        }
+        if not _valid_open_boundaries(boundaries):
+            return None, None
+        return _ObservedOpenFailure(stage, boundaries), None
     if len(parts) == 4 and parts[:2] == ["bodyFailure", "v1"]:
         _, _, stage, throwable_class = parts
         if (stage not in _TEST_LIFECYCLE_STAGE_SET
@@ -1347,6 +1411,7 @@ def _read_owned_marker(
         stage=observed_stage,
         body_failure=body_failure,
         initial_frame_observation=observation,
+        open_boundaries=getattr(stage, "open_boundaries", None),
     )
 
 
@@ -1380,6 +1445,13 @@ def _apply_owned_marker_evidence(
             and evidence.stage == body_failure.get("lifecycleStage")
             and _classification_source_matches()):
         updated["ownedBodyFailure"] = dict(body_failure)
+        if (serialized_body == body_failure
+                and serialized_stage == "testBody"
+                and diagnostic.get("exceptionType") == _TEST_BODY_FAILURE_TYPE
+                and body_failure.get("lifecycleStage") in _OPEN_STAGES
+                and body_failure.get("throwableClass") == _NATIVE_FAILURE_TYPE
+                and _valid_open_boundaries(evidence.open_boundaries)):
+            updated["openBoundaries"] = dict(evidence.open_boundaries)
     return updated
 
 

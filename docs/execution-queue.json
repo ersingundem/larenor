@@ -5956,14 +5956,6 @@
           "label": "Exactc829 original1test/1failure/0error/0skip,unclassified/no owned frames/testLifecycleStage absent/serverResizeRequested=false; arm64 actual package passed; precise cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
-          "commit": "70ab1058495957844edc79740abe46df4a50296a",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root51 runner/workflow/dependency checks,4subtests; actual required-native AndroidTest compile278tasks; before-teardown race RED/GREEN; runtime acceptance separate"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
           "commit": "70ab1058495957844edc79740abe46df4a50296a",
@@ -6138,10 +6130,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact5122 arm64 package SUCCESS/x86 strict runtime FAILED original1/1/0/0 testBody firstSessionOpen/RdpNativeFailure; ownedMarker available/invalid/writerunknown, shadow live exitnull, resizefalse. Rootcanonical1519B artifact11273861293 SHA504c747b041dd28761fb3cb0d15edff0fcbee5b5cef0ae0d008e50e6da6db258; no sole cause claimed."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-open-boundaries-2026-10-03.md",
+          "commit": "7a53e166844d4e124832b89ba8122c47ed42eb57",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen working tree on7a53 base: root65RDP JVM incl9exact open-diagnostic tests/0skip/failure/error; actual schema3 AndroidTest compile314tasks; root61runner/89subtests, composed225tools/184subtests; exact private22source manifest. No hosted runtime acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Keyboard/Türkçe/Unicode, window lease ve fit/fill dilimleri yerel kapıları geçti. 01e5 schema2/fullscreen/relative pointer/wheel yazılımı root81Flutter/analyze, exactreceipteddualABI paket,44RDP+46Moonlight JVM (0skip/failure/error), AndroidTest derleme ve106portable/83subtest ile doğrulandı. Peer DISP CAPS sonrası initial layout; ACKed-frame/resize yarışları ve doğru yüzde-scale çitleri kapandı. Ses/mikrofon/gerçekSAF/Gateway üretim yazılımı hâlâ açık; capability=false kapanış değildir. Exact42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; provider poll live,rootcanonical1667B doğrulandı. Yeni cold-frame/DISP düzeltmeleri eski hatanın kesin nedeni olarak sunulmaz. Değişmiş kaynak strict TLS/NLA/frame/ACK/input/DISP/clipboard/iki yaşam/close kabulü henüz yok. Fiziksel Windows/Huawei/DeX MANUAL ve son birleşik requiredCI ayrı; CI bekliyor/done sayılmaz. Exact5122/run37121180943 arm64 package passed,x86 original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure başarısız; rootcanonical1519B doğrulandı, alt neden açık. Schema3 Client/actualdualABI OpenSL paketi/ownedPCM düzeneği yerelde tamamlandı: root91Flutter/analyze,56RDP JVM+AndroidTest compile,158portable/94subtest geçti. Hosted PCM completion hâlâ açık; mikrofon/SAF/Gateway yazılımı sonraki bağımlı dilimler."
+      "reason": "Yeniden çalışılıyor. Schema3 uzak ses açık kullanıcı seçimi, gerçek OpenSL buffer completion ve bounded sorgularla yerelde tamamlandı; root91Flutter/analyze ve56RDP native geçti. Yeni exact open-boundary tanısı root9diagnostic dahil65RDP/0skip ve actual AndroidTest compile314tasks,61runner/89subtest ile doğrulandı; yalnız finite failure-only gözlemler, başarı/alt neden iddiası değil. Exact5122/run37121180943 arm64package geçti, x86original1/1/0/0 firstSessionOpen/RdpNativeFailure başarısız; canonical1519B/hash root doğrulandı. Yeni kaynaklı gerçek TLS/NLA/frame/ACK/key/DISP/clipboard/audio/iki yaşam/close kabulü gerekli. Mikrofon/SAF/Gateway üretim kapsamı açık; CI bekliyor/done sayılmaz. Gerçek ev cihazı ve fiziksel ses kalitesi MANUAL ayrı."
     },
     {
       "id": "F61",

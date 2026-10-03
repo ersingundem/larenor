@@ -93,6 +93,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root112 package/runner/fixture/workflow/queue/progress checks; directCLI withoutPYTHONPATH exactsource passed; actionlint; originalfailure preserved and optionalwarning/fatal causality guarded"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
+    "commit": "70ab1058495957844edc79740abe46df4a50296a",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root51 runner/workflow/dependency checks,4subtests; actual required-native AndroidTest compile278tasks; before-teardown race RED/GREEN; runtime acceptance separate"
   }
 ]
 ```

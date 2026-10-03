@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** Compiled only when the exact receipted FreeRDP AAR is present. */
 class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
     private val appContext = context.applicationContext
+    private val openDiagnostics = RdpPackagedOpenDiagnosticSlot()
 
     init {
         FreeRdpRegistry.install()
@@ -75,7 +76,26 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         request: RdpNativeRequest,
         plan: RdpNativeNegotiated,
         listener: RdpJniOperation.Listener,
-    ): RdpJniOperation = FreeRdpOperation(appContext, request, plan, listener)
+    ): RdpJniOperation {
+        val diagnostic = openDiagnostics.begin(request.requestId)
+        return try {
+            FreeRdpOperation(appContext, request, plan, listener, diagnostic)
+        } catch (failure: LinkageError) {
+            diagnostic.candidateCreateFailure()
+            throw failure
+        } catch (failure: Exception) {
+            diagnostic.candidateCreateFailure()
+            throw failure
+        }
+    }
+
+    /**
+     * Consumes one failed open observation from this exact runtime instance.
+     * Active and successful operations are never observable here.
+     */
+    internal fun consumeFailedOpenDiagnostic(
+        requestId: String,
+    ): RdpPackagedOpenDiagnosticSnapshot? = openDiagnostics.consumeFailed(requestId)
 
     private fun requireExactSymbols() {
         if (LibFreeRDP.getVersion() != RdpFreeRdpPackage.VERSION) unavailable()
@@ -196,14 +216,25 @@ private abstract class BaseConnection(
         made.uiEventListener = this
         FreeRdpRegistry.attach(instance, this)
         if (!LibFreeRDP.setConnectionInfo(context, instance, uri)) {
+            connectionInfoRejected()
             close()
             unavailable()
         }
+        connectionInfoParsed()
     }
 
     protected fun connect() {
-        if (session == null || instance == 0L || !LibFreeRDP.connect(instance)) unavailable()
+        if (session == null || instance == 0L || !LibFreeRDP.connect(instance)) {
+            connectRejected()
+            unavailable()
+        }
+        connectAccepted()
     }
+
+    protected open fun connectionInfoParsed() = Unit
+    protected open fun connectionInfoRejected() = Unit
+    protected open fun connectAccepted() = Unit
+    protected open fun connectRejected() = Unit
 
     protected fun await(seconds: Long): Boolean =
         finished.await(seconds, TimeUnit.SECONDS) && !terminal.get()
@@ -351,6 +382,131 @@ private fun probeFailure(outcome: RdpProbeOutcome): Nothing {
     throw public
 }
 
+internal enum class RdpPackagedOpenTerminalKind(
+    val wireValue: String,
+) {
+    NONE("none"),
+    CANDIDATE_CREATE_FAILURE("candidateCreateFailure"),
+    LOCAL_SETUP_REJECTED("localSetupRejected"),
+    CONNECTION_FAILURE_CALLBACK("connectionFailureCallback"),
+    DISCONNECTED_CALLBACK("disconnectedCallback"),
+    RETIRED("retired"),
+    TIMEOUT("timeout"),
+}
+
+/**
+ * Failure-only, finite observations from one exact packaged open operation.
+ *
+ * These values are causal boundary observations, not inferred failure causes.
+ * The request ID, native instance, host, credentials and exception details are
+ * intentionally absent.
+ */
+internal data class RdpPackagedOpenDiagnosticSnapshot(
+    val connectionInfoParsed: Boolean,
+    val connectAccepted: Boolean,
+    val certificateAccepted: Boolean,
+    val authenticatedConnectionSucceeded: Boolean,
+    val displayCapsObserved: Boolean,
+    val initialLayoutAccepted: Boolean,
+    val securityPublished: Boolean,
+    val terminal: RdpPackagedOpenTerminalKind,
+    val timeout: Boolean,
+)
+
+internal class RdpPackagedOpenDiagnosticSlot {
+    private var current: RdpPackagedOpenDiagnosticRecorder? = null
+
+    @Synchronized fun begin(requestId: String): RdpPackagedOpenDiagnosticRecorder {
+        return RdpPackagedOpenDiagnosticRecorder(this, requestId).also { current = it }
+    }
+
+    @Synchronized fun consumeFailed(
+        requestId: String,
+    ): RdpPackagedOpenDiagnosticSnapshot? {
+        val operation = current ?: return null
+        if (!operation.matches(requestId)) return null
+        val snapshot = operation.failedSnapshot() ?: return null
+        if (current === operation) current = null
+        return snapshot
+    }
+
+    @Synchronized internal fun succeeded(operation: RdpPackagedOpenDiagnosticRecorder) {
+        // Successful start is the diagnostic linearization point. A close or
+        // callback racing after that point belongs to the live session rather
+        // than to a failed open, so it must not leave a consumable open record.
+        if (current === operation) current = null
+    }
+}
+
+internal class RdpPackagedOpenDiagnosticRecorder(
+    private val owner: RdpPackagedOpenDiagnosticSlot,
+    private val requestId: String,
+) {
+    private var connectionInfoParsed = false
+    private var connectAccepted = false
+    private var certificateAccepted = false
+    private var authenticatedConnectionSucceeded = false
+    private var displayCapsObserved = false
+    private var initialLayoutAccepted = false
+    private var securityPublished = false
+    private var terminal = RdpPackagedOpenTerminalKind.NONE
+    private var timeout = false
+
+    @Synchronized fun connectionInfoParsed() = observe { connectionInfoParsed = true }
+    @Synchronized fun connectAccepted() = observe { connectAccepted = true }
+    @Synchronized fun certificateAccepted() = observe { certificateAccepted = true }
+    @Synchronized fun authenticatedConnectionSucceeded() = observe {
+        authenticatedConnectionSucceeded = true
+    }
+    @Synchronized fun displayCapsObserved() = observe { displayCapsObserved = true }
+    @Synchronized fun initialLayoutAccepted() = observe { initialLayoutAccepted = true }
+    @Synchronized fun securityPublished() = observe { securityPublished = true }
+
+    @Synchronized fun candidateCreateFailure() = finish(
+        RdpPackagedOpenTerminalKind.CANDIDATE_CREATE_FAILURE,
+    )
+    @Synchronized fun localSetupRejected() = finish(
+        RdpPackagedOpenTerminalKind.LOCAL_SETUP_REJECTED,
+    )
+    @Synchronized fun connectionFailureCallback() = finish(
+        RdpPackagedOpenTerminalKind.CONNECTION_FAILURE_CALLBACK,
+    )
+    @Synchronized fun disconnectedCallback() = finish(
+        RdpPackagedOpenTerminalKind.DISCONNECTED_CALLBACK,
+    )
+    @Synchronized fun retired() = finish(RdpPackagedOpenTerminalKind.RETIRED)
+    @Synchronized fun timeout() = finish(RdpPackagedOpenTerminalKind.TIMEOUT, true)
+
+    fun succeeded() = owner.succeeded(this)
+
+    @Synchronized internal fun matches(candidate: String): Boolean = requestId == candidate
+
+    @Synchronized internal fun failedSnapshot(): RdpPackagedOpenDiagnosticSnapshot? {
+        if (terminal == RdpPackagedOpenTerminalKind.NONE) return null
+        return RdpPackagedOpenDiagnosticSnapshot(
+            connectionInfoParsed = connectionInfoParsed,
+            connectAccepted = connectAccepted,
+            certificateAccepted = certificateAccepted,
+            authenticatedConnectionSucceeded = authenticatedConnectionSucceeded,
+            displayCapsObserved = displayCapsObserved,
+            initialLayoutAccepted = initialLayoutAccepted,
+            securityPublished = securityPublished,
+            terminal = terminal,
+            timeout = timeout,
+        )
+    }
+
+    private inline fun observe(block: () -> Unit) {
+        if (terminal == RdpPackagedOpenTerminalKind.NONE) block()
+    }
+
+    private fun finish(kind: RdpPackagedOpenTerminalKind, timedOut: Boolean = false) {
+        if (terminal != RdpPackagedOpenTerminalKind.NONE) return
+        terminal = kind
+        timeout = timedOut
+    }
+}
+
 internal class RdpInitialDisplayGate(private val expectedInstance: Long) {
     data class Dispatch internal constructor(
         internal val id: Long,
@@ -483,6 +639,7 @@ private class FreeRdpOperation(
     private val request: RdpNativeRequest,
     private val plan: RdpNativeNegotiated,
     private var listener: RdpJniOperation.Listener?,
+    private val openDiagnostic: RdpPackagedOpenDiagnosticRecorder,
 ) : BaseConnection(context, request.targetHost, request.targetPort, request.username), RdpJniOperation {
     @Volatile
     override var unicodeInputSupported = false
@@ -505,7 +662,10 @@ private class FreeRdpOperation(
     }
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
-        if (request.gateway != null) return false
+        if (request.gateway != null) {
+            openDiagnostic.localSetupRejected()
+            return false
+        }
         this.password = password.copyOf()
         this.gatewayPassword = gatewayPassword?.copyOf()
         return try {
@@ -524,13 +684,29 @@ private class FreeRdpOperation(
             initialDisplayGate = RdpInitialDisplayGate(instance)
             remoteAudioGate = RdpRemoteAudioGate(instance, request.audio)
             connect()
-            await(45) && securityPublished.await(5, TimeUnit.SECONDS) &&
-                !terminal.get() && securityGate.canDeliverFrames()
+            val connected = finished.await(45, TimeUnit.SECONDS)
+            if (!connected && !terminal.get()) openDiagnostic.timeout()
+            val published = connected && !terminal.get() &&
+                securityPublished.await(5, TimeUnit.SECONDS)
+            if (connected && !published && !terminal.get()) openDiagnostic.timeout()
+            val accepted = connected && published && !terminal.get() &&
+                securityGate.canDeliverFrames()
+            if (accepted) openDiagnostic.succeeded()
+            else if (!terminal.get()) openDiagnostic.localSetupRejected()
+            accepted
+        } catch (failure: Exception) {
+            openDiagnostic.localSetupRejected()
+            throw failure
         } finally {
             this.password?.fill('\u0000'); this.password = null
             this.gatewayPassword?.fill('\u0000'); this.gatewayPassword = null
         }
     }
+
+    override fun connectionInfoParsed() = openDiagnostic.connectionInfoParsed()
+    override fun connectionInfoRejected() = openDiagnostic.localSetupRejected()
+    override fun connectAccepted() = openDiagnostic.connectAccepted()
+    override fun connectRejected() = openDiagnostic.localSetupRejected()
 
     override fun OnAuthenticate(username: StringBuilder, domain: StringBuilder, password: StringBuilder): Boolean {
         val secret = this.password ?: return false
@@ -548,7 +724,12 @@ private class FreeRdpOperation(
         val pin = pinFromPem(fingerprint, flags) ?: return 0
         // This callback precedes CredSSP authentication. Keep only the accepted
         // pin here; OnConnectionSuccess is the authority for a live session.
-        return if (securityGate.certificate(pin)) 1 else 0
+        return if (securityGate.certificate(pin)) {
+            openDiagnostic.certificateAccepted()
+            1
+        } else {
+            0
+        }
     }
 
     override fun OnVerifyChangedCertificateEx(
@@ -559,6 +740,7 @@ private class FreeRdpOperation(
     override fun connected() {
         if (terminal.get()) return
         val evidence = securityGate.connectionSucceeded() ?: return
+        openDiagnostic.authenticatedConnectionSucceeded()
         val unicode = runCatching {
             LibFreeRDP.isUnicodeInputSupported(instance)
         }.getOrDefault(false)
@@ -572,6 +754,7 @@ private class FreeRdpOperation(
     }
 
     override fun displayControlReady(instance: Long) {
+        if (!terminal.get() && instance == this.instance) openDiagnostic.displayCapsObserved()
         applyInitialDisplay(initialDisplayGate?.peerCaps(instance))
     }
 
@@ -602,7 +785,7 @@ private class FreeRdpOperation(
     private fun dispatchAudioFailure() {
         runCatching {
             audioDelivery.execute {
-                if (!terminal.get()) failed()
+                if (!terminal.get()) failLocally()
             }
         }
     }
@@ -619,9 +802,10 @@ private class FreeRdpOperation(
                 request.display.deviceScaleFactor,
             )
         }.getOrDefault(false)
+        if (applied) openDiagnostic.initialLayoutAccepted()
         when (val completion = gate.complete(dispatch, applied)) {
             RdpInitialDisplayGate.Completion.Failed -> {
-                failed()
+                failLocally()
                 return
             }
             RdpInitialDisplayGate.Completion.Retired -> return
@@ -635,6 +819,7 @@ private class FreeRdpOperation(
         consumer.onSecurity(evidence)
         // The consumer may retire the operation while handling security.
         if (!terminal.get() && securityGate.securityDelivered()) {
+            openDiagnostic.securityPublished()
             securityPublished.countDown()
             if (graphicsUpdated) bitmap?.let { emitFrame(it) }
         }
@@ -767,14 +952,25 @@ private class FreeRdpOperation(
 
     override fun detach() { listener = null }
     override fun disconnected() {
+        openDiagnostic.disconnectedCallback()
         super.disconnected()
         listener?.onDisconnected()
     }
     override fun failed() {
+        openDiagnostic.connectionFailureCallback()
         super.failed()
         listener?.onDisconnected()
     }
+    private fun failLocally() {
+        // Audio and initial-display validation are local setup boundaries.
+        // Record that finite fact before using the common terminal path; the
+        // recorder's first-terminal rule prevents the shared failed() action
+        // from relabeling it as a JNI connection-failure callback.
+        openDiagnostic.localSetupRejected()
+        failed()
+    }
     @Synchronized override fun close() {
+        openDiagnostic.retired()
         initialDisplayGate?.retire()
         remoteAudioGate?.retire()
         securityGate.close()

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ersingundem.larenor.rdp.packaged.RdpPackagedRuntime
+import com.ersingundem.larenor.rdp.packaged.RdpPackagedOpenDiagnosticSnapshot
 import com.ersingundem.larenor.rdp.packaged.packagedConnectionUri
 import com.freerdp.freerdpcore.application.GlobalApp
 import com.freerdp.freerdpcore.services.LibFreeRDP
@@ -109,11 +110,13 @@ class RdpPackagedHostAcceptanceTest {
             }
             val password = passwordValue.toCharArray()
             diagnostic.enter("firstSessionOpen")
-            val session = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
-                request,
-                RdpNativeSecrets.take(password, null),
-                observer,
-            ) as RdpFreeRdpSession
+            val session = diagnoseOpen(runtime, request, diagnostic, "firstSessionOpen") {
+                RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
+                    request,
+                    RdpNativeSecrets.take(password, null),
+                    observer,
+                ) as RdpFreeRdpSession
+            }
 
             var firstBodyCompleted = false
             try {
@@ -233,11 +236,13 @@ class RdpPackagedHostAcceptanceTest {
             }
             val disabledPassword = passwordValue.toCharArray()
             diagnostic.enter("secondSessionOpen")
-            val disabled = RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
-                disabledRequest,
-                RdpNativeSecrets.take(disabledPassword, null),
-                disabledObserver,
-            ) as RdpFreeRdpSession
+            val disabled = diagnoseOpen(runtime, disabledRequest, diagnostic, "secondSessionOpen") {
+                RdpNativeAdapter(RdpFreeRdpBackend(runtime)).open(
+                    disabledRequest,
+                    RdpNativeSecrets.take(disabledPassword, null),
+                    disabledObserver,
+                ) as RdpFreeRdpSession
+            }
             var secondBodyCompleted = false
             try {
                 diagnostic.enter("secondSecurityWait")
@@ -281,6 +286,24 @@ class RdpPackagedHostAcceptanceTest {
             diagnostic.enter("complete")
             diagnostic.remove()
         }
+
+    private inline fun <T> diagnoseOpen(
+        runtime: RdpPackagedRuntime,
+        request: RdpNativeRequest,
+        diagnostic: OwnedLifecycleDiagnostic,
+        stage: String,
+        open: () -> T,
+    ): T = try {
+        open()
+    } catch (failure: RdpNativeFailure) {
+        // A diagnostic failure must never replace the original open failure.
+        runCatching {
+            runtime.consumeFailedOpenDiagnostic(request.requestId)?.let {
+                diagnostic.openFailure(stage, failure.code, it)
+            }
+        }
+        throw failure
+    }
 
     private fun request(
         requestId: String,
@@ -585,6 +608,8 @@ internal class OwnedLifecycleDiagnostic(
     private val storage: LifecycleStorage,
     private val entered: (String) -> Unit = {},
 ) {
+    private var failedOpenMarker: Pair<String, String>? = null
+
     fun enter(stage: String) {
         require(stage in OWNED_LIFECYCLE_STAGES)
         entered(stage)
@@ -596,7 +621,34 @@ internal class OwnedLifecycleDiagnostic(
     }
 
     fun bodyFailure(stage: String, throwableClass: String) {
-        runCatching { storage.write(bodyFailureMarker(stage, throwableClass)) }
+        val open = failedOpenMarker.takeIf {
+            it?.first == stage &&
+                throwableClass == "com.ersingundem.larenor.rdp.RdpNativeFailure"
+        }
+        failedOpenMarker = null
+        runCatching { storage.write(open?.second ?: bodyFailureMarker(stage, throwableClass)) }
+    }
+
+    fun openFailure(
+        stage: String,
+        safeCode: String,
+        snapshot: RdpPackagedOpenDiagnosticSnapshot,
+    ) {
+        if (stage !in setOf("firstSessionOpen", "secondSessionOpen") ||
+            safeCode !in setOf("connectionFailed", "engineUnavailable")) return
+        val bits = listOf(
+            snapshot.connectionInfoParsed, snapshot.connectAccepted,
+            snapshot.certificateAccepted, snapshot.authenticatedConnectionSucceeded,
+            snapshot.displayCapsObserved, snapshot.initialLayoutAccepted,
+            snapshot.securityPublished,
+        ).joinToString("") { if (it) "1" else "0" }
+        val marker = listOf(
+            "openFailure", "v1", stage, safeCode, bits,
+            snapshot.terminal.wireValue, if (snapshot.timeout) "1" else "0",
+        ).joinToString("|")
+        if (marker.length <= 128 && failedOpenMarker == null) {
+            failedOpenMarker = stage to marker
+        }
     }
 
     fun initialFrameFailure(

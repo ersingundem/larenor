@@ -24,6 +24,16 @@ F60 gerçek Game surface/stage/connection callback sınırları artık exact lea
 
 3 Ekim exact `5122bc61` [Security37121144283](https://github.com/ersingundem/larenor/actions/runs/37121144283) geçti. Değişmiş kaynağın [strict Sunshine37121179343](https://github.com/ersingundem/larenor/actions/runs/37121179343) ve [strict RDP37121180943](https://github.com/ersingundem/larenor/actions/runs/37121180943) kabul koşuları başarısız tamamlandı: Sunshine original1/1/0/0 firstStreamOutput, surface/stage callbacks gözlendi fakat stageFailed=true/connectionStarted=false; RDP arm64 package geçti, x86 original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure. Root iki canonical artifactin source/named/hash kimliğini doğruladı; kesin alt neden henüz açık. [Dar terminal kanıt](testing/native-strict-5122-failure-2026-10-03.md). Ses schema3 diliminde açık onay/durum geri bildirimi, iptal edilebilir sorgular ve gerçek iki-ABI OpenSL paketi tamamlandı: root91Flutter/analyze,56RDP JVM (0skip/failure/error), AndroidTest derleme ve158portatif/94subtest geçti. Kontrollü nonce-arm PCM düzeneği derlendi; Linux ownedhost gerçek ses kabulü henüz yok. Bu çalışma F62’yi CI bekliyor/done yapmaz; mikrofon/SAF/Gateway ve fiziksel kabul kapıları açık. [Client](testing/f62-remote-audio-client-2026-10-03.md), [actual paket](testing/f62-remote-audio-package-2026-10-03.md), [native](testing/f62-remote-audio-native-2026-10-03.md), [owned ses](testing/f62-owned-audio-output-2026-10-03.md).
 
+F62 exact-open sınırları root **65 RDP JVM** (9 yeni tanı testi dahil, sıfır
+skip/failure/error), actual required-native AndroidTest **314 task** derlemesi ve
+**61 runner / 89 subtest** ile doğrulandı. Yerel DISP/ses reddi JNI bağlantı
+hatası diye etiketlenmez; ilk terminal korunur, başarılı/superseded oturumdan
+failure kaydı okunamaz. Yalnız exact-source/original1/1/0/0/private-nonce hatasında
+kapalı booleans yayımlanır. [Dar kanıt](testing/f62-owned-open-boundaries-2026-10-03.md).
+Mikrofon/gerçek SAF/Gateway için [kaynakla doğrulanmış kalan kapsam](testing/f62-saf-gateway-source-plan-2026-10-03.md)
+açık; F62 yeniden çalışılıyor, sayaçlar değişmedi. Exact7a53 [Security37122724149](https://github.com/ersingundem/larenor/actions/runs/37122724149)
+başarılı tamamlandı; bu scoped sonuç final birleşik kabul değildir.
+
 ## Tarihsel düzeltme ve koşu checkpointleri
 
 Aşağıdaki sayaçlar ve “sürüyor/düzeltiliyor” ifadeleri kendi kaynaklarının tarihsel durumudur; güncel durum yukarıdaki tablo ve execution queue'dur.

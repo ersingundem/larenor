@@ -1851,6 +1851,83 @@ class PackagedRdpReceiptTest(unittest.TestCase):
                     runner._decode_test_lifecycle_marker(raw), (None, None),
                 )
 
+    def test_open_failure_marker_is_closed_finite_and_terminal(self):
+        raw = b"openFailure|v1|firstSessionOpen|connectionFailed|1110000|timeout|1"
+        observed, initial = runner._decode_test_lifecycle_marker(raw)
+        self.assertIsNone(initial)
+        self.assertEqual(observed, "firstSessionOpen")
+        self.assertEqual(observed.body_failure, {
+            "lifecycleStage": "firstSessionOpen",
+            "throwableClass": runner._NATIVE_FAILURE_TYPE,
+        })
+        self.assertEqual(observed.open_boundaries, {
+            **dict(zip(runner._OPEN_BOOLEAN_KEYS, (True, True, True, False, False, False, False))),
+            "safeCode": "connectionFailed", "terminal": "timeout", "timeout": True,
+        })
+        for bad in (
+            raw.replace(b"firstSessionOpen", b"providerInspection"),
+            raw.replace(b"connectionFailed", b"private.Secret"),
+            raw.replace(b"1110000", b"11100000"),
+            raw.replace(b"1110000", b"111x000"),
+            raw.replace(b"timeout|1", b"timeout|0"),
+            raw.replace(b"timeout|1", b"retired|1"),
+            raw.replace(b"timeout|1", b"active|0"),
+            raw.replace(b"v1", b"v2"),
+            raw + b"|secret", raw + b"\nsecret", raw + b"\x00",
+            raw + b"\n", raw + b"\t", b" " + raw,
+        ):
+            with self.subTest(bad=bad):
+                self.assertEqual(runner._decode_test_lifecycle_marker(bad), (None, None))
+
+    def test_open_facts_require_matching_original_failure_source_and_nonce_marker(self):
+        observed, _ = runner._decode_test_lifecycle_marker(
+            b"openFailure|v1|firstSessionOpen|connectionFailed|1110000|timeout|1",
+        )
+        marker = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage=str(observed),
+            body_failure=observed.body_failure, open_boundaries=observed.open_boundaries,
+        )
+        base = {
+            "code": "instrumentation_test_failure",
+            "exceptionType": runner._TEST_BODY_FAILURE_TYPE,
+            "acceptanceStage": "testBody",
+            "testBodyFailure": dict(observed.body_failure),
+            "frames": [{"file": "RdpPackagedHostAcceptanceTest.kt", "line": 36}],
+            "counts": {"tests": 1, "failures": 1, "errors": 0, "skipped": 0},
+        }
+        with mock.patch.object(runner, "_classification_source_matches", return_value=True):
+            upgraded = runner._apply_owned_marker_evidence(base, marker)
+            receipt = runner.failure_receipt(
+                {}, revision="a" * 40, package_digest="b" * 64, diagnostic=upgraded,
+            )
+        self.assertEqual(receipt["result"], "failed")
+        self.assertEqual(upgraded["openBoundaries"], observed.open_boundaries)
+        for changed in (
+            {**base, "counts": {"tests": 2, "failures": 1, "errors": 0, "skipped": 0}},
+            {**base, "exceptionType": "unclassified"},
+            {**base, "testBodyFailure": {**base["testBodyFailure"], "lifecycleStage": "secondSessionOpen"}},
+        ):
+            with mock.patch.object(runner, "_classification_source_matches", return_value=True):
+                self.assertNotIn("openBoundaries", runner._apply_owned_marker_evidence(changed, marker))
+        with mock.patch.object(runner, "_classification_source_matches", return_value=False):
+            self.assertNotIn("openBoundaries", runner._apply_owned_marker_evidence(base, marker))
+        for changed in (
+            {**upgraded, "ownedBodyFailure": {**observed.body_failure, "lifecycleStage": "secondSessionOpen"}},
+            {**upgraded, "openBoundaries": {**observed.open_boundaries, "targetHost": "private"}},
+            {**upgraded, "openBoundaries": {**observed.open_boundaries, "timeout": 1}},
+            {**upgraded, "openBoundaries": {**observed.open_boundaries, "terminal": []}},
+            {**upgraded, "openBoundaries": {**observed.open_boundaries, "safeCode": []}},
+        ):
+            with mock.patch.object(runner, "_classification_source_matches", return_value=True):
+                with self.assertRaises(runner.AcceptanceFailure):
+                    runner.failure_receipt({}, revision="a" * 40, package_digest="b" * 64, diagnostic=changed)
+        conflict = runner._OwnedMarkerEvidence(
+            "available", "observed", "observed", stage=str(observed),
+            body_failure=observed.body_failure,
+            open_boundaries={**observed.open_boundaries, "certificateAccepted": False},
+        )
+        self.assertEqual(runner._merge_owned_marker_evidence(marker, conflict).record, "invalid")
+
     def test_body_marker_only_upgrades_exact_named_failure_with_bound_source(self):
         base = {
             "code": "instrumentation_test_failure",
