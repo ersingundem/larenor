@@ -4123,7 +4123,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Birden fazla ev, bağımsız Core",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -4166,10 +4166,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Independent exact-source acceptance review found P1 gaps: no rejection/restore collision/search-cache acceptance and absent named required CI; successful dual-authority proof retained."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md",
+          "commit": "680a15fbd3e31326f0f6dba5d5733e5e144f8970",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen five-path v3 source on680 base; root replayed8 strict named1/0fail/error/skip machine proofs and actual8-lifetime shared runner exit0 plus2 real16-profile UI/controller/store tests. Process-local catalog fixture/secure-store platform test are scoped; exactCI remains open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md",
+          "commit": "680a15fbd3e31326f0f6dba5d5733e5e144f8970",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent exact frozen five-path acceptance review CLEAR for source/target me/context cancellation, profile limit zero-I/O, duplicate restore and normal Core catalog isolation. Physical homes/Jellyfin/secure hardware and final exactCI are unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Bağımsız v2 inceleme dört named normal-Core yaşamını doğruladı; negative authority/duplicate restore/data-search-cache kanıtı özel kaynakta geçti. Cross-home iptal/geç yanıt ve 16-profile sınırı açıktı; doğrudan controller cap çağrısı mevcut oturumu bozup login I/O yapabiliyor, dar onarım çalışılıyor. Named required CI henüz commit edilmedi/çalışmadı. F16/F20/F54 CI/dependency ve secure-store/fiziksel ev MANUAL açık; tam kabul değil."
+      "reason": "Sekiz actual Flutter→iki normal Core yaşamı root ortak kaynakta geçti: ayrı kaynak/hedef me/context cancel/geç cevap, negative authority, duplicate restore, profil data/search/cache izolasyonu ve restart. Gerçek16-profile UI/controller/store sınırı2/2 ve independent CLEAR; guard aktif session/generation/APIyi değiştirmeden zero-I/O reddeder. Uygulama/odaklı yazılım doğrulaması tamamlandı; registered named final-source CI ve F16/F20/F54 kabul bağımlılıkları açık. Physical home/secure-store MANUAL ayrı. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md."
     },
     {
       "id": "G06",
@@ -6351,13 +6367,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37144057232",
           "commit": "b5b30be61be5da5854f0f506a003e5a915b1b556",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source static-shadow rdpsnd-server fix exactb5b30 dispatched once; hosted Linux real Gateway/RDPDR transport open. Root actual pinned CMake077 before/after strict apply passed; no Android/product/full feature acceptance."
+          "state": "completed",
+          "result": "failed",
+          "label": "Changed-source static-shadow rdpsnd-server fix exactb5b30 dispatched once and completed FAILURE; canonical artifact diagnosis is active. Root pinned CMake077 before/after apply passed; no runtime/Android/product acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Static-only shadow rdpsnd object target onarımı commit/push b5b30; exact Linux37144057232 bir kez başladı, gerçek Gateway/RDPDR sonucu açık. Root60 test/11subtest, Ruff ve actual pinned CMake077 before/after strict apply geçti. Önceki0cad terminal linkerError canonical iki rdpsnd hashı doğrulandı; same-SHA rerun yok. Integrated200JVM/201Flutter yerel kanıt; product Gateway/files false. Android DIRECT/PUBLIC/audio/mic/final CI ve kabul/merge açık."
+      "reason": "Static-only shadow rdpsnd object target onarımı commit/push b5b30; exact Linux37144057232 bir kez çalıştı ve failed; canonical hata kaydı inceleniyor, gerçek Gateway/RDPDR sonucu açık. Root60 test/11subtest, Ruff ve actual pinned CMake077 before/after strict apply geçti. Önceki0cad terminal linkerError canonical iki rdpsnd hashı doğrulandı; same-SHA rerun yok. Integrated200JVM/201Flutter yerel kanıt; product Gateway/files false. Android DIRECT/PUBLIC/audio/mic/final CI ve kabul/merge açık."
     },
     {
       "id": "F61",
@@ -6661,7 +6677,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F04 uygulama ve odaklı doğrulama+review tamamlandı, son CI/F05 kabulü bekliyor. F16/F19/F20/F60/F62 açıkları yeniden çalışılıyor;55 seçili özellik/66 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri/bağımlılıkları, review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04/F19 uygulama, odaklı gerçek Client/Core doğrulaması ve independent review tamamlandı; son CI ve kabul bağımlılıkları bekleniyor. F16/F20/F60/F62 yeniden çalışılıyor;56 seçili özellik/67 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam kriter/bağımlılık/review/final exactHEAD requiredCI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

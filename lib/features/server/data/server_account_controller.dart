@@ -542,6 +542,11 @@ class ServerAccountController extends ChangeNotifier {
 
   Future<void> beginAddProfile() async {
     if (_disposed || _working || _refreshing != null) return;
+    if (_profiles.length >= maxServerHomeProfiles) {
+      _failure = 'profile_limit';
+      _emit();
+      return;
+    }
     final previousRegistry = ServerHomeRegistry(
       activeProfileId: _activeProfileId,
       profiles: _profiles,
