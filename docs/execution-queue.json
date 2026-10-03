@@ -5986,14 +5986,6 @@
           "label": "Exact5aa arm64 passed;x86 original1/1/0/0 unclassified/no owned frames or lifecycle marker/resize=false; exact native cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
-          "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root57 runner/workflow+40subtests, actual required-native AndroidTest compile277; fixed body-stage/class only, runtime acceptance separate"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
           "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
@@ -6144,10 +6136,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen working tree on c279 base: real schema4 dual-ABI package/product verified; root125 JVM (78RDP/47Moonlight), zero skips/errors/failures, actual AndroidTest compile315tasks; 105Flutter/analyze,128portable and source manifests unchanged. Owned AUDIN host effect remains unproven."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37125727523",
+          "commit": "06ef24fae316453c58f404c2c2046483ff24ce0b",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed microphone4 source: exact06ef arm64 package plus strict x86 owned Pulse/AUDIN two-session gate dispatched once; no result or host microphone acceptance yet."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Mikrofon4 varsayılan kapalı kullanıcı seçimi, exact izin/Activity/AppOps sahipliği, gerçek OpenSL capture/submission ve çift ABI paket yerelde tamamlandı. Root125native (78RDP/47Moonlight,0skip/failure/error), actual AndroidTest compile315tasks,105Flutter/analyze ve128portable geçti; frozen source manifestleri değişmedi. Owned Pulse/AUDIN nonce-tone host kabul düzeneği hazır; Linux fixture build/emulator etkisi henüz yok. Exact9551/run37123504468 original1/1/0/0 firstSessionOpen/RdpNativeFailure ve source-bound canonical1605B korunur. Live marker reader yarışı düzeltildi; önceki sağlayıcı hatasının tek nedeni iddia edilmez. Yeni exact TLS/NLA/frame/ACK/key/DISP/clipboard/audio/mic/iki yaşam/close CI kapısı gerekli. Gerçek SAF grant/mirror/asyncdrain/readback ve RD Gateway üretim kapsamı açık; F62 CI bekliyor/done sayılmaz. Fiziksel cihaz/ses kalitesi MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor. Mikrofon4 varsayılan kapalı kullanıcı seçimi, exact izin/Activity/AppOps sahipliği, gerçek OpenSL capture/submission ve çift ABI paket yerelde tamamlandı. Root125native (78RDP/47Moonlight,0skip/failure/error), actual AndroidTest compile315tasks,105Flutter/analyze ve128portable geçti; frozen source manifestleri değişmedi. Owned Pulse/AUDIN nonce-tone host kabul düzeneği hazır; Linux fixture build/emulator etkisi henüz yok. Exact9551/run37123504468 original1/1/0/0 firstSessionOpen/RdpNativeFailure ve source-bound canonical1605B korunur. Live marker reader yarışı düzeltildi; önceki sağlayıcı hatasının tek nedeni iddia edilmez. Yeni exact TLS/NLA/frame/ACK/key/DISP/clipboard/audio/mic/iki yaşam/close CI kapısı gerekli. Gerçek SAF grant/mirror/asyncdrain/readback ve RD Gateway üretim kapsamı açık; F62 CI bekliyor/done sayılmaz. Fiziksel cihaz/ses kalitesi MANUAL ayrı. Değişmiş mikrofon4 exact06ef/run37125727523 CI başladı; sonuç bekleniyor, eski failed koşu rerun edilmedi."
     },
     {
       "id": "F61",

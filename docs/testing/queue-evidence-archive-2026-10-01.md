@@ -138,6 +138,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root44 runner/workflow tests; actual AndroidTest compile277tasks; initial terminal enum bound to exact owned source and tuple, strict acceptance unchanged"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
+    "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root57 runner/workflow+40subtests, actual required-native AndroidTest compile277; fixed body-stage/class only, runtime acceptance separate"
   }
 ]
 ```

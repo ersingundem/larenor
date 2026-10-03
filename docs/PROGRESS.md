@@ -6,6 +6,8 @@
 
 3 Ekim mikrofon4: varsayılan kapalı seçim, exact izin/foreground/AppOps sahipliği ve gerçek AUDIN capture/submission, verified çift ABI ürün paketiyle **125 native / 105 Flutter / 128 portatif** test ve actual AndroidTest **315 task** derlemesini geçti. Hosted mikrofon etkisi henüz kanıtlanmadı; F62 gerçek SAF/Gateway ve runtime eksikleri nedeniyle yeniden çalışılıyor. Sayaçlar değişmedi. [Birleşik dar kanıt](testing/f62-owned-microphone-composed-2026-10-03.md).
 
+Değişmiş mikrofon4 kaynak için [exact06ef RDP37125727523](https://github.com/ersingundem/larenor/actions/runs/37125727523) bir kez başlatıldı; henüz sonuç/host etkisi yok.
+
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |
