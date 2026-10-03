@@ -50,3 +50,6 @@ of a hosted Sunshine stream. The changed exact source still needs the existing
 strict owned-host launch/RTSP/decoded-frame/nonzero-PCM/input/two-lifetime/close
 acceptance. Historical failed strict runs remain failed. F60 and FINAL.FUNCTION
 remain open, and the accepted queue/feature counts do not increase.
+
+Changed-source owned acceptance was dispatched once on exact commit
+`9a85dc1f62193570c145cdd6656a278039570278`: [Sunshine run 37127353767](https://github.com/ersingundem/larenor/actions/runs/37127353767). Its result is pending; no failed historical run was rerun.

@@ -156,64 +156,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Embed-v3 production cancellation/deadline:40 native tests,zero skips; combined root165 tool gates passed; original hosted stream acceptance separate"
-  }
-]
-```
-
-
-## 3 October schema-2 integration consolidation
-
-These older local preparation/build records are retained in full. Their CI
-records remain in the live queue. The new schema-2 combined gate replaces
-these local checkpoints for current routing, without upgrading acceptance.
-
-```json
-[
-  {
-    "node": "F62",
-    "kind": "test",
-    "ref": "docs/testing/f62-initial-frame-subscriber-2026-10-01.md",
-    "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
-    "state": "completed",
-    "result": "passed",
-    "label": "Root fresh exact release extraction/patch/manifest and actual thread ordering;18/18 focused checks; independent review; hosted runtime remains open"
   },
-  {
-    "node": "F62",
-    "kind": "test",
-    "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
-    "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
-    "state": "completed",
-    "result": "passed",
-    "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
-  }
-]
-```
-
-
-## 3 October exact5122 runtime dispatch
-
-Older non-CI local records are preserved below; every CI record remains live.
-
-```json
-[
   {
     "node": "F60",
     "kind": "test",
-    "ref": "docs/testing/f60-owned-stream-failure-diagnostics-2026-10-01.md",
-    "commit": "3feb723c28aa745445edcc770b27d9794b7e5b11",
+    "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
+    "commit": "36269cf05091156ae960106eaec27810ff35fc78",
     "state": "completed",
     "result": "passed",
-    "label": "Root 42/42 diagnostic/workflow checks and actionlint; source-hash stage map and descriptor-bound bounded XML; no hosted stream acceptance"
-  },
-  {
-    "node": "F62",
-    "kind": "test",
-    "ref": "docs/testing/f62-owned-lifecycle-diagnostics-2026-10-01.md",
-    "commit": "c829106162b92207a22d6d6f7731ec505c7100af",
-    "state": "completed",
-    "result": "passed",
-    "label": "Root34/34 runner/parser checks; actual required-native AndroidTest compile278tasks; fixed last-entered enum diagnostic only, strict runtime acceptance unchanged"
+    "label": "Actual v3 two-ABI APK verified by all5 root verifiers; broad required-package JVM345total/343passed/2explicit opt-in skips/0failures"
   }
 ]
 ```
