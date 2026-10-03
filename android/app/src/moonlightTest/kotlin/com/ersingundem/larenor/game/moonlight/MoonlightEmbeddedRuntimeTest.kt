@@ -349,6 +349,251 @@ class MoonlightEmbeddedRuntimeTest {
             MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(successor.token))
     }
 
+    @Test fun connectionBoundariesAreExactFiniteDiagnosticOnlyAndTerminalPreserved() {
+        val observations = mutableListOf<MoonlightLeaseObservation>()
+        val first = MoonlightForegroundLeaseRegistry.issue(launchSpec(), observations::add)
+        val initial = MoonlightConnectionBoundarySnapshot(
+            sessionId = first.sessionId,
+            epoch = first.epoch,
+            surfaceCreated = false,
+            positiveSurfaceChanged = false,
+            stageStarted = false,
+            stageCompleted = false,
+            stageFailed = false,
+            connectionStarted = false,
+        )
+        assertEquals(initial, MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(first.token))
+
+        val unchangedRevision = first.readbackRevision
+        MoonlightForegroundLeaseRegistry.surfaceCreated(first.token)
+        assertEquals(null, MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 0, 720))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 1280, -1))
+        MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 1280, 720)
+        MoonlightForegroundLeaseRegistry.stageStarted(first.token)
+        MoonlightForegroundLeaseRegistry.stageCompleted(first.token)
+        MoonlightForegroundLeaseRegistry.stageFailed(first.token)
+        reject("foreground_required") {
+            MoonlightForegroundLeaseRegistry.connectionStarted(first.token)
+        }
+        val pending = requireNotNull(
+            MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(first.token),
+        )
+        assertTrue(pending.surfaceCreated)
+        assertTrue(pending.positiveSurfaceChanged)
+        assertTrue(pending.stageStarted)
+        assertTrue(pending.stageCompleted)
+        assertTrue(pending.stageFailed)
+        assertTrue(pending.connectionStarted)
+        assertEquals(unchangedRevision, MoonlightForegroundLeaseRegistry.snapshot(first.token).readbackRevision)
+        assertTrue(observations.isEmpty())
+        assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
+
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get().also {
+            it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+        }
+        val claimed = MoonlightForegroundLeaseRegistry.claim(first.token, activity)
+        val started = requireNotNull(MoonlightForegroundLeaseRegistry.connectionStarted(first.token))
+        assertEquals(claimed.readbackRevision + 1, started.readbackRevision)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf("connectionStarted"), observations.map { it.observationKind })
+
+        MoonlightForegroundLeaseRegistry.retireSession(first.sessionId, first.epoch)
+        assertEquals(null, MoonlightForegroundLeaseRegistry.stageFailed(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(first.token))
+        MoonlightForegroundLeaseRegistry.connectionStopStarted(first.token)
+        MoonlightForegroundLeaseRegistry.connectionStopped(first.token)
+        assertEquals(pending, MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(first.token))
+
+        val successor = MoonlightForegroundLeaseRegistry.issue(
+            launchSpec().copy(sessionId = ids.getValue(9), epoch = 2),
+        )
+        assertEquals(null, MoonlightForegroundLeaseRegistry.surfaceCreated(first.token))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(first.token))
+        assertEquals(
+            MoonlightConnectionBoundarySnapshot(
+                sessionId = successor.sessionId,
+                epoch = successor.epoch,
+                surfaceCreated = false,
+                positiveSurfaceChanged = false,
+                stageStarted = false,
+                stageCompleted = false,
+                stageFailed = false,
+                connectionStarted = false,
+            ),
+            MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(successor.token),
+        )
+        MoonlightForegroundLeaseRegistry.surfaceCreated(successor.token)
+        MoonlightForegroundLeaseRegistry.gameDestroyed(successor.token)
+        assertEquals(
+            MoonlightConnectionBoundarySnapshot(
+                sessionId = successor.sessionId,
+                epoch = successor.epoch,
+                surfaceCreated = true,
+                positiveSurfaceChanged = false,
+                stageStarted = false,
+                stageCompleted = false,
+                stageFailed = false,
+                connectionStarted = false,
+            ),
+            MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(successor.token),
+        )
+    }
+
+    @Test fun runtimeConnectionBoundaryDiagnosticFencesAuthoritySessionTerminalAndSuccessor() {
+        val expected = authority().copy(
+            authorityId = uniqueId("boundary-authority"),
+            scope = uniqueScope("boundary-runtime"),
+            clientInstanceId = uniqueId("boundary-client"),
+        )
+        val sessionId = uniqueId("boundary-session")
+        val session = MoonlightBoundSession(
+            sessionId = sessionId,
+            sessionRevision = 1,
+            hostId = uniqueId("boundary-host"),
+            hostRevision = 1,
+            pairingRevision = 1,
+            catalogRevision = 1,
+            appId = uniqueId("boundary-app"),
+            appRevision = 1,
+            expiresAtEpochSeconds = System.currentTimeMillis() / 1_000.0 + 600,
+            selectedQuality = MoonlightSelectedQuality(
+                codec = "h264",
+                codecId = uniqueId("boundary-codec"),
+                codecRevision = 1,
+                displayId = 0,
+                displayRevision = 1,
+                networkId = uniqueId("boundary-network"),
+                networkRevision = 1,
+                policyId = uniqueId("boundary-policy"),
+                policyRevision = 1,
+                widthPixels = 1280,
+                heightPixels = 720,
+                framesPerSecond = 60,
+                bitrateKbps = 10_000,
+                frameQueueDepth = 2,
+                inputQueueDepth = 1,
+                secureSurface = true,
+            ),
+        )
+        val runtime = MoonlightEmbeddedRuntime(
+            Robolectric.buildActivity(Activity::class.java).setup().visible().get(),
+        )
+        fun setRuntimeField(name: String, value: Any?) {
+            MoonlightEmbeddedRuntime::class.java.getDeclaredField(name).apply {
+                isAccessible = true
+                set(runtime, value)
+            }
+        }
+
+        try {
+            runtime.bindAuthority(expected)
+            val first = MoonlightForegroundLeaseRegistry.issue(
+                launchSpec().copy(
+                    authority = expected,
+                    sessionId = session.sessionId,
+                    epoch = session.sessionRevision,
+                ),
+            )
+            setRuntimeField("boundSession", session)
+            setRuntimeField("activeLeaseToken", first.token)
+
+            MoonlightForegroundLeaseRegistry.surfaceCreated(first.token)
+            MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 1280, 720)
+            MoonlightForegroundLeaseRegistry.stageStarted(first.token)
+            MoonlightForegroundLeaseRegistry.stageCompleted(first.token)
+            MoonlightForegroundLeaseRegistry.stageFailed(first.token)
+            val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get().also {
+                it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+            }
+            MoonlightForegroundLeaseRegistry.claim(first.token, activity)
+            MoonlightForegroundLeaseRegistry.connectionStarted(first.token)
+
+            val beforeDiagnostic = MoonlightForegroundLeaseRegistry.snapshot(first.token)
+            val active = requireNotNull(
+                runtime.connectionBoundaryDiagnostic(expected, session.sessionId, session.sessionRevision),
+            )
+            assertEquals(beforeDiagnostic, MoonlightForegroundLeaseRegistry.snapshot(first.token))
+            assertTrue(active.surfaceCreated)
+            assertTrue(active.positiveSurfaceChanged)
+            assertTrue(active.stageStarted)
+            assertTrue(active.stageCompleted)
+            assertTrue(active.stageFailed)
+            assertTrue(active.connectionStarted)
+
+            reject("authority_changed") {
+                runtime.connectionBoundaryDiagnostic(
+                    expected.copy(routeRevision = expected.routeRevision + 1),
+                    session.sessionId,
+                    session.sessionRevision,
+                )
+            }
+            reject("authority_changed") {
+                runtime.connectionBoundaryDiagnostic(
+                    expected,
+                    uniqueId("wrong-boundary-session"),
+                    session.sessionRevision,
+                )
+            }
+            reject("authority_changed") {
+                runtime.connectionBoundaryDiagnostic(
+                    expected,
+                    session.sessionId,
+                    session.sessionRevision + 1,
+                )
+            }
+
+            MoonlightForegroundLeaseRegistry.connectionTerminated(first.token)
+            val terminalBefore = MoonlightForegroundLeaseRegistry.snapshot(first.token)
+            assertEquals(
+                active,
+                runtime.connectionBoundaryDiagnostic(expected, session.sessionId, session.sessionRevision),
+            )
+            assertEquals(terminalBefore, MoonlightForegroundLeaseRegistry.snapshot(first.token))
+
+            val successorSession = session.copy(
+                sessionId = uniqueId("boundary-successor-session"),
+                sessionRevision = 2,
+            )
+            val successor = MoonlightForegroundLeaseRegistry.issue(
+                launchSpec().copy(
+                    authority = expected,
+                    sessionId = successorSession.sessionId,
+                    epoch = successorSession.sessionRevision,
+                ),
+            )
+            assertEquals(
+                null,
+                runtime.connectionBoundaryDiagnostic(expected, session.sessionId, session.sessionRevision),
+            )
+            setRuntimeField("boundSession", successorSession)
+            setRuntimeField("activeLeaseToken", successor.token)
+            reject("authority_changed") {
+                runtime.connectionBoundaryDiagnostic(expected, session.sessionId, session.sessionRevision)
+            }
+            assertEquals(
+                MoonlightConnectionBoundarySnapshot(
+                    sessionId = successorSession.sessionId,
+                    epoch = successorSession.sessionRevision,
+                    surfaceCreated = false,
+                    positiveSurfaceChanged = false,
+                    stageStarted = false,
+                    stageCompleted = false,
+                    stageFailed = false,
+                    connectionStarted = false,
+                ),
+                runtime.connectionBoundaryDiagnostic(
+                    expected,
+                    successorSession.sessionId,
+                    successorSession.sessionRevision,
+                ),
+            )
+            assertEquals(null, MoonlightForegroundLeaseRegistry.stageStarted(first.token))
+        } finally {
+            runtime.close()
+        }
+    }
+
     @Test fun streamDispatchTraceRecordsEveryFixedStageAndClosedFailureCategory() {
         val store = MoonlightStreamDispatchTraceStore()
         val before = dispatchOwner(1)

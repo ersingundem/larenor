@@ -962,6 +962,39 @@ class MoonlightEmbeddedRuntime internal constructor(
         return witness
     }
 
+    /** Failure-only, finite callback observations for the exact bound lease. */
+    internal fun connectionBoundaryDiagnostic(
+        expected: MoonlightAuthority,
+        sessionId: String,
+        expectedSessionRevision: Long,
+    ): MoonlightConnectionBoundarySnapshot? {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(expectedSessionRevision, "revision")
+        val captured = capture(expected)
+        val token = synchronized(lock) {
+            currentLocked(captured)
+            boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            activeLeaseToken ?: throw MoonlightRuntimeFailure("authority_changed")
+        }
+        // Notifications enter this runtime through the lease observer. Read the
+        // registry without the runtime lock, then fence the returned snapshot.
+        val witness = MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(token)
+            ?: MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(token)
+        synchronized(lock) {
+            currentLocked(captured)
+            val session = boundSession?.takeIf {
+                it.sessionId == sessionId && it.sessionRevision == expectedSessionRevision
+            } ?: throw MoonlightRuntimeFailure("authority_changed")
+            if (activeLeaseToken != token ||
+                (witness != null && (witness.sessionId != session.sessionId ||
+                    witness.epoch != session.sessionRevision))
+            ) throw MoonlightRuntimeFailure("authority_changed")
+        }
+        return witness
+    }
+
     internal fun streamDispatchTrace(
         expected: MoonlightAuthority,
         requestId: String,

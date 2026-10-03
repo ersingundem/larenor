@@ -161,6 +161,17 @@ _STREAM_DISPATCH_MARKER = re.compile(
     r"invalid_timeout|invalid_receipt|provider_unavailable|pin_required|quarantined|"
     r"stale_candidate|stale_pairing|unknown_effect)"
 )
+_CONNECTION_BOUNDARY_KEYS = (
+    "surfaceCreated", "positiveSurfaceChanged", "stageStarted", "stageCompleted",
+    "stageFailed", "connectionStarted",
+)
+_CONNECTION_BOUNDARY_PREFIX = "F60_CONNECTION_BOUNDARIES_V1|"
+_CONNECTION_BOUNDARY_MARKER = re.compile(
+    re.escape(_CONNECTION_BOUNDARY_PREFIX)
+    + r"surfaceCreated=(true|false)\|positiveSurfaceChanged=(true|false)\|"
+    + r"stageStarted=(true|false)\|stageCompleted=(true|false)\|"
+    + r"stageFailed=(true|false)\|connectionStarted=(true|false)"
+)
 _OWNED_SOURCE_FILES = frozenset({
     "LarenorMoonlightGame.kt",
     "MoonlightAuthority.kt",
@@ -178,7 +189,7 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "755a9a41109317484677f62103ed0ab4578ff769637b84ddd919a5183ff5243b"
+_STAGE_SOURCE_SHA256 = "372f5a723356386664d9f1653f95ac5000ecf08c058fd112aa8541bf9e860570"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
@@ -1439,6 +1450,23 @@ def _failure_details(
                 "failureClass": failure_class,
                 "runtimeFailure": runtime_failure,
             }
+    boundary_lines = [
+        line.strip() for line in lines
+        if line.strip().startswith(_CONNECTION_BOUNDARY_PREFIX)
+    ]
+    if (
+        code == "instrumentation_test_failure"
+        and counts == {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+        and stage == "firstStreamOutput"
+        and exception_type == "java.lang.AssertionError"
+        and "streamCommand" in diagnostic
+        and len(boundary_lines) == 1
+        and (boundary := _CONNECTION_BOUNDARY_MARKER.fullmatch(boundary_lines[0]))
+    ):
+        diagnostic["connectionBoundaries"] = {
+            key: value == "true"
+            for key, value in zip(_CONNECTION_BOUNDARY_KEYS, boundary.groups())
+        }
     return diagnostic
 
 
@@ -1568,6 +1596,7 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
         "acceptanceStage", "pinBridgeStage", "streamCommand", "streamDispatch",
+        "connectionBoundaries",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1590,6 +1619,7 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
             or not 1 <= frame["line"] <= 1_000_000
         ):
             raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+
     counts = diagnostic.get("counts")
     if counts is not None and (
         type(counts) is not dict
@@ -1684,6 +1714,19 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
             or dispatch["runtimeFailure"] not in _STREAM_RUNTIME_FAILURES
             or (dispatch["failureClass"] == runtime_class)
             != (dispatch["runtimeFailure"] != "none")
+        ):
+            raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    if "connectionBoundaries" in diagnostic:
+        boundaries = diagnostic["connectionBoundaries"]
+        if (
+            code != "instrumentation_test_failure"
+            or counts != {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+            or command is None
+            or stage != "firstStreamOutput"
+            or exception_type != "java.lang.AssertionError"
+            or type(boundaries) is not dict
+            or set(boundaries) != set(_CONNECTION_BOUNDARY_KEYS)
+            or any(type(value) is not bool for value in boundaries.values())
         ):
             raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
 

@@ -20,6 +20,8 @@
 
 3 Ekim RDP schema-2 dilimi: gerçek desktop/device yüzde-scale alanları, peer DISP CAPS sonrası tek initial layout, exact ACKed-frame giriş, resize/ACK eşzamanlılık çitleri ve aynı route üzerinde gerçek fullscreen yüzey sahipliği tamamlandı. Root tüm RDP Flutter testlerini **81/81**, analizini temiz; receipted iki ABI paketi ve actual native/Moonlight gate'ini **90/90** (0 skip/failure/error), AndroidTest derlemesini doğruladı. Paket/runner/owned-fixture portatif kapıları **106 test/83 subtest** geçti. Bunlar yerel yazılım kanıtıdır; eski42be hatasının kesin kök nedeni veya hosted runtime kabulü iddia edilmez. F62 yeniden çalışılıyor ve kabul sayaçları değişmedi. [Dart](testing/f62-dart-display-pointer-v2-2026-10-01.md), [native](testing/f62-native-display-pointer-v2-2026-10-01.md), [gerçek paket](testing/f62-display-pointer-package-2026-10-01.md), [owned fixture v2](testing/f62-v2-owned-initial-display-2026-10-03.md).
 
+F60 gerçek Game surface/stage/connection callback sınırları artık exact lease token ile yalnız altı boolean olarak kaydediliyor. Geçerli yetki/oturum/revision çitleri, terminal/successor izolasyonu ve değişmeyen foreground kabulü root **46 JVM testi**, actual AndroidTest derlemesi, **54 runner/36 subtest +10 workflow/12 subtest** ile geçti. Tanı yalnız original failure kapısından yayımlanır; frame/PCM/input kabulü yerine sayılmaz. Değişmiş kaynak strict koşusu gerekli. [Bağlantı sınırı](testing/f60-owned-connection-boundaries-2026-10-03.md).
+
 ## Tarihsel düzeltme ve koşu checkpointleri
 
 Aşağıdaki sayaçlar ve “sürüyor/düzeltiliyor” ifadeleri kendi kaynaklarının tarihsel durumudur; güncel durum yukarıdaki tablo ve execution queue'dur.

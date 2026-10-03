@@ -93,6 +93,24 @@ data class MoonlightOutputWitnessSnapshot(
     override fun toString(): String = "MoonlightOutputWitnessSnapshot(<redacted>)"
 }
 
+data class MoonlightConnectionBoundarySnapshot(
+    val sessionId: String,
+    val epoch: Long,
+    val surfaceCreated: Boolean,
+    val positiveSurfaceChanged: Boolean,
+    val stageStarted: Boolean,
+    val stageCompleted: Boolean,
+    val stageFailed: Boolean,
+    val connectionStarted: Boolean,
+) {
+    init {
+        requireIdentity(sessionId, "session_id")
+        requireRevision(epoch, "revision")
+    }
+
+    override fun toString(): String = "MoonlightConnectionBoundarySnapshot(<redacted>)"
+}
+
 internal data class MoonlightTerminalWitnessSnapshot(
     val sessionId: String,
     val epoch: Long,
@@ -127,6 +145,12 @@ object MoonlightForegroundLeaseRegistry {
         var renderedFrameCount: Int = 0,
         var acceptedAudioWriteCount: Int = 0,
         var terminalObservationKind: String? = null,
+        var surfaceCreatedObserved: Boolean = false,
+        var positiveSurfaceChangedObserved: Boolean = false,
+        var stageStartedObserved: Boolean = false,
+        var stageCompletedObserved: Boolean = false,
+        var stageFailedObserved: Boolean = false,
+        var connectionStartedObserved: Boolean = false,
     )
 
     private val random = SecureRandom()
@@ -178,6 +202,9 @@ object MoonlightForegroundLeaseRegistry {
     @Synchronized
     fun connectionStarted(token: String): MoonlightLeaseSnapshot? {
         val entry = current?.takeIf { it.token == token } ?: return null
+        if (entry.state in ACTIVE_BOUNDARY_STATES) {
+            entry.connectionStartedObserved = true
+        }
         if (entry.state != MoonlightLeaseState.GAME_VISIBLE || entry.activity == null) {
             throw MoonlightRuntimeFailure("foreground_required")
         }
@@ -186,6 +213,49 @@ object MoonlightForegroundLeaseRegistry {
         entry.readbackRevision += 1
         notify(entry, "connectionStarted", "streaming")
         return entry.snapshot()
+    }
+
+    @Synchronized
+    fun surfaceCreated(token: String): MoonlightConnectionBoundarySnapshot? =
+        observeBoundary(token) { it.surfaceCreatedObserved = true }
+
+    @Synchronized
+    fun positiveSurfaceChanged(
+        token: String,
+        width: Int,
+        height: Int,
+    ): MoonlightConnectionBoundarySnapshot? {
+        requireIdentity(token, "candidate")
+        if (width <= 0 || height <= 0) return null
+        return observeBoundary(token) { it.positiveSurfaceChangedObserved = true }
+    }
+
+    @Synchronized
+    fun stageStarted(token: String): MoonlightConnectionBoundarySnapshot? =
+        observeBoundary(token) { it.stageStartedObserved = true }
+
+    @Synchronized
+    fun stageCompleted(token: String): MoonlightConnectionBoundarySnapshot? =
+        observeBoundary(token) { it.stageCompletedObserved = true }
+
+    @Synchronized
+    fun stageFailed(token: String): MoonlightConnectionBoundarySnapshot? =
+        observeBoundary(token) { it.stageFailedObserved = true }
+
+    @Synchronized
+    internal fun connectionBoundarySnapshot(token: String): MoonlightConnectionBoundarySnapshot? {
+        requireIdentity(token, "candidate")
+        val entry = current?.takeIf { it.token == token } ?: return null
+        if (entry.state !in ACTIVE_BOUNDARY_STATES) return null
+        return entry.connectionBoundarySnapshot()
+    }
+
+    @Synchronized
+    internal fun terminalConnectionBoundarySnapshot(token: String): MoonlightConnectionBoundarySnapshot? {
+        requireIdentity(token, "candidate")
+        val entry = current?.takeIf { it.token == token } ?: return null
+        if (entry.state !in TERMINAL_BOUNDARY_STATES) return null
+        return entry.connectionBoundarySnapshot()
     }
 
     @Synchronized
@@ -478,6 +548,18 @@ object MoonlightForegroundLeaseRegistry {
         }
     }
 
+    private fun observeBoundary(
+        token: String,
+        update: (Entry) -> Unit,
+    ): MoonlightConnectionBoundarySnapshot? {
+        requireIdentity(token, "candidate")
+        val entry = current?.takeIf {
+            it.token == token && it.state in ACTIVE_BOUNDARY_STATES
+        } ?: return null
+        update(entry)
+        return entry.connectionBoundarySnapshot()
+    }
+
     private fun Entry.snapshot() = MoonlightLeaseSnapshot(
         token = token,
         sessionId = spec.sessionId,
@@ -493,6 +575,17 @@ object MoonlightForegroundLeaseRegistry {
         acceptedAudioWriteCount = acceptedAudioWriteCount,
     )
 
+    private fun Entry.connectionBoundarySnapshot() = MoonlightConnectionBoundarySnapshot(
+        sessionId = spec.sessionId,
+        epoch = spec.epoch,
+        surfaceCreated = surfaceCreatedObserved,
+        positiveSurfaceChanged = positiveSurfaceChangedObserved,
+        stageStarted = stageStartedObserved,
+        stageCompleted = stageCompletedObserved,
+        stageFailed = stageFailedObserved,
+        connectionStarted = connectionStartedObserved,
+    )
+
     private fun Entry.terminalSnapshot(): MoonlightTerminalWitnessSnapshot? {
         val observationKind = terminalObservationKind ?: return null
         return MoonlightTerminalWitnessSnapshot(
@@ -506,4 +599,12 @@ object MoonlightForegroundLeaseRegistry {
 
     private const val TRANSFER_TIMEOUT_MS = 5_000L
     private const val TERMINATION_TIMEOUT_MS = 5_000L
+    private val ACTIVE_BOUNDARY_STATES = setOf(
+        MoonlightLeaseState.TRANSFER_PENDING,
+        MoonlightLeaseState.GAME_VISIBLE,
+    )
+    private val TERMINAL_BOUNDARY_STATES = setOf(
+        MoonlightLeaseState.RETIRED,
+        MoonlightLeaseState.UNCERTAIN,
+    )
 }

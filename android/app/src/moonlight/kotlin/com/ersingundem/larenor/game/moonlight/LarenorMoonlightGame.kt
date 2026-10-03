@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.Build
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -110,6 +111,33 @@ class LarenorMoonlightGame : Game() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         launchToken?.let(MoonlightForegroundLeaseRegistry::inputActivity)
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        launchToken?.let(MoonlightForegroundLeaseRegistry::surfaceCreated)
+        super.surfaceCreated(holder)
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        launchToken?.let {
+            MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(it, width, height)
+        }
+        super.surfaceChanged(holder, format, width, height)
+    }
+
+    override fun stageStarting(stage: String?) {
+        launchToken?.let(MoonlightForegroundLeaseRegistry::stageStarted)
+        super.stageStarting(stage)
+    }
+
+    override fun stageComplete(stage: String?) {
+        launchToken?.let(MoonlightForegroundLeaseRegistry::stageCompleted)
+        super.stageComplete(stage)
+    }
+
+    override fun stageFailed(stage: String?, portFlags: Int, errorCode: Int) {
+        launchToken?.let(MoonlightForegroundLeaseRegistry::stageFailed)
+        super.stageFailed(stage, portFlags, errorCode)
     }
 
     override fun connectionStarted() {

@@ -5740,7 +5740,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Normal Başlat launch→verified→fresh stream ve Game-owned spinner claim düzeltmeleri root11+1/48native/AndroidTest compile ile tamamlandı. Exacta8/run36835162847 başarısız tamamlandı: original1/1/0/0 firstStreamOutput; bridge pairedClientObserved, lease gameVisible, dispatch timeout/runtime unknown_effect. Root canonical1397B artifact11149980532 kimlik/hash/closed schema doğruladı. Oyun Activity sahipliği kurulmuş; gerekli connectionStarted 30sn içinde gözlenmemiş. Surface/HTTP/native start/callback sınırlarından hangisinin neden olduğu kanıtlanmadı. Gerçek frame/PCM/input/iki yaşam/close kabulü açık; aynıSHA kör rerun yok. Son birleşik CI ve gerçek receiver MANUAL ayrı; CI bekliyor/done sayılmaz."
+      "reason": "Yeniden çalışılıyor. Normal Başlat launch→verified→fresh stream ve Game-owned spinner claim düzeltmeleri root11+1/48native/AndroidTest compile ile tamamlandı. Exacta8/run36835162847 başarısız tamamlandı: original1/1/0/0 firstStreamOutput; bridge pairedClientObserved, lease gameVisible, dispatch timeout/runtime unknown_effect. Root canonical1397B artifact11149980532 kimlik/hash/closed schema doğruladı. Oyun Activity sahipliği kurulmuş; gerekli connectionStarted 30sn içinde gözlenmemiş. Surface/HTTP/native start/callback sınırlarından hangisinin neden olduğu kanıtlanmadı. Gerçek frame/PCM/input/iki yaşam/close kabulü açık; aynıSHA kör rerun yok. Son birleşik CI ve gerçek receiver MANUAL ayrı; CI bekliyor/done sayılmaz. Yeni exact-token altı gerçek Game callback tanısı root46JVM, AndroidTestcompile,54runner/36subtest ve10workflow/12subtest ile geçti; yalnız failure-only yerel kanıt, strict runtime kabulü değildir."
     },
     {
       "id": "G11",
@@ -5940,28 +5940,12 @@
           "label": "Exact1d canonical originaltest1failure0error0skip:initial1280x800framewait ownedframes255+98; Linuxfixturecompile/arm64APKpassed; noDISP/clipboard/runtimeacceptance"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-initial-frame-subscriber-2026-10-01.md",
-          "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root fresh exact release extraction/patch/manifest and actual thread ordering;18/18 focused checks; independent review; hosted runtime remains open"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36808149011",
           "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
           "state": "completed",
           "result": "failed",
           "label": "Canonical original1test/1failure/0error/0skip; unclassified exception/no owned frames/serverResizeRequested=false; exact cause unproved, arm64 package passed"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
-          "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
-          "state": "completed",
-          "result": "passed",
-          "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
         },
         {
           "kind": "test",
@@ -6138,10 +6122,26 @@
           "state": "completed",
           "result": "passed",
           "label": "Root30 Flutter geometry/profile/panel tests and scoped analyze passed; contain/fill/native physical mapping and owned pan; schema2 density/fullscreen/runtime gates separate"
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-native-display-pointer-v2-2026-10-01.md",
+          "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Schema2 integrated: root81Flutter/all-RDP analyze, verifiedactualdualABI product;44RDP+46Moonlight JVM tests zero skips/failures/errors; AndroidTest compile;106portable/83subtests; hosted provider and audio/mic/SAF/Gateway remain open"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f62-v2-owned-initial-display-2026-10-03.md",
+          "commit": "01e5ca7d42e6b995f0a8eef74225b82b486093a7",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent pinned-source/package/peer-CAPS, exactdisplayedgeometry, fullscreen, two-lifetime fixture review; resize/ACK race deterministic regression passed; initial layout cannot satisfy resize; no provider effect or OS scale acceptance claimed"
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Keyboard/Türkçe layout/negotiated Unicode dilimi root49Flutter/analiz+21actual-AAR JVM ile tamamlandı. Pencere lease sahipliği d66 root15Flutter+20Kotlin, fit/fill/native geometry61db root30Flutter ile geçti. Tam fullscreen, schema2 yüzde-density/relative pointer/wheel, ses/mikrofon/SAF/Gateway üretim açıkları FUNCTION içinde kalır; capability=false kapanış değildir. Exact42be/run36836063548 başarısız: arm64package passed; x86 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse. Owned provider poll live/exitCodenull; root canonical1667B artifact11149613819 source/package/fixture kimlik/hash doğruladı. Marker invalid/writerunknown; kesin native/provider alt nedeni açık. Yeni Dart cold-frame ve native DISP readiness düzeltmeleri ayrı doğrulama aşamasındadır; eski hatanın kök nedeni iddia edilmez. Strict TLS/NLA/frame/ACK/input/DISP/clipboard/iki yaşam/close kapısı aynı kalır; aynıSHA kör rerun yok. Son birleşik CI ve fiziksel Windows/Huawei/DeX MANUAL ayrı; CI bekliyor/done sayılmaz."
+      "reason": "Yeniden çalışılıyor. Keyboard/Türkçe/Unicode, window lease ve fit/fill dilimleri yerel kapıları geçti. 01e5 schema2/fullscreen/relative pointer/wheel yazılımı root81Flutter/analyze, exactreceipteddualABI paket,44RDP+46Moonlight JVM (0skip/failure/error), AndroidTest derleme ve106portable/83subtest ile doğrulandı. Peer DISP CAPS sonrası initial layout; ACKed-frame/resize yarışları ve doğru yüzde-scale çitleri kapandı. Ses/mikrofon/gerçekSAF/Gateway üretim yazılımı hâlâ açık; capability=false kapanış değildir. Exact42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed/sessionfailed,resizefalse; provider poll live,rootcanonical1667B doğrulandı. Yeni cold-frame/DISP düzeltmeleri eski hatanın kesin nedeni olarak sunulmaz. Değişmiş kaynak strict TLS/NLA/frame/ACK/input/DISP/clipboard/iki yaşam/close kabulü henüz yok. Fiziksel Windows/Huawei/DeX MANUAL ve son birleşik requiredCI ayrı; CI bekliyor/done sayılmaz."
     },
     {
       "id": "F61",
@@ -6422,7 +6422,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; v2 density/pointer/fullscreen, audio/mic/SAF/Gateway yazılımı tamamlanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir."
     },
     {
       "id": "FINAL.UI",

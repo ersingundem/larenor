@@ -414,10 +414,19 @@ class MoonlightOwnedSunshineStreamTest {
             "\nF60_STREAM_DISPATCH_V1|stage=${it.stage}|failureClass=${it.failureClass}|" +
                 "runtimeFailure=${it.runtimeFailure}"
         }.orEmpty()
+        val boundaries = runCatching {
+            runtime.connectionBoundaryDiagnostic(authority, session.sessionId, session.sessionRevision)
+        }.getOrNull()
+        val boundaryMarker = boundaries?.let {
+            "\nF60_CONNECTION_BOUNDARIES_V1|surfaceCreated=${it.surfaceCreated}|" +
+                "positiveSurfaceChanged=${it.positiveSurfaceChanged}|stageStarted=${it.stageStarted}|" +
+                "stageCompleted=${it.stageCompleted}|stageFailed=${it.stageFailed}|" +
+                "connectionStarted=${it.connectionStarted}"
+        }.orEmpty()
         throw AssertionError(
             "F60_STREAM_COMMAND_V1|state=$state|result=$result|kind=$kind|" +
                 "leaseClaim=$leaseClaim|outcome=strictFailure|classification=$classification" +
-                dispatchMarker,
+                dispatchMarker + boundaryMarker,
         )
     }
 

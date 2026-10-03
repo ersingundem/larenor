@@ -1179,6 +1179,96 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         with self.assertRaises(stream.StreamAcceptanceFailure):
             stream._validate_failure_diagnostic(diagnostic)
 
+    @staticmethod
+    def _connection_boundary_body(marker: str, line: int = 223) -> str:
+        return (
+            "java.lang.AssertionError: F60_STREAM_COMMAND_V1|state=unknown|"
+            "result=unknown|kind=unknown|leaseClaim=gameVisible|"
+            "outcome=strictFailure|classification=leaseGameVisible\n"
+            + marker + "\n"
+            " at com.ersingundem.larenor.game.moonlight."
+            "MoonlightOwnedSunshineStreamTest."
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:{line})\n"
+        )
+
+    def test_connection_boundaries_are_six_finite_source_bound_failure_only_booleans(self) -> None:
+        marker = (
+            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=true|stageFailed=false|connectionStarted=false"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=self._connection_boundary_body(marker))
+            diagnostic = stream.failure_diagnostic(root)
+        self.assertEqual({
+            "surfaceCreated": True, "positiveSurfaceChanged": True,
+            "stageStarted": True, "stageCompleted": True,
+            "stageFailed": False, "connectionStarted": False,
+        }, diagnostic["connectionBoundaries"])
+        self.assertEqual("instrumentation_test_failure", diagnostic["code"])
+        self.assertEqual({"tests": 1, "failures": 1, "errors": 0, "skipped": 0}, diagnostic["counts"])
+        stream._validate_failure_diagnostic(diagnostic)
+
+    def test_connection_boundaries_reject_duplicate_malformed_and_extra_private_fields(self) -> None:
+        marker = (
+            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=false|"
+            "stageStarted=false|stageCompleted=false|stageFailed=false|connectionStarted=false"
+        )
+        invalid = (
+            marker + "|private=secret", marker.replace("true", "1", 1),
+            marker.replace("stageFailed=false|", ""),
+            marker + "\n" + marker,
+            marker + "\n" + marker + "|private=secret",
+        )
+        for value in invalid:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self._failed_report(root, body=self._connection_boundary_body(value))
+                diagnostic = stream.failure_diagnostic(root)
+                self.assertNotIn("connectionBoundaries", diagnostic)
+                self.assertNotIn("secret", json.dumps(diagnostic))
+
+    def test_connection_boundaries_require_original_named_first_stream_and_exact_source(self) -> None:
+        marker = (
+            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=self._connection_boundary_body(marker, line=250))
+            self.assertNotIn("connectionBoundaries", stream.failure_diagnostic(root))
+            self._failed_report(root, body=self._connection_boundary_body(marker), test_name="otherTest")
+            self.assertNotIn("connectionBoundaries", stream.failure_diagnostic(root))
+            self._failed_report(root, body=self._connection_boundary_body(marker))
+            changed = root / "changed.kt"
+            changed.write_bytes(b"\n" + stream._STAGE_SOURCE.read_bytes())
+            with mock.patch.object(stream, "_STAGE_SOURCE", changed):
+                self.assertNotIn("connectionBoundaries", stream.failure_diagnostic(root))
+
+    def test_connection_boundaries_validator_rejects_nonboolean_incomplete_and_unbound_evidence(self) -> None:
+        marker = (
+            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=self._connection_boundary_body(marker))
+            diagnostic = stream.failure_diagnostic(root)
+        for boundaries in (
+            None, {}, {key: 1 for key in stream._CONNECTION_BOUNDARY_KEYS},
+            {**diagnostic["connectionBoundaries"], "private": "secret"},
+        ):
+            with self.subTest(boundaries=boundaries), self.assertRaises(stream.StreamAcceptanceFailure):
+                stream._validate_failure_diagnostic({**diagnostic, "connectionBoundaries": boundaries})
+        unbound = dict(diagnostic)
+        del unbound["streamCommand"]
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic(unbound)
+        with self.assertRaises(stream.StreamAcceptanceFailure):
+            stream._validate_failure_diagnostic({**diagnostic, "counts": {
+                "tests": 1, "failures": 0, "errors": 0, "skipped": 1,
+            }})
+
     def test_wrong_or_premethod_identity_never_claims_named_test_or_stage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

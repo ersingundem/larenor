@@ -96,3 +96,33 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+## 3 October schema-2 integration consolidation
+
+These older local preparation/build records are retained in full. Their CI
+records remain in the live queue. The new schema-2 combined gate replaces
+these local checkpoints for current routing, without upgrading acceptance.
+
+```json
+[
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-initial-frame-subscriber-2026-10-01.md",
+    "commit": "36c3e015d27c3ff4b21b0e7d834075b7107bb479",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root fresh exact release extraction/patch/manifest and actual thread ordering;18/18 focused checks; independent review; hosted runtime remains open"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
+    "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
+    "state": "completed",
+    "result": "passed",
+    "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
+  }
+]
+```
