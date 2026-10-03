@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Run all Server gates, F08 cgroup, host worker proofs, or one F60 owned-provider gate"
+        description: "Run all Server gates, F08 cgroup, host worker proofs, one F60 owned-provider gate, or the F62 Gateway probe"
         required: true
         default: all
         type: choice
@@ -24,6 +24,7 @@ on:
           - f60-discovery
           - f60-stream
           - f60-input-probe
+          - f62-gateway-probe
 
 permissions:
   contents: read
@@ -33,6 +34,128 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  f62-gateway-linux-probe:
+    name: f62-gateway-linux-probe
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f62-gateway-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Initialize the disposable cleanup path
+        run: echo "LARENOR_F62_PROBE_ROOT=$RUNNER_TEMP/larenor-f62-gateway-probe" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require exact disposable hosted source
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REPOSITORY" = ersingundem/larenor
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          case "$GITHUB_REF" in refs/heads/main|refs/heads/codex/project-completion-100) ;; *) exit 1;; esac
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Install exact available native prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          packages=(
+            build-essential cmake ninja-build pkg-config libssl-dev libpam0g-dev
+            libx11-dev libx11-xcb-dev libxext-dev libxinerama-dev libxcursor-dev
+            libxdamage-dev libxfixes-dev libxkbfile-dev libxrandr-dev libxi-dev
+            libxrender-dev libxtst-dev libxv-dev libxcb1-dev libxkbcommon-dev
+            libxkbcommon-x11-dev xvfb iproute2 iptables util-linux curl ca-certificates
+          )
+          for package in "${packages[@]}"; do
+            candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
+            case "$candidate" in ""|"(none)") exit 1;; esac
+            sudo apt-get install --yes --no-install-recommends "$package=$candidate"
+            test "$(dpkg-query --show --showformat='${Version}' "$package")" = "$candidate"
+          done
+
+      - name: Prepare pinned private sources and Go toolchain
+        env:
+          GO_ARCHIVE_SHA256: 2852af0cb20a13139b3448992e69b868e50ed0f8a1e5940ee1de9e19a123b613
+          FREERDP_ARCHIVE_SHA256: 4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991
+          RDGW_ARCHIVE_SHA256: b96e24cddfdf4b6eee939dc1558734f29534c7e0ebae650858c8ba715a166907
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$RUNNER_TEMP/larenor-f62-gateway-probe"
+          install -d -m 700 "$root" "$root/go-root" "$GITHUB_WORKSPACE/test-results"
+          echo "LARENOR_F62_PROBE_ROOT=$root" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://go.dev/dl/go1.25.0.linux-amd64.tar.gz -o "$root/go.tar.gz"
+          echo "$GO_ARCHIVE_SHA256  $root/go.tar.gz" | sha256sum --check --strict
+          tar --extract --gzip --file "$root/go.tar.gz" --directory "$root/go-root" --no-same-owner
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/FreeRDP/FreeRDP/releases/download/3.31.1/freerdp-3.31.1.tar.gz \
+            -o "$root/freerdp.tar.gz"
+          echo "$FREERDP_ARCHIVE_SHA256  $root/freerdp.tar.gz" | sha256sum --check --strict
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            https://github.com/bolkedebruin/rdpgw/archive/16cdaaf4dce6a6567ce9b612f14e71d0ca704148.tar.gz \
+            -o "$root/rdpgw.tar.gz"
+          echo "$RDGW_ARCHIVE_SHA256  $root/rdpgw.tar.gz" | sha256sum --check --strict
+          chmod 600 "$root/go.tar.gz" "$root/freerdp.tar.gz" "$root/rdpgw.tar.gz"
+          test "$("$root/go-root/go/bin/go" version)" = 'go version go1.25.0 linux/amd64'
+
+      - name: Build pinned owned gateway and RDPDR endpoints
+        env:
+          LARENOR_F62_OWNED_RDGW: required
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B tool/f62_rdpgw_owned_fixture.py self-test
+          python3 -B tool/f62_gateway_linux_probe.py self-test
+          python3 -B tool/f62_rdpgw_owned_fixture.py build \
+            --workspace "$LARENOR_F62_PROBE_ROOT" \
+            --archive "$LARENOR_F62_PROBE_ROOT/rdpgw.tar.gz" \
+            --go "$LARENOR_F62_PROBE_ROOT/go-root/go/bin/go"
+          python3 -B tool/f62_gateway_linux_probe.py build-freerdp \
+            --workspace "$LARENOR_F62_PROBE_ROOT" \
+            --archive "$LARENOR_F62_PROBE_ROOT/freerdp.tar.gz"
+
+      - name: Prove the owned Linux Gateway and RDPDR transport
+        env:
+          LARENOR_F62_OWNED_RDGW: required
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B tool/f62_gateway_linux_probe.py run \
+            --workspace "$LARENOR_F62_PROBE_ROOT" \
+            --gateway-build-receipt "$LARENOR_F62_PROBE_ROOT/build-receipt.json" \
+            --gateway-binary "$LARENOR_F62_PROBE_ROOT/build/bin/rdpgw" \
+            --auth-binary "$LARENOR_F62_PROBE_ROOT/build/bin/rdpgw-auth" \
+            --freerdp-build-receipt "$LARENOR_F62_PROBE_ROOT/freerdp-build-receipt.json" \
+            --shadow-binary "$LARENOR_F62_PROBE_ROOT/cmake-build/server/shadow/cli/freerdp-shadow-cli" \
+            --xfreerdp-binary "$LARENOR_F62_PROBE_ROOT/cmake-build/client/X11/xfreerdp" \
+            --gateway-port 49462 --target-port 3390 --timeout 180 \
+            --public-receipt "$LARENOR_F62_PROBE_ROOT/f62-gateway-probe-receipt.json"
+          install -m 600 "$LARENOR_F62_PROBE_ROOT/f62-gateway-probe-receipt.json" \
+            "$GITHUB_WORKSPACE/test-results/f62-gateway-probe-receipt.json"
+
+      - name: Remove the disposable network and private workspace
+        if: always()
+        env:
+          LARENOR_F62_OWNED_RDGW: required
+        run: |
+          set -euo pipefail
+          if test -f "$LARENOR_F62_PROBE_ROOT/run/cleanup-state.json"; then
+            python3 -B tool/f62_rdpgw_owned_fixture.py cleanup \
+              --workspace "$LARENOR_F62_PROBE_ROOT" \
+              --cleanup-state "$LARENOR_F62_PROBE_ROOT/run/cleanup-state.json"
+          fi
+          rm -rf --one-file-system "$LARENOR_F62_PROBE_ROOT"
+
+      - name: Preserve only the closed non-acceptance receipt
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: larenor-f62-gateway-linux-probe
+          path: test-results/f62-gateway-probe-receipt.json
+          if-no-files-found: error
+          retention-days: 14
   f60-owned-input-probe:
     if: github.event_name == 'workflow_dispatch' && inputs.scope == 'f60-input-probe'
     runs-on: ubuntu-24.04
@@ -54,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          for package in xvfb xinput x11-utils libxtst6; do
+          for package in xvfb xinput x11-utils x11-xserver-utils libxtst6; do
             candidate="$(apt-cache policy "$package" | awk '$1 == "Candidate:" {print $2}')"
             case "$candidate" in ""|"(none)") exit 1;; esac
             sudo apt-get install --yes --no-install-recommends "$package=$candidate"

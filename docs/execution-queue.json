@@ -5586,14 +5586,6 @@
           "label": "Exacted912 changed HTTPS0 source: strict original1/1/0/0 failed; pairedClientObserved, unclassified, owned Game.kt frames57/48. Root canonical998B artifact11146891530 validated; underlying cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
-          "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root actual packaged layout old-source RED:1/1/0/0 InflateException; restored final44 JVM/0skip GREEN with real StreamView/SurfaceControl.SECURE/FLAG_SECURE; required AndroidTest compile277 passed"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
           "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
@@ -5744,10 +5736,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Root82tests and scoped Ruff passed ordered key-proof/process-reap/pointer handoff. Upstream touch-selection conflict source verified; disposable real Linux topology probe pending. No weakened Android effects, feature acceptance or merge."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37135929910",
+          "commit": "5a71559a14d7e3d9e4fbb65e50fe86edcc36698c",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact5a715 diagnostic Linux observer probe failed at keyListener, before effects. Closed source-bound receipt; no narrower old cause proved. New key observer needs xmodmap; changed workflow installs exact x11-xserver-utils and finite failure code, root83tests+Ruff. No same-SHA retry or feature acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact847 strict37134249192 başarısız: original1/1/0/0 ownedInputEffects; touchListener/failed/xi2ChildExit. İki XInput gözlemcisinin çakışan touch seçimi upstream kaynakla doğrulandı. Gerçek klavye kanıtı ve süreç kapanışı sonrası pointer handoff düzeltmesi root82test+Ruff geçti; gerçek Linux probe ve değişmiş Android iki yaşam/yayın/girdi/kapanış kabulü açık. Aynı SHA rerun, kabul veya merge yok."
+      "reason": "Exact847 strict37134249192 xi2ChildExit; çakışan XInput seçimi için sıralı handoff82test geçti. Kısa exact5a715 probe37135929910 keyListener aşamasında başarısız; xmodmap paketini açıkça kuran yeni workflow ve finite tanı83test+Ruff geçti. Değişmiş Linux probe ve gerçek Android iki yaşam/yayın/girdi/kapanış kabulü açık. Aynı SHA rerun, kabul veya merge yok."
     },
     {
       "id": "G11",
@@ -6013,14 +6013,6 @@
           "label": "Exact03f arm64 package passed; x86 original1/1/0/0 failed initialFrameWait/connectionFailed/sessionfailed, resizefalse. Root canonical1613B artifact11148012761 verified; marker invalid/writerunknown, precise cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
-          "commit": "a8dda8956d251a65021b8aa28a0472fb8a12c0ea",
-          "state": "completed",
-          "result": "passed",
-          "label": "Pinned FreeRDP primary API review: keyboard slice implemented; genuine relative pointer and density need package API changes; display/audio/microphone/SAF/Gateway supported software gaps remain open"
-        },
-        {
           "kind": "test",
           "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
           "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
@@ -6155,6 +6147,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Private actual composition root177native/0skip+AndroidTest compile315,145Flutter/26-file analyze,Core25+Ruff,portable22/27subtests; actual twoABI source/API/ELF/receipt verified. Review found Gateway probe admission, SAF recovery and durable secret cleanup gaps. Root admission13native+23tablet passed; remaining fixes/real hosted effects open. Local only, no acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-owned-gateway-linux-probe-2026-10-03.md",
+          "commit": "5a71559a14d7e3d9e4fbb65e50fe86edcc36698c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root45portable runner/workflow/fixture/immutable target tests, Ruff/actionlint passed owned real-build Gateway/RDPDR probe. Correct v2 mirror paths, static ELF/source private-copy, target NLA beforeTLS, exact drive policy; Linux build/runtime and Android actual effects pending. FeatureAccepted=false."
         }
       ],
       "completionCommit": null,

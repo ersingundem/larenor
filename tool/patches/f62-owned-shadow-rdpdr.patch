@@ -1,0 +1,629 @@
+diff -ruN a/include/freerdp/server/shadow.h b/include/freerdp/server/shadow.h
+--- a/include/freerdp/server/shadow.h	2026-10-03 18:27:42
++++ b/include/freerdp/server/shadow.h	2026-10-03 18:29:20
+@@ -136,6 +136,9 @@
+ #endif
+ 		RdpgfxServerContext* rdpgfx;
+ 
++		/* Owned acceptance target state; private to server/shadow. */
++		void* ownedRdpdrTarget;
++
+ 		BOOL resizeRequested;
+ 		UINT32 resizeWidth;
+ 		UINT32 resizeHeight;
+diff -ruN a/server/shadow/CMakeLists.txt b/server/shadow/CMakeLists.txt
+--- a/server/shadow/CMakeLists.txt	2026-10-03 18:27:42
++++ b/server/shadow/CMakeLists.txt	2026-10-03 18:29:20
+@@ -36,6 +36,8 @@
+     shadow_capture.h
+     shadow_channels.c
+     shadow_channels.h
++    shadow_owned_rdpdr.c
++    shadow_owned_rdpdr.h
+     shadow_encomsp.c
+     shadow_encomsp.h
+     shadow_remdesk.c
+diff -ruN a/server/shadow/shadow_channels.c b/server/shadow/shadow_channels.c
+--- a/server/shadow/shadow_channels.c	2026-10-03 18:27:42
++++ b/server/shadow/shadow_channels.c	2026-10-03 18:29:20
+@@ -21,9 +21,13 @@
+ #include "shadow.h"
+ 
+ #include "shadow_channels.h"
++#include "shadow_owned_rdpdr.h"
+ 
+ UINT shadow_client_channels_post_connect(rdpShadowClient* client)
+ {
++	if (shadow_client_owned_rdpdr_init(client) != CHANNEL_RC_OK)
++		return ERROR_NOT_READY;
++
+ 	if (WTSVirtualChannelManagerIsChannelJoined(client->vcm, ENCOMSP_SVC_CHANNEL_NAME))
+ 	{
+ 		if (shadow_client_encomsp_init(client) < 0)
+@@ -53,6 +57,7 @@
+ 
+ void shadow_client_channels_free(rdpShadowClient* client)
+ {
++	shadow_client_owned_rdpdr_uninit(client);
+ 	shadow_client_rdpgfx_uninit(client);
+ 	shadow_client_audin_uninit(client);
+ 	shadow_client_rdpsnd_uninit(client);
+diff -ruN a/server/shadow/shadow_owned_rdpdr.c b/server/shadow/shadow_owned_rdpdr.c
+--- a/server/shadow/shadow_owned_rdpdr.c	1970-01-01 02:00:00
++++ b/server/shadow/shadow_owned_rdpdr.c	2026-10-03 18:38:59
+@@ -0,0 +1,553 @@
++#include <freerdp/config.h>
++
++#include <errno.h>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <limits.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
++#include <freerdp/freerdp.h>
++#include <freerdp/log.h>
++#include <freerdp/peer.h>
++#include <freerdp/server/rdpdr.h>
++#include <winpr/assert.h>
++#include <winpr/custom-crypto.h>
++#include <winpr/nt.h>
++#include <winpr/synch.h>
++#include <winpr/thread.h>
++
++#include "shadow.h"
++#include "shadow_owned_rdpdr.h"
++
++#define TAG SERVER_TAG("shadow.owned.rdpdr")
++#define OWNED_TIMEOUT_MS 120000u
++#define OWNED_MAX_PAYLOAD 512u
++
++typedef enum
++{
++	OWNED_WAIT_DRIVE = 1,
++	OWNED_WAIT_DEVICE_REPLY,
++	OWNED_OPEN_UPLOAD,
++	OWNED_READ_UPLOAD,
++	OWNED_CLOSE_UPLOAD,
++	OWNED_OPEN_OUTBOUND,
++	OWNED_WRITE_OUTBOUND,
++	OWNED_CLOSE_OUTBOUND,
++	OWNED_COMPLETE,
++	OWNED_FAILED
++} OWNED_RDPDR_STAGE;
++
++typedef struct
++{
++	rdpShadowClient* client;
++	RdpdrServerContext* channel;
++	CRITICAL_SECTION lock;
++	HANDLE stopEvent;
++	HANDLE timeoutThread;
++	OWNED_RDPDR_STAGE stage;
++	BOOL closing;
++	BOOL nlaAuthenticated;
++	UINT32 deviceId;
++	UINT32 fileId;
++	char nonce[65];
++	char expectedUploadHex[65];
++	char expectedOutboundHex[65];
++	BYTE expectedUpload[WINPR_SHA256_DIGEST_LENGTH];
++	BYTE expectedOutbound[WINPR_SHA256_DIGEST_LENGTH];
++	char uploadPath[96];
++	char outboundPath[96];
++	char outbound[OWNED_MAX_PAYLOAD];
++	UINT32 uploadLength;
++	UINT32 outboundLength;
++	char witnessPath[PATH_MAX];
++} OWNED_RDPDR_TARGET;
++
++static volatile LONG g_ownedClientClaimed = 0;
++
++static BOOL owned_hex(const char* src, BYTE* dst, size_t length)
++{
++	if (!src || (strlen(src) != length * 2))
++		return FALSE;
++	for (size_t x = 0; x < length; x++)
++	{
++		unsigned value = 0;
++		if (sscanf(&src[x * 2], "%2x", &value) != 1)
++			return FALSE;
++		dst[x] = (BYTE)value;
++	}
++	return TRUE;
++}
++
++static BOOL owned_hex_text(const char* value, size_t length)
++{
++	if (!value || (strlen(value) != length))
++		return FALSE;
++	for (size_t x = 0; x < length; x++)
++	{
++		if (!((value[x] >= '0') && (value[x] <= '9')) &&
++		    !((value[x] >= 'a') && (value[x] <= 'f')))
++			return FALSE;
++	}
++	return TRUE;
++}
++
++static BOOL owned_private_output_path(const char* path)
++{
++	char parent[PATH_MAX] = { 0 };
++	struct stat st = { 0 };
++	if (!path || (path[0] != '/') || (strlen(path) >= PATH_MAX) || strstr(path, "//") ||
++	    (path[strlen(path) - 1] == '/'))
++		return FALSE;
++	const char* component = path + 1;
++	while (*component)
++	{
++		const char* end = strchr(component, '/');
++		const size_t length = end ? (size_t)(end - component) : strlen(component);
++		if ((length == 0) || ((length == 1) && (component[0] == '.')) ||
++		    ((length == 2) && (component[0] == '.') && (component[1] == '.')))
++			return FALSE;
++		if (!end)
++			break;
++		component = end + 1;
++	}
++	const char* slash = strrchr(path, '/');
++	if (!slash || (slash == path))
++		return FALSE;
++	const size_t parentLength = (size_t)(slash - path);
++	memcpy(parent, path, parentLength);
++	parent[parentLength] = '\0';
++	if ((lstat(parent, &st) != 0) || !S_ISDIR(st.st_mode) || (st.st_uid != getuid()) ||
++	    ((st.st_mode & 077) != 0))
++		return FALSE;
++	if ((lstat(path, &st) == 0) || (errno != ENOENT))
++		return FALSE;
++	return TRUE;
++}
++
++static void owned_fail(OWNED_RDPDR_TARGET* target)
++{
++	HANDLE abortEvent = NULL;
++	if (!target)
++		return;
++	EnterCriticalSection(&target->lock);
++	if (!target->closing)
++	{
++		target->stage = OWNED_FAILED;
++		abortEvent = freerdp_abort_event(&target->client->context);
++	}
++	LeaveCriticalSection(&target->lock);
++	if (abortEvent)
++		SetEvent(abortEvent);
++}
++
++static DWORD WINAPI owned_timeout_thread(LPVOID arg)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)arg;
++	WINPR_ASSERT(target);
++	if (WaitForSingleObject(target->stopEvent, OWNED_TIMEOUT_MS) == WAIT_TIMEOUT)
++		owned_fail(target);
++	return 0;
++}
++
++static BOOL owned_digest_equals(const void* data, size_t length, const BYTE expected[32])
++{
++	BYTE actual[WINPR_SHA256_DIGEST_LENGTH] = { 0 };
++	const BOOL rc = winpr_Digest(WINPR_MD_SHA256, data, length, actual, sizeof(actual));
++	const BOOL equal = rc && (memcmp(actual, expected, sizeof(actual)) == 0);
++	SecureZeroMemory(actual, sizeof(actual));
++	return equal;
++}
++
++static BOOL owned_write_all(int fd, const char* text, size_t length)
++{
++	while (length > 0)
++	{
++		const ssize_t written = write(fd, text, length);
++		if (written < 0)
++		{
++			if (errno == EINTR)
++				continue;
++			return FALSE;
++		}
++		if (written == 0)
++			return FALSE;
++		text += written;
++		length -= (size_t)written;
++	}
++	return TRUE;
++}
++
++static BOOL owned_publish_witness(OWNED_RDPDR_TARGET* target)
++{
++	char json[768] = { 0 };
++	struct stat st = { 0 };
++	const int length = _snprintf(json, sizeof(json),
++	                             "{\"authenticatedSessions\":1,\"cleanClose\":true,"
++	                             "\"nlaAuthenticated\":true,\"nonce\":\"%s\","
++	                             "\"outboundClosed\":true,\"outboundSha256\":\"%s\","
++	                             "\"schemaVersion\":2,\"uploadSha256\":\"%s\"}\n",
++	                             target->nonce, target->expectedOutboundHex,
++	                             target->expectedUploadHex);
++	if ((length <= 0) || ((size_t)length >= sizeof(json)))
++		return FALSE;
++	const int fd = open(target->witnessPath,
++	                    O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR | S_IWUSR);
++	if (fd < 0)
++		return FALSE;
++	BOOL ok = (fstat(fd, &st) == 0) && S_ISREG(st.st_mode) && (st.st_uid == getuid()) &&
++	          ((st.st_mode & 077) == 0) && owned_write_all(fd, json, (size_t)length) &&
++	          (fsync(fd) == 0);
++	if (close(fd) != 0)
++		ok = FALSE;
++	if (!ok)
++		unlink(target->witnessPath);
++	SecureZeroMemory(json, sizeof(json));
++	return ok;
++}
++
++static void owned_open_complete(RdpdrServerContext* context, void* callbackData, UINT32 ioStatus,
++                                UINT32 deviceId, UINT32 fileId)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)callbackData;
++	BOOL upload = FALSE;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	if (target->closing || (ioStatus != STATUS_SUCCESS) || (deviceId != target->deviceId) ||
++	    ((target->stage != OWNED_OPEN_UPLOAD) && (target->stage != OWNED_OPEN_OUTBOUND)))
++	{
++		LeaveCriticalSection(&target->lock);
++		owned_fail(target);
++		return;
++	}
++	upload = target->stage == OWNED_OPEN_UPLOAD;
++	target->fileId = fileId;
++	target->stage = upload ? OWNED_READ_UPLOAD : OWNED_WRITE_OUTBOUND;
++	LeaveCriticalSection(&target->lock);
++	const UINT rc = upload ? context->DriveReadFile(context, target, target->deviceId, fileId,
++	                                                target->uploadLength + 1, 0)
++	                       : context->DriveWriteFile(context, target, target->deviceId, fileId,
++	                                                 target->outbound, target->outboundLength, 0);
++	if (rc != CHANNEL_RC_OK)
++		owned_fail(target);
++}
++
++static void owned_read_complete(RdpdrServerContext* context, void* callbackData, UINT32 ioStatus,
++                                const char* buffer, UINT32 length)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)callbackData;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	if (target->closing || (target->stage != OWNED_READ_UPLOAD) || (ioStatus != STATUS_SUCCESS) ||
++	    !buffer || (length != target->uploadLength) ||
++	    !owned_digest_equals(buffer, length, target->expectedUpload))
++	{
++		LeaveCriticalSection(&target->lock);
++		owned_fail(target);
++		return;
++	}
++	target->stage = OWNED_CLOSE_UPLOAD;
++	LeaveCriticalSection(&target->lock);
++	if (context->DriveCloseFile(context, target, target->deviceId, target->fileId) != CHANNEL_RC_OK)
++		owned_fail(target);
++}
++
++static void owned_write_complete(RdpdrServerContext* context, void* callbackData, UINT32 ioStatus,
++                                 UINT32 bytesWritten)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)callbackData;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	if (target->closing || (target->stage != OWNED_WRITE_OUTBOUND) ||
++	    (ioStatus != STATUS_SUCCESS) || (bytesWritten != target->outboundLength))
++	{
++		LeaveCriticalSection(&target->lock);
++		owned_fail(target);
++		return;
++	}
++	target->stage = OWNED_CLOSE_OUTBOUND;
++	LeaveCriticalSection(&target->lock);
++	if (context->DriveCloseFile(context, target, target->deviceId, target->fileId) != CHANNEL_RC_OK)
++		owned_fail(target);
++}
++
++static void owned_close_complete(RdpdrServerContext* context, void* callbackData, UINT32 ioStatus)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)callbackData;
++	BOOL openOutbound = FALSE;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	if (target->closing || (ioStatus != STATUS_SUCCESS) ||
++	    ((target->stage != OWNED_CLOSE_UPLOAD) && (target->stage != OWNED_CLOSE_OUTBOUND)))
++	{
++		LeaveCriticalSection(&target->lock);
++		owned_fail(target);
++		return;
++	}
++	openOutbound = target->stage == OWNED_CLOSE_UPLOAD;
++	target->stage = openOutbound ? OWNED_OPEN_OUTBOUND : OWNED_COMPLETE;
++	LeaveCriticalSection(&target->lock);
++	if (openOutbound &&
++	    (context->DriveOpenFile(context, target, target->deviceId, target->outboundPath,
++	                            GENERIC_WRITE, FILE_OVERWRITE_IF) != CHANNEL_RC_OK))
++		owned_fail(target);
++}
++
++static BOOL owned_exact_drive(const RdpdrDevice* device)
++{
++	static const char expectedName[8] = { 'L', 'r', 'n', 'X', 'f', 'e', 'r', '\0' };
++	return device && (device->DeviceType == RDPDR_DTYP_FILESYSTEM) &&
++	       (memcmp(device->PreferredDosName, expectedName, sizeof(expectedName)) == 0);
++}
++
++static UINT owned_receive_device(RdpdrServerContext* context, const RdpdrDevice* device)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)context->data;
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	const BOOL valid = !target->closing && (target->stage == OWNED_WAIT_DRIVE) &&
++	                   owned_exact_drive(device);
++	LeaveCriticalSection(&target->lock);
++	if (!valid)
++	{
++		owned_fail(target);
++		return ERROR_INVALID_DATA;
++	}
++	return CHANNEL_RC_OK;
++}
++
++static UINT owned_receive_device_remove(RdpdrServerContext* context, UINT32 deviceId,
++                                        const RdpdrDevice* device)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)context->data;
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	const BOOL valid = (target->closing || (target->stage == OWNED_COMPLETE)) &&
++	                   (deviceId == target->deviceId) && owned_exact_drive(device);
++	LeaveCriticalSection(&target->lock);
++	if (!valid)
++	{
++		owned_fail(target);
++		return ERROR_INVALID_DATA;
++	}
++	return CHANNEL_RC_OK;
++}
++
++static UINT owned_drive_create(RdpdrServerContext* context, const RdpdrDevice* device)
++{
++	OWNED_RDPDR_TARGET* target = NULL;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(device);
++	target = (OWNED_RDPDR_TARGET*)context->data;
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	if (target->closing || (target->stage != OWNED_WAIT_DRIVE) ||
++	    !owned_exact_drive(device))
++	{
++		LeaveCriticalSection(&target->lock);
++		owned_fail(target);
++		return ERROR_INVALID_DATA;
++	}
++	target->deviceId = device->DeviceId;
++	target->stage = OWNED_WAIT_DEVICE_REPLY;
++	LeaveCriticalSection(&target->lock);
++	return CHANNEL_RC_OK;
++}
++
++static UINT owned_receive_pdu(RdpdrServerContext* context, const RDPDR_HEADER* header, UINT error)
++{
++	OWNED_RDPDR_TARGET* target = NULL;
++	BOOL openUpload = FALSE;
++	WINPR_ASSERT(context);
++	WINPR_ASSERT(header);
++	target = (OWNED_RDPDR_TARGET*)context->data;
++	WINPR_ASSERT(target);
++	if ((header->Component != RDPDR_CTYP_CORE) ||
++	    (header->PacketId != PAKID_CORE_DEVICELIST_ANNOUNCE))
++		return error;
++	EnterCriticalSection(&target->lock);
++	if (!target->closing && (error == CHANNEL_RC_OK) &&
++	    (target->stage == OWNED_WAIT_DEVICE_REPLY))
++	{
++		target->stage = OWNED_OPEN_UPLOAD;
++		openUpload = TRUE;
++	}
++	LeaveCriticalSection(&target->lock);
++	if (!openUpload)
++	{
++		owned_fail(target);
++		return error == CHANNEL_RC_OK ? ERROR_INVALID_DATA : error;
++	}
++	const UINT rc = context->DriveOpenFile(context, target, target->deviceId, target->uploadPath,
++	                                       GENERIC_READ, FILE_OPEN);
++	if (rc != CHANNEL_RC_OK)
++		owned_fail(target);
++	return rc;
++}
++
++static UINT owned_drive_delete(RdpdrServerContext* context, UINT32 deviceId)
++{
++	OWNED_RDPDR_TARGET* target = (OWNED_RDPDR_TARGET*)context->data;
++	WINPR_ASSERT(target);
++	EnterCriticalSection(&target->lock);
++	const BOOL valid = target->closing ||
++	                   ((target->stage == OWNED_COMPLETE) && (deviceId == target->deviceId));
++	LeaveCriticalSection(&target->lock);
++	if (!valid)
++	{
++		owned_fail(target);
++		return ERROR_INVALID_DATA;
++	}
++	return CHANNEL_RC_OK;
++}
++
++static BOOL owned_load_configuration(OWNED_RDPDR_TARGET* target)
++{
++	const char* nonce = getenv("LARENOR_F62_TARGET_NONCE");
++	const char* witness = getenv("LARENOR_F62_TARGET_WITNESS");
++	const char* upload = getenv("LARENOR_F62_EXPECT_UPLOAD_SHA256");
++	const char* outbound = getenv("LARENOR_F62_EXPECT_OUTBOUND_SHA256");
++	const char* username = getenv("LARENOR_F62_TARGET_USERNAME");
++	const char* domain = getenv("LARENOR_F62_TARGET_DOMAIN");
++	const rdpSettings* settings = target->client->context.settings;
++	if (!owned_hex_text(nonce, 64) || !owned_hex_text(upload, 64) ||
++	    !owned_hex_text(outbound, 64) || !owned_private_output_path(witness) || !username ||
++	    !domain || (strlen(username) == 0) || (strlen(username) > 256) || (strlen(domain) == 0) ||
++	    (strlen(domain) > 256) || !target->client->context.peer ||
++	    !target->client->context.peer->authenticated ||
++	    !freerdp_settings_get_bool(settings, FreeRDP_NlaSecurity))
++		return FALSE;
++	const char* actualUser = freerdp_settings_get_string(settings, FreeRDP_Username);
++	const char* actualDomain = freerdp_settings_get_string(settings, FreeRDP_Domain);
++	if (!actualUser || !actualDomain || (strcmp(actualUser, username) != 0) ||
++	    (strcmp(actualDomain, domain) != 0))
++		return FALSE;
++	memcpy(target->nonce, nonce, 65);
++	memcpy(target->expectedUploadHex, upload, 65);
++	memcpy(target->expectedOutboundHex, outbound, 65);
++	memcpy(target->witnessPath, witness, strlen(witness) + 1);
++	if (!owned_hex(upload, target->expectedUpload, sizeof(target->expectedUpload)) ||
++	    !owned_hex(outbound, target->expectedOutbound, sizeof(target->expectedOutbound)))
++		return FALSE;
++	const int outboundLength = _snprintf(target->outbound, sizeof(target->outbound),
++	                                     "Larenor-F62-Gateway-outbound:%s", nonce);
++	if ((outboundLength <= 0) || ((size_t)outboundLength >= sizeof(target->outbound)))
++		return FALSE;
++	target->outboundLength = (UINT32)outboundLength;
++	char expectedUploadText[OWNED_MAX_PAYLOAD] = { 0 };
++	const int uploadLength = _snprintf(expectedUploadText, sizeof(expectedUploadText),
++	                                  "Larenor-F62-Gateway-upload:%s", nonce);
++	if ((uploadLength <= 0) || ((size_t)uploadLength >= sizeof(expectedUploadText)))
++	{
++		SecureZeroMemory(expectedUploadText, sizeof(expectedUploadText));
++		return FALSE;
++	}
++	target->uploadLength = (UINT32)uploadLength;
++	const BOOL exact = owned_digest_equals(expectedUploadText, (size_t)uploadLength,
++	                                       target->expectedUpload) &&
++	                   owned_digest_equals(target->outbound, target->outboundLength,
++	                                       target->expectedOutbound);
++	SecureZeroMemory(expectedUploadText, sizeof(expectedUploadText));
++	if (!exact)
++		return FALSE;
++	if ((_snprintf(target->uploadPath, sizeof(target->uploadPath), "\\ToRemote\\upload-%.16s.bin", nonce) <=
++	     0) ||
++	    (_snprintf(target->outboundPath, sizeof(target->outboundPath), "\\FromRemote\\outbound-%.16s.bin",
++	               nonce) <= 0))
++		return FALSE;
++	target->nlaAuthenticated = TRUE;
++	return TRUE;
++}
++
++UINT shadow_client_owned_rdpdr_init(rdpShadowClient* client)
++{
++	OWNED_RDPDR_TARGET* target = NULL;
++	WINPR_ASSERT(client);
++	if (InterlockedCompareExchange(&g_ownedClientClaimed, 1, 0) != 0)
++		return ERROR_TOO_MANY_SESS;
++	if (!WTSVirtualChannelManagerIsChannelJoined(client->vcm, RDPDR_SVC_CHANNEL_NAME))
++		return ERROR_NOT_SUPPORTED;
++	target = (OWNED_RDPDR_TARGET*)calloc(1, sizeof(*target));
++	if (!target)
++		return ERROR_OUTOFMEMORY;
++	target->client = client;
++	target->stage = OWNED_WAIT_DRIVE;
++	if (!InitializeCriticalSectionAndSpinCount(&target->lock, 4000))
++		goto fail;
++	target->stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
++	if (!target->stopEvent || !owned_load_configuration(target))
++		goto fail_lock;
++	target->channel = rdpdr_server_context_new(client->vcm);
++	if (!target->channel)
++		goto fail_lock;
++	target->channel->data = target;
++	target->channel->rdpcontext = &client->context;
++	target->channel->supported = RDPDR_DTYP_FILESYSTEM;
++	target->channel->ReceivePDU = owned_receive_pdu;
++	target->channel->ReceiveDeviceAnnounce = owned_receive_device;
++	target->channel->ReceiveDeviceRemove = owned_receive_device_remove;
++	target->channel->OnDriveCreate = owned_drive_create;
++	target->channel->OnDriveDelete = owned_drive_delete;
++	target->channel->OnDriveOpenFileComplete = owned_open_complete;
++	target->channel->OnDriveReadFileComplete = owned_read_complete;
++	target->channel->OnDriveWriteFileComplete = owned_write_complete;
++	target->channel->OnDriveCloseFileComplete = owned_close_complete;
++	if (target->channel->Start(target->channel) != CHANNEL_RC_OK)
++		goto fail_channel;
++	target->timeoutThread = CreateThread(NULL, 0, owned_timeout_thread, target, 0, NULL);
++	if (!target->timeoutThread)
++		goto fail_started;
++	client->ownedRdpdrTarget = target;
++	return CHANNEL_RC_OK;
++
++fail_started:
++	target->channel->Stop(target->channel);
++fail_channel:
++	rdpdr_server_context_free(target->channel);
++fail_lock:
++	if (target->stopEvent)
++		CloseHandle(target->stopEvent);
++	DeleteCriticalSection(&target->lock);
++fail:
++	SecureZeroMemory(target, sizeof(*target));
++	free(target);
++	return ERROR_INTERNAL_ERROR;
++}
++
++void shadow_client_owned_rdpdr_uninit(rdpShadowClient* client)
++{
++	OWNED_RDPDR_TARGET* target = NULL;
++	WINPR_ASSERT(client);
++	target = (OWNED_RDPDR_TARGET*)client->ownedRdpdrTarget;
++	client->ownedRdpdrTarget = NULL;
++	if (!target)
++		return;
++	EnterCriticalSection(&target->lock);
++	target->closing = TRUE;
++	LeaveCriticalSection(&target->lock);
++	SetEvent(target->stopEvent);
++	const UINT stopRc = target->channel->Stop(target->channel);
++	if (target->timeoutThread)
++	{
++		WaitForSingleObject(target->timeoutThread, INFINITE);
++		CloseHandle(target->timeoutThread);
++	}
++	EnterCriticalSection(&target->lock);
++	const BOOL complete = (stopRc == CHANNEL_RC_OK) && target->nlaAuthenticated &&
++	                      (target->stage == OWNED_COMPLETE);
++	LeaveCriticalSection(&target->lock);
++	if (complete && !owned_publish_witness(target))
++		WLog_ERR(TAG, "owned RDPDR witness publication failed");
++	rdpdr_server_context_free(target->channel);
++	CloseHandle(target->stopEvent);
++	DeleteCriticalSection(&target->lock);
++	SecureZeroMemory(target, sizeof(*target));
++	free(target);
++}
+diff -ruN a/server/shadow/shadow_owned_rdpdr.h b/server/shadow/shadow_owned_rdpdr.h
+--- a/server/shadow/shadow_owned_rdpdr.h	1970-01-01 02:00:00
++++ b/server/shadow/shadow_owned_rdpdr.h	2026-10-03 18:29:02
+@@ -0,0 +1,18 @@
++#ifndef FREERDP_SERVER_SHADOW_OWNED_RDPDR_H
++#define FREERDP_SERVER_SHADOW_OWNED_RDPDR_H
++
++#include <freerdp/server/shadow.h>
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif
++
++WINPR_ATTR_NODISCARD UINT shadow_client_owned_rdpdr_init(rdpShadowClient* client);
++void shadow_client_owned_rdpdr_uninit(rdpShadowClient* client);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif

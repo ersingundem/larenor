@@ -5,14 +5,14 @@ Kuyruk JSON'u durumların tek kaynağıdır; EXECUTION_QUEUE.md aynı kaynaktan
 
 | Alt iş | Şu anki durum | Kanıt / sıradaki somut kapı |
 | --- | --- | --- |
-| F60 RI5 launch/resume ve strict paket kimliği | Exact847 terminal hata; sıralı handoff yerelde geçti | Run37134249192 xi2ChildExit; key observer reap sonrası pointer observer düzeltmesi82test+Ruff. Kısa gerçek Linux probe ve yeni Android iki yaşam kabulü açık; aynı SHA rerun yok |
+| F60 RI5 launch/resume ve strict paket kimliği | Exact847 terminal hata; sıralı handoff yerelde geçti | Run37134249192 xi2ChildExit; key observer reap sonrası pointer observer düzeltmesi82test+Ruff. Kısa exact5a715 probe37135929910 keyListener aşamasında başarısız; xmodmap dependency/tanı düzeltmesi83test geçti. Değişmiş probe ve Android kabulü açık |
 | F62 mikrofon4 ve SAF grant5 | Commit edildi, pushlandı | 06ef24fae / 0cb84d079 yerel native/Flutter/AndroidTest kanıtları; gerçek dosya aktarımı veya Gateway kabulü değildir |
 | F62 audio/mic effect-control | Okuyucu düzeltmesi yerelde doğrulandı; hosted etkiler açık | Tek bounded read absent/unavailable ayrımını korur; exact consume başarılı olmadan faz ilerlemez. Root 73 runner +11 workflow =84 geçti, Ruff temiz. f201 host hatası ve gerçek ses/mikrofon kabulü açık |
 | F62 SAF mirror ve kalıcı aktarım günlüğü | Cold recovery özel kaynakta tamamlandı; bağımsız inceleniyor | Production coordinator encrypted exact grant ve persisted izinle salt okunur readback recovery yapar;18 focused test. Root bileşim ve hosted etkiler açık |
 | F62 gerçek dosya kanalı kotası | Özel kaynak dondu; actual Android derlemesine alındı | Mac effect/ASAN/UBSAN/TSAN kapıları 4/4; proc-FD inode pin, 32 dosya/256 MiB/1 GiB, read/browse/mutation guard. Linux proc ve Android kanal etkisi açık |
 | F62 native v5 yaşam döngüsü | Özel birleşik actual derleme ve odaklı kapılar geçti | Root177native/0skip (118RDP+59Moonlight), AndroidTest compile315; actual iki AAR source/API/ELF/receipt/verify-install. Root portable22/27subtest. Product Gateway/files false; gerçek kanal etkisi açık |
 | F62 Flutter schema6 ve Core profili | Yerel bileşim geçti; durable candidate intent incelemede | Root145Flutter/analyze, Core25, admission13native+23tablet; vault17test özel kaynakta. İlk pointer commit+throw/rollback+deletefail ve retirement cleanup restart kanıtı bağımsız inceleniyor |
-| F62 RD Gateway | Gerçek owned fixture ve Android senaryosu hazırlanıyor | Gerçek RDPDR ToRemote/FromRemote hedefi düzeltildi;42 portable test geçti. Linux link/runtime, authenticated Gateway→target ve Android SAF upload/save/readback kabulü açık |
+| F62 RD Gateway | Gerçek owned fixture ve Android senaryosu hazırlanıyor | Gerçek RDPDR ToRemote/FromRemote hedefi düzeltildi;42 portable test geçti. Root fixture45test+Ruff/actionlint ve actual Android senaryo derlemesi278task/15contract geçti. Linux link/runtime, authenticated Gateway→target ve Android SAF upload/save/readback kabulü açık |
 | FINAL.FUNCTION teslimi | Açık | Tüm yazılım maddeleri tam kabul ve bağımlılık kanıtlarıyla onaylanacak; final dal HEAD required CI yeşil olacak; sonra main merge ve ancestry/içerik doğrulaması |
 | FINAL.UI başlangıcı | Bekliyor | Yukarıdaki kabul ve merge doğrulanmadan başlamaz. Güncel main'den ayrı tek dal kullanılacak |
 

@@ -293,3 +293,29 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+3 October diagnostic fixture budget archive (CI retained):
+
+```json
+[
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
+    "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root actual packaged layout old-source RED:1/1/0/0 InflateException; restored final44 JVM/0skip GREEN with real StreamView/SurfaceControl.SECURE/FLAG_SECURE; required AndroidTest compile277 passed"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/final-function-supported-path-gaps-2026-10-01.md",
+    "commit": "a8dda8956d251a65021b8aa28a0472fb8a12c0ea",
+    "state": "completed",
+    "result": "passed",
+    "label": "Pinned FreeRDP primary API review: keyboard slice implemented; genuine relative pointer and density need package API changes; display/audio/microphone/SAF/Gateway supported software gaps remain open"
+  }
+]
+```

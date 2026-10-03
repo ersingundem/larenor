@@ -62,6 +62,24 @@ class OwnedPointerProbeTest(unittest.TestCase):
         self.assertEqual(receipt["stage"], "cleanup")
         self.assertFalse(receipt["featureAccepted"])
 
+    def test_key_listener_spawn_failure_remains_closed_and_stops_handoff(self):
+        server = Mock()
+        server.poll.side_effect = [None, 0]
+        key = Mock()
+        key.start.side_effect = probe.StreamAcceptanceFailure("owned XI2 witness could not start")
+        with patch.object(probe.platform, "system", return_value="Linux"), \
+                patch.object(probe.os.path, "lexists", return_value=False), \
+                patch.object(probe.subprocess, "Popen", return_value=server), \
+                patch.object(probe.subprocess, "run", return_value=Mock(returncode=0)), \
+                patch.object(probe, "Xi2KeyWitness", return_value=key), \
+                patch.object(probe, "Xi2PointerWitness") as pointer:
+            receipt = probe.run_probe()
+        self.assertEqual(receipt["failureCode"], "keyListenerSpawn")
+        self.assertEqual(receipt["stage"], "keyListener")
+        self.assertEqual(receipt["result"], "failed")
+        pointer.assert_not_called()
+        key.close.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

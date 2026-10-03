@@ -35,3 +35,17 @@ Root local regression: **82 tests passed**, scoped Ruff passed. Green log
 SHA-256 `d9d531f179646945d72b0e94543deceda58e1bab8c5f0c86b08518812439c7a9`.
 Linux probe and changed-source full stream are still pending. F60 remains
 `reworking`; accepted counters, FINAL.FUNCTION and merge remain unchanged.
+
+
+The short [run37135929910](https://github.com/ersingundem/larenor/actions/runs/37135929910)
+on exact `5a71559a14d7e3d9e4fbb65e50fe86edcc36698c` failed at `keyListener`
+before any key/pointer acceptance. The closed receipt did not distinguish a
+missing executable from an invalid keymap; no narrower cause is claimed. Its
+private log SHA-256 is `5b406c95254eee267dff53e9b209b2c41b5799586bd3e52a999755553f8153e4`.
+The new probe requires xmodmap while its original dependency list installed only
+pointer utilities. The changed workflow now installs exact-resolved
+`x11-xserver-utils`, the [Ubuntu xmodmap package](https://packages.ubuntu.com/noble/riscv64/x11-xserver-utils/filelist),
+and the probe exports a finite keymap/spawn/effect failure code. Root **83 tests**
+and Ruff passed; green log SHA-256 `fbcde7af4aeec83aea8782963f32fb3ae2c5f0cc7694e63a7b1731e7163e8a11`.
+A changed-source probe, not a same-SHA retry, is required. Full Android stream
+acceptance remains open.

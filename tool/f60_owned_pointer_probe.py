@@ -103,6 +103,7 @@ def run_probe() -> dict[str, object]:
         "keyObserved": False,
         "keyListenerReaped": False,
         "overlapFailure": "none",
+        "failureCode": "none",
         "featureAccepted": False,
     }
     if platform.system() != "Linux" or any(os.path.lexists(path) for path in (
@@ -184,9 +185,13 @@ def run_probe() -> dict[str, object]:
             receipt["pointerAndButtonObserved"] = True
             receipt["result"] = "passed"
             receipt["stage"] = "complete"
-        except (StreamAcceptanceFailure, OSError, subprocess.SubprocessError):
+        except (StreamAcceptanceFailure, OSError, subprocess.SubprocessError) as error:
             # The finite failing stage is enough; no display/device output escapes.
-            pass
+            receipt["failureCode"] = {
+                "owned X11 keymap is invalid": "keymapInvalid",
+                "owned XI2 witness could not start": "keyListenerSpawn",
+                "owned XI2 key effect was not observed": "keyEffectMissing",
+            }.get(str(error), "observerFailure")
         finally:
             try:
                 if witness is not None:
