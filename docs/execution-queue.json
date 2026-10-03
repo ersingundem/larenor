@@ -3689,7 +3689,7 @@
       "kind": "task",
       "parent": "G04",
       "title": "Çakışan kurallar hakemi",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3701,7 +3701,8 @@
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json",
-        "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md"
+        "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md",
+        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
       "acceptance": [
@@ -3721,10 +3722,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Root exact3f860 supervised normal-Core TCP: named2Flutter lifetimes passed; server2passed/0failure/2existingwarnings. Private logs source-bound; concurrent/expiry/device/manual matrix and final CI/review/dependencies remain open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md",
+          "commit": "7e6d276943a1a34821e7b241ea2e3c5ff0428987",
+          "state": "completed",
+          "result": "failed",
+          "label": "Independent exact-source acceptance review found P1 gaps: stale HA ownership dispatch and absent named required CI; concurrency/expiry/cancel matrix open."
         }
       ],
       "completionCommit": null,
-      "reason": "Gerçek Flutter CoreHaApi→normal Core→owned HA iki yaşamında manual ownership sonrası attributed core_rule active_manual ile provider öncesi bastırıldı. Exact bir POST ve dört authenticated GET; restart/fresh Client durable manual receipt ve suppressed execution exact replay yeni POST üretmedi. External observation yalnız observed/nonauthoritative. 5 F04/F06 focused Server testi, analyze ve gerçek iki faz geçti; root F04/F26 toplam 9 testi doğruladı. Geniş exact HEAD CI ve gerçek ev eşzamanlı otomasyon MANUAL kabulü açık. Kanıt: docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md. Root exact3f860 named iki Flutter yaşamını yeniden doğruladı;2 Server testi geçti. Yerel test kanıtı eklendi;tam kabul/CI/main merge sayılmadı."
+      "reason": "Bağımsız inceleme superseded kararın HA provider çağrısına ulaşabildiğini buldu: exact ownership/effect token before-send ve aynı cihaz dispatch sıralaması eksik. Eşzamanlı manual/higher-priority, expiry/cancel/late response matrisi ve zorunlu CI named Client→normal Core runnerı açık. Önceki iki yaşam/2 Server yerel kanıtı korunuyor; tam kabul değil. Dar üretim onarımı yeniden çalışılıyor. Kanıt: docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md."
     },
     {
       "id": "F02",
@@ -4074,7 +4083,7 @@
       "kind": "task",
       "parent": "G05",
       "title": "Birden fazla ev, bağımsız Core",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -4088,7 +4097,8 @@
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json",
-        "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md"
+        "docs/testing/f19-two-normal-core-acceptance-2026-09-30.md",
+        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Headscale yalnız bağlantı temeli; Larenor federasyonu, yetki ve eşitleme ayrıca geliştirilir.",
       "acceptance": [
@@ -4107,11 +4117,19 @@
           "commit": "3f86082026624d8de6b13c037de203e0c938c158",
           "state": "completed",
           "result": "passed",
-          "label": "Root exact3f860 supervised two-Core TCP: named prepare+restart2Flutter lifetimes passed; independent identity/token/services and cross-home rejection, A-offline/B-recovery. Test filestore/owned Jellyfin only; final CI/review/dependencies/manual scope remains open."
+          "label": "Root exact3f860 supervised two-Core TCP: named prepare+restart2Flutter lifetimes passed; independent identity/token/services and successful dual-authority verification, A-offline/B-recovery. Test filestore/owned Jellyfin only; final CI/review/dependencies/manual scope remains open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md",
+          "commit": "7e6d276943a1a34821e7b241ea2e3c5ff0428987",
+          "state": "completed",
+          "result": "failed",
+          "label": "Independent exact-source acceptance review found P1 gaps: no rejection/restore collision/search-cache acceptance and absent named required CI; successful dual-authority proof retained."
         }
       ],
       "completionCommit": null,
-      "reason": "İki bağımsız normal TCP Core ve gerçek Flutter account/profile/services akışı iki ayrı Core/home/private service/token kapsamını, owned Jellyfin GET/System/Info exact probe ve cross-home authority reddini geçti. Client registry restart sonrası Core A fiziksel kapalıyken Core B çalışır, A failure profilleri silmez ve B recovery geçer. 47 Flutter, 177 Server ve gerçek iki faz geçerli; root runnerı bağımsız doğruladı. Geniş exact HEAD CI ve gerçek ev/Headscale/servis MANUAL koşulları açık. Kanıt: docs/testing/f19-two-normal-core-acceptance-2026-09-30.md. Root exact3f860 named iki Flutter yaşamını yeniden doğruladı;test filestore ve owned Jellyfin sınırı korunuyor. Yerel test kanıtı eklendi;tam kabul/CI/main merge sayılmadı."
+      "reason": "Önceki named iki-Core koşusu başarılı dual-authority doğrulamasını geçti; cross-home rejection iddiası düzeltilmiştir. Negative authority/restore identity collision ve veri/arama/önbellek yalıtım matrisi eksik; zorunlu CI named runnerı çalıştırmıyor. Test filestore ve owned Jellyfin yerel kanıtı korunur; secure-store/fiziksel ev ve tam kabul ayrı. Dar kabul/üretim onarımı yeniden çalışılıyor. Kanıt: docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md."
     },
     {
       "id": "G06",
@@ -5608,7 +5626,8 @@
         "docs/testing/f60-phase-bridge-observation-2026-10-03.md",
         "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
         "docs/testing/f60-owned-host-startup-diagnostic-2026-10-03.md",
-        "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md"
+        "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md",
+        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5873,13 +5892,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37140213824",
           "commit": "7e55247f2b1badede5ef1641cda53aec1a4782c1",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed exact7e552 strict Android stream: bounded startup diagnostic after actual startup-only success; two lifetimes/frame/nonzeroPCM/input/stop/retirement required. No same-SHA rerun or acceptance claim."
+          "state": "completed",
+          "result": "failed",
+          "label": "Terminal failed exact7e552: canonical1132B/source/named1/1/0/0 validated; ownedInputEffects touchEffect active. Frame/PCM/listener passed; actual input/two-lifetime/close acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact7e552 startup-only37140051214 geçti; root797B source/package/cleanup kaydı doğruladı, featureAccepted=false. Aynı değişmiş kaynak full strict37140213824 sürüyor; iki yaşam/frame/PCM/girdi/kapanış kabulü bekleniyor. F60 yeniden çalışılıyor ve sayaç/main merge değişmedi."
+      "reason": "Exact7e552 strict37140213824 terminal başarısız: original1/1/0/0 ownedInputEffects, phaseBridge touchEffect/active/error:none. İlk frame/nonzeroPCM/listener geçti; gerçek pointer/button/gamepad/iki yaşam/kapanış açık. Kaynak incelemesi relative axis, iki hareket ve host/Android deadline fixture açıklarını buldu; düzeltme hazırlanıyor. Startup-only37140051214 featureAccepted=false ile geçti; yayın kabulü değil. Aynı SHA rerun/merge yok."
     },
     {
       "id": "G11",
@@ -6021,7 +6040,8 @@
         "docs/testing/f62-effect-control-read-2026-10-03.md",
         "docs/testing/f62-native5-composed-local-2026-10-03.md",
         "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
-        "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md"
+        "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md",
+        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6171,14 +6191,6 @@
           "label": "Exact9551 arm64 package passed; x86 FAILED original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure. Source-bound marker available/invalid/unknown and shadow live. Root original validator/canonical1605B artifact11274533856 SHA0ece0a2196d4810eace0b551fd65775ae448c60c78c97ddce5c1959e5f4d8d5a verified. Reader race repair is not proof of sole provider cause; runtime acceptance open."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-microphone-composed-2026-10-03.md",
-          "commit": "c279d30f7a25cb7cd11403135b0c2ef7c1bd66a6",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen working tree on c279 base: real schema4 dual-ABI package/product verified; root125 JVM (78RDP/47Moonlight), zero skips/errors/failures, actual AndroidTest compile315tasks; 105Flutter/analyze,128portable and source manifests unchanged. Owned AUDIN host effect remains unproven."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37125727523",
           "commit": "06ef24fae316453c58f404c2c2046483ff24ce0b",
@@ -6289,10 +6301,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen configuration repair on exact3f860: root41probe/archive diagnostic tests+3subtests and Ruff passed. WITH_XI=OFF retains stock X11 and static RDPDR; target patch/source/archive/Android acceptance unchanged. Actual changed-source build/effects remain required."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37141178524",
+          "commit": "7e6d276943a1a34821e7b241ea2e3c5ff0428987",
+          "state": "completed",
+          "result": "failed",
+          "label": "Terminal failed exact7e6d: canonical699B/source/archive/patch/manifest validated; compile/linkerError/linkUndefined exit1, no target/symbol. Product effects and acceptance remain open."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact3f860 Linux37140389792 compile/compilerError exit1; source-bound client/X11/xf_input.c:640 missingMember tanısı doğrulandı. WITH_XI/RDPEI seçenek uyumsuzluğu dar WITH_XI=OFF düzeltmesi root41test/3subtest+Ruff geçti; değişmiş Linux build/effect koşusu sırada, aynı SHA rerun yok. Private native5/SAF5/izin birleşimi200JVM/0failure/error/skip ve actual AndroidTest313task compile geçti. Gerçek Android0600/0700/DIRECT/PUBLIC/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
+      "reason": "Exact7e6d Linux37141178524 terminal compile/linkerError/linkUndefined exit1; closed699B source/archive/patch/manifest doğrulandı. XInput düzeltmesi geçti fakat linker target/symbol receiptte yok; kör link onarımı/rerun yapılmaz. Private200JVM/0failure/error/skip ve actual313task AndroidTest compile yerel kanıt. Gerçek Linux transport/RDPDR, Android0600/0700/DIRECT/PUBLIC/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
     },
     {
       "id": "F61",
@@ -6392,7 +6412,8 @@
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
-        "docs/testing/accepted-main-integration-audit-2026-10-03.md"
+        "docs/testing/accepted-main-integration-audit-2026-10-03.md",
+        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
@@ -6594,7 +6615,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F60/F62 yeni exact CI hataları nedeniyle yeniden çalışılıyor; 58 seçili özellik / 69 iş CI bekliyor. Kabul edilen 35/127 iş ve 3/63 özellik değişmedi. Tüm yazılım maddeleri tam kanıt ve bağımlılıklarla kabul edilmeden ilerlenmez. FINAL.FUNCTION ve final dal HEAD required CI yeşil olduktan sonra mevcut dal main’e birleşecek; merge/ancestry/içerik doğrulamasından sonra FINAL.UI güncel main’den ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04/F19 kabul incelemesi ve F60/F62 exact CI hataları nedeniyle dört özellik yeniden çalışılıyor;56 seçili özellik/67 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri, bağımlılıkları, independent review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

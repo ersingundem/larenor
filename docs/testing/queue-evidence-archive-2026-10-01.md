@@ -436,3 +436,9 @@ Archived F62 record while retaining every CI record:
 ```json
 {"commit": "7a53e166844d4e124832b89ba8122c47ed42eb57", "kind": "test", "label": "Frozen working tree on7a53 base: root65RDP JVM incl9exact open-diagnostic tests/0skip/failure/error; actual schema3 AndroidTest compile314tasks; root61runner/89subtests, composed225tools/184subtests; exact private22source manifest. No hosted runtime acceptance.", "ref": "docs/testing/f62-owned-open-boundaries-2026-10-03.md", "result": "passed", "state": "completed"}
 ```
+
+Archived F62 record while retaining every CI record:
+
+```json
+{"commit": "c279d30f7a25cb7cd11403135b0c2ef7c1bd66a6", "kind": "test", "label": "Frozen working tree on c279 base: real schema4 dual-ABI package/product verified; root125 JVM (78RDP/47Moonlight), zero skips/errors/failures, actual AndroidTest compile315tasks; 105Flutter/analyze,128portable and source manifests unchanged. Owned AUDIN host effect remains unproven.", "ref": "docs/testing/f62-owned-microphone-composed-2026-10-03.md", "result": "passed", "state": "completed"}
+```
