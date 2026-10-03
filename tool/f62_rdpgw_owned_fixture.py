@@ -452,19 +452,22 @@ def safe_extract(archive: pathlib.Path, dest: pathlib.Path) -> pathlib.Path:
         fail("archiveHashMismatch")
     with tarfile.open(archive, "r:gz") as tf:
         members = tf.getmembers()
-        prefix = f"rdpgw-{REVISION}/"
+        root = f"rdpgw-{REVISION}"
+        prefix = root + "/"
         for m in members:
+            exact_root = m.name == root
             if (
-                not m.name.startswith(prefix)
+                not (exact_root or m.name.startswith(prefix))
                 or m.name.startswith("/")
                 or ".." in pathlib.PurePosixPath(m.name).parts
                 or m.issym()
                 or m.islnk()
                 or not (m.isfile() or m.isdir())
+                or (exact_root and not m.isdir())
             ):
                 fail("unsafeArchive")
         tf.extractall(dest, filter="data")
-    source = dest / f"rdpgw-{REVISION}"
+    source = dest / root
     for item in source.rglob("*"):
         os.chmod(item, 0o700 if item.is_dir() else 0o600)
     os.chmod(source, 0o700)
