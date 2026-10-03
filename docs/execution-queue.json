@@ -5458,7 +5458,7 @@
       "kind": "task",
       "parent": "G10",
       "title": "Tablette ev bilgisayarından oyun yayını",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -5472,7 +5472,8 @@
         "docs/testing/queue-evidence-archive-2026-10-01.md",
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
         "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
-        "docs/testing/function-live-work-2026-10-03.md"
+        "docs/testing/function-live-work-2026-10-03.md",
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5737,13 +5738,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37128656191",
           "commit": "79506adaeb2246b233118368cc7b5006b015e9f7",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed identity source exact79506 dispatched once; actual Sunshine launch/resume/RTSP/frame/nonzeroPCM/input/two lifetimes/close gate pending. Old pre-provider and RTSP failures retained; no same-SHA rerun or acceptance."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact79506 completed FAILED; canonical original1/1/0/0 ownedInputEffects/AssertionError source895/239 after first frame/nonzero audio. Root validated1074B SHA70c91e9917302b491f0ca957723d75b31ce7b8d0cf78b8454422ba49ba325ba1; touch_ready ACK failed before input dispatch. Real XI2 observer probe next; no acceptance/rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "RI5 launch/resume anahtar sahipliği ve strict paket kimliği düzeltmesi commit edilip pushlandı; yerel 86 test ve actual v5 paket kapıları geçti. Exact79506ada / Sunshine37128656191 gerçek yayın kabulü çalışıyor; frame, ses, girdi, iki yaşam ve kapanış sonucu henüz yok. Aktif kaynak geliştirmesi yok; yeni gerçek hata çıkarsa yeniden çalışılır. Önceki başarısız koşular kanıt kaydında korunur; final dal HEAD CI ayrıca gerekli."
+      "reason": "Exact79506 / Sunshine37128656191 FAILED: ilk görüntü ve nonzero ses kontrolünden sonra ownedInputEffects aşamasında touch_ready yanıtı alınamadı. Android girdisi ve iki yaşam/kopuş/kapanış kabulü yok. Yeni aktif dar iş: production XI2 gözlemcisini disposable Linux Xvfb ile kanıtlayıp gerçek hatayı düzeltmek; aynı koşu rerun edilmiyor."
     },
     {
       "id": "G11",
@@ -5880,7 +5881,8 @@
         "docs/testing/f62-microphone-native-consumer-2026-10-03.md",
         "docs/testing/f62-microphone-package-2026-10-03.md",
         "docs/testing/f62-owned-effect-control-2026-10-03.md",
-        "docs/testing/function-live-work-2026-10-03.md"
+        "docs/testing/function-live-work-2026-10-03.md",
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6145,13 +6147,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37128695877",
           "commit": "f201ecf9b7a181cd6a85d5e1f74fe9681a84d2a8",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed effect-control source exactf201 dispatched once; dual-ABI package plus original strict owned frame/ACK/key/DISP/clipboard/audio/microphone/two lifetimes/close gate pending. Prior failure retained; no acceptance."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exactf201 completed FAILED; arm64 actual APK passed, x86 host_channel_witness_invalid/order invalid; no named counts in receipt. Root production/canonical1233B SHA4a027eea3f022fbfdfbd51e889bfb45e7ab1e87b2fa725ba0a4034b41ac7e988 replayed; effects and native5 SAF/Gateway acceptance open; no rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "Aktif: native v5 dosya kotası ve oturum yaşam döngüsü güvenliği; SAF mirror/kurtarma ile gerçek MethodChannel/Client bağlantısı; ayrı pin/parolalı Gateway entegrasyonu. Grant5 ve effect-control commit edilip pushlandı. Exactf201ecf9 / RDP37128695877: arm64 actual APK derlemesi geçti, x86 strict host kabulü çalışıyor. Özel hazırlıklar henüz ürün dalına alınmadı; dosya/Gateway kabulü yok. Sıradaki: değişmiş SAF testleri, native v5 derlemesi, atomik entegrasyon ve gerçek host etkisi."
+      "reason": "Exactf201 / RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, original named sayılar yok. Aktif dar hata incelemesi sürüyor. SAF kaynak 14/14 actual Robolectric geçti; native v5 dosya kotası ve Java lifetime kaynakları dondu, actual Android ABI derlemesi sürüyor. Flutter gerçek MethodChannel/Save/Gateway bağlantısı ve owned host etkileri açık; private hazırlık kabul değildir."
     },
     {
       "id": "F61",
@@ -6249,7 +6251,8 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/PROGRESS.md",
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
-        "docs/testing/function-live-work-2026-10-03.md"
+        "docs/testing/function-live-work-2026-10-03.md",
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
@@ -6443,7 +6446,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F60 kaynak geliştirmesi tamamlandı ve exact kaynak yayın CI kabulü bekliyor; F62 dosya/Gateway entegrasyonu sürüyor. 59 seçili özellik / 70 iş CI bekliyor; kabul edilen 35/127 iş ve 3/63 özellik değişmedi. Dar işler ve kanıt sınırları function-live-work-2026-10-03.md içinde. F60/F62 ve final dal HEAD zorunlu CI kabulünden sonra mevcut dal main’e birleşecek; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F60/F62 yeni exact CI hataları nedeniyle yeniden çalışılıyor; 58 seçili özellik / 69 iş CI bekliyor. Kabul edilen 35/127 iş ve 3/63 özellik değişmedi. Tüm yazılım maddeleri tam kanıt ve bağımlılıklarla kabul edilmeden ilerlenmez. FINAL.FUNCTION ve final dal HEAD required CI yeşil olduktan sonra mevcut dal main’e birleşecek; merge/ancestry/içerik doğrulamasından sonra FINAL.UI güncel main’den ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",
@@ -6462,7 +6465,8 @@
       ],
       "scope": "FINAL.FUNCTION kabulü ve tamamlanma dalının yeşil CI ile main’e birleşmesinden sonra güncel main’den ayrı tek UI dalında yürütülür. UI bitmeden sonraki FINAL başlamaz; bu kapı tamamlanmadan final README görseli yok.",
       "acceptance": [
-        "Dashboard/Media/Settings/Server ortak renk-tipografi-kart-form-dialog; gerçek akış, EN/TR 2× metin, klavye/TalkBack ve değişken DeX penceresi; tek slogan korunur."
+        "Dashboard/Media/Settings/Server ortak renk-tipografi-kart-form-dialog; gerçek akış, EN/TR 2× metin, klavye/TalkBack ve değişken DeX penceresi; tek slogan korunur.",
+        "Başlamadan önce tüm yazılım maddelerinin tam kabul ve bağımlılık kanıtları, FINAL.FUNCTION kabulü, son dal HEAD required yeşil CI, main merge ve origin/main ancestry/içerik doğrulaması kayıtlıdır; awaiting_ci kabul sayılmaz."
       ],
       "requiredEvidence": [
         "test",
@@ -6471,7 +6475,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Önce FINAL.FUNCTION ve mevcut tamamlanma dalının exact HEAD zorunlu yeşil CI ile main’e birleşmesi; ardından güncel main’den ayrı tek FINAL.UI dalı. Henüz başlanmadı."
+      "reason": "Henüz başlanmadı. Önce tüm yazılım maddeleri kanıtla kabul edilir; FINAL.FUNCTION ve son dal HEAD zorunlu yeşil CI tamamlanır, mevcut dal main’e birleşir ve origin/main ancestry/içerik doğrulanır. Sonra güncel main’den ayrı tek FINAL.UI dalı."
     },
     {
       "id": "FINAL.AUDIT",
