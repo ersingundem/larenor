@@ -575,6 +575,64 @@ enum RdpKeyboardLayout { automatic, turkishQ, us }
 
 enum RdpClipboardMode { disabled, clientToRemote, bidirectional }
 
+class RdpFileTransferGrant {
+  const RdpFileTransferGrant({required this.id, required this.revision});
+
+  static final _identity = RegExp(r'^[0-9a-f]{32}$');
+  static const maximumRevision = 9007199254740991;
+
+  final String id;
+  final int revision;
+
+  void validate() {
+    if (!_identity.hasMatch(id) || revision < 1 || revision > maximumRevision) {
+      _invalid('invalid_settings');
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpFileTransferGrant &&
+      id == other.id &&
+      revision == other.revision;
+
+  @override
+  int get hashCode => Object.hash(id, revision);
+
+  @override
+  String toString() => 'RdpFileTransferGrant(redacted, revision: $revision)';
+}
+
+enum RdpFileTransferGrantState { prepared, active, retired, unknown }
+
+class RdpFileTransferGrantObservation {
+  const RdpFileTransferGrantObservation({
+    required this.authorityId,
+    required this.grant,
+    required this.state,
+  });
+
+  final String authorityId;
+  final RdpFileTransferGrant grant;
+  final RdpFileTransferGrantState state;
+
+  bool get usable => state == RdpFileTransferGrantState.active;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RdpFileTransferGrantObservation &&
+      authorityId == other.authorityId &&
+      grant == other.grant &&
+      state == other.state;
+
+  @override
+  int get hashCode => Object.hash(authorityId, grant, state);
+
+  @override
+  String toString() =>
+      'RdpFileTransferGrantObservation(${state.name}, redacted)';
+}
+
 class RdpProfileSettings {
   const RdpProfileSettings({
     this.domain = '',
@@ -585,6 +643,7 @@ class RdpProfileSettings {
     this.keyboardLayout = RdpKeyboardLayout.automatic,
     this.clipboardMode = RdpClipboardMode.disabled,
     this.microphone = false,
+    this.fileTransferGrant,
   });
 
   final String domain;
@@ -595,12 +654,16 @@ class RdpProfileSettings {
   final RdpKeyboardLayout keyboardLayout;
   final RdpClipboardMode clipboardMode;
   final bool microphone;
+  final RdpFileTransferGrant? fileTransferGrant;
+
+  static const _unchanged = Object();
 
   RdpProfileSettings copyWith({
     RdpDisplayMode? displayMode,
     RdpKeyboardLayout? keyboardLayout,
     RdpClipboardMode? clipboardMode,
     bool? microphone,
+    Object? fileTransferGrant = _unchanged,
   }) => RdpProfileSettings(
     domain: domain,
     gatewayHost: gatewayHost,
@@ -610,6 +673,9 @@ class RdpProfileSettings {
     keyboardLayout: keyboardLayout ?? this.keyboardLayout,
     clipboardMode: clipboardMode ?? this.clipboardMode,
     microphone: microphone ?? this.microphone,
+    fileTransferGrant: identical(fileTransferGrant, _unchanged)
+        ? this.fileTransferGrant
+        : fileTransferGrant as RdpFileTransferGrant?,
   );
 
   static bool _safeText(String value, int max) =>
@@ -642,12 +708,13 @@ class RdpProfileSettings {
     } else if (gatewayUsername.isNotEmpty) {
       _invalid('invalid_settings');
     }
+    fileTransferGrant?.validate();
   }
 
   Map<String, Object?> toJson() {
     validate();
     return {
-      'version': 2,
+      'version': 3,
       'domain': domain,
       'gatewayHost': gatewayHost,
       'gatewayPort': gatewayPort,
@@ -656,6 +723,8 @@ class RdpProfileSettings {
       'keyboardLayout': keyboardLayout.name,
       'clipboardMode': clipboardMode.name,
       'microphone': microphone,
+      'fileTransferGrantId': fileTransferGrant?.id,
+      'fileTransferGrantRevision': fileTransferGrant?.revision,
     };
   }
 
@@ -673,15 +742,27 @@ class RdpProfileSettings {
       'displayMode',
       'keyboardLayout',
       'clipboardMode',
-      if (version == 2) 'microphone',
+      if (version >= 2) 'microphone',
+      if (version == 3) ...{'fileTransferGrantId', 'fileTransferGrantRevision'},
     };
-    if (version != 1 && version != 2) _invalid('invalid_settings');
+    if (version != 1 && version != 2 && version != 3) {
+      _invalid('invalid_settings');
+    }
     final value = _object(raw, keys);
     if (value['domain'] is! String ||
         value['gatewayHost'] != null && value['gatewayHost'] is! String ||
         value['gatewayPort'] is! int ||
         value['gatewayUsername'] is! String ||
-        version == 2 && value['microphone'] is! bool) {
+        version >= 2 && value['microphone'] is! bool) {
+      _invalid('invalid_settings');
+    }
+    final grantId = version == 3 ? value['fileTransferGrantId'] : null;
+    final grantRevision = version == 3
+        ? value['fileTransferGrantRevision']
+        : null;
+    if ((grantId == null) != (grantRevision == null) ||
+        grantId != null && grantId is! String ||
+        grantRevision != null && grantRevision is! int) {
       _invalid('invalid_settings');
     }
     T parse<T extends Enum>(Object? raw, List<T> values) {
@@ -706,7 +787,13 @@ class RdpProfileSettings {
       displayMode: parseDisplayMode(value['displayMode']),
       keyboardLayout: parse(value['keyboardLayout'], RdpKeyboardLayout.values),
       clipboardMode: parse(value['clipboardMode'], RdpClipboardMode.values),
-      microphone: version == 2 ? value['microphone'] as bool : false,
+      microphone: version >= 2 ? value['microphone'] as bool : false,
+      fileTransferGrant: grantId == null
+          ? null
+          : RdpFileTransferGrant(
+              id: grantId as String,
+              revision: grantRevision as int,
+            ),
     );
     result.validate();
     return result;
@@ -722,7 +809,8 @@ class RdpProfileSettings {
       displayMode == other.displayMode &&
       keyboardLayout == other.keyboardLayout &&
       clipboardMode == other.clipboardMode &&
-      microphone == other.microphone;
+      microphone == other.microphone &&
+      fileTransferGrant == other.fileTransferGrant;
 
   @override
   int get hashCode => Object.hash(
@@ -734,6 +822,7 @@ class RdpProfileSettings {
     keyboardLayout,
     clipboardMode,
     microphone,
+    fileTransferGrant,
   );
 }
 

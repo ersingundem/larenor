@@ -36,16 +36,20 @@ class RdpSessionPanel extends ConsumerStatefulWidget {
   const RdpSessionPanel({
     super.key,
     required this.profile,
+    required this.authorityRevision,
     required this.isCurrent,
     required this.onBack,
     this.securityStore,
     this.onMicrophonePermissionPromptChanged,
+    this.onFileTransferPickerChanged,
   });
   final RemoteProfile profile;
+  final int authorityRevision;
   final bool Function() isCurrent;
   final VoidCallback onBack;
   final RdpSecurityStore? securityStore;
   final ValueChanged<bool>? onMicrophonePermissionPromptChanged;
+  final ValueChanged<bool>? onFileTransferPickerChanged;
   @override
   ConsumerState<RdpSessionPanel> createState() => _RdpSessionPanelState();
 }
@@ -71,6 +75,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   bool _rememberCredential = false;
   String? _settingsNotice;
   bool _resumed = true, _focused = true, _retired = false;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   WindowDisplayIdentity? _controllerDisplayIdentity;
   bool _clipboardBusy = false;
   bool _remoteAudioRequested = false;
@@ -86,11 +91,20 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   bool _consumeFullscreenEscapeRelease = false;
   Timer? _fullscreenEscapeTimer;
   bool _reportedMicrophonePermissionPrompt = false;
+  bool _reportedFileTransferPicker = false;
+  bool _fileTransferBusy = false;
+  RdpFileTransferGrantState? _fileTransferGrantState;
 
   void _reportMicrophonePermissionPrompt(bool value) {
     if (_reportedMicrophonePermissionPrompt == value) return;
     _reportedMicrophonePermissionPrompt = value;
     widget.onMicrophonePermissionPromptChanged?.call(value);
+  }
+
+  void _reportFileTransferPicker(bool value) {
+    if (_reportedFileTransferPicker == value) return;
+    _reportedFileTransferPicker = value;
+    widget.onFileTransferPickerChanged?.call(value);
   }
 
   WindowDisplayIdentity? _loadedDisplayIdentity() {
@@ -99,15 +113,24 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     return state.requireValue.displayIdentity;
   }
 
-  bool _current({bool allowMicrophonePrompt = false}) {
+  bool _current({
+    bool allowMicrophonePrompt = false,
+    bool allowFileTransferPicker = false,
+  }) {
     try {
       final ownsPermissionPrompt =
           allowMicrophonePrompt &&
-          _controller?.microphonePermissionPending == true;
+          _controller?.microphonePermissionPending == true &&
+          _lifecycleState == AppLifecycleState.inactive;
+      final ownsFileTransferPicker =
+          allowFileTransferPicker &&
+          _controller?.fileTransferPickerPending == true &&
+          _lifecycleState != AppLifecycleState.detached;
+      final ownsNativePrompt = ownsPermissionPrompt || ownsFileTransferPicker;
       if (_retired ||
           !mounted ||
-          (!_resumed && !ownsPermissionPrompt) ||
-          (!_focused && !ownsPermissionPrompt) ||
+          (!_resumed && !ownsNativePrompt) ||
+          (!_focused && !ownsNativePrompt) ||
           !widget.isCurrent() ||
           !identical(
             _container,
@@ -131,13 +154,19 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       if (!state.hasValue || state.isLoading || state.hasError) return false;
       final value = state.requireValue;
       return !value.supported ||
-          (value.isResumed || ownsPermissionPrompt) &&
-              (value.hasWindowFocus || ownsPermissionPrompt) &&
+          (value.isResumed || ownsNativePrompt) &&
+              (value.hasWindowFocus || ownsNativePrompt) &&
               !value.isPictureInPicture;
     } catch (_) {
       return false;
     }
   }
+
+  bool get _ownsNativePromptLifecycle =>
+      _controller?.fileTransferPickerPending == true &&
+          _lifecycleState != AppLifecycleState.detached ||
+      _controller?.microphonePermissionPending == true &&
+          _lifecycleState == AppLifecycleState.inactive;
 
   @override
   void initState() {
@@ -194,7 +223,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       credentialVault: _security,
       engineFactory: _factory!,
       isCurrent: () =>
-          _current(allowMicrophonePrompt: true) &&
+          _current(
+            allowMicrophonePrompt: true,
+            allowFileTransferPicker: true,
+          ) &&
           displayIdentity != null &&
           _loadedDisplayIdentity() == displayIdentity,
       isInteractive: _current,
@@ -245,6 +277,11 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         displayIdentity: _loadedDisplayIdentity(),
         force: true,
       );
+      if (value.fileTransferGrant != null) {
+        unawaited(_reconcileFileTransferGrant());
+      } else {
+        _fileTransferGrantState = null;
+      }
       if (mounted) setState(() {});
     } catch (_) {
       if (_current() && mounted) {
@@ -299,6 +336,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
         keyboardLayout: _settings.keyboardLayout,
         clipboardMode: _settings.clipboardMode,
         microphone: _settings.microphone,
+        fileTransferGrant: _settings.fileTransferGrant,
       );
       value.validate();
       await _security!.saveSettings(widget.profile, value, isCurrent: _current);
@@ -316,11 +354,161 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     }
   }
 
+  RdpFileTransferAuthority _fileTransferAuthority() =>
+      _security!.fileTransferAuthority(
+        widget.profile,
+        profileRevision: widget.authorityRevision,
+      );
+
+  Future<void> _reconcileFileTransferGrant() async {
+    final controller = _controller;
+    final grant = _settings.fileTransferGrant;
+    if (!_current() ||
+        controller == null ||
+        grant == null ||
+        _fileTransferBusy ||
+        controller.phase != RdpSessionPhase.idle) {
+      return;
+    }
+    final authority = _fileTransferAuthority();
+    _fileTransferBusy = true;
+    if (mounted) setState(() {});
+    try {
+      var observed = await controller.observeFileTransferGrant(
+        authority,
+        grant,
+      );
+      if (!_current() || !identical(controller, _controller)) return;
+      if (observed.state == RdpFileTransferGrantState.prepared) {
+        observed = await controller.activateFileTransferGrant(authority, grant);
+        if (!_current() || !identical(controller, _controller)) return;
+      }
+      _fileTransferGrantState = observed.state;
+    } catch (_) {
+      if (_current() && identical(controller, _controller)) {
+        _fileTransferGrantState = RdpFileTransferGrantState.unknown;
+      }
+    } finally {
+      _fileTransferBusy = false;
+      if (_current() && mounted) setState(() {});
+    }
+  }
+
+  Future<void> _selectFileTransferTree() async {
+    final controller = _controller;
+    if (!_current() ||
+        controller == null ||
+        controller.phase != RdpSessionPhase.idle ||
+        !_settingsLoaded ||
+        _settings.fileTransferGrant != null ||
+        _fileTransferBusy) {
+      return;
+    }
+    final authority = _fileTransferAuthority();
+    _fileTransferBusy = true;
+    _fileTransferGrantState = null;
+    if (mounted) setState(() {});
+    RdpFileTransferGrantObservation? prepared;
+    try {
+      prepared = await controller.selectFileTransferTree(authority);
+      if (!_current() || !identical(controller, _controller)) return;
+      final next = _settings.copyWith(fileTransferGrant: prepared.grant);
+      await _security!.saveSettings(
+        widget.profile,
+        next,
+        isCurrent: () =>
+            _current(
+              allowFileTransferPicker: true,
+              allowMicrophonePrompt: true,
+            ) &&
+            identical(controller, _controller),
+      );
+      if (!_current() || !identical(controller, _controller)) return;
+      _settings = next;
+      _fileTransferGrantState = RdpFileTransferGrantState.prepared;
+      final active = await controller.activateFileTransferGrant(
+        authority,
+        prepared.grant,
+      );
+      if (!_current() || !identical(controller, _controller)) return;
+      _fileTransferGrantState = active.state;
+      _replaceController(
+        displayIdentity: _loadedDisplayIdentity(),
+        force: true,
+      );
+    } catch (_) {
+      if (prepared != null && _settings.fileTransferGrant != prepared.grant) {
+        try {
+          await controller.retireFileTransferGrant(authority, prepared.grant);
+        } catch (_) {
+          // Native prepared expiry and observation preserve the unknown fence.
+        }
+      }
+      if (_current() && identical(controller, _controller)) {
+        _fileTransferGrantState = prepared == null
+            ? null
+            : RdpFileTransferGrantState.unknown;
+        _settingsNotice = 'failed';
+      }
+    } finally {
+      _fileTransferBusy = false;
+      if (_current() && mounted) setState(() {});
+    }
+  }
+
+  Future<void> _removeFileTransferGrant() async {
+    final controller = _controller;
+    final grant = _settings.fileTransferGrant;
+    if (!_current() ||
+        controller == null ||
+        grant == null ||
+        controller.phase != RdpSessionPhase.idle ||
+        _fileTransferBusy) {
+      return;
+    }
+    final authority = _fileTransferAuthority();
+    _fileTransferBusy = true;
+    if (mounted) setState(() {});
+    try {
+      final retired = await controller.retireFileTransferGrant(
+        authority,
+        grant,
+      );
+      if (!_current() ||
+          !identical(controller, _controller) ||
+          retired.state != RdpFileTransferGrantState.retired) {
+        return;
+      }
+      _fileTransferGrantState = RdpFileTransferGrantState.retired;
+      final next = _settings.copyWith(fileTransferGrant: null);
+      await _security!.saveSettings(
+        widget.profile,
+        next,
+        isCurrent: () => _current() && identical(controller, _controller),
+      );
+      if (!_current() || !identical(controller, _controller)) return;
+      _settings = next;
+      _fileTransferGrantState = null;
+      _replaceController(
+        displayIdentity: _loadedDisplayIdentity(),
+        force: true,
+      );
+    } catch (_) {
+      if (_current() && identical(controller, _controller)) {
+        _settingsNotice = 'failed';
+      }
+    } finally {
+      _fileTransferBusy = false;
+      if (_current() && mounted) setState(() {});
+    }
+  }
+
   void _changed() {
     if (!mounted) return;
     _reportMicrophonePermissionPrompt(
       _controller?.microphonePermissionPending == true,
     );
+    _reportFileTransferPicker(_controller?.fileTransferPickerPending == true);
     final phase = _controller?.phase;
     if (phase != _observedSessionPhase) {
       _observedSessionPhase = phase;
@@ -664,13 +852,16 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }
 
   void _ownerChanged() {
-    if (!_current(allowMicrophonePrompt: true)) _retire();
+    if (!_current(allowMicrophonePrompt: true, allowFileTransferPicker: true)) {
+      _retire();
+    }
   }
 
   void _retire() {
     if (_retired) return;
     _retired = true;
     _reportMicrophonePermissionPrompt(false);
+    _reportFileTransferPicker(false);
     _retireFullscreen(notify: false);
     _password.clear();
     _gatewayPassword.clear();
@@ -685,10 +876,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
     _resumed = state == AppLifecycleState.resumed;
-    if (!_resumed &&
-        !(state == AppLifecycleState.inactive &&
-            _controller?.microphonePermissionPending == true)) {
+    final ownsMicrophonePrompt =
+        state == AppLifecycleState.inactive &&
+        _controller?.microphonePermissionPending == true;
+    final ownsFileTransferPicker =
+        state != AppLifecycleState.detached &&
+        _controller?.fileTransferPickerPending == true;
+    if (!_resumed && !ownsMicrophonePrompt && !ownsFileTransferPicker) {
       _retire();
     }
   }
@@ -699,14 +895,15 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _focused = event.state == ui.ViewFocusState.focused;
     if (_focused) {
       _controller?.resumeMicrophonePermission();
-    } else if (_controller?.microphonePermissionPending != true) {
+      _controller?.resumeFileTransferPicker();
+    } else if (_controller?.microphonePermissionPending != true &&
+        _controller?.fileTransferPickerPending != true) {
       _retire();
     }
   }
 
   @override
   void dispose() {
-    _reportMicrophonePermissionPrompt(false);
     WidgetsBinding.instance.removeObserver(this);
     _fullscreenEscapeTimer?.cancel();
     _retireFullscreen(notify: false);
@@ -760,10 +957,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           next.hasError ||
           value == null ||
           value.supported &&
-              ((!value.isResumed &&
-                      _controller?.microphonePermissionPending != true) ||
-                  !value.hasWindowFocus &&
-                      _controller?.microphonePermissionPending != true ||
+              ((!value.isResumed && !_ownsNativePromptLifecycle) ||
+                  !value.hasWindowFocus && !_ownsNativePromptLifecycle ||
                   value.isPictureInPicture)) {
         _retire();
       } else if (_controllerDisplayIdentity != value.displayIdentity) {
@@ -1026,6 +1221,41 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                                   : 'The saved clipboard mode is unavailable on this device. Choose Off or a supported one-way mode and save.',
                             ),
                           ),
+                        Padding(
+                          key: const ValueKey('rdp-file-transfer-boundary'),
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            '${switch (_fileTransferGrantState) {
+                              RdpFileTransferGrantState.active => Localizations.localeOf(context).languageCode == 'tr' ? 'Klasör izni doğrulandı.' : 'Folder permission is verified.',
+                              RdpFileTransferGrantState.prepared => Localizations.localeOf(context).languageCode == 'tr' ? 'Klasör izni doğrulanmayı bekliyor.' : 'Folder permission is awaiting verification.',
+                              RdpFileTransferGrantState.retired => Localizations.localeOf(context).languageCode == 'tr' ? 'Klasör izni kaldırıldı; kayıtlı başvuruyu temizleyin.' : 'Folder permission was removed; clear the saved reference.',
+                              RdpFileTransferGrantState.unknown => Localizations.localeOf(context).languageCode == 'tr' ? 'Klasör izni güvenle doğrulanamadı.' : 'Folder permission could not be verified safely.',
+                              null => Localizations.localeOf(context).languageCode == 'tr' ? 'Aktarım klasörü seçilmedi.' : 'No transfer folder is selected.',
+                            }} '
+                            '${Localizations.localeOf(context).languageCode == 'tr' ? 'Bu seçim yalnızca klasör iznini hazırlar; RDP dosya paylaşımı henüz etkin değildir.' : 'This only prepares folder permission; RDP file sharing is not enabled yet.'}',
+                          ),
+                        ),
+                        action(
+                          _settings.fileTransferGrant == null
+                              ? 'rdp-file-transfer-select'
+                              : 'rdp-file-transfer-remove',
+                          _settings.fileTransferGrant == null
+                              ? (Localizations.localeOf(context).languageCode ==
+                                        'tr'
+                                    ? 'Aktarım klasörü seç'
+                                    : 'Choose transfer folder')
+                              : (Localizations.localeOf(context).languageCode ==
+                                        'tr'
+                                    ? 'Klasör iznini kaldır'
+                                    : 'Remove folder permission'),
+                          !_settingsLoaded ||
+                                  _fileTransferBusy ||
+                                  c.phase != RdpSessionPhase.idle
+                              ? null
+                              : _settings.fileTransferGrant == null
+                              ? () => unawaited(_selectFileTransferTree())
+                              : () => unawaited(_removeFileTransferGrant()),
+                        ),
                         action(
                           'rdp-settings-save',
                           l.commonSave,

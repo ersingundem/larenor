@@ -54,11 +54,13 @@ class RdpSessionController extends ChangeNotifier {
   RdpAudioObservation? audioObservation;
   RdpMicrophoneObservation? microphoneObservation;
   bool microphonePermissionPending = false;
+  bool fileTransferPickerPending = false;
   Timer? _audioTimer;
   RdpAudioRead? _audioRead;
   Timer? _microphoneTimer;
   RdpMicrophoneRead? _microphoneRead;
   Completer<bool>? _microphoneFocusDecision;
+  Completer<bool>? _fileTransferFocusDecision;
   RdpFrameGeometry? _acknowledgedGeometry;
   int _displayGeneration = 0, _displayLayoutRevision = 1;
   RdpDisplaySpec? _requestedDisplay;
@@ -109,6 +111,7 @@ class RdpSessionController extends ChangeNotifier {
   }
 
   RdpEngine? _engine;
+  RdpEngine? _fileTransferEngine;
   RdpChannel? _channel;
   Completer<bool>? _certificateDecision;
   Completer<RdpCredential?>? _passwordDecision;
@@ -154,6 +157,17 @@ class RdpSessionController extends ChangeNotifier {
     }
     _microphoneFocusDecision = null;
     microphonePermissionPending = false;
+    final fileTransferEngine = _fileTransferEngine;
+    if (fileTransferEngine is RdpFileTransferGrantEngine) {
+      fileTransferEngine.cancelFileTransferTree();
+    }
+    if (_fileTransferFocusDecision?.isCompleted == false) {
+      _fileTransferFocusDecision!.complete(false);
+    }
+    _fileTransferFocusDecision = null;
+    fileTransferPickerPending = false;
+    fileTransferEngine?.close();
+    _fileTransferEngine = null;
     _microphoneRead?.cancel();
     _microphoneRead = null;
     _microphoneTimer?.cancel();
@@ -416,6 +430,131 @@ class RdpSessionController extends ChangeNotifier {
   void resumeMicrophonePermission() {
     final decision = _microphoneFocusDecision;
     if (!microphonePermissionPending ||
+        decision == null ||
+        decision.isCompleted ||
+        !_interactionCurrent()) {
+      return;
+    }
+    decision.complete(true);
+  }
+
+  Future<RdpFileTransferGrantObservation> selectFileTransferTree(
+    RdpFileTransferAuthority authority,
+  ) async {
+    if (phase != RdpSessionPhase.idle || _retired || _disposed) {
+      throw const RdpFailure('busy');
+    }
+    final generation = _generation;
+    _check(generation);
+    final engine = engineFactory();
+    if (engine is! RdpFileTransferGrantEngine) {
+      engine.close();
+      throw const RdpFailure('file_transfer_unavailable');
+    }
+    if (_fileTransferEngine != null) {
+      engine.close();
+      throw const RdpFailure('busy');
+    }
+    _fileTransferEngine = engine;
+    final focus = _fileTransferFocusDecision = Completer<bool>();
+    fileTransferPickerPending = true;
+    _publish();
+    try {
+      final prepared = await engine.selectFileTransferTree(
+        authority: authority,
+        isCurrent: () => _current(generation),
+      );
+      _check(generation);
+      if (!_interactionCurrent()) {
+        final resumed = await focus.future;
+        _check(generation);
+        if (!resumed || !_interactionCurrent()) {
+          throw const RdpFailure('retired');
+        }
+      }
+      return prepared;
+    } finally {
+      if (identical(_fileTransferFocusDecision, focus)) {
+        _fileTransferFocusDecision = null;
+      }
+      if (identical(_fileTransferEngine, engine)) {
+        _fileTransferEngine = null;
+      }
+      engine.close();
+      if (generation == _generation && !_disposed) {
+        fileTransferPickerPending = false;
+        _publish();
+      }
+    }
+  }
+
+  Future<RdpFileTransferGrantObservation> activateFileTransferGrant(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrant grant,
+  ) => _withFileTransferEngine(
+    (engine, current) => engine.activateFileTransferGrant(
+      authority: authority,
+      grant: grant,
+      isCurrent: current,
+    ),
+  );
+
+  Future<RdpFileTransferGrantObservation> observeFileTransferGrant(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrant grant,
+  ) => _withFileTransferEngine(
+    (engine, current) => engine.fileTransferGrantObservation(
+      authority: authority,
+      grant: grant,
+      isCurrent: current,
+    ),
+  );
+
+  Future<RdpFileTransferGrantObservation> retireFileTransferGrant(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrant grant,
+  ) => _withFileTransferEngine(
+    (engine, _) =>
+        engine.retireFileTransferGrant(authority: authority, grant: grant),
+  );
+
+  Future<RdpFileTransferGrantObservation> _withFileTransferEngine(
+    Future<RdpFileTransferGrantObservation> Function(
+      RdpFileTransferGrantEngine engine,
+      bool Function() current,
+    )
+    action,
+  ) async {
+    if (phase != RdpSessionPhase.idle ||
+        _retired ||
+        _disposed ||
+        _fileTransferEngine != null) {
+      throw const RdpFailure('busy');
+    }
+    final generation = _generation;
+    _check(generation);
+    final created = engineFactory();
+    if (created is! RdpFileTransferGrantEngine) {
+      created.close();
+      throw const RdpFailure('file_transfer_unavailable');
+    }
+    _fileTransferEngine = created;
+    try {
+      final value = await action(created, () => _current(generation));
+      _check(generation);
+      return value;
+    } finally {
+      if (identical(_fileTransferEngine, created)) {
+        _fileTransferEngine = null;
+      }
+      created.close();
+    }
+  }
+
+  /// Called only after the exact SAF picker returns to this foreground route.
+  void resumeFileTransferPicker() {
+    final decision = _fileTransferFocusDecision;
+    if (!fileTransferPickerPending ||
         decision == null ||
         decision.isCompleted ||
         !_interactionCurrent()) {

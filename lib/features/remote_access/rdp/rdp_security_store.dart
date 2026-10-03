@@ -13,6 +13,42 @@ typedef RdpProfileValidator = Future<void> Function(
   void Function() check,
 );
 
+final class RdpFileTransferAuthority {
+  RdpFileTransferAuthority({
+    required this.namespaceDigest,
+    required this.profileRef,
+    required this.profileRevision,
+  }) : authorityId = sha256
+           .convert(
+             utf8.encode(
+               'larenor-rdp-saf-authority-v1\u0000$namespaceDigest\u0000'
+               '$profileRef\u0000$profileRevision',
+             ),
+           )
+           .toString() {
+    final digest = RegExp(r'^[0-9a-f]{64}$');
+    if (!digest.hasMatch(namespaceDigest) ||
+        !digest.hasMatch(profileRef) ||
+        profileRevision < 1 ||
+        profileRevision > RdpFileTransferGrant.maximumRevision) {
+      throw const RdpFailure('invalid_authority');
+    }
+  }
+
+  final String namespaceDigest, profileRef, authorityId;
+  final int profileRevision;
+
+  Map<String, Object> toWire() => {
+    'schemaVersion': 5,
+    'namespaceDigest': namespaceDigest,
+    'profileRef': profileRef,
+    'profileRevision': profileRevision,
+  };
+
+  @override
+  String toString() => 'RdpFileTransferAuthority(redacted)';
+}
+
 final class RdpSecurityNamespace {
   RdpSecurityNamespace._(this.digest, {required this.allowsLegacyLocal});
 
@@ -101,6 +137,28 @@ class RdpSecurityStore implements RdpTrustStore, RdpCredentialVault {
 
   String reference(RemoteProfile profile) =>
       sha256.convert(utf8.encode(jsonEncode(profile.toJson()))).toString();
+
+  RdpFileTransferAuthority fileTransferAuthority(
+    RemoteProfile profile, {
+    required int profileRevision,
+  }) {
+    if (profile.protocol != RemoteProtocol.rdp || profile.username.isEmpty) {
+      throw const RdpFailure('profile_changed');
+    }
+    return RdpFileTransferAuthority(
+      namespaceDigest: _namespace.digest,
+      profileRef: reference(profile),
+      profileRevision: profileRevision,
+    );
+  }
+
+  String fileTransferAuthorityId(
+    RemoteProfile profile, {
+    required int profileRevision,
+  }) => fileTransferAuthority(
+    profile,
+    profileRevision: profileRevision,
+  ).authorityId;
   String _key(String kind, String target) =>
       'rdp_${kind}_v2_${_namespace.digest}_$target';
   String _legacyKey(String kind, String target) => 'rdp_${kind}_v1_$target';

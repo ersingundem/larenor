@@ -29,8 +29,13 @@ final remoteProfilesStoreProvider = Provider<RemoteProfilesStore>(
 );
 
 class RemoteProfilesScreen extends ConsumerStatefulWidget {
-  const RemoteProfilesScreen({super.key, required this.gateCurrent});
+  const RemoteProfilesScreen({
+    super.key,
+    required this.gateCurrent,
+    this.onRdpFileTransferPickerChanged,
+  });
   final bool Function() gateCurrent;
+  final ValueChanged<bool>? onRdpFileTransferPickerChanged;
   @override
   ConsumerState<RemoteProfilesScreen> createState() =>
       _RemoteProfilesScreenState();
@@ -60,7 +65,13 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       _tunnel = false;
   bool _coreProfiles = false;
   bool _rdp = false;
-  bool _rdpPermissionPrompt = false;
+  bool _rdpPermissionPrompt = false, _rdpFileTransferPicker = false;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+
+  bool get _rdpNativePrompt => _rdpPermissionPrompt || _rdpFileTransferPicker;
+  bool get _ownsRdpPromptLifecycle =>
+      _rdpFileTransferPicker && _lifecycleState != AppLifecycleState.detached ||
+      _rdpPermissionPrompt && _lifecycleState == AppLifecycleState.inactive;
   bool _vnc = false;
   bool Function()? _terminalCurrent;
   bool Function()? _sftpCurrent;
@@ -127,9 +138,9 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
     _resumed = state == AppLifecycleState.resumed;
-    if (!_resumed &&
-        !(state == AppLifecycleState.inactive && _rdpPermissionPrompt)) {
+    if (!_resumed && !_ownsRdpPromptLifecycle) {
       _invalidate();
     }
     if (mounted) setState(() {});
@@ -139,17 +150,20 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
   void didChangeViewFocus(ViewFocusEvent event) {
     if (mounted && event.viewId == View.of(context).viewId) {
       _nativeFocused = event.state == ViewFocusState.focused;
-      if (!_nativeFocused && !_rdpPermissionPrompt) _invalidate();
+      if (!_nativeFocused && !_rdpNativePrompt) _invalidate();
       setState(() {});
     }
   }
 
   void _invalidate() {
+    final reportedPicker = _rdpFileTransferPicker;
     _terminal = false;
     _sftp = false;
     _tunnel = false;
     _rdp = false;
     _rdpPermissionPrompt = false;
+    _rdpFileTransferPicker = false;
+    if (reportedPicker) widget.onRdpFileTransferPickerChanged?.call(false);
     _vnc = false;
     _coreProfiles = false;
     _terminalCurrent = null;
@@ -190,12 +204,23 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
     if (mounted) setState(() {});
   }
 
+  void _setRdpFileTransferPicker(bool pending, int generation) {
+    if (!mounted || generation != _generation) return;
+    if (pending && !_rdp && !_coreProfiles) return;
+    if (_rdpFileTransferPicker == pending) return;
+    _rdpFileTransferPicker = pending;
+    widget.onRdpFileTransferPickerChanged?.call(pending);
+    if (!pending && (!_nativeFocused || !_resumed)) _invalidate();
+    if (mounted) setState(() {});
+  }
+
   bool _current(int generation, {bool allowRdpPermissionPrompt = false}) {
     try {
       final ownsRdpPermissionPrompt =
-          allowRdpPermissionPrompt && _rdpPermissionPrompt;
+          allowRdpPermissionPrompt && _rdpNativePrompt;
       if (!mounted ||
-          (!_resumed && !ownsRdpPermissionPrompt) ||
+          (!_resumed &&
+              !(allowRdpPermissionPrompt && _ownsRdpPromptLifecycle)) ||
           (!_nativeFocused && !ownsRdpPermissionPrompt) ||
           _retired ||
           generation != _generation ||
@@ -268,7 +293,7 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         final ownsRdpPermissionPrompt =
             resource == PersonalSessionResource.desktop &&
             selected?.protocol == RemoteProtocol.rdp &&
-            _rdpPermissionPrompt;
+            _rdpNativePrompt;
         final allowed =
             action() &&
             selected != null &&
@@ -288,7 +313,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
               interactionActive: _interaction?.active != false,
               routeCurrent:
                   currentRoute.isCurrent &&
-                  TickerMode.valuesOf(context).enabled,
+                  (TickerMode.valuesOf(context).enabled ||
+                      ownsRdpPermissionPrompt),
             );
         if (!allowed) lease.retire();
         return allowed;
@@ -471,15 +497,15 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
           next.hasError ||
           w == null ||
           (w.supported &&
-              ((!w.isResumed && !_rdpPermissionPrompt) ||
-                  (!w.hasWindowFocus && !_rdpPermissionPrompt) ||
+              ((!w.isResumed && !_ownsRdpPromptLifecycle) ||
+                  (!w.hasWindowFocus && !_rdpNativePrompt) ||
                   w.isPictureInPicture))) {
         _invalidate();
         if (mounted) setState(() {});
       }
     });
     ref.watch(windowPolicySnapshotProvider);
-    final current = _action(allowRdpPermissionPrompt: _rdpPermissionPrompt),
+    final current = _action(allowRdpPermissionPrompt: _rdpNativePrompt),
         active = current();
     if (active && !_started) {
       _started = true;
@@ -569,6 +595,8 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
         isCurrent: current,
         onRdpMicrophonePermissionPromptChanged: (pending) =>
             _setRdpPermissionPrompt(pending, generation),
+        onRdpFileTransferPickerChanged: (pending) =>
+            _setRdpFileTransferPicker(pending, generation),
         onBack: () {
           _generation++;
           setState(() => _coreProfiles = false);
@@ -602,12 +630,16 @@ class _RemoteProfilesScreenState extends ConsumerState<RemoteProfilesScreen>
       return RdpSessionPanel(
         key: ValueKey('rdp-${_selected!.id}'),
         profile: _selected!,
+        authorityRevision: _snapshot!.revision,
         isCurrent: _rdpCurrent!,
         onMicrophonePermissionPromptChanged: (pending) =>
             _setRdpPermissionPrompt(pending, generation),
+        onFileTransferPickerChanged: (pending) =>
+            _setRdpFileTransferPicker(pending, generation),
         onBack: () {
           _generation++;
           _rdpPermissionPrompt = false;
+          _rdpFileTransferPicker = false;
           setState(() => _rdp = false);
         },
       );

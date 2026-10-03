@@ -42,11 +42,13 @@ class CorePersonalProfilesScreen extends ConsumerStatefulWidget {
     required this.isCurrent,
     required this.onBack,
     this.onRdpMicrophonePermissionPromptChanged,
+    this.onRdpFileTransferPickerChanged,
   });
 
   final bool Function() isCurrent;
   final VoidCallback onBack;
   final ValueChanged<bool>? onRdpMicrophonePermissionPromptChanged;
+  final ValueChanged<bool>? onRdpFileTransferPickerChanged;
 
   @override
   ConsumerState<CorePersonalProfilesScreen> createState() =>
@@ -401,10 +403,12 @@ class _CorePersonalProfilesScreenState
           RdpSessionPanel(
             key: ValueKey('core-rdp-${sessionProfile.id}'),
             profile: sessionProfile,
+            authorityRevision: _sessionAuthority!.profile.revision,
             securityStore: _rdpSessionStore!,
             isCurrent: _sessionCurrent,
             onMicrophonePermissionPromptChanged:
                 widget.onRdpMicrophonePermissionPromptChanged,
+            onFileTransferPickerChanged: widget.onRdpFileTransferPickerChanged,
             onBack: close,
           ),
         (RemoteProtocol.vnc, PersonalSessionResource.desktop) =>

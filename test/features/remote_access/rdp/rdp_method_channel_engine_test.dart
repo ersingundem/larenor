@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 import 'rdp_models_test.dart' show fixture, profile;
 
@@ -88,6 +89,47 @@ void main() {
           'acceptedCount': 0,
         },
         'cancelMicrophonePermission' => null,
+        'selectFileTransferTree' => {
+          'schemaVersion': 5,
+          'requestId': (call.arguments as Map)['requestId'],
+          'authorityId': RdpSecurityStore()
+              .fileTransferAuthority(profile, profileRevision: 9)
+              .authorityId,
+          'grantId': '0123456789abcdef0123456789abcdef',
+          'grantRevision': 3,
+          'state': 'prepared',
+        },
+        'activateFileTransferGrant' => {
+          'schemaVersion': 5,
+          'requestId': (call.arguments as Map)['requestId'],
+          'authorityId': RdpSecurityStore()
+              .fileTransferAuthority(profile, profileRevision: 9)
+              .authorityId,
+          'grantId': (call.arguments as Map)['grantId'],
+          'grantRevision': (call.arguments as Map)['expectedGrantRevision'],
+          'state': 'active',
+        },
+        'fileTransferGrantObservation' => {
+          'schemaVersion': 5,
+          'requestId': (call.arguments as Map)['requestId'],
+          'authorityId': RdpSecurityStore()
+              .fileTransferAuthority(profile, profileRevision: 9)
+              .authorityId,
+          'grantId': (call.arguments as Map)['grantId'],
+          'grantRevision': (call.arguments as Map)['expectedGrantRevision'],
+          'state': 'active',
+        },
+        'retireFileTransferGrant' => {
+          'schemaVersion': 5,
+          'requestId': (call.arguments as Map)['requestId'],
+          'authorityId': RdpSecurityStore()
+              .fileTransferAuthority(profile, profileRevision: 9)
+              .authorityId,
+          'grantId': (call.arguments as Map)['grantId'],
+          'grantRevision': (call.arguments as Map)['expectedGrantRevision'],
+          'state': 'retired',
+        },
+        'cancelFileTransferTree' => null,
         'activate' || 'input' || 'resize' || 'ackFrame' || 'cancel' => null,
         _ => throw MissingPluginException(),
       };
@@ -144,6 +186,196 @@ void main() {
     );
     return openClipboard(engine, microphone: true);
   }
+
+  RdpFileTransferAuthority transferAuthority() =>
+      RdpSecurityStore().fileTransferAuthority(profile, profileRevision: 9);
+
+  test(
+    'SAF picker and lifecycle receipts bind exact opaque authority',
+    () async {
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final authority = transferAuthority();
+      final prepared = await engine.selectFileTransferTree(
+        authority: authority,
+        isCurrent: () => true,
+      );
+      expect(prepared.state, RdpFileTransferGrantState.prepared);
+      expect(prepared.authorityId, authority.authorityId);
+      final select = calls.singleWhere(
+        (call) => call.method == 'selectFileTransferTree',
+      );
+      expect(select.arguments, {
+        'schemaVersion': 5,
+        'requestId': (select.arguments as Map)['requestId'],
+        'authority': authority.toWire(),
+      });
+
+      final active = await engine.activateFileTransferGrant(
+        authority: authority,
+        grant: prepared.grant,
+        isCurrent: () => true,
+      );
+      expect(active.state, RdpFileTransferGrantState.active);
+      expect(
+        await engine.fileTransferGrantObservation(
+          authority: authority,
+          grant: prepared.grant,
+          isCurrent: () => true,
+        ),
+        active,
+      );
+      final retired = await engine.retireFileTransferGrant(
+        authority: authority,
+        grant: prepared.grant,
+      );
+      expect(retired.state, RdpFileTransferGrantState.retired);
+      for (final call in calls.where(
+        (call) => const {
+          'activateFileTransferGrant',
+          'fileTransferGrantObservation',
+          'retireFileTransferGrant',
+        }.contains(call.method),
+      )) {
+        final body = call.arguments as Map;
+        expect(body['schemaVersion'], 5);
+        expect(body['authority'], authority.toWire());
+        expect(body['grantId'], prepared.grant.id);
+        expect(body['expectedGrantRevision'], prepared.grant.revision);
+        expect(body.keys, {
+          'schemaVersion',
+          'requestId',
+          'authority',
+          'grantId',
+          'expectedGrantRevision',
+        });
+      }
+      engine.close();
+    },
+  );
+
+  test(
+    'retired picker result is fenced and exact prepared grant is retired',
+    () async {
+      var current = true;
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call);
+        if (call.method == 'selectFileTransferTree') {
+          current = false;
+          return {
+            'schemaVersion': 5,
+            'requestId': (call.arguments as Map)['requestId'],
+            'authorityId': transferAuthority().authorityId,
+            'grantId': '0123456789abcdef0123456789abcdef',
+            'grantRevision': 3,
+            'state': 'prepared',
+          };
+        }
+        if (call.method == 'retireFileTransferGrant') {
+          return {
+            'schemaVersion': 5,
+            'requestId': (call.arguments as Map)['requestId'],
+            'authorityId': transferAuthority().authorityId,
+            'grantId': (call.arguments as Map)['grantId'],
+            'grantRevision': (call.arguments as Map)['expectedGrantRevision'],
+            'state': 'retired',
+          };
+        }
+        if (call.method == 'cancelFileTransferTree') return null;
+        throw MissingPluginException();
+      });
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      await expectLater(
+        engine.selectFileTransferTree(
+          authority: transferAuthority(),
+          isCurrent: () => current,
+        ),
+        throwsA(isA<RdpFailure>()),
+      );
+      expect(
+        calls.where((call) => call.method == 'activateFileTransferGrant'),
+        isEmpty,
+      );
+      expect(
+        calls.where((call) => call.method == 'retireFileTransferGrant'),
+        hasLength(1),
+      );
+      engine.close();
+    },
+  );
+
+  test('SAF retirement keeps an unknown release outcome observable', () async {
+    messenger.setMockMethodCallHandler(methods, (call) async {
+      calls.add(call);
+      if (call.method == 'retireFileTransferGrant') {
+        return {
+          'schemaVersion': 5,
+          'requestId': (call.arguments as Map)['requestId'],
+          'authorityId': transferAuthority().authorityId,
+          'grantId': (call.arguments as Map)['grantId'],
+          'grantRevision': (call.arguments as Map)['expectedGrantRevision'],
+          'state': 'unknown',
+        };
+      }
+      throw MissingPluginException();
+    });
+    final engine = RdpMethodChannelEngine(
+      methods: methods,
+      events: events,
+      isAndroid: true,
+    );
+    final outcome = await engine.retireFileTransferGrant(
+      authority: transferAuthority(),
+      grant: const RdpFileTransferGrant(
+        id: '0123456789abcdef0123456789abcdef',
+        revision: 3,
+      ),
+    );
+    expect(outcome.state, RdpFileTransferGrantState.unknown);
+    engine.close();
+  });
+
+  test(
+    'SAF response cannot expose raw provider fields or foreign identity',
+    () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call);
+        if (call.method == 'selectFileTransferTree') {
+          return {
+            'schemaVersion': 5,
+            'requestId': (call.arguments as Map)['requestId'],
+            'authorityId': 'f' * 64,
+            'grantId': '0123456789abcdef0123456789abcdef',
+            'grantRevision': 3,
+            'state': 'prepared',
+            'treeUri': 'content://must-not-cross',
+          };
+        }
+        if (call.method == 'cancelFileTransferTree') return null;
+        throw MissingPluginException();
+      });
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      await expectLater(
+        engine.selectFileTransferTree(
+          authority: transferAuthority(),
+          isCurrent: () => true,
+        ),
+        throwsA(isA<RdpFailure>()),
+      );
+      engine.close();
+    },
+  );
 
   test(
     'microphone permission receipt binds the exact session and observation',

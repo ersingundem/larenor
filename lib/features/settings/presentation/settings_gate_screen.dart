@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,6 +78,9 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
   int _generation = 0;
   String? _error;
   bool _fileDialogActive = false;
+  bool _rdpFileTransferPicker = false;
+  bool _nativeFocused = true;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   bool _settingsOpened = false;
   GlobalKey<NavigatorState> _settingsNavigator = GlobalKey<NavigatorState>();
   Route<bool>? _reauthRoute;
@@ -89,6 +93,10 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
       AndroidGameStreamForegroundCoverage.unavailable;
   late final GameStreamForegroundCoverageGuard _gameStreamCoverageGuard;
   bool get _interactive => _interaction?.active ?? true;
+  bool get _ownsRdpFileTransferPickerLifecycle =>
+      _rdpFileTransferPicker &&
+      (!_nativeFocused || _lifecycleState != AppLifecycleState.resumed) &&
+      _lifecycleState != AppLifecycleState.detached;
 
   @override
   void didChangeDependencies() {
@@ -125,6 +133,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
     if (state == AppLifecycleState.resumed) {
       unawaited(_revalidateGameStreamCoverage());
       return;
@@ -135,7 +144,14 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     }
   }
 
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (!mounted || event.viewId != View.of(context).viewId) return;
+    _nativeFocused = event.state == ViewFocusState.focused;
+  }
+
   Future<void> _lockUnlessGameStreamCovered() async {
+    if (_ownsRdpFileTransferPickerLifecycle) return;
     final epoch = ++_gameStreamCoverageEpoch;
     final coverage = await _gameStreamCoverageGuard.query();
     if (!mounted || epoch != _gameStreamCoverageEpoch) return;
@@ -178,6 +194,7 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     _gameStreamCoverageEpoch++;
     _gameStreamCoveragePending = false;
     _gameStreamCoverage = AndroidGameStreamForegroundCoverage.unavailable;
+    _rdpFileTransferPicker = false;
     _controller.clear();
     final reauth = _reauthRoute;
     _reauthRoute = null;
@@ -196,6 +213,17 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
     if (_fileDialogActive) return;
     // The nested Navigator owns settings pages and their dialogs. Resetting its
     // key closes only these routes, preserving unrelated root overlays.
+  }
+
+  void _setRdpFileTransferPicker(bool pending) {
+    if (!mounted || _rdpFileTransferPicker == pending) return;
+    _rdpFileTransferPicker = pending;
+    if (!pending &&
+        (_lifecycleState != AppLifecycleState.resumed ||
+            !_nativeFocused ||
+            !_interactive)) {
+      _lockSettings();
+    }
   }
 
   @override
@@ -513,6 +541,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 },
                               )
                             : SettingsSplitScreen(
+                                onRdpFileTransferPickerChanged:
+                                    _setRdpFileTransferPicker,
                                 gameStreamForegroundCoverageGuard:
                                     _gameStreamCoverageGuard,
                                 gameStreamCoverageCurrent: () {
@@ -628,7 +658,8 @@ class _SettingsGateScreenState extends ConsumerState<SettingsGateScreen>
                                 },
                                 remoteGateCurrent: () {
                                   if (!mounted ||
-                                      !_interactive ||
+                                      (!_interactive &&
+                                          !_ownsRdpFileTransferPickerLifecycle) ||
                                       resourceGeneration != _generation ||
                                       ModalRoute.of(context)?.isCurrent !=
                                           true) {

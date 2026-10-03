@@ -165,6 +165,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Actual v3 two-ABI APK verified by all5 root verifiers; broad required-package JVM345total/343passed/2explicit opt-in skips/0failures"
+  },
+  {
+    "node": "F62",
+    "kind": "review",
+    "ref": "docs/testing/f62-test-body-failure-diagnostics-2026-10-01.md",
+    "commit": "6bbe8b039f17c2eef12023d23f4476b94d2a3ade",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent source SHA/named-test/count/owned-frame/privacy review; original strict success and TLS/NLA/frame/input/DISP/clipboard assertions unchanged"
   }
 ]
 ```

@@ -6,7 +6,7 @@ This document records source research and a bounded implementation plan. It is
 not acceptance evidence. F62 remains open for Android Storage Access Framework
 (SAF) file redirection and Remote Desktop Gateway (RD Gateway).
 
-The current schema-3 package truthfully reports `channels.files=false` and
+The current microphone-v4 package truthfully reports `channels.files=false` and
 `security.rdGateway=false` in `RdpFreeRdpPackage.capabilities()`. The native
 negotiator rejects requested file redirection with `channelUnavailable` and a
 configured gateway with `gatewayUnavailable`. The packaged runtime also returns
@@ -20,8 +20,12 @@ backup import uses `ACTION_OPEN_DOCUMENT`, while Core backup and WebPanel
 exports use `ACTION_CREATE_DOCUMENT`. They validate `content:` URIs and keep
 their operation ownership bounded. They do not select a directory tree, retain
 a directory permission, expose a POSIX directory to FreeRDP, or reconcile a
-remote drive. No production path currently uses `ACTION_OPEN_DOCUMENT_TREE`,
-`takePersistableUriPermission`, or `DocumentsContract` for an RDP session.
+remote drive. The schema-5 grant slice now implements owned `ACTION_OPEN_DOCUMENT_TREE`
+and `takePersistableUriPermission` with encrypted restart/revocation readback.
+It keeps file redirection disabled. `DocumentsContract` transfer, private mirror,
+real native drain, explicit save/readback and Gateway remain open. See
+[grant evidence](f62-saf-grants-native-2026-10-03.md) and
+[client lifecycle evidence](f62-saf-client-2026-10-03.md).
 
 ## Primary source findings
 

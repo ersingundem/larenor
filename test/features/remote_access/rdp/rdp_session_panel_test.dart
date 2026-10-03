@@ -226,7 +226,8 @@ class UiChannel
   }
 }
 
-class UiEngine implements RdpMicrophonePermissionEngine {
+class UiEngine
+    implements RdpMicrophonePermissionEngine, RdpFileTransferGrantEngine {
   UiEngine({
     this.supportsIme = false,
     this.supportsResize = true,
@@ -240,6 +241,17 @@ class UiEngine implements RdpMicrophonePermissionEngine {
   bool permissionGranted = true;
   Completer<bool>? permissionReply;
   int permissionRequests = 0, permissionCancels = 0;
+  int fileTransferSelections = 0,
+      fileTransferActivations = 0,
+      fileTransferObservations = 0,
+      fileTransferRetirements = 0,
+      fileTransferCancellations = 0;
+  @override
+  bool fileTransferPickerPending = false;
+  RdpFileTransferAuthority? lastFileTransferAuthority;
+  RdpFileTransferGrantState observedFileTransferState =
+      RdpFileTransferGrantState.active;
+  Completer<RdpFileTransferGrantObservation>? fileTransferSelectionReply;
   late final channel = UiChannel(supportsUnicodeInput: supportsIme);
   final requests = <RdpSessionRequest>[];
   int capabilityReads = 0;
@@ -295,6 +307,89 @@ class UiEngine implements RdpMicrophonePermissionEngine {
 
   @override
   void cancelMicrophonePermission() => permissionCancels++;
+
+  RdpFileTransferGrantObservation _fileTransfer(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrantState state, {
+    RdpFileTransferGrant grant = const RdpFileTransferGrant(
+      id: '0123456789abcdef0123456789abcdef',
+      revision: 1,
+    ),
+  }) => RdpFileTransferGrantObservation(
+    authorityId: authority.authorityId,
+    grant: grant,
+    state: state,
+  );
+
+  @override
+  Future<RdpFileTransferGrantObservation> selectFileTransferTree({
+    required RdpFileTransferAuthority authority,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferSelections++;
+    fileTransferPickerPending = true;
+    lastFileTransferAuthority = authority;
+    try {
+      final result =
+          await (fileTransferSelectionReply?.future ??
+              Future.value(
+                _fileTransfer(authority, RdpFileTransferGrantState.prepared),
+              ));
+      if (!isCurrent()) throw const RdpFailure('retired');
+      return result;
+    } finally {
+      fileTransferPickerPending = false;
+    }
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> activateFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferActivations++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return _fileTransfer(
+      authority,
+      RdpFileTransferGrantState.active,
+      grant: grant,
+    );
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> fileTransferGrantObservation({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferObservations++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return _fileTransfer(authority, observedFileTransferState, grant: grant);
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> retireFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+  }) async {
+    fileTransferRetirements++;
+    return _fileTransfer(
+      authority,
+      RdpFileTransferGrantState.retired,
+      grant: grant,
+    );
+  }
+
+  @override
+  void cancelFileTransferTree() {
+    fileTransferCancellations++;
+    fileTransferPickerPending = false;
+    final reply = fileTransferSelectionReply;
+    if (reply != null && !reply.isCompleted) {
+      reply.completeError(const RdpFailure('retired'));
+    }
+  }
 }
 
 class HeldCapabilityEngine extends UiEngine {
@@ -583,6 +678,124 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets(
+    'owned SAF picker survives its external activity and stores only opaque receipt',
+    (tester) async {
+      final selection = Completer<RdpFileTransferGrantObservation>();
+      final engine = UiEngine()..fileTransferSelectionReply = selection;
+      final remoteUi = RemoteUi();
+      await remoteUi.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, remoteUi);
+      await press(tester, 'rdp-file-transfer-select');
+      expect(engine.fileTransferSelections, 1);
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.unfocused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(key('rdp-session-panel'), findsOneWidget);
+      expect(engine.fileTransferCancellations, 0);
+
+      final authority = engine.lastFileTransferAuthority!;
+      selection.complete(
+        RdpFileTransferGrantObservation(
+          authorityId: authority.authorityId,
+          grant: const RdpFileTransferGrant(
+            id: '0123456789abcdef0123456789abcdef',
+            revision: 1,
+          ),
+          state: RdpFileTransferGrantState.prepared,
+        ),
+      );
+      await tester.pump();
+      expect(engine.fileTransferActivations, 0);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      tester.binding.handleViewFocusChanged(
+        ui.ViewFocusEvent(
+          viewId: tester.view.viewId,
+          state: ui.ViewFocusState.focused,
+          direction: ui.ViewFocusDirection.undefined,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(engine.fileTransferActivations, 1);
+      expect(
+        find.textContaining('Folder permission is verified.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'This only prepares folder permission; RDP file sharing is not enabled yet.',
+        ),
+        findsOneWidget,
+      );
+      expect(remoteUi.values.values.join(), isNot(contains('content://')));
+      await connectRdp(tester);
+      expect(engine.requests.single.channels.files, isFalse);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'interaction retirement cancels an owned SAF picker and relocks settings',
+    (tester) async {
+      final selection = Completer<RdpFileTransferGrantObservation>();
+      final engine = UiEngine()..fileTransferSelectionReply = selection;
+      final remoteUi = RemoteUi();
+      await remoteUi.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, remoteUi);
+      await press(tester, 'rdp-file-transfer-select');
+      expect(engine.fileTransferSelections, 1);
+
+      remoteUi.interaction.setActive(false);
+      await tester.pumpAndSettle();
+
+      expect(engine.fileTransferCancellations, greaterThanOrEqualTo(1));
+      expect(key('rdp-session-panel'), findsNothing);
+      expect(engine.fileTransferActivations, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('explicit removal retires before deleting the opaque receipt', (
+    tester,
+  ) async {
+    final engine = UiEngine(), remoteUi = RemoteUi();
+    await remoteUi.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () => engine,
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, remoteUi);
+    await press(tester, 'rdp-file-transfer-select');
+    expect(engine.fileTransferActivations, 1);
+    await press(tester, 'rdp-file-transfer-remove');
+    expect(engine.fileTransferRetirements, 1);
+    expect(
+      find.textContaining('No transfer folder is selected.'),
+      findsOneWidget,
+    );
+    expect(key('rdp-file-transfer-select'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   void useAndroidWindowChannel(
     Future<Object?> Function(MethodCall call) handler,

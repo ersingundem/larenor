@@ -33,8 +33,9 @@ void main() {
       expect(value.keyboardLayout, RdpKeyboardLayout.turkishQ);
       expect(value.clipboardMode, RdpClipboardMode.clientToRemote);
       expect(value.microphone, isFalse);
-      expect(value.toJson()['version'], 2);
+      expect(value.toJson()['version'], 3);
       expect(value.toJson()['microphone'], isFalse);
+      expect(value.fileTransferGrant, isNull);
       expect(value.toJson(), isNot(contains('password')));
       expect(
         () => RdpProfileSettings.fromJson({
@@ -66,6 +67,7 @@ void main() {
       'microphone': true,
     });
     expect(value.microphone, isTrue);
+    expect(value.fileTransferGrant, isNull);
     expect(value.toJson()['microphone'], isTrue);
     for (final raw in [
       {...value.toJson()}..remove('microphone'),
@@ -77,6 +79,83 @@ void main() {
         throwsA(isA<RdpFailure>()),
       );
     }
+  });
+
+  test('v3 settings persist only an opaque exact SAF grant receipt', () {
+    const grant = RdpFileTransferGrant(
+      id: '0123456789abcdef0123456789abcdef',
+      revision: 7,
+    );
+    final value = RdpProfileSettings.fromJson(const {
+      'version': 3,
+      'domain': '',
+      'gatewayHost': null,
+      'gatewayPort': 443,
+      'gatewayUsername': '',
+      'displayMode': 'fitWindow',
+      'keyboardLayout': 'automatic',
+      'clipboardMode': 'disabled',
+      'microphone': false,
+      'fileTransferGrantId': '0123456789abcdef0123456789abcdef',
+      'fileTransferGrantRevision': 7,
+    });
+    expect(value.fileTransferGrant, grant);
+    expect(value.toJson(), {
+      'version': 3,
+      'domain': '',
+      'gatewayHost': null,
+      'gatewayPort': 443,
+      'gatewayUsername': '',
+      'displayMode': 'fitWindow',
+      'keyboardLayout': 'automatic',
+      'clipboardMode': 'disabled',
+      'microphone': false,
+      'fileTransferGrantId': grant.id,
+      'fileTransferGrantRevision': grant.revision,
+    });
+    expect(value.toJson().toString(), isNot(contains('content:')));
+    expect(value.copyWith(fileTransferGrant: null).fileTransferGrant, isNull);
+    for (final raw in [
+      {...value.toJson()}..remove('fileTransferGrantId'),
+      {...value.toJson()}..remove('fileTransferGrantRevision'),
+      {...value.toJson(), 'fileTransferGrantId': 'not-an-id'},
+      {...value.toJson(), 'fileTransferGrantRevision': 0},
+      {...value.toJson(), 'fileTransferGrantRevision': 9007199254740992},
+      {...value.toJson(), 'treeUri': 'content://private'},
+    ]) {
+      expect(
+        () => RdpProfileSettings.fromJson(raw),
+        throwsA(isA<RdpFailure>()),
+      );
+    }
+  });
+
+  test('SAF authority digest binds namespace profile and profile revision', () {
+    final local = RdpSecurityStore(namespace: RdpSecurityNamespace.local());
+    final first = local.fileTransferAuthorityId(profile, profileRevision: 4);
+    expect(first, matches(RegExp(r'^[0-9a-f]{64}$')));
+    expect(local.fileTransferAuthorityId(profile, profileRevision: 4), first);
+    expect(
+      local.fileTransferAuthorityId(profile, profileRevision: 5),
+      isNot(first),
+    );
+    final managed = RdpSecurityStore(
+      namespace: RdpSecurityNamespace.coreManaged(
+        endpoint: 'https://core.example',
+        coreId: '1' * 32,
+        homeId: '2' * 32,
+        accountId: '3' * 32,
+        sessionFamilyId: '4' * 32,
+      ),
+    );
+    expect(
+      managed.fileTransferAuthorityId(profile, profileRevision: 4),
+      isNot(first),
+    );
+    expect(
+      () => local.fileTransferAuthorityId(profile, profileRevision: 0),
+      throwsA(isA<RdpFailure>()),
+    );
   });
 
   test('legacy unimplemented fixed display migrates to truthful fit', () {

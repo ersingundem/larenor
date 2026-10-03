@@ -129,7 +129,8 @@ class Channel
   }
 }
 
-class Engine implements RdpMicrophonePermissionEngine {
+class Engine
+    implements RdpMicrophonePermissionEngine, RdpFileTransferGrantEngine {
   Engine({
     this.available = true,
     this.supportsNla = true,
@@ -150,6 +151,14 @@ class Engine implements RdpMicrophonePermissionEngine {
   int inspections = 0, opens = 0, closes = 0;
   int microphonePermissionRequests = 0, microphonePermissionCancels = 0;
   Completer<bool>? microphonePermissionReply;
+  int fileTransferSelections = 0,
+      fileTransferActivations = 0,
+      fileTransferObservations = 0,
+      fileTransferRetirements = 0,
+      fileTransferCancellations = 0;
+  @override
+  bool fileTransferPickerPending = false;
+  Completer<RdpFileTransferGrantObservation>? fileTransferSelectionReply;
   String? passwordSeen;
   RdpSessionRequest? lastRequest;
   Completer<RdpCertificateProbe>? delayed;
@@ -224,6 +233,92 @@ class Engine implements RdpMicrophonePermissionEngine {
 
   @override
   void cancelMicrophonePermission() => microphonePermissionCancels++;
+
+  RdpFileTransferGrantObservation _fileTransfer(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrantState state, {
+    RdpFileTransferGrant grant = const RdpFileTransferGrant(
+      id: '0123456789abcdef0123456789abcdef',
+      revision: 1,
+    ),
+  }) => RdpFileTransferGrantObservation(
+    authorityId: authority.authorityId,
+    grant: grant,
+    state: state,
+  );
+
+  @override
+  Future<RdpFileTransferGrantObservation> selectFileTransferTree({
+    required RdpFileTransferAuthority authority,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferSelections++;
+    fileTransferPickerPending = true;
+    try {
+      final value =
+          await (fileTransferSelectionReply?.future ??
+              Future.value(
+                _fileTransfer(authority, RdpFileTransferGrantState.prepared),
+              ));
+      if (!isCurrent()) throw const RdpFailure('retired');
+      return value;
+    } finally {
+      fileTransferPickerPending = false;
+    }
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> activateFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferActivations++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return _fileTransfer(
+      authority,
+      RdpFileTransferGrantState.active,
+      grant: grant,
+    );
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> fileTransferGrantObservation({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) async {
+    fileTransferObservations++;
+    if (!isCurrent()) throw const RdpFailure('retired');
+    return _fileTransfer(
+      authority,
+      RdpFileTransferGrantState.active,
+      grant: grant,
+    );
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> retireFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+  }) async {
+    fileTransferRetirements++;
+    return _fileTransfer(
+      authority,
+      RdpFileTransferGrantState.retired,
+      grant: grant,
+    );
+  }
+
+  @override
+  void cancelFileTransferTree() {
+    fileTransferCancellations++;
+    fileTransferPickerPending = false;
+    final reply = fileTransferSelectionReply;
+    if (reply != null && !reply.isCompleted) {
+      reply.completeError(const RdpFailure('retired'));
+    }
+  }
 }
 
 RdpSessionController controller(
@@ -1001,6 +1096,121 @@ void main() {
       c.dispose();
     },
   );
+
+  test(
+    'owned SAF picker survives prompt focus loss then resumes exact receipt',
+    () async {
+      var current = true, interactive = true;
+      final engine = Engine();
+      final reply = engine.fileTransferSelectionReply =
+          Completer<RdpFileTransferGrantObservation>();
+      final c = RdpSessionController(
+        profile: profile,
+        trust: Trust(),
+        engineFactory: () => engine,
+        isCurrent: () => current,
+        isInteractive: () => interactive,
+        display: const RdpDisplaySpec(width: 640, height: 480),
+      );
+      final authority = RdpSecurityStore().fileTransferAuthority(
+        profile,
+        profileRevision: 9,
+      );
+      final selecting = c.selectFileTransferTree(authority);
+      await flush();
+      expect(c.fileTransferPickerPending, isTrue);
+      interactive = false;
+      reply.complete(
+        RdpFileTransferGrantObservation(
+          authorityId: authority.authorityId,
+          grant: const RdpFileTransferGrant(
+            id: '0123456789abcdef0123456789abcdef',
+            revision: 1,
+          ),
+          state: RdpFileTransferGrantState.prepared,
+        ),
+      );
+      await flush();
+      expect(c.fileTransferPickerPending, isTrue);
+      var completed = false;
+      unawaited(selecting.then((_) => completed = true));
+      await flush();
+      expect(completed, isFalse);
+      interactive = true;
+      c.resumeFileTransferPicker();
+      final prepared = await selecting;
+      expect(prepared.state, RdpFileTransferGrantState.prepared);
+      expect(prepared.authorityId, authority.authorityId);
+      expect(c.fileTransferPickerPending, isFalse);
+      expect(engine.fileTransferSelections, 1);
+      expect(engine.fileTransferCancellations, 0);
+      current = false;
+      c.synchronize();
+      c.dispose();
+    },
+  );
+
+  test(
+    'route retirement cancels an owned picker before any activation',
+    () async {
+      var current = true;
+      final engine = Engine();
+      engine.fileTransferSelectionReply =
+          Completer<RdpFileTransferGrantObservation>();
+      final c = RdpSessionController(
+        profile: profile,
+        trust: Trust(),
+        engineFactory: () => engine,
+        isCurrent: () => current,
+        display: const RdpDisplaySpec(width: 640, height: 480),
+      );
+      final authority = RdpSecurityStore().fileTransferAuthority(
+        profile,
+        profileRevision: 9,
+      );
+      final selecting = c.selectFileTransferTree(authority);
+      await flush();
+      current = false;
+      c.synchronize();
+      await expectLater(selecting, throwsA(isA<RdpFailure>()));
+      expect(engine.fileTransferCancellations, 1);
+      expect(c.fileTransferPickerPending, isFalse);
+      expect(engine.fileTransferActivations, 0);
+      c.dispose();
+    },
+  );
+
+  test('SAF grant lifecycle is local-only and never opens RDP', () async {
+    final engine = Engine();
+    final c = controller(engine, Trust(), () => true);
+    final authority = RdpSecurityStore().fileTransferAuthority(
+      profile,
+      profileRevision: 9,
+    );
+    const grant = RdpFileTransferGrant(
+      id: '0123456789abcdef0123456789abcdef',
+      revision: 1,
+    );
+    expect(
+      (await c.observeFileTransferGrant(authority, grant)).state,
+      RdpFileTransferGrantState.active,
+    );
+    expect(
+      (await c.activateFileTransferGrant(authority, grant)).state,
+      RdpFileTransferGrantState.active,
+    );
+    expect(
+      (await c.retireFileTransferGrant(authority, grant)).state,
+      RdpFileTransferGrantState.retired,
+    );
+    expect(engine.inspections, 0);
+    expect(engine.opens, 0);
+    expect(engine.fileTransferObservations, 1);
+    expect(engine.fileTransferActivations, 1);
+    expect(engine.fileTransferRetirements, 1);
+    c.dispose();
+  });
+
   test('controller admits only acknowledged current geometry and clears it on density resize', () async {
     final trust = Trust()
       ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);

@@ -27,11 +27,18 @@ internal object RdpJniRuntimeLoader {
     }
 }
 
-class RdpNativeBridge(
+class RdpNativeBridge internal constructor(
     private val activity: Activity,
     messenger: BinaryMessenger,
-    runtime: RdpJniRuntime? = RdpJniRuntimeLoader.load(activity),
+    runtime: RdpJniRuntime?,
+    private val safGrants: RdpSafGrantBroker,
 ) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+    constructor(
+        activity: Activity,
+        messenger: BinaryMessenger,
+        runtime: RdpJniRuntime? = RdpJniRuntimeLoader.load(activity),
+    ) : this(activity, messenger, runtime, RdpSafGrantBroker(activity))
+
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "larenor-rdp").apply { isDaemon = true }
@@ -58,6 +65,7 @@ class RdpNativeBridge(
     fun setResumed(value: Boolean) {
         if (disposed) return
         resumed = value
+        safGrants.setResumed(value)
         if (!value) {
             retire()
         }
@@ -73,6 +81,7 @@ class RdpNativeBridge(
         if (disposed) return
         focused = value
         microphonePermission.setWindowFocused(value)
+        safGrants.setWindowFocused(value)
         if (!value) retire()
     }
 
@@ -118,6 +127,11 @@ class RdpNativeBridge(
                 "microphoneObservation" -> microphoneObservation(call.arguments, result)
                 "requestMicrophonePermission" -> requestMicrophonePermission(call.arguments, result)
                 "cancelMicrophonePermission" -> cancelMicrophonePermission(call.arguments, result)
+                "selectFileTransferTree" -> safGrants.select(call.arguments, result)
+                "cancelFileTransferTree" -> safGrants.cancel(call.arguments, result)
+                "activateFileTransferGrant" -> safGrants.activate(call.arguments, result)
+                "fileTransferGrantObservation" -> safGrants.observe(call.arguments, result)
+                "retireFileTransferGrant" -> safGrants.retire(call.arguments, result)
                 "cancel" -> cancel(call.arguments, result)
                 else -> result.notImplemented()
             }
@@ -516,12 +530,16 @@ class RdpNativeBridge(
         requestCode, permissions, grantResults,
     )
 
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?): Boolean =
+        safGrants.onActivityResult(requestCode, resultCode, data)
+
     fun dispose() {
         if (disposed) return
         disposed = true
         requestId?.let(microphonePermission::cancel)
         retire()
         microphonePermission.dispose()
+        safGrants.dispose()
         methods.setMethodCallHandler(null)
         events.setStreamHandler(null)
         sink = null

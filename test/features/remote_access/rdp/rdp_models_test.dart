@@ -4,9 +4,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
+import 'package:larenor/features/remote_access/rdp/rdp_security_store.dart';
 
 Map<String, dynamic> fixture() =>
-    jsonDecode(File('contracts/rdp-client.v4.json').readAsStringSync())
+    jsonDecode(File('contracts/rdp-client.v5.json').readAsStringSync())
         as Map<String, dynamic>;
 
 Map<String, dynamic> packagedCapabilities({
@@ -38,6 +39,39 @@ const profile = RemoteProfile(
 );
 
 void main() {
+  test('v5 fixture binds the exact opaque SAF authority and receipt', () {
+    final authorityJson = fixture()['safGrantAuthority'] as Map;
+    final authority = RdpFileTransferAuthority(
+      namespaceDigest: authorityJson['namespaceDigest'] as String,
+      profileRef: authorityJson['profileRef'] as String,
+      profileRevision: authorityJson['profileRevision'] as int,
+    );
+    expect(authorityJson.keys.toSet(), {
+      'schemaVersion',
+      'namespaceDigest',
+      'profileRef',
+      'profileRevision',
+    });
+    expect(authorityJson['schemaVersion'], 5);
+    final receipt = fixture()['safPreparedReceipt'] as Map;
+    expect(receipt.keys.toSet(), {
+      'schemaVersion',
+      'requestId',
+      'authorityId',
+      'grantId',
+      'grantRevision',
+      'state',
+    });
+    expect(receipt['authorityId'], authority.authorityId);
+    expect(receipt['state'], 'prepared');
+    expect(fixture()['safStates'], [
+      'prepared',
+      'active',
+      'retired',
+      'unknown',
+    ]);
+  });
+
   test('v4 fixture binds the exact microphone permission receipt', () {
     final request = fixture()['microphonePermissionRequest'] as Map;
     final granted = fixture()['microphonePermissionGranted'] as Map;

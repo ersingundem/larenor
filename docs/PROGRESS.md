@@ -19,6 +19,8 @@ kalır ve sayaçlar artmaz. [Birleşik kanıt](testing/f60-launch-key-composed-2
 
 Değişmiş RI5 [exact9a85 Sunshine37127353767](https://github.com/ersingundem/larenor/actions/runs/37127353767) bir kez başlatıldı; strict yayın sonucu bekleniyor.
 
+3 Ekim SAF grant5/clientSettings3 alt dilimi tamamlandı: exact platform picker, şifreli izin kaydı, aynı isteğin replay/revocation kontrolü ve ayarlar yaşam döngüsü bağlandı. Root **94 RDP JVM + son 18 SAF / 0 atlama-hata**, actual AndroidTest derlemesi ve **179 Flutter / temiz analiz** kanıtını doğruladı. Gerçek dosya mirror/async drain/quota/explicit save/readback ve Gateway açık; F62 yeniden çalışılıyor, sayaçlar artmadı. [Native kanıt](testing/f62-saf-grants-native-2026-10-03.md), [istemci kanıtı](testing/f62-saf-client-2026-10-03.md).
+
 ## Güncel durum ayrımı
 
 | Durum | İşler | Kalan kapı |

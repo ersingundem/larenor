@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../data/remote_profiles.dart';
 import 'rdp_models.dart';
+import 'rdp_security_store.dart';
 
 abstract interface class RdpChannel {
   Future<void> get done;
@@ -65,6 +66,29 @@ abstract interface class RdpMicrophonePermissionEngine implements RdpEngine {
     required bool Function() isCurrent,
   });
   void cancelMicrophonePermission();
+}
+
+abstract interface class RdpFileTransferGrantEngine implements RdpEngine {
+  bool get fileTransferPickerPending;
+  Future<RdpFileTransferGrantObservation> selectFileTransferTree({
+    required RdpFileTransferAuthority authority,
+    required bool Function() isCurrent,
+  });
+  Future<RdpFileTransferGrantObservation> activateFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  });
+  Future<RdpFileTransferGrantObservation> fileTransferGrantObservation({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  });
+  Future<RdpFileTransferGrantObservation> retireFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+  });
+  void cancelFileTransferTree();
 }
 
 /// An owned read deadline: retirement cancels its timer and resolves waiters.
@@ -135,6 +159,31 @@ class RdpMicrophonePermissionRead {
   final _completion = Completer<bool>();
   Timer? _deadline;
   Future<bool> get future => _completion.future;
+  void _fail(Object error, [StackTrace? stack]) {
+    if (_completion.isCompleted) return;
+    _deadline?.cancel();
+    _completion.completeError(error, stack);
+  }
+
+  void cancel() => _fail(const RdpFailure('retired'));
+}
+
+class RdpFileTransferPickerRead {
+  RdpFileTransferPickerRead(Future<RdpFileTransferGrantObservation> source) {
+    _deadline = Timer(const Duration(seconds: 90), () {
+      _fail(const RdpFailure('timed_out'));
+    });
+    unawaited(
+      source.then<void>((value) {
+        if (_completion.isCompleted) return;
+        _deadline?.cancel();
+        _completion.complete(value);
+      }, onError: (Object error, StackTrace stack) => _fail(error, stack)),
+    );
+  }
+  final _completion = Completer<RdpFileTransferGrantObservation>();
+  Timer? _deadline;
+  Future<RdpFileTransferGrantObservation> get future => _completion.future;
   void _fail(Object error, [StackTrace? stack]) {
     if (_completion.isCompleted) return;
     _deadline?.cancel();
@@ -219,7 +268,8 @@ class UnsupportedRdpEngine implements RdpEngine {
 
 /// Android product engine. The native side remains unavailable unless the
 /// reviewed FreeRDP AAR and its exact receipt were packaged into this APK.
-class RdpMethodChannelEngine implements RdpMicrophonePermissionEngine {
+class RdpMethodChannelEngine
+    implements RdpMicrophonePermissionEngine, RdpFileTransferGrantEngine {
   RdpMethodChannelEngine({
     MethodChannel? methods,
     EventChannel? events,
@@ -240,7 +290,12 @@ class RdpMethodChannelEngine implements RdpMicrophonePermissionEngine {
   String? _microphonePermissionRequestId;
   RdpMicrophonePermissionRead? _microphonePermissionRead;
   bool _microphonePermissionGranted = false;
+  String? _fileTransferPickerRequestId;
+  RdpFileTransferPickerRead? _fileTransferPickerRead;
   bool _closed = false;
+
+  @override
+  bool get fileTransferPickerPending => _fileTransferPickerRead != null;
 
   @override
   Future<RdpCapabilities> capabilities({
@@ -433,6 +488,174 @@ class RdpMethodChannelEngine implements RdpMicrophonePermissionEngine {
     if (requestId != null) unawaited(_cancelMicrophonePermission(requestId));
   }
 
+  @override
+  Future<RdpFileTransferGrantObservation> selectFileTransferTree({
+    required RdpFileTransferAuthority authority,
+    required bool Function() isCurrent,
+  }) async {
+    if (_closed || !isCurrent() || !_isAndroid) {
+      throw const RdpFailure('retired');
+    }
+    if (_active != null ||
+        _microphonePermissionRead != null ||
+        _microphonePermissionRequestId != null ||
+        _fileTransferPickerRead != null ||
+        _fileTransferPickerRequestId != null) {
+      throw const RdpFailure('busy');
+    }
+    final requestId = _uuid();
+    _fileTransferPickerRequestId = requestId;
+    final read = _fileTransferPickerRead = RdpFileTransferPickerRead(
+      _selectFileTransferTree(requestId, authority),
+    );
+    RdpFileTransferGrantObservation? prepared;
+    try {
+      prepared = await read.future;
+      if (_closed || !isCurrent()) {
+        await _retireFileTransferGrant(authority, prepared.grant);
+        throw const RdpFailure('retired');
+      }
+      return prepared;
+    } catch (_) {
+      await _cancelFileTransferTree(requestId);
+      rethrow;
+    } finally {
+      if (identical(_fileTransferPickerRead, read)) {
+        _fileTransferPickerRead = null;
+      }
+      if (_fileTransferPickerRequestId == requestId) {
+        _fileTransferPickerRequestId = null;
+      }
+    }
+  }
+
+  Future<RdpFileTransferGrantObservation> _selectFileTransferTree(
+    String requestId,
+    RdpFileTransferAuthority authority,
+  ) async {
+    try {
+      final raw = await _methods.invokeMethod<Object?>(
+        'selectFileTransferTree',
+        {
+          'schemaVersion': 5,
+          'requestId': requestId,
+          'authority': authority.toWire(),
+        },
+      );
+      return _fileTransferReceipt(
+        raw,
+        requestId: requestId,
+        authority: authority,
+        requiredState: RdpFileTransferGrantState.prepared,
+      );
+    } on PlatformException catch (error) {
+      throw RdpFailure(_fileTransferFailure(error.code));
+    }
+  }
+
+  @override
+  Future<RdpFileTransferGrantObservation> activateFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) => _grantMutation(
+    'activateFileTransferGrant',
+    authority: authority,
+    grant: grant,
+    isCurrent: isCurrent,
+    requiredState: RdpFileTransferGrantState.active,
+  );
+
+  @override
+  Future<RdpFileTransferGrantObservation> fileTransferGrantObservation({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    required bool Function() isCurrent,
+  }) => _grantMutation(
+    'fileTransferGrantObservation',
+    authority: authority,
+    grant: grant,
+    isCurrent: isCurrent,
+  );
+
+  @override
+  Future<RdpFileTransferGrantObservation> retireFileTransferGrant({
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+  }) => _retireFileTransferGrant(authority, grant);
+
+  Future<RdpFileTransferGrantObservation> _retireFileTransferGrant(
+    RdpFileTransferAuthority authority,
+    RdpFileTransferGrant grant,
+  ) async {
+    final result = await _grantMutation(
+      'retireFileTransferGrant',
+      authority: authority,
+      grant: grant,
+    );
+    if (result.state != RdpFileTransferGrantState.retired &&
+        result.state != RdpFileTransferGrantState.unknown) {
+      throw const RdpFailure('invalid_response');
+    }
+    return result;
+  }
+
+  Future<RdpFileTransferGrantObservation> _grantMutation(
+    String method, {
+    required RdpFileTransferAuthority authority,
+    required RdpFileTransferGrant grant,
+    bool Function()? isCurrent,
+    RdpFileTransferGrantState? requiredState,
+  }) async {
+    if (_closed || isCurrent != null && !isCurrent()) {
+      throw const RdpFailure('retired');
+    }
+    grant.validate();
+    final requestId = _uuid();
+    try {
+      final raw = await _methods.invokeMethod<Object?>(method, {
+        'schemaVersion': 5,
+        'requestId': requestId,
+        'authority': authority.toWire(),
+        'grantId': grant.id,
+        'expectedGrantRevision': grant.revision,
+      });
+      if (isCurrent != null && (_closed || !isCurrent())) {
+        throw const RdpFailure('retired');
+      }
+      return _fileTransferReceipt(
+        raw,
+        requestId: requestId,
+        authority: authority,
+        expectedGrant: grant,
+        requiredState: requiredState,
+      );
+    } on PlatformException catch (error) {
+      throw RdpFailure(_fileTransferFailure(error.code));
+    }
+  }
+
+  Future<void> _cancelFileTransferTree(String requestId) async {
+    try {
+      final result = await _methods.invokeMethod<Object?>(
+        'cancelFileTransferTree',
+        {'schemaVersion': 5, 'requestId': requestId},
+      );
+      if (result != null) throw const RdpFailure('invalid_response');
+    } catch (_) {
+      // Native owns the exact request and rejects late picker callbacks.
+    }
+  }
+
+  @override
+  void cancelFileTransferTree() {
+    final requestId = _fileTransferPickerRequestId;
+    _fileTransferPickerRead?.cancel();
+    _fileTransferPickerRead = null;
+    _fileTransferPickerRequestId = null;
+    if (requestId != null) unawaited(_cancelFileTransferTree(requestId));
+  }
+
   String _uuid() {
     final bytes = List<int>.generate(16, (_) => _random.nextInt(256));
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -455,11 +678,64 @@ class RdpMethodChannelEngine implements RdpMicrophonePermissionEngine {
     if (_closed) return;
     _closed = true;
     cancelMicrophonePermission();
+    cancelFileTransferTree();
     _active?.close();
     _active = null;
     unawaited(_cancel());
   }
 }
+
+RdpFileTransferGrantObservation _fileTransferReceipt(
+  Object? raw, {
+  required String requestId,
+  required RdpFileTransferAuthority authority,
+  RdpFileTransferGrant? expectedGrant,
+  RdpFileTransferGrantState? requiredState,
+}) {
+  final value = _strict(raw, {
+    'schemaVersion',
+    'requestId',
+    'authorityId',
+    'grantId',
+    'grantRevision',
+    'state',
+  });
+  final grant = RdpFileTransferGrant(
+    id: value['grantId'] is String ? value['grantId']! as String : '',
+    revision: value['grantRevision'] is int
+        ? value['grantRevision']! as int
+        : 0,
+  );
+  grant.validate();
+  final state = value['state'] is String
+      ? RdpFileTransferGrantState.values
+            .where((candidate) => candidate.name == value['state'])
+            .firstOrNull
+      : null;
+  if (value['schemaVersion'] != 5 ||
+      value['requestId'] != requestId ||
+      value['authorityId'] != authority.authorityId ||
+      expectedGrant != null && grant != expectedGrant ||
+      state == null ||
+      requiredState != null && state != requiredState) {
+    throw const RdpFailure('invalid_response');
+  }
+  return RdpFileTransferGrantObservation(
+    authorityId: authority.authorityId,
+    grant: grant,
+    state: state,
+  );
+}
+
+String _fileTransferFailure(String code) => switch (code) {
+  'cancelled' => 'cancelled',
+  'permission_denied' => 'permission_denied',
+  'authority_changed' => 'authority_changed',
+  'unavailable' => 'file_transfer_unavailable',
+  'invalid_request' => 'invalid_response',
+  'busy' => 'busy',
+  _ => 'file_transfer_failed',
+};
 
 class _RdpMethodChannel
     implements

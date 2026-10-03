@@ -73,6 +73,7 @@ class SettingsSplitScreen extends StatefulWidget {
     this.gameStreamForegroundCoverageGuard,
     this.visualSensorGateCurrent,
     this.tabletFleetGateCurrent,
+    this.onRdpFileTransferPickerChanged,
   });
 
   final SettingsFileDialogRunner? runFileDialog;
@@ -89,6 +90,7 @@ class SettingsSplitScreen extends StatefulWidget {
   final GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard;
   final bool Function()? visualSensorGateCurrent;
   final bool Function()? tabletFleetGateCurrent;
+  final ValueChanged<bool>? onRdpFileTransferPickerChanged;
 
   @override
   State<SettingsSplitScreen> createState() => _SettingsSplitScreenState();
@@ -189,6 +191,8 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                           widget.gameStreamForegroundCoverageGuard,
                       visualSensorGateCurrent: widget.visualSensorGateCurrent,
                       tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
+                      onRdpFileTransferPickerChanged:
+                          widget.onRdpFileTransferPickerChanged,
                     ),
                   ),
                 ),
@@ -222,6 +226,8 @@ class _SettingsSplitScreenState extends State<SettingsSplitScreen> {
                 widget.gameStreamForegroundCoverageGuard,
             visualSensorGateCurrent: widget.visualSensorGateCurrent,
             tabletFleetGateCurrent: widget.tabletFleetGateCurrent,
+            onRdpFileTransferPickerChanged:
+                widget.onRdpFileTransferPickerChanged,
           ),
         ),
       ),
@@ -270,6 +276,7 @@ Widget paneFor(
   GameStreamForegroundCoverageGuard? gameStreamForegroundCoverageGuard,
   bool Function()? visualSensorGateCurrent,
   bool Function()? tabletFleetGateCurrent,
+  ValueChanged<bool>? onRdpFileTransferPickerChanged,
 }) {
   switch (category) {
     case SettingsCategory.connection:
@@ -277,6 +284,7 @@ Widget paneFor(
     case SettingsCategory.remoteAccess:
       return RemoteProfilesScreen(
         gateCurrent: remoteGateCurrent ?? () => false,
+        onRdpFileTransferPickerChanged: onRdpFileTransferPickerChanged,
       );
     case SettingsCategory.roomComfort:
       return RoomComfortRoute(gateCurrent: comfortGateCurrent ?? () => false);
