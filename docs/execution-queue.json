@@ -5586,14 +5586,6 @@
           "label": "Exacted912 changed HTTPS0 source: strict original1/1/0/0 failed; pairedClientObserved, unclassified, owned Game.kt frames57/48. Root canonical998B artifact11146891530 validated; underlying cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
-          "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root49 composedClient/0skip plus6fileanalysis; own28modules cover cold recovery visible action, wrongsession receipt, exact serialized retirement and no stop replay"
-        },
-        {
           "kind": "review",
           "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
           "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
@@ -5744,10 +5736,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen XI2 repair on773 base independently integrated: root80tests/72subtests and scoped Ruff passed. Long-lived pointer stream removes cumulative command cap, retains4KiB lines/exact readiness and bounded2positions; closed XI2 error codes. Actual changed-source Android stream and exclusive old cause unproved."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37134249192",
+          "commit": "847b1f576ebab39ab92c9cd008c036a817672188",
+          "state": "in_progress",
+          "result": null,
+          "label": "Changed-source XI2 repair exact847: registered server-test f60-stream run37134249192 started once; exact SHA and actual stream job verified. Real two-lifetime Android stream acceptance pending; no old-source rerun."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact549 strict37131893719 başarısız: original1/1/0/0 ownedInputEffects, touchListener/failed/contract. XI2 uzun akışına yanlış toplam64KiB kotası kaynakla doğrulandı ve dar düzeltme root80test/72subtest+Ruff geçti; gerçek girdi kabulü gevşetilmedi. Eski hatanın tek nedeni kanıtlanmadı. Değişmiş kaynak gerçek iki oturum/yayın/girdi/kapanış kabulünü bekliyor; aynı SHA rerun, kabul veya merge yok."
+      "reason": "Exact549 strict37131893719 başarısız: original1/1/0/0 ownedInputEffects, touchListener/failed/contract. XI2 uzun akışına yanlış toplam64KiB kotası kaynakla doğrulandı ve dar düzeltme root80test/72subtest+Ruff geçti; gerçek girdi kabulü gevşetilmedi. Eski hatanın tek nedeni kanıtlanmadı. Değişmiş exact847 gerçek iki oturum/yayın/girdi/kapanış run37134249192 sürüyor; aynı SHA rerun, kabul veya merge yok."
     },
     {
       "id": "G11",
@@ -5886,7 +5886,8 @@
         "docs/testing/f62-owned-effect-control-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
-        "docs/testing/f62-effect-control-read-2026-10-03.md"
+        "docs/testing/f62-effect-control-read-2026-10-03.md",
+        "docs/testing/f62-native5-composed-local-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6010,14 +6011,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact03f arm64 package passed; x86 original1/1/0/0 failed initialFrameWait/connectionFailed/sessionfailed, resizefalse. Root canonical1613B artifact11148012761 verified; marker invalid/writerunknown, precise cause unproved"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-basic-keyboard-unicode-2026-10-01.md",
-          "commit": "413007f73850c4b554f078218794661144156a4b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root49 Flutter/MethodChannel tests and8-file analysis passed; author21 actual receipted-AAR JVM passed; Turkish layout/negotiation and input error retirement covered, provider Unicode effect separate"
         },
         {
           "kind": "review",
@@ -6154,10 +6147,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Frozen reader repair on a3f01 base: root73 packaged runner+11workflow=84passed and Ruff0.14.1 clean. One bounded device read distinguishes absent/unavailable; exact removal before phase advance; actual local shell/failed-remove regressions. Android/provider effects unproved."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-native5-composed-local-2026-10-03.md",
+          "commit": "847b1f576ebab39ab92c9cd008c036a817672188",
+          "state": "completed",
+          "result": "passed",
+          "label": "Private actual composition root177native/0skip+AndroidTest compile315,145Flutter/26-file analyze,Core25+Ruff,portable22/27subtests; actual twoABI source/API/ELF/receipt verified. Review found Gateway probe admission, SAF recovery and durable secret cleanup gaps. Root admission13native+23tablet passed; remaining fixes/real hosted effects open. Local only, no acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exactf201 RDP37128695877 FAILED: arm64 APK geçti; x86 host effect-control sırası reddedildi, named sayılar yok. Reader root84/84+Ruff geçti; host etkisi açık. Native5 actual tek arm64/x86 paketleri source/API/ELF/receipt ve strict verify-install geçti. Root portatif22/22 replay geçti; Kotlin/Flutter ürün bileşimi açık. Private SAF14/14, Flutter108/108/analyze ve Core19/19; normal Gateway enrollment ve gerçek SAF/Gateway kabulü açık. Private hazırlık kabul değildir."
+      "reason": "Exactf201 RDP37128695877 FAILED; x86 effect-control sırası ve host etkileri açık. Private native5 actual iki ABI doğrulandı; root177native/0skip+AndroidTest compile315,145Flutter/analyze,Core25 ve portable22 geçti. Bağımsız incelemenin Gateway probe erişim açığı root13native+23tablet ile kapandı; SAF readback kurtarma ve durable secret cleanup düzeltiliyor. Gerçek Gateway/RDPDR/SAF ve audio/mic kabulü açık; private/yerel kanıt kabul değildir."
     },
     {
       "id": "F61",
@@ -6256,7 +6257,8 @@
         "docs/PROGRESS.md",
         "docs/testing/native-strict-9551-failure-2026-10-03.md",
         "docs/testing/function-live-work-2026-10-03.md",
-        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md"
+        "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
+        "docs/testing/accepted-main-integration-audit-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
@@ -6447,6 +6449,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Exact5122 Security workflow completed SUCCESS; narrow Security only, final combined required CI and strict runtime/function gates remain separate"
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/accepted-main-integration-audit-2026-10-03.md",
+          "commit": "7736683371a6b955a0d4f04a0ba4f9460a9246f0",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent audit of35scoped done/3selected: main25exact+6stablepatch+4later-evolved content; root rechecked25ancestry/alllocalrefs/2directpatch. Main32done; F06/F31 promotions and F34closure doc unmerged; K07/K08 reopened. Audit only, completion branch/final required-CI and F60/F62 acceptance gate NOT met."
         }
       ],
       "completionCommit": null,

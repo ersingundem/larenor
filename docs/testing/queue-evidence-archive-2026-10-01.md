@@ -255,6 +255,24 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Pinned primary DB/Game/NvHTTP confirm zero discovery sentinel and unchanged certificate pin; root XML/task evidence inspected; actual runtime separate"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
+    "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root49 composedClient/0skip plus6fileanalysis; own28modules cover cold recovery visible action, wrongsession receipt, exact serialized retirement and no stop replay"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-basic-keyboard-unicode-2026-10-01.md",
+    "commit": "413007f73850c4b554f078218794661144156a4b",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root49 Flutter/MethodChannel tests and8-file analysis passed; author21 actual receipted-AAR JVM passed; Turkish layout/negotiation and input error retirement covered, provider Unicode effect separate"
   }
 ]
 ```
