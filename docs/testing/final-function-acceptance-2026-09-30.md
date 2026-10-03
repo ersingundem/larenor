@@ -2,7 +2,7 @@
 
 ## Current state — 3 October 2026
 
-Canonical current totals are **56 selected features / 67 tasks awaiting CI**; accepted totals remain **3/63 features and 35/127 tasks**. Only `FINAL.FUNCTION` is active. **F04/F19/F60/F62 are reworking**. F60 relative-input repair is pushed at exact `1a90752379bb6dbfd6fc0f5e07d41e770340e59f`; strict run `37142746206` is in progress. F62 closed linker diagnostics are pushed at exact `0cadf0ef9719d2cba1b050ddb09d4624219b9675`; Linux run `37142705819` failed at build and canonical target/symbol review is pending. F04 dispatch concurrency and F19 cross-home cancellation/profile-limit repair remain open; named required CI is prepared locally, not yet delivered. Private200-JVM/201-Flutter/313-task AndroidTest evidence is local supporting proof. See the [queue](../EXECUTION_QUEUE.md), [live work](function-live-work-2026-10-03.md), [touch repair](f60-owned-touch-effect-2026-10-03.md), and [linker diagnostic](f62-linker-diagnostic-2026-10-03.md).
+Canonical current totals are **54 selected features / 65 tasks awaiting CI**; accepted totals remain **3/63 features and 35/127 tasks**. Only `FINAL.FUNCTION` is active. **F04/F16/F19/F20/F60/F62 are reworking**. F60 exact `1a90752379bb6dbfd6fc0f5e07d41e770340e59f` strict run `37142746206` remains open. F62 exact `0cadf0ef9719d2cba1b050ddb09d4624219b9675` Linux run `37142705819` terminal linker failure is root verified; the changed-source static-link repair passed60 tests/11subtests and awaits real hosted build/effects. Root F04 repair passed34 tests and two strict actual Flutter/Core lifetimes; review/required CI and F05 acceptance remain open. F16 genuine isolated component health and F20 Client failure gates reopened after the [routing audit](final-function-routing-audit-2026-10-03.md). F19 cancel/profile-limit candidate validation is private and unaccepted. Named required CI for F05/F20/F54 must be registered and passed. Private200-JVM/201-Flutter/313-task AndroidTest evidence remains supporting local proof. See the [queue](../EXECUTION_QUEUE.md), [live work](function-live-work-2026-10-03.md), and [link repair](f62-shadow-rdpsnd-static-link-2026-10-03.md).
 
 All selected software items and their dependencies must be accepted, then the final branch exact HEAD must pass required CI. Only after the completion branch is merged to `main` and ancestry/content are verified may `FINAL.UI` start from current `main` on its separate branch. Historical runs below remain evidence for their exact sources and are not current acceptance.
 
@@ -68,7 +68,7 @@ korunur. F50 `awaiting_ci`; [retention kabulü](f50-room-comfort-retention-2026-
 
 ## Açık kapı
 
-56 seçili özellik / 67 iş CI beklerken, F04/F19/F60/F62 üretim/kabul açıkları
+54 seçili özellik / 65 iş CI beklerken, F04/F16/F19/F20/F60/F62 üretim/kabul açıkları
 `reworking` durumundayken ve geniş exact-HEAD CI tamamlanmamışken
 `FINAL.FUNCTION` kanıtla tamamlandı sayılmaz. Tüm yazılım kabulü ve final dal
 exact-HEAD zorunlu CI tamamlandıktan sonra dal `main`e birleşir; ancestry/içerik

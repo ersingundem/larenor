@@ -526,3 +526,23 @@ Only oldest non-CI evidence archived; all CI records remain in queue.
   }
 ]
 ```
+
+## F62 static linker slice supporting evidence archive — 3 October 2026
+
+Only the oldest non-CI entry is archived for the32-entry queue bound; all CI failures remain in the live queue.
+
+```json
+[
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-owned-gateway-linux-probe-2026-10-03.md",
+      "commit": "5a71559a14d7e3d9e4fbb65e50fe86edcc36698c",
+      "state": "completed",
+      "result": "passed",
+      "label": "Root45portable runner/workflow/fixture/immutable target tests, Ruff/actionlint passed owned real-build Gateway/RDPDR probe. Correct v2 mirror paths, static ELF/source private-copy, target NLA beforeTLS, exact drive policy; Linux build/runtime and Android actual effects pending. FeatureAccepted=false."
+    }
+  }
+]
+```

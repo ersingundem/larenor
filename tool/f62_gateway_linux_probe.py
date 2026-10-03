@@ -32,6 +32,15 @@ TARGET_PATCH_SHA256 = "52b61d9ecfef7c8d047ee558177ab2b0b664294729a2035c5045041a1
 TARGET_MANIFEST_SHA256 = (
     "5a5ed427179aaad89b111c6b9bae9bc594b8c78abf7efb5e10c24ee09dfbf1f0"
 )
+STATIC_LINK_PATCH_SHA256 = (
+    "dce0885933ae80e4de02da94cd43a7a3df1080cf1644243fd00d1fb12f9a3d7d"
+)
+STATIC_LINK_CMAKE_BEFORE_SHA256 = (
+    "59c773bfcdb6fd138d553b0b0583e8fb66eb596c58a31f435848ac5ec3937312"
+)
+STATIC_LINK_CMAKE_AFTER_SHA256 = (
+    "3447a610ff7b3ec73511cf0bad8a97e8a31b8029748474231db1a68415eefd38"
+)
 PROBE_NAME = "f62GatewayRdpdrLinuxProbe"
 DEVICE_NAME = "LrnXfer"
 UPLOAD_PREFIX = "Larenor-F62-Gateway-upload:"
@@ -156,6 +165,10 @@ def _patch_path() -> pathlib.Path:
 
 def _manifest_path() -> pathlib.Path:
     return _script_root() / "manifests" / "f62-owned-shadow-rdpdr-source.json"
+
+
+def _static_link_patch_path() -> pathlib.Path:
+    return _script_root() / "patches" / "f62-shadow-rdpsnd-static-link.patch"
 
 
 def _write_private_json(path: pathlib.Path, value: dict) -> None:
@@ -851,6 +864,24 @@ def _private_source_copy(
     return destination
 
 
+def _apply_static_link_patch(
+    source: pathlib.Path, patch: pathlib.Path, git: pathlib.Path,
+) -> None:
+    cmake = source / "server" / "shadow" / "CMakeLists.txt"
+    owned.private_regular(cmake)
+    if owned.sha256(cmake) != STATIC_LINK_CMAKE_BEFORE_SHA256:
+        fail("staticLinkSourceMismatch")
+    applied = owned.bounded_run(
+        [str(git), "apply", "--whitespace=error", str(patch)],
+        cwd=source,
+        timeout=30,
+    )
+    if applied.returncode != 0:
+        fail("staticLinkPatchApplyFailed")
+    if owned.sha256(cmake) != STATIC_LINK_CMAKE_AFTER_SHA256:
+        fail("staticLinkPatchResultMismatch")
+
+
 def _cmake_arguments(source: pathlib.Path, build: pathlib.Path) -> list[str]:
     return [
         "/usr/bin/cmake",
@@ -902,7 +933,9 @@ def _cmake_arguments(source: pathlib.Path, build: pathlib.Path) -> list[str]:
         "-DCHANNEL_RDPDR_SERVER=ON",
         "-DCHANNEL_CLIPRDR=ON",
         "-DCHANNEL_CLIPRDR_SERVER=ON",
-        "-DCHANNEL_RDPSND=OFF",
+        "-DCHANNEL_RDPSND=ON",
+        "-DCHANNEL_RDPSND_CLIENT=OFF",
+        "-DCHANNEL_RDPSND_SERVER=ON",
         "-DCHANNEL_AUDIN=OFF",
         "-DCHANNEL_DRDYNVC=OFF",
     ]
@@ -934,6 +967,11 @@ def build_freerdp(args: argparse.Namespace) -> None:
         workspace / "reviewed-target-source.json",
         TARGET_MANIFEST_SHA256,
     )
+    static_link_patch = _private_source_copy(
+        _static_link_patch_path(),
+        workspace / "reviewed-static-link.patch",
+        STATIC_LINK_PATCH_SHA256,
+    )
     source = _safe_extract_freerdp(archive, workspace / "source")
     source_index = _build_archive_source_index(source)
     target_package.verify(
@@ -955,6 +993,7 @@ def build_freerdp(args: argparse.Namespace) -> None:
         fail("targetPatchApplyFailed")
     target_manifest = target_package.read_manifest(manifest)
     target_package.verify_tree(source, target_manifest["patched"])
+    _apply_static_link_patch(source, static_link_patch, git)
     source_index = _refresh_manifest_source_index(
         source, source_index, target_manifest["patched"],
     )

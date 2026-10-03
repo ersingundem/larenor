@@ -3232,7 +3232,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Değiştirilmesi fark edilen işlem günlüğü",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3242,7 +3242,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Core dışında güvenilen kontrol noktası gerekir; fiziksel olayın doğruluğunu tek başına kanıtlamaz.",
       "acceptance": [
@@ -3254,9 +3255,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "review",
+          "ref": "docs/testing/final-function-routing-audit-2026-10-03.md",
+          "commit": "96b18d724d4886b0462922c70946a5e6f06d4378",
+          "state": "completed",
+          "result": "failed",
+          "label": "Frozen live-source routing audit: missing genuine drill component health/lifecycle (F16) and Client checkpoint failure regressions (F20); source-manifest-bound review only, no test or CI acceptance."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Gerçek Flutter→normal TCP Core audit kapısı pin/compare/rotate, ayrı Core ve Client restart, gerçek admin audit mutation ve SQLite actor tamper sonrası startup fail/no silent reset davranışını geçti. Checkpoint query üretim Client transportunda yanlış reddediliyordu; yalnız exact GET Core-audit verification rotasında bounded checkpoint eklendi, malformed/other path regressionı korundu. Root iki gerçek Client fazını doğruladı; 29 odaklı Server ve 2 transport testi geçti, analyze temiz. Geniş exact HEAD CI ve fiziksel secure-storage/device kapısı açık; mutlak immutability iddiası yok. Kanıt: docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md."
+      "reason": "Kabul incelemesi P2: normal Core iki mutlu Client yaşamı ve Server integrity kanıtı var; production Client checkpoint corrupt/oversize, geç retirement callback, failed/uncertain write/rotation ve revision/limit failure trusted-checkpoint koruma regressions eksik. Bu kapılar yeniden geliştiriliyor; named runner required CI grafiğine henüz bağlı değil. Physical secure-store MANUAL ayrı. Kanıt: docs/testing/final-function-routing-audit-2026-10-03.md."
     },
     {
       "id": "F06",
@@ -3345,7 +3355,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S06 işlerinden genel ev süreçlerine genişler; fiziksel komutlar körlemesine tekrarlanmaz. Temporal zorunlu bağımlılık değil, tasarım örneği.",
       "acceptance": [
@@ -3359,7 +3370,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Gerçek Flutter HomeWorkflowAccountApi→normal TCP Core→owned HA iki yaşamında explicit approval ve causal provider readback completed oldu; exact create/approval replay ve ayrı pre-dispatch cancel restart boyunca yalnız bir HA POST yaptı. İki independent gerçek runner, 7 F05 Server, focused Flutter 2+runner-only skip ve analyze geçti; root F05/F36/F21/F54/Core context toplam 80 Server testini doğruladı. Process-loss/unknown physical outcome, late/cancel/revocation/corruption/limits focused kapıları korunur. Geniş exact HEAD CI ve gerçek household partial-effect MANUAL açık. Kanıt: docs/testing/f05-normal-core-home-workflow-2026-09-30.md."
+      "reason": "Gerçek Flutter HomeWorkflowAccountApi→normal TCP Core→owned HA iki yaşamında explicit approval ve causal provider readback completed oldu; exact create/approval replay ve ayrı pre-dispatch cancel restart boyunca yalnız bir HA POST yaptı. İki independent gerçek runner, 7 F05 Server, focused Flutter 2+runner-only skip ve analyze geçti; root F05/F36/F21/F54/Core context toplam 80 Server testini doğruladı. Process-loss/unknown physical outcome, late/cancel/revocation/corruption/limits focused kapıları korunur. Geniş exact HEAD CI ve gerçek household partial-effect MANUAL açık. Kanıt: docs/testing/f05-normal-core-home-workflow-2026-09-30.md. Yeni routing incelemesi: named production runner required CI grafiğine bağlı değil; kayıt ve exact final-source review/CI açık. docs/testing/final-function-routing-audit-2026-10-03.md."
     },
     {
       "id": "G02",
@@ -3372,7 +3383,7 @@
       "kind": "task",
       "parent": "G02",
       "title": "Otomatik kurtarma tatbikatı",
-      "status": "awaiting_ci",
+      "status": "reworking",
       "dependsOn": [
         "B0",
         "B5",
@@ -3382,7 +3393,8 @@
       "finishDependsOn": [],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. S09 yedeğinin uzantısı; ek disk/işlem bütçesi gerekir, test ortamı ev cihazlarına komut göndermez.",
       "acceptance": [
@@ -3394,9 +3406,18 @@
         "review",
         "ci"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "kind": "review",
+          "ref": "docs/testing/final-function-routing-audit-2026-10-03.md",
+          "commit": "96b18d724d4886b0462922c70946a5e6f06d4378",
+          "state": "completed",
+          "result": "failed",
+          "label": "Frozen live-source routing audit: missing genuine drill component health/lifecycle (F16) and Client checkpoint failure regressions (F20); source-manifest-bound review only, no test or CI acceptance."
+        }
+      ],
       "completionCommit": null,
-      "reason": "Uygulama ve odaklı yazılım kabulü tamamlandı; geniş güncel exact HEAD CI bekleniyor. Gerçek component backup/update/restore root worker, bounded Core IPC ve crash-resumable journal-set receipt bağlıdır; 54 focused ve 19 package/deploy kapısı geçti. Exact888dfd46 run36762186381 root worker→Core UID10001 IPC ve production systemd yükünü geçti. Gerçek hedef Docker/Btrfs kimliği, topology/free-space ve explicit admin update/restore etkisi MANUAL.INSTALL açık. docs/testing/unified-host-workers-2026-09-30.md."
+      "reason": "Kabul incelemesi P1: isolated recovery drill ZIP extraction sonrası componentData başarı yazıyor, gerçek bileşen process/database/HTTP sağlığı kanıtlanmıyor. Gerçek packaged worker üzerinden izole owned component health ve Client→normal Core drill başarı/restart/cancel/expiry/corrupt-input yaşamı geliştiriliyor. F05 ve explicit component capture/restore exact CI bağımlılıkları açık; household/Docker/Btrfs MANUAL ayrı. Kanıt: docs/testing/final-function-routing-audit-2026-10-03.md."
     },
     {
       "id": "F17",
@@ -3514,7 +3535,8 @@
       ],
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/feature-candidates-2026-09-05.json"
+        "docs/feature-candidates-2026-09-05.json",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. GMS-free WorkManager unique one-time ve en az 15dk periyodik bounded çekim kullanır; Android/Doze/OEM geciktirebilir, anlık teslim veya sürekli foreground-service iddiası yok. Ayrı ntfy uygulaması zorunlu hedef değil.",
       "acceptance": [
@@ -3528,7 +3550,7 @@
       ],
       "evidence": [],
       "completionCommit": null,
-      "reason": "Normal HTTPS Core→actual WorkManager scheduler/production Worker iki executionı sealed restart/dedupe ve gerçek server DELETE revoke sonrası credential/owned-alert clear ile geçti. Yanlış remoteMessaging FGS/custom boot yolu kaldırıldı; unique immediate+15dk periodic, max3 transient retry, iki ek catch-up page, exact 401/403/410 retirement ve 409 renewal ayrımı tamamlandı. Async enqueue failure yalnız exact current leaseye recovery yazar; eski callback yeni authorityyi bozmaz. Root actual native1pass, 5 TLS CLI ve 2 overlay testi; agent14 Kotlin, 34 Flutter+1 fixture skip, iki foreground normalCore lifetime ve scoped analyze geçti. Geniş exact HEAD CI, fiziksel permission/reboot/Doze/OEM/Keystore ve trusted operator hostname MANUAL açık. Kanıt: docs/testing/f54-normal-core-native-delivery-2026-09-30.md."
+      "reason": "Normal HTTPS Core→actual WorkManager scheduler/production Worker iki executionı sealed restart/dedupe ve gerçek server DELETE revoke sonrası credential/owned-alert clear ile geçti. Yanlış remoteMessaging FGS/custom boot yolu kaldırıldı; unique immediate+15dk periodic, max3 transient retry, iki ek catch-up page, exact 401/403/410 retirement ve 409 renewal ayrımı tamamlandı. Async enqueue failure yalnız exact current leaseye recovery yazar; eski callback yeni authorityyi bozmaz. Root actual native1pass, 5 TLS CLI ve 2 overlay testi; agent14 Kotlin, 34 Flutter+1 fixture skip, iki foreground normalCore lifetime ve scoped analyze geçti. Geniş exact HEAD CI, fiziksel permission/reboot/Doze/OEM/Keystore ve trusted operator hostname MANUAL açık. Kanıt: docs/testing/f54-normal-core-native-delivery-2026-09-30.md. Yeni routing incelemesi: named production runner required CI grafiğine bağlı değil; kayıt ve exact final-source review/CI açık. docs/testing/final-function-routing-audit-2026-10-03.md."
     },
     {
       "id": "F53",
@@ -3702,7 +3724,8 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json",
         "docs/testing/f04-normal-core-rule-arbitration-2026-09-30.md",
-        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md"
+        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. İlk kapsam Core üzerinden geçen eylemler; harici HA otomasyonları ayrıca eşlenir.",
       "acceptance": [
@@ -3733,7 +3756,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Bağımsız inceleme superseded kararın HA provider çağrısına ulaşabildiğini buldu: exact ownership/effect token before-send ve aynı cihaz dispatch sıralaması eksik. Eşzamanlı manual/higher-priority, expiry/cancel/late response matrisi ve zorunlu CI named Client→normal Core runnerı açık. Önceki iki yaşam/2 Server yerel kanıtı korunuyor; tam kabul değil. Dar üretim onarımı yeniden çalışılıyor. Kanıt: docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md."
+      "reason": "Aynı Core DB/cihaz admission→provider→receipt dispatch ve signed ownership/token/state/expiry yeniden kontrolü onarıldı. Root34 concurrency/HA/attribution testi ve iki actual Flutter→normal Core lifetime strict named1/0skip geçti; bağımsız repair incelemesi açık. Named required CI teslimi ve F05 kabul bağımlılığı bekliyor. Kanıt: docs/testing/f04-device-dispatch-serialization-2026-10-03.md."
     },
     {
       "id": "F02",
@@ -6044,7 +6067,8 @@
         "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md",
         "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
         "docs/testing/f62-linker-diagnostic-2026-10-03.md",
-        "docs/testing/f62-native5-composed-integration-2026-10-03.md"
+        "docs/testing/f62-native5-composed-integration-2026-10-03.md",
+        "docs/testing/f62-shadow-rdpsnd-static-link-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6210,14 +6234,6 @@
           "label": "Exactf201 completed FAILED; arm64 actual APK passed, x86 host_channel_witness_invalid/order invalid; no named counts in receipt. Root production/canonical1233B SHA4a027eea3f022fbfdfbd51e889bfb45e7ab1e87b2fa725ba0a4034b41ac7e988 replayed; effects and native5 SAF/Gateway acceptance open; no rerun."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-gateway-linux-probe-2026-10-03.md",
-          "commit": "5a71559a14d7e3d9e4fbb65e50fe86edcc36698c",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root45portable runner/workflow/fixture/immutable target tests, Ruff/actionlint passed owned real-build Gateway/RDPDR probe. Correct v2 mirror paths, static ELF/source private-copy, target NLA beforeTLS, exact drive policy; Linux build/runtime and Android actual effects pending. FeatureAccepted=false."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37136737506",
           "commit": "15ba7702ba6290d606dbf7cac9114719b15052c8",
@@ -6312,10 +6328,18 @@
           "state": "completed",
           "result": "passed",
           "label": "Independent native5/SAF/schema6 scoped source review CLEAR; root117path union/109changed hashes and retained root collisions verified. Review SHA121e0d47642abd33e72d755ae4512134d8b34c9fe74fc2790e3e566be149fb3f; does not admit feature or main merge."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-shadow-rdpsnd-static-link-2026-10-03.md",
+          "commit": "b6f4ebabc7103e090bf5156b9353a89b7192c8f3",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen four-path repair on b6f4 base; root60 portable tests/11subtests and Ruff passed. Canonical exact0cad schema4 failure verified against all source pins and two rdpsnd identifier hashes. Static-only CMake target patch is exact; changed-source compile/real Gateway RDPDR/Android effects remain unproved."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact0cadf0ef Linux37142705819 build aşamasında terminal failed; schema4 canonical linker target/symbol tanısı bağımsız inceleniyor. Root51 test/9subtest+Ruff diagnostic kapısı geçti; gerçek linker onarımı henüz yok. Private200JVM ve201Flutter yerel bileşim kanıtı gerçek Linux/Android Gateway/SAF/audio/mic etkisi değildir. DIRECT/PUBLIC ve final CI/kabul/merge açık."
+      "reason": "Exact0cad/37142705819 terminal compile/linkerError canonical schema4 iki rdpsnd symbol hashı root doğrulandı. Static-only shadow rdpsnd-server object target dar onarımı root60 test/11subtest ve Ruff geçti; değişmiş kaynak Linux build/gerçek Gateway→RDPDR kabulü açık. Integrated200JVM/201Flutter yerel kanıt; product Gateway/files false. Android DIRECT/PUBLIC/audio/mic/final CI ve kabul/merge açık."
     },
     {
       "id": "F61",
@@ -6416,7 +6440,8 @@
         "docs/testing/function-live-work-2026-10-03.md",
         "docs/testing/native-strict-7950-f201-failure-2026-10-03.md",
         "docs/testing/accepted-main-integration-audit-2026-10-03.md",
-        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md"
+        "docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md",
+        "docs/testing/final-function-routing-audit-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır. Kullanıcı kararı: bu işlev kapısı ve mevcut dalın exact HEAD zorunlu CI kabulü tamamlanınca codex/project-completion-100 main’e birleşir; sonraki FINAL.UI güncel main’den ayrı tek dalda başlar.",
       "acceptance": [
@@ -6618,7 +6643,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F04/F19 kabul incelemesi ve F60/F62 exact CI hataları nedeniyle dört özellik yeniden çalışılıyor;56 seçili özellik/67 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri, bağımlılıkları, independent review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04/F16/F19/F20 kabul eksikleri ve F60/F62 exact CI hataları nedeniyle altı özellik yeniden çalışılıyor;54 seçili özellik/65 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam yazılım kriterleri, bağımlılıkları, independent review ve final dal exact HEAD required CI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI güncel main’den ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",

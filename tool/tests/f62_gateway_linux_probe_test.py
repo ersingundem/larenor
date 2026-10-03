@@ -77,13 +77,83 @@ class GatewayLinuxProbeTest(unittest.TestCase):
 
     def test_build_configuration_disables_xinput_without_dynamic_touch_channel(self):
         arguments = probe._cmake_arguments(Path("/owned/source"), Path("/owned/build"))
+        self.assertIn("-DBUILD_SHARED_LIBS=OFF", arguments)
         self.assertIn("-DWITH_X11=ON", arguments)
         self.assertIn("-DWITH_XI=OFF", arguments)
         self.assertIn("-DCHANNEL_DRDYNVC=OFF", arguments)
         self.assertIn("-DCHANNEL_RDPDR=ON", arguments)
         self.assertIn("-DCHANNEL_RDPDR_CLIENT=ON", arguments)
         self.assertIn("-DCHANNEL_RDPDR_SERVER=ON", arguments)
+        self.assertIn("-DCHANNEL_RDPSND=ON", arguments)
+        self.assertIn("-DCHANNEL_RDPSND_CLIENT=OFF", arguments)
+        self.assertIn("-DCHANNEL_RDPSND_SERVER=ON", arguments)
         self.assertFalse(any(value.startswith("-DCHANNEL_RDPEI") for value in arguments))
+
+    def test_static_shadow_link_patch_is_exact_and_dynamic_build_is_unchanged(self):
+        patch_path = TOOL / "patches/f62-shadow-rdpsnd-static-link.patch"
+        self.assertEqual(probe.owned.sha256(patch_path), probe.STATIC_LINK_PATCH_SHA256)
+        text = patch_path.read_text()
+        self.assertEqual(text.count("if(NOT BUILD_SHARED_LIBS)"), 1)
+        self.assertEqual(text.count("if(NOT TARGET rdpsnd-server)"), 1)
+        self.assertEqual(text.count("list(APPEND LIBS rdpsnd-server)"), 1)
+        self.assertNotIn("freerdp-shadow-cli", text)
+        self.assertNotIn("xfreerdp", text)
+
+    def test_static_link_patch_rejects_drift_and_duplicate_injection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            cmake = source / "server/shadow/CMakeLists.txt"
+            cmake.parent.mkdir(parents=True)
+            cmake.write_text("reviewed source\n")
+            cmake.chmod(0o600)
+            patch_path = root / "repair.patch"
+            patch_path.write_text("reviewed patch\n")
+            for observed in (
+                "0" * 64,
+                probe.STATIC_LINK_CMAKE_AFTER_SHA256,
+            ):
+                with self.subTest(observed=observed):
+                    with (
+                        patch.object(probe.owned, "sha256", return_value=observed),
+                        patch.object(probe.owned, "bounded_run") as run,
+                        self.assertRaises(probe.ProbeError),
+                    ):
+                        probe._apply_static_link_patch(
+                            source, patch_path, Path("/usr/bin/git")
+                        )
+                    run.assert_not_called()
+
+    def test_static_link_patch_accepts_only_exact_composition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            cmake = source / "server/shadow/CMakeLists.txt"
+            cmake.parent.mkdir(parents=True)
+            cmake.write_text("reviewed source\n")
+            cmake.chmod(0o600)
+            patch_path = root / "repair.patch"
+            patch_path.write_text("reviewed patch\n")
+            result = SimpleNamespace(returncode=0)
+            with (
+                patch.object(
+                    probe.owned,
+                    "sha256",
+                    side_effect=[
+                        probe.STATIC_LINK_CMAKE_BEFORE_SHA256,
+                        probe.STATIC_LINK_CMAKE_AFTER_SHA256,
+                    ],
+                ),
+                patch.object(probe.owned, "bounded_run", return_value=result) as run,
+            ):
+                probe._apply_static_link_patch(
+                    source, patch_path, Path("/usr/bin/git")
+                )
+            run.assert_called_once_with(
+                ["/usr/bin/git", "apply", "--whitespace=error", str(patch_path)],
+                cwd=source,
+                timeout=30,
+            )
 
     def test_linker_diagnostic_binds_shadow_target_hash_and_owned_source(self):
         with tempfile.TemporaryDirectory() as directory:

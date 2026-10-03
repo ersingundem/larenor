@@ -1,0 +1,18 @@
+--- a/server/shadow/CMakeLists.txt
++++ b/server/shadow/CMakeLists.txt
+@@ -74,6 +74,15 @@
+ endif()
+ 
+ list(APPEND LIBS freerdp-server)
++
++# Static freerdp-server keeps channel OBJECT libraries private. Shadow calls
++# the rdpsnd server API directly, so include that exact object target here.
++if(NOT BUILD_SHARED_LIBS)
++  if(NOT TARGET rdpsnd-server)
++    message(FATAL_ERROR "Static FreeRDP shadow requires rdpsnd-server")
++  endif()
++  list(APPEND LIBS rdpsnd-server)
++endif()
+ if(WITH_WINPR_TOOLS)
+   target_compile_definitions(${MODULE_NAME} PRIVATE WITH_WINPR_TOOLS)
+   list(APPEND LIBS winpr-tools)
