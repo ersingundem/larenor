@@ -208,6 +208,15 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
                 verify_report(root)
 
     def test_package_identity_binds_actual_aar_and_pinned_source(self) -> None:
+        lock = discovery.load_lock()
+        self.assertEqual(
+            "moonlight-android-12.2-larenor-embed-v5",
+            lock["engineRevision"],
+        )
+        self.assertEqual(
+            "b48494cb96bff23d8886c4775cc4f39a1075495d",
+            lock["upstream"]["commit"],
+        )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             aar = root / "engine.aar"
@@ -217,19 +226,19 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             value = {
                 "aarSha256": expected_digest,
                 "classesSha256": "b" * 64,
-                "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+                "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
                 "sourceCommit": "b48494cb96bff23d8886c4775cc4f39a1075495d",
                 "sourceTree": "c" * 40,
             }
             receipt.write_text(json.dumps(value), encoding="utf-8")
             self.assertEqual(expected_digest, package_identity(aar, receipt)["aarSha256"])
-            # The same AAR hash cannot make a receipt from the previous,
-            # non-cancellable native engine satisfy the current runtime gate.
-            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v3"
+            # The same AAR hash cannot make a receipt from the previous
+            # native engine satisfy the current runtime gate.
+            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v4"
             receipt.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(DiscoveryAcceptanceFailure):
                 package_identity(aar, receipt)
-            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v4"
+            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v5"
             value["aarSha256"] = "d" * 64
             receipt.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(DiscoveryAcceptanceFailure):

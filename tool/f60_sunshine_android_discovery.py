@@ -17,6 +17,7 @@ from typing import Any, Callable, Sequence
 
 from tool.android_acceptance_gradle import materialized_gradle_command
 from tool.f60_sunshine_owned_host import OwnedSunshineHost, _sunshine_mdns_instance_name
+from tool.moonlight_android_package import PackageError, load_lock
 from tool.native_acceptance_receipt import source_revision
 
 
@@ -31,8 +32,6 @@ RECEIPT_NAME = "f60-sunshine-android-discovery-receipt.json"
 PREBUILD_TIMEOUT_SECONDS = 1200
 MOONLIGHT_AAR = ROOT / "android/app/moonlight/moonlight-engine.aar"
 MOONLIGHT_RECEIPT = ROOT / "android/app/moonlight/receipt.json"
-MOONLIGHT_ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v4"
-MOONLIGHT_SOURCE_COMMIT = "b48494cb96bff23d8886c4775cc4f39a1075495d"
 _EMULATOR_VERSION = re.compile(
     r"Android emulator version ([0-9]+)\.([0-9]+)\.([0-9]+)(?:\.[0-9]+)?"
 )
@@ -75,11 +74,15 @@ def package_identity(
         raise
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise DiscoveryAcceptanceFailure("Moonlight package identity is invalid") from error
-    expected = {
-        "aarSha256": digest,
-        "engineRevision": MOONLIGHT_ENGINE_REVISION,
-        "sourceCommit": MOONLIGHT_SOURCE_COMMIT,
-    }
+    try:
+        lock = load_lock()
+        expected = {
+            "aarSha256": digest,
+            "engineRevision": lock["engineRevision"],
+            "sourceCommit": lock["upstream"]["commit"],
+        }
+    except (PackageError, KeyError, TypeError) as error:
+        raise DiscoveryAcceptanceFailure("Moonlight package identity is invalid") from error
     if not isinstance(receipt, dict) or any(receipt.get(key) != value for key, value in expected.items()):
         raise DiscoveryAcceptanceFailure("Moonlight package receipt is invalid")
     source_tree = receipt.get("sourceTree")

@@ -5470,7 +5470,8 @@
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json",
         "docs/testing/queue-evidence-archive-2026-10-01.md",
-        "docs/testing/native-strict-9551-failure-2026-10-03.md"
+        "docs/testing/native-strict-9551-failure-2026-10-03.md",
+        "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5522,14 +5523,6 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact36cbe embed-v2 canonical1test/1failure/0error/0skip at pairingRegistration; PIN bridge listening before accepted parse; reverse/EOF subcause unproved, no stream receipt"
-        },
-        {
-          "kind": "review",
-          "ref": "docs/testing/f60-pin-newline-framing-2026-10-01.md",
-          "commit": "36269cf05091156ae960106eaec27810ff35fc78",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent v3 API/receipt/cancellation fences review and real open-socket newline RED-to-GREEN; old v2 failure cause remains unproved"
         },
         {
           "kind": "ci",
@@ -5735,13 +5728,21 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37127353767",
           "commit": "9a85dc1f62193570c145cdd6656a278039570278",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed RI5 source: exact9a85 strict owned Sunshine launch/resume/RTSP/frame/nonzeroPCM/input/two-lifetime/close gate dispatched once. Hosted stream acceptance pending; no rerun of failed9551."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact9a85 FAILED before provider setup: stale embed-v4 acceptance constant rejected reviewed actual embed-v5 receipt. No acceptance artifact; private log SHA71ea10bfdedfebeeb4a1b9b5193cad2ace139268edbc00bd38abaa151ed5ca01. Root cause source-confirmed; distinct from prior RTSP failure, no stream acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
+          "commit": "0cb84d079e5e50318c4844bdee35e67fd70cb48a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen identity repair on 0cb base: root86 discovery/stream/workflow tests and Ruff0.14.1 clean. Strict shared package lock replaces stale acceptance constant; current5 accepted, old4 rejected; actual AAR/source/class binding retained. Hosted stream acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. RI5 gerçek paket/consumer dilimi yerelde tamamlandı: provider launch ve matching-app resume aynı tek kullanımlık RI key/ID ile Game bağlantısına aktarılır; açık matching uygulama kapatılmaz. Exact binding/session/quality sahipliği, timeout, concurrent one-use, wipe ve geç eski publish/successor çitleri var. Root actual dualABI v5 AAR+microphone4 ürününü doğruladı;55Moonlight+78RDP+13hazırlananSAF=146JVM/0skip/error/failure, actual AndroidTest compile315task,88portable ve Ruff geçti;1227-source manifest değişmedi. Exact9551/run37123578040 FAILED original1/1/0/0 rtspHandshake sonucu korunur; RI farkı source-confirmed composition eksikliğidir, eski sağlayıcı hatasının tek nedeni iddia edilmez. Değişmiş exact kaynak strict launch/RTSP/frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli. F60 CI bekliyor/done sayılmaz; fiziksel receiver MANUAL ayrı. Değişmiş RI5 exact9a85/run37127353767 bir kez başladı; sonuç bekleniyor."
+      "reason": "Yeniden çalışılıyor. RI5 gerçek paket/consumer dilimi yerelde tamamlandı: provider launch ve matching-app resume aynı tek kullanımlık RI key/ID ile Game bağlantısına aktarılır; açık matching uygulama kapatılmaz. Exact binding/session/quality sahipliği, timeout, concurrent one-use, wipe ve geç eski publish/successor çitleri var. Root actual dualABI v5 AAR+microphone4 ürününü doğruladı;55Moonlight+78RDP+13hazırlananSAF=146JVM/0skip/error/failure, actual AndroidTest compile315task,88portable ve Ruff geçti;1227-source manifest değişmedi. Exact9551/run37123578040 FAILED original1/1/0/0 rtspHandshake sonucu korunur; RI farkı source-confirmed composition eksikliğidir, eski sağlayıcı hatasının tek nedeni iddia edilmez. Değişmiş exact kaynak strict launch/RTSP/frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli. F60 CI bekliyor/done sayılmaz; fiziksel receiver MANUAL ayrı. Exact9a85/run37127353767 provider öncesi eski v4 kabul sabiti nedeniyle FAILED; artifact yok. Root86 ve Ruff ile ortak strict lock kimliği düzeltildi; değişmiş kaynakta gerçek stream kabulü açık."
     },
     {
       "id": "G11",
@@ -6437,7 +6438,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Tarihsel exact721 broad dört Server shardı/Flutter/aggregate/emulator/APK/native/host geçti; F08 leaf observer ve Serveraggregate failed; değişmişa8/run36835138089 F08Linux/CoreUID IPC/cgroup passed. Exact5122 Security37121144283 passed; final combined required CI yerine geçmez. F60 exact9551/run37123578040 ve F62/run37123504468 original1/1/0/0 failed, source-bound canonical kimlikleri korunur. F60 RI5 source/paket düzeltmesi root55Moonlight+78RDP+13hazırlananSAF=146native/0skip/error/failure, actual compile315task ve88portable geçti; exact9a85/run37127353767 gerçek stream kabulü sürüyor. F62 microphone4 local125native/105Flutter/128portable passed; exact06ef/run37125727523 x86 owned host gate FAILED; source-bound kanıt incelemesi sürüyor, arm64 package geçti. SAF grant5 lifecycle/crash/revocation local94RDP/son18SAF ve179Flutter geçti; gerçek mirror/asyncdrain/readback/quota ve RD Gateway açık. Yerel grant tam transfer sayılmaz. Reader yarışı düzeltilmesi önceki provider hatasının tek nedeni iddia edilmez. İkinci FINAL başlamaz; finalHEAD CI ve MANUAL ayrı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Tarihsel exact721 broad dört Server shardı/Flutter/aggregate/emulator/APK/native/host geçti; F08 leaf observer ve Serveraggregate failed; değişmişa8/run36835138089 F08Linux/CoreUID IPC/cgroup passed. Exact5122 Security37121144283 passed; final combined required CI yerine geçmez. F60 exact9551/run37123578040 ve F62/run37123504468 original1/1/0/0 failed, source-bound canonical kimlikleri korunur. F60 RI5 source/paket düzeltmesi root55Moonlight+78RDP+13hazırlananSAF=146native/0skip/error/failure, actual compile315task ve88portable geçti; exact9a85/run37127353767 provider öncesi stale package identity ile FAILED; root86/Ruff identity düzeltmesi geçti, gerçek stream kabulü açık. F62 microphone4 local125native/105Flutter/128portable passed; exact06ef/run37125727523 x86 owned host gate FAILED; source-bound kanıt incelemesi sürüyor, arm64 package geçti. SAF grant5 lifecycle/crash/revocation local94RDP/son18SAF ve179Flutter geçti; gerçek mirror/asyncdrain/readback/quota ve RD Gateway açık. Yerel grant tam transfer sayılmaz. Reader yarışı düzeltilmesi önceki provider hatasının tek nedeni iddia edilmez. İkinci FINAL başlamaz; finalHEAD CI ve MANUAL ayrı."
     },
     {
       "id": "FINAL.UI",

@@ -174,6 +174,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Independent source SHA/named-test/count/owned-frame/privacy review; original strict success and TLS/NLA/frame/input/DISP/clipboard assertions unchanged"
+  },
+  {
+    "node": "F60",
+    "kind": "review",
+    "ref": "docs/testing/f60-pin-newline-framing-2026-10-01.md",
+    "commit": "36269cf05091156ae960106eaec27810ff35fc78",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent v3 API/receipt/cancellation fences review and real open-socket newline RED-to-GREEN; old v2 failure cause remains unproved"
   }
 ]
 ```

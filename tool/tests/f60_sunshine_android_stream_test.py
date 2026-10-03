@@ -1639,7 +1639,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1680,7 +1680,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1712,7 +1712,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1767,7 +1767,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v5",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }

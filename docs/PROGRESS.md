@@ -17,7 +17,7 @@ native testi (0 atlama/hata) ve actual AndroidTest **315 task** derlemesini;
 sayılmaz. F60 değişmiş exact source strict yayın kabulü bekliyor; yeniden çalışılıyor
 kalır ve sayaçlar artmaz. [Birleşik kanıt](testing/f60-launch-key-composed-2026-10-03.md).
 
-Değişmiş RI5 [exact9a85 Sunshine37127353767](https://github.com/ersingundem/larenor/actions/runs/37127353767) bir kez başlatıldı; strict yayın sonucu bekleniyor.
+Değişmiş RI5 [exact9a85 Sunshine37127353767](https://github.com/ersingundem/larenor/actions/runs/37127353767) provider öncesi başarısız: kabul aracı eski embed-v4 kimliğini beklediği için actual embed-v5 paketi reddetti. Ortak strict paket kaynağına bağlanan dar düzeltme **86/86** test ve Ruff geçti. Bu koşu yayın başlatmadı; gerçek yayın kabulü açık. [Kimlik düzeltmesi](testing/f60-ri5-acceptance-identity-2026-10-03.md).
 
 3 Ekim SAF grant5/clientSettings3 alt dilimi tamamlandı: exact platform picker, şifreli izin kaydı, aynı isteğin replay/revocation kontrolü ve ayarlar yaşam döngüsü bağlandı. Root **94 RDP JVM + son 18 SAF / 0 atlama-hata**, actual AndroidTest derlemesi ve **179 Flutter / temiz analiz** kanıtını doğruladı. Gerçek dosya mirror/async drain/quota/explicit save/readback ve Gateway açık; F62 yeniden çalışılıyor, sayaçlar artmadı. [Native kanıt](testing/f62-saf-grants-native-2026-10-03.md), [istemci kanıtı](testing/f62-saf-client-2026-10-03.md).
 
