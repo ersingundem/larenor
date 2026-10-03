@@ -13,6 +13,7 @@ import com.ersingundem.larenor.rdp.RdpFrameDeliveryGate
 import com.ersingundem.larenor.rdp.RdpJniInput
 import com.ersingundem.larenor.rdp.RdpJniOperation
 import com.ersingundem.larenor.rdp.RdpJniRuntime
+import com.ersingundem.larenor.rdp.RdpJniSecurity
 import com.ersingundem.larenor.rdp.RdpJniCertificateProbe
 import com.ersingundem.larenor.rdp.RdpNativeDisplay
 import com.ersingundem.larenor.rdp.RdpNativeFailure
@@ -53,7 +54,7 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
         sourceCommit = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256 = RdpFreeRdpPackage.SOURCE_SHA256,
         abi = Build.SUPPORTED_ABIS.firstOrNull { it in RdpFreeRdpPackage.SUPPORTED_ABIS }.orEmpty(),
-        jniSchema = 1,
+        jniSchema = 2,
         enabledChannels = emptySet(),
     )
 
@@ -88,8 +89,10 @@ class RdpPackagedRuntime(context: Context) : RdpJniRuntime {
             "sendKeyEvent" to 3,
             "sendUnicodeKeyEvent" to 3,
             "isUnicodeInputSupported" to 1,
+            "sendRelativeCursorEvent" to 4,
+            "isRelativeMouseInputSupported" to 1,
             "sendClipboardData" to 2,
-            "sendMonitorLayout" to 3,
+            "sendMonitorLayout" to 5,
         )
         val publicStatic = LibFreeRDP::class.java.declaredMethods.filter {
             Modifier.isPublic(it.modifiers) && Modifier.isStatic(it.modifiers)
@@ -129,6 +132,7 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
     }
     override fun OnPreConnect(instance: Long) = Unit
     override fun OnConnectionSuccess(instance: Long) { operations[instance]?.connected() }
+    override fun OnDisplayControlReady(instance: Long) { operations[instance]?.displayControlReady(instance) }
     override fun OnConnectionFailure(instance: Long) { operations[instance]?.failed() }
     override fun OnDisconnecting(instance: Long) = Unit
     override fun OnDisconnected(instance: Long) { operations[instance]?.disconnected() }
@@ -136,6 +140,7 @@ private object FreeRdpRegistry : LibFreeRDP.EventListener {
 
 private interface FreeRdpConnection {
     fun connected()
+    fun displayControlReady(instance: Long) = Unit
     fun failed()
     fun disconnected()
 }
@@ -314,6 +319,68 @@ private fun probeFailure(outcome: RdpProbeOutcome): Nothing {
     throw public
 }
 
+internal class RdpInitialDisplayGate(private val expectedInstance: Long) {
+    data class Dispatch internal constructor(
+        internal val id: Long,
+        internal val security: RdpJniSecurity,
+    )
+
+    sealed interface Completion {
+        data class Ready(val security: RdpJniSecurity) : Completion
+        data object Failed : Completion
+        data object Retired : Completion
+    }
+
+    private var security: RdpJniSecurity? = null
+    private var peerCapsObserved = false
+    private var dispatching = false
+    private var terminal = false
+    private var nextDispatchId = 1L
+    private var activeDispatchId: Long? = null
+
+    @Synchronized fun authenticated(value: RdpJniSecurity): Dispatch? {
+        if (terminal || security != null) return null
+        security = value
+        return reserveIfReady()
+    }
+
+    @Synchronized fun peerCaps(instance: Long): Dispatch? {
+        if (terminal || instance != expectedInstance || peerCapsObserved) return null
+        peerCapsObserved = true
+        return reserveIfReady()
+    }
+
+    @Synchronized fun complete(dispatch: Dispatch, applied: Boolean): Completion {
+        if (activeDispatchId != dispatch.id || !dispatching) return Completion.Retired
+        activeDispatchId = null
+        dispatching = false
+        if (terminal) return Completion.Retired
+        if (!applied) {
+            terminal = true
+            security = null
+            return Completion.Failed
+        }
+        terminal = true
+        security = null
+        return Completion.Ready(dispatch.security)
+    }
+
+    @Synchronized fun retire() {
+        terminal = true
+        security = null
+        activeDispatchId = null
+    }
+
+    @Synchronized private fun reserveIfReady(): Dispatch? {
+        val evidence = security ?: return null
+        if (!peerCapsObserved || dispatching || terminal) return null
+        val id = nextDispatchId++
+        dispatching = true
+        activeDispatchId = id
+        return Dispatch(id, evidence)
+    }
+}
+
 private class FreeRdpOperation(
     context: Context,
     private val request: RdpNativeRequest,
@@ -323,6 +390,9 @@ private class FreeRdpOperation(
     @Volatile
     override var unicodeInputSupported = false
         private set
+    @Volatile
+    override var relativePointerSupported = false
+        private set
     private var password: CharArray? = null
     private var gatewayPassword: CharArray? = null
     private var bitmap: Bitmap? = null
@@ -331,6 +401,7 @@ private class FreeRdpOperation(
     private val securityPublished = CountDownLatch(1)
     private var lastButtons = 0
     private val frameDelivery = RdpFrameDeliveryGate()
+    @Volatile private var initialDisplayGate: RdpInitialDisplayGate? = null
 
     override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
         if (request.gateway != null) return false
@@ -345,7 +416,10 @@ private class FreeRdpOperation(
                 request.display.height,
                 plan.clipboardMode != RdpClipboardMode.DISABLED,
                 request.keyboardLayout,
+                request.display.desktopScaleFactor,
+                request.display.deviceScaleFactor,
             ))
+            initialDisplayGate = RdpInitialDisplayGate(instance)
             connect()
             await(45) && securityPublished.await(5, TimeUnit.SECONDS) &&
                 !terminal.get() && securityGate.canDeliverFrames()
@@ -379,12 +453,49 @@ private class FreeRdpOperation(
         fingerprint: String, oldSubject: String, oldIssuer: String, oldFingerprint: String, flags: Long,
     ) = OnVerifiyCertificateEx(host, port, commonName, subject, issuer, fingerprint, flags)
 
-    @Synchronized override fun connected() {
+    override fun connected() {
         if (terminal.get()) return
         val evidence = securityGate.connectionSucceeded() ?: return
-        unicodeInputSupported = runCatching {
+        val unicode = runCatching {
             LibFreeRDP.isUnicodeInputSupported(instance)
         }.getOrDefault(false)
+        val relative = runCatching {
+            LibFreeRDP.isRelativeMouseInputSupported(instance)
+        }.getOrDefault(false)
+        if (terminal.get()) return
+        unicodeInputSupported = unicode
+        relativePointerSupported = relative
+        applyInitialDisplay(initialDisplayGate?.authenticated(evidence))
+    }
+
+    override fun displayControlReady(instance: Long) {
+        applyInitialDisplay(initialDisplayGate?.peerCaps(instance))
+    }
+
+    private fun applyInitialDisplay(dispatch: RdpInitialDisplayGate.Dispatch?) {
+        dispatch ?: return
+        val gate = initialDisplayGate ?: return
+        val applied = !terminal.get() && runCatching {
+            LibFreeRDP.sendMonitorLayout(
+                instance,
+                request.display.width,
+                request.display.height,
+                request.display.desktopScaleFactor,
+                request.display.deviceScaleFactor,
+            )
+        }.getOrDefault(false)
+        when (val completion = gate.complete(dispatch, applied)) {
+            RdpInitialDisplayGate.Completion.Failed -> {
+                failed()
+                return
+            }
+            RdpInitialDisplayGate.Completion.Retired -> return
+            is RdpInitialDisplayGate.Completion.Ready -> publishInitialDisplay(completion.security)
+        }
+    }
+
+    @Synchronized private fun publishInitialDisplay(evidence: RdpJniSecurity) {
+        if (terminal.get()) return
         val consumer = listener ?: return
         consumer.onSecurity(evidence)
         // The consumer may retire the operation while handling security.
@@ -399,7 +510,8 @@ private class FreeRdpOperation(
     override fun OnGraphicsResize(width: Int, height: Int, bpp: Int) = resizeBitmap(width, height)
 
     @Synchronized private fun resizeBitmap(width: Int, height: Int) {
-        if (width !in 640..8192 || height !in 480..8192 || width.toLong() * height > 33_554_432L) {
+        if (width !in 640..8192 || height !in 480..8192 ||
+            width.toLong() * height > RdpNativeFrame.MAX_PIXELS) {
             close(); return
         }
         bitmap?.recycle()
@@ -424,8 +536,7 @@ private class FreeRdpOperation(
         surface.copyPixelsToBuffer(buffer)
         buffer.flip()
         listener?.onFrame(RdpNativeFrame.take(
-            sequence, surface.width, surface.height, surface.rowBytes,
-            request.display.dpi, buffer,
+            sequence, surface.width, surface.height, surface.rowBytes, buffer,
         ))
     }
 
@@ -446,7 +557,9 @@ private class FreeRdpOperation(
     }
 
     override fun input(sequence: Long, event: RdpJniInput): Boolean = when (event) {
-        is RdpJniInput.Pointer -> pointer(event)
+        is RdpJniInput.AbsolutePointer -> absolutePointer(event)
+        is RdpJniInput.RelativePointer -> relativePointer(event)
+        is RdpJniInput.VerticalWheel -> verticalWheel(event)
         is RdpJniInput.Key -> LibFreeRDP.sendKeyEvent(
             instance,
             usbKeyboardVirtualKey(event.physicalKey) ?: return false,
@@ -459,20 +572,28 @@ private class FreeRdpOperation(
         }
     }
 
-    private fun pointer(event: RdpJniInput.Pointer): Boolean {
-        val surface = bitmap ?: return false
-        val x = (event.x * (surface.width - 1)).toInt()
-        val y = (event.y * (surface.height - 1)).toInt()
-        if (!LibFreeRDP.sendCursorEvent(instance, x, y, PTR_MOVE)) return false
-        val changed = lastButtons xor event.buttons
-        for ((bit, flag) in listOf(1 to PTR_BUTTON1, 2 to PTR_BUTTON3, 4 to PTR_BUTTON2)) {
-            if (changed and bit != 0) {
-                val down = event.buttons and bit != 0
-                if (!LibFreeRDP.sendCursorEvent(instance, x, y, flag or if (down) PTR_DOWN else 0)) return false
-            }
+    private fun absolutePointer(event: RdpJniInput.AbsolutePointer): Boolean {
+        val events = absolutePointerWireEvents(event, lastButtons)
+        for (wire in events) {
+            if (!LibFreeRDP.sendCursorEvent(instance, wire.x, wire.y, wire.flags)) return false
         }
         lastButtons = event.buttons
         return true
+    }
+
+    private fun relativePointer(event: RdpJniInput.RelativePointer): Boolean {
+        if (!relativePointerSupported) return false
+        val events = relativePointerWireEvents(event, lastButtons)
+        if (events.isEmpty()) return false
+        for (wire in events) {
+            if (!LibFreeRDP.sendRelativeCursorEvent(instance, wire.x, wire.y, wire.flags)) return false
+        }
+        lastButtons = event.buttons
+        return true
+    }
+
+    private fun verticalWheel(event: RdpJniInput.VerticalWheel): Boolean {
+        return LibFreeRDP.sendCursorEvent(instance, 0, 0, verticalWheelFlags(event.delta))
     }
 
     private fun clipboard(event: RdpJniInput.Channel): Boolean {
@@ -504,7 +625,10 @@ private class FreeRdpOperation(
     }
 
     override fun resize(sequence: Long, display: RdpNativeDisplay): Boolean =
-        LibFreeRDP.sendMonitorLayout(instance, display.width, display.height)
+        LibFreeRDP.sendMonitorLayout(
+            instance, display.width, display.height,
+            display.desktopScaleFactor, display.deviceScaleFactor,
+        )
 
     override fun detach() { listener = null }
     override fun disconnected() {
@@ -516,6 +640,7 @@ private class FreeRdpOperation(
         listener?.onDisconnected()
     }
     @Synchronized override fun close() {
+        initialDisplayGate?.retire()
         securityGate.close()
         frameDelivery.close()
         listener = null
@@ -524,15 +649,64 @@ private class FreeRdpOperation(
         super.close()
     }
 
-    companion object {
-        private const val PTR_DOWN = 0x8000
-        private const val PTR_MOVE = 0x0800
-        private const val PTR_BUTTON1 = 0x1000
-        private const val PTR_BUTTON2 = 0x2000
-        private const val PTR_BUTTON3 = 0x4000
+}
 
+internal data class RdpPointerWireEvent(val x: Int, val y: Int, val flags: Int)
+
+internal fun absolutePointerWireEvents(
+    event: RdpJniInput.AbsolutePointer,
+    previousButtons: Int,
+): List<RdpPointerWireEvent> {
+    val x = (event.x * (event.width - 1)).toInt()
+    val y = (event.y * (event.height - 1)).toInt()
+    return buildList {
+        add(RdpPointerWireEvent(x, y, PTR_MOVE))
+        addButtonTransitions(previousButtons, event.buttons, x, y)
     }
 }
+
+internal fun relativePointerWireEvents(
+    event: RdpJniInput.RelativePointer,
+    previousButtons: Int,
+): List<RdpPointerWireEvent> = buildList {
+    if (event.deltaX != 0 || event.deltaY != 0) {
+        add(RdpPointerWireEvent(event.deltaX, event.deltaY, PTR_MOVE))
+    }
+    addButtonTransitions(previousButtons, event.buttons, 0, 0)
+}
+
+private fun MutableList<RdpPointerWireEvent>.addButtonTransitions(
+    previousButtons: Int,
+    buttons: Int,
+    x: Int,
+    y: Int,
+) {
+    val changed = previousButtons xor buttons
+    for ((bit, flag) in POINTER_BUTTON_FLAGS) {
+        if (changed and bit != 0) {
+            add(RdpPointerWireEvent(x, y, flag or if (buttons and bit != 0) PTR_DOWN else 0))
+        }
+    }
+}
+
+internal fun verticalWheelFlags(delta: Int): Int = when (delta) {
+    120 -> PTR_WHEEL or 0x78
+    -120 -> PTR_WHEEL or PTR_WHEEL_NEGATIVE or 0x88
+    else -> throw IllegalArgumentException("unsupported wheel delta")
+}
+
+private const val PTR_DOWN = 0x8000
+private const val PTR_MOVE = 0x0800
+private const val PTR_BUTTON1 = 0x1000
+private const val PTR_BUTTON2 = 0x2000
+private const val PTR_BUTTON3 = 0x4000
+private const val PTR_WHEEL = 0x0200
+private const val PTR_WHEEL_NEGATIVE = 0x0100
+private val POINTER_BUTTON_FLAGS = listOf(
+    1 to PTR_BUTTON1,
+    2 to PTR_BUTTON3,
+    4 to PTR_BUTTON2,
+)
 
 internal fun usbKeyboardVirtualKey(value: Long): Int? {
     if ((value ushr 16).toInt() != 0x07) return null
@@ -603,6 +777,8 @@ internal fun packagedConnectionUri(
     height: Int,
     clipboard: Boolean,
     keyboardLayout: RdpKeyboardLayout = RdpKeyboardLayout.AUTOMATIC,
+    desktopScaleFactor: Int = 100,
+    deviceScaleFactor: Int = 100,
 ): Uri {
     val authority = if (host.contains(':')) "[$host]:$port" else "$host:$port"
     return Uri.Builder().scheme("freerdp").encodedAuthority(authority).appendPath("connect")
@@ -610,6 +786,8 @@ internal fun packagedConnectionUri(
         .appendQueryParameter("sec", "nla")
         .appendQueryParameter("tls", RdpFreeRdpPackage.TLS_OPTIONS)
         .appendQueryParameter("size", "${width}x$height")
+        .appendQueryParameter("scale-desktop", desktopScaleFactor.toString())
+        .appendQueryParameter("scale-device", deviceScaleFactor.toString())
         .appendQueryParameter("dynamic-resolution", "+")
         .appendQueryParameter("clipboard", if (clipboard) "+" else "-")
         .appendQueryParameter("kbd", when (keyboardLayout) {

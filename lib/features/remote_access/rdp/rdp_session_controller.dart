@@ -46,6 +46,15 @@ class RdpSessionController extends ChangeNotifier {
   RdpCertificatePin? pendingCertificate;
   String? error;
   bool supportsUnicodeInput = false;
+  bool supportsRelativePointer = false;
+  RdpFrameGeometry? _acknowledgedGeometry;
+  int _displayGeneration = 0, _displayLayoutRevision = 1;
+  RdpDisplaySpec? _requestedDisplay;
+  RdpDisplaySpec get requestedDisplay => _requestedDisplay ?? display;
+  bool get canSendPointer =>
+      _acknowledgedGeometry != null &&
+      phase == RdpSessionPhase.connected &&
+      _current(_generation);
   bool get hasSensitiveInput => _passwordDecision != null;
   bool get canSendClipboard =>
       phase == RdpSessionPhase.connected &&
@@ -60,13 +69,31 @@ class RdpSessionController extends ChangeNotifier {
       ? (_channel! as RdpFrameChannel).frames
       : const Stream<RdpFrame>.empty();
 
-  Future<void> acknowledgeFrame(int sequence) async {
+  Future<bool> acknowledgeFrame(RdpFrame frame) async {
     final channel = _channel;
-    if (phase == RdpSessionPhase.connected &&
-        channel is RdpFrameChannel &&
-        _current(_generation)) {
-      await channel.acknowledgeFrame(sequence);
+    final generation = _generation, displayGeneration = _displayGeneration;
+    if (phase != RdpSessionPhase.connected ||
+        channel is! RdpFrameChannel ||
+        !_current(generation) ||
+        !frame.geometry.valid) {
+      return false;
     }
+    final accepted = await channel.acknowledgeFrame(frame.sequence);
+    if (!accepted ||
+        !_current(generation) ||
+        !identical(channel, _channel) ||
+        phase != RdpSessionPhase.connected) {
+      return false;
+    }
+    final requested = requestedDisplay;
+    _acknowledgedGeometry =
+        displayGeneration == _displayGeneration &&
+            frame.displayLayoutRevision == _displayLayoutRevision &&
+            frame.width == requested.width &&
+            frame.height == requested.height
+        ? frame.geometry
+        : null;
+    return true;
   }
 
   RdpEngine? _engine;
@@ -116,6 +143,9 @@ class RdpSessionController extends ChangeNotifier {
     _channel?.close();
     _channel = null;
     supportsUnicodeInput = false;
+    supportsRelativePointer = false;
+    _acknowledgedGeometry = null;
+    _displayGeneration++;
     _engine?.close();
     _engine = null;
   }
@@ -144,6 +174,10 @@ class RdpSessionController extends ChangeNotifier {
     error = null;
     capabilities = null;
     supportsUnicodeInput = false;
+    supportsRelativePointer = false;
+    _acknowledgedGeometry = null;
+    _displayLayoutRevision = 1;
+    _requestedDisplay = display;
     _engine = engineFactory();
     _timer = Timer(connectTimeout, () {
       if (generation == _generation) _finish(code: 'timed_out');
@@ -263,6 +297,10 @@ class RdpSessionController extends ChangeNotifier {
     _channel = channel;
     supportsUnicodeInput =
         channel is RdpNegotiatedInputChannel && channel.supportsUnicodeInput;
+    supportsRelativePointer =
+        channel is RdpNegotiatedInputChannel &&
+        found.supportsRelativePointerNegotiation &&
+        channel.supportsRelativePointer;
     _timer?.cancel();
     _timer = null;
     phase = RdpSessionPhase.connected;
@@ -361,24 +399,51 @@ class RdpSessionController extends ChangeNotifier {
     if (phase != RdpSessionPhase.connected ||
         found == null ||
         !found.supportsDynamicResolution ||
-        !next.valid ||
-        next.width > found.maxWidth ||
-        next.height > found.maxHeight ||
-        next.dpi > found.maxDpi ||
-        next.externalDisplay && !found.supportsExternalDisplay ||
+        !found.acceptsDisplay(next) ||
+        next == requestedDisplay ||
         !_current(_generation)) {
       return;
     }
+    if (_displayLayoutRevision >= 9007199254740991) {
+      retire();
+      return;
+    }
+    _requestedDisplay = next;
+    _displayLayoutRevision++;
+    _displayGeneration++;
+    _acknowledgedGeometry = null;
     _channel?.resize(next);
   }
 
   void pointer(RdpPointerEvent event) {
     if (phase != RdpSessionPhase.connected ||
+        capabilities?.supportsAbsolutePointer != true ||
         !event.valid ||
+        event.geometry != _acknowledgedGeometry ||
         !_current(_generation)) {
       return;
     }
     _channel?.pointer(event);
+  }
+
+  void relativePointer(RdpRelativePointerEvent event) {
+    if (!supportsRelativePointer ||
+        !canSendPointer ||
+        !event.valid ||
+        event.geometry != _acknowledgedGeometry) {
+      return;
+    }
+    _channel?.relativePointer(event);
+  }
+
+  void wheel(RdpWheelEvent event) {
+    if (capabilities?.supportsVerticalWheel != true ||
+        !canSendPointer ||
+        !event.valid ||
+        event.geometry != _acknowledgedGeometry) {
+      return;
+    }
+    _channel?.wheel(event);
   }
 
   void key(RdpKeyEvent event) {

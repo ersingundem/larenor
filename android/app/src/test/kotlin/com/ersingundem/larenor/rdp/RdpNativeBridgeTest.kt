@@ -49,13 +49,15 @@ class RdpNativeBridgeTest {
         private val advertisedCapabilities: Map<String, Any?>,
     ) : RdpJniRuntime {
         val inputs = mutableListOf<ByteArray>()
+        val allInputs = mutableListOf<RdpJniInput>()
+        private lateinit var listener: RdpJniOperation.Listener
 
         override fun identity() = RdpFreeRdpIdentity(
             RdpFreeRdpPackage.VERSION,
             RdpFreeRdpPackage.SOURCE_COMMIT,
             RdpFreeRdpPackage.SOURCE_SHA256,
             "x86_64",
-            1,
+            2,
             emptySet(),
         )
 
@@ -66,15 +68,19 @@ class RdpNativeBridgeTest {
             plan: RdpNativeNegotiated,
             listener: RdpJniOperation.Listener,
         ) = object : RdpJniOperation {
+            init { this@ClipboardRuntime.listener = listener }
             override val unicodeInputSupported = true
+            override val relativePointerSupported = true
             override fun start(password: CharArray, gatewayPassword: CharArray?): Boolean {
                 listener.onSecurity(RdpJniSecurity("TLSv1.2", true, PIN))
                 return true
             }
 
             override fun input(sequence: Long, event: RdpJniInput): Boolean {
+                allInputs += event
                 if (event is RdpJniInput.Key) return true
-                val clipboard = event as? RdpJniInput.Channel ?: return false
+                if (event !is RdpJniInput.Channel) return true
+                val clipboard = event
                 if (clipboard.kind != RdpJniChannel.CLIPBOARD) return false
                 inputs += clipboard.payload.copyOf()
                 return true
@@ -84,6 +90,18 @@ class RdpNativeBridgeTest {
             override fun acknowledgeFrame(sequence: Long) = true
             override fun close() = Unit
             override fun detach() = Unit
+        }
+
+        fun frame(sequence: Long, width: Int = 1280, height: Int = 800) {
+            listener.onFrame(
+                RdpNativeFrame.take(
+                    sequence,
+                    width,
+                    height,
+                    width * 4,
+                    ByteBuffer.allocateDirect(width * height * 4),
+                ),
+            )
         }
     }
 
@@ -110,7 +128,7 @@ class RdpNativeBridgeTest {
                 RdpFreeRdpPackage.SOURCE_COMMIT,
                 RdpFreeRdpPackage.SOURCE_SHA256,
                 "x86_64",
-                1,
+                2,
                 emptySet(),
             )
 
@@ -151,6 +169,7 @@ class RdpNativeBridgeTest {
             val gatewayPassword = ByteArray(0)
             val opening = Result()
             bridge.onMethodCall(MethodCall("open", mapOf(
+                "schemaVersion" to 2,
                 "request" to request(), "requestId" to REQUEST_ID,
                 "password" to password, "gatewayPassword" to gatewayPassword,
             )), opening)
@@ -196,6 +215,7 @@ class RdpNativeBridgeTest {
         openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
             val unsupported = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "schemaVersion" to 2,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "key",
@@ -207,6 +227,7 @@ class RdpNativeBridgeTest {
 
             val supported = Result()
             fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "schemaVersion" to 2,
                 "requestId" to REQUEST_ID,
                 "sequence" to 1L,
                 "kind" to "key",
@@ -215,6 +236,65 @@ class RdpNativeBridgeTest {
             )), supported)
             assertNull(supported.error)
             assertNull(supported.value)
+        }
+    }
+
+    @Test
+    fun pointerWireRequiresTheExactAcknowledgedFrameAndLayoutTuple() {
+        openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
+            fixture.runtime.frame(1)
+            val ack = Result()
+            fixture.bridge.onMethodCall(MethodCall("ackFrame", mapOf(
+                "schemaVersion" to 2,
+                "requestId" to REQUEST_ID,
+                "frameSequence" to 1L,
+            )), ack)
+            assertNull(ack.error)
+
+            val accepted = Result()
+            fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "schemaVersion" to 2,
+                "requestId" to REQUEST_ID,
+                "sequence" to 1L,
+                "kind" to "absolutePointer",
+                "frameSequence" to 1L,
+                "width" to 1280,
+                "height" to 800,
+                "displayLayoutRevision" to 1L,
+                "x" to .25,
+                "y" to .75,
+                "buttons" to 1,
+            )), accepted)
+            assertNull(accepted.error)
+            assertEquals(
+                RdpJniInput.AbsolutePointer(1280, 800, .25, .75, 1),
+                fixture.runtime.allInputs.last(),
+            )
+        }
+
+        openClipboardBridge(RdpClipboardMode.DISABLED).use { fixture ->
+            fixture.runtime.frame(1)
+            val ack = Result()
+            fixture.bridge.onMethodCall(MethodCall("ackFrame", mapOf(
+                "schemaVersion" to 2,
+                "requestId" to REQUEST_ID,
+                "frameSequence" to 1L,
+            )), ack)
+            assertNull(ack.error)
+            val stale = Result()
+            fixture.bridge.onMethodCall(MethodCall("input", mapOf(
+                "schemaVersion" to 2,
+                "requestId" to REQUEST_ID,
+                "sequence" to 1L,
+                "kind" to "verticalWheel",
+                "frameSequence" to 1L,
+                "width" to 1280,
+                "height" to 800,
+                "displayLayoutRevision" to 2L,
+                "wheelDelta" to 120,
+            )), stale)
+            assertEquals("staleSession", stale.error)
+            assertTrue(fixture.runtime.allInputs.isEmpty())
         }
     }
 
@@ -264,12 +344,20 @@ class RdpNativeBridgeTest {
         assertNull(activated.error)
         val opened = Result()
         bridge.onMethodCall(MethodCall("open", mapOf(
+            "schemaVersion" to 2,
             "request" to request(mode), "requestId" to REQUEST_ID,
             "password" to "secret".encodeToByteArray(), "gatewayPassword" to ByteArray(0),
         )), opened)
         await(opened)
         assertNull(opened.error)
-        assertEquals(mapOf("schemaVersion" to 1, "unicodeTextInput" to true), opened.value)
+        assertEquals(
+            mapOf(
+                "schemaVersion" to 2,
+                "unicodeTextInput" to true,
+                "relativePointer" to true,
+            ),
+            opened.value,
+        )
         return OpenClipboardBridge(bridge, runtime, activity)
     }
 
@@ -279,6 +367,7 @@ class RdpNativeBridgeTest {
         channel: String = "clipboard",
         requestId: String = REQUEST_ID,
     ) = mapOf<String, Any?>(
+        "schemaVersion" to 2,
         "requestId" to requestId,
         "sequence" to sequence,
         "kind" to "channel",
@@ -296,7 +385,7 @@ class RdpNativeBridgeTest {
     }
 
     private fun availableCapabilities() = mapOf<String, Any?>(
-        "schemaVersion" to 1,
+        "schemaVersion" to 2,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
@@ -304,9 +393,9 @@ class RdpNativeBridgeTest {
         ),
         "display" to mapOf(
             "dynamicResolution" to true, "externalDisplay" to true,
-            "maxWidth" to 4096, "maxHeight" to 2160, "maxDpi" to 480,
+            "maxWidth" to 4096, "maxHeight" to 2160, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180),
         ),
-        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
+        "input" to mapOf("absolutePointer" to true, "relativePointerNegotiation" to true, "verticalWheel" to true, "keyboard" to true, "ime" to true),
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
             "audio" to false,
@@ -315,7 +404,7 @@ class RdpNativeBridgeTest {
     )
 
     private fun request(mode: RdpClipboardMode = RdpClipboardMode.DISABLED) = mapOf<String, Any?>(
-        "schemaVersion" to 1,
+        "schemaVersion" to 2,
         "requestId" to REQUEST_ID,
         "targetHost" to "fixture.invalid",
         "targetPort" to 3389,
@@ -325,7 +414,7 @@ class RdpNativeBridgeTest {
         "certificateFingerprint" to PIN,
         "requiresNla" to true,
         "display" to mapOf(
-            "width" to 1280, "height" to 800, "dpi" to 180,
+            "width" to 1280, "height" to 800, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180,
             "externalDisplay" to false, "dynamicResize" to true,
         ),
         "keyboardLayout" to "turkishQ",

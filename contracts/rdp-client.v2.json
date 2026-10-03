@@ -1,0 +1,88 @@
+{
+  "availableCapabilities": {
+    "schemaVersion": 2,
+    "availability": "available",
+    "engineRevision": "fixture-2",
+    "security": {
+      "tls": true,
+      "certificatePinning": true,
+      "nla": true,
+      "rdGateway": true
+    },
+    "display": {
+      "dynamicResolution": true,
+      "externalDisplay": true,
+      "maxWidth": 8192,
+      "maxHeight": 8192,
+      "desktopScaleFactorMin": 100,
+      "desktopScaleFactorMax": 500,
+      "deviceScaleFactors": [
+        100,
+        140,
+        180
+      ]
+    },
+    "input": {
+      "keyboard": true,
+      "ime": true,
+      "absolutePointer": true,
+      "relativePointerNegotiation": true,
+      "verticalWheel": true
+    },
+    "channels": {
+      "clipboard": false,
+      "audio": false,
+      "files": false,
+      "clipboardModes": [
+        "disabled"
+      ]
+    }
+  },
+  "unavailableCapabilities": {
+    "schemaVersion": 2,
+    "availability": "unavailable",
+    "engineRevision": null,
+    "security": {
+      "tls": false,
+      "certificatePinning": false,
+      "nla": false,
+      "rdGateway": false
+    },
+    "display": {
+      "dynamicResolution": false,
+      "externalDisplay": false,
+      "maxWidth": 0,
+      "maxHeight": 0,
+      "desktopScaleFactorMin": 0,
+      "desktopScaleFactorMax": 0,
+      "deviceScaleFactors": []
+    },
+    "input": {
+      "keyboard": false,
+      "ime": false,
+      "absolutePointer": false,
+      "relativePointerNegotiation": false,
+      "verticalWheel": false
+    },
+    "channels": {
+      "clipboard": false,
+      "audio": false,
+      "files": false,
+      "clipboardModes": []
+    }
+  },
+  "certificate": {
+    "algorithm": "spki-sha256",
+    "fingerprint": "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "profileSettings": {
+    "version": 1,
+    "domain": "LARENOR",
+    "gatewayHost": "gateway.home.arpa",
+    "gatewayPort": 443,
+    "gatewayUsername": "ersin",
+    "displayMode": "fitWindow",
+    "keyboardLayout": "turkishQ",
+    "clipboardMode": "clientToRemote"
+  }
+}

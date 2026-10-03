@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/app_interaction_scope.dart';
+import '../../../core/window/window_policy_bridge.dart';
 import '../../../core/window/window_policy_models.dart';
 import '../../../core/window/window_policy_providers.dart';
 import '../../../l10n/generated/app_localizations.dart';
@@ -55,6 +57,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   final _gatewayPort = TextEditingController(text: '443');
   final _gatewayUser = TextEditingController();
   final _remoteText = TextEditingController();
+  final _surfaceKey = GlobalKey<_RdpInputSurfaceState>();
   ProviderContainer? _container;
   AppInteractionController? _interaction;
   RdpSessionController? _controller;
@@ -69,6 +72,16 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   WindowDisplayIdentity? _controllerDisplayIdentity;
   bool _clipboardBusy = false;
   RdpClipboardSendResult? _clipboardNotice;
+  RdpSessionPhase? _observedSessionPhase;
+  int _sessionRevision = 0;
+  int _fullscreenGeneration = 0;
+  bool _fullscreenBusy = false;
+  bool _fullscreenDenied = false;
+  OverlayEntry? _fullscreenEntry;
+  WindowFullscreenLease? _fullscreenLease;
+  WindowPolicyBridge? _fullscreenBridge;
+  bool _consumeFullscreenEscapeRelease = false;
+  Timer? _fullscreenEscapeTimer;
 
   WindowDisplayIdentity? _loadedDisplayIdentity() {
     final state = ref.read(windowPolicySnapshotProvider);
@@ -132,12 +145,17 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     _factory ??= ref.read(rdpEngineFactoryProvider);
     _trust ??= widget.securityStore ?? ref.read(rdpTrustStoreProvider);
     _security ??= widget.securityStore ?? ref.read(rdpSecurityStoreProvider);
-    _controller ??= _newController(displayIdentity: _loadedDisplayIdentity())
-      ..addListener(_changed);
+    if (_controller == null) {
+      _controller = _newController(displayIdentity: _loadedDisplayIdentity())
+        ..addListener(_changed);
+      _observedSessionPhase = _controller!.phase;
+      _sessionRevision++;
+    }
     if (!_settingsStarted) {
       _settingsStarted = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadSettings());
     }
+    _fullscreenEntry?.markNeedsBuild();
     if (!TickerMode.valuesOf(context).enabled) _retire();
   }
 
@@ -155,15 +173,6 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   }) {
     _controllerDisplayIdentity = displayIdentity;
     final media = MediaQuery.of(context), size = media.size;
-    var width = (size.width * media.devicePixelRatio).round().clamp(640, 8192),
-        height = (size.height * media.devicePixelRatio).round().clamp(
-          480,
-          8192,
-        );
-    while (width * height > 33554432) {
-      width = (width * .9).round();
-      height = (height * .9).round();
-    }
     return RdpSessionController(
       profile: widget.profile,
       trust: _trust!,
@@ -173,10 +182,10 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
           _current() &&
           displayIdentity != null &&
           _loadedDisplayIdentity() == displayIdentity,
-      display: RdpDisplaySpec(
-        width: width,
-        height: height,
-        dpi: (160 * media.devicePixelRatio).round().clamp(72, 640),
+      display: RdpDisplaySpec.fromViewport(
+        widthPixels: (size.width * media.devicePixelRatio).round(),
+        heightPixels: (size.height * media.devicePixelRatio).round(),
+        devicePixelRatio: media.devicePixelRatio,
         externalDisplay: displayIdentity?.isExternalDisplay ?? false,
       ),
       settings: _settings,
@@ -188,10 +197,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
     bool force = false,
   }) {
     if (!force && _controllerDisplayIdentity == displayIdentity) return;
+    _retireFullscreen(notify: false);
     _controller?.removeListener(_changed);
     _controller?.dispose();
     _controller = _newController(displayIdentity: displayIdentity)
       ..addListener(_changed);
+    _observedSessionPhase = _controller!.phase;
+    _sessionRevision++;
   }
 
   void _fillSettings(RdpProfileSettings value) {
@@ -288,6 +300,14 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
 
   void _changed() {
     if (!mounted) return;
+    final phase = _controller?.phase;
+    if (phase != _observedSessionPhase) {
+      _observedSessionPhase = phase;
+      _sessionRevision++;
+    }
+    if (phase != RdpSessionPhase.connected) {
+      _retireFullscreen(notify: false);
+    }
     if (_controller?.hasSensitiveInput != true) {
       _password.clear();
       _gatewayPassword.clear();
@@ -298,6 +318,292 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
       _clipboardNotice = null;
     }
     setState(() {});
+  }
+
+  bool _fullscreenWindowCurrent(
+    WindowPolicySnapshot value,
+    WindowDisplayIdentity display,
+  ) =>
+      value.supported &&
+      value.displayIdentity == display &&
+      value.isResumed &&
+      value.hasWindowFocus &&
+      !value.isMultiWindow &&
+      !value.isPictureInPicture &&
+      !value.isExternalDisplay &&
+      value.captionVisible == false &&
+      value.imeVisible != null &&
+      (value.reason == WindowRestrictionReason.none ||
+          value.reason == WindowRestrictionReason.keyboard);
+
+  bool _fullscreenRequestCurrent({
+    required int generation,
+    required int sessionRevision,
+    required RdpSessionController controller,
+    required RemoteProfile profile,
+    required ProviderContainer container,
+    required ModalRoute<Object?> route,
+    required WindowDisplayIdentity display,
+    required WindowPolicyBridge bridge,
+  }) {
+    if (generation != _fullscreenGeneration ||
+        !_current() ||
+        sessionRevision != _sessionRevision ||
+        !identical(controller, _controller) ||
+        controller.phase != RdpSessionPhase.connected ||
+        !identical(profile, widget.profile) ||
+        !identical(container, _container) ||
+        !identical(route, ModalRoute.of(context)) ||
+        !route.isCurrent ||
+        !identical(bridge, ref.read(windowPolicyBridgeProvider)) ||
+        _controllerDisplayIdentity != display ||
+        _loadedDisplayIdentity() != display) {
+      return false;
+    }
+    final state = ref.read(windowPolicySnapshotProvider);
+    return state.hasValue &&
+        !state.isLoading &&
+        !state.hasError &&
+        _fullscreenWindowCurrent(state.requireValue, display);
+  }
+
+  Future<void> _releaseFullscreen(
+    WindowPolicyBridge bridge,
+    WindowFullscreenLease lease,
+  ) async {
+    try {
+      await bridge.releaseFullscreen(lease);
+    } catch (_) {
+      // The exact native owner still retires on lifecycle/display loss.
+    }
+  }
+
+  void _clearFullscreenEscapeRelease() {
+    _fullscreenEscapeTimer?.cancel();
+    _fullscreenEscapeTimer = null;
+    if (!_consumeFullscreenEscapeRelease) return;
+    _consumeFullscreenEscapeRelease = false;
+    if (mounted) setState(() {});
+  }
+
+  KeyEventResult _fullscreenEscape(KeyEvent event) {
+    if (event is KeyDownEvent && !_consumeFullscreenEscapeRelease) {
+      _consumeFullscreenEscapeRelease = true;
+      _fullscreenEscapeTimer?.cancel();
+      _fullscreenEscapeTimer = Timer(
+        const Duration(seconds: 1),
+        _clearFullscreenEscapeRelease,
+      );
+      _retireFullscreen();
+    }
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _pendingFullscreenEscape(KeyEvent event) {
+    if (event is KeyUpEvent) _clearFullscreenEscapeRelease();
+    return KeyEventResult.handled;
+  }
+
+  void _retireFullscreen({bool notify = true}) {
+    _fullscreenGeneration++;
+    final entry = _fullscreenEntry,
+        lease = _fullscreenLease,
+        bridge = _fullscreenBridge;
+    _fullscreenEntry = null;
+    _fullscreenLease = null;
+    _fullscreenBridge = null;
+    _fullscreenBusy = false;
+    _fullscreenDenied = false;
+    entry?.remove();
+    if (lease != null && bridge != null) {
+      unawaited(_releaseFullscreen(bridge, lease));
+    }
+    if (notify && mounted) setState(() {});
+  }
+
+  Future<void> _enterFullscreen() async {
+    final controller = _controller,
+        display = _loadedDisplayIdentity(),
+        route = ModalRoute.of(context),
+        container = _container;
+    if (_fullscreenBusy ||
+        _fullscreenEntry != null ||
+        !_current() ||
+        controller == null ||
+        controller.phase != RdpSessionPhase.connected ||
+        display == null ||
+        route == null ||
+        container == null) {
+      return;
+    }
+    final bridge = ref.read(windowPolicyBridgeProvider);
+    final generation = ++_fullscreenGeneration;
+    final sessionRevision = _sessionRevision;
+    final profile = widget.profile;
+    setState(() {
+      _fullscreenBusy = true;
+      _fullscreenDenied = false;
+    });
+    WindowFullscreenLease? lease;
+    try {
+      lease = await bridge.acquireFullscreen(display);
+    } catch (_) {
+      if (_fullscreenRequestCurrent(
+        generation: generation,
+        sessionRevision: sessionRevision,
+        controller: controller,
+        profile: profile,
+        container: container,
+        route: route,
+        display: display,
+        bridge: bridge,
+      )) {
+        setState(() {
+          _fullscreenBusy = false;
+          _fullscreenDenied = true;
+        });
+      }
+      return;
+    }
+    if (!mounted) {
+      if (lease != null) await _releaseFullscreen(bridge, lease);
+      return;
+    }
+    if (!_fullscreenRequestCurrent(
+      generation: generation,
+      sessionRevision: sessionRevision,
+      controller: controller,
+      profile: profile,
+      container: container,
+      route: route,
+      display: display,
+      bridge: bridge,
+    )) {
+      if (lease != null) await _releaseFullscreen(bridge, lease);
+      return;
+    }
+    if (lease == null) {
+      setState(() {
+        _fullscreenBusy = false;
+        _fullscreenDenied = true;
+      });
+      return;
+    }
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) {
+      await _releaseFullscreen(bridge, lease);
+      if (_fullscreenRequestCurrent(
+        generation: generation,
+        sessionRevision: sessionRevision,
+        controller: controller,
+        profile: profile,
+        container: container,
+        route: route,
+        display: display,
+        bridge: bridge,
+      )) {
+        setState(() {
+          _fullscreenBusy = false;
+          _fullscreenDenied = true;
+        });
+      }
+      return;
+    }
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (context) =>
+          _fullscreenSurface(context, controller: controller, entry: entry),
+    );
+    _fullscreenLease = lease;
+    _fullscreenBridge = bridge;
+    _fullscreenEntry = entry;
+    _fullscreenBusy = false;
+    try {
+      overlay.insert(entry);
+    } catch (_) {
+      _fullscreenEntry = null;
+      _fullscreenLease = null;
+      _fullscreenBridge = null;
+      await _releaseFullscreen(bridge, lease);
+      if (_fullscreenRequestCurrent(
+        generation: generation,
+        sessionRevision: sessionRevision,
+        controller: controller,
+        profile: profile,
+        container: container,
+        route: route,
+        display: display,
+        bridge: bridge,
+      )) {
+        setState(() => _fullscreenDenied = true);
+      }
+      return;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Widget _fullscreenSurface(
+    BuildContext context, {
+    required RdpSessionController controller,
+    required OverlayEntry entry,
+  }) {
+    if (!identical(entry, _fullscreenEntry) ||
+        !identical(controller, _controller) ||
+        controller.phase != RdpSessionPhase.connected) {
+      return const SizedBox.shrink();
+    }
+    final l = AppLocalizations.of(context);
+    return Semantics(
+      key: const ValueKey('rdp-fullscreen-overlay'),
+      container: true,
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: l.rdpFullscreenSurface,
+      child: ColoredBox(
+        color: CupertinoColors.black,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: _RdpInputSurface(
+                key: _surfaceKey,
+                controller: controller,
+                label: l.rdpInputReady,
+                mode: _settings.displayMode,
+                panEnableLabel: l.rdpNativePanEnable,
+                panDisableLabel: l.rdpNativePanDisable,
+                expand: true,
+                onEscape: _fullscreenEscape,
+              ),
+            ),
+            PositionedDirectional(
+              top: 0,
+              end: 0,
+              child: SafeArea(
+                minimum: const EdgeInsets.all(12),
+                child: Semantics(
+                  button: true,
+                  label: l.rdpFullscreenExit,
+                  child: CupertinoButton(
+                    key: const ValueKey('rdp-fullscreen-exit'),
+                    minimumSize: const Size(48, 48),
+                    padding: EdgeInsets.zero,
+                    color: CupertinoColors.systemGrey
+                        .resolveFrom(context)
+                        .withValues(alpha: .8),
+                    onPressed: _retireFullscreen,
+                    child: const Icon(
+                      CupertinoIcons.arrow_down_right_arrow_up_left,
+                      color: CupertinoColors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _sendText() {
@@ -343,6 +649,7 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   void _retire() {
     if (_retired) return;
     _retired = true;
+    _retireFullscreen(notify: false);
     _password.clear();
     _gatewayPassword.clear();
     _remoteText.clear();
@@ -370,6 +677,8 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _fullscreenEscapeTimer?.cancel();
+    _retireFullscreen(notify: false);
     _interaction?.removeListener(_ownerChanged);
     _controller?.removeListener(_changed);
     _controller?.dispose();
@@ -405,6 +714,17 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
   Widget build(BuildContext context) {
     ref.listen(windowPolicySnapshotProvider, (_, next) {
       final value = next.value;
+      final fullscreenDisplay =
+          _fullscreenLease?.display ??
+          (_fullscreenBusy ? _controllerDisplayIdentity : null);
+      if ((_fullscreenEntry != null || _fullscreenBusy) &&
+          (next.isLoading ||
+              next.hasError ||
+              value == null ||
+              fullscreenDisplay == null ||
+              !_fullscreenWindowCurrent(value, fullscreenDisplay))) {
+        _retireFullscreen();
+      }
       if (next.isLoading ||
           next.hasError ||
           value == null ||
@@ -614,12 +934,13 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                               const SizedBox(height: 6),
                               Text(
                                 l.rdpDisplayValue(
-                                  c.display.width,
-                                  c.display.height,
-                                  c.display.dpi,
+                                  c.requestedDisplay.width,
+                                  c.requestedDisplay.height,
+                                  c.requestedDisplay.desktopScaleFactor,
+                                  c.requestedDisplay.deviceScaleFactor,
                                 ),
                               ),
-                              if (c.display.externalDisplay)
+                              if (c.requestedDisplay.externalDisplay)
                                 Text(l.rdpExternalDisplay),
                             ],
                           ),
@@ -720,13 +1041,45 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
                         ],
                         if (c.phase == RdpSessionPhase.connected &&
                             displayIdentity != null) ...[
-                          _RdpInputSurface(
-                            controller: c,
-                            label: l.rdpInputReady,
-                            mode: _settings.displayMode,
-                            panEnableLabel: l.rdpNativePanEnable,
-                            panDisableLabel: l.rdpNativePanDisable,
+                          if (_fullscreenEntry == null)
+                            _RdpInputSurface(
+                              key: _surfaceKey,
+                              controller: c,
+                              label: l.rdpInputReady,
+                              mode: _settings.displayMode,
+                              panEnableLabel: l.rdpNativePanEnable,
+                              panDisableLabel: l.rdpNativePanDisable,
+                              onEscape: _consumeFullscreenEscapeRelease
+                                  ? _pendingFullscreenEscape
+                                  : null,
+                            ),
+                          action(
+                            'rdp-fullscreen-enter',
+                            l.rdpFullscreenEnter,
+                            _fullscreenBusy || _fullscreenEntry != null
+                                ? null
+                                : () => unawaited(_enterFullscreen()),
                           ),
+                          if (_fullscreenBusy)
+                            const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Center(
+                                child: CupertinoActivityIndicator(
+                                  key: ValueKey('rdp-fullscreen-progress'),
+                                ),
+                              ),
+                            ),
+                          if (_fullscreenDenied)
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Semantics(
+                                liveRegion: true,
+                                child: Text(
+                                  l.rdpFullscreenDenied,
+                                  key: const ValueKey('rdp-fullscreen-denied'),
+                                ),
+                              ),
+                            ),
                           if (c.canSendClipboard) ...[
                             action(
                               'rdp-clipboard-send',
@@ -810,17 +1163,22 @@ class _RdpSessionPanelState extends ConsumerState<RdpSessionPanel>
 
 class _RdpInputSurface extends StatefulWidget {
   const _RdpInputSurface({
+    super.key,
     required this.controller,
     required this.label,
     required this.mode,
     required this.panEnableLabel,
     required this.panDisableLabel,
+    this.expand = false,
+    this.onEscape,
   });
   final RdpSessionController controller;
   final String label;
   final RdpDisplayMode mode;
   final String panEnableLabel;
   final String panDisableLabel;
+  final bool expand;
+  final KeyEventResult Function(KeyEvent event)? onEscape;
 
   @override
   State<_RdpInputSurface> createState() => _RdpInputSurfaceState();
@@ -828,11 +1186,13 @@ class _RdpInputSurface extends StatefulWidget {
 
 class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   final _focus = FocusNode(debugLabel: 'RDP desktop input');
-  Size? _lastSize;
+  RdpDisplaySpec? _lastRequestedDisplay;
   StreamSubscription<RdpFrame>? _frames;
   ui.Image? _image;
+  RdpFrame? _displayedFrame;
   int _frameGeneration = 0;
   Offset _nativePan = Offset.zero;
+  double _wheelRemainder = 0;
   bool _nativePanEnabled = false;
   int? _activeRemotePointer;
   Offset? _lastRemotePointer;
@@ -852,12 +1212,14 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
       _frames = widget.controller.frames.listen(_frame);
       _image?.dispose();
       _image = null;
+      _displayedFrame = null;
       _frameGeneration++;
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         oldWidget.mode != widget.mode) {
-      _lastSize = null;
+      _lastRequestedDisplay = null;
       _nativePan = Offset.zero;
+      _wheelRemainder = 0;
       _nativePanEnabled = false;
       _activeRemotePointer = null;
       _lastRemotePointer = null;
@@ -878,16 +1240,39 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
           image.dispose();
           return;
         }
-        final old = _image;
-        setState(() => _image = image);
-        old?.dispose();
-        unawaited(widget.controller.acknowledgeFrame(frame.sequence));
+        unawaited(_acknowledgeAndInstall(frame, image, generation));
       },
       rowBytes: frame.stride,
     );
   }
 
+  Future<void> _acknowledgeAndInstall(
+    RdpFrame frame,
+    ui.Image image,
+    int generation,
+  ) async {
+    final controller = widget.controller;
+    final accepted = await controller.acknowledgeFrame(frame);
+    if (!accepted ||
+        !mounted ||
+        generation != _frameGeneration ||
+        !identical(controller, widget.controller)) {
+      image.dispose();
+      return;
+    }
+    final old = _image;
+    setState(() {
+      _image = image;
+      _displayedFrame = frame;
+    });
+    old?.dispose();
+  }
+
   KeyEventResult _key(FocusNode _, KeyEvent event) {
+    if (widget.onEscape != null &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      return widget.onEscape!(event);
+    }
     if (event is KeyRepeatEvent) return KeyEventResult.handled;
     if (event is! KeyDownEvent && event is! KeyUpEvent) {
       return KeyEventResult.ignored;
@@ -903,16 +1288,17 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   }
 
   void _resize(Size size) {
-    if (widget.mode == RdpDisplayMode.native ||
-        size.isEmpty ||
-        size == _lastSize) {
-      return;
-    }
-    _lastSize = size;
+    if (widget.mode == RdpDisplayMode.native || size.isEmpty) return;
     final ratio = MediaQuery.devicePixelRatioOf(context);
-    final width = (size.width * ratio).round().clamp(640, 8192);
-    final height = (size.height * ratio).round().clamp(480, 8192);
-    final current = widget.controller.display;
+    final current = widget.controller.requestedDisplay;
+    final requested = RdpDisplaySpec.fromViewport(
+      widthPixels: (size.width * ratio).round(),
+      heightPixels: (size.height * ratio).round(),
+      devicePixelRatio: ratio,
+      externalDisplay: current.externalDisplay,
+    );
+    if (requested == _lastRequestedDisplay) return;
+    _lastRequestedDisplay = requested;
     final controller = widget.controller;
     final mode = widget.mode;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -922,14 +1308,7 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
           !identical(widget.controller, controller)) {
         return;
       }
-      controller.resize(
-        RdpDisplaySpec(
-          width: width,
-          height: height,
-          dpi: current.dpi,
-          externalDisplay: current.externalDisplay,
-        ),
-      );
+      controller.resize(requested);
     });
   }
 
@@ -983,13 +1362,36 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
   }
 
   void _sendPointer(Offset normalized, int buttons) {
+    final geometry = _displayedFrame?.geometry;
+    if (geometry == null) return;
     widget.controller.pointer(
       RdpPointerEvent(
         x: normalized.dx,
         y: normalized.dy,
-        buttons: buttons.clamp(0, 31),
+        buttons: buttons.clamp(0, 7),
+        geometry: geometry,
       ),
     );
+  }
+
+  void _wheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final geometry = _displayedFrame?.geometry;
+    if (geometry == null || event.scrollDelta.dy == 0) return;
+    _wheelRemainder += event.scrollDelta.dy;
+    const logicalPixelsPerStep = 20.0;
+    final steps = (_wheelRemainder / logicalPixelsPerStep).truncate().clamp(
+      -16,
+      16,
+    );
+    if (steps == 0) return;
+    _wheelRemainder -= steps * logicalPixelsPerStep;
+    final delta = steps.isNegative ? 120 : -120;
+    for (var index = 0; index < steps.abs(); index++) {
+      widget.controller.wheel(
+        RdpWheelEvent(wheelDelta: delta, geometry: geometry),
+      );
+    }
   }
 
   void _releaseRemotePointerForPan() {
@@ -1021,6 +1423,7 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
     _frameGeneration++;
     unawaited(_frames?.cancel());
     _image?.dispose();
+    _displayedFrame = null;
     _focus.dispose();
     super.dispose();
   }
@@ -1030,7 +1433,10 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
     padding: const EdgeInsets.all(12),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, 480);
+        final size = Size(
+          constraints.maxWidth,
+          widget.expand ? constraints.maxHeight : 480,
+        );
         _resize(size);
         final geometry = _geometry(size);
         return Focus(
@@ -1060,6 +1466,7 @@ class _RdpInputSurfaceState extends State<_RdpInputSurface> {
                                 : null,
                             child: Listener(
                               behavior: HitTestBehavior.opaque,
+                              onPointerSignal: _wheel,
                               onPointerDown: (event) {
                                 _focus.requestFocus();
                                 _pointer(event, size);

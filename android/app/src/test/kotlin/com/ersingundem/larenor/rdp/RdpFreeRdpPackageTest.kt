@@ -23,7 +23,7 @@ class RdpFreeRdpPackageTest {
             identity(sourceCommit = "0".repeat(40)),
             identity(sourceSha256 = "0".repeat(64)),
             identity(abi = "armeabi-v7a"),
-            identity(jniSchema = 2),
+            identity(jniSchema = 1),
             identity(enabledChannels = setOf("cliprdr", "rdpsnd")),
         )
         mismatches.forEach { assertFalse(RdpFreeRdpPackage.verify(it)) }
@@ -50,7 +50,7 @@ class RdpFreeRdpPackageTest {
         sourceCommit: String = RdpFreeRdpPackage.SOURCE_COMMIT,
         sourceSha256: String = RdpFreeRdpPackage.SOURCE_SHA256,
         abi: String = "x86_64",
-        jniSchema: Int = 1,
+        jniSchema: Int = 2,
         enabledChannels: Set<String> = emptySet(),
     ) = RdpFreeRdpIdentity(
         version = version,
@@ -77,17 +77,17 @@ class RdpFreeRdpPackageTest {
 
     companion object {
         private fun capabilitiesFixture() = mapOf<String, Any?>(
-            "schemaVersion" to 1,
+            "schemaVersion" to 2,
             "availability" to "available",
             "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
             "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false),
-            "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 4096, "maxHeight" to 2160, "maxDpi" to 480),
-            "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
+            "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 4096, "maxHeight" to 2160, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180)),
+            "input" to mapOf("absolutePointer" to true, "relativePointerNegotiation" to true, "verticalWheel" to true, "keyboard" to true, "ime" to true),
             "channels" to mapOf("clipboardModes" to listOf("disabled"), "audio" to false, "files" to false),
         )
 
         private fun request() = mapOf<String, Any?>(
-            "schemaVersion" to 1,
+            "schemaVersion" to 2,
             "requestId" to "11111111-1111-4111-8111-111111111111",
             "targetHost" to "fixture.invalid",
             "targetPort" to 3389,
@@ -96,7 +96,7 @@ class RdpFreeRdpPackageTest {
             "gateway" to null,
             "certificateFingerprint" to "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             "requiresNla" to true,
-            "display" to mapOf("width" to 1280, "height" to 800, "dpi" to 180, "externalDisplay" to false, "dynamicResize" to true),
+            "display" to mapOf("width" to 1280, "height" to 800, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to false, "dynamicResize" to true),
             "keyboardLayout" to "automatic",
             "clipboardMode" to "disabled",
             "audio" to false,

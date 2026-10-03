@@ -1,7 +1,6 @@
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
 import unittest
@@ -85,8 +84,14 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         )
         self.assertLess(
             patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"'),
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"'),
+        )
+        self.assertLess(
+            patch.index('git apply "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"'),
             patch.index('freerdp_android_package.py" verify-patch'),
         )
+        self.assertIn('git apply --check "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"', patch)
+        self.assertIn('freerdp_android_package.py" verify-patch .', patch)
 
     def test_owned_channels_use_exact_source_built_cli_before_android_build(self):
         steps = self.workflow["jobs"]["package"]["steps"]
@@ -111,6 +116,7 @@ class FreeRdpAndroidWorkflowTest(unittest.TestCase):
         paths = self.workflow["on"]["pull_request"]["paths"]
         for required in (
             "android/freerdp-clipboard-utf8.patch",
+            "android/freerdp-display-pointer-v2.patch",
             "tool/f62_owned_shadow_channels.py",
             "tool/patches/f62-owned-shadow-channels.patch",
         ):

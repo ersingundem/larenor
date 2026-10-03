@@ -73,12 +73,17 @@ class RdpCapabilities {
     required this.supportsTls,
     required this.supportsCertificatePinning,
     required this.supportsNla,
+    required this.supportsRdGateway,
     required this.supportsDynamicResolution,
     required this.supportsExternalDisplay,
     required this.maxWidth,
     required this.maxHeight,
-    required this.maxDpi,
-    required this.supportsTouchpad,
+    required this.desktopScaleFactorMin,
+    required this.desktopScaleFactorMax,
+    required this.deviceScaleFactors,
+    required this.supportsAbsolutePointer,
+    required this.supportsRelativePointerNegotiation,
+    required this.supportsVerticalWheel,
     required this.supportsKeyboard,
     required this.supportsIme,
     required this.supportsClipboard,
@@ -89,10 +94,18 @@ class RdpCapabilities {
 
   final RdpEngineAvailability availability;
   final String? engineRevision;
-  final bool supportsTls, supportsCertificatePinning, supportsNla;
+  final bool supportsTls,
+      supportsCertificatePinning,
+      supportsNla,
+      supportsRdGateway;
   final bool supportsDynamicResolution, supportsExternalDisplay;
-  final int maxWidth, maxHeight, maxDpi;
-  final bool supportsTouchpad, supportsKeyboard, supportsIme;
+  final int maxWidth, maxHeight, desktopScaleFactorMin, desktopScaleFactorMax;
+  final Set<int> deviceScaleFactors;
+  final bool supportsAbsolutePointer,
+      supportsRelativePointerNegotiation,
+      supportsVerticalWheel,
+      supportsKeyboard,
+      supportsIme;
   final bool supportsClipboard, supportsAudio, supportsFiles;
   final Set<RdpClipboardMode> supportedClipboardModes;
 
@@ -100,8 +113,17 @@ class RdpCapabilities {
       availability == RdpEngineAvailability.available &&
       supportsTls &&
       supportsCertificatePinning &&
-      supportsTouchpad &&
+      supportsAbsolutePointer &&
       supportsKeyboard;
+
+  bool acceptsDisplay(RdpDisplaySpec display) =>
+      display.valid &&
+      display.width <= maxWidth &&
+      display.height <= maxHeight &&
+      display.desktopScaleFactor >= desktopScaleFactorMin &&
+      display.desktopScaleFactor <= desktopScaleFactorMax &&
+      deviceScaleFactors.contains(display.deviceScaleFactor) &&
+      (!display.externalDisplay || supportsExternalDisplay);
 
   factory RdpCapabilities.fromJson(Object? raw) {
     final value = _object(raw, {
@@ -113,7 +135,7 @@ class RdpCapabilities {
       'input',
       'channels',
     });
-    if (value['schemaVersion'] != 1) _invalid();
+    if (value['schemaVersion'] != 2) _invalid();
     final availability = switch (value['availability']) {
       'available' => RdpEngineAvailability.available,
       'unavailable' => RdpEngineAvailability.unavailable,
@@ -127,57 +149,63 @@ class RdpCapabilities {
       _invalid();
     }
     final security = _object(value['security'], {
-          'tls',
-          'certificatePinning',
-          'nla',
-        }),
-        display = _object(value['display'], {
-          'dynamicResolution',
-          'externalDisplay',
-          'maxWidth',
-          'maxHeight',
-          'maxDpi',
-        }),
-        input = _object(value['input'], {'touchpad', 'keyboard', 'ime'});
-    final rawChannels = value['channels'];
-    if (rawChannels is! Map) _invalid();
-    final legacyChannels =
-        rawChannels.length == 3 &&
-        const {'clipboard', 'audio', 'files'}.every(rawChannels.containsKey);
-    final channels = legacyChannels
-        ? rawChannels
-        : _object(rawChannels, {
-            'clipboard',
-            'clipboardModes',
-            'audio',
-            'files',
-          });
+      'tls',
+      'certificatePinning',
+      'nla',
+      'rdGateway',
+    });
+    final display = _object(value['display'], {
+      'dynamicResolution',
+      'externalDisplay',
+      'maxWidth',
+      'maxHeight',
+      'desktopScaleFactorMin',
+      'desktopScaleFactorMax',
+      'deviceScaleFactors',
+    });
+    final input = _object(value['input'], {
+      'absolutePointer',
+      'relativePointerNegotiation',
+      'verticalWheel',
+      'keyboard',
+      'ime',
+    });
+    final channels = _object(value['channels'], {
+      'clipboard',
+      'clipboardModes',
+      'audio',
+      'files',
+    });
     final clipboard = _bool(channels, 'clipboard');
-    final clipboardModes = <RdpClipboardMode>{};
-    if (legacyChannels) {
-      // v1 engines originally exposed only a boolean. Conservatively preserve
-      // device-to-remote behavior; never infer a remote-to-device backchannel.
-      if (clipboard) clipboardModes.add(RdpClipboardMode.clientToRemote);
-    } else {
-      final rawModes = channels['clipboardModes'];
-      if (rawModes is! List ||
-          rawModes.length > RdpClipboardMode.values.length) {
+    final rawModes = channels['clipboardModes'];
+    if (rawModes is! List || rawModes.length > RdpClipboardMode.values.length) {
+      _invalid();
+    }
+    final modes = <RdpClipboardMode>{};
+    var previous = -1;
+    for (final rawMode in rawModes) {
+      final mode = RdpClipboardMode.values
+          .where((value) => value.name == rawMode)
+          .firstOrNull;
+      if (mode == null || mode.index <= previous) _invalid();
+      previous = mode.index;
+      modes.add(mode);
+    }
+    if (clipboard != modes.any((mode) => mode != RdpClipboardMode.disabled)) {
+      _invalid();
+    }
+    final rawScales = display['deviceScaleFactors'];
+    if (rawScales is! List || rawScales.length > 3) _invalid();
+    final scales = <int>{};
+    var previousScale = 0;
+    for (final scale in rawScales) {
+      if (scale is! int ||
+          !const {100, 140, 180}.contains(scale) ||
+          scale <= previousScale) {
         _invalid();
       }
-      var previous = -1;
-      for (final rawMode in rawModes) {
-        if (rawMode is! String) _invalid();
-        final mode = RdpClipboardMode.values
-            .where((value) => value.name == rawMode)
-            .firstOrNull;
-        if (mode == null || mode.index <= previous) _invalid();
-        previous = mode.index;
-        clipboardModes.add(mode);
-      }
-      if (clipboard !=
-          clipboardModes.any((mode) => mode != RdpClipboardMode.disabled)) {
-        _invalid();
-      }
+      previousScale = scale;
+      scales.add(scale);
     }
     final result = RdpCapabilities._(
       availability: availability,
@@ -185,16 +213,32 @@ class RdpCapabilities {
       supportsTls: _bool(security, 'tls'),
       supportsCertificatePinning: _bool(security, 'certificatePinning'),
       supportsNla: _bool(security, 'nla'),
+      supportsRdGateway: _bool(security, 'rdGateway'),
       supportsDynamicResolution: _bool(display, 'dynamicResolution'),
       supportsExternalDisplay: _bool(display, 'externalDisplay'),
       maxWidth: _integer(display, 'maxWidth'),
       maxHeight: _integer(display, 'maxHeight'),
-      maxDpi: _integer(display, 'maxDpi', max: 640),
-      supportsTouchpad: _bool(input, 'touchpad'),
+      desktopScaleFactorMin: _integer(
+        display,
+        'desktopScaleFactorMin',
+        max: 500,
+      ),
+      desktopScaleFactorMax: _integer(
+        display,
+        'desktopScaleFactorMax',
+        max: 500,
+      ),
+      deviceScaleFactors: Set.unmodifiable(scales),
+      supportsAbsolutePointer: _bool(input, 'absolutePointer'),
+      supportsRelativePointerNegotiation: _bool(
+        input,
+        'relativePointerNegotiation',
+      ),
+      supportsVerticalWheel: _bool(input, 'verticalWheel'),
       supportsKeyboard: _bool(input, 'keyboard'),
       supportsIme: _bool(input, 'ime'),
       supportsClipboard: clipboard,
-      supportedClipboardModes: Set.unmodifiable(clipboardModes),
+      supportedClipboardModes: Set.unmodifiable(modes),
       supportsAudio: _bool(channels, 'audio'),
       supportsFiles: _bool(channels, 'files'),
     );
@@ -203,16 +247,21 @@ class RdpCapabilities {
             result.supportsTls ||
             result.supportsCertificatePinning ||
             result.supportsNla ||
+            result.supportsRdGateway ||
             result.supportsDynamicResolution ||
             result.supportsExternalDisplay ||
             result.maxWidth != 0 ||
             result.maxHeight != 0 ||
-            result.maxDpi != 0 ||
-            result.supportsTouchpad ||
+            result.desktopScaleFactorMin != 0 ||
+            result.desktopScaleFactorMax != 0 ||
+            scales.isNotEmpty ||
+            result.supportsAbsolutePointer ||
+            result.supportsRelativePointerNegotiation ||
+            result.supportsVerticalWheel ||
             result.supportsKeyboard ||
             result.supportsIme ||
             result.supportsClipboard ||
-            result.supportedClipboardModes.isNotEmpty ||
+            modes.isNotEmpty ||
             result.supportsAudio ||
             result.supportsFiles)) {
       _invalid();
@@ -221,7 +270,10 @@ class RdpCapabilities {
         (revision == null ||
             result.maxWidth < 640 ||
             result.maxHeight < 480 ||
-            result.maxDpi < 72)) {
+            result.desktopScaleFactorMin != 100 ||
+            result.desktopScaleFactorMax != 500 ||
+            scales.length != 3 ||
+            !modes.contains(RdpClipboardMode.disabled))) {
       _invalid();
     }
     return result;
@@ -280,20 +332,77 @@ class RdpDisplaySpec {
   const RdpDisplaySpec({
     required this.width,
     required this.height,
-    required this.dpi,
+    this.desktopScaleFactor = 100,
+    this.deviceScaleFactor = 100,
     this.externalDisplay = false,
   });
-  final int width, height, dpi;
+  final int width, height, desktopScaleFactor, deviceScaleFactor;
   final bool externalDisplay;
   int get pixelCount => width * height;
   bool get valid =>
       width >= 640 &&
-      height >= 480 &&
       width <= 8192 &&
+      width.isEven &&
+      height >= 480 &&
       height <= 8192 &&
-      dpi >= 72 &&
-      dpi <= 640 &&
-      pixelCount <= 33554432;
+      pixelCount <= 16777216 &&
+      desktopScaleFactor >= 100 &&
+      desktopScaleFactor <= 500 &&
+      const {100, 140, 180}.contains(deviceScaleFactor);
+
+  /// Requests protocol scale percentages. It does not attest remote OS scaling.
+  factory RdpDisplaySpec.fromViewport({
+    required int widthPixels,
+    required int heightPixels,
+    required double devicePixelRatio,
+    bool externalDisplay = false,
+  }) {
+    if (widthPixels <= 0 ||
+        heightPixels <= 0 ||
+        !devicePixelRatio.isFinite ||
+        devicePixelRatio <= 0) {
+      _invalid('unsupported_request');
+    }
+    final desktop = (devicePixelRatio * 100).round().clamp(100, 500);
+    final device = [
+      100,
+      140,
+      180,
+    ].reduce((a, b) => (desktop - a).abs() <= (desktop - b).abs() ? a : b);
+    final width = widthPixels.clamp(640, 8192);
+    return RdpDisplaySpec(
+      width: width - width % 2,
+      height: heightPixels.clamp(480, (16777216 ~/ width).clamp(480, 8192)),
+      desktopScaleFactor: desktop,
+      deviceScaleFactor: device,
+      externalDisplay: externalDisplay,
+    );
+  }
+
+  Map<String, Object?> toChannel() => {
+    'width': width,
+    'height': height,
+    'desktopScaleFactor': desktopScaleFactor,
+    'deviceScaleFactor': deviceScaleFactor,
+    'externalDisplay': externalDisplay,
+    'dynamicResize': true,
+  };
+  @override
+  bool operator ==(Object other) =>
+      other is RdpDisplaySpec &&
+      width == other.width &&
+      height == other.height &&
+      desktopScaleFactor == other.desktopScaleFactor &&
+      deviceScaleFactor == other.deviceScaleFactor &&
+      externalDisplay == other.externalDisplay;
+  @override
+  int get hashCode => Object.hash(
+    width,
+    height,
+    desktopScaleFactor,
+    deviceScaleFactor,
+    externalDisplay,
+  );
 }
 
 enum RdpDisplayMode { fitWindow, fillWindow, native }
@@ -504,12 +613,9 @@ class RdpSessionRequest {
     settings.validate();
     if (profile.protocol != RemoteProtocol.rdp ||
         profile.username.isEmpty ||
-        !display.valid ||
+        !capabilities.acceptsDisplay(display) ||
         !capabilities.canConnect ||
-        display.width > capabilities.maxWidth ||
-        display.height > capabilities.maxHeight ||
-        display.dpi > capabilities.maxDpi ||
-        (display.externalDisplay && !capabilities.supportsExternalDisplay) ||
+        (settings.gatewayHost != null && !capabilities.supportsRdGateway) ||
         !RegExp(r'^SHA256:[A-Za-z0-9+/]{43}$')
             .hasMatch(certificateFingerprint) ||
         channels.clipboard !=
@@ -526,15 +632,55 @@ class RdpSessionRequest {
   }
 }
 
+/// Geometry of the frame actually decoded, displayed and acknowledged.
+class RdpFrameGeometry {
+  const RdpFrameGeometry({
+    required this.frameSequence,
+    required this.width,
+    required this.height,
+    required this.displayLayoutRevision,
+  });
+  final int frameSequence, width, height, displayLayoutRevision;
+  bool get valid =>
+      frameSequence >= 1 &&
+      frameSequence <= 9007199254740991 &&
+      displayLayoutRevision >= 1 &&
+      displayLayoutRevision <= 9007199254740991 &&
+      width >= 640 &&
+      width <= 8192 &&
+      height >= 480 &&
+      height <= 8192 &&
+      width * height * 4 <= 64 * 1024 * 1024;
+  Map<String, Object?> toChannel() => {
+    'frameSequence': frameSequence,
+    'width': width,
+    'height': height,
+    'displayLayoutRevision': displayLayoutRevision,
+  };
+  @override
+  bool operator ==(Object other) =>
+      other is RdpFrameGeometry &&
+      frameSequence == other.frameSequence &&
+      width == other.width &&
+      height == other.height &&
+      displayLayoutRevision == other.displayLayoutRevision;
+  @override
+  int get hashCode =>
+      Object.hash(frameSequence, width, height, displayLayoutRevision);
+}
+
 class RdpPointerEvent {
   const RdpPointerEvent({
     required this.x,
     required this.y,
     required this.buttons,
+    required this.geometry,
   });
   final double x, y;
   final int buttons;
+  final RdpFrameGeometry geometry;
   bool get valid =>
+      geometry.valid &&
       x.isFinite &&
       y.isFinite &&
       x >= 0 &&
@@ -542,7 +688,33 @@ class RdpPointerEvent {
       y >= 0 &&
       y <= 1 &&
       buttons >= 0 &&
-      buttons <= 31;
+      buttons <= 7;
+}
+
+class RdpRelativePointerEvent {
+  const RdpRelativePointerEvent({
+    required this.deltaX,
+    required this.deltaY,
+    required this.buttons,
+    required this.geometry,
+  });
+  final int deltaX, deltaY, buttons;
+  final RdpFrameGeometry geometry;
+  bool get valid =>
+      geometry.valid &&
+      deltaX >= -32768 &&
+      deltaX <= 32767 &&
+      deltaY >= -32768 &&
+      deltaY <= 32767 &&
+      buttons >= 0 &&
+      buttons <= 7;
+}
+
+class RdpWheelEvent {
+  const RdpWheelEvent({required this.wheelDelta, required this.geometry});
+  final int wheelDelta;
+  final RdpFrameGeometry geometry;
+  bool get valid => geometry.valid && (wheelDelta == 120 || wheelDelta == -120);
 }
 
 class RdpKeyEvent {

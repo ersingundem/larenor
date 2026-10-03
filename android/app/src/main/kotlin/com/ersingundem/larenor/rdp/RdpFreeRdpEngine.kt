@@ -18,14 +18,14 @@ object RdpFreeRdpPackage {
     const val VERSION = "3.31.1"
     const val SOURCE_COMMIT = "63b948ca5cb94307fd5444ee6e73927a41ccdab4"
     const val SOURCE_SHA256 = "4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991"
-    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-clipboard-utf8-v1"
+    const val ENGINE_REVISION = "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2"
     // FreeRDP enforce pins min and max; the reported protocol is therefore exact.
     internal const val TLS_OPTIONS = "seclevel:2,enforce:1.2"
     internal const val TLS_PROTOCOL = "TLSv1.2"
     val SUPPORTED_ABIS = setOf("arm64-v8a", "x86_64")
 
     internal fun capabilities(): Map<String, Any?> = mapOf(
-        "schemaVersion" to 1,
+        "schemaVersion" to 2,
         "availability" to "available",
         "engineRevision" to RdpFreeRdpPackage.ENGINE_REVISION,
         "security" to mapOf(
@@ -40,11 +40,19 @@ object RdpFreeRdpPackage {
             "externalDisplay" to true,
             "maxWidth" to 8192,
             "maxHeight" to 8192,
-            "maxDpi" to 640,
+            "desktopScaleFactorMin" to 100,
+            "desktopScaleFactorMax" to 500,
+            "deviceScaleFactors" to listOf(100, 140, 180),
         ),
         // Per-session open still requires the authenticated server-side
         // Unicode input flag before exposing text input to Dart.
-        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
+        "input" to mapOf(
+            "absolutePointer" to true,
+            "relativePointerNegotiation" to true,
+            "verticalWheel" to true,
+            "keyboard" to true,
+            "ime" to true,
+        ),
         // No remote clipboard callback is exposed to the Client yet.
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote"),
@@ -59,7 +67,7 @@ object RdpFreeRdpPackage {
             identity.sourceCommit == SOURCE_COMMIT &&
             identity.sourceSha256 == SOURCE_SHA256 &&
             identity.abi in SUPPORTED_ABIS &&
-            identity.jniSchema == 1 &&
+            identity.jniSchema == 2 &&
             identity.enabledChannels.isEmpty()
 }
 
@@ -118,7 +126,15 @@ internal class RdpAuthenticatedOutputGate(private val expectedPin: String) {
 }
 
 sealed interface RdpJniInput {
-    data class Pointer(val x: Double, val y: Double, val buttons: Int) : RdpJniInput
+    data class AbsolutePointer(
+        val width: Int,
+        val height: Int,
+        val x: Double,
+        val y: Double,
+        val buttons: Int,
+    ) : RdpJniInput
+    data class RelativePointer(val deltaX: Int, val deltaY: Int, val buttons: Int) : RdpJniInput
+    data class VerticalWheel(val delta: Int) : RdpJniInput
     data class Key(val physicalKey: Long, val down: Boolean) : RdpJniInput
     class Ime internal constructor(internal val utf8: ByteArray) : RdpJniInput {
         override fun toString() = "Ime(<redacted>)"
@@ -136,9 +152,10 @@ class RdpNativeFrame private constructor(
     val width: Int,
     val height: Int,
     val stride: Int,
-    val dpi: Int,
     val pixels: ByteBuffer,
 ) : AutoCloseable {
+    internal var displayLayoutRevision: Long = 0
+        private set
     var closed = false
         private set
 
@@ -152,20 +169,27 @@ class RdpNativeFrame private constructor(
 
     override fun toString() = "RdpNativeFrame(sequence=$sequence,${width}x$height,<redacted>)"
 
+    internal fun bindDisplayLayoutRevision(revision: Long) {
+        if (displayLayoutRevision != 0L || revision !in 1..MAX_REVISION) {
+            failRdp("framebufferUnavailable")
+        }
+        displayLayoutRevision = revision
+    }
+
     companion object {
         const val MAX_FRAME_BYTES = 64 * 1024 * 1024
+        const val MAX_PIXELS = 16_777_216L
 
         fun take(
             sequence: Long,
             width: Int,
             height: Int,
             stride: Int,
-            dpi: Int,
             pixels: ByteBuffer,
         ): RdpNativeFrame {
             val expected = stride.toLong() * height
             if (sequence <= 0 || width !in 640..8192 || height !in 480..8192 ||
-                dpi !in 72..640 || stride != width * 4 || expected !in 1..MAX_FRAME_BYTES.toLong() ||
+                stride != width * 4 || expected !in 1..MAX_FRAME_BYTES.toLong() ||
                 !pixels.isDirect || pixels.isReadOnly || pixels.position() != 0 || pixels.remaining().toLong() != expected) {
                 runCatching {
                     val wipe = pixels.duplicate()
@@ -174,8 +198,10 @@ class RdpNativeFrame private constructor(
                 }
                 failRdp("framebufferUnavailable")
             }
-            return RdpNativeFrame(sequence, width, height, stride, dpi, pixels)
+            return RdpNativeFrame(sequence, width, height, stride, pixels)
         }
+
+        private const val MAX_REVISION = 9_007_199_254_740_991L
     }
 }
 
@@ -188,6 +214,8 @@ interface RdpJniOperation {
 
     /** Authenticated peer fact, sampled by the packaged operation after connect. */
     val unicodeInputSupported: Boolean get() = false
+    /** Authenticated wire eligibility sampled only after connection success. */
+    val relativePointerSupported: Boolean get() = false
     /** Must synchronously copy the mutable credentials into native-owned memory. */
     fun start(password: CharArray, gatewayPassword: CharArray?): Boolean
     fun input(sequence: Long, event: RdpJniInput): Boolean
@@ -277,6 +305,17 @@ class RdpFreeRdpSession internal constructor(
     private val operation: RdpJniOperation,
     private val observer: RdpNativeSessionObserver = RdpNativeSessionObserver.NONE,
 ) : RdpNativeSession, RdpJniOperation.Listener {
+    private data class DisplayLayout(
+        val width: Int,
+        val height: Int,
+        val revision: Long,
+    )
+    data class DisplayedGeometry internal constructor(
+        val frameSequence: Long,
+        val width: Int,
+        val height: Int,
+        val displayLayoutRevision: Long,
+    )
     private val stateLock = Any()
     @Volatile
     var phase = RdpJniPhase.CONNECTING
@@ -290,10 +329,16 @@ class RdpFreeRdpSession internal constructor(
     @Volatile
     var unicodeInputSupported = false
         private set
+    @Volatile
+    var relativePointerSupported = false
+        private set
     private var lastInputSequence = 0L
     private var lastFrameSequence = 0L
+    private var currentLayout = DisplayLayout(request.display.width, request.display.height, 1)
+    private var acknowledgedGeometry: DisplayedGeometry? = null
     private var terminal = false
     private var acknowledging = false
+    private var effectInFlight = false
 
     internal fun start(secrets: RdpNativeSecrets) {
         val accepted = try {
@@ -308,6 +353,8 @@ class RdpFreeRdpSession internal constructor(
             failRdp("connectionFailed")
         }
         unicodeInputSupported = capabilities.ime && operation.unicodeInputSupported
+        relativePointerSupported = capabilities.relativePointerNegotiation &&
+            operation.relativePointerSupported
     }
 
     override fun onSecurity(evidence: RdpJniSecurity) {
@@ -337,11 +384,12 @@ class RdpFreeRdpSession internal constructor(
             when {
                 phase != RdpJniPhase.ACTIVE || pendingFrame != null -> "frameBackpressure"
                 frame.width > capabilities.maxWidth || frame.height > capabilities.maxHeight ||
-                    frame.dpi > capabilities.maxDpi || frame.sequence != lastFrameSequence + 1 ||
-                    frame.width.toLong() * frame.height > 33_554_432L ||
+                    frame.sequence != lastFrameSequence + 1 ||
+                    frame.width.toLong() * frame.height > RdpNativeFrame.MAX_PIXELS ||
                     !display.dynamicResize && (frame.width != display.width || frame.height != display.height) ->
                     "framebufferUnavailable"
                 else -> {
+                    frame.bindDisplayLayoutRevision(currentLayout.revision)
                     pendingFrame = frame
                     lastFrameSequence = frame.sequence
                     phase = RdpJniPhase.AWAITING_FRAME_ACK
@@ -381,7 +429,20 @@ class RdpFreeRdpSession internal constructor(
             acknowledging = false
             frame.close()
             pendingFrame = null
-            if (accepted) phase = RdpJniPhase.ACTIVE
+            if (accepted) {
+                phase = RdpJniPhase.ACTIVE
+                acknowledgedGeometry = if (
+                    frame.displayLayoutRevision == currentLayout.revision &&
+                    frame.width == currentLayout.width && frame.height == currentLayout.height
+                ) {
+                    DisplayedGeometry(
+                        frame.sequence, frame.width, frame.height,
+                        frame.displayLayoutRevision,
+                    )
+                } else {
+                    null
+                }
+            }
         }
         if (!accepted) {
             terminate(RdpJniPhase.FAILED, "connectionFailed")
@@ -401,19 +462,64 @@ class RdpFreeRdpSession internal constructor(
         return synchronized(stateLock) { !terminal }
     }
 
-    fun pointer(sequence: Long, x: Double, y: Double, buttons: Int): Boolean {
-        if (!x.isFinite() || !y.isFinite() || x !in 0.0..1.0 || y !in 0.0..1.0 || buttons !in 0..31) {
+    fun absolutePointer(
+        sequence: Long,
+        geometry: DisplayedGeometry,
+        x: Double,
+        y: Double,
+        buttons: Int,
+    ): Boolean {
+        if (!x.isFinite() || !y.isFinite() || x !in 0.0..1.0 || y !in 0.0..1.0 ||
+            buttons !in 0..7) {
             terminate(RdpJniPhase.FAILED, "inputUnavailable")
             return false
         }
-        return input(sequence, RdpJniInput.Pointer(x, y, buttons))
+        return input(
+            sequence, geometry,
+            RdpJniInput.AbsolutePointer(geometry.width, geometry.height, x, y, buttons),
+            "inputUnavailable",
+        )
+    }
+
+    fun relativePointer(
+        sequence: Long,
+        geometry: DisplayedGeometry,
+        deltaX: Int,
+        deltaY: Int,
+        buttons: Int,
+    ): Boolean {
+        if (!relativePointerSupported || deltaX !in Short.MIN_VALUE..Short.MAX_VALUE ||
+            deltaY !in Short.MIN_VALUE..Short.MAX_VALUE || buttons !in 0..7) {
+            terminate(RdpJniPhase.FAILED, "inputUnavailable")
+            return false
+        }
+        return input(
+            sequence, geometry,
+            RdpJniInput.RelativePointer(deltaX, deltaY, buttons),
+            "inputUnavailable",
+        )
+    }
+
+    fun verticalWheel(
+        sequence: Long,
+        geometry: DisplayedGeometry,
+        delta: Int,
+    ): Boolean {
+        if (delta !in setOf(-120, 120)) {
+            terminate(RdpJniPhase.FAILED, "inputUnavailable")
+            return false
+        }
+        return input(
+            sequence, geometry, RdpJniInput.VerticalWheel(delta),
+            "inputUnavailable",
+        )
     }
 
     fun key(sequence: Long, physicalKey: Long, down: Boolean): Boolean {
         // Consumer/system usages remain available to Flutter/Android. They do
         // not corrupt the RDP session and consume no ordered input sequence.
         if (!isSupportedUsbKeyboardUsage(physicalKey)) return false
-        return input(sequence, RdpJniInput.Key(physicalKey, down))
+        return input(sequence, null, RdpJniInput.Key(physicalKey, down), "inputUnavailable")
     }
 
     fun ime(sequence: Long, text: String): Boolean {
@@ -427,7 +533,7 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "inputUnavailable")
             return false
         }
-        return input(sequence, RdpJniInput.Ime(bytes), bytes)
+        return input(sequence, null, RdpJniInput.Ime(bytes), "inputUnavailable", bytes)
     }
 
     fun channel(sequence: Long, channel: RdpJniChannel, payload: ByteArray): Boolean {
@@ -441,21 +547,26 @@ class RdpFreeRdpSession internal constructor(
             terminate(RdpJniPhase.FAILED, "channelUnavailable")
             return false
         }
-        return input(sequence, RdpJniInput.Channel(channel, payload), payload)
+        return input(sequence, null, RdpJniInput.Channel(channel, payload), "channelUnavailable", payload)
     }
 
     fun resize(sequence: Long, display: RdpNativeDisplay): Boolean {
-        if (!readyForInput(sequence)) {
-            terminate(RdpJniPhase.FAILED, "staleSession")
-            return false
-        }
         if (!capabilities.dynamicResolution ||
             display.width !in 640..capabilities.maxWidth ||
+            display.width % 2 != 0 ||
             display.height !in 480..capabilities.maxHeight ||
-            display.dpi !in 72..capabilities.maxDpi ||
-            display.width.toLong() * display.height > 33_554_432L ||
-            display.externalDisplay && !capabilities.externalDisplay) {
+            display.desktopScaleFactor !in capabilities.desktopScaleFactorMin..capabilities.desktopScaleFactorMax ||
+            display.deviceScaleFactor !in capabilities.deviceScaleFactors ||
+            display.width.toLong() * display.height > RdpNativeFrame.MAX_PIXELS ||
+            display.externalDisplay && !capabilities.externalDisplay ||
+            !request.display.dynamicResize ||
+            display.dynamicResize != request.display.dynamicResize ||
+            display.externalDisplay != request.display.externalDisplay) {
             terminate(RdpJniPhase.FAILED, "displayUnavailable")
+            return false
+        }
+        if (!reserveEffect(sequence, geometry = null, clearGeometry = true, resize = true)) {
+            terminate(RdpJniPhase.FAILED, "staleSession")
             return false
         }
         val accepted = try {
@@ -466,15 +577,27 @@ class RdpFreeRdpSession internal constructor(
             false
         }
         if (!accepted) {
-            terminate(RdpJniPhase.FAILED, "busy")
+            finishEffect(sequence, accepted = false)
+            terminate(RdpJniPhase.FAILED, "displayUnavailable")
             return false
         }
-        lastInputSequence = sequence
-        return true
+        return finishEffect(sequence, accepted = true) {
+            currentLayout = DisplayLayout(display.width, display.height, currentLayout.revision + 1)
+            // An ACK may complete while the resize JNI call is in flight and
+            // reinstall geometry from the prior layout. Fence it again at the
+            // exact layout commit boundary.
+            acknowledgedGeometry = null
+        }
     }
 
-    private fun input(sequence: Long, event: RdpJniInput, secret: ByteArray? = null): Boolean {
-        if (!readyForInput(sequence)) {
+    private fun input(
+        sequence: Long,
+        geometry: DisplayedGeometry?,
+        event: RdpJniInput,
+        rejectionCode: String,
+        secret: ByteArray? = null,
+    ): Boolean {
+        if (!reserveEffect(sequence, geometry)) {
             secret?.fill(0)
             terminate(RdpJniPhase.FAILED, "staleSession")
             return false
@@ -489,18 +612,49 @@ class RdpFreeRdpSession internal constructor(
             secret?.fill(0)
         }
         if (!accepted) {
-            terminate(RdpJniPhase.FAILED, "busy")
+            finishEffect(sequence, accepted = false)
+            terminate(RdpJniPhase.FAILED, rejectionCode)
             return false
         }
-        lastInputSequence = sequence
-        return true
+        return finishEffect(sequence, accepted = true)
     }
 
-    private fun readyForInput(sequence: Long) =
-        synchronized(stateLock) {
-            !terminal && phase in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) &&
-                sequence == lastInputSequence + 1
+    private fun reserveEffect(
+        sequence: Long,
+        geometry: DisplayedGeometry?,
+        clearGeometry: Boolean = false,
+        resize: Boolean = false,
+    ) = synchronized(stateLock) {
+        if (terminal || effectInFlight ||
+            phase !in setOf(RdpJniPhase.ACTIVE, RdpJniPhase.AWAITING_FRAME_ACK) ||
+            sequence != lastInputSequence + 1 ||
+            geometry != null && (
+                geometry != acknowledgedGeometry ||
+                    geometry.displayLayoutRevision != currentLayout.revision ||
+                    geometry.width != currentLayout.width ||
+                    geometry.height != currentLayout.height
+                ) ||
+            resize && currentLayout.revision == MAX_REVISION) {
+            false
+        } else {
+            effectInFlight = true
+            if (clearGeometry) acknowledgedGeometry = null
+            true
         }
+    }
+
+    private fun finishEffect(
+        sequence: Long,
+        accepted: Boolean,
+        commit: () -> Unit = {},
+    ) = synchronized(stateLock) {
+        if (!effectInFlight) return@synchronized false
+        effectInFlight = false
+        if (terminal || !accepted) return@synchronized false
+        commit()
+        lastInputSequence = sequence
+        true
+    }
 
     override fun onDisconnected() {
         terminate(RdpJniPhase.FAILED, "connectionFailed")
@@ -514,11 +668,13 @@ class RdpFreeRdpSession internal constructor(
         synchronized(stateLock) {
             if (terminal) return
             terminal = true
+            effectInFlight = false
             failureCode = code
             phase = next
             acknowledging = false
             pendingFrame?.close()
             pendingFrame = null
+            acknowledgedGeometry = null
         }
         try { operation.detach() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
         try { operation.close() } catch (_: LinkageError) { /* terminal */ } catch (_: Exception) { /* terminal */ }
@@ -528,6 +684,7 @@ class RdpFreeRdpSession internal constructor(
     companion object {
         const val MAX_IME_BYTES = 4096
         const val MAX_CHANNEL_BYTES = 64 * 1024
+        const val MAX_REVISION = 9_007_199_254_740_991L
     }
 }
 

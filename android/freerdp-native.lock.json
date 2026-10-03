@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "engineRevision": "freerdp-3.31.1-63b948ca-clipboard-utf8-v1",
+  "engineRevision": "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2",
   "source": {
     "version": "3.31.1",
     "commit": "63b948ca5cb94307fd5444ee6e73927a41ccdab4",
@@ -15,7 +15,11 @@
     "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c": "ae8aa24085ebf12b67764da1487dfb5508253702",
     "client/Android/Studio/freeRDPCore/src/main/cpp/CMakeLists.txt": "1123f8515a55c7aaea3663c0cb3097079fc8c0c4",
     "client/Android/Studio/freeRDPCore/build.gradle": "a9337c8ef86497c0b6a5c9c29ded943b84cd2317",
-    "client/Android/Studio/gradle/wrapper/gradle-wrapper.properties": "a9db11550c6202b666ed9c44cafdc6726fd5b264"
+    "client/Android/Studio/gradle/wrapper/gradle-wrapper.properties": "a9db11550c6202b666ed9c44cafdc6726fd5b264",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.h": "ea9862465b7ef4e55ff92fe96903ff44c25b7f25",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.h": "c58d3633863d39df0c19ac34daa7e9652d826162",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c": "c76f8e5852a2aced64ebf9cf8a8d334869d0ef4e",
+    "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h": "a72a7050a2f8b400a2a897c51f57d06a12f44208"
   },
   "patches": [
     {
@@ -25,6 +29,10 @@
     {
       "path": "android/freerdp-clipboard-utf8.patch",
       "sha256": "37b595b5555effeddbd9aecef0a93d8b611389eb3b5660df08e9eae0c54fd341"
+    },
+    {
+      "path": "android/freerdp-display-pointer-v2.patch",
+      "sha256": "749ccab1c74a47adec311f67b7464de94703026d6ddb7530e62e1656d8f9b3d4"
     }
   ],
   "toolchain": {
@@ -39,7 +47,7 @@
     "arm64-v8a",
     "x86_64"
   ],
-  "jniSchema": 1,
+  "jniSchema": 2,
   "defaultChannels": [],
   "requiredLibraries": [
     "libfreerdp-android.so",
@@ -59,6 +67,11 @@
   ],
   "requiredNativeEvidence": [
     "JNI_OnLoad",
-    "ConvertWCharNToUtf8Alloc"
+    "ConvertWCharNToUtf8Alloc",
+    "freerdp_input_send_rel_mouse_event",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1relative_1cursor_1event",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
+    "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
+    "OnDisplayControlReady"
   ]
 }

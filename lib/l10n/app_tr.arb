@@ -3175,7 +3175,7 @@
   "rdpFilesOff": "Dosyalar: Kapalı",
   "rdpChannelsHint": "Pano, ses ve dosya kanalları kapalı başlar; ayrı açık yetenek ve izin çalışması gerektirir.",
   "rdpDisplay": "Ekran",
-  "rdpDisplayValue": "{width} × {height} · {dpi} DPI",
+  "rdpDisplayValue": "{width} × {height} · masaüstü %{desktopScale} · aygıt %{deviceScale}",
   "@rdpDisplayValue": {
     "placeholders": {
       "width": {
@@ -3184,7 +3184,10 @@
       "height": {
         "type": "int"
       },
-      "dpi": {
+      "desktopScale": {
+        "type": "int"
+      },
+      "deviceScale": {
         "type": "int"
       }
     }
@@ -3218,6 +3221,10 @@
   "rdpDisplayFixed": "Ekran: Sabit çözünürlük",
   "rdpNativePanEnable": "Doğal görünümü kaydır",
   "rdpNativePanDisable": "Uzak işaretçiye dön",
+  "rdpFullscreenEnter": "Tam ekrana geç",
+  "rdpFullscreenExit": "Tam ekrandan çık",
+  "rdpFullscreenSurface": "Tam ekran uzak masaüstü",
+  "rdpFullscreenDenied": "Bu pencere için tam ekran başlatılamadı. Uzak oturum bağlı kalır.",
   "rdpKeyboardAutomatic": "Klavye: Otomatik",
   "rdpKeyboardUs": "Klavye: ABD",
   "rdpClipboardDisabled": "Pano: Kapalı",

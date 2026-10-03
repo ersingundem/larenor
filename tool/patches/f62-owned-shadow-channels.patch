@@ -137,7 +137,7 @@
 +#endif
 --- a/server/shadow/shadow_larenor_channels.c
 +++ b/server/shadow/shadow_larenor_channels.c
-@@ -0,0 +1,408 @@
+@@ -0,0 +1,421 @@
 +/**
 + * Private channel witness for the Larenor owned FreeRDP fixture.
 + *
@@ -169,6 +169,7 @@
 +#define LARENOR_MAX_CHANNEL_EVENTS 8U
 +#define LARENOR_FLAG_CLIPBOARD_EFFECT 0x00000001U
 +#define LARENOR_FLAG_DISP_EFFECT 0x00000002U
++#define LARENOR_FLAG_INITIAL_DISP 0x00000004U
 +#define LARENOR_PHASE_DISP 0x00000001U
 +#define LARENOR_PHASE_CLIPBOARD 0x00000002U
 +
@@ -386,25 +387,37 @@
 +}
 +
 +static UINT on_monitor_layout(DispServerContext* context,
-+	                          const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu)
++                              const DISPLAY_CONTROL_MONITOR_LAYOUT_PDU* pdu)
 +{
 +	WINPR_ASSERT(context);
 +	WINPR_ASSERT(pdu);
 +	LarenorOwnedChannels* state = (LarenorOwnedChannels*)context->custom;
 +	WINPR_ASSERT(state);
-+	BOOL exact = FALSE;
++	BOOL base = FALSE;
++	const DISPLAY_CONTROL_MONITOR_LAYOUT* monitor = nullptr;
 +	if ((pdu->NumMonitors == 1U) && pdu->Monitors)
 +	{
-+		const DISPLAY_CONTROL_MONITOR_LAYOUT* monitor = &pdu->Monitors[0];
-+		exact = (monitor->Flags == DISPLAY_CONTROL_MONITOR_PRIMARY) && (monitor->Left == 0) &&
-+		        (monitor->Top == 0) && (monitor->Width == state->expectedWidth) &&
-+		        (monitor->Height == state->expectedHeight) && (monitor->PhysicalWidth == 0U) &&
-+		        (monitor->PhysicalHeight == 0U) && (monitor->Orientation == ORIENTATION_LANDSCAPE) &&
-+		        (monitor->DesktopScaleFactor == 100U) && (monitor->DeviceScaleFactor == 100U);
++		monitor = &pdu->Monitors[0];
++		base = (monitor->Flags == DISPLAY_CONTROL_MONITOR_PRIMARY) && (monitor->Left == 0) &&
++		       (monitor->Top == 0) && (monitor->PhysicalWidth == 0U) &&
++		       (monitor->PhysicalHeight == 0U) && (monitor->Orientation == ORIENTATION_LANDSCAPE) &&
++		       (monitor->DesktopScaleFactor == 100U) && (monitor->DeviceScaleFactor == 100U);
 +	}
 +	EnterCriticalSection(&state->lock);
 +	increment_bounded(&state->displayLayouts, &state->channelErrors);
-+	if (exact)
++	/* Schema-2 clients send an initial layout only after this server's CAPS.
++	 * The initial layout must never trigger the host resize/effect phase. */
++	const UINT32 initialWidth = (state->ordinal == 1U) ? 1280U : state->expectedWidth;
++	const UINT32 initialHeight = (state->ordinal == 1U) ? 800U : state->expectedHeight;
++	const BOOL initial = base && (state->displayLayouts == 1U) &&
++	                     (monitor->Width == initialWidth) && (monitor->Height == initialHeight);
++	const BOOL resized = base && (state->ordinal == 1U) && (state->displayLayouts == 2U) &&
++	                     ((state->flags & LARENOR_FLAG_INITIAL_DISP) != 0U) &&
++	                     (monitor->Width == state->expectedWidth) &&
++	                     (monitor->Height == state->expectedHeight);
++	if (initial)
++		state->flags |= LARENOR_FLAG_INITIAL_DISP;
++	else if (resized)
 +	{
 +		state->flags |= LARENOR_FLAG_DISP_EFFECT;
 +		emit_ready_phases(state);
@@ -434,9 +447,9 @@
 +static void write_witness(LarenorOwnedChannels* state)
 +{
 +	BYTE data[64] = { 0 };
-+	memcpy(data, "LRNF62C1", 8U);
++	memcpy(data, "LRNF62C2", 8U);
 +	EnterCriticalSection(&state->lock);
-+	write_uint32_le(data, 8U, 1U);
++	write_uint32_le(data, 8U, 2U);
 +	write_uint32_le(data, 12U, sizeof(data));
 +	write_uint32_le(data, 16U, state->flags);
 +	write_uint32_le(data, 20U, state->formatLists);

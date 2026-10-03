@@ -264,25 +264,27 @@ class PackagedRdpReceiptTest(unittest.TestCase):
 
     def test_terminal_channel_witness_requires_enabled_effects_and_disabled_zero_transfer(self):
         enabled = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
+            "initialDisplayAccepted": True,
             "clipboardEffect": True,
             "displayEffect": True,
             "formatLists": 1,
             "dataRequests": 1,
             "dataResponses": 1,
             "emptyResponses": 0,
-            "displayLayouts": 1,
+            "displayLayouts": 2,
             "channelErrors": 0,
         }
         disabled = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
+            "initialDisplayAccepted": True,
             "clipboardEffect": False,
             "displayEffect": False,
             "formatLists": 0,
             "dataRequests": 0,
             "dataResponses": 0,
             "emptyResponses": 0,
-            "displayLayouts": 0,
+            "displayLayouts": 1,
             "channelErrors": 0,
         }
         with tempfile.TemporaryDirectory() as temporary:
@@ -291,18 +293,27 @@ class PackagedRdpReceiptTest(unittest.TestCase):
             Path(f"{base}.2").touch()
             with mock.patch.object(
                 runner, "read_lifetimes",
-                return_value={"schemaVersion": 1, "enabled": enabled, "disabled": disabled},
+                return_value={"schemaVersion": 2,
+            "initialDisplayAccepted": True, "enabled": enabled, "disabled": disabled},
             ):
                 self.assertEqual(runner._channel_evidence(base), CHANNEL_EVIDENCE_BASE)
             for bad in (
                 {**enabled, "clipboardEffect": False},
+                {**enabled, "initialDisplayAccepted": False},
+                {**enabled, "displayLayouts": 1},
+                {**enabled, "schemaVersion": 1},
+                {**disabled, "initialDisplayAccepted": False},
+                {**disabled, "displayEffect": True},
+                {**disabled, "displayLayouts": 0},
                 {**disabled, "dataRequests": 1},
                 {**disabled, "channelErrors": 1},
             ):
                 pair = (
-                    {"schemaVersion": 1, "enabled": bad, "disabled": disabled}
+                    {"schemaVersion": 2,
+            "initialDisplayAccepted": True, "enabled": bad, "disabled": disabled}
                     if bad.get("formatLists") else
-                    {"schemaVersion": 1, "enabled": enabled, "disabled": bad}
+                    {"schemaVersion": 2,
+            "initialDisplayAccepted": True, "enabled": enabled, "disabled": bad}
                 )
                 with mock.patch.object(runner, "read_lifetimes", return_value=pair):
                     with self.assertRaises(runner.BaselineFailure):

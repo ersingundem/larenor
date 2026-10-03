@@ -203,7 +203,7 @@ _TEST_BODY_MARKER = re.compile(
     + r")$"
 )
 _CLASSIFICATION_SOURCE_SHA256 = (
-    "6a1a13eb938e8c28efbff0f3b40edc2bec3a91661206fcfbd52b8c0a113ead05"
+    "23584f02f01a4e8fe74ac0e9e92a57d32b842ab33992cb81f4d1cedc28450292"
 )
 _ACCEPTANCE_STAGES = {
     **{exception_type: "initialFrameWait"
@@ -1862,14 +1862,20 @@ def _channel_evidence(witness_base: Path, *, timeout: float = 10) -> dict[str, o
             "owned channel terminal witness was invalid",
         ) from None
     if not (
-        enabled["clipboardEffect"] is True
+        enabled["schemaVersion"] == 2
+        and disabled["schemaVersion"] == 2
+        and enabled["initialDisplayAccepted"] is True
+        and disabled["initialDisplayAccepted"] is True
+        and enabled["clipboardEffect"] is True
         and enabled["displayEffect"] is True
         and enabled["emptyResponses"] == 0
         and enabled["channelErrors"] == 0
         and enabled["formatLists"] > 0
         and enabled["dataRequests"] > 0
         and enabled["dataResponses"] > 0
-        and enabled["displayLayouts"] > 0
+        and enabled["displayLayouts"] == 2
+        and disabled["displayLayouts"] == 1
+        and disabled["displayEffect"] is False
         and disabled["clipboardEffect"] is False
         and disabled["formatLists"] == 0
         and disabled["dataRequests"] == 0

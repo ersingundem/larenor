@@ -6,7 +6,7 @@ import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
 
 Map<String, dynamic> fixture() =>
-    jsonDecode(File('contracts/rdp-client.v1.json').readAsStringSync())
+    jsonDecode(File('contracts/rdp-client.v2.json').readAsStringSync())
         as Map<String, dynamic>;
 
 Map<String, dynamic> packagedCapabilities({
@@ -115,7 +115,7 @@ void main() {
       display: RdpDisplaySpec(
         width: 2560,
         height: 1600,
-        dpi: 220,
+        desktopScaleFactor: 220,
         externalDisplay: true,
       ),
       certificateFingerprint:
@@ -131,42 +131,52 @@ void main() {
     );
   });
 
-  test('clipboard modes are exact and legacy boolean is one-way only', () {
-    final packaged = RdpCapabilities.fromJson(packagedCapabilities());
-    expect(packaged.supportsIme, isFalse);
-    expect(packaged.supportsClipboard, isTrue);
-    expect(packaged.supportedClipboardModes, {
-      RdpClipboardMode.disabled,
-      RdpClipboardMode.clientToRemote,
-    });
-    expect(
-      () => RdpCapabilities.fromJson(
-        packagedCapabilities(
-          clipboardModes: const ['clientToRemote', 'disabled'],
+  test(
+    'clipboard modes are exact and v1 or contradictory booleans fail closed',
+    () {
+      final packaged = RdpCapabilities.fromJson(packagedCapabilities());
+      expect(packaged.supportsIme, isFalse);
+      expect(packaged.supportsClipboard, isTrue);
+      expect(packaged.supportedClipboardModes, {
+        RdpClipboardMode.disabled,
+        RdpClipboardMode.clientToRemote,
+      });
+      expect(
+        () => RdpCapabilities.fromJson(
+          packagedCapabilities(
+            clipboardModes: const ['clientToRemote', 'disabled'],
+          ),
         ),
-      ),
-      throwsA(isA<RdpFailure>()),
-    );
+        throwsA(isA<RdpFailure>()),
+      );
 
-    final legacy = jsonDecode(
-      jsonEncode(fixture()['availableCapabilities']),
-    ) as Map<String, dynamic>;
-    (legacy['channels'] as Map<String, dynamic>)['clipboard'] = true;
-    final compatible = RdpCapabilities.fromJson(legacy);
-    expect(compatible.supportedClipboardModes, {
-      RdpClipboardMode.clientToRemote,
-    });
-    expect(
-      compatible.supportedClipboardModes,
-      isNot(contains(RdpClipboardMode.bidirectional)),
-    );
-  });
+      final contradictory = jsonDecode(
+        jsonEncode(fixture()['availableCapabilities']),
+      ) as Map<String, dynamic>;
+      (contradictory['channels'] as Map<String, dynamic>)['clipboard'] = true;
+      expect(
+        () => RdpCapabilities.fromJson(contradictory),
+        throwsA(isA<RdpFailure>()),
+      );
+      final old = jsonDecode(
+        File('contracts/rdp-client.v1.json').readAsStringSync(),
+      ) as Map;
+      expect(
+        () => RdpCapabilities.fromJson(old['availableCapabilities']),
+        throwsA(isA<RdpFailure>()),
+      );
+    },
+  );
 
   test('unsupported clipboard selection fails closed without relabelling', () {
     final capabilities = RdpCapabilities.fromJson(packagedCapabilities());
     RdpSessionRequest request(RdpClipboardMode mode) => RdpSessionRequest(
       profile: profile,
-      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 220),
+      display: const RdpDisplaySpec(
+        width: 1920,
+        height: 1080,
+        desktopScaleFactor: 220,
+      ),
       certificateFingerprint:
           'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       settings: RdpProfileSettings(clipboardMode: mode),
@@ -184,9 +194,9 @@ void main() {
       fixture()['availableCapabilities'],
     );
     for (final display in [
-      const RdpDisplaySpec(width: 639, height: 768, dpi: 220),
-      const RdpDisplaySpec(width: 1920, height: 1080, dpi: 641),
-      const RdpDisplaySpec(width: 9000, height: 1080, dpi: 220),
+      const RdpDisplaySpec(width: 639, height: 768, desktopScaleFactor: 220),
+      const RdpDisplaySpec(width: 1920, height: 1080, desktopScaleFactor: 501),
+      const RdpDisplaySpec(width: 9000, height: 1080, desktopScaleFactor: 220),
     ]) {
       expect(
         () => RdpSessionRequest(
@@ -208,10 +218,107 @@ void main() {
           port: 22,
           username: profile.username,
         ),
-        display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 220),
+        display: const RdpDisplaySpec(
+          width: 1920,
+          height: 1080,
+          desktopScaleFactor: 220,
+        ),
         certificateFingerprint: 'not-a-pin',
       ).validate(capabilities),
       throwsA(isA<RdpFailure>()),
     );
   });
+  test(
+    'viewport uses valid protocol scale percentages and even bounded width',
+    () {
+      final spec = RdpDisplaySpec.fromViewport(
+        widthPixels: 1921,
+        heightPixels: 1080,
+        devicePixelRatio: 2,
+        externalDisplay: true,
+      );
+      expect(spec.width, 1920);
+      expect(spec.desktopScaleFactor, 200);
+      expect(spec.deviceScaleFactor, 180);
+      expect(spec.valid, isTrue);
+      expect(spec.toChannel().keys, isNot(contains('dpi')));
+      expect(
+        RdpDisplaySpec.fromViewport(
+          widthPixels: 8192,
+          heightPixels: 8192,
+          devicePixelRatio: 3,
+        ).pixelCount,
+        lessThanOrEqualTo(16777216),
+      );
+      for (final invalid in [
+        const RdpDisplaySpec(width: 641, height: 480),
+        const RdpDisplaySpec(width: 640, height: 480, deviceScaleFactor: 125),
+        const RdpDisplaySpec(width: 640, height: 480, desktopScaleFactor: 99),
+        const RdpDisplaySpec(width: 8192, height: 8192),
+      ]) {
+        expect(invalid.valid, isFalse);
+      }
+      for (final ratio in [double.nan, double.infinity, 0.0, -1.0]) {
+        expect(
+          () => RdpDisplaySpec.fromViewport(
+            widthPixels: 640,
+            heightPixels: 480,
+            devicePixelRatio: ratio,
+          ),
+          throwsA(isA<RdpFailure>()),
+        );
+      }
+    },
+  );
+
+  test(
+    'relative input is signed 16-bit and pointer/wheel require exact geometry',
+    () {
+      const geometry = RdpFrameGeometry(
+        frameSequence: 1,
+        width: 640,
+        height: 480,
+        displayLayoutRevision: 1,
+      );
+      expect(
+        const RdpRelativePointerEvent(
+          deltaX: -32768,
+          deltaY: 32767,
+          buttons: 7,
+          geometry: geometry,
+        ).valid,
+        isTrue,
+      );
+      expect(
+        const RdpRelativePointerEvent(
+          deltaX: -32769,
+          deltaY: 0,
+          buttons: 0,
+          geometry: geometry,
+        ).valid,
+        isFalse,
+      );
+      expect(
+        const RdpPointerEvent(
+          x: .5,
+          y: .5,
+          buttons: 8,
+          geometry: geometry,
+        ).valid,
+        isFalse,
+      );
+      expect(
+        const RdpWheelEvent(wheelDelta: 120, geometry: geometry).valid,
+        isTrue,
+      );
+      expect(
+        const RdpWheelEvent(wheelDelta: -120, geometry: geometry).valid,
+        isTrue,
+      );
+      expect(
+        const RdpWheelEvent(wheelDelta: 0, geometry: geometry).valid,
+        isFalse,
+      );
+    },
+  );
 }

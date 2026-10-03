@@ -45,7 +45,11 @@ void main() {
           'certificateFingerprint':
               'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         },
-        'open' => {'schemaVersion': 1, 'unicodeTextInput': true},
+        'open' => {
+          'schemaVersion': 2,
+          'unicodeTextInput': true,
+          'relativePointer': true,
+        },
         'activate' || 'input' || 'resize' || 'ackFrame' || 'cancel' => null,
         _ => throw MissingPluginException(),
       };
@@ -70,7 +74,11 @@ void main() {
   }) => engine.open(
     RdpSessionRequest(
       profile: profile,
-      display: const RdpDisplaySpec(width: 640, height: 480, dpi: 160),
+      display: const RdpDisplaySpec(
+        width: 640,
+        height: 480,
+        desktopScaleFactor: 160,
+      ),
       certificateFingerprint:
           'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       settings: RdpProfileSettings(
@@ -83,6 +91,42 @@ void main() {
     credential: const RdpCredential(password: 'temporary'),
     isCurrent: current ?? () => true,
   );
+
+  Future<RdpFrame> deliverFrame(
+    RdpFrameChannel channel, {
+    int sequence = 1,
+    int revision = 1,
+    int width = 640,
+    int height = 480,
+    bool acknowledge = true,
+  }) async {
+    final requestId =
+        (calls.lastWhere((call) => call.method == 'open').arguments
+            as Map)['requestId'];
+    final awaiting = channel.frames.first;
+    await messenger.handlePlatformMessage(
+      events.name,
+      const StandardMethodCodec().encodeSuccessEnvelope({
+        'requestId': requestId,
+        'kind': 'frame',
+        'payload': {
+          'schemaVersion': 2,
+          'sequence': sequence,
+          'width': width,
+          'height': height,
+          'stride': width * 4,
+          'displayLayoutRevision': revision,
+          'pixels': Uint8List(width * height * 4),
+        },
+      }),
+      (_) {},
+    );
+    final frame = await awaiting;
+    if (acknowledge) {
+      expect(await channel.acknowledgeFrame(frame.sequence), isTrue);
+    }
+    return frame;
+  }
 
   test(
     'clipboard uses typed UTF-8 channel input and shared ordered sequence',
@@ -101,6 +145,7 @@ void main() {
       expect(inputs.map((c) => (c.arguments as Map)['sequence']), [1, 2, 3]);
       final clipboard = inputs[1].arguments as Map;
       expect(clipboard.keys.toSet(), {
+        'schemaVersion',
         'requestId',
         'sequence',
         'kind',
@@ -223,6 +268,7 @@ void main() {
         isAndroid: true,
       );
       final channel = await openClipboard(engine);
+      final frame = await deliverFrame(channel as RdpFrameChannel);
       messenger.setMockMethodCallHandler(methods, (call) async {
         calls.add(call);
         return call.method == 'input' ? false : null;
@@ -230,7 +276,9 @@ void main() {
       channel.key(const RdpKeyEvent(physicalKey: 0x00070004, down: true));
       await Future<void>.delayed(Duration.zero);
       expect(calls.where((call) => call.method == 'cancel'), isEmpty);
-      channel.pointer(const RdpPointerEvent(x: 1, y: 1, buttons: 0));
+      channel.pointer(
+        RdpPointerEvent(x: 1, y: 1, buttons: 0, geometry: frame.geometry),
+      );
       await Future<void>.delayed(Duration.zero);
       expect(calls.where((call) => call.method == 'cancel'), hasLength(1));
       channel.key(const RdpKeyEvent(physicalKey: 0x00070004, down: false));
@@ -270,7 +318,11 @@ void main() {
       );
       final request = RdpSessionRequest(
         profile: profile,
-        display: const RdpDisplaySpec(width: 640, height: 480, dpi: 160),
+        display: const RdpDisplaySpec(
+          width: 640,
+          height: 480,
+          desktopScaleFactor: 160,
+        ),
         certificateFingerprint:
             'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         settings: const RdpProfileSettings(
@@ -305,6 +357,7 @@ void main() {
             call.method == 'input' && (call.arguments as Map)['kind'] == 'ime',
       );
       expect(ime.arguments, {
+        'schemaVersion': 2,
         'requestId': arguments['requestId'],
         'sequence': 1,
         'kind': 'ime',
@@ -335,7 +388,8 @@ void main() {
             'width': 640,
             'height': 480,
             'stride': 2560,
-            'dpi': 160,
+            'schemaVersion': 2,
+            'displayLayoutRevision': 1,
             'pixels': pixels,
           },
         }),
@@ -346,6 +400,184 @@ void main() {
       await channel.acknowledgeFrame(frame.sequence);
       expect(calls.where((call) => call.method == 'ackFrame'), hasLength(1));
       channel.close();
+    },
+  );
+  test('first native frame is retained before the UI subscribes', () async {
+    final engine = RdpMethodChannelEngine(
+      methods: methods,
+      events: events,
+      isAndroid: true,
+    );
+    final channel = await openClipboard(engine) as RdpFrameChannel;
+    final id =
+        (calls.lastWhere((c) => c.method == 'open').arguments
+            as Map)['requestId'];
+    await messenger.handlePlatformMessage(
+      events.name,
+      const StandardMethodCodec().encodeSuccessEnvelope({
+        'requestId': id,
+        'kind': 'frame',
+        'payload': {
+          'schemaVersion': 2,
+          'sequence': 1,
+          'width': 640,
+          'height': 480,
+          'stride': 2560,
+          'displayLayoutRevision': 1,
+          'pixels': Uint8List(640 * 480 * 4),
+        },
+      }),
+      (_) {},
+    );
+    final frame = await channel.frames.first;
+    expect(frame.sequence, 1);
+    expect(await channel.acknowledgeFrame(1), isTrue);
+    expect(await channel.acknowledgeFrame(1), isFalse);
+    expect(calls.where((c) => c.method == 'ackFrame'), hasLength(1));
+    channel.close();
+    engine.close();
+  });
+
+  test(
+    'unACKed frames preserve displayed geometry; a new ACK replaces it',
+    () async {
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final channel = await openClipboard(engine) as RdpFrameChannel;
+      final first = await deliverFrame(channel);
+      final next = await deliverFrame(channel, sequence: 2, acknowledge: false);
+      channel.pointer(
+        RdpPointerEvent(x: .2, y: .3, buttons: 0, geometry: first.geometry),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((c) => c.method == 'input'), hasLength(1));
+      expect(await channel.acknowledgeFrame(next.sequence), isTrue);
+      channel.pointer(
+        RdpPointerEvent(x: .2, y: .3, buttons: 0, geometry: first.geometry),
+      );
+      channel.relativePointer(
+        RdpRelativePointerEvent(
+          deltaX: -2,
+          deltaY: 3,
+          buttons: 1,
+          geometry: next.geometry,
+        ),
+      );
+      channel.wheel(RdpWheelEvent(wheelDelta: -120, geometry: next.geometry));
+      await Future<void>.delayed(Duration.zero);
+      final input = calls
+          .where((c) => c.method == 'input')
+          .map((c) => c.arguments as Map)
+          .toList();
+      expect(input.map((m) => m['kind']), [
+        'absolutePointer',
+        'relativePointer',
+        'verticalWheel',
+      ]);
+      expect(input.map((m) => m['sequence']), [1, 2, 3]);
+      expect(input.last['frameSequence'], 2);
+      expect(input.last['displayLayoutRevision'], 1);
+      expect(input[1]['deltaX'], -2);
+      expect(input.last['wheelDelta'], -120);
+      channel.close();
+      engine.close();
+    },
+  );
+
+  test(
+    'same-size density resize blocks input until the matching new layout ACK',
+    () async {
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final channel = await openClipboard(engine) as RdpFrameChannel;
+      final first = await deliverFrame(channel);
+      channel.resize(
+        const RdpDisplaySpec(
+          width: 640,
+          height: 480,
+          desktopScaleFactor: 200,
+          deviceScaleFactor: 180,
+        ),
+      );
+      channel.pointer(
+        RdpPointerEvent(x: .5, y: .5, buttons: 0, geometry: first.geometry),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((c) => c.method == 'input'), isEmpty);
+      final transitional = await deliverFrame(channel, sequence: 2);
+      channel.pointer(
+        RdpPointerEvent(
+          x: .5,
+          y: .5,
+          buttons: 0,
+          geometry: transitional.geometry,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((c) => c.method == 'input'), isEmpty);
+      final current = await deliverFrame(channel, sequence: 3, revision: 2);
+      channel.pointer(
+        RdpPointerEvent(x: .5, y: .5, buttons: 0, geometry: current.geometry),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final input =
+          calls.singleWhere((c) => c.method == 'input').arguments as Map;
+      expect(input['sequence'], 2);
+      final display =
+          (calls.singleWhere((c) => c.method == 'resize').arguments
+                  as Map)['display']
+              as Map;
+      expect(display['desktopScaleFactor'], 200);
+      expect(display['deviceScaleFactor'], 180);
+      expect(display.containsKey('dpi'), isFalse);
+      channel.close();
+      engine.close();
+    },
+  );
+
+  test(
+    'relative input requires the current authenticated peer negotiation',
+    () async {
+      messenger.setMockMethodCallHandler(methods, (call) async {
+        calls.add(call);
+        if (call.method == 'open') {
+          return {
+            'schemaVersion': 2,
+            'unicodeTextInput': true,
+            'relativePointer': false,
+          };
+        }
+        return null;
+      });
+      final engine = RdpMethodChannelEngine(
+        methods: methods,
+        events: events,
+        isAndroid: true,
+      );
+      final channel = await openClipboard(engine) as RdpFrameChannel;
+      final frame = await deliverFrame(channel);
+      expect(
+        (channel as RdpNegotiatedInputChannel).supportsRelativePointer,
+        isFalse,
+      );
+      channel.relativePointer(
+        RdpRelativePointerEvent(
+          deltaX: 1,
+          deltaY: 1,
+          buttons: 0,
+          geometry: frame.geometry,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(calls.where((c) => c.method == 'input'), isEmpty);
+      channel.close();
+      engine.close();
     },
   );
 }

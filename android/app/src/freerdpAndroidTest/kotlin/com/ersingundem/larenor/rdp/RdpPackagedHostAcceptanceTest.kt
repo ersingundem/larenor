@@ -68,6 +68,10 @@ class RdpPackagedHostAcceptanceTest {
             assertTrue(capabilities.canConnect)
             assertTrue(capabilities.nla)
             assertTrue(capabilities.ime)
+            assertTrue(capabilities.absolutePointer)
+            assertTrue(capabilities.relativePointerNegotiation)
+            assertTrue(capabilities.verticalWheel)
+            assertEquals(setOf(100, 140, 180), capabilities.deviceScaleFactors)
             assertTrue(RdpClipboardMode.CLIENT_TO_REMOTE in capabilities.clipboardModes)
             assertTrue(!capabilities.audio && !capabilities.files)
 
@@ -127,7 +131,7 @@ class RdpPackagedHostAcceptanceTest {
                     session, frameReady, frameCallbacks, diagnostic, 1280, 800, 30,
                 )
                 assertRenderedPixels(initial, 1280, 800)
-                assertEquals(180, initial.dpi)
+                assertEquals(1L, initial.displayLayoutRevision)
                 assertTrue(session.acknowledgeFrame(initial.sequence))
 
                 // The host runner observes this exact software HID key pair through XI2.
@@ -141,7 +145,7 @@ class RdpPackagedHostAcceptanceTest {
                 diagnoseStage(::RdpOwnedClientDispSubmissionFailure) {
                     assertTrue(
                         "client DISP monitor layout was submitted",
-                        session.resize(3, RdpNativeDisplay(1024, 768, 180, false, true)),
+                        session.resize(3, RdpNativeDisplay(1024, 768, 100, 100, false, true)),
                     )
                 }
 
@@ -151,7 +155,7 @@ class RdpPackagedHostAcceptanceTest {
                 }
                 diagnoseStage(::RdpOwnedResizedFramePixelsFailure) {
                     assertRenderedPixels(resized, 1024, 768)
-                    assertEquals(180, resized.dpi)
+                    assertEquals(2L, resized.displayLayoutRevision)
                 }
                 val priorBackground = firstPixel(resized)
                 diagnoseStage(::RdpOwnedResizedFrameAckFailure) {
@@ -271,7 +275,7 @@ class RdpPackagedHostAcceptanceTest {
         clipboardMode: String,
     ): RdpNativeRequest = RdpNativeRequest.parse(
         mapOf(
-            "schemaVersion" to 1,
+            "schemaVersion" to 2,
             "requestId" to requestId,
             "targetHost" to host,
             "targetPort" to port,
@@ -283,7 +287,8 @@ class RdpPackagedHostAcceptanceTest {
             "display" to mapOf(
                 "width" to width,
                 "height" to height,
-                "dpi" to 180,
+                "desktopScaleFactor" to 100,
+                "deviceScaleFactor" to 100,
                 "externalDisplay" to false,
                 "dynamicResize" to true,
             ),

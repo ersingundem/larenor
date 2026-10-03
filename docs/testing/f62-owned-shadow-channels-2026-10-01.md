@@ -6,6 +6,11 @@ client-to-remote clipboard and client display control. It is an
 evidence-staged foundation. It does **not** by itself establish an Android
 clipboard effect, a resized frame, or F62 acceptance.
 
+Updated 2026-10-03: the current fixture contract is schema 2. Its actual pinned
+preparation and initial-layout ordering are recorded in the
+[v2 checkpoint](f62-v2-owned-initial-display-2026-10-03.md). The older local
+test and CI records below remain evidence for their original source only.
+
 ## Immutable source and build boundary
 
 The helper accepts only the FreeRDP `3.31.1` release asset at commit
@@ -14,7 +19,7 @@ The helper accepts only the FreeRDP `3.31.1` release asset at commit
 - source SHA-256:
   `4a2629026896cb4e26fb8ed2d6ca6aa4ab89ca95528dfbae2550c2f6bc866991`
 - fixture patch SHA-256:
-  `370c9c2f51c3bcf99c726534b60d22a8b695b303d1658cdedd8e5c3c2ac5d3e1`
+  `58e198fb1b12d8627132a53eac491d29154cc322210415f422d061b4a321c59d`
 
 The source archive, patch and patched files are opened without following a
 final symlink, bounded, hashed through their opened descriptor and checked for
@@ -78,11 +83,12 @@ explicit Android UTF-8 submission `Larenor-F62-İş-😀\n\tv1`, represented by
 the protocol as UTF-16LE with CRLF normalization, the surrogate pair for 😀,
 and a terminal WCHAR NUL. Combined or unknown response flags fail closed.
 
-DISP accepts one primary monitor only, with left/top zero, the two configured
-expected dimensions, physical width/height zero, landscape orientation and
-desktop/device scale 100. These fields match the reviewed Android FreeRDP
-client request. The fixture observes that exact request; it does not claim a
-host resize or a resized frame.
+DISP accepts one primary monitor only, with left/top zero, physical width/height
+zero, landscape orientation and desktop/device scale 100/100. Context 1
+requires an initial 1280×800 layout before the configured 1024×768 resize;
+context 2 requires only its initial 1024×768 layout. Duplicate or reordered
+layouts fail. The initial layout cannot set the resize effect. A request does
+not prove a host resize or a resized frame.
 
 The inherited private FIFO descriptor receives fixed eight-byte markers for
 context 1 only. Their order is deterministic: `LRNDISP1`, then `LRNCLIP1`.
@@ -91,16 +97,17 @@ future owned-host runner causally apply and verify XRandR after the actual
 client DISP request. Context 2 emits no phase markers.
 
 Each terminal witness is an exclusive mode-0600 regular file of exactly 64
-bytes. It contains only schema/magic, two effect bits and bounded event/error
+bytes. It contains schema/magic, two effect bits, an initial-display bit and bounded event/error
 counts. It never contains clipboard text, layout values, credentials or
 pixels. The public parser opens it descriptor-first with `O_NOFOLLOW` and
 requires current owner, one link, exact mode/size and zero reserved bytes.
 Acceptance requires:
 
-- context 1: exact clipboard and DISP effects with causal nonzero counters and
-  zero channel errors;
+- context 1: initial-display evidence, exactly two layouts, exact clipboard and
+  DISP effects with causal nonzero counters and zero channel errors;
 - context 2: zero clipboard advertisements, requests, responses, empty
-  responses and clipboard effect. DISP may still connect;
+  responses and clipboard effect, with initial-display evidence and exactly
+  one layout; no DISP resize effect;
 - no `${base}.3` witness.
 
 ## Local evidence and remaining gate

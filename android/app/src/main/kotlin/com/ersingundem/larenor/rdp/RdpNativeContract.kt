@@ -86,8 +86,12 @@ class RdpNativeCapabilities private constructor(
     val externalDisplay: Boolean,
     val maxWidth: Int,
     val maxHeight: Int,
-    val maxDpi: Int,
-    val pointer: Boolean,
+    val desktopScaleFactorMin: Int,
+    val desktopScaleFactorMax: Int,
+    val deviceScaleFactors: Set<Int>,
+    val absolutePointer: Boolean,
+    val relativePointerNegotiation: Boolean,
+    val verticalWheel: Boolean,
     val keyboard: Boolean,
     val ime: Boolean,
     val clipboardModes: Set<RdpClipboardMode>,
@@ -95,12 +99,12 @@ class RdpNativeCapabilities private constructor(
     val files: Boolean,
 ) {
     val canConnect get() = availability == RdpNativeAvailability.AVAILABLE && tls &&
-        certificatePinning && pointer && keyboard
+        certificatePinning && absolutePointer && keyboard
 
     companion object {
         fun parse(value: Any?): RdpNativeCapabilities {
             val root = strictMap(value, setOf("schemaVersion", "availability", "engineRevision", "security", "display", "input", "channels"), "invalidCapabilities")
-            if (root["schemaVersion"] != 1) fail("invalidCapabilities")
+            if (root["schemaVersion"] != 2) fail("invalidCapabilities")
             val availability = when (root["availability"]) {
                 "available" -> RdpNativeAvailability.AVAILABLE
                 "unavailable" -> RdpNativeAvailability.UNAVAILABLE
@@ -112,8 +116,8 @@ class RdpNativeCapabilities private constructor(
                 }
             }
             val security = strictMap(root["security"], setOf("tls", "certificatePinning", "nla", "rdGateway"), "invalidCapabilities")
-            val display = strictMap(root["display"], setOf("dynamicResolution", "externalDisplay", "maxWidth", "maxHeight", "maxDpi"), "invalidCapabilities")
-            val input = strictMap(root["input"], setOf("pointer", "keyboard", "ime"), "invalidCapabilities")
+            val display = strictMap(root["display"], setOf("dynamicResolution", "externalDisplay", "maxWidth", "maxHeight", "desktopScaleFactorMin", "desktopScaleFactorMax", "deviceScaleFactors"), "invalidCapabilities")
+            val input = strictMap(root["input"], setOf("absolutePointer", "relativePointerNegotiation", "verticalWheel", "keyboard", "ime"), "invalidCapabilities")
             val channels = strictMap(root["channels"], setOf("clipboardModes", "audio", "files"), "invalidCapabilities")
             val rawModes = channels["clipboardModes"] as? List<*> ?: fail("invalidCapabilities")
             if (rawModes.size > 3 || rawModes.toSet().size != rawModes.size) fail("invalidCapabilities")
@@ -123,6 +127,14 @@ class RdpNativeCapabilities private constructor(
                     "clientToRemote" -> RdpClipboardMode.CLIENT_TO_REMOTE
                     else -> RdpClipboardMode.BIDIRECTIONAL
                 }
+            }.toSet()
+            val rawScaleFactors = display["deviceScaleFactors"] as? List<*> ?: fail("invalidCapabilities")
+            if (rawScaleFactors.size > 3 || rawScaleFactors.toSet().size != rawScaleFactors.size) {
+                fail("invalidCapabilities")
+            }
+            val scaleFactors = rawScaleFactors.map {
+                if (it !is Int || it !in setOf(100, 140, 180)) fail("invalidCapabilities")
+                it
             }.toSet()
             val result = RdpNativeCapabilities(
                 availability, revision,
@@ -134,8 +146,12 @@ class RdpNativeCapabilities private constructor(
                 bool(display, "externalDisplay", "invalidCapabilities"),
                 int(display, "maxWidth", 0, 8192, "invalidCapabilities"),
                 int(display, "maxHeight", 0, 8192, "invalidCapabilities"),
-                int(display, "maxDpi", 0, 640, "invalidCapabilities"),
-                bool(input, "pointer", "invalidCapabilities"),
+                int(display, "desktopScaleFactorMin", 0, 500, "invalidCapabilities"),
+                int(display, "desktopScaleFactorMax", 0, 500, "invalidCapabilities"),
+                scaleFactors,
+                bool(input, "absolutePointer", "invalidCapabilities"),
+                bool(input, "relativePointerNegotiation", "invalidCapabilities"),
+                bool(input, "verticalWheel", "invalidCapabilities"),
                 bool(input, "keyboard", "invalidCapabilities"),
                 bool(input, "ime", "invalidCapabilities"), modes,
                 bool(channels, "audio", "invalidCapabilities"),
@@ -144,10 +160,15 @@ class RdpNativeCapabilities private constructor(
             if (availability == RdpNativeAvailability.UNAVAILABLE) {
                 if (revision != null || result.tls || result.certificatePinning || result.nla || result.rdGateway ||
                     result.dynamicResolution || result.externalDisplay || result.maxWidth != 0 || result.maxHeight != 0 ||
-                    result.maxDpi != 0 || result.pointer || result.keyboard || result.ime || modes.isNotEmpty() ||
+                    result.desktopScaleFactorMin != 0 || result.desktopScaleFactorMax != 0 ||
+                    scaleFactors.isNotEmpty() || result.absolutePointer || result.relativePointerNegotiation ||
+                    result.verticalWheel || result.keyboard || result.ime || modes.isNotEmpty() ||
                     result.audio || result.files) fail("invalidCapabilities")
             } else if (revision == null || result.maxWidth < 640 || result.maxHeight < 480 ||
-                result.maxDpi < 72 || RdpClipboardMode.DISABLED !in modes) fail("invalidCapabilities")
+                result.desktopScaleFactorMin != 100 || result.desktopScaleFactorMax != 500 ||
+                scaleFactors != setOf(100, 140, 180) || RdpClipboardMode.DISABLED !in modes) {
+                fail("invalidCapabilities")
+            }
             return result
         }
     }
@@ -155,7 +176,8 @@ class RdpNativeCapabilities private constructor(
 
 data class RdpNativeGateway(val host: String, val port: Int, val username: String)
 data class RdpNativeDisplay(
-    val width: Int, val height: Int, val dpi: Int,
+    val width: Int, val height: Int,
+    val desktopScaleFactor: Int, val deviceScaleFactor: Int,
     val externalDisplay: Boolean, val dynamicResize: Boolean,
 )
 
@@ -178,7 +200,9 @@ class RdpNativeRequest private constructor(
     fun publicSummary(): Map<String, Any> = mapOf(
         "requestId" to requestId, "targetPort" to targetPort,
         "gatewayConfigured" to (gateway != null), "displayWidth" to display.width,
-        "displayHeight" to display.height, "displayDpi" to display.dpi,
+        "displayHeight" to display.height,
+        "desktopScaleFactor" to display.desktopScaleFactor,
+        "deviceScaleFactor" to display.deviceScaleFactor,
         "externalDisplay" to display.externalDisplay, "dynamicResize" to display.dynamicResize,
         "keyboardLayout" to keyboardLayout.name, "clipboardMode" to clipboardMode.name,
         "audio" to audio, "files" to files,
@@ -203,17 +227,17 @@ class RdpNativeRequest private constructor(
 
         fun parse(value: Any?): RdpNativeRequest {
             val root = strictMap(value, requestKeys, "invalidRequest")
-            if (root["schemaVersion"] != 1) fail("invalidRequest")
+            if (root["schemaVersion"] != 2) fail("invalidRequest")
             val requestId = text(root["requestId"], 36, 36, "invalidRequest")
             if (!Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}").matches(requestId)) fail("invalidRequest")
             val gateway = root["gateway"]?.let {
                 val map = strictMap(it, setOf("host", "port", "username"), "invalidRequest")
                 RdpNativeGateway(host(map["host"]), int(map, "port", 1, 65535, "invalidRequest"), text(map["username"], 0, 128, "invalidRequest"))
             }
-            val display = strictMap(root["display"], setOf("width", "height", "dpi", "externalDisplay", "dynamicResize"), "invalidRequest")
+            val display = strictMap(root["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"), "invalidRequest")
             val width = int(display, "width", 640, 8192, "invalidRequest")
             val height = int(display, "height", 480, 8192, "invalidRequest")
-            if (width.toLong() * height > 33_554_432L) fail("invalidRequest")
+            if (width % 2 != 0 || width.toLong() * height > RdpNativeFrame.MAX_PIXELS) fail("invalidRequest")
             val fingerprint = text(root["certificateFingerprint"], 50, 50, "invalidRequest")
             if (!Regex("SHA256:[A-Za-z0-9+/]{43}").matches(fingerprint)) fail("invalidRequest")
             val keyboard = when (enumName(root["keyboardLayout"], setOf("automatic", "turkishQ", "us"), "invalidRequest")) {
@@ -230,7 +254,12 @@ class RdpNativeRequest private constructor(
                 requestId, host(root["targetHost"]), int(root, "targetPort", 1, 65535, "invalidRequest"),
                 text(root["username"], 1, 128, "invalidRequest"), text(root["domain"], 0, 128, "invalidRequest"), gateway,
                 fingerprint, root["requiresNla"] as? Boolean ?: fail("invalidRequest"),
-                RdpNativeDisplay(width, height, int(display, "dpi", 72, 640, "invalidRequest"),
+                RdpNativeDisplay(
+                    width, height,
+                    int(display, "desktopScaleFactor", 100, 500, "invalidRequest"),
+                    int(display, "deviceScaleFactor", 100, 180, "invalidRequest").also {
+                        if (it !in setOf(100, 140, 180)) fail("invalidRequest")
+                    },
                     bool(display, "externalDisplay", "invalidRequest"), bool(display, "dynamicResize", "invalidRequest")),
                 keyboard, clipboard,
                 root["audio"] as? Boolean ?: fail("invalidRequest"),
@@ -250,7 +279,9 @@ class RdpNativeNegotiated internal constructor(
     fun toMap(): Map<String, Any> = mapOf(
         "engineRevision" to engineRevision, "clipboardMode" to clipboardMode.name,
         "audio" to audio, "files" to files,
-        "width" to display.width, "height" to display.height, "dpi" to display.dpi,
+        "width" to display.width, "height" to display.height,
+        "desktopScaleFactor" to display.desktopScaleFactor,
+        "deviceScaleFactor" to display.deviceScaleFactor,
         "externalDisplay" to display.externalDisplay, "dynamicResize" to display.dynamicResize,
     )
 }
@@ -263,9 +294,11 @@ object RdpNativeNegotiator {
         if (request.requiresNla && !capabilities.nla) fail("nlaUnavailable")
         if (request.gateway != null && !capabilities.rdGateway) fail("gatewayUnavailable")
         val display = request.display
-        if (display.width > capabilities.maxWidth || display.height > capabilities.maxHeight || display.dpi > capabilities.maxDpi ||
+        if (display.width > capabilities.maxWidth || display.height > capabilities.maxHeight ||
+            display.desktopScaleFactor !in capabilities.desktopScaleFactorMin..capabilities.desktopScaleFactorMax ||
+            display.deviceScaleFactor !in capabilities.deviceScaleFactors ||
             display.externalDisplay && !capabilities.externalDisplay || display.dynamicResize && !capabilities.dynamicResolution) fail("displayUnavailable")
-        if (!capabilities.pointer || !capabilities.keyboard) fail("inputUnavailable")
+        if (!capabilities.absolutePointer || !capabilities.verticalWheel || !capabilities.keyboard) fail("inputUnavailable")
         if (request.clipboardMode !in capabilities.clipboardModes) fail("clipboardUnavailable")
         if (request.audio && !capabilities.audio || request.files && !capabilities.files) fail("channelUnavailable")
         return RdpNativeNegotiated(
@@ -329,10 +362,18 @@ class UnavailableRdpNativeBackend : RdpNativeBackend {
     var openCalls = 0
         private set
     override fun capabilities() = RdpNativeCapabilities.parse(mapOf(
-        "schemaVersion" to 1, "availability" to "unavailable", "engineRevision" to null,
+        "schemaVersion" to 2, "availability" to "unavailable", "engineRevision" to null,
         "security" to mapOf("tls" to false, "certificatePinning" to false, "nla" to false, "rdGateway" to false),
-        "display" to mapOf("dynamicResolution" to false, "externalDisplay" to false, "maxWidth" to 0, "maxHeight" to 0, "maxDpi" to 0),
-        "input" to mapOf("pointer" to false, "keyboard" to false, "ime" to false),
+        "display" to mapOf(
+            "dynamicResolution" to false, "externalDisplay" to false,
+            "maxWidth" to 0, "maxHeight" to 0,
+            "desktopScaleFactorMin" to 0, "desktopScaleFactorMax" to 0,
+            "deviceScaleFactors" to emptyList<Int>(),
+        ),
+        "input" to mapOf(
+            "absolutePointer" to false, "relativePointerNegotiation" to false,
+            "verticalWheel" to false, "keyboard" to false, "ime" to false,
+        ),
         "channels" to mapOf("clipboardModes" to emptyList<String>(), "audio" to false, "files" to false),
     ))
     override fun open(

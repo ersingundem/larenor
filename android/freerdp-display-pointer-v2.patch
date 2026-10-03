@@ -1,0 +1,412 @@
+--- a/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
++++ b/client/Android/Studio/freeRDPCore/src/main/java/com/freerdp/freerdpcore/services/LibFreeRDP.java
+@@ -160,6 +160,11 @@
+ 
+ 	private static native boolean freerdp_send_cursor_event(long inst, int x, int y, int flags);
+ 
++	private static native boolean freerdp_send_relative_cursor_event(long inst, int deltaX,
++	                                                                 int deltaY, int flags);
++
++	private static native boolean freerdp_is_relative_mouse_input_supported(long inst);
++
+ 	private static native boolean freerdp_send_key_event(long inst, int keycode, boolean down);
+ 
+ 	private static native boolean freerdp_send_unicodekey_event(long inst, int keycode,
+@@ -172,7 +177,9 @@
+ 	private static native boolean freerdp_send_clipboard_image_data(long inst, byte[] data,
+ 	                                                                String mimeType);
+ 
+-	private static native boolean freerdp_send_monitor_layout(long inst, int width, int height);
++	private static native boolean freerdp_send_monitor_layout(long inst, int width, int height,
++	                                                          int desktopScaleFactor,
++	                                                          int deviceScaleFactor);
+ 
+ 	private static native String freerdp_get_last_error_string(long inst);
+ 
+@@ -559,6 +566,16 @@
+ 		return freerdp_send_cursor_event(inst, x, y, flags);
+ 	}
+ 
++	public static boolean sendRelativeCursorEvent(long inst, int deltaX, int deltaY, int flags)
++	{
++		return freerdp_send_relative_cursor_event(inst, deltaX, deltaY, flags);
++	}
++
++	public static boolean isRelativeMouseInputSupported(long inst)
++	{
++		return freerdp_is_relative_mouse_input_supported(inst);
++	}
++
+ 	public static boolean sendKeyEvent(long inst, int keycode, boolean down)
+ 	{
+ 		return freerdp_send_key_event(inst, keycode, down);
+@@ -586,9 +603,25 @@
+ 
+ 	public static boolean sendMonitorLayout(long inst, int width, int height)
+ 	{
+-		return freerdp_send_monitor_layout(inst, width, height);
++		SessionState state = GlobalApp.getSession(inst);
++		if (state == null || state.getBookmark() == null)
++			return false;
++		BookmarkBase.ScreenSettings screen =
++		    state.getBookmark().getActiveScreenSettings();
++		int desktopScaleFactor =
++		    screen.isCustomScale() ? screen.getScaleDesktop() : screen.getScalePreset();
++		int deviceScaleFactor =
++		    screen.isCustomScale() ? screen.getScaleDevice() : screen.getScalePreset();
++		return sendMonitorLayout(inst, width, height, desktopScaleFactor, deviceScaleFactor);
+ 	}
+ 
++	public static boolean sendMonitorLayout(long inst, int width, int height,
++	                                        int desktopScaleFactor, int deviceScaleFactor)
++	{
++		return freerdp_send_monitor_layout(inst, width, height, desktopScaleFactor,
++		                                   deviceScaleFactor);
++	}
++
+ 	private static void OnConnectionSuccess(long inst)
+ 	{
+ 		if (listener != null)
+@@ -600,6 +633,12 @@
+ 		}
+ 	}
+ 
++	private static void OnDisplayControlReady(long inst)
++	{
++		if (listener != null)
++			listener.OnDisplayControlReady(inst);
++	}
++
+ 	private static void OnConnectionFailure(long inst)
+ 	{
+ 		if (listener != null)
+@@ -853,6 +892,10 @@
+ 
+ 		void OnConnectionSuccess(long instance);
+ 
++		default void OnDisplayControlReady(long instance)
++		{
++		}
++
+ 		void OnConnectionFailure(long instance);
+ 
+ 		void OnDisconnecting(long instance);
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c
+@@ -1121,9 +1121,53 @@
+ 	}
+ 
+ 	WLog_DBG(TAG, "send_cursor_event: (%d, %d), %d", x, y, flags);
++	return JNI_TRUE;
++}
++
++#define ANDROID_RELATIVE_POINTER_FLAGS \
++	(PTR_FLAGS_MOVE | PTR_FLAGS_DOWN | PTR_FLAGS_BUTTON1 | PTR_FLAGS_BUTTON2 | PTR_FLAGS_BUTTON3)
++
++JNIEXPORT jboolean JNICALL
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1relative_1cursor_1event(
++    JNIEnv* env, jclass cls, jlong instance, jint deltaX, jint deltaY, jint flags)
++{
++	WINPR_UNUSED(env);
++	WINPR_UNUSED(cls);
++	freerdp* inst = (freerdp*)instance;
++	if (!inst || !inst->context || !inst->context->input || deltaX < INT16_MIN ||
++	    deltaX > INT16_MAX || deltaY < INT16_MIN || deltaY > INT16_MAX || flags < 0 ||
++	    flags > UINT16_MAX || (flags & ~ANDROID_RELATIVE_POINTER_FLAGS) != 0 ||
++	    (flags & (PTR_FLAGS_MOVE | PTR_FLAGS_BUTTON1 | PTR_FLAGS_BUTTON2 | PTR_FLAGS_BUTTON3)) == 0 ||
++	    ((flags & PTR_FLAGS_DOWN) != 0 &&
++	     (flags & (PTR_FLAGS_BUTTON1 | PTR_FLAGS_BUTTON2 | PTR_FLAGS_BUTTON3)) == 0))
++		return JNI_FALSE;
++
++	ANDROID_EVENT* event = (ANDROID_EVENT*)android_event_relative_cursor_new(
++	    (UINT16)flags, (INT16)deltaX, (INT16)deltaY);
++	if (!event)
++		return JNI_FALSE;
++	if (!android_push_event(inst, event))
++	{
++		android_event_free(event);
++		return JNI_FALSE;
++	}
+ 	return JNI_TRUE;
+ }
+ 
++JNIEXPORT jboolean JNICALL
++Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported(
++    JNIEnv* env, jclass cls, jlong instance)
++{
++	WINPR_UNUSED(env);
++	WINPR_UNUSED(cls);
++	freerdp* inst = (freerdp*)instance;
++	if (!inst || !inst->context || !inst->context->settings)
++		return JNI_FALSE;
++	return freerdp_settings_get_bool(inst->context->settings, FreeRDP_HasRelativeMouseEvent)
++	           ? JNI_TRUE
++	           : JNI_FALSE;
++}
++
+ static jboolean android_push_clipboard_event(freerdp* inst, const void* data, size_t data_length,
+                                              const char* mimeType)
+ {
+@@ -1246,18 +1290,24 @@
+ 
+ JNIEXPORT jboolean JNICALL
+ Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout(
+-    JNIEnv* env, jclass cls, jlong instance, jint width, jint height)
++    JNIEnv* env, jclass cls, jlong instance, jint width, jint height, jint desktopScaleFactor,
++    jint deviceScaleFactor)
+ {
+ 	WINPR_UNUSED(env);
+ 	WINPR_UNUSED(cls);
+ 	freerdp* inst = (freerdp*)instance;
+ 
+-	if (!inst || !inst->context)
++	if (!inst || !inst->context || width < 200 || width > 8192 || (width & 1) != 0 ||
++	    height < 200 || height > 8192 || desktopScaleFactor < 100 || desktopScaleFactor > 500 ||
++	    (deviceScaleFactor != 100 && deviceScaleFactor != 140 && deviceScaleFactor != 180))
+ 		return JNI_FALSE;
+ 
+ 	androidContext* afc = (androidContext*)inst->context;
+-	return android_disp_send_monitor_layout(afc, (UINT32)width, (UINT32)height) ? JNI_TRUE
+-	                                                                            : JNI_FALSE;
++	return android_disp_send_monitor_layout(afc, (UINT32)width, (UINT32)height,
++	                                        (UINT32)desktopScaleFactor,
++	                                        (UINT32)deviceScaleFactor)
++	           ? JNI_TRUE
++	           : JNI_FALSE;
+ }
+ 
+ JNIEXPORT jstring JNICALL
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h
+@@ -42,6 +42,10 @@
+ 	UINT32 clipboardCapabilities;
+ 
+ 	DispClientContext* disp;
++	BOOL dispReady;
++	UINT32 dispMaxNumMonitors;
++	UINT32 dispMaxMonitorAreaFactorA;
++	UINT32 dispMaxMonitorAreaFactorB;
+ 	RailClientContext* rail;
+ 	BOOL railExecSent;
+ } androidContext;
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.h
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.h
+@@ -19,6 +19,7 @@
+ #define EVENT_TYPE_DISCONNECT 3
+ #define EVENT_TYPE_KEY_UNICODE 4
+ #define EVENT_TYPE_CLIPBOARD 5
++#define EVENT_TYPE_RELATIVE_CURSOR 6
+ 
+ typedef struct
+ {
+@@ -43,6 +44,14 @@
+ typedef struct
+ {
+ 	int type;
++	UINT16 flags;
++	INT16 xDelta;
++	INT16 yDelta;
++} ANDROID_EVENT_RELATIVE_CURSOR;
++
++typedef struct
++{
++	int type;
+ 	void* data;
+ 	int data_length;
+ 	char* mimeType;
+@@ -64,6 +73,8 @@
+ FREERDP_LOCAL ANDROID_EVENT_KEY* android_event_key_new(int flags, UINT16 scancode);
+ FREERDP_LOCAL ANDROID_EVENT_KEY* android_event_unicodekey_new(UINT16 flags, UINT16 key);
+ FREERDP_LOCAL ANDROID_EVENT_CURSOR* android_event_cursor_new(UINT16 flags, UINT16 x, UINT16 y);
++FREERDP_LOCAL ANDROID_EVENT_RELATIVE_CURSOR*
++android_event_relative_cursor_new(UINT16 flags, INT16 xDelta, INT16 yDelta);
+ FREERDP_LOCAL ANDROID_EVENT* android_event_disconnect_new(void);
+ FREERDP_LOCAL ANDROID_EVENT_CLIPBOARD*
+ android_event_clipboard_new(const void* data, size_t data_length, const char* mimeType);
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c
+@@ -123,6 +123,17 @@
+ 
+ 				rc = freerdp_input_send_mouse_event(context->input, cursor_event->flags,
+ 				                                    cursor_event->x, cursor_event->y);
++			}
++			break;
++
++			case EVENT_TYPE_RELATIVE_CURSOR:
++			{
++				ANDROID_EVENT_RELATIVE_CURSOR* cursor_event =
++				    (ANDROID_EVENT_RELATIVE_CURSOR*)event;
++
++				rc = freerdp_input_send_rel_mouse_event(context->input, cursor_event->flags,
++				                                             cursor_event->xDelta,
++				                                             cursor_event->yDelta);
+ 			}
+ 			break;
+ 
+@@ -248,6 +259,27 @@
+ }
+ 
+ static void android_event_cursor_free(ANDROID_EVENT_CURSOR* event)
++{
++	free(event);
++}
++
++ANDROID_EVENT_RELATIVE_CURSOR* android_event_relative_cursor_new(UINT16 flags, INT16 xDelta,
++                                                                 INT16 yDelta)
++{
++	ANDROID_EVENT_RELATIVE_CURSOR* event =
++	    (ANDROID_EVENT_RELATIVE_CURSOR*)calloc(1, sizeof(ANDROID_EVENT_RELATIVE_CURSOR));
++
++	if (!event)
++		return nullptr;
++
++	event->type = EVENT_TYPE_RELATIVE_CURSOR;
++	event->flags = flags;
++	event->xDelta = xDelta;
++	event->yDelta = yDelta;
++	return event;
++}
++
++static void android_event_relative_cursor_free(ANDROID_EVENT_RELATIVE_CURSOR* event)
+ {
+ 	free(event);
+ }
+@@ -407,6 +439,10 @@
+ 			android_event_cursor_free((ANDROID_EVENT_CURSOR*)event);
+ 			break;
+ 
++		case EVENT_TYPE_RELATIVE_CURSOR:
++			android_event_relative_cursor_free((ANDROID_EVENT_RELATIVE_CURSOR*)event);
++			break;
++
+ 		case EVENT_TYPE_DISCONNECT:
+ 			android_event_disconnect_free((ANDROID_EVENT*)event);
+ 			break;
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.h
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.h
+@@ -28,6 +28,7 @@
+ FREERDP_LOCAL BOOL android_disp_init(androidContext* afc, DispClientContext* disp);
+ FREERDP_LOCAL BOOL android_disp_uninit(androidContext* afc, DispClientContext* disp);
+ FREERDP_LOCAL BOOL android_disp_send_monitor_layout(androidContext* afc, UINT32 width,
+-                                                    UINT32 height);
++                                                    UINT32 height, UINT32 desktopScaleFactor,
++                                                    UINT32 deviceScaleFactor);
+ 
+ #endif /* FREERDP_CLIENT_ANDROID_DISP_H */
+--- a/client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c
++++ b/client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c
+@@ -19,23 +19,52 @@
+ 
+ #include <freerdp/config.h>
+ 
++#include <stdint.h>
++
+ #include <winpr/assert.h>
+ #include <winpr/wlog.h>
+ 
+ #include <freerdp/channels/disp.h>
+ #include <freerdp/client/disp.h>
+ 
++#include "android_jni_callback.h"
+ #include "android_disp.h"
+ 
+ #define TAG CLIENT_TAG("android.disp")
+ 
++static UINT android_DisplayControlCaps(DispClientContext* disp, UINT32 maxNumMonitors,
++                                       UINT32 maxMonitorAreaFactorA,
++                                       UINT32 maxMonitorAreaFactorB)
++{
++	if (!disp || !disp->custom || maxNumMonitors == 0 || maxMonitorAreaFactorA == 0 ||
++	    maxMonitorAreaFactorB == 0)
++		return ERROR_INVALID_DATA;
++
++	androidContext* afc = (androidContext*)disp->custom;
++	if (afc->disp != disp)
++		return ERROR_INVALID_DATA;
++
++	afc->dispMaxNumMonitors = maxNumMonitors;
++	afc->dispMaxMonitorAreaFactorA = maxMonitorAreaFactorA;
++	afc->dispMaxMonitorAreaFactorB = maxMonitorAreaFactorB;
++	afc->dispReady = TRUE;
++	freerdp_callback("OnDisplayControlReady", "(J)V",
++	                 (jlong)afc->common.context.instance);
++	return CHANNEL_RC_OK;
++}
++
+ BOOL android_disp_init(androidContext* afc, DispClientContext* disp)
+ {
+ 	WINPR_ASSERT(afc);
+ 	WINPR_ASSERT(disp);
+ 
+ 	afc->disp = disp;
++	afc->dispReady = FALSE;
++	afc->dispMaxNumMonitors = 0;
++	afc->dispMaxMonitorAreaFactorA = 0;
++	afc->dispMaxMonitorAreaFactorB = 0;
+ 	disp->custom = afc;
++	disp->DisplayControlCaps = android_DisplayControlCaps;
+ 
+ 	WLog_DBG(TAG, "disp channel connected");
+ 	return TRUE;
+@@ -44,26 +73,46 @@
+ BOOL android_disp_uninit(androidContext* afc, DispClientContext* disp)
+ {
+ 	WINPR_ASSERT(afc);
+-	WINPR_UNUSED(disp);
++	WINPR_ASSERT(disp);
+ 
++	disp->DisplayControlCaps = nullptr;
++	disp->custom = nullptr;
++	afc->dispReady = FALSE;
++	afc->dispMaxNumMonitors = 0;
++	afc->dispMaxMonitorAreaFactorA = 0;
++	afc->dispMaxMonitorAreaFactorB = 0;
+ 	afc->disp = nullptr;
+ 	WLog_DBG(TAG, "disp channel disconnected");
+ 	return TRUE;
+ }
+ 
+-BOOL android_disp_send_monitor_layout(androidContext* afc, UINT32 width, UINT32 height)
++BOOL android_disp_send_monitor_layout(androidContext* afc, UINT32 width, UINT32 height,
++                                      UINT32 desktopScaleFactor, UINT32 deviceScaleFactor)
+ {
+ 	WINPR_ASSERT(afc);
++	if (width < 200 || width > 8192 || (width & 1) != 0 || height < 200 ||
++	    height > 8192 || desktopScaleFactor < 100 || desktopScaleFactor > 500 ||
++	    (deviceScaleFactor != 100 && deviceScaleFactor != 140 && deviceScaleFactor != 180))
++		return FALSE;
+ 
+ 	DispClientContext* disp = afc->disp;
+-	if (!disp || !disp->SendMonitorLayout)
++	if (!afc->dispReady || !disp || !disp->SendMonitorLayout)
+ 	{
+ 		WLog_WARN(TAG, "disp channel not available");
+ 		return FALSE;
+ 	}
+ 
+-	rdpSettings* settings = afc->common.context.settings;
++	const UINT64 requestedArea = (UINT64)width * height;
++	UINT64 maximumArea =
++	    (UINT64)afc->dispMaxNumMonitors * afc->dispMaxMonitorAreaFactorA;
++	if (maximumArea > UINT64_MAX / afc->dispMaxMonitorAreaFactorB)
++		maximumArea = UINT64_MAX;
++	else
++		maximumArea *= afc->dispMaxMonitorAreaFactorB;
++	if (requestedArea > maximumArea)
++		return FALSE;
+ 
++	rdpSettings* settings = afc->common.context.settings;
+ 	DISPLAY_CONTROL_MONITOR_LAYOUT layout = WINPR_C_ARRAY_INIT;
+ 	layout.Flags = DISPLAY_CONTROL_MONITOR_PRIMARY;
+ 	layout.Top = layout.Left = 0;
+@@ -72,8 +121,8 @@
+ 	layout.PhysicalWidth = 0;
+ 	layout.PhysicalHeight = 0;
+ 	layout.Orientation = freerdp_settings_get_uint16(settings, FreeRDP_DesktopOrientation);
+-	layout.DesktopScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor);
+-	layout.DeviceScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DeviceScaleFactor);
++	layout.DesktopScaleFactor = desktopScaleFactor;
++	layout.DeviceScaleFactor = deviceScaleFactor;
+ 
+ 	UINT rc = disp->SendMonitorLayout(disp, 1, &layout);
+ 	if (rc != CHANNEL_RC_OK)

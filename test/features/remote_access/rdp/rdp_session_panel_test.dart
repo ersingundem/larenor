@@ -1,9 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:larenor/core/window/window_policy_bridge.dart';
 import 'package:larenor/core/window/window_policy_models.dart';
+import 'package:larenor/core/window/window_policy_providers.dart';
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_display_geometry.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
@@ -20,6 +25,41 @@ const _defaultWindow = WindowPolicySnapshot(
   displayId: 0,
   displayRevision: 1,
 );
+
+const _fullscreenWindow = WindowPolicySnapshot(
+  supported: true,
+  requestedProfile: WindowProfile.adaptive,
+  effectiveMode: WindowEffectiveMode.panelRequested,
+  reason: WindowRestrictionReason.none,
+  isResumed: true,
+  hasWindowFocus: true,
+  displayId: 0,
+  displayRevision: 1,
+  captionVisible: false,
+  imeVisible: false,
+  statusBarVisible: true,
+  navigationBarVisible: true,
+);
+
+Map<String, Object?> fullscreenWindowPacket() => {
+  'supported': true,
+  'requestedProfile': 'adaptive',
+  'effectiveMode': 'panelRequested',
+  'reason': 'none',
+  'isResumed': true,
+  'hasWindowFocus': true,
+  'isMultiWindow': false,
+  'isPictureInPicture': false,
+  'isExternalDisplay': false,
+  'displayId': 0,
+  'displayRevision': 1,
+  'captionVisible': false,
+  'imeVisible': false,
+  'statusBarVisible': true,
+  'navigationBarVisible': true,
+  'lockTaskPermitted': null,
+  'lockTaskState': 'unknown',
+};
 
 WindowPolicySnapshot _externalWindow(int id, int revision) =>
     WindowPolicySnapshot(
@@ -53,18 +93,37 @@ class UiTrust implements RdpTrustStore {
 
 class UiChannel
     implements RdpChannel, RdpFrameChannel, RdpNegotiatedInputChannel {
-  UiChannel({required this.supportsUnicodeInput});
+  UiChannel({required this.supportsUnicodeInput}) {
+    _frames = StreamController<RdpFrame>.broadcast(
+      onListen: () {
+        activeFrameListeners++;
+        if (activeFrameListeners > maxFrameListeners) {
+          maxFrameListeners = activeFrameListeners;
+        }
+      },
+      onCancel: () => activeFrameListeners--,
+    );
+  }
   @override
   final bool supportsUnicodeInput;
+  @override
+  bool get supportsRelativePointer => false;
   final doneCompleter = Completer<void>();
   final pointers = <RdpPointerEvent>[];
+  final relativePointers = <RdpRelativePointerEvent>[];
+  final wheels = <RdpWheelEvent>[];
   final keys = <RdpKeyEvent>[];
   final displays = <RdpDisplaySpec>[];
   final texts = <String>[];
   final clipboards = <String>[];
   final acknowledgements = <int>[];
-  final _frames = StreamController<RdpFrame>.broadcast();
+  late final StreamController<RdpFrame> _frames;
+  int activeFrameListeners = 0;
+  int maxFrameListeners = 0;
   bool clipboardAccepted = true;
+  bool acknowledgementAccepted = true;
+  RdpDisplaySpec? currentDisplay;
+  int displayLayoutRevision = 1;
   Completer<bool>? clipboardReply;
   @override
   Future<void> get done => doneCompleter.future;
@@ -78,19 +137,23 @@ class UiChannel
   }
 
   @override
-  Future<void> acknowledgeFrame(int sequence) async {
+  Future<bool> acknowledgeFrame(int sequence) async {
     acknowledgements.add(sequence);
+    return acknowledgementAccepted;
   }
 
-  void frame({int sequence = 1, int width = 160, int height = 90}) {
+  void frame({int sequence = 1, int? width, int? height, int? layoutRevision}) {
+    final display = currentDisplay;
+    final frameWidth = width ?? display?.width ?? 960;
+    final frameHeight = height ?? display?.height ?? 540;
     _frames.add(
       RdpFrame(
         sequence: sequence,
-        width: width,
-        height: height,
-        dpi: 160,
-        stride: width * 4,
-        bgra: Uint8List(width * height * 4),
+        width: frameWidth,
+        height: frameHeight,
+        displayLayoutRevision: layoutRevision ?? displayLayoutRevision,
+        stride: frameWidth * 4,
+        bgra: Uint8List(frameWidth * frameHeight * 4),
       ),
     );
   }
@@ -100,7 +163,17 @@ class UiChannel
   @override
   void pointer(RdpPointerEvent event) => pointers.add(event);
   @override
-  void resize(RdpDisplaySpec display) => displays.add(display);
+  void relativePointer(RdpRelativePointerEvent event) =>
+      relativePointers.add(event);
+  @override
+  void wheel(RdpWheelEvent event) => wheels.add(event);
+  @override
+  void resize(RdpDisplaySpec display) {
+    displays.add(display);
+    currentDisplay = display;
+    displayLayoutRevision++;
+  }
+
   @override
   void text(String value) => texts.add(value);
   @override
@@ -111,8 +184,9 @@ class UiChannel
 }
 
 class UiEngine implements RdpEngine {
-  UiEngine({this.supportsIme = false});
+  UiEngine({this.supportsIme = false, this.supportsResize = true});
   final bool supportsIme;
+  final bool supportsResize;
   late final channel = UiChannel(supportsUnicodeInput: supportsIme);
   final requests = <RdpSessionRequest>[];
   int capabilityReads = 0;
@@ -121,7 +195,10 @@ class UiEngine implements RdpEngine {
     required bool Function() isCurrent,
   }) async {
     capabilityReads++;
-    return RdpCapabilities.fromJson(packagedCapabilities(ime: supportsIme));
+    final packet = packagedCapabilities(ime: supportsIme);
+    (packet['display']! as Map<String, Object?>)['dynamicResolution'] =
+        supportsResize;
+    return RdpCapabilities.fromJson(packet);
   }
 
   @override
@@ -141,6 +218,8 @@ class UiEngine implements RdpEngine {
   }) async {
     if (credential == null) throw const RdpFailure('invalid_credential');
     requests.add(request);
+    channel.currentDisplay = request.display;
+    channel.displayLayoutRevision = 1;
     return channel;
   }
 
@@ -195,11 +274,17 @@ Future<void> showFrame(
   WidgetTester tester,
   UiChannel channel, {
   int sequence = 1,
-  int width = 160,
-  int height = 90,
+  int? width,
+  int? height,
+  int? layoutRevision,
 }) async {
   expect(channel.hasFrameListener, isTrue);
-  channel.frame(sequence: sequence, width: width, height: height);
+  channel.frame(
+    sequence: sequence,
+    width: width,
+    height: height,
+    layoutRevision: layoutRevision,
+  );
   await tester.pump();
   await tester.runAsync(() async {
     for (
@@ -215,6 +300,28 @@ Future<void> showFrame(
 }
 
 void main() {
+  void useAndroidWindowChannel(
+    Future<Object?> Function(MethodCall call) handler,
+  ) {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channel = MethodChannel(WindowPolicyBridge.methodChannelName);
+    messenger.setMockMethodCallHandler(channel, handler);
+    addTearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+  }
+
+  void freezeAndroidWindowBridge(WidgetTester tester) {
+    ProviderScope.containerOf(
+      tester.element(key('rdp-session-panel')),
+      listen: false,
+    ).read(windowPolicyBridgeProvider);
+    debugDefaultTargetPlatformOverride = null;
+  }
+
   testWidgets(
     'lost clipboard submission retires once and permits explicit reconnect',
     (tester) async {
@@ -550,6 +657,7 @@ void main() {
     await openRdp(tester, ui);
     await connectRdp(tester);
     await showFrame(tester, engine.channel);
+    await tester.pumpAndSettle();
     expect(key('rdp-surface'), findsOneWidget);
     await tester.ensureVisible(key('rdp-surface'));
     await tester.pumpAndSettle();
@@ -564,6 +672,18 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.audioVolumeUp);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.audioVolumeUp);
     expect(engine.channel.keys, hasLength(2));
+    await tester.sendEventToBinding(
+      PointerScrollEvent(
+        position: tester.getCenter(key('rdp-frame-image')),
+        scrollDelta: const Offset(0, 20),
+      ),
+    );
+    expect(engine.channel.wheels, hasLength(1));
+    expect(engine.channel.wheels.single.wheelDelta, -120);
+    expect(
+      engine.channel.wheels.single.geometry,
+      engine.channel.pointers.last.geometry,
+    );
     await tester.enterText(key('rdp-text-input'), 'İstanbul');
     await press(tester, 'rdp-text-send');
     expect(engine.channel.texts, ['İstanbul']);
@@ -576,10 +696,250 @@ void main() {
     expect(engine.channel.displays, isNotEmpty);
   });
 
+  testWidgets('unacknowledged frame never replaces displayed geometry', (
+    tester,
+  ) async {
+    final engine = UiEngine(supportsResize: false), ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () => engine,
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, ui);
+    await connectRdp(tester);
+    await showFrame(tester, engine.channel);
+    await tester.ensureVisible(key('rdp-surface'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+    final firstImage = tester.widget<RawImage>(key('rdp-frame-image')).image;
+    await tester.tapAt(tester.getCenter(key('rdp-frame-image')));
+    expect(engine.channel.pointers, hasLength(2));
+    final admittedGeometry = engine.channel.pointers.last.geometry;
+    engine.channel.pointers.clear();
+
+    engine.channel.acknowledgementAccepted = false;
+    await showFrame(tester, engine.channel, sequence: 2);
+    expect(
+      tester.widget<RawImage>(key('rdp-frame-image')).image,
+      same(firstImage),
+    );
+    await tester.tapAt(tester.getCenter(key('rdp-frame-image')));
+    expect(engine.channel.pointers, hasLength(2));
+    expect(engine.channel.pointers.last.geometry, admittedGeometry);
+  });
+
+  testWidgets(
+    'fullscreen reparents one live surface and Escape releases its exact lease',
+    (tester) async {
+      final calls = <MethodCall>[];
+      useAndroidWindowChannel((call) async {
+        calls.add(call);
+        if (call.method == 'acquireFullscreen') {
+          return {
+            'schemaVersion': 1,
+            'accepted': true,
+            'revision': 7,
+            'snapshot': fullscreenWindowPacket(),
+          };
+        }
+        if (call.method == 'releaseFullscreen') return true;
+        throw PlatformException(code: 'unexpected');
+      });
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      freezeAndroidWindowBridge(tester);
+      await connectRdp(tester);
+      ui.windows.add(_fullscreenWindow);
+      await tester.pumpAndSettle();
+      await showFrame(tester, engine.channel);
+      await tester.ensureVisible(key('rdp-surface'));
+      await tester.pumpAndSettle();
+      final inlineHeight = tester.getSize(key('rdp-surface')).height;
+
+      await press(tester, 'rdp-fullscreen-enter');
+      await tester.pumpAndSettle();
+      expect(key('rdp-fullscreen-overlay'), findsOneWidget);
+      expect(
+        tester.getSize(key('rdp-surface')).height,
+        greaterThan(inlineHeight),
+      );
+      expect(engine.channel.activeFrameListeners, 1);
+      expect(engine.channel.maxFrameListeners, 1);
+      expect(tester.getSize(key('rdp-fullscreen-exit')).height, 48);
+      expect(
+        tester.getSemantics(key('rdp-fullscreen-exit')).label,
+        contains('Exit full screen'),
+      );
+      await showFrame(tester, engine.channel, sequence: 2);
+
+      tester.widget<Focus>(key('rdp-surface')).focusNode!.requestFocus();
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(key('rdp-fullscreen-overlay'), findsNothing);
+      expect(key('rdp-fullscreen-enter'), findsOneWidget);
+      expect(engine.channel.maxFrameListeners, 1);
+      expect(engine.channel.keys, isEmpty);
+      expect(calls.map((call) => call.method), [
+        'acquireFullscreen',
+        'releaseFullscreen',
+      ]);
+      final owner = (calls.first.arguments as Map)['owner'];
+      expect(owner, matches(RegExp(r'^[0-9a-f]{32}$')));
+      expect(calls.last.arguments, {'owner': owner, 'revision': 7});
+      expect(calls.map((call) => call.method), isNot(contains('setProfile')));
+    },
+  );
+
+  testWidgets('fullscreen denial is explicit and keeps the session connected', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    useAndroidWindowChannel((call) async {
+      calls.add(call);
+      return {
+        'schemaVersion': 1,
+        'accepted': false,
+        'revision': null,
+        'snapshot': fullscreenWindowPacket(),
+      };
+    });
+    final engine = UiEngine(), ui = RemoteUi();
+    await ui.mount(
+      tester,
+      width: 1280,
+      rdpEngine: () => engine,
+      rdpTrust: UiTrust(),
+    );
+    await openRdp(tester, ui);
+    freezeAndroidWindowBridge(tester);
+    await connectRdp(tester);
+    ui.windows.add(_fullscreenWindow);
+    await tester.pumpAndSettle();
+    await press(tester, 'rdp-fullscreen-enter');
+    await tester.pumpAndSettle();
+    expect(key('rdp-fullscreen-overlay'), findsNothing);
+    expect(key('rdp-fullscreen-denied'), findsOneWidget);
+    expect(key('rdp-disconnect'), findsOneWidget);
+    expect(calls.map((call) => call.method), ['acquireFullscreen']);
+    expect(find.textContaining('system bars are hidden'), findsNothing);
+  });
+
+  testWidgets(
+    'late fullscreen grant is released after route ownership retires',
+    (tester) async {
+      final calls = <MethodCall>[];
+      final grant = Completer<Object?>();
+      useAndroidWindowChannel((call) async {
+        calls.add(call);
+        if (call.method == 'acquireFullscreen') return grant.future;
+        if (call.method == 'releaseFullscreen') return true;
+        throw PlatformException(code: 'unexpected');
+      });
+      final engine = UiEngine(), ui = RemoteUi();
+      await ui.mount(
+        tester,
+        width: 1280,
+        rdpEngine: () => engine,
+        rdpTrust: UiTrust(),
+      );
+      await openRdp(tester, ui);
+      freezeAndroidWindowBridge(tester);
+      await connectRdp(tester);
+      ui.windows.add(_fullscreenWindow);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(key('rdp-fullscreen-enter'));
+      await tester.pumpAndSettle();
+      await tester.tap(key('rdp-fullscreen-enter'));
+      await tester.pump();
+      expect(key('rdp-fullscreen-progress'), findsOneWidget);
+
+      ui.interaction.setActive(false);
+      await tester.pumpAndSettle();
+      expect(key('rdp-session-panel'), findsNothing);
+      grant.complete({
+        'schemaVersion': 1,
+        'accepted': true,
+        'revision': 9,
+        'snapshot': fullscreenWindowPacket(),
+      });
+      await tester.pumpAndSettle();
+      expect(key('rdp-fullscreen-overlay'), findsNothing);
+      expect(calls.map((call) => call.method), [
+        'acquireFullscreen',
+        'releaseFullscreen',
+      ]);
+      final owner = (calls.first.arguments as Map)['owner'];
+      expect(calls.last.arguments, {'owner': owner, 'revision': 9});
+    },
+  );
+
+  for (final sessionEnds in [false, true]) {
+    testWidgets(
+      'active fullscreen releases on ${sessionEnds ? 'session termination' : 'display replacement'}',
+      (tester) async {
+        final calls = <MethodCall>[];
+        useAndroidWindowChannel((call) async {
+          calls.add(call);
+          if (call.method == 'acquireFullscreen') {
+            return {
+              'schemaVersion': 1,
+              'accepted': true,
+              'revision': 11,
+              'snapshot': fullscreenWindowPacket(),
+            };
+          }
+          if (call.method == 'releaseFullscreen') return true;
+          throw PlatformException(code: 'unexpected');
+        });
+        final engine = UiEngine(), ui = RemoteUi();
+        await ui.mount(
+          tester,
+          width: 1280,
+          rdpEngine: () => engine,
+          rdpTrust: UiTrust(),
+        );
+        await openRdp(tester, ui);
+        freezeAndroidWindowBridge(tester);
+        await connectRdp(tester);
+        ui.windows.add(_fullscreenWindow);
+        await tester.pumpAndSettle();
+        await press(tester, 'rdp-fullscreen-enter');
+        await tester.pumpAndSettle();
+        expect(key('rdp-fullscreen-overlay'), findsOneWidget);
+        if (sessionEnds) {
+          engine.channel.doneCompleter.complete();
+        } else {
+          ui.windows.add(_externalWindow(2, 2));
+        }
+        await tester.pumpAndSettle();
+        expect(key('rdp-fullscreen-overlay'), findsNothing);
+        expect(calls.map((call) => call.method), [
+          'acquireFullscreen',
+          'releaseFullscreen',
+        ]);
+        final owner = (calls.first.arguments as Map)['owner'];
+        expect(calls.last.arguments, {'owner': owner, 'revision': 11});
+      },
+    );
+  }
+
   testWidgets('fit letterboxes actual frame and rejects hidden coordinates', (
     tester,
   ) async {
-    final engine = UiEngine(), ui = RemoteUi();
+    final engine = UiEngine(supportsResize: false), ui = RemoteUi();
     await ui.mount(
       tester,
       width: 1280,
@@ -593,7 +953,11 @@ void main() {
     await tester.pumpAndSettle();
     final surface = tester.getRect(key('rdp-surface'));
     final frame = tester.getRect(key('rdp-frame-image'));
-    expect(frame.width / frame.height, closeTo(16 / 9, .001));
+    final source = engine.channel.currentDisplay!;
+    expect(
+      frame.width / frame.height,
+      closeTo(source.width / source.height, .001),
+    );
     expect(frame.width, lessThanOrEqualTo(surface.width));
     expect(frame.height, lessThanOrEqualTo(surface.height));
 
@@ -630,7 +994,7 @@ void main() {
   testWidgets(
     'fill crops actual frame and inversely maps visible coordinates',
     (tester) async {
-      final engine = UiEngine(), ui = RemoteUi();
+      final engine = UiEngine(supportsResize: false), ui = RemoteUi();
       await ui.mount(
         tester,
         width: 1280,
@@ -649,13 +1013,17 @@ void main() {
       await tester.pumpAndSettle();
       final surface = tester.getRect(key('rdp-surface'));
       final frame = tester.getRect(key('rdp-frame-image'));
-      expect(frame.width / frame.height, closeTo(16 / 9, .001));
+      final source = engine.channel.currentDisplay!;
+      expect(
+        frame.width / frame.height,
+        closeTo(source.width / source.height, .001),
+      );
       expect(frame.width, greaterThanOrEqualTo(surface.width));
       expect(frame.height, greaterThanOrEqualTo(surface.height));
       final local = Offset(surface.width / 2, 1);
       final expected = RdpDisplayGeometry.calculate(
         mode: RdpDisplayMode.fillWindow,
-        frameSize: const Size(160, 90),
+        frameSize: Size(source.width.toDouble(), source.height.toDouble()),
         viewportSize: surface.size,
         devicePixelRatio: 1,
       ).normalize(local)!;
@@ -680,14 +1048,18 @@ void main() {
       await openRdp(tester, ui);
       await selectDisplayMode(tester, RdpDisplayMode.native);
       await connectRdp(tester);
-      await showFrame(tester, engine.channel, width: 1600, height: 900);
+      await showFrame(tester, engine.channel);
       await tester.ensureVisible(key('rdp-surface'));
       await tester.pumpAndSettle();
       expect(
         engine.requests.single.settings.displayMode,
         RdpDisplayMode.native,
       );
-      expect(tester.getSize(key('rdp-frame-image')), const Size(1600, 900));
+      final requested = engine.channel.currentDisplay!;
+      expect(
+        tester.getSize(key('rdp-frame-image')),
+        Size(requested.width.toDouble(), requested.height.toDouble()),
+      );
       expect(engine.channel.displays, isEmpty);
       expect(
         tester.getSemantics(key('rdp-native-pan')).label,
@@ -726,7 +1098,10 @@ void main() {
       await tester.pump();
       await tester.tapAt(surface.center);
       expect(engine.channel.pointers, isNotEmpty);
-      expect(engine.channel.pointers.last.x, greaterThan(surface.width / 3200));
+      expect(
+        engine.channel.pointers.last.x,
+        greaterThan(surface.width / (requested.width * 2)),
+      );
       tester.view.physicalSize = const Size(1000, 900);
       addTearDown(tester.view.resetPhysicalSize);
       await tester.pumpAndSettle();

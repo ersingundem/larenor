@@ -5,30 +5,39 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
-import sys
 import tarfile
 import tempfile
 import unittest
 import zipfile
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tool"))
-from freerdp_android_package import (
+from tool.freerdp_android_package import (
+    EVENT_LISTENER_CLASS,
     PackageError,
+    REQUIRED_EVENT_LISTENER_API,
+    REQUIRED_FREERDP_API,
     load_lock,
     package_receipt,
     verify_apk,
     verify_certificate_patch,
     verify_clipboard_patch,
+    verify_display_pointer_patch,
     verify_install,
     verify_source,
 )
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class FreeRdpAndroidPackageTest(unittest.TestCase):
     def test_repository_lock_is_exact_and_matches_runtime_gate(self):
         lock = load_lock()
         self.assertEqual(lock["source"]["version"], "3.31.1")
+        self.assertEqual(lock["jniSchema"], 2)
+        self.assertEqual(
+            lock["engineRevision"],
+            "freerdp-3.31.1-63b948ca-clipboard-utf8-display-pointer-v2",
+        )
         self.assertEqual(lock["supportedAbis"], ["arm64-v8a", "x86_64"])
         self.assertEqual(lock["defaultChannels"], [])
         self.assertEqual(
@@ -36,11 +45,33 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             [
                 "android/freerdp-certificate-pem.patch",
                 "android/freerdp-clipboard-utf8.patch",
+                "android/freerdp-display-pointer-v2.patch",
             ],
         )
         self.assertEqual(
+            REQUIRED_FREERDP_API,
+            (
+                ("sendRelativeCursorEvent", "(JIII)Z"),
+                ("isRelativeMouseInputSupported", "(J)Z"),
+                ("sendMonitorLayout", "(JII)Z"),
+                ("sendMonitorLayout", "(JIIII)Z"),
+            ),
+        )
+        self.assertEqual(
+            REQUIRED_EVENT_LISTENER_API,
+            (("OnDisplayControlReady", "(J)V"),),
+        )
+        self.assertEqual(
             lock["requiredNativeEvidence"],
-            ["JNI_OnLoad", "ConvertWCharNToUtf8Alloc"],
+            [
+                "JNI_OnLoad",
+                "ConvertWCharNToUtf8Alloc",
+                "freerdp_input_send_rel_mouse_event",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1relative_1cursor_1event",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
+                "Java_com_freerdp_freerdpcore_services_LibFreeRDP_freerdp_1send_1monitor_1layout",
+                "OnDisplayControlReady",
+            ],
         )
 
     def test_lock_rejects_tampered_or_reordered_reviewed_patches(self):
@@ -113,6 +144,11 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             old_receipt = root / "old-receipt.json"
             old_value = json.loads(json.dumps(value))
             old_value["engineRevision"] = "freerdp-3.31.1-63b948ca"
+            old_receipt.write_text(json.dumps(old_value))
+            with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
+                verify_apk(apk, old_receipt, lock)
+            old_value = json.loads(json.dumps(value))
+            old_value["jniSchema"] = 1
             old_receipt.write_text(json.dumps(old_value))
             with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
                 verify_apk(apk, old_receipt, lock)
@@ -212,7 +248,7 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "invalid_clipboard_patch"):
                 verify_clipboard_patch(source)
 
-            for item in lock["patches"]:
+            for item in lock["patches"][:2]:
                 subprocess.run(
                     ["git", "apply", str(ROOT / item["path"])],
                     cwd=root,
@@ -240,6 +276,226 @@ class FreeRdpAndroidPackageTest(unittest.TestCase):
             ))
             with self.assertRaisesRegex(PackageError, "invalid_clipboard_patch"):
                 verify_clipboard_patch(source)
+
+    def test_display_pointer_patch_is_queued_negotiated_and_scale_bound(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            verify_display_pointer_patch(root)
+
+            event = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c"
+            )
+            event.write_text(event.read_text().replace(
+                "freerdp_input_send_rel_mouse_event",
+                "freerdp_input_send_mouse_event",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            display = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            )
+            display.write_text(display.read_text().replace(
+                " || (width & 1) != 0", "", 1
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+    def test_display_pointer_patch_rejects_unnegotiated_query_and_stale_scale(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            native = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c"
+            )
+            native.write_text(native.read_text().replace(
+                "FreeRDP_HasRelativeMouseEvent",
+                "FreeRDP_UnicodeInput",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            native = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c"
+            )
+            native.write_text(native.read_text().replace(
+                "LibFreeRDP_freerdp_1is_1relative_1mouse_1input_1supported",
+                "LibFreeRDP_ freerdp_1is_1relative_1mouse_1input_1supported",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            display = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            )
+            display.write_text(display.read_text().replace(
+                "layout.DesktopScaleFactor = desktopScaleFactor;",
+                "layout.DesktopScaleFactor = freerdp_settings_get_uint32(settings, FreeRDP_DesktopScaleFactor);",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+    def test_display_ready_callback_is_exact_instance_bound_and_after_peer_caps(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            verify_display_pointer_patch(root)
+
+            display = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            )
+            text = display.read_text()
+            assignment = "\tafc->dispReady = TRUE;\n"
+            callback = (
+                '\tfreerdp_callback("OnDisplayControlReady", "(J)V",\n'
+                "\t                 (jlong)afc->common.context.instance);\n"
+            )
+            self.assertEqual(text.count(assignment), 1)
+            self.assertEqual(text.count(callback), 1)
+            display.write_text(
+                text.replace(assignment, "", 1).replace(
+                    callback, callback + assignment, 1
+                )
+            )
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            display = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            )
+            display.write_text(display.read_text().replace(
+                "if (!afc->dispReady || !disp || !disp->SendMonitorLayout)",
+                "if (!disp || !disp->SendMonitorLayout)",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+            self._copy_reviewed_android_sources(root)
+            for item in lock["patches"]:
+                subprocess.run(
+                    ["git", "apply", str(ROOT / item["path"])],
+                    cwd=root,
+                    check=True,
+                )
+            display = root / (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            )
+            display.write_text(display.read_text().replace(
+                "if (requestedArea > maximumArea)",
+                "if (FALSE)",
+                1,
+            ))
+            with self.assertRaisesRegex(
+                PackageError, "invalid_display_pointer_patch"
+            ):
+                verify_display_pointer_patch(root)
+
+    def test_receipt_rejects_old_or_wrong_java_display_pointer_contract(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = root / "old.aar"
+            self._aar(old, lock, "x86_64", java_api=())
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(old, "x86_64", lock)
+
+            wrong = root / "wrong.aar"
+            self._aar(
+                wrong,
+                lock,
+                "x86_64",
+                java_api=(
+                    (0x0001 | 0x0008 | 0x0100, "sendRelativeCursorEvent", "(JIII)Z"),
+                    (0x0001 | 0x0008 | 0x0100, "isRelativeMouseInputSupported", "(J)Z"),
+                    (0x0001 | 0x0008 | 0x0100, "sendMonitorLayout", "(JII)Z"),
+                ),
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(wrong, "x86_64", lock)
+
+            stale_callback = root / "stale-callback.aar"
+            self._aar(stale_callback, lock, "x86_64", event_listener_api=())
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(stale_callback, "x86_64", lock)
+
+            wrong_callback = root / "wrong-callback.aar"
+            self._aar(
+                wrong_callback,
+                lock,
+                "x86_64",
+                event_listener_api=((0x0001 | 0x0400, "OnDisplayControlReady", "(I)V"),),
+            )
+            with self.assertRaisesRegex(PackageError, "missing_java_contract"):
+                package_receipt(wrong_callback, "x86_64", lock)
 
     def _source(self, path, lock):
         with tarfile.open(path, "w:gz") as archive:
@@ -269,11 +525,81 @@ BOOL android_event_queue_init(freerdp* inst)
 """
         )
 
-    def _aar(self, path, lock, abi, second=None, native_evidence=True):
+    @staticmethod
+    def _copy_reviewed_android_sources(root):
+        fixture = ROOT / "tool/tests/fixtures/freerdp-3.31.1"
+        relative = {
+            "LibFreeRDP.java": (
+                "client/Android/Studio/freeRDPCore/src/main/java/"
+                "com/freerdp/freerdpcore/services/LibFreeRDP.java"
+            ),
+            "android_freerdp.c": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.c"
+            ),
+            "android_freerdp.h": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_freerdp.h"
+            ),
+            "android_event.h": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.h"
+            ),
+            "android_event.c": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_event.c"
+            ),
+            "android_disp.h": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.h"
+            ),
+            "android_disp.c": (
+                "client/Android/Studio/freeRDPCore/src/main/cpp/android_disp.c"
+            ),
+        }
+        for source_name, target_name in relative.items():
+            target = root / target_name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(fixture / source_name, target)
+
+    def _aar(
+        self,
+        path,
+        lock,
+        abi,
+        second=None,
+        native_evidence=True,
+        java_api=None,
+        event_listener_api=None,
+    ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
             for name in lock["requiredClasses"]:
-                jar.writestr(name, b"fixture")
+                if name == "com/freerdp/freerdpcore/services/LibFreeRDP.class":
+                    methods = java_api
+                    if methods is None:
+                        methods = tuple(
+                            (0x0001 | 0x0008 | 0x0100, method, descriptor)
+                            for method, descriptor in REQUIRED_FREERDP_API
+                        )
+                    jar.writestr(
+                        name,
+                        self._class_file(
+                            "com/freerdp/freerdpcore/services/LibFreeRDP",
+                            methods,
+                        ),
+                    )
+                elif name == EVENT_LISTENER_CLASS:
+                    methods = event_listener_api
+                    if methods is None:
+                        methods = tuple(
+                            (0x0001, method, descriptor)
+                            for method, descriptor in REQUIRED_EVENT_LISTENER_API
+                        )
+                    jar.writestr(
+                        name,
+                        self._class_file(
+                            "com/freerdp/freerdpcore/services/LibFreeRDP$EventListener",
+                            methods,
+                        ),
+                    )
+                else:
+                    jar.writestr(name, b"fixture")
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"manifest")
             archive.writestr("classes.jar", classes.getvalue())
@@ -287,6 +613,30 @@ BOOL android_event_queue_init(freerdp* inst)
                 archive.writestr(f"jni/{abi}/{name}", payload)
             if second:
                 archive.writestr(f"jni/{second}/extra.so", self._elf(62))
+
+    @staticmethod
+    def _class_file(class_name, method_specs):
+        utf8_values = [class_name, "java/lang/Object"]
+        for _access, name, descriptor in method_specs:
+            utf8_values.extend((name, descriptor))
+        constants = []
+        for value in utf8_values:
+            encoded = value.encode("utf-8")
+            constants.append(b"\x01" + struct.pack(">H", len(encoded)) + encoded)
+        constants.insert(1, b"\x07" + struct.pack(">H", 1))
+        constants.insert(3, b"\x07" + struct.pack(">H", 3))
+        payload = bytearray(b"\xca\xfe\xba\xbe")
+        payload += struct.pack(">HHH", 0, 52, len(constants) + 1)
+        payload += b"".join(constants)
+        payload += struct.pack(">HHHH", 0x0021, 2, 4, 0)
+        payload += struct.pack(">H", 0)
+        payload += struct.pack(">H", len(method_specs))
+        next_index = 5
+        for access, _name, _descriptor in method_specs:
+            payload += struct.pack(">HHHH", access, next_index, next_index + 1, 0)
+            next_index += 2
+        payload += struct.pack(">H", 0)
+        return bytes(payload)
 
     @staticmethod
     def _elf(machine):

@@ -228,6 +228,24 @@ class ProductAndroidNativeTest(unittest.TestCase):
         self.assertIn('--directory "$source"', freerdp_build)
         self.assertIn('studio="$source/client/Android/Studio"', freerdp_build)
         self.assertNotIn('$RUNNER_TEMP/freerdp-source/client/Android/Studio', freerdp_build)
+        for patch_name in (
+            "freerdp-certificate-pem.patch",
+            "freerdp-clipboard-utf8.patch",
+            "freerdp-display-pointer-v2.patch",
+        ):
+            self.assertIn(f'git apply --check "$GITHUB_WORKSPACE/android/{patch_name}"', freerdp_build)
+            self.assertIn(f'git apply "$GITHUB_WORKSPACE/android/{patch_name}"', freerdp_build)
+        self.assertLess(
+            freerdp_build.index('git apply "$GITHUB_WORKSPACE/android/freerdp-certificate-pem.patch"'),
+            freerdp_build.index('git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"'),
+        )
+        self.assertLess(
+            freerdp_build.index('git apply "$GITHUB_WORKSPACE/android/freerdp-clipboard-utf8.patch"'),
+            freerdp_build.index('git apply "$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"'),
+        )
+        self.assertIn('freerdp_android_package.py" verify-patch .', freerdp_build)
+        source_bundle = freerdp_build.split('cp "$archive"', 1)[1]
+        self.assertIn('"$GITHUB_WORKSPACE/android/freerdp-display-pointer-v2.patch"', source_bundle)
         gradle = (
             Path(__file__).resolve().parents[2] / "android/app/build.gradle.kts"
         ).read_text()

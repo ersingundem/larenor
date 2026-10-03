@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show Uint8List;
 import 'package:larenor/features/remote_access/data/remote_profiles.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_engine.dart';
 import 'package:larenor/features/remote_access/rdp/rdp_models.dart';
@@ -41,10 +42,22 @@ class Trust implements RdpTrustStore {
   }
 }
 
-class Channel implements RdpChannel, RdpNegotiatedInputChannel {
+class Channel implements RdpFrameChannel, RdpNegotiatedInputChannel {
   Channel({this.supportsUnicodeInput = true});
   @override
   final bool supportsUnicodeInput;
+  @override
+  bool get supportsRelativePointer => true;
+  @override
+  Stream<RdpFrame> get frames => const Stream.empty();
+  @override
+  Future<bool> acknowledgeFrame(int sequence) async => true;
+  final relatives = <RdpRelativePointerEvent>[];
+  final wheels = <RdpWheelEvent>[];
+  @override
+  void relativePointer(RdpRelativePointerEvent event) => relatives.add(event);
+  @override
+  void wheel(RdpWheelEvent event) => wheels.add(event);
   int closes = 0;
   final pointers = <RdpPointerEvent>[];
   final keys = <RdpKeyEvent>[];
@@ -154,7 +167,7 @@ RdpSessionController controller(
   display: const RdpDisplaySpec(
     width: 2560,
     height: 1600,
-    dpi: 220,
+    desktopScaleFactor: 220,
     externalDisplay: true,
   ),
 );
@@ -230,7 +243,11 @@ void main() {
     trust: Trust()..pin = RdpCertificatePin.fromJson(fixture()['certificate']),
     engineFactory: engineFactory,
     isCurrent: current ?? () => true,
-    display: const RdpDisplaySpec(width: 640, height: 480, dpi: 160),
+    display: const RdpDisplaySpec(
+      width: 640,
+      height: 480,
+      desktopScaleFactor: 160,
+    ),
     settings: RdpProfileSettings(clipboardMode: mode),
   );
 
@@ -438,7 +455,18 @@ void main() {
     final engine = Engine(), c = controller(engine, trust, () => current);
     await connectWithPassword(c);
     expect(c.phase, RdpSessionPhase.connected);
-    c.pointer(const RdpPointerEvent(x: .5, y: .5, buttons: 0));
+    final frame = RdpFrame(
+      sequence: 1,
+      width: 2560,
+      height: 1600,
+      stride: 10240,
+      displayLayoutRevision: 1,
+      bgra: Uint8List(0),
+    );
+    expect(await c.acknowledgeFrame(frame), isTrue);
+    c.pointer(
+      RdpPointerEvent(x: .5, y: .5, buttons: 0, geometry: frame.geometry),
+    );
     c.key(const RdpKeyEvent(physicalKey: 0x00070004, down: true));
     current = false;
     c.synchronize();
@@ -446,7 +474,9 @@ void main() {
     expect(engine.channel.closes, 1);
     expect(engine.channel.pointers, hasLength(1));
     expect(engine.channel.keys, hasLength(1));
-    c.pointer(const RdpPointerEvent(x: .6, y: .6, buttons: 0));
+    c.pointer(
+      RdpPointerEvent(x: .6, y: .6, buttons: 0, geometry: frame.geometry),
+    );
     expect(engine.channel.pointers, hasLength(1));
     c.dispose();
   });
@@ -542,7 +572,11 @@ void main() {
           return value;
         },
         isCurrent: () => true,
-        display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+        display: const RdpDisplaySpec(
+          width: 1920,
+          height: 1080,
+          desktopScaleFactor: 180,
+        ),
       );
       await c.connect();
       expect(c.phase, RdpSessionPhase.connected);
@@ -567,7 +601,11 @@ void main() {
       trust: trust,
       engineFactory: () => engine,
       isCurrent: () => true,
-      display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+      display: const RdpDisplaySpec(
+        width: 1920,
+        height: 1080,
+        desktopScaleFactor: 180,
+      ),
       settings: const RdpProfileSettings(
         clipboardMode: RdpClipboardMode.disabled,
       ),
@@ -577,11 +615,13 @@ void main() {
       const RdpDisplaySpec(
         width: 2560,
         height: 1440,
-        dpi: 220,
+        desktopScaleFactor: 220,
         externalDisplay: true,
       ),
     );
-    c.resize(const RdpDisplaySpec(width: 9000, height: 1440, dpi: 220));
+    c.resize(
+      const RdpDisplaySpec(width: 9000, height: 1440, desktopScaleFactor: 220),
+    );
     expect(engine.channel.displays, hasLength(1));
     c.text('İstanbul');
     c.text('');
@@ -590,7 +630,9 @@ void main() {
     c.text('\ud800');
     expect(engine.channel.texts, ['İstanbul']);
     c.retire();
-    c.resize(const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180));
+    c.resize(
+      const RdpDisplaySpec(width: 1920, height: 1080, desktopScaleFactor: 180),
+    );
     c.text('late');
     expect(engine.channel.displays, hasLength(1));
     expect(engine.channel.texts, ['İstanbul']);
@@ -611,7 +653,11 @@ void main() {
         credentialVault: vault,
         engineFactory: () => engine,
         isCurrent: () => current,
-        display: const RdpDisplaySpec(width: 1920, height: 1080, dpi: 180),
+        display: const RdpDisplaySpec(
+          width: 1920,
+          height: 1080,
+          desktopScaleFactor: 180,
+        ),
         settings: const RdpProfileSettings(
           gatewayHost: 'gateway.home.arpa',
           gatewayUsername: 'gateway-user',
@@ -635,4 +681,62 @@ void main() {
       c.dispose();
     },
   );
+  test('controller admits only acknowledged current geometry and clears it on density resize', () async {
+    final trust = Trust()
+      ..pin = RdpCertificatePin.fromJson(fixture()['certificate']);
+    final engine = Engine(), c = controller(engine, trust, () => true);
+    await connectWithPassword(c);
+    RdpFrame frame(int sequence, int revision) => RdpFrame(
+      sequence: sequence,
+      width: 2560,
+      height: 1600,
+      stride: 10240,
+      displayLayoutRevision: revision,
+      bgra: Uint8List(0),
+    );
+    final first = frame(1, 1);
+    c.pointer(
+      RdpPointerEvent(x: .5, y: .5, buttons: 0, geometry: first.geometry),
+    );
+    expect(engine.channel.pointers, isEmpty);
+    expect(await c.acknowledgeFrame(first), isTrue);
+    c.pointer(
+      RdpPointerEvent(x: .5, y: .5, buttons: 0, geometry: first.geometry),
+    );
+    expect(engine.channel.pointers, hasLength(1));
+    c.resize(
+      const RdpDisplaySpec(
+        width: 2560,
+        height: 1600,
+        desktopScaleFactor: 200,
+        deviceScaleFactor: 180,
+        externalDisplay: true,
+      ),
+    );
+    expect(c.canSendPointer, isFalse);
+    expect(await c.acknowledgeFrame(frame(2, 1)), isTrue);
+    c.relativePointer(
+      RdpRelativePointerEvent(
+        deltaX: 1,
+        deltaY: 2,
+        buttons: 0,
+        geometry: first.geometry,
+      ),
+    );
+    expect(engine.channel.relatives, isEmpty);
+    final current = frame(3, 2);
+    expect(await c.acknowledgeFrame(current), isTrue);
+    c.relativePointer(
+      RdpRelativePointerEvent(
+        deltaX: -1,
+        deltaY: 2,
+        buttons: 0,
+        geometry: current.geometry,
+      ),
+    );
+    c.wheel(RdpWheelEvent(wheelDelta: 120, geometry: current.geometry));
+    expect(engine.channel.relatives, hasLength(1));
+    expect(engine.channel.wheels, hasLength(1));
+    c.dispose();
+  });
 }

@@ -23,12 +23,12 @@ class RdpNativeContractTest {
     }
 
     private fun available() = mapOf<String, Any?>(
-        "schemaVersion" to 1,
+        "schemaVersion" to 2,
         "availability" to "available",
         "engineRevision" to "freerdp-fixture-1",
         "security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to true),
-        "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640),
-        "input" to mapOf("pointer" to true, "keyboard" to true, "ime" to true),
+        "display" to mapOf("dynamicResolution" to true, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180)),
+        "input" to mapOf("absolutePointer" to true, "relativePointerNegotiation" to true, "verticalWheel" to true, "keyboard" to true, "ime" to true),
         "channels" to mapOf(
             "clipboardModes" to listOf("disabled", "clientToRemote", "bidirectional"),
             "audio" to false,
@@ -37,7 +37,7 @@ class RdpNativeContractTest {
     )
 
     private fun request(overrides: Map<String, Any?> = emptyMap()) = mapOf<String, Any?>(
-        "schemaVersion" to 1,
+        "schemaVersion" to 2,
         "requestId" to "11111111-1111-4111-8111-111111111111",
         "targetHost" to "desktop.home.arpa",
         "targetPort" to 3389,
@@ -46,7 +46,7 @@ class RdpNativeContractTest {
         "gateway" to mapOf("host" to "gateway.home.arpa", "port" to 443, "username" to "gateway-user"),
         "certificateFingerprint" to "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "requiresNla" to true,
-        "display" to mapOf("width" to 2560, "height" to 1600, "dpi" to 220, "externalDisplay" to true, "dynamicResize" to true),
+        "display" to mapOf("width" to 2560, "height" to 1600, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
         "keyboardLayout" to "turkishQ",
         "clipboardMode" to "clientToRemote",
         "audio" to false,
@@ -75,6 +75,20 @@ class RdpNativeContractTest {
         val unavailable = UnavailableRdpNativeBackend().capabilities()
         assertFalse(unavailable.canConnect)
         assertNull(unavailable.engineRevision)
+        reject("invalidCapabilities") {
+            RdpNativeCapabilities.parse(available() + ("schemaVersion" to 1))
+        }
+        reject("invalidCapabilities") {
+            RdpNativeCapabilities.parse(available() + ("display" to mapOf(
+                "dynamicResolution" to true,
+                "externalDisplay" to true,
+                "maxWidth" to 8192,
+                "maxHeight" to 8192,
+                "desktopScaleFactorMin" to 100,
+                "desktopScaleFactorMax" to 500,
+                "deviceScaleFactors" to listOf(100, 180),
+            )))
+        }
     }
 
     @Test fun requestKeepsTargetGatewayAndPolicyStrictWithoutSecrets() {
@@ -85,11 +99,26 @@ class RdpNativeContractTest {
         assertEquals(RdpClipboardMode.CLIENT_TO_REMOTE, parsed.clipboardMode)
         assertFalse(parsed.toString().contains("desktop.home.arpa"))
         assertFalse(parsed.publicSummary().keys.any { it in setOf("targetHost", "username", "domain", "gateway", "certificateFingerprint", "password") })
+        val maximumFrame = RdpNativeRequest.parse(request(mapOf("display" to mapOf(
+            "width" to 8192, "height" to 2048,
+            "desktopScaleFactor" to 500, "deviceScaleFactor" to 180,
+            "externalDisplay" to true, "dynamicResize" to true,
+        ))))
+        assertEquals(RdpNativeFrame.MAX_PIXELS, maximumFrame.display.width.toLong() * maximumFrame.display.height)
         for (host in listOf("https://desktop.home.arpa", "user:pass@host", "host:3389", "host/path", "bad host", "bad\nheader")) {
             reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("targetHost" to host))) }
         }
         reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("targetPort" to 0))) }
         reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("password" to "secret"))) }
+        reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("schemaVersion" to 1))) }
+        for (display in listOf(
+            mapOf("width" to 2559, "height" to 1600, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
+            mapOf("width" to 8192, "height" to 2049, "desktopScaleFactor" to 180, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
+            mapOf("width" to 2560, "height" to 1600, "desktopScaleFactor" to 99, "deviceScaleFactor" to 180, "externalDisplay" to true, "dynamicResize" to true),
+            mapOf("width" to 2560, "height" to 1600, "desktopScaleFactor" to 180, "deviceScaleFactor" to 120, "externalDisplay" to true, "dynamicResize" to true),
+        )) {
+            reject("invalidRequest") { RdpNativeRequest.parse(request(mapOf("display" to display))) }
+        }
     }
 
     @Test fun negotiationFailsClosedInsteadOfDowngradingFeatures() {
@@ -103,7 +132,7 @@ class RdpNativeContractTest {
             "certificatePinningRequired" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to false, "nla" to true, "rdGateway" to true)),
             "nlaUnavailable" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to false, "rdGateway" to true)),
             "gatewayUnavailable" to mapOf("security" to mapOf("tls" to true, "certificatePinning" to true, "nla" to true, "rdGateway" to false)),
-            "displayUnavailable" to mapOf("display" to mapOf("dynamicResolution" to false, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "maxDpi" to 640)),
+            "displayUnavailable" to mapOf("display" to mapOf("dynamicResolution" to false, "externalDisplay" to true, "maxWidth" to 8192, "maxHeight" to 8192, "desktopScaleFactorMin" to 100, "desktopScaleFactorMax" to 500, "deviceScaleFactors" to listOf(100, 140, 180))),
             "clipboardUnavailable" to mapOf("channels" to mapOf(
                 "clipboardModes" to listOf("disabled"), "audio" to false, "files" to false,
             )),

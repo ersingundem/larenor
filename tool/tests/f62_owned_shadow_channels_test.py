@@ -469,29 +469,30 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             witness = Path(temporary) / "witness.bin"
             values = [
-                subject.FLAG_CLIPBOARD_EFFECT | subject.FLAG_DISP_EFFECT,
+                subject.FLAG_CLIPBOARD_EFFECT | subject.FLAG_DISP_EFFECT | subject.FLAG_INITIAL_DISP,
                 2,
                 2,
                 2,
                 1,
-                1,
+                2,
                 0,
             ]
-            data = struct.pack("<8sII7I20s", subject.WITNESS_MAGIC, 1, 64, *values, b"\0" * 20)
+            data = struct.pack("<8sII7I20s", subject.WITNESS_MAGIC, 2, 64, *values, b"\0" * 20)
             witness.write_bytes(data)
             witness.chmod(0o600)
             result = subject.read_witness(witness)
             self.assertEqual(
                 result,
                 {
-                    "schemaVersion": 1,
+                    "schemaVersion": 2,
+                    "initialDisplayAccepted": True,
                     "clipboardEffect": True,
                     "displayEffect": True,
                     "formatLists": 2,
                     "dataRequests": 2,
                     "dataResponses": 2,
                     "emptyResponses": 1,
-                    "displayLayouts": 1,
+                    "displayLayouts": 2,
                     "channelErrors": 0,
                 },
             )
@@ -505,14 +506,14 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             with self.assertRaisesRegex(subject.FixtureError, "invalid_witness"):
                 subject.read_witness(witness)
             data = struct.pack(
-                "<8sII7I20s", subject.WITNESS_MAGIC, 1, 64, 0, 0, 0, 0, 0, 0, 0, b"x" + b"\0" * 19
+                "<8sII7I20s", subject.WITNESS_MAGIC, 2, 64, 0, 0, 0, 0, 0, 0, 0, b"x" + b"\0" * 19
             )
             witness.write_bytes(data)
             witness.chmod(0o600)
             with self.assertRaisesRegex(subject.FixtureError, "invalid_witness"):
                 subject.read_witness(witness)
             data = struct.pack(
-                "<8sII7I20s", subject.WITNESS_MAGIC, 1, 64, 0, 9, 0, 0, 0, 0, 0, b"\0" * 20
+                "<8sII7I20s", subject.WITNESS_MAGIC, 2, 64, 0, 9, 0, 0, 0, 0, 0, b"\0" * 20
             )
             witness.write_bytes(data)
             witness.chmod(0o600)
@@ -524,7 +525,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             root = Path(temporary)
             witness = root / "witness.bin"
             valid = struct.pack(
-                "<8sII7I20s", subject.WITNESS_MAGIC, 1, 64, 0, 0, 0, 0, 0, 0, 0, b"\0" * 20
+                "<8sII7I20s", subject.WITNESS_MAGIC, 2, 64, 0, 0, 0, 0, 0, 0, 0, b"\0" * 20
             )
             witness.write_bytes(valid)
             witness.chmod(0o644)
@@ -552,7 +553,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
             impossible = struct.pack(
                 "<8sII7I20s",
                 subject.WITNESS_MAGIC,
-                1,
+                2,
                 64,
                 subject.FLAG_CLIPBOARD_EFFECT,
                 0,
@@ -569,7 +570,7 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
                 subject.read_witness(witness)
 
             errors = struct.pack(
-                "<8sII7I20s", subject.WITNESS_MAGIC, 1, 64, 0, 0, 0, 0, 0, 0, 1, b"\0" * 20
+                "<8sII7I20s", subject.WITNESS_MAGIC, 2, 64, 0, 0, 0, 0, 0, 0, 1, b"\0" * 20
             )
             witness.write_bytes(errors)
             witness.chmod(0o600)
@@ -579,46 +580,60 @@ class F62OwnedShadowChannelsTest(unittest.TestCase):
     def test_lifetimes_require_enabled_effects_then_zero_clipboard_transfer(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary) / "channels"
-            first = struct.pack(
-                "<8sII7I20s",
-                subject.WITNESS_MAGIC,
-                1,
-                64,
-                subject.FLAG_CLIPBOARD_EFFECT | subject.FLAG_DISP_EFFECT,
-                2,
-                2,
-                2,
-                1,
-                1,
-                0,
-                b"\0" * 20,
+            first = self._layout_witness(
+                subject.FLAG_CLIPBOARD_EFFECT | subject.FLAG_DISP_EFFECT | subject.FLAG_INITIAL_DISP,
+                layouts=2, clipboard=True,
             )
-            second = struct.pack(
-                "<8sII7I20s",
-                subject.WITNESS_MAGIC,
-                1,
-                64,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                b"\0" * 20,
-            )
-            Path(f"{base}.1").write_bytes(first)
-            Path(f"{base}.2").write_bytes(second)
-            Path(f"{base}.1").chmod(0o600)
-            Path(f"{base}.2").chmod(0o600)
+            second = self._layout_witness(subject.FLAG_INITIAL_DISP, layouts=1)
+            for ordinal, record in ((1, first), (2, second)):
+                path = Path(f"{base}.{ordinal}")
+                path.write_bytes(record)
+                path.chmod(0o600)
             result = subject.read_lifetimes(base)
             self.assertTrue(result["enabled"]["clipboardEffect"])
             self.assertFalse(result["disabled"]["clipboardEffect"])
-
+            self.assertTrue(result["enabled"]["initialDisplayAccepted"])
+            self.assertTrue(result["disabled"]["initialDisplayAccepted"])
             Path(f"{base}.3").write_bytes(second)
             Path(f"{base}.3").chmod(0o600)
             with self.assertRaisesRegex(subject.FixtureError, "invalid_lifetime_witnesses"):
                 subject.read_lifetimes(base)
+
+    @staticmethod
+    def _layout_witness(flags, *, layouts, clipboard=False, version=2):
+        transfer = 1 if clipboard else 0
+        return struct.pack(
+            "<8sII7I20s", subject.WITNESS_MAGIC, version, 64, flags,
+            transfer, transfer, transfer, 0, layouts, 0, b"\0" * 20,
+        )
+
+    def test_schema_two_requires_initial_layout_before_exact_resize_and_both_lifetimes(self):
+        accepted = subject.FLAG_CLIPBOARD_EFFECT | subject.FLAG_DISP_EFFECT | subject.FLAG_INITIAL_DISP
+        cases = (
+            (self._layout_witness(accepted, layouts=1, clipboard=True), 1),
+            (self._layout_witness(accepted, layouts=3, clipboard=True), 1),
+            (self._layout_witness(accepted & ~subject.FLAG_INITIAL_DISP, layouts=2, clipboard=True), 1),
+            (self._layout_witness(accepted, layouts=2, clipboard=True, version=1), 1),
+            (self._layout_witness(subject.FLAG_INITIAL_DISP, layouts=0), 2),
+            (self._layout_witness(subject.FLAG_INITIAL_DISP, layouts=2), 2),
+            (self._layout_witness(0, layouts=1), 2),
+            (self._layout_witness(subject.FLAG_INITIAL_DISP, layouts=1, version=1), 2),
+        )
+        for record, ordinal in cases:
+            with self.subTest(ordinal=ordinal, record=record.hex()):
+                with tempfile.TemporaryDirectory() as temporary:
+                    base = Path(temporary) / "channels"
+                    pair = {
+                        1: self._layout_witness(accepted, layouts=2, clipboard=True),
+                        2: self._layout_witness(subject.FLAG_INITIAL_DISP, layouts=1),
+                    }
+                    pair[ordinal] = record
+                    for number, value in pair.items():
+                        path = Path(f"{base}.{number}")
+                        path.write_bytes(value)
+                        path.chmod(0o600)
+                    with self.assertRaises(subject.FixtureError):
+                        subject.read_lifetimes(base)
 
 
 if __name__ == "__main__":

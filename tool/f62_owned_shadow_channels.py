@@ -48,11 +48,11 @@ PATCHED_FILES = {
     "server/shadow/CMakeLists.txt": "bcdf84b177a33598c62f2f1ed7eccbba56a7da8171e42452dfc1b66e8cf3bde5",
     "server/shadow/shadow_channels.c": "339bf9aaad03e7d7207ae71345f3a519159a73133621fabf7029d1ce9a8b537c",
     "server/shadow/shadow_client.c": "a07adfae3ef11288f05d72fd5c32899522a4b7ab21a6387f3679a3f5c62ac797",
-    "server/shadow/shadow_larenor_channels.c": "d05ba7600fbfa1899d546d077c3592ecfc8e150ee6cf407a472c828b794485da",
+    "server/shadow/shadow_larenor_channels.c": "0a64f0665c367ceb0442deaf1d3b627aab13a66359ecb5851f2636769a3b8542",
     "server/shadow/shadow_larenor_channels.h": "af7fcfca177f3eb3c5db7bbb910cd74c3fd0a3470c4b68c86eebaeeb805e0b56",
 }
-PATCH_SHA256 = "b94f68932544e793f1a413c87ba6cbb84db20c9e316dbcce878decd19a110baa"
-WITNESS_MAGIC = b"LRNF62C1"
+PATCH_SHA256 = "58e198fb1b12d8627132a53eac491d29154cc322210415f422d061b4a321c59d"
+WITNESS_MAGIC = b"LRNF62C2"
 WITNESS_SIZE = 64
 MAX_ARCHIVE_SIZE = 32 * 1024 * 1024
 MAX_EXPANDED_SIZE = 256 * 1024 * 1024
@@ -64,7 +64,8 @@ MAX_BUILD_LOG_SIZE = 4 * 1024 * 1024
 SHADOW_CLI_RELATIVE = Path("server/shadow/cli/freerdp-shadow-cli")
 FLAG_CLIPBOARD_EFFECT = 0x00000001
 FLAG_DISP_EFFECT = 0x00000002
-KNOWN_FLAGS = FLAG_CLIPBOARD_EFFECT | FLAG_DISP_EFFECT
+FLAG_INITIAL_DISP = 0x00000004
+KNOWN_FLAGS = FLAG_CLIPBOARD_EFFECT | FLAG_DISP_EFFECT | FLAG_INITIAL_DISP
 DIAGNOSTIC_SOURCE_PATHS = (
     "CMakeLists.txt",
     "cmake/FindKRB5.cmake",
@@ -601,7 +602,7 @@ def parse_witness(path: Path):
     counts = (format_lists, requests, responses, empty, layouts, errors)
     require(
         magic == WITNESS_MAGIC
-        and version == 1
+        and version == 2
         and size == WITNESS_SIZE
         and flags & ~KNOWN_FLAGS == 0
         and all(value <= MAX_CHANNEL_EVENTS for value in counts)
@@ -609,7 +610,8 @@ def parse_witness(path: Path):
         "invalid_witness",
     )
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
+        "initialDisplayAccepted": bool(flags & FLAG_INITIAL_DISP),
         "clipboardEffect": bool(flags & FLAG_CLIPBOARD_EFFECT),
         "displayEffect": bool(flags & FLAG_DISP_EFFECT),
         "formatLists": format_lists,
@@ -635,7 +637,8 @@ def read_witness(path: Path):
                 and value["dataResponses"] > value["emptyResponses"]
             )
         )
-        and (not value["displayEffect"] or value["displayLayouts"] > 0),
+        and (not value["initialDisplayAccepted"] or value["displayLayouts"] > 0)
+        and (not value["displayEffect"] or (value["initialDisplayAccepted"] and value["displayLayouts"] == 2)),
         "invalid_witness",
     )
     return value
@@ -650,7 +653,11 @@ def read_lifetimes(base: Path):
     require(
         first["clipboardEffect"]
         and first["displayEffect"]
-        and first["displayLayouts"] == 1
+        and first["initialDisplayAccepted"]
+        and first["displayLayouts"] == 2
+        and second["initialDisplayAccepted"]
+        and second["displayLayouts"] == 1
+        and not second["displayEffect"]
         and not second["clipboardEffect"]
         and second["formatLists"] == 0
         and second["dataRequests"] == 0
@@ -658,7 +665,7 @@ def read_lifetimes(base: Path):
         and second["emptyResponses"] == 0,
         "invalid_lifetime_witnesses",
     )
-    return {"schemaVersion": 1, "enabled": first, "disabled": second}
+    return {"schemaVersion": 2, "enabled": first, "disabled": second}
 
 
 def main(argv=None):

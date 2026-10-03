@@ -3534,7 +3534,7 @@
   "rdpFilesOff": "Files: Off",
   "rdpChannelsHint": "Clipboard, audio, and file channels start disabled and require separate explicit capability and consent work.",
   "rdpDisplay": "Display",
-  "rdpDisplayValue": "{width} × {height} · {dpi} DPI",
+  "rdpDisplayValue": "{width} × {height} · desktop {desktopScale}% · device {deviceScale}%",
   "@rdpDisplayValue": {
     "placeholders": {
       "width": {
@@ -3543,7 +3543,10 @@
       "height": {
         "type": "int"
       },
-      "dpi": {
+      "desktopScale": {
+        "type": "int"
+      },
+      "deviceScale": {
         "type": "int"
       }
     }
@@ -3577,6 +3580,10 @@
   "rdpDisplayFixed": "Display: Fixed resolution",
   "rdpNativePanEnable": "Pan native canvas",
   "rdpNativePanDisable": "Resume remote pointer",
+  "rdpFullscreenEnter": "Enter full screen",
+  "rdpFullscreenExit": "Exit full screen",
+  "rdpFullscreenSurface": "Full-screen remote desktop",
+  "rdpFullscreenDenied": "Full screen could not be started for this window. The remote session remains connected.",
   "rdpKeyboardAutomatic": "Keyboard: Automatic",
   "rdpKeyboardUs": "Keyboard: US",
   "rdpClipboardDisabled": "Clipboard: Disabled",

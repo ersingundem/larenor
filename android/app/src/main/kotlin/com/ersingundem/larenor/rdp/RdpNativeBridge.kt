@@ -150,7 +150,8 @@ class RdpNativeBridge(
     private fun open(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
         if (session != null || networkBusy) fail("busy")
-        val value = map(raw, setOf("request", "requestId", "password", "gatewayPassword"))
+        val value = map(raw, setOf("schemaVersion", "request", "requestId", "password", "gatewayPassword"))
+        if (value["schemaVersion"] != 2) fail("invalidRequest")
         val id = value["requestId"] as? String ?: fail("invalidRequest")
         if (!UUID.matches(id) || id != requestId || sink == null) fail("staleSession")
         val request = RdpNativeRequest.parse(value["request"])
@@ -178,8 +179,9 @@ class RdpNativeBridge(
                             error(result, "staleSession")
                         } else {
                             result.success(mapOf(
-                                "schemaVersion" to 1,
+                                "schemaVersion" to 2,
                                 "unicodeTextInput" to opened.unicodeInputSupported,
+                                "relativePointer" to opened.relativePointerSupported,
                             ))
                         }
                     }
@@ -223,11 +225,12 @@ class RdpNativeBridge(
                         "requestId" to id,
                         "kind" to "frame",
                         "payload" to mapOf(
+                            "schemaVersion" to 2,
                             "sequence" to frame.sequence,
                             "width" to frame.width,
                             "height" to frame.height,
                             "stride" to frame.stride,
-                            "dpi" to frame.dpi,
+                            "displayLayoutRevision" to frame.displayLayoutRevision,
                             "pixels" to pixels,
                         ),
                     ))
@@ -253,18 +256,37 @@ class RdpNativeBridge(
         val sensitivePayload = (raw as? Map<*, *>)?.get("payload") as? ByteArray
         try {
             requireForeground()
-            val value = owned(raw, setOf("requestId", "sequence", "kind", "x", "y", "buttons"),
-                setOf("requestId", "sequence", "kind", "physicalKey", "down"),
-                setOf("requestId", "sequence", "kind", "text"),
-                setOf("requestId", "sequence", "kind", "channel", "payload"))
+            val value = owned(raw,
+                setOf("schemaVersion", "requestId", "sequence", "kind", "frameSequence", "width", "height", "displayLayoutRevision", "x", "y", "buttons"),
+                setOf("schemaVersion", "requestId", "sequence", "kind", "frameSequence", "width", "height", "displayLayoutRevision", "deltaX", "deltaY", "buttons"),
+                setOf("schemaVersion", "requestId", "sequence", "kind", "frameSequence", "width", "height", "displayLayoutRevision", "wheelDelta"),
+                setOf("schemaVersion", "requestId", "sequence", "kind", "physicalKey", "down"),
+                setOf("schemaVersion", "requestId", "sequence", "kind", "text"),
+                setOf("schemaVersion", "requestId", "sequence", "kind", "channel", "payload"))
+            if (value["schemaVersion"] != 2) fail("invalidRequest")
             val current = session ?: fail("staleSession")
             val sequence = sequence(value["sequence"])
             val accepted = when (value["kind"]) {
-                "pointer" -> current.pointer(
+                "absolutePointer" -> current.absolutePointer(
                     sequence,
+                    geometry(value),
                     (value["x"] as? Number)?.toDouble() ?: fail("invalidRequest"),
                     (value["y"] as? Number)?.toDouble() ?: fail("invalidRequest"),
-                    integer(value["buttons"], 0, 31),
+                    integer(value["buttons"], 0, 7),
+                )
+                "relativePointer" -> current.relativePointer(
+                    sequence,
+                    geometry(value),
+                    integer(value["deltaX"], Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()),
+                    integer(value["deltaY"], Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()),
+                    integer(value["buttons"], 0, 7),
+                )
+                "verticalWheel" -> current.verticalWheel(
+                    sequence,
+                    geometry(value),
+                    integer(value["wheelDelta"], -120, 120).also {
+                        if (it !in setOf(-120, 120)) fail("invalidRequest")
+                    },
                 )
                 "key" -> current.key(
                     sequence,
@@ -296,14 +318,22 @@ class RdpNativeBridge(
 
     private fun resize(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
-        val value = map(raw, setOf("requestId", "sequence", "display"))
+        val value = map(raw, setOf("schemaVersion", "requestId", "sequence", "display"))
+        if (value["schemaVersion"] != 2) fail("invalidRequest")
         ownedId(value)
-        val display = map(value["display"], setOf("width", "height", "dpi", "externalDisplay", "dynamicResize"))
+        val display = map(value["display"], setOf("width", "height", "desktopScaleFactor", "deviceScaleFactor", "externalDisplay", "dynamicResize"))
+        val width = integer(display["width"], 640, 8192)
+        if (width % 2 != 0) fail("invalidRequest")
+        val height = integer(display["height"], 480, 8192)
+        if (width.toLong() * height > RdpNativeFrame.MAX_PIXELS) fail("invalidRequest")
         val accepted = (session ?: fail("staleSession")).resize(
             sequence(value["sequence"]),
             RdpNativeDisplay(
-                integer(display["width"], 640, 8192), integer(display["height"], 480, 8192),
-                integer(display["dpi"], 72, 640),
+                width, height,
+                integer(display["desktopScaleFactor"], 100, 500),
+                integer(display["deviceScaleFactor"], 100, 180).also {
+                    if (it !in setOf(100, 140, 180)) fail("invalidRequest")
+                },
                 display["externalDisplay"] as? Boolean ?: fail("invalidRequest"),
                 display["dynamicResize"] as? Boolean ?: fail("invalidRequest"),
             ),
@@ -314,7 +344,8 @@ class RdpNativeBridge(
 
     private fun ack(raw: Any?, result: MethodChannel.Result) {
         requireForeground()
-        val value = map(raw, setOf("requestId", "frameSequence"))
+        val value = map(raw, setOf("schemaVersion", "requestId", "frameSequence"))
+        if (value["schemaVersion"] != 2) fail("invalidRequest")
         ownedId(value)
         val accepted = (session ?: fail("staleSession")).acknowledgeFrame(sequence(value["frameSequence"]))
         if (!accepted) fail(session?.failureCode ?: "staleSession")
@@ -335,6 +366,16 @@ class RdpNativeBridge(
         if (shapes.none { value.keys == it }) fail("invalidRequest")
         ownedId(value)
         return value
+    }
+
+    private fun geometry(value: Map<*, *>): RdpFreeRdpSession.DisplayedGeometry {
+        val width = integer(value["width"], 640, 8192)
+        val height = integer(value["height"], 480, 8192)
+        if (width.toLong() * height > RdpNativeFrame.MAX_PIXELS) fail("invalidRequest")
+        return RdpFreeRdpSession.DisplayedGeometry(
+            sequence(value["frameSequence"]), width, height,
+            sequence(value["displayLayoutRevision"]),
+        )
     }
 
     private fun ownedId(value: Map<*, *>) {
@@ -368,15 +409,29 @@ class RdpNativeBridge(
 }
 
 internal fun RdpNativeCapabilities.toChannel(): Map<String, Any?> = mapOf(
-    "schemaVersion" to 1,
+    "schemaVersion" to 2,
     "availability" to availability.name.lowercase(),
     "engineRevision" to engineRevision,
-    "security" to mapOf("tls" to tls, "certificatePinning" to certificatePinning, "nla" to nla),
+    "security" to mapOf(
+        "tls" to tls,
+        "certificatePinning" to certificatePinning,
+        "nla" to nla,
+        "rdGateway" to rdGateway,
+    ),
     "display" to mapOf(
         "dynamicResolution" to dynamicResolution, "externalDisplay" to externalDisplay,
-        "maxWidth" to maxWidth, "maxHeight" to maxHeight, "maxDpi" to maxDpi,
+        "maxWidth" to maxWidth, "maxHeight" to maxHeight,
+        "desktopScaleFactorMin" to desktopScaleFactorMin,
+        "desktopScaleFactorMax" to desktopScaleFactorMax,
+        "deviceScaleFactors" to listOf(100, 140, 180).filter { it in deviceScaleFactors },
     ),
-    "input" to mapOf("touchpad" to pointer, "keyboard" to keyboard, "ime" to ime),
+    "input" to mapOf(
+        "absolutePointer" to absolutePointer,
+        "relativePointerNegotiation" to relativePointerNegotiation,
+        "verticalWheel" to verticalWheel,
+        "keyboard" to keyboard,
+        "ime" to ime,
+    ),
     "channels" to mapOf(
         "clipboard" to clipboardModes.any { it != RdpClipboardMode.DISABLED },
         "clipboardModes" to RdpClipboardMode.entries.filter { it in clipboardModes }.map {
@@ -411,13 +466,21 @@ private fun safeHost(raw: Any?): String {
 }
 
 private fun integer(raw: Any?, min: Int, max: Int): Int {
-    val value = (raw as? Number)?.toInt() ?: fail("invalidRequest")
+    val value = when (raw) {
+        is Int -> raw
+        is Long -> if (raw in Int.MIN_VALUE..Int.MAX_VALUE) raw.toInt() else fail("invalidRequest")
+        else -> fail("invalidRequest")
+    }
     if (value !in min..max) fail("invalidRequest")
     return value
 }
 
 private fun sequence(raw: Any?): Long {
-    val value = (raw as? Number)?.toLong() ?: fail("invalidRequest")
+    val value = when (raw) {
+        is Int -> raw.toLong()
+        is Long -> raw
+        else -> fail("invalidRequest")
+    }
     if (value !in 1..9_007_199_254_740_991L) fail("invalidRequest")
     return value
 }
