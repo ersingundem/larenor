@@ -4129,7 +4129,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Önceki named iki-Core koşusu başarılı dual-authority doğrulamasını geçti; cross-home rejection iddiası düzeltilmiştir. Negative authority/restore identity collision ve veri/arama/önbellek yalıtım matrisi eksik; zorunlu CI named runnerı çalıştırmıyor. Test filestore ve owned Jellyfin yerel kanıtı korunur; secure-store/fiziksel ev ve tam kabul ayrı. Dar kabul/üretim onarımı yeniden çalışılıyor. Kanıt: docs/testing/f04-f19-acceptance-gap-review-2026-10-03.md."
+      "reason": "Bağımsız v2 inceleme dört named normal-Core yaşamını doğruladı; negative authority/duplicate restore/data-search-cache kanıtı özel kaynakta geçti. Cross-home iptal/geç yanıt ve 16-profile sınırı açıktı; doğrudan controller cap çağrısı mevcut oturumu bozup login I/O yapabiliyor, dar onarım çalışılıyor. Named required CI henüz commit edilmedi/çalışmadı. F16/F20/F54 CI/dependency ve secure-store/fiziksel ev MANUAL açık; tam kabul değil."
     },
     {
       "id": "G06",
@@ -5627,7 +5627,8 @@
         "docs/testing/f60-active-stream-xi2-listener-2026-10-03.md",
         "docs/testing/f60-owned-host-startup-diagnostic-2026-10-03.md",
         "docs/testing/f60-stream-profile-startup-probe-2026-10-03.md",
-        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md"
+        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
+        "docs/testing/f60-owned-touch-effect-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5769,28 +5770,12 @@
           "label": "Exact9551 FAILED original1/1/0/0 firstStreamOutput; finite rtspHandshake/transportPortsAndReportedCode, connectionStarted false, pairedClientObserved, gameVisible then timeout/unknown_effect. Root original validator/canonical1640B artifact11274304008 SHAc1b5c161787e12f98969d9b1ab879efa626f8cd1d792d265c33896e4d5101db1 verified. Launch/resume RI key composition defect source-proven; repair/runtime acceptance open."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f60-launch-key-composed-2026-10-03.md",
-          "commit": "4e92c57e857e9e8429a0903478f0adcb0f1b91de",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen working tree on 4e92 base: actual dualABI embed-v5 RI key package/product verified; root55Moonlight +78RDP +13preparingSAF =146JVM/0skip/error/failure and actual AndroidTest compile315tasks;88portable and Ruff clean. 1227-source manifest unchanged. Matching app uses real resume; same one-use key, successor/late-publish fences. Hosted stream acceptance open."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37127353767",
           "commit": "9a85dc1f62193570c145cdd6656a278039570278",
           "state": "completed",
           "result": "failed",
           "label": "Exact9a85 FAILED before provider setup: stale embed-v4 acceptance constant rejected reviewed actual embed-v5 receipt. No acceptance artifact; private log SHA71ea10bfdedfebeeb4a1b9b5193cad2ace139268edbc00bd38abaa151ed5ca01. Root cause source-confirmed; distinct from prior RTSP failure, no stream acceptance."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
-          "commit": "0cb84d079e5e50318c4844bdee35e67fd70cb48a",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen identity repair on 0cb base: root86 discovery/stream/workflow tests and Ruff0.14.1 clean. Strict shared package lock replaces stale acceptance constant; current5 accepted, old4 rejected; actual AAR/source/class binding retained. Hosted stream acceptance open."
         },
         {
           "kind": "ci",
@@ -5895,10 +5880,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Terminal failed exact7e552: canonical1132B/source/named1/1/0/0 validated; ownedInputEffects touchEffect active. Frame/PCM/listener passed; actual input/two-lifetime/close acceptance open."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-owned-touch-effect-2026-10-03.md",
+          "commit": "1a90752379bb6dbfd6fc0f5e07d41e770340e59f",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root85stream/workflow tests and actual composed AndroidTest276tasks passed. Pinned Moonlight uses AXIS_X/Y; two real nonzero relative events and bounded host deadline repaired. Genuine Android input/two-lifetime/retirement acceptance remains open."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37142746206",
+          "commit": "1a90752379bb6dbfd6fc0f5e07d41e770340e59f",
+          "state": "in_progress",
+          "result": null,
+          "label": "One changed-source exact1a907 strict Android Sunshine stream dispatched; build in progress. No stream/feature acceptance or merge."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact7e552 strict37140213824 terminal başarısız: original1/1/0/0 ownedInputEffects, phaseBridge touchEffect/active/error:none. İlk frame/nonzeroPCM/listener geçti; gerçek pointer/button/gamepad/iki yaşam/kapanış açık. Kaynak incelemesi relative axis, iki hareket ve host/Android deadline fixture açıklarını buldu; düzeltme hazırlanıyor. Startup-only37140051214 featureAccepted=false ile geçti; yayın kabulü değil. Aynı SHA rerun/merge yok."
+      "reason": "Exact1a907523 strict37142746206 bir kez başladı; gerçek Android input/iki yaşam/kapanış sonucu bekleniyor. Relative AXIS_X/Y, iki nonzero hareket ve host deadline fixture onarımı root85 test/actual276task AndroidTest compile geçti. Önceki7e552 strict37140213824 failed/frame-PCM-listener kanıtı korunur. Startup-only featureAccepted=false; yayın kabulü veya merge yok."
     },
     {
       "id": "G11",
@@ -6041,7 +6042,8 @@
         "docs/testing/f62-native5-composed-local-2026-10-03.md",
         "docs/testing/f62-gateway-archive-source-diagnostic-2026-10-03.md",
         "docs/testing/f62-gateway-xinput-build-configuration-2026-10-03.md",
-        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md"
+        "docs/testing/native-strict-7e552-7e6d-failure-2026-10-03.md",
+        "docs/testing/f62-linker-diagnostic-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6199,22 +6201,6 @@
           "label": "Exact06ef arm64 package SUCCESS; x86 FAILED original1/1/0/0 instrumentation_test_failure/unclassified/no frames, resizefalse; marker available/invalid/unknown, shadow live. Canonical1290B SHAe7d9b03aaba0f2daaf0d764589026a86b0aeea4484214d892f43ecadb2b403a5 independently verified. Diagnostic marker also controls effect arming; concrete fixture gap, exact failure cause unknown. No acceptance/rerun."
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-saf-grants-native-2026-10-03.md",
-          "commit": "05f263943a5d319c34b7b7cd70ee0252d4968065",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen SAF grant5 slice: root94RDP JVM/0skip/error/failure and actual AndroidTest compile; final18SAF JVM passed after replay/revocation and256record/4096URI capacity repair. Shared179Flutter/analyze and exact16-path hashes independently verified. Real files/Gateway remain false; no hosted transfer acceptance."
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-effect-control-2026-10-03.md",
-          "commit": "79506adaeb2246b233118368cc7b5006b015e9f7",
-          "state": "completed",
-          "result": "passed",
-          "label": "Frozen effect-control slice on 79506 base: root78 runner/workflow tests, scoped Ruff and actual required-native AndroidTest compile passed; four-source manifest unchanged. Exact one-shot source/test/nonce-bound audio then mic controls consume before effect; invalid diagnostic cannot suppress arming. Hosted effects remain unproved."
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37128695877",
           "commit": "f201ecf9b7a181cd6a85d5e1f74fe9681a84d2a8",
@@ -6309,10 +6295,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Terminal failed exact7e6d: canonical699B/source/archive/patch/manifest validated; compile/linkerError/linkUndefined exit1, no target/symbol. Product effects and acceptance remain open."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f62-linker-diagnostic-2026-10-03.md",
+          "commit": "0cadf0ef9719d2cba1b050ddb09d4624219b9675",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root51probe/build/workflow tests+9subtests and Ruff passed. Schema4 binds closed linkTarget/hashed-symbol classes to pinned source. Diagnostic improvement only; no compiled Gateway or feature acceptance."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37142705819",
+          "commit": "0cadf0ef9719d2cba1b050ddb09d4624219b9675",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact0cad changed-source Linux probe terminal failed at build. Canonical schema4 diagnostic independent review pending; transport/RDPDR steps skipped. No same-SHA rerun or acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact7e6d Linux37141178524 terminal compile/linkerError/linkUndefined exit1; closed699B source/archive/patch/manifest doğrulandı. XInput düzeltmesi geçti fakat linker target/symbol receiptte yok; kör link onarımı/rerun yapılmaz. Private200JVM/0failure/error/skip ve actual313task AndroidTest compile yerel kanıt. Gerçek Linux transport/RDPDR, Android0600/0700/DIRECT/PUBLIC/Gateway/SAF/audio/mic ve final CI açık; kabul/merge yok."
+      "reason": "Exact0cadf0ef Linux37142705819 build aşamasında terminal failed; schema4 canonical linker target/symbol tanısı bağımsız inceleniyor. Root51 test/9subtest+Ruff diagnostic kapısı geçti; gerçek linker onarımı henüz yok. Private200JVM ve201Flutter yerel bileşim kanıtı gerçek Linux/Android Gateway/SAF/audio/mic etkisi değildir. DIRECT/PUBLIC ve final CI/kabul/merge açık."
     },
     {
       "id": "F61",

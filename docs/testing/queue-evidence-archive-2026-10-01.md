@@ -442,3 +442,56 @@ Archived F62 record while retaining every CI record:
 ```json
 {"commit": "c279d30f7a25cb7cd11403135b0c2ef7c1bd66a6", "kind": "test", "label": "Frozen working tree on c279 base: real schema4 dual-ABI package/product verified; root125 JVM (78RDP/47Moonlight), zero skips/errors/failures, actual AndroidTest compile315tasks; 105Flutter/analyze,128portable and source manifests unchanged. Owned AUDIN host effect remains unproven.", "ref": "docs/testing/f62-owned-microphone-composed-2026-10-03.md", "result": "passed", "state": "completed"}
 ```
+
+## 3 October source-bound touch/linker updates
+
+Only oldest non-CI records moved; all CI records retained.
+
+```json
+[
+  {
+    "node": "F60",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f60-launch-key-composed-2026-10-03.md",
+      "commit": "4e92c57e857e9e8429a0903478f0adcb0f1b91de",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen working tree on 4e92 base: actual dualABI embed-v5 RI key package/product verified; root55Moonlight +78RDP +13preparingSAF =146JVM/0skip/error/failure and actual AndroidTest compile315tasks;88portable and Ruff clean. 1227-source manifest unchanged. Matching app uses real resume; same one-use key, successor/late-publish fences. Hosted stream acceptance open."
+    }
+  },
+  {
+    "node": "F60",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f60-ri5-acceptance-identity-2026-10-03.md",
+      "commit": "0cb84d079e5e50318c4844bdee35e67fd70cb48a",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen identity repair on 0cb base: root86 discovery/stream/workflow tests and Ruff0.14.1 clean. Strict shared package lock replaces stale acceptance constant; current5 accepted, old4 rejected; actual AAR/source/class binding retained. Hosted stream acceptance open."
+    }
+  },
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-saf-grants-native-2026-10-03.md",
+      "commit": "05f263943a5d319c34b7b7cd70ee0252d4968065",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen SAF grant5 slice: root94RDP JVM/0skip/error/failure and actual AndroidTest compile; final18SAF JVM passed after replay/revocation and256record/4096URI capacity repair. Shared179Flutter/analyze and exact16-path hashes independently verified. Real files/Gateway remain false; no hosted transfer acceptance."
+    }
+  },
+  {
+    "node": "F62",
+    "evidence": {
+      "kind": "test",
+      "ref": "docs/testing/f62-owned-effect-control-2026-10-03.md",
+      "commit": "79506adaeb2246b233118368cc7b5006b015e9f7",
+      "state": "completed",
+      "result": "passed",
+      "label": "Frozen effect-control slice on 79506 base: root78 runner/workflow tests, scoped Ruff and actual required-native AndroidTest compile passed; four-source manifest unchanged. Exact one-shot source/test/nonce-bound audio then mic controls consume before effect; invalid diagnostic cannot suppress arming. Hosted effects remain unproved."
+    }
+  }
+]
+```
