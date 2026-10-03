@@ -5469,7 +5469,8 @@
       "sources": [
         "docs/feature-expansion-plan-2026-09-05.md",
         "docs/feature-candidates-2026-09-05.json",
-        "docs/testing/queue-evidence-archive-2026-10-01.md"
+        "docs/testing/queue-evidence-archive-2026-10-01.md",
+        "docs/testing/native-strict-9551-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Önce kavram kanıtı; Sunshine uyumlu oyun bilgisayarı/GPU gerekir. Android native entegrasyon ve lisans koşulları ayrıca değerlendirilir.",
       "acceptance": [
@@ -5734,13 +5735,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37123578040",
           "commit": "9551e73782fdfcfb4a1308e1d01522858ec8d494",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact9551 registered scope=f60-stream started once; embed-v4/nonzero per-lifetime tone and finite stage diagnosis. In progress; no frame/PCM/input/two-lifetime acceptance yet."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact9551 FAILED original1/1/0/0 firstStreamOutput; finite rtspHandshake/transportPortsAndReportedCode, connectionStarted false, pairedClientObserved, gameVisible then timeout/unknown_effect. Root original validator/canonical1640B artifact11274304008 SHAc1b5c161787e12f98969d9b1ab879efa626f8cd1d792d265c33896e4d5101db1 verified. Launch/resume RI key composition defect source-proven; repair/runtime acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Embed-v4 gerçek iki-ABI paket ve compiled IIZ hook doğrulandı; yalnız exact active lease tam nonzero PCM yazısı kanıt sayılır, sessiz/partial/stale/retired/successor yazılar sayılmaz. Owned kabul iki exact session için sıfır nonzero baseline sonrası ayrı nonce-bound birer tone gönderir, retry/replay yok. Root47Moonlight JVM/0skip ve actual AndroidTest314task,225composed tools/184subtests geçti. Gerçek stageFailed sınırı finite stage/signal enums ile yalnız source-bound original1/1/0/0 failureda yayımlanır; raw provider/code/port saklanmaz. Exact5122/run37121179343 firstStreamOutput başarısız, stageFailed=true/connectionStarted=false; kesin alt neden açık. Nonzero/tone düzeltmesi bu pre-connection hatasının çözümü diye sunulmaz. Yeni exact-source gerçek frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli; CI bekliyor/done sayılmaz, fiziksel receiver MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor. Embed-v4 gerçek iki-ABI paket ve compiled IIZ hook doğrulandı; yalnız exact active lease tam nonzero PCM yazısı kanıt sayılır, sessiz/partial/stale/retired/successor yazılar sayılmaz. Owned kabul iki exact session için sıfır nonzero baseline sonrası ayrı nonce-bound birer tone gönderir, retry/replay yok. Root47Moonlight JVM/0skip ve actual AndroidTest314task,225composed tools/184subtests geçti. Gerçek stageFailed sınırı finite stage/signal enums ile yalnız source-bound original1/1/0/0 failureda yayımlanır; raw provider/code/port saklanmaz. Exact5122/run37121179343 firstStreamOutput başarısız, stageFailed=true/connectionStarted=false; kesin alt neden açık. Nonzero/tone düzeltmesi bu pre-connection hatasının çözümü diye sunulmaz. Yeni exact-source gerçek frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli; CI bekliyor/done sayılmaz, fiziksel receiver MANUAL ayrı. Exact9551/run37123578040 failed/rtspHandshake; launch/resume farklı RI anahtarı üretiyor, source-proven düzeltme hazırlanıyor. Frame/PCM/input/iki yaşam/close kabulü açık."
     },
     {
       "id": "G11",
@@ -5870,7 +5871,8 @@
         "docs/remote-access-plan-2026-09-05.md",
         "docs/remote-access-plan-2026-09-05.json",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/testing/queue-evidence-archive-2026-10-01.md"
+        "docs/testing/queue-evidence-archive-2026-10-01.md",
+        "docs/testing/native-strict-9551-failure-2026-10-03.md"
       ],
       "scope": "Yazılım teslim kapısı; gerçek cihaz/hesap kabulü MANUAL.* kayıtlarında ayrıca izlenir. Kişisel yol B3 olmadan başlayabilir; tam seçili özellik kabulünde yönetilen profil B3 kapısı da kapanmalıdır. SSH komutu/tüneli otomatik tekrar yok.",
       "acceptance": [
@@ -6135,13 +6137,13 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37123504468",
           "commit": "9551e73782fdfcfb4a1308e1d01522858ec8d494",
-          "state": "in_progress",
-          "result": null,
-          "label": "Exact9551 strict FreeRDP twoABI/source-bound named NLA runtime started once; failure-only exact open boundaries. In progress; no runtime acceptance yet."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact9551 arm64 package passed; x86 FAILED original1/1/0/0 testBody/firstSessionOpen/RdpNativeFailure. Source-bound marker available/invalid/unknown and shadow live. Root original validator/canonical1605B artifact11274533856 SHA0ece0a2196d4810eace0b551fd65775ae448c60c78c97ddce5c1959e5f4d8d5a verified. Reader race repair is not proof of sole provider cause; runtime acceptance open."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Schema3 uzak ses açık kullanıcı seçimi, gerçek OpenSL buffer completion ve bounded sorgularla yerelde tamamlandı; root91Flutter/analyze ve56RDP native geçti. Yeni exact open-boundary tanısı root9diagnostic dahil65RDP/0skip ve actual AndroidTest compile314tasks,61runner/89subtest ile doğrulandı; yalnız finite failure-only gözlemler, başarı/alt neden iddiası değil. Exact5122/run37121180943 arm64package geçti, x86original1/1/0/0 firstSessionOpen/RdpNativeFailure başarısız; canonical1519B/hash root doğrulandı. Yeni kaynaklı gerçek TLS/NLA/frame/ACK/key/DISP/clipboard/audio/iki yaşam/close kabulü gerekli. Mikrofon/SAF/Gateway üretim kapsamı açık; CI bekliyor/done sayılmaz. Gerçek ev cihazı ve fiziksel ses kalitesi MANUAL ayrı."
+      "reason": "Yeniden çalışılıyor. Schema3 uzak ses açık kullanıcı seçimi, gerçek OpenSL buffer completion ve bounded sorgularla yerelde tamamlandı; root91Flutter/analyze ve56RDP native geçti. Yeni exact open-boundary tanısı root9diagnostic dahil65RDP/0skip ve actual AndroidTest compile314tasks,61runner/89subtest ile doğrulandı; yalnız finite failure-only gözlemler, başarı/alt neden iddiası değil. Exact5122/run37121180943 arm64package geçti, x86original1/1/0/0 firstSessionOpen/RdpNativeFailure başarısız; canonical1519B/hash root doğrulandı. Yeni kaynaklı gerçek TLS/NLA/frame/ACK/key/DISP/clipboard/audio/iki yaşam/close kabulü gerekli. Mikrofon/SAF/Gateway üretim kapsamı açık; CI bekliyor/done sayılmaz. Gerçek ev cihazı ve fiziksel ses kalitesi MANUAL ayrı. Exact9551/run37123504468 failed/firstSessionOpen; marker invalid sticky yarışı dar düzeltmede. Mikrofon4 gerçek paket üretildi; actual SDK derlemesi public izin API düzeltmesini bekliyor. Runtime/SAF/Gateway açık."
     },
     {
       "id": "F61",
@@ -6237,7 +6239,8 @@
       "sources": [
         "docs/product-implementation-plan-2026-09-05.md",
         "docs/feature-expansion-plan-2026-09-05.md",
-        "docs/PROGRESS.md"
+        "docs/PROGRESS.md",
+        "docs/testing/native-strict-9551-failure-2026-10-03.md"
       ],
       "scope": "Tüm seçili yazılım tamamlandıktan sonra her özelliği gerçek kullanıcı akışı, Client/Core sözleşmesi, desteklenen platform ve servis kombinasyonlarıyla yeniden ele alır. Eksik, yalnızca görünür, bağlantısız, placeholder veya sessizce başarısız olan davranış bırakılmaz; fiziksel cihaz ve hesap gerektiren kanıtlar ilgili MANUAL kapısında kalır.",
       "acceptance": [
@@ -6430,7 +6433,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 failed/original1/1/0/0; root canonical kimlikleri doğrulandı. Yeni exact9551 stream37123578040 veRDP37123504468 in progress. Audio3/embed-v4 yerel doğrulandı; microphone4 üretim dilimi aktif; ikinciFINAL başlamadı."
+      "reason": "Yalnız FINAL.FUNCTION aktif.58 seçili özellik/69 iş CI bekliyor; F18 hold/drain ve NUT listener kapanışıyla tekrar CI bekliyor; F60/F62 yeniden çalışılıyor. Kabul35/127iş ve3/63özellik değişmedi. Exact721 Security36831975047 üç işi geçti; geniş36832137026 dört Server shardı/Flutter/aggregate/emulator/APK/native/host passed, eski F08 leaf observer ve Serveraggregate failed. Değişmişa8/run36835138089 named F08Linux/CoreUID IPC/cgroup geçti; broad finalHEAD yerine geçmez. F60 stricta8/run36835162847 original1/1/0/0 firstStreamOutput/timeout/unknown_effect ile failed; lease gameVisible, root canonical1397B verified. F62 strict42be/run36836063548 original1/1/0/0 initialFrameWait/connectionFailed ile failed; provider poll live, root canonical1667B verified. İkisinin kesin alt nedeni ve runtime kabulü açık. Yerel keyboard/window/fit-fill dilimleri geçti; 01e5 v2 density/pointer/fullscreen yazılımı81Flutter+90native/compile geçti; audio/mic/SAF/Gateway ve gerçekruntime kapanmadan F62 CI bekliyor sayılmaz. Son birleşik requiredCI, MANUAL ve CORE.WEB ayrı. Başka FINAL başlamaz; tarihsel yeşil sonuçlar güncel tam kabul değildir. Exact5122 Security37121144283 passed; strictstream37121179343 veRDP37121180943 failed/original1/1/0/0; root canonical kimlikleri doğrulandı. Exact9551 stream37123578040 veRDP37123504468 failed/original1/1/0/0; canonical validator/hash doğrulandı. F60 RI anahtarı, F62 tanı reader yarışı/mikrofon SDK yolu düzeltiliyor. Audio3/embed-v4 yerel doğrulandı; microphone4 üretim dilimi aktif; ikinciFINAL başlamadı."
     },
     {
       "id": "FINAL.UI",

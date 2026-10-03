@@ -2,7 +2,7 @@
 
 **Son durum: 3 Ekim 2026 — tek çalışma dalı `codex/project-completion-100`. Geliştirme ve odaklı doğrulaması tamamlanan 58 seçili özellik / toplam 69 iş CI bekliyor. F60/F62 yeniden çalışılıyor ve yalnız FINAL.FUNCTION aktif. Kanıtla kabul edilen 35/127 iş (%27,6) ve 3/63 seçili özellik (%4,8) değişmedi.** [Güncel kuyruk](EXECUTION_QUEUE.md).
 
-3 Ekim exact `9551e73782fdfcfb4a1308e1d01522858ec8d494` üzerinde değişmiş kaynağın [strict Sunshine37123578040](https://github.com/ersingundem/larenor/actions/runs/37123578040) ve [strict RDP37123504468](https://github.com/ersingundem/larenor/actions/runs/37123504468) koşuları birer kez başlatıldı; exact SHA ve in-progress durumu doğrulandı. Terminal runtime kabulü henüz yok. RDP microphone/schema4 üretimi aynı dalda geliştiriliyor; F60/F62 ve FINAL.FUNCTION açık, sayaçlar değişmedi.
+3 Ekim exact `9551e73782fdfcfb4a1308e1d01522858ec8d494` [strict Sunshine37123578040](https://github.com/ersingundem/larenor/actions/runs/37123578040) ve [strict RDP37123504468](https://github.com/ersingundem/larenor/actions/runs/37123504468) başarısız tamamlandı; ikisinin original named sonucu1/1/0/0 ve canonical source/validator/hash kimliği doğrulandı. Sunshine RTSP handshake aşamasında: launch/resume farklı RI anahtarı üretiyor, gerçek kaynak düzeltmesi hazırlanıyor. RDP arm64 package geçti; x86 firstSessionOpen/RdpNativeFailure, tanı marker invalid. Dar reader yarışı düzeltmesi sağlayıcı kök nedeninin tek başına kanıtı değildir. Mikrofon4 uygulama/gerçek paket dilimi geliştiriliyor. F60/F62 ve FINAL.FUNCTION açık, sayaçlar değişmedi. [Exact terminal kanıt](testing/native-strict-9551-failure-2026-10-03.md).
 
 ## Güncel durum ayrımı
 
