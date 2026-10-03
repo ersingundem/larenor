@@ -1,0 +1,35 @@
+--- a/app/src/main/java/com/limelight/Game.java
++++ b/app/src/main/java/com/limelight/Game.java
+@@ -2273,9 +2273,11 @@
+ 
+     /**
+      * Called only after AudioTrack accepted the complete decoded PCM write.
+-     * The callback contains counts only and never exposes PCM data.
++     * The callback contains counts and a nonzero-content flag only. It never
++     * exposes PCM data.
+      */
+-    public void onAudioPcmWritten(int requestedSamples, int writtenSamples) {
++    public void onAudioPcmWritten(int requestedSamples, int writtenSamples,
++                                  boolean containsNonZeroPcm) {
+     }
+ 
+     @Override
+--- a/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java
++++ b/app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java
+@@ -195,7 +195,15 @@
+             // latency at 40 ms in that situation.
+             int writtenSamples = track.write(audioData, 0, audioData.length);
+             if (writtenSamples > 0 && writtenSamples == audioData.length && context instanceof Game) {
+-                ((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);
++                boolean containsNonZeroPcm = false;
++                for (short sample : audioData) {
++                    if (sample != 0) {
++                        containsNonZeroPcm = true;
++                        break;
++                    }
++                }
++                ((Game) context).onAudioPcmWritten(audioData.length, writtenSamples,
++                        containsNonZeroPcm);
+             }
+         }
+         else {

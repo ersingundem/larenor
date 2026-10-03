@@ -587,6 +587,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             nonce = "e" * 64
             witnesses = []
             gamepad = Gamepad()
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            audio_calls = []
 
             def witness_factory(current):
                 witness = Witness(current)
@@ -598,17 +601,23 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 nonce=nonce,
                 paired_client_uuid=lambda: "0f5f1830-7253-4ce8-986f-0cb2c7946044",
                 gamepad=gamepad,
+                tone=tone,
                 timeout_seconds=2,
                 witness_factory=witness_factory,
+                audio_injector=lambda current, source, cancelled: audio_calls.append(
+                    (current, source, cancelled())
+                ),
             )
             bridge.start()
             with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client, \
                     client.makefile("rwb", buffering=0) as control:
                 for request, response in (
+                    ("audio_ready", "audio_armed"),
                     ("touch_ready", "touch_armed"),
                     ("touch_sent", "touch_observed"),
                     ("gamepad_ready", "gamepad_armed"),
                     ("gamepad_sent", "gamepad_observed"),
+                    ("audio_ready", "audio_armed"),
                     ("disconnect_ready", "owned_sunshine_stopped"),
                 ):
                     control.write(stream._control_message(nonce=nonce, phase=request))
@@ -618,6 +627,8 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                     )
             bridge.wait()
             bridge.close()
+            self.assertEqual(2, bridge.audio_injection_count)
+            self.assertEqual([(owned, tone, False), (owned, tone, False)], audio_calls)
             self.assertTrue(bridge.touch_observed)
             self.assertTrue(bridge.gamepad_observed)
             self.assertTrue(gamepad.observed)
@@ -626,6 +637,129 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             self.assertTrue(bridge.sunshine_stopped)
             self.assertTrue(owned.processes.sunshine_stopped)
             self.assertTrue(witnesses[0].closed)
+
+    def test_private_phase_bridge_never_injects_before_exact_audio_arm(self) -> None:
+        class Gamepad:
+            def disarm(self) -> None:
+                pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            calls = []
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce="f" * 64,
+                paired_client_uuid=lambda: None,
+                gamepad=Gamepad(),
+                tone=tone,
+                timeout_seconds=1,
+                audio_injector=lambda *_args: calls.append(True),
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client:
+                client.sendall(stream._control_message(nonce="f" * 64, phase="touch_ready"))
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                bridge.wait()
+            bridge.close()
+            self.assertEqual([], calls)
+            self.assertEqual(0, bridge.audio_injection_count)
+
+    def test_private_phase_bridge_requires_current_paired_client_before_audio(self) -> None:
+        class Gamepad:
+            def disarm(self) -> None:
+                pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            calls = []
+            nonce = "a" * 64
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce=nonce,
+                paired_client_uuid=lambda: None,
+                gamepad=Gamepad(),
+                tone=tone,
+                timeout_seconds=1,
+                audio_injector=lambda *_args: calls.append(True),
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client:
+                client.sendall(stream._control_message(nonce=nonce, phase="audio_ready"))
+                self.assertEqual(b"", client.recv(1))
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                bridge.wait()
+            bridge.close()
+            self.assertEqual([], calls)
+            self.assertEqual(0, bridge.audio_injection_count)
+
+    def test_private_phase_bridge_revalidates_successor_before_second_one_shot(self) -> None:
+        class Gamepad:
+            def arm(self) -> None:
+                pass
+
+            def wait_effect(self) -> None:
+                pass
+
+            def disarm(self) -> None:
+                pass
+
+        class Witness:
+            def __init__(self, _owned) -> None:
+                pass
+
+            def start(self) -> None:
+                pass
+
+            def wait(self, _timeout) -> None:
+                pass
+
+            def close(self) -> None:
+                pass
+
+        with tempfile.TemporaryDirectory() as temporary:
+            owned = _Owned(Path(temporary))
+            tone = Path(temporary) / "tone.wav"
+            stream.write_owned_tone(tone)
+            nonce = "b" * 64
+            paired = iter(["0f5f1830-7253-4ce8-986f-0cb2c7946044", None])
+            calls = []
+            bridge = stream.PhaseControlBridge(
+                owned,
+                nonce=nonce,
+                paired_client_uuid=lambda: next(paired),
+                gamepad=Gamepad(),
+                tone=tone,
+                timeout_seconds=1,
+                witness_factory=Witness,
+                audio_injector=lambda *_args: calls.append(True),
+            )
+            bridge.start()
+            with socket.create_connection(("127.0.0.1", bridge.host_port), timeout=1) as client, \
+                    client.makefile("rwb", buffering=0) as control:
+                for request, response in (
+                    ("audio_ready", "audio_armed"),
+                    ("touch_ready", "touch_armed"),
+                    ("touch_sent", "touch_observed"),
+                    ("gamepad_ready", "gamepad_armed"),
+                    ("gamepad_sent", "gamepad_observed"),
+                ):
+                    control.write(stream._control_message(nonce=nonce, phase=request))
+                    self.assertEqual(
+                        stream._control_message(nonce=nonce, phase=response),
+                        control.readline(stream.CONTROL_MESSAGE_BYTES + 1),
+                    )
+                control.write(stream._control_message(nonce=nonce, phase="audio_ready"))
+                self.assertEqual(b"", control.read(1))
+            with self.assertRaises(stream.StreamAcceptanceFailure):
+                bridge.wait()
+            bridge.close()
+            self.assertEqual([True], calls)
+            self.assertEqual(1, bridge.audio_injection_count)
+            self.assertFalse(bridge.sunshine_stopped)
 
     def test_key_witness_accepts_only_the_actual_a_press_release_after_utf8_listing(self) -> None:
         witness = stream.Xi2KeyWitness(None)
@@ -1191,10 +1325,11 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:{line})\n"
         )
 
-    def test_connection_boundaries_are_six_finite_source_bound_failure_only_booleans(self) -> None:
+    def test_connection_boundaries_are_closed_source_bound_failure_evidence(self) -> None:
         marker = (
-            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
-            "stageStarted=true|stageCompleted=true|stageFailed=false|connectionStarted=false"
+            "F60_CONNECTION_BOUNDARIES_V2|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=true|stageFailed=false|connectionStarted=false|"
+            "failureStage=none|failureSignal=none"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1204,6 +1339,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             "surfaceCreated": True, "positiveSurfaceChanged": True,
             "stageStarted": True, "stageCompleted": True,
             "stageFailed": False, "connectionStarted": False,
+            "failureStage": "none", "failureSignal": "none",
         }, diagnostic["connectionBoundaries"])
         self.assertEqual("instrumentation_test_failure", diagnostic["code"])
         self.assertEqual({"tests": 1, "failures": 1, "errors": 0, "skipped": 0}, diagnostic["counts"])
@@ -1211,8 +1347,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
 
     def test_connection_boundaries_reject_duplicate_malformed_and_extra_private_fields(self) -> None:
         marker = (
-            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=false|"
-            "stageStarted=false|stageCompleted=false|stageFailed=false|connectionStarted=false"
+            "F60_CONNECTION_BOUNDARIES_V2|surfaceCreated=true|positiveSurfaceChanged=false|"
+            "stageStarted=false|stageCompleted=false|stageFailed=false|connectionStarted=false|"
+            "failureStage=none|failureSignal=none"
         )
         invalid = (
             marker + "|private=secret", marker.replace("true", "1", 1),
@@ -1230,8 +1367,9 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
 
     def test_connection_boundaries_require_original_named_first_stream_and_exact_source(self) -> None:
         marker = (
-            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
-            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false"
+            "F60_CONNECTION_BOUNDARIES_V2|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false|"
+            "failureStage=rtspHandshake|failureSignal=transportPortsAndReportedCode"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1245,10 +1383,53 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             with mock.patch.object(stream, "_STAGE_SOURCE", changed):
                 self.assertNotIn("connectionBoundaries", stream.failure_diagnostic(root))
 
+    def test_output_witness_diagnostic_is_two_source_bound_booleans(self) -> None:
+        marker = (
+            "F60_OUTPUT_WITNESS_V1|renderedFrameObserved=true|"
+            "acceptedAudioObserved=false"
+        )
+        body = (
+            "java.lang.AssertionError: " + marker + "\n"
+            " at com.ersingundem.larenor.game.moonlight."
+            "MoonlightOwnedSunshineStreamTest."
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:234)\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=body)
+            diagnostic = stream.failure_diagnostic(root)
+        self.assertEqual({
+            "renderedFrameObserved": True,
+            "acceptedAudioObserved": False,
+        }, diagnostic["outputWitness"])
+        stream._validate_failure_diagnostic(diagnostic)
+
+    def test_output_witness_diagnostic_rejects_injection_and_wrong_source(self) -> None:
+        marker = (
+            "F60_OUTPUT_WITNESS_V1|renderedFrameObserved=false|"
+            "acceptedAudioObserved=false"
+        )
+        for value, line in (
+            (marker + "|private=secret", 234),
+            (marker.replace("false", "0", 1), 234),
+            (marker + "\n" + marker, 234),
+            (marker, 246),
+        ):
+            with self.subTest(value=value, line=line), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self._failed_report(root, body=(
+                    "java.lang.AssertionError: " + value + "\n"
+                    " at com.ersingundem.larenor.game.moonlight."
+                    "MoonlightOwnedSunshineStreamTest."
+                    f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:{line})\n"
+                ))
+                self.assertNotIn("outputWitness", stream.failure_diagnostic(root))
+
     def test_connection_boundaries_validator_rejects_nonboolean_incomplete_and_unbound_evidence(self) -> None:
         marker = (
-            "F60_CONNECTION_BOUNDARIES_V1|surfaceCreated=true|positiveSurfaceChanged=true|"
-            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false"
+            "F60_CONNECTION_BOUNDARIES_V2|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false|"
+            "failureStage=rtspHandshake|failureSignal=transportPortsAndReportedCode"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1268,6 +1449,33 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             stream._validate_failure_diagnostic({**diagnostic, "counts": {
                 "tests": 1, "failures": 0, "errors": 0, "skipped": 1,
             }})
+
+    def test_connection_boundaries_validator_rejects_inconsistent_or_open_categories(self) -> None:
+        marker = (
+            "F60_CONNECTION_BOUNDARIES_V2|surfaceCreated=true|positiveSurfaceChanged=true|"
+            "stageStarted=true|stageCompleted=false|stageFailed=true|connectionStarted=false|"
+            "failureStage=rtspHandshake|failureSignal=transportPorts"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._failed_report(root, body=self._connection_boundary_body(marker))
+            diagnostic = stream.failure_diagnostic(root)
+        for boundaries in (
+            {**diagnostic["connectionBoundaries"], "stageFailed": False},
+            {**diagnostic["connectionBoundaries"], "failureStage": "none"},
+            {**diagnostic["connectionBoundaries"], "failureSignal": "none"},
+            {**diagnostic["connectionBoundaries"], "failureStage": "privateStage"},
+            {**diagnostic["connectionBoundaries"], "failureSignal": "rawCode42"},
+            {**diagnostic["connectionBoundaries"], "failureStage": ["rtspHandshake"]},
+            {**diagnostic["connectionBoundaries"], "failureSignal": {"raw": "code"}},
+        ):
+            with self.subTest(boundaries=boundaries), self.assertRaises(
+                stream.StreamAcceptanceFailure
+            ):
+                stream._validate_failure_diagnostic({
+                    **diagnostic,
+                    "connectionBoundaries": boundaries,
+                })
 
     def test_wrong_or_premethod_identity_never_claims_named_test_or_stage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1431,7 +1639,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1439,7 +1647,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
             "java.lang.IllegalStateException: private-provider-material\n"
             " at com.ersingundem.larenor.game.moonlight."
             "MoonlightOwnedSunshineStreamTest."
-            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:274)"
+            f"{stream.TEST_NAME}(MoonlightOwnedSunshineStreamTest.kt:286)"
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1472,7 +1680,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1504,7 +1712,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }
@@ -1559,7 +1767,7 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
         package = {
             "aarSha256": "a" * 64,
             "classesSha256": "b" * 64,
-            "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
+            "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
             "sourceCommit": "c" * 40,
             "sourceTree": "d" * 40,
         }

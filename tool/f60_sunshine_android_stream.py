@@ -161,16 +161,39 @@ _STREAM_DISPATCH_MARKER = re.compile(
     r"invalid_timeout|invalid_receipt|provider_unavailable|pin_required|quarantined|"
     r"stale_candidate|stale_pairing|unknown_effect)"
 )
-_CONNECTION_BOUNDARY_KEYS = (
+_CONNECTION_BOUNDARY_BOOLEAN_KEYS = (
     "surfaceCreated", "positiveSurfaceChanged", "stageStarted", "stageCompleted",
     "stageFailed", "connectionStarted",
 )
-_CONNECTION_BOUNDARY_PREFIX = "F60_CONNECTION_BOUNDARIES_V1|"
+_CONNECTION_FAILURE_STAGES = frozenset({
+    "none", "providerLaunch", "platformInit", "nameResolution", "audioInit",
+    "rtspHandshake", "controlInit", "videoInit", "inputInit", "controlStart",
+    "videoStart", "audioStart", "inputStart", "unclassified",
+})
+_CONNECTION_FAILURE_SIGNALS = frozenset({
+    "none", "unspecified", "transportPorts", "reportedCode",
+    "transportPortsAndReportedCode",
+})
+_CONNECTION_BOUNDARY_KEYS = (
+    *_CONNECTION_BOUNDARY_BOOLEAN_KEYS, "failureStage", "failureSignal",
+)
+_CONNECTION_BOUNDARY_PREFIX = "F60_CONNECTION_BOUNDARIES_V2|"
 _CONNECTION_BOUNDARY_MARKER = re.compile(
     re.escape(_CONNECTION_BOUNDARY_PREFIX)
     + r"surfaceCreated=(true|false)\|positiveSurfaceChanged=(true|false)\|"
     + r"stageStarted=(true|false)\|stageCompleted=(true|false)\|"
-    + r"stageFailed=(true|false)\|connectionStarted=(true|false)"
+    + r"stageFailed=(true|false)\|connectionStarted=(true|false)\|"
+    + r"failureStage=(none|providerLaunch|platformInit|nameResolution|audioInit|"
+    + r"rtspHandshake|controlInit|videoInit|inputInit|controlStart|videoStart|"
+    + r"audioStart|inputStart|unclassified)\|"
+    + r"failureSignal=(none|unspecified|transportPorts|reportedCode|"
+    + r"transportPortsAndReportedCode)"
+)
+_OUTPUT_WITNESS_PREFIX = "F60_OUTPUT_WITNESS_V1|"
+_OUTPUT_WITNESS_MARKER = re.compile(
+    r"java\.lang\.AssertionError: F60_OUTPUT_WITNESS_V1\|"
+    r"renderedFrameObserved=(true|false)\|"
+    r"acceptedAudioObserved=(true|false)"
 )
 _OWNED_SOURCE_FILES = frozenset({
     "LarenorMoonlightGame.kt",
@@ -189,20 +212,20 @@ _STAGE_SOURCE = ROOT / (
     "android/app/src/moonlightAndroidTest/kotlin/com/ersingundem/larenor/"
     "game/moonlight/MoonlightOwnedSunshineStreamTest.kt"
 )
-_STAGE_SOURCE_SHA256 = "372f5a723356386664d9f1653f95ac5000ecf08c058fd112aa8541bf9e860570"
+_STAGE_SOURCE_SHA256 = "d07844aa3dd8e6f0188666c9a1082a56faf44401e28b0200cf6b4722e3d593e1"
 _STAGE_LINES = (
     (52, 68, "fixtureInputs"),
     (69, 103, "discovery"),
     (104, 128, "pairingRegistration"),
     (129, 155, "catalog"),
     (156, 216, "capabilityAndSession"),
-    (217, 228, "firstStreamOutput"),
-    (229, 237, "ownedInputEffects"),
-    (238, 244, "deliberateStop"),
-    (245, 266, "secondStreamOutput"),
-    (267, 288, "remoteDisconnect"),
-    (289, 318, "localRetirement"),
-    (319, 331, "cleanup"),
+    (217, 237, "firstStreamOutput"),
+    (238, 244, "ownedInputEffects"),
+    (245, 252, "deliberateStop"),
+    (253, 285, "secondStreamOutput"),
+    (286, 306, "remoteDisconnect"),
+    (307, 337, "localRetirement"),
+    (338, 350, "cleanup"),
 )
 
 
@@ -307,6 +330,8 @@ def _control_message(*, nonce: str, phase: str) -> bytes:
         re.fullmatch(r"[0-9a-f]{64}", nonce) is None
         or phase
         not in {
+            "audio_ready",
+            "audio_armed",
             "touch_ready",
             "touch_armed",
             "touch_sent",
@@ -915,7 +940,7 @@ class Xi2PointerWitness:
 
 
 class PhaseControlBridge:
-    """One authenticated private phase exchange for input and remote disconnect."""
+    """One authenticated private phase exchange for audio, input, and disconnect."""
 
     def __init__(
         self,
@@ -924,8 +949,14 @@ class PhaseControlBridge:
         nonce: str,
         paired_client_uuid: Callable[[], Optional[str]],
         gamepad: OwnedGamepadAccess,
+        tone: Path,
         timeout_seconds: float = CONTROL_TIMEOUT_SECONDS,
         witness_factory: Callable[[OwnedSunshineHost], Xi2PointerWitness] = Xi2PointerWitness,
+        audio_injector: Callable[
+            [OwnedSunshineHost, Path, Callable[[], bool]], None
+        ] = lambda owned, source, cancelled: inject_owned_tone(
+            owned, source, cancelled=cancelled
+        ),
     ) -> None:
         if re.fullmatch(r"[0-9a-f]{64}", nonce) is None or not 1 <= timeout_seconds <= 600:
             raise StreamAcceptanceFailure("private phase bridge configuration is invalid")
@@ -933,8 +964,12 @@ class PhaseControlBridge:
         self._nonce = nonce
         self._paired_client_uuid = paired_client_uuid
         self._gamepad = gamepad
+        if not tone.is_absolute() or not tone.exists():
+            raise StreamAcceptanceFailure("private phase bridge configuration is invalid")
+        self._tone = tone
         self._timeout = timeout_seconds
         self._witness_factory = witness_factory
+        self._audio_injector = audio_injector
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
         self._socket.bind(("127.0.0.1", 0))
@@ -946,6 +981,7 @@ class PhaseControlBridge:
         self._cancelled = threading.Event()
         self._connection: Optional[socket.socket] = None
         self._witness: Optional[Xi2PointerWitness] = None
+        self.audio_injection_count = 0
         self.touch_observed = False
         self.gamepad_observed = False
         self.provider_pairing_present_before_disconnect = False
@@ -972,6 +1008,18 @@ class PhaseControlBridge:
         stream.write(_control_message(nonce=self._nonce, phase=phase))
         stream.flush()
 
+    def _arm_and_inject_audio(self, control: Any) -> None:
+        self._expect(control, "audio_ready")
+        audio_client_uuid = self._paired_client_uuid()
+        if audio_client_uuid is None:
+            raise StreamAcceptanceFailure("owned paired client proof is incomplete")
+        self._owned.api.require_owned_client_present(
+            PAIRING_CLIENT_NAME, audio_client_uuid
+        )
+        self._send(control, "audio_armed")
+        self._audio_injector(self._owned, self._tone, self._cancelled.is_set)
+        self.audio_injection_count += 1
+
     def _serve(self) -> None:
         try:
             connection, address = self._socket.accept()
@@ -980,6 +1028,7 @@ class PhaseControlBridge:
                 raise StreamAcceptanceFailure("private phase peer identity is invalid")
             connection.settimeout(self._timeout)
             with connection, connection.makefile("rwb", buffering=0) as control:
+                self._arm_and_inject_audio(control)
                 self._expect(control, "touch_ready")
                 self._witness = self._witness_factory(self._owned)
                 self._witness.start()
@@ -996,6 +1045,7 @@ class PhaseControlBridge:
                 self._gamepad.disarm()
                 self.gamepad_observed = True
                 self._send(control, "gamepad_observed")
+                self._arm_and_inject_audio(control)
                 self._expect(control, "disconnect_ready")
                 client_uuid = self._paired_client_uuid()
                 if client_uuid is None:
@@ -1035,7 +1085,8 @@ class PhaseControlBridge:
         if self._failure is not None:
             raise StreamAcceptanceFailure("private phase bridge failed") from self._failure
         if not (
-            self.touch_observed
+            self.audio_injection_count == 2
+            and self.touch_observed
             and self.gamepad_observed
             and self.provider_pairing_present_before_disconnect
             and self.sunshine_stopped
@@ -1465,7 +1516,30 @@ def _failure_details(
     ):
         diagnostic["connectionBoundaries"] = {
             key: value == "true"
-            for key, value in zip(_CONNECTION_BOUNDARY_KEYS, boundary.groups())
+            for key, value in zip(
+                _CONNECTION_BOUNDARY_BOOLEAN_KEYS,
+                boundary.groups()[:len(_CONNECTION_BOUNDARY_BOOLEAN_KEYS)],
+            )
+        }
+        diagnostic["connectionBoundaries"]["failureStage"] = boundary.group(7)
+        diagnostic["connectionBoundaries"]["failureSignal"] = boundary.group(8)
+    output_lines = [line.strip() for line in lines if _OUTPUT_WITNESS_PREFIX in line]
+    output_markers = [
+        match for line in output_lines
+        if (match := _OUTPUT_WITNESS_MARKER.fullmatch(line))
+    ]
+    if (
+        code == "instrumentation_test_failure"
+        and counts == {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+        and stage == "firstStreamOutput"
+        and exception_type == "java.lang.AssertionError"
+        and len(output_lines) == 1
+        and len(output_markers) == 1
+    ):
+        output = output_markers[0]
+        diagnostic["outputWitness"] = {
+            "renderedFrameObserved": output.group(1) == "true",
+            "acceptedAudioObserved": output.group(2) == "true",
         }
     return diagnostic
 
@@ -1596,7 +1670,7 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
     allowed = {
         "code", "exceptionType", "frames", "counts", "identity", "namedTest",
         "acceptanceStage", "pinBridgeStage", "streamCommand", "streamDispatch",
-        "connectionBoundaries",
+        "connectionBoundaries", "outputWitness",
     }
     if not set(diagnostic).issubset(allowed):
         raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
@@ -1726,7 +1800,34 @@ def _validate_failure_diagnostic(diagnostic: Mapping[str, object]) -> None:
             or exception_type != "java.lang.AssertionError"
             or type(boundaries) is not dict
             or set(boundaries) != set(_CONNECTION_BOUNDARY_KEYS)
-            or any(type(value) is not bool for value in boundaries.values())
+            or any(
+                type(boundaries[key]) is not bool
+                for key in _CONNECTION_BOUNDARY_BOOLEAN_KEYS
+            )
+            or type(boundaries["failureStage"]) is not str
+            or boundaries["failureStage"] not in _CONNECTION_FAILURE_STAGES
+            or type(boundaries["failureSignal"]) is not str
+            or boundaries["failureSignal"] not in _CONNECTION_FAILURE_SIGNALS
+            or (
+                boundaries["stageFailed"]
+                != (boundaries["failureStage"] != "none")
+            )
+            or (
+                boundaries["stageFailed"]
+                != (boundaries["failureSignal"] != "none")
+            )
+        ):
+            raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
+    if "outputWitness" in diagnostic:
+        output = diagnostic["outputWitness"]
+        if (
+            code != "instrumentation_test_failure"
+            or counts != {"tests": 1, "failures": 1, "errors": 0, "skipped": 0}
+            or stage != "firstStreamOutput"
+            or exception_type != "java.lang.AssertionError"
+            or type(output) is not dict
+            or set(output) != {"renderedFrameObserved", "acceptedAudioObserved"}
+            or any(type(value) is not bool for value in output.values())
         ):
             raise StreamAcceptanceFailure("Android stream public diagnostic is invalid")
 
@@ -1932,19 +2033,6 @@ def write_receipt(
         os.close(descriptor)
 
 
-def _run_tone(
-    owned: OwnedSunshineHost,
-    tone: Path,
-    state: dict[str, object],
-    cancelled: threading.Event,
-) -> None:
-    try:
-        inject_owned_tone(owned, tone, cancelled=cancelled.is_set)
-        state["injected"] = True
-    except BaseException as error:
-        state["failure"] = error
-
-
 def _run() -> int:
     version = emulator_version()
     moonlight_package = package_identity()
@@ -1978,14 +2066,9 @@ def _run() -> int:
             nonce=nonce,
             paired_client_uuid=lambda: bridge.paired_client_uuid,
             gamepad=gamepad,
+            tone=tone,
         )
         xi2 = Xi2KeyWitness(owned)
-        tone_state: dict[str, object] = {}
-        tone_cancelled = threading.Event()
-        tone_thread = threading.Thread(
-            target=_run_tone, args=(owned, tone, tone_state, tone_cancelled),
-            name="f60-owned-tone", daemon=True,
-        )
         try:
             bridge.start()
             install_adb_reverse(bridge.host_port)
@@ -1996,7 +2079,6 @@ def _run() -> int:
             )
             control_reverse_installed = True
             xi2.start()
-            tone_thread.start()
             with tempfile.TemporaryDirectory(prefix="f60-stream-gradle-", dir=runner_temp) as temporary:
                 gradle = materialized_gradle_command(
                     Path(temporary) / "launcher", project_android=ROOT / "android",
@@ -2055,17 +2137,9 @@ def _run() -> int:
                 )
                 raise
             phase_bridge.wait()
-            tone_thread.join(timeout=CONTROL_TIMEOUT_SECONDS)
-            if tone_thread.is_alive() or tone_state.get("injected") is not True:
-                raise StreamAcceptanceFailure("owned audio injection proof is incomplete") from tone_state.get("failure")
             xi2.wait()
         finally:
             cleanup_error: Optional[BaseException] = None
-            tone_cancelled.set()
-            if tone_thread.is_alive():
-                tone_thread.join(timeout=12)
-            if tone_thread.is_alive():
-                cleanup_error = StreamAcceptanceFailure("owned audio injector cleanup failed")
             if control_reverse_installed:
                 try:
                     remove_adb_reverse(android_port=ANDROID_CONTROL_PORT)

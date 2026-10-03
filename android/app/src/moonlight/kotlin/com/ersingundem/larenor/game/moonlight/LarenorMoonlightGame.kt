@@ -19,6 +19,7 @@ import java.io.FileOutputStream
 /** The actual upstream MediaCodec/audio/input activity behind an opaque launch token. */
 class LarenorMoonlightGame : Game() {
     private var launchToken: String? = null
+    private var launchAppName: String? = null
     private var scoped: MoonlightScopedContext? = null
     private var resumed = false
     private var topResumed = false
@@ -30,6 +31,7 @@ class LarenorMoonlightGame : Game() {
         @Suppress("DEPRECATION")
         requireLaunchDisplay(spec.displayId, windowManager.defaultDisplay.displayId)
         launchToken = token
+        launchAppName = spec.appName
         scoped = MoonlightScopedContext.create(applicationContext, spec.authority.scope)
         intent.apply {
             removeExtra(EXTRA_LAUNCH_TOKEN)
@@ -136,7 +138,19 @@ class LarenorMoonlightGame : Game() {
     }
 
     override fun stageFailed(stage: String?, portFlags: Int, errorCode: Int) {
-        launchToken?.let(MoonlightForegroundLeaseRegistry::stageFailed)
+        val failure = classifyMoonlightConnectionFailure(
+            stage,
+            launchAppName,
+            portFlags,
+            errorCode,
+        )
+        launchToken?.let {
+            MoonlightForegroundLeaseRegistry.stageFailed(
+                it,
+                failure.first,
+                failure.second,
+            )
+        }
         super.stageFailed(stage, portFlags, errorCode)
     }
 
@@ -162,12 +176,17 @@ class LarenorMoonlightGame : Game() {
         launchToken?.let(MoonlightForegroundLeaseRegistry::videoFrameRendered)
     }
 
-    override fun onAudioPcmWritten(requestedSamples: Int, writtenSamples: Int) {
+    override fun onAudioPcmWritten(
+        requestedSamples: Int,
+        writtenSamples: Int,
+        containsNonZeroPcm: Boolean,
+    ) {
         launchToken?.let {
             MoonlightForegroundLeaseRegistry.audioPcmWritten(
                 it,
                 requestedSamples,
                 writtenSamples,
+                containsNonZeroPcm,
             )
         }
     }
@@ -184,6 +203,7 @@ class LarenorMoonlightGame : Game() {
             runCatching { MoonlightForegroundLeaseRegistry.gameDestroyed(it) }
         }
         scoped = null
+        launchAppName = null
         super.onDestroy()
     }
 
@@ -221,6 +241,37 @@ class LarenorMoonlightGame : Game() {
     companion object {
         const val EXTRA_LAUNCH_TOKEN = "com.ersingundem.larenor.game.moonlight.LAUNCH_TOKEN"
     }
+}
+
+internal fun classifyMoonlightConnectionFailure(
+    stage: String?,
+    appName: String?,
+    portFlags: Int,
+    errorCode: Int,
+): Pair<MoonlightConnectionFailureStage, MoonlightConnectionFailureSignal> {
+    val failureStage = when {
+        stage != null && stage == appName -> MoonlightConnectionFailureStage.PROVIDER_LAUNCH
+        stage == "platform initialization" -> MoonlightConnectionFailureStage.PLATFORM_INIT
+        stage == "name resolution" -> MoonlightConnectionFailureStage.NAME_RESOLUTION
+        stage == "audio stream initialization" -> MoonlightConnectionFailureStage.AUDIO_INIT
+        stage == "RTSP handshake" -> MoonlightConnectionFailureStage.RTSP_HANDSHAKE
+        stage == "control stream initialization" -> MoonlightConnectionFailureStage.CONTROL_INIT
+        stage == "video stream initialization" -> MoonlightConnectionFailureStage.VIDEO_INIT
+        stage == "input stream initialization" -> MoonlightConnectionFailureStage.INPUT_INIT
+        stage == "control stream establishment" -> MoonlightConnectionFailureStage.CONTROL_START
+        stage == "video stream establishment" -> MoonlightConnectionFailureStage.VIDEO_START
+        stage == "audio stream establishment" -> MoonlightConnectionFailureStage.AUDIO_START
+        stage == "input stream establishment" -> MoonlightConnectionFailureStage.INPUT_START
+        else -> MoonlightConnectionFailureStage.UNCLASSIFIED
+    }
+    val failureSignal = when {
+        portFlags != 0 && errorCode != 0 ->
+            MoonlightConnectionFailureSignal.TRANSPORT_PORTS_AND_REPORTED_CODE
+        portFlags != 0 -> MoonlightConnectionFailureSignal.TRANSPORT_PORTS
+        errorCode != 0 -> MoonlightConnectionFailureSignal.REPORTED_CODE
+        else -> MoonlightConnectionFailureSignal.UNSPECIFIED
+    }
+    return failureStage to failureSignal
 }
 
 internal fun secureMoonlightWindow(activity: android.app.Activity) {

@@ -217,7 +217,7 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             value = {
                 "aarSha256": expected_digest,
                 "classesSha256": "b" * 64,
-                "engineRevision": "moonlight-android-12.2-larenor-embed-v3",
+                "engineRevision": "moonlight-android-12.2-larenor-embed-v4",
                 "sourceCommit": "b48494cb96bff23d8886c4775cc4f39a1075495d",
                 "sourceTree": "c" * 40,
             }
@@ -225,11 +225,11 @@ class SunshineAndroidDiscoveryReportTest(unittest.TestCase):
             self.assertEqual(expected_digest, package_identity(aar, receipt)["aarSha256"])
             # The same AAR hash cannot make a receipt from the previous,
             # non-cancellable native engine satisfy the current runtime gate.
-            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v2"
+            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v3"
             receipt.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(DiscoveryAcceptanceFailure):
                 package_identity(aar, receipt)
-            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v3"
+            value["engineRevision"] = "moonlight-android-12.2-larenor-embed-v4"
             value["aarSha256"] = "d" * 64
             receipt.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(DiscoveryAcceptanceFailure):

@@ -221,13 +221,21 @@ class MoonlightOwnedSunshineStreamTest {
 
                 val streaming = command(value, authority, session, "stream", "stream")
                 assertStreamCommandObserved(value, authority, nativeBinding, session, streaming)
-
-                val witness = awaitWitness(value, authority, session)
-                assertEquals(1, witness.renderedFrameCount)
-                assertEquals(1, witness.acceptedAudioWriteCount)
-                val firstGame = currentOwnedGame()
-                dispatchOwnedKeyA(firstGame)
                 OwnedControlClient(nonce, CONTROL_PORT).use { control ->
+                    val baseline = value.outputWitness(
+                        authority, session.sessionId, session.sessionRevision,
+                    )
+                    assertEquals(
+                        "owned audio must begin only after the exact post-connection arm",
+                        0,
+                        baseline.acceptedAudioWriteCount,
+                    )
+                    control.exchange("audio_ready", "audio_armed")
+                    val witness = awaitWitness(value, authority, session)
+                    assertEquals(1, witness.renderedFrameCount)
+                    assertEquals(1, witness.acceptedAudioWriteCount)
+                    val firstGame = currentOwnedGame()
+                    dispatchOwnedKeyA(firstGame)
                     control.exchange("touch_ready", "touch_armed")
                     dispatchOwnedTouchAndMouse(firstGame)
                     control.exchange("touch_sent", "touch_observed")
@@ -260,6 +268,17 @@ class MoonlightOwnedSunshineStreamTest {
                     assertEquals("native_observed", reconnected.state)
                     assertEquals("streaming", reconnected.result)
                     assertEquals("connectionStarted", reconnected.observationKind)
+                    val secondBaseline = value.outputWitness(
+                        authority,
+                        disconnectedSession.sessionId,
+                        disconnectedSession.sessionRevision,
+                    )
+                    assertEquals(
+                        "successor audio must begin only after its exact post-connection arm",
+                        0,
+                        secondBaseline.acceptedAudioWriteCount,
+                    )
+                    control.exchange("audio_ready", "audio_armed")
                     val secondWitness = awaitWitness(value, authority, disconnectedSession)
                     assertEquals(1, secondWitness.renderedFrameCount)
                     assertEquals(1, secondWitness.acceptedAudioWriteCount)
@@ -418,10 +437,11 @@ class MoonlightOwnedSunshineStreamTest {
             runtime.connectionBoundaryDiagnostic(authority, session.sessionId, session.sessionRevision)
         }.getOrNull()
         val boundaryMarker = boundaries?.let {
-            "\nF60_CONNECTION_BOUNDARIES_V1|surfaceCreated=${it.surfaceCreated}|" +
+            "\nF60_CONNECTION_BOUNDARIES_V2|surfaceCreated=${it.surfaceCreated}|" +
                 "positiveSurfaceChanged=${it.positiveSurfaceChanged}|stageStarted=${it.stageStarted}|" +
                 "stageCompleted=${it.stageCompleted}|stageFailed=${it.stageFailed}|" +
-                "connectionStarted=${it.connectionStarted}"
+                "connectionStarted=${it.connectionStarted}|" +
+                "failureStage=${it.failureStage.wireName}|failureSignal=${it.failureSignal.wireName}"
         }.orEmpty()
         throw AssertionError(
             "F60_STREAM_COMMAND_V1|state=$state|result=$result|kind=$kind|" +
@@ -443,8 +463,9 @@ class MoonlightOwnedSunshineStreamTest {
             SystemClock.sleep(POLL_MILLIS)
         }
         throw AssertionError(
-            "exact session did not produce rendered-frame and accepted-PCM witnesses: " +
-                "frame=${last?.renderedFrameCount ?: 0},audio=${last?.acceptedAudioWriteCount ?: 0}",
+            "F60_OUTPUT_WITNESS_V1|" +
+                "renderedFrameObserved=${last?.renderedFrameCount == 1}|" +
+                "acceptedAudioObserved=${last?.acceptedAudioWriteCount == 1}",
         )
     }
 

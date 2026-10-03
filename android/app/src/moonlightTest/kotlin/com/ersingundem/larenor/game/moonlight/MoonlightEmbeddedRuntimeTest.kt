@@ -122,10 +122,13 @@ class MoonlightEmbeddedRuntimeTest {
             "onVideoFrameRendered", Long::class.javaPrimitiveType, Long::class.javaPrimitiveType,
         ))
         assertNotNull(Game::class.java.getDeclaredMethod(
-            "onAudioPcmWritten", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+            "onAudioPcmWritten",
+            Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType,
         ))
         assertEquals(
-            "moonlight-android-12.2-larenor-embed-v3",
+            "moonlight-android-12.2-larenor-embed-v4",
             MoonlightEmbeddedRuntime.ENGINE_REVISION,
         )
     }
@@ -321,13 +324,14 @@ class MoonlightEmbeddedRuntimeTest {
         MoonlightForegroundLeaseRegistry.claim(first.token, activity())
 
         assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
-        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8, true))
         MoonlightForegroundLeaseRegistry.connectionStarted(first.token)
         shadowOf(Looper.getMainLooper()).idle()
         repeat(10) { MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token) }
-        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 0))
-        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 4))
-        repeat(10) { MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8) }
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 0, true))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 4, true))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8, false))
+        repeat(10) { MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8, true) }
         assertEquals(
             MoonlightOutputWitnessSnapshot(first.sessionId, first.epoch, 1, 1),
             MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(first.token),
@@ -336,7 +340,7 @@ class MoonlightEmbeddedRuntimeTest {
 
         MoonlightForegroundLeaseRegistry.retireSession(first.sessionId, first.epoch)
         assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
-        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8, true))
         MoonlightForegroundLeaseRegistry.connectionStopStarted(first.token)
         MoonlightForegroundLeaseRegistry.connectionStopped(first.token)
 
@@ -344,7 +348,7 @@ class MoonlightEmbeddedRuntimeTest {
             launchSpec().copy(sessionId = ids.getValue(9), epoch = 2),
         )
         assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
-        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8))
+        assertEquals(null, MoonlightForegroundLeaseRegistry.audioPcmWritten(first.token, 8, 8, true))
         assertEquals(MoonlightOutputWitnessSnapshot(successor.sessionId, successor.epoch, 0, 0),
             MoonlightForegroundLeaseRegistry.outputWitnessSnapshot(successor.token))
     }
@@ -371,7 +375,11 @@ class MoonlightEmbeddedRuntimeTest {
         MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 1280, 720)
         MoonlightForegroundLeaseRegistry.stageStarted(first.token)
         MoonlightForegroundLeaseRegistry.stageCompleted(first.token)
-        MoonlightForegroundLeaseRegistry.stageFailed(first.token)
+        MoonlightForegroundLeaseRegistry.stageFailed(
+            first.token,
+            MoonlightConnectionFailureStage.RTSP_HANDSHAKE,
+            MoonlightConnectionFailureSignal.TRANSPORT_PORTS_AND_REPORTED_CODE,
+        )
         reject("foreground_required") {
             MoonlightForegroundLeaseRegistry.connectionStarted(first.token)
         }
@@ -384,6 +392,20 @@ class MoonlightEmbeddedRuntimeTest {
         assertTrue(pending.stageCompleted)
         assertTrue(pending.stageFailed)
         assertTrue(pending.connectionStarted)
+        assertEquals(MoonlightConnectionFailureStage.RTSP_HANDSHAKE, pending.failureStage)
+        assertEquals(
+            MoonlightConnectionFailureSignal.TRANSPORT_PORTS_AND_REPORTED_CODE,
+            pending.failureSignal,
+        )
+        MoonlightForegroundLeaseRegistry.stageFailed(
+            first.token,
+            MoonlightConnectionFailureStage.AUDIO_START,
+            MoonlightConnectionFailureSignal.UNSPECIFIED,
+        )
+        assertEquals(
+            pending,
+            MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(first.token),
+        )
         assertEquals(unchangedRevision, MoonlightForegroundLeaseRegistry.snapshot(first.token).readbackRevision)
         assertTrue(observations.isEmpty())
         assertEquals(null, MoonlightForegroundLeaseRegistry.videoFrameRendered(first.token))
@@ -398,7 +420,14 @@ class MoonlightEmbeddedRuntimeTest {
         assertEquals(listOf("connectionStarted"), observations.map { it.observationKind })
 
         MoonlightForegroundLeaseRegistry.retireSession(first.sessionId, first.epoch)
-        assertEquals(null, MoonlightForegroundLeaseRegistry.stageFailed(first.token))
+        assertEquals(
+            null,
+            MoonlightForegroundLeaseRegistry.stageFailed(
+                first.token,
+                MoonlightConnectionFailureStage.RTSP_HANDSHAKE,
+                MoonlightConnectionFailureSignal.REPORTED_CODE,
+            ),
+        )
         assertEquals(null, MoonlightForegroundLeaseRegistry.connectionBoundarySnapshot(first.token))
         assertEquals(null, MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(first.token))
         MoonlightForegroundLeaseRegistry.connectionStopStarted(first.token)
@@ -437,6 +466,59 @@ class MoonlightEmbeddedRuntimeTest {
                 connectionStarted = false,
             ),
             MoonlightForegroundLeaseRegistry.terminalConnectionBoundarySnapshot(successor.token),
+        )
+    }
+
+    @Test fun connectionFailureClassifierUsesOnlyPinnedFiniteStagesAndSignalPresence() {
+        val stages = mapOf(
+            "Desktop" to MoonlightConnectionFailureStage.PROVIDER_LAUNCH,
+            "platform initialization" to MoonlightConnectionFailureStage.PLATFORM_INIT,
+            "name resolution" to MoonlightConnectionFailureStage.NAME_RESOLUTION,
+            "audio stream initialization" to MoonlightConnectionFailureStage.AUDIO_INIT,
+            "RTSP handshake" to MoonlightConnectionFailureStage.RTSP_HANDSHAKE,
+            "control stream initialization" to MoonlightConnectionFailureStage.CONTROL_INIT,
+            "video stream initialization" to MoonlightConnectionFailureStage.VIDEO_INIT,
+            "input stream initialization" to MoonlightConnectionFailureStage.INPUT_INIT,
+            "control stream establishment" to MoonlightConnectionFailureStage.CONTROL_START,
+            "video stream establishment" to MoonlightConnectionFailureStage.VIDEO_START,
+            "audio stream establishment" to MoonlightConnectionFailureStage.AUDIO_START,
+            "input stream establishment" to MoonlightConnectionFailureStage.INPUT_START,
+            "private provider stage" to MoonlightConnectionFailureStage.UNCLASSIFIED,
+        )
+        stages.forEach { (stage, expected) ->
+            assertEquals(
+                expected,
+                classifyMoonlightConnectionFailure(stage, "Desktop", 0, 0).first,
+            )
+        }
+        assertEquals(
+            MoonlightConnectionFailureStage.UNCLASSIFIED,
+            classifyMoonlightConnectionFailure(null, "Desktop", 0, 0).first,
+        )
+        assertEquals(
+            MoonlightConnectionFailureSignal.UNSPECIFIED,
+            classifyMoonlightConnectionFailure("Desktop", "Desktop", 0, 0).second,
+        )
+        assertEquals(
+            MoonlightConnectionFailureSignal.TRANSPORT_PORTS,
+            classifyMoonlightConnectionFailure("Desktop", "Desktop", 1, 0).second,
+        )
+        assertEquals(
+            MoonlightConnectionFailureSignal.REPORTED_CODE,
+            classifyMoonlightConnectionFailure("Desktop", "Desktop", 0, -1).second,
+        )
+        assertEquals(
+            MoonlightConnectionFailureSignal.TRANSPORT_PORTS_AND_REPORTED_CODE,
+            classifyMoonlightConnectionFailure("Desktop", "Desktop", 1, -1).second,
+        )
+        assertEquals(
+            MoonlightConnectionFailureStage.PROVIDER_LAUNCH,
+            classifyMoonlightConnectionFailure(
+                "RTSP handshake",
+                "RTSP handshake",
+                0,
+                0,
+            ).first,
         )
     }
 
@@ -502,7 +584,11 @@ class MoonlightEmbeddedRuntimeTest {
             MoonlightForegroundLeaseRegistry.positiveSurfaceChanged(first.token, 1280, 720)
             MoonlightForegroundLeaseRegistry.stageStarted(first.token)
             MoonlightForegroundLeaseRegistry.stageCompleted(first.token)
-            MoonlightForegroundLeaseRegistry.stageFailed(first.token)
+            MoonlightForegroundLeaseRegistry.stageFailed(
+                first.token,
+                MoonlightConnectionFailureStage.VIDEO_START,
+                MoonlightConnectionFailureSignal.TRANSPORT_PORTS,
+            )
             val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get().also {
                 it.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             }

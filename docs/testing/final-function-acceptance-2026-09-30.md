@@ -24,6 +24,17 @@ Changed-source exact `42be601ed8182197252ecd0550a59411fc0cdab3` [strict RDP run 
 
 [Retention evidence](final-function-retention-review-2026-10-01.md), [actual product build](product-android-dual-native-actual-build-2026-10-01.md), [F60 source/diagnostic proof](f60-pin-delivery-pairing-stage-2026-10-01.md), [complete production feature matrix](final-function-feature-matrix-2026-09-30.md).
 
+3 October changed-source integration: actual embed-v4 + FreeRDP schema3
+product mount passed all receipt/API/ABI gates; root112 JVM tests
+(47 Moonlight +65 RDP, including9 failure-open diagnostics) passed with
+zero skips/failures/errors, and AndroidTest Kotlin compilation passed314tasks.
+Root225tools/184subtests and Ruff passed. Output-audio software is implemented
+with actual OpenSL completion, while mic/SAF/Gateway software and changed-source
+strict stream/RDP runtime acceptance remain open. Latest exact7a53 Security
+run37122724149 passed; final combined HEAD CI remains necessary.
+[F60 v4](f60-nonzero-pcm-consumer-2026-10-03.md),
+[F62 open facts](f62-owned-open-boundaries-2026-10-03.md).
+
 ## Tarihsel yerel kabul tabanı — 30 Eylül
 
 Aşağıdaki sonuçlar önceki `06f5551a242aca47ebcf0f2476881e2deec5d1da` uygulama

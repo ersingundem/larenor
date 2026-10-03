@@ -45,7 +45,7 @@ REQUIRED_ENGINE_API = (
     {
         "class": GAME_CLASS,
         "name": "onAudioPcmWritten",
-        "descriptor": "(II)V",
+        "descriptor": "(IIZ)V",
         "access": "public",
     },
     {
@@ -116,7 +116,7 @@ def load_lock(path=LOCK_PATH):
     )
     _require(
         value["schemaVersion"] == 1
-        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v3",
+        and value["engineRevision"] == "moonlight-android-12.2-larenor-embed-v4",
         "invalid_lock",
     )
     upstream = value["upstream"]
@@ -162,7 +162,7 @@ def load_lock(path=LOCK_PATH):
         == [
             "pairing", "credentialStore", "boundedPairingCancellation",
             "video", "audio", "input", "stream",
-            "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
+            "causalStop", "renderedFrameWitness", "acceptedNonZeroPcmWriteWitness",
         ],
         "invalid_lock",
     )
@@ -201,7 +201,16 @@ def load_lock(path=LOCK_PATH):
         "invalid_lock",
     )
     patches = value["patches"]
-    _require(type(patches) is list and len(patches) == 1, "invalid_lock")
+    _require(
+        type(patches) is list
+        and all(type(item) is dict for item in patches)
+        and [item.get("path") for item in patches]
+        == [
+            "android/moonlight/patches/0001-embed-library.patch",
+            "android/moonlight/patches/0002-nonzero-pcm-witness.patch",
+        ],
+        "invalid_lock",
+    )
     for patch in patches:
         _require(
             set(patch) == {"path", "sha256"}
@@ -400,11 +409,29 @@ def verify_transformed_tree(root, lock):
         and "public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos)" in game,
         "rendered_frame_hook_missing",
     )
+    audio_markers = (
+        "int writtenSamples = track.write(audioData, 0, audioData.length);",
+        "writtenSamples > 0 && writtenSamples == audioData.length",
+        "boolean containsNonZeroPcm = false;",
+        "for (short sample : audioData)",
+        "if (sample != 0)",
+        "containsNonZeroPcm = true;",
+        "break;",
+        "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples,",
+        "containsNonZeroPcm);",
+    )
+    positions = []
+    cursor = 0
+    for marker in audio_markers:
+        position = audio.find(marker, cursor)
+        positions.append(position)
+        if position >= 0:
+            cursor = position + len(marker)
     _require(
-        "int writtenSamples = track.write(audioData, 0, audioData.length);" in audio
-        and "writtenSamples > 0 && writtenSamples == audioData.length" in audio
-        and "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);" in audio
-        and "public void onAudioPcmWritten(int requestedSamples, int writtenSamples)" in game,
+        all(position >= 0 for position in positions)
+        and "public void onAudioPcmWritten(int requestedSamples, int writtenSamples,"
+        in game
+        and "boolean containsNonZeroPcm)" in game,
         "accepted_pcm_hook_missing",
     )
 

@@ -28,6 +28,10 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
     def test_repository_lock_pins_complete_upstream_and_runtime_contract(self):
         lock = load_lock()
         self.assertEqual(
+            lock["engineRevision"],
+            "moonlight-android-12.2-larenor-embed-v4",
+        )
+        self.assertEqual(
             lock["upstream"]["commit"],
             "b48494cb96bff23d8886c4775cc4f39a1075495d",
         )
@@ -55,8 +59,16 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             {
                 "pairing", "credentialStore", "boundedPairingCancellation",
                 "video", "audio", "input", "stream",
-                "causalStop", "renderedFrameWitness", "acceptedPcmWriteWitness",
+                "causalStop", "renderedFrameWitness",
+                "acceptedNonZeroPcmWriteWitness",
             },
+        )
+        self.assertEqual(
+            [item["path"] for item in lock["patches"]],
+            [
+                "android/moonlight/patches/0001-embed-library.patch",
+                "android/moonlight/patches/0002-nonzero-pcm-witness.patch",
+            ],
         )
         self.assertEqual(
             [item["reportedVersion"] for item in lock["bundledNativeArchives"]],
@@ -92,6 +104,15 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             source.write_text("tampered\n")
             with self.assertRaisesRegex(PackageError, "dirty_source_tree"):
                 verify_source_tree(root, lock)
+
+    def test_lock_rejects_non_object_patch_entry_as_bounded_invalid_lock(self):
+        lock = json.loads((ROOT / "android/moonlight/source-lock.json").read_text())
+        lock["patches"] = [None]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source-lock.json"
+            path.write_text(json.dumps(lock))
+            with self.assertRaisesRegex(PackageError, "invalid_lock"):
+                load_lock(path)
 
     def test_transformation_keeps_full_engine_and_removes_standalone_entrypoints(self):
         lock = load_lock()
@@ -137,7 +158,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             with self.assertRaisesRegex(PackageError, "unexpected_aar_abi"):
                 package_receipt(mixed, lock)
 
-    def test_transformation_requires_actual_render_and_pcm_acceptance_hooks(self):
+    def test_transformation_requires_actual_render_and_nonzero_pcm_acceptance_hooks(self):
         lock = load_lock()
         for relative, marker, error in (
             (
@@ -147,7 +168,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             ),
             (
                 "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java",
-                "writtenSamples > 0 && writtenSamples == audioData.length",
+                "boolean containsNonZeroPcm = false;",
                 "accepted_pcm_hook_missing",
             ),
         ):
@@ -158,6 +179,15 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                 path.write_text(path.read_text().replace(marker, "removed witness hook"))
                 with self.assertRaisesRegex(PackageError, error):
                     verify_transformed_tree(root, lock)
+
+    def test_receipt_rejects_legacy_complete_write_only_pcm_hook(self):
+        lock = load_lock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            legacy = root / "legacy-pcm.aar"
+            self._aar(legacy, lock, include_nonzero_pcm_api=False)
+            with self.assertRaisesRegex(PackageError, "missing_engine_api"):
+                package_receipt(legacy, lock)
 
     def test_install_and_apk_require_receipted_native_and_dex_contracts(self):
         lock = load_lock()
@@ -227,7 +257,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             receipt_path = root / "receipt.json"
             self._aar(aar, lock)
             receipt = json.loads(json.dumps(package_receipt(aar, lock)))
-            receipt["patches"][0]["sha256"] = "0" * 64
+            receipt["patches"][1]["sha256"] = "0" * 64
             receipt_path.write_text(json.dumps(receipt))
 
             with self.assertRaisesRegex(PackageError, "receipt_mismatch"):
@@ -270,7 +300,8 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
             "protected void onConnectionStopStarted() {}\n"
             "protected void onConnectionStopCompleted() {}\n"
             "public void onVideoFrameRendered(long presentationTimeUs, long renderTimeNanos) {}\n"
-            "public void onAudioPcmWritten(int requestedSamples, int writtenSamples) {}\n"
+            "public void onAudioPcmWritten(int requestedSamples, int writtenSamples, "
+            "boolean containsNonZeroPcm) {}\n"
         )
         (root / "app/src/main/java/com/limelight/binding/video/MediaCodecDecoderRenderer.java").write_text(
             "if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {\n"
@@ -280,7 +311,12 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         (root / "app/src/main/java/com/limelight/binding/audio/AndroidAudioRenderer.java").write_text(
             "int writtenSamples = track.write(audioData, 0, audioData.length);\n"
             "if (writtenSamples > 0 && writtenSamples == audioData.length) {\n"
-            "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples);\n"
+            "boolean containsNonZeroPcm = false;\n"
+            "for (short sample : audioData) {\n"
+            "if (sample != 0) { containsNonZeroPcm = true; break; }\n"
+            "}\n"
+            "((Game) context).onAudioPcmWritten(audioData.length, writtenSamples, "
+            "containsNonZeroPcm);\n"
         )
 
     def _aar(
@@ -290,6 +326,7 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         extra_abi=None,
         include_current_api=True,
         include_cancel_api=True,
+        include_nonzero_pcm_api=True,
     ):
         classes = io.BytesIO()
         with zipfile.ZipFile(classes, "w") as jar:
@@ -297,7 +334,10 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
                 if name == "com/limelight/Game.class":
                     jar.writestr(
                         name,
-                        self._game_class(include_current_api=include_current_api),
+                        self._game_class(
+                            include_current_api=include_current_api,
+                            include_nonzero_pcm_api=include_nonzero_pcm_api,
+                        ),
                     )
                 elif name == "com/limelight/nvstream/http/NvHTTP.class":
                     jar.writestr(
@@ -340,13 +380,17 @@ class MoonlightAndroidPackageTest(unittest.TestCase):
         return bytes(value)
 
     @staticmethod
-    def _game_class(*, include_current_api):
+    def _game_class(*, include_current_api, include_nonzero_pcm_api=True):
         method_specs = []
         if include_current_api:
             method_specs = [
                 (0x0004 | 0x0100, "onConnectionStopCompleted", "()V"),
                 (0x0001 | 0x0100, "onVideoFrameRendered", "(JJ)V"),
-                (0x0001 | 0x0100, "onAudioPcmWritten", "(II)V"),
+                (
+                    0x0001 | 0x0100,
+                    "onAudioPcmWritten",
+                    "(IIZ)V" if include_nonzero_pcm_api else "(II)V",
+                ),
             ]
         return MoonlightAndroidPackageTest._class_file(
             "com/limelight/Game", method_specs,

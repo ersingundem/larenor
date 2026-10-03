@@ -5516,14 +5516,6 @@
         },
         {
           "kind": "test",
-          "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
-          "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
-          "state": "completed",
-          "result": "passed",
-          "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
-        },
-        {
-          "kind": "test",
           "ref": "docs/testing/f60-pin-delivery-pairing-stage-2026-10-01.md",
           "commit": "36cbe3a1febc7964fcfe8f5f7c2f2701a23530f6",
           "state": "completed",
@@ -5737,10 +5729,18 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact5122 FAILED original1/1/0/0 firstStreamOutput; surfaceCreated/positiveSurfaceChanged/stageStarted/stageCompleted/stageFailed true, connectionStarted false; pairedClientObserved, leaseGameVisible, timeout/unknown_effect. Rootcanonical1561B artifact11274220421 SHA606cf18c1151f8acadd633595c4300f4b8dc5433b7edd0b50b104f1e42bfbe65; no sole cause claimed."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-nonzero-pcm-consumer-2026-10-03.md",
+          "commit": "e06c97f4af6bde0f909027a3ab4749eed3b4295a",
+          "state": "completed",
+          "result": "passed",
+          "label": "Frozen working tree on e06c97f4 base: actual embed-v4 dualABI AAR/compiled IIZ hook source/receipt verified; root47Moonlight JVM/0skip/failure/error + actual AndroidTest compile314tasks; root225tools/184subtests. Closed stage enums and per-lifetime nonce-arm nonzero output; hosted stream remains open."
         }
       ],
       "completionCommit": null,
-      "reason": "Yeniden çalışılıyor. Normal Başlat launch→verified→fresh stream ve Game-owned spinner claim düzeltmeleri root11+1/48native/AndroidTest compile ile tamamlandı. Exacta8/run36835162847 başarısız tamamlandı: original1/1/0/0 firstStreamOutput; bridge pairedClientObserved, lease gameVisible, dispatch timeout/runtime unknown_effect. Root canonical1397B artifact11149980532 kimlik/hash/closed schema doğruladı. Oyun Activity sahipliği kurulmuş; gerekli connectionStarted 30sn içinde gözlenmemiş. Surface/HTTP/native start/callback sınırlarından hangisinin neden olduğu kanıtlanmadı. Gerçek frame/PCM/input/iki yaşam/close kabulü açık; aynıSHA kör rerun yok. Son birleşik CI ve gerçek receiver MANUAL ayrı; CI bekliyor/done sayılmaz. Yeni exact-token altı gerçek Game callback tanısı root46JVM, AndroidTestcompile,54runner/36subtest ve10workflow/12subtest ile geçti; yalnız failure-only yerel kanıt, strict runtime kabulü değildir. Exact5122/run37121179343 original1/1/0/0 başarısız: surface/stageStarted/stageCompleted/stageFailed=true, connectionStarted=false; rootcanonical1561B doğrulandı. Bağlantı hata sınırı incelemede. Post-connection ownedtone yarışı ayrı düzeltiliyor; bu koşunun nedeni olduğu iddia edilmez."
+      "reason": "Yeniden çalışılıyor. Embed-v4 gerçek iki-ABI paket ve compiled IIZ hook doğrulandı; yalnız exact active lease tam nonzero PCM yazısı kanıt sayılır, sessiz/partial/stale/retired/successor yazılar sayılmaz. Owned kabul iki exact session için sıfır nonzero baseline sonrası ayrı nonce-bound birer tone gönderir, retry/replay yok. Root47Moonlight JVM/0skip ve actual AndroidTest314task,225composed tools/184subtests geçti. Gerçek stageFailed sınırı finite stage/signal enums ile yalnız source-bound original1/1/0/0 failureda yayımlanır; raw provider/code/port saklanmaz. Exact5122/run37121179343 firstStreamOutput başarısız, stageFailed=true/connectionStarted=false; kesin alt neden açık. Nonzero/tone düzeltmesi bu pre-connection hatasının çözümü diye sunulmaz. Yeni exact-source gerçek frame/nonzeroPCM/input/iki yaşam/close kabulü gerekli; CI bekliyor/done sayılmaz, fiziksel receiver MANUAL ayrı."
     },
     {
       "id": "G11",

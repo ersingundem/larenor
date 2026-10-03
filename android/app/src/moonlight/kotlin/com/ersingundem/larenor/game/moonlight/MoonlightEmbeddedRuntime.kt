@@ -2183,7 +2183,7 @@ class MoonlightEmbeddedRuntime internal constructor(
     private fun File.isSymbolicLink(): Boolean = Files.isSymbolicLink(toPath())
 
     companion object {
-        const val ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v3"
+        const val ENGINE_REVISION = "moonlight-android-12.2-larenor-embed-v4"
         const val PROVIDER = "moonlight-nvhttp"
         private const val MAX_CANDIDATES = 64
         private const val MAX_APPS = 256

@@ -102,6 +102,15 @@ These full named records were moved from the bounded F60/F62 queue evidence list
     "state": "completed",
     "result": "passed",
     "label": "Root51 runner/workflow/dependency checks,4subtests; actual required-native AndroidTest compile278tasks; before-teardown race RED/GREEN; runtime acceptance separate"
+  },
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/product-android-dual-native-actual-build-2026-10-01.md",
+    "commit": "55fb5f7c998d014347b20eafdec4c70cf60a1012",
+    "state": "completed",
+    "result": "passed",
+    "label": "Actual required-mode same two-ABI product APK verified; root24package and69focusednative passed. BroadJVM1manifest failure; hosted stream/RDP acceptance separate"
   }
 ]
 ```

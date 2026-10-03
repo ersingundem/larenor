@@ -31,16 +31,18 @@ certificate/key handling, computer database, MediaCodec video, audio,
 controller/input, stream protocol, resources, and native engine. It removes
 the standalone launcher intent and exported Moonlight entry points so the
 Larenor application remains the sole authenticated product surface.
-The patch also adds a protected causal-stop hook immediately after the actual
+The first patch also adds a protected causal-stop hook immediately after the actual
 `NvConnection.stop()` call returns. This is necessary because the pinned
 moonlight-common-c intentionally suppresses `connectionTerminated` for a local
 `LiStopConnection`; the hook does not treat Activity destruction as a stop.
-The patch also forwards two bounded, data-free output observations to the
+The patches also forward two bounded, data-free output observations to the
 embedding activity: Android's `MediaCodec.OnFrameRenderedListener` callback
 after a frame is rendered on the output surface, and a full positive return
-from the blocking PCM `AudioTrack.write()` call. It does not retain pixels or
-audio samples, and it does not present submitted decoder buffers, dropped
-audio, or Activity lifecycle as rendered/accepted output.
+from the blocking PCM `AudioTrack.write()` call together with a boolean that
+is true only when a finite scan found a nonzero decoded sample in that complete
+write. They do not retain pixels or audio samples. Submitted decoder buffers,
+dropped audio, all-zero decoded writes, and Activity lifecycle are not treated
+as rendered or audible output.
 
 Android defines `OnFrameRenderedListener` as notification that an output frame
 rendered on the surface, while noting that callbacks may be delayed, batched,
@@ -52,7 +54,8 @@ when playback cannot accept the complete request:
 - <https://developer.android.com/reference/android/media/AudioTrack#write(short[],%20int,%20int,%20int)>
 
 The complete corresponding source is the exact recursive checkout named by
-`source-lock.json`, plus `patches/0001-embed-library.patch`. The packaging tool
+`source-lock.json`, plus the ordered `patches/0001-embed-library.patch` and
+`patches/0002-nonzero-pcm-witness.patch`. The packaging tool
 can verify that checkout and produce a source archive containing those sources,
 the lock, patch, and this notice. Binaries must be distributed with that source
 archive and the applicable license texts.

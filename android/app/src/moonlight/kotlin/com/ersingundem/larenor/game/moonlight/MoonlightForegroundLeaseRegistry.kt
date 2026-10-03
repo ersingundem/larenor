@@ -17,6 +17,31 @@ enum class MoonlightLeaseState {
     UNCERTAIN,
 }
 
+enum class MoonlightConnectionFailureStage(val wireName: String) {
+    NONE("none"),
+    PROVIDER_LAUNCH("providerLaunch"),
+    PLATFORM_INIT("platformInit"),
+    NAME_RESOLUTION("nameResolution"),
+    AUDIO_INIT("audioInit"),
+    RTSP_HANDSHAKE("rtspHandshake"),
+    CONTROL_INIT("controlInit"),
+    VIDEO_INIT("videoInit"),
+    INPUT_INIT("inputInit"),
+    CONTROL_START("controlStart"),
+    VIDEO_START("videoStart"),
+    AUDIO_START("audioStart"),
+    INPUT_START("inputStart"),
+    UNCLASSIFIED("unclassified"),
+}
+
+enum class MoonlightConnectionFailureSignal(val wireName: String) {
+    NONE("none"),
+    UNSPECIFIED("unspecified"),
+    TRANSPORT_PORTS("transportPorts"),
+    REPORTED_CODE("reportedCode"),
+    TRANSPORT_PORTS_AND_REPORTED_CODE("transportPortsAndReportedCode"),
+}
+
 data class MoonlightLaunchSpec(
     val authority: MoonlightAuthority,
     val sessionId: String,
@@ -102,10 +127,16 @@ data class MoonlightConnectionBoundarySnapshot(
     val stageCompleted: Boolean,
     val stageFailed: Boolean,
     val connectionStarted: Boolean,
+    val failureStage: MoonlightConnectionFailureStage = MoonlightConnectionFailureStage.NONE,
+    val failureSignal: MoonlightConnectionFailureSignal = MoonlightConnectionFailureSignal.NONE,
 ) {
     init {
         requireIdentity(sessionId, "session_id")
         requireRevision(epoch, "revision")
+        require(
+            stageFailed == (failureStage != MoonlightConnectionFailureStage.NONE) &&
+                stageFailed == (failureSignal != MoonlightConnectionFailureSignal.NONE)
+        )
     }
 
     override fun toString(): String = "MoonlightConnectionBoundarySnapshot(<redacted>)"
@@ -150,6 +181,10 @@ object MoonlightForegroundLeaseRegistry {
         var stageStartedObserved: Boolean = false,
         var stageCompletedObserved: Boolean = false,
         var stageFailedObserved: Boolean = false,
+        var connectionFailureStage: MoonlightConnectionFailureStage =
+            MoonlightConnectionFailureStage.NONE,
+        var connectionFailureSignal: MoonlightConnectionFailureSignal =
+            MoonlightConnectionFailureSignal.NONE,
         var connectionStartedObserved: Boolean = false,
     )
 
@@ -239,8 +274,21 @@ object MoonlightForegroundLeaseRegistry {
         observeBoundary(token) { it.stageCompletedObserved = true }
 
     @Synchronized
-    fun stageFailed(token: String): MoonlightConnectionBoundarySnapshot? =
-        observeBoundary(token) { it.stageFailedObserved = true }
+    fun stageFailed(
+        token: String,
+        failureStage: MoonlightConnectionFailureStage,
+        failureSignal: MoonlightConnectionFailureSignal,
+    ): MoonlightConnectionBoundarySnapshot? {
+        require(failureStage != MoonlightConnectionFailureStage.NONE)
+        require(failureSignal != MoonlightConnectionFailureSignal.NONE)
+        return observeBoundary(token) {
+            if (!it.stageFailedObserved) {
+                it.stageFailedObserved = true
+                it.connectionFailureStage = failureStage
+                it.connectionFailureSignal = failureSignal
+            }
+        }
+    }
 
     @Synchronized
     internal fun connectionBoundarySnapshot(token: String): MoonlightConnectionBoundarySnapshot? {
@@ -272,8 +320,11 @@ object MoonlightForegroundLeaseRegistry {
         token: String,
         requestedSamples: Int,
         writtenSamples: Int,
+        containsNonZeroPcm: Boolean,
     ): MoonlightOutputWitnessSnapshot? {
-        if (requestedSamples <= 0 || writtenSamples != requestedSamples) return null
+        if (requestedSamples <= 0 || writtenSamples != requestedSamples || !containsNonZeroPcm) {
+            return null
+        }
         val entry = activeOutputEntry(token) ?: return null
         if (entry.acceptedAudioWriteCount < MAX_OUTPUT_WITNESS_COUNT) {
             entry.acceptedAudioWriteCount += 1
@@ -584,6 +635,8 @@ object MoonlightForegroundLeaseRegistry {
         stageCompleted = stageCompletedObserved,
         stageFailed = stageFailedObserved,
         connectionStarted = connectionStartedObserved,
+        failureStage = connectionFailureStage,
+        failureSignal = connectionFailureSignal,
     )
 
     private fun Entry.terminalSnapshot(): MoonlightTerminalWitnessSnapshot? {

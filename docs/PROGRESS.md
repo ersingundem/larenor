@@ -34,6 +34,19 @@ Mikrofon/gerçek SAF/Gateway için [kaynakla doğrulanmış kalan kapsam](testin
 açık; F62 yeniden çalışılıyor, sayaçlar değişmedi. Exact7a53 [Security37122724149](https://github.com/ersingundem/larenor/actions/runs/37122724149)
 başarılı tamamlandı; bu scoped sonuç final birleşik kabul değildir.
 
+F60 embed-v4 artık sessiz PCM'i çıktı kanıtı saymaz; gerçek renderer decoded
+bufferda nonzero kontrolü yapar ve yalnız kapalı boolean/counts callback yollar.
+İki ayrı exact oturumda sıfır nonzero baseline sonrası birer owned tone
+gönderilir, retry/replay yok. Root gerçek iki-ABI AAR/API/receipt/mount,
+**47 Moonlight JVM / 0skip**, actual AndroidTest **314task** derlemesi ve
+**225 tool / 184 subtest** doğruladı. Stage failure artık raw provider değerleri
+olmadan source-bound kapalı enum ile ayrılır. F60 yeniden çalışılıyor;
+5122'nin connectionStarted öncesi hatasını bu PCM düzeltmesi çözmüş saymıyoruz.
+[Consumer](testing/f60-nonzero-pcm-consumer-2026-10-03.md),
+[actual paket](testing/f60-nonzero-pcm-package-2026-10-03.md),
+[tone sahipliği](testing/f60-owned-tone-post-connection-2026-10-03.md),
+[stage tanısı](testing/f60-owned-connection-stage-2026-10-03.md).
+
 ## Tarihsel düzeltme ve koşu checkpointleri
 
 Aşağıdaki sayaçlar ve “sürüyor/düzeltiliyor” ifadeleri kendi kaynaklarının tarihsel durumudur; güncel durum yukarıdaki tablo ve execution queue'dur.
