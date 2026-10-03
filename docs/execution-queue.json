@@ -5586,28 +5586,12 @@
           "label": "Exacted912 changed HTTPS0 source: strict original1/1/0/0 failed; pairedClientObserved, unclassified, owned Game.kt frames57/48. Root canonical998B artifact11146891530 validated; underlying cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
-          "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
-          "state": "completed",
-          "result": "passed",
-          "label": "Pinned Moonlight merge root and AOSP attach rule source-verified; normal Activity attachment preserves private lease/storage/secure surface and actual callbacks; no runtime effects claimed"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36830633169",
           "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
           "state": "completed",
           "result": "failed",
           "label": "Exactd81 actual Sunshine stream failed original1/1/0/0 firstStreamOutput: leaseUncertain, callback unknown_effect; root canonical1394B artifact11147745861 verified. Local merge-layout fix remains proved; runtime cause separate"
-        },
-        {
-          "kind": "test",
-          "ref": "docs/testing/f60-normal-start-launch-stream-2026-10-01.md",
-          "commit": "07a803824e6b0770a4f9b81e247dd58d36351c35",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root11 controller tests plus1 actual normal Core TCP test and scoped analyze passed; launch/unknown/stop fences preserved, native effects still require strict runtime CI"
         },
         {
           "kind": "test",
@@ -5744,6 +5728,22 @@
           "state": "completed",
           "result": "failed",
           "label": "Exact5a715 diagnostic Linux observer probe failed at keyListener, before effects. Closed source-bound receipt; no narrower old cause proved. New key observer needs xmodmap; changed workflow installs exact x11-xserver-utils and finite failure code, root83tests+Ruff. No same-SHA retry or feature acceptance."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37136733239",
+          "commit": "15ba7702ba6290d606dbf7cac9114719b15052c8",
+          "state": "completed",
+          "result": "passed",
+          "label": "Exact15ba real Linux XI2 probe passed: keyObserved/keyListenerReaped/listenerReady/pointerAndButtonObserved=true, overlapFailure=xi2ChildExit, failureCode=none; private log SHA68a2e094d2ae7bfce7b7419cf08810436429e578170c3621e25fc4dd1d2b27a6. Diagnostic only, Android acceptance remains open."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37136853828",
+          "commit": "15ba7702ba6290d606dbf7cac9114719b15052c8",
+          "state": "in_progress",
+          "result": null,
+          "label": "Exact15ba full changed-source strict packaged Android Sunshine stream acceptance running after actual Linux observer handoff proof. Original named effects/counts/package/source receipt required; no acceptance promotion before terminal validation."
         }
       ],
       "completionCommit": null,
@@ -6013,14 +6013,6 @@
           "label": "Exact03f arm64 package passed; x86 original1/1/0/0 failed initialFrameWait/connectionFailed/sessionfailed, resizefalse. Root canonical1613B artifact11148012761 verified; marker invalid/writerunknown, precise cause unproved"
         },
         {
-          "kind": "test",
-          "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
-          "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
-          "state": "completed",
-          "result": "passed",
-          "label": "Root69 runner/workflow checks and pinned Ruff passed; neutral signalled state independently reviewed; actual AndroidTest compile277 passed; both sessions require Unicode negotiation, no text effect claim"
-        },
-        {
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/36836063548",
           "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
@@ -6155,6 +6147,14 @@
           "state": "completed",
           "result": "passed",
           "label": "Root45portable runner/workflow/fixture/immutable target tests, Ruff/actionlint passed owned real-build Gateway/RDPDR probe. Correct v2 mirror paths, static ELF/source private-copy, target NLA beforeTLS, exact drive policy; Linux build/runtime and Android actual effects pending. FeatureAccepted=false."
+        },
+        {
+          "kind": "ci",
+          "ref": "https://github.com/ersingundem/larenor/actions/runs/37136737506",
+          "commit": "15ba7702ba6290d606dbf7cac9114719b15052c8",
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact15ba owned Gateway Linux probe failed before runtime: Build pinned endpoints stageunsafeArchive. Job111242689243 log SHAaeb7baa7042c2c067086b3f01456f119dc34b01e9a299c435233f153858ff03b. Exact archive member diagnosis and narrow changed-source repair pending; no blind rerun or acceptance."
         }
       ],
       "completionCommit": null,

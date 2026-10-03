@@ -35,3 +35,5 @@ and explicitly declares `androidProductExercised=false`, `runtimeAccepted=false`
 and `featureAccepted=false`. Linux compile/link/runtime and Android Gateway/SAF
 upload/save/readback remain open. F62 is still `reworking`; no counter or merge
 change is justified by these local fixture gates.
+
+Exact `15ba7702ba6290d606dbf7cac9114719b15052c8` [37136737506](https://github.com/ersingundem/larenor/actions/runs/37136737506) completed failed before runtime: build stage `unsafeArchive`, actual job `111242689243`. Private bounded log SHA-256 `aeb7baa7042c2c067086b3f01456f119dc34b01e9a299c435233f153858ff03b`. The pinned archive is being inspected for the exact rejected member; no same-source rerun or acceptance claim.

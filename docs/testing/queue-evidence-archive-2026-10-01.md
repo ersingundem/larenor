@@ -319,3 +319,46 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+3 October exact15ba hosted probes archive (all CI retained):
+
+```json
+[
+  {
+    "node": "F60",
+    "kind": "review",
+    "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
+    "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
+    "state": "completed",
+    "result": "passed",
+    "label": "Pinned Moonlight merge root and AOSP attach rule source-verified; normal Activity attachment preserves private lease/storage/secure surface and actual callbacks; no runtime effects claimed"
+  },
+  {
+    "node": "F62",
+    "kind": "test",
+    "ref": "docs/testing/f62-owned-shadow-channels-2026-10-01.md",
+    "commit": "42be601ed8182197252ecd0550a59411fc0cdab3",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root69 runner/workflow checks and pinned Ruff passed; neutral signalled state independently reviewed; actual AndroidTest compile277 passed; both sessions require Unicode negotiation, no text effect claim"
+  }
+]
+```
+
+
+3 October exact15ba strict stream archive (CI retained):
+
+```json
+[
+  {
+    "node": "F60",
+    "kind": "test",
+    "ref": "docs/testing/f60-normal-start-launch-stream-2026-10-01.md",
+    "commit": "07a803824e6b0770a4f9b81e247dd58d36351c35",
+    "state": "completed",
+    "result": "passed",
+    "label": "Root11 controller tests plus1 actual normal Core TCP test and scoped analyze passed; launch/unknown/stop fences preserved, native effects still require strict runtime CI"
+  }
+]
+```

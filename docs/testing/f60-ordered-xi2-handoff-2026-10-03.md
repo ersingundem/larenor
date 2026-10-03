@@ -49,3 +49,5 @@ and the probe exports a finite keymap/spawn/effect failure code. Root **83 tests
 and Ruff passed; green log SHA-256 `fbcde7af4aeec83aea8782963f32fb3ae2c5f0cc7694e63a7b1731e7163e8a11`.
 A changed-source probe, not a same-SHA retry, is required. Full Android stream
 acceptance remains open.
+
+Changed exact `15ba7702ba6290d606dbf7cac9114719b15052c8` Linux probe [37136733239](https://github.com/ersingundem/larenor/actions/runs/37136733239) passed. Closed source-bound receipt proves actual key observed, key process reaped, pointer listener ready and real pointer/button effects; overlapping listener failed `xi2ChildExit`. `failureCode=none`, `featureAccepted=false`. Private log SHA-256 `68a2e094d2ae7bfce7b7419cf08810436429e578170c3621e25fc4dd1d2b27a6`. Full Android acceptance [37136853828](https://github.com/ersingundem/larenor/actions/runs/37136853828) now runs on the same changed source; the diagnostic probe is not feature acceptance.
