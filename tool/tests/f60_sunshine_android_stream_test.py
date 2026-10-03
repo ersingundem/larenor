@@ -1052,6 +1052,34 @@ class F60SunshineAndroidStreamTest(unittest.TestCase):
                 writer.close()
                 reader.close()
 
+    def test_pointer_handoff_requires_real_key_proof_and_reap_before_new_listener(self) -> None:
+        events = []
+        key = mock.Mock()
+        key.wait.side_effect = lambda timeout: events.append(("keyObserved", timeout))
+        key.close.side_effect = lambda: events.append(("keyReaped", None))
+        pointer = mock.Mock()
+        with mock.patch.object(
+            stream, "Xi2PointerWitness",
+            side_effect=lambda owned: events.append(("pointerCreated", owned)) or pointer,
+        ):
+            self.assertIs(pointer, stream._pointer_witness_after_owned_key("owned", key))
+        self.assertEqual([
+            ("keyObserved", stream.CONTROL_TIMEOUT_SECONDS),
+            ("keyReaped", None), ("pointerCreated", "owned"),
+        ], events)
+
+    def test_pointer_handoff_never_starts_after_missing_key_or_failed_reap(self) -> None:
+        for method in ("wait", "close"):
+            with self.subTest(method=method):
+                key = mock.Mock()
+                getattr(key, method).side_effect = stream.StreamAcceptanceFailure("owned failure")
+                with mock.patch.object(stream, "Xi2PointerWitness") as pointer:
+                    with self.assertRaises(stream.StreamAcceptanceFailure):
+                        stream._pointer_witness_after_owned_key("owned", key)
+                pointer.assert_not_called()
+                if method == "wait":
+                    key.close.assert_not_called()
+
     def test_pointer_listener_reports_child_exit_before_readiness(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             owned = _Owned(Path(temporary))

@@ -4,7 +4,7 @@
 
 **Teslim sırası:** FINAL.FUNCTION kabulü ve mevcut dalın exact HEAD zorunlu yeşil CI doğrulaması tamamlanınca `codex/project-completion-100` main’e birleşir. FINAL.UI güncel main’den açılan ayrı tek dalda başlar; diğer final maddeleri yine sırayla yürütülür. Henüz merge veya UI dalı açılmadı.
 
-**Görünür ara ilerleme:** F60 changed-source exact847 gerçek iki oturum koşusu sürüyor. F62 private composition root177native/0skip+AndroidTest compile315,145Flutter/analyze,Core25 ve portable22 geçti. Bağımsız incelemenin Gateway probe erişim kapısı root13native+23tablet ile düzeltildi; SAF kurtarma ve kalıcı parola temizliği açık düzeltmelerdir. Gerçek Gateway/dosya/ses/mikrofon etkileri kabul edilmeden sayaç değişmez. [Alt işler ve açık engeller](testing/function-live-work-2026-10-03.md), [yerel bileşim kanıtı](testing/f62-native5-composed-local-2026-10-03.md).
+**Görünür ara ilerleme:** F60 exact847 koşusu başarısız tamamlandı: `touchListener/failed/xi2ChildExit`. Çakışan XInput süreçleri için sıralı handoff düzeltmesi root82test+Ruff geçti; kısa gerçek Linux probe ve yeni Android kabulü açık. F62 private composition root177native/0skip+AndroidTest compile315,145Flutter/analyze,Core25 ve portable22 geçti. Gateway admission düzeltmesi13native+23tablet geçti; SAF cold recovery ve durable parola intent dilimleri bağımsız incelemede. Gerçek Gateway/dosya/ses/mikrofon etkileri kabul edilmeden sayaç değişmez. [Alt işler](testing/function-live-work-2026-10-03.md), [F60 hata ve düzeltme](testing/f60-ordered-xi2-handoff-2026-10-03.md).
 
 3 Ekim dar ilerleme: [exact a3f01 Linux input probe37130637087](https://github.com/ersingundem/larenor/actions/runs/37130637087) production XI2 observer ile gerçek pointer/düğme gözlemini geçti; receipt açıkça `featureAccepted=false`. Integrated Sunshine ACK/girdi/iki yaşam kabulü açık. F62 effect-control okuyucusu tek bounded read ile absent/unavailable ayrımını ve consume sonrası faz ilerlemesini koruyor; **84/84** runner/workflow ve Ruff geçti. Native v5 actual iki ABI derlemesi ve private Flutter **108/108**/23-file analyze geçti; karma ABI predecessor strict reddedildi; yeniden üretilen actual tek ABI paketleri ve root portatif22/22 geçti. Kotlin/native/SAF/Gateway birleşik kabulü açık; sayaçlar değişmedi. [Probe](testing/f60-owned-input-probe-2026-10-03.md), [reader](testing/f62-effect-control-read-2026-10-03.md).
 
@@ -35,7 +35,7 @@ Değişmiş kaynak kabul koşuları bir kez başlatıldı: [Sunshine exact79506 
 
 Main/kabul denetimi: **35** kayıtlı scoped kabulün kod karşılıkları main’de;25exact ancestry,6stable squash ve4incelenmiş sonraki içerik karşılığı. Main **32/35** satırı done gösteriyor; F06/F31 durumları ve F34 kapanış belgesi bu dalda. K07/K08 burada CI bekliyor olarak yeniden açıldı. Bu tamamlanma dalı henüz main’e birleşmedi. [Bağımsız ve root denetimi](testing/accepted-main-integration-audit-2026-10-03.md).
 
-Yeni F60 dinleyici kaynağı [exact847 strict37134249192](https://github.com/ersingundem/larenor/actions/runs/37134249192) bir kez başlatıldı; gerçek yayın kabulü bekleniyor, yerel80test sonucu kabul sayılmadı.
+F60 [exact847 strict37134249192](https://github.com/ersingundem/larenor/actions/runs/37134249192) başarısız tamamlandı: `xi2ChildExit`. Sıralı gözlemci handoff düzeltmesi82test+Ruff geçti; Linux probe ve yeni Android yayın kabulü açık. Yerel sonuç kabul sayılmadı.
 
 ## Güncel durum ayrımı
 

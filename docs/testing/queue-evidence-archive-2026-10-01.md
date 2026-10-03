@@ -276,3 +276,20 @@ These full named records were moved from the bounded F60/F62 queue evidence list
   }
 ]
 ```
+
+
+3 October ordered XI2 handoff evidence budget archive (CI retained):
+
+```json
+[
+  {
+    "node": "F60",
+    "kind": "review",
+    "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
+    "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
+    "state": "completed",
+    "result": "passed",
+    "label": "Independent3P1 findings fixed and root source reviewed; visible cold recovery, exact returnedid, refresh serialization and close-generation fences; providerstop notclaimed"
+  }
+]
+```

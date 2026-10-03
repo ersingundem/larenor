@@ -5586,14 +5586,6 @@
           "label": "Exacted912 changed HTTPS0 source: strict original1/1/0/0 failed; pairedClientObserved, unclassified, owned Game.kt frames57/48. Root canonical998B artifact11146891530 validated; underlying cause unproved"
         },
         {
-          "kind": "review",
-          "ref": "docs/testing/f60-uncertain-session-local-close-2026-10-01.md",
-          "commit": "a67f0d0e36ae87201edcf2252f96f7db0b00842b",
-          "state": "completed",
-          "result": "passed",
-          "label": "Independent3P1 findings fixed and root source reviewed; visible cold recovery, exact returnedid, refresh serialization and close-generation fences; providerstop notclaimed"
-        },
-        {
           "kind": "test",
           "ref": "docs/testing/f60-game-merge-layout-2026-10-01.md",
           "commit": "d81febad48e76b2f56997327e0d00e3b8f6d2b1e",
@@ -5741,13 +5733,21 @@
           "kind": "ci",
           "ref": "https://github.com/ersingundem/larenor/actions/runs/37134249192",
           "commit": "847b1f576ebab39ab92c9cd008c036a817672188",
-          "state": "in_progress",
-          "result": null,
-          "label": "Changed-source XI2 repair exact847: registered server-test f60-stream run37134249192 started once; exact SHA and actual stream job verified. Real two-lifetime Android stream acceptance pending; no old-source rerun."
+          "state": "completed",
+          "result": "failed",
+          "label": "Exact847 strict37134249192 failed: actual stream job111235402782, original1/1/0/0 ownedInputEffects; touchListener/failed/xi2ChildExit, pairedClientObserved. Canonical1154B SHA33acd7b895c22d5bd9b2a6ebc3fda29cf6053b51271e362188ea6077cd947044 validated. No same-source rerun or acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f60-ordered-xi2-handoff-2026-10-03.md",
+          "commit": "228c6d3a8cff8494e863b3d3022e4aef2d996f6c",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root82tests and scoped Ruff passed ordered key-proof/process-reap/pointer handoff. Upstream touch-selection conflict source verified; disposable real Linux topology probe pending. No weakened Android effects, feature acceptance or merge."
         }
       ],
       "completionCommit": null,
-      "reason": "Exact549 strict37131893719 başarısız: original1/1/0/0 ownedInputEffects, touchListener/failed/contract. XI2 uzun akışına yanlış toplam64KiB kotası kaynakla doğrulandı ve dar düzeltme root80test/72subtest+Ruff geçti; gerçek girdi kabulü gevşetilmedi. Eski hatanın tek nedeni kanıtlanmadı. Değişmiş exact847 gerçek iki oturum/yayın/girdi/kapanış run37134249192 sürüyor; aynı SHA rerun, kabul veya merge yok."
+      "reason": "Exact847 strict37134249192 başarısız: original1/1/0/0 ownedInputEffects; touchListener/failed/xi2ChildExit. İki XInput gözlemcisinin çakışan touch seçimi upstream kaynakla doğrulandı. Gerçek klavye kanıtı ve süreç kapanışı sonrası pointer handoff düzeltmesi root82test+Ruff geçti; gerçek Linux probe ve değişmiş Android iki yaşam/yayın/girdi/kapanış kabulü açık. Aynı SHA rerun, kabul veya merge yok."
     },
     {
       "id": "G11",

@@ -39,14 +39,23 @@ class OwnedPointerProbeTest(unittest.TestCase):
         server.poll.return_value = None
         server.wait.side_effect = subprocess.TimeoutExpired("owned Xvfb", 5)
         witness = Mock()
+        overlap = Mock()
+        key = Mock()
+        key.observed = True
+        key._process.poll.return_value = 0
         with patch.object(probe.platform, "system", return_value="Linux"), \
                 patch.object(probe.os.path, "lexists", return_value=False), \
                 patch.object(probe.subprocess, "Popen", return_value=server), \
                 patch.object(probe.subprocess, "run", return_value=Mock(returncode=0)), \
-                patch.object(probe, "Xi2PointerWitness", return_value=witness), \
+                patch.object(probe, "Xi2PointerWitness", return_value=overlap), \
+                patch.object(probe, "Xi2KeyWitness", return_value=key), \
+                patch.object(probe, "_pointer_witness_after_owned_key", return_value=witness), \
+                patch.object(probe, "_type_owned_key"), \
                 patch.object(probe, "_click_owned_display"):
             receipt = probe.run_probe()
         witness.close.assert_called_once()
+        overlap.close.assert_called_once()
+        key.close.assert_called_once()
         server.terminate.assert_called_once()
         server.kill.assert_called_once()
         self.assertEqual(receipt["result"], "failed")

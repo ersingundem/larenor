@@ -1026,6 +1026,20 @@ class Xi2PointerWitness:
             self._thread.join(timeout=1)
 
 
+def _pointer_witness_after_owned_key(
+    owned: OwnedSunshineHost,
+    key_witness: Xi2KeyWitness,
+    *,
+    timeout_seconds: float = CONTROL_TIMEOUT_SECONDS,
+) -> Xi2PointerWitness:
+    # xinput test-xi2 selects more than keyboard events on the root window.
+    # Keep one observer connection at a time: retain the real key proof and
+    # synchronously reap its process before the pointer observer selects events.
+    key_witness.wait(timeout_seconds)
+    key_witness.close()
+    return Xi2PointerWitness(owned)
+
+
 class PhaseControlBridge:
     """One authenticated private phase exchange for audio, input, and disconnect."""
 
@@ -2245,14 +2259,15 @@ def _run() -> int:
         tone = owned.material.root / "owned-tone.wav"
         write_owned_tone(tone)
         bridge = OneShotPinBridge(owned, nonce=nonce)
+        xi2 = Xi2KeyWitness(owned)
         phase_bridge = PhaseControlBridge(
             owned,
             nonce=nonce,
             paired_client_uuid=lambda: bridge.paired_client_uuid,
             gamepad=gamepad,
             tone=tone,
+            witness_factory=lambda current: _pointer_witness_after_owned_key(current, xi2),
         )
-        xi2 = Xi2KeyWitness(owned)
         try:
             bridge.start()
             install_adb_reverse(bridge.host_port)
