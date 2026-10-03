@@ -2,7 +2,6 @@
 
 from pathlib import Path
 import os
-import subprocess
 import sys
 import tempfile
 
@@ -14,17 +13,18 @@ from larenor_server.app import create_app
 from larenor_server.database import Database
 from larenor_server.errors import StartupError
 from support.installed_core_tcp import InstalledCoreTcp
+from support.named_flutter_acceptance import run_named_flutter
+
+
+TEST_FILE = "test/features/core_audit/core_audit_normal_core_test.dart"
+TEST_NAME = "real Client pins, rotates and compares Core audit across restart"
 
 
 def _flutter(fixture, checkpoint_file, phase):
     with InstalledCoreTcp(fixture[0]) as tcp:
-        return subprocess.run(
-            [
-                "flutter",
-                "test",
-                "--no-pub",
-                "test/features/core_audit/core_audit_normal_core_test.dart",
-            ],
+        counts = run_named_flutter(
+            test_file=TEST_FILE,
+            test_name=TEST_NAME,
             env={
                 **os.environ,
                 "LARENOR_CORE_AUDIT_URL": f"http://127.0.0.1:{tcp.port}",
@@ -32,8 +32,11 @@ def _flutter(fixture, checkpoint_file, phase):
                 "LARENOR_CORE_AUDIT_CHECKPOINT": str(checkpoint_file),
             },
             cwd=Path(__file__).resolve().parents[3],
-            check=False,
-        ).returncode
+            log_path=checkpoint_file.parent / f"f20-{phase}.machine.jsonl",
+            timeout_seconds=120,
+        )
+        print(f"F20 {phase}: named1 passed1 failures0 errors0 skipped0")
+        return 0 if counts["passed"] == 1 else 1
 
 
 def _tamper_must_not_reset(settings):

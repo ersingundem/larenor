@@ -3232,7 +3232,7 @@
       "kind": "task",
       "parent": "G01",
       "title": "Değiştirilmesi fark edilen işlem günlüğü",
-      "status": "reworking",
+      "status": "awaiting_ci",
       "dependsOn": [
         "B0",
         "B5",
@@ -3263,10 +3263,26 @@
           "state": "completed",
           "result": "failed",
           "label": "Frozen live-source routing audit: missing genuine drill component health/lifecycle (F16) and Client checkpoint failure regressions (F20); source-manifest-bound review only, no test or CI acceptance."
+        },
+        {
+          "kind": "test",
+          "ref": "docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md",
+          "commit": "bef70b4bca550a464fd6ccb2ec8822d69c4d5597",
+          "state": "completed",
+          "result": "passed",
+          "label": "Root five production Client negative regressions and two strict actual normal-Core Flutter lifetimes passed on reviewed shared source; no skip/failure/error. Scoped fault-boundary storage and uncertainty readback only; final CI/physical acceptance open."
+        },
+        {
+          "kind": "review",
+          "ref": "docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md",
+          "commit": "bef70b4bca550a464fd6ccb2ec8822d69c4d5597",
+          "state": "completed",
+          "result": "passed",
+          "label": "Independent frozen two-path acceptance review CLEAR for production controller/store lifetime, preserved trusted bytes, uncertain writes and fail-closed revision limits; not full platform/CI/feature acceptance."
         }
       ],
       "completionCommit": null,
-      "reason": "Kabul incelemesi P2: normal Core iki mutlu Client yaşamı ve Server integrity kanıtı var; production Client checkpoint corrupt/oversize, geç retirement callback, failed/uncertain write/rotation ve revision/limit failure trusted-checkpoint koruma regressions eksik. Bu kapılar yeniden geliştiriliyor; named runner required CI grafiğine henüz bağlı değil. Physical secure-store MANUAL ayrı. Kanıt: docs/testing/final-function-routing-audit-2026-10-03.md."
+      "reason": "Production Client checkpoint failure regressions5/5 root ortak kaynakta geçti: corrupt/oversize/extra-key/read failure, sign-out/dispose sonrası geç callback, failed/uncertain write, stale/max revision trusted-state koruması. İki strict actual Flutter/normal-Core pin/rotate/restart yaşamı ve independent CLEAR; production guardlar düzeltme gerektirmedi. Final-source named required CI kayıt/sonucu ve kabul bağımlılıkları açık. Physical secure-store MANUAL ve platform in-flight write belirsizliği ayrı. Kanıt: docs/testing/f20-normal-core-audit-acceptance-2026-09-30.md."
     },
     {
       "id": "F06",
@@ -6677,7 +6693,7 @@
         }
       ],
       "completionCommit": null,
-      "reason": "Yalnız bu final aktif. F04/F19 uygulama, odaklı gerçek Client/Core doğrulaması ve independent review tamamlandı; son CI ve kabul bağımlılıkları bekleniyor. F16/F20/F60/F62 yeniden çalışılıyor;56 seçili özellik/67 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam kriter/bağımlılık/review/final exactHEAD requiredCI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI ayrı tek dalda başlayacak."
+      "reason": "Yalnız bu final aktif. F04/F19/F20 uygulama, odaklı gerçek Client/Core doğrulaması ve independent review tamamlandı; son CI ve kabul bağımlılıkları bekleniyor. F16/F60/F62 yeniden çalışılıyor;57 seçili özellik/68 iş CI bekliyor. Kabul35/127 iş ve3/63 özellik değişmedi. Tam kriter/bağımlılık/review/final exactHEAD requiredCI yeşil olmadan merge yok. Sonra main ancestry/içerik doğrulanacak; FINAL.UI ayrı tek dalda başlayacak."
     },
     {
       "id": "FINAL.UI",
