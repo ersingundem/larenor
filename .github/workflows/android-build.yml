@@ -50,7 +50,7 @@ jobs:
         run: |
           echo 'Android/Flutter checks reused: this exact PR diff changes only Server or documentation files.' >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         if: steps.android_scope.outputs.run == 'true'
         with:
           distribution: temurin
@@ -107,7 +107,7 @@ jobs:
         id: test_evidence
         if: always() && steps.android_scope.outputs.run == 'true'
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-native-test-evidence
           path: |
@@ -134,7 +134,7 @@ jobs:
           fi
           grep -F "Release signing is not configured" release-signing-check.log
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # Main pushes publish the verified signed APK below. Keep large debug
         # downloads for explicit manual runs and PR troubleshooting only.
         if: steps.android_scope.outputs.run == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request')
@@ -184,7 +184,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         if: steps.signing.outputs.available == 'true'
         with:
           distribution: temurin
@@ -399,7 +399,7 @@ jobs:
 
       - name: Upload verified signed APK and public integrity metadata
         if: success() && steps.signing.outputs.available == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-signed-release-apk-${{ github.run_number }}
           path: |
